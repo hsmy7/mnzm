@@ -1,0 +1,49 @@
+{
+  "version": "1.0.0",
+  "name": "elite-longterm-memory",
+  "description": "终极AI助手记忆系统",
+  
+  "storage": {
+    "base_path": ".trae/memory",
+    "auto_record": true,
+    "max_memories": 10000,
+    "retention_days": 365
+  },
+  
+  "vector": {
+    "dimensions": 128,
+    "m": 16,
+    "ef_construction": 200,
+    "ef_search": 50,
+    "similarity_threshold": 0.3
+  },
+  
+  "wal": {
+    "buffer_size": 100,
+    "checkpoint_interval": 1000,
+    "auto_compact": true,
+    "compact_threshold": 10000
+  },
+  
+  "git": {
+    "enabled": true,
+    "notes_ref": "refs/notes/memory",
+    "auto_sync": false,
+    "sync_on_exit": true
+  },
+  
+  "cloud": {
+    "enabled": false,
+    "provider": "",
+    "encrypt": true,
+    "auto_backup": false,
+    "backup_interval_hours": 24
+  },
+  
+  "logging": {
+    "level": "INFO",
+    "file": ".trae/memory/memory.log",
+    "max_size_mb": 10,
+    "backup_count": 5
+  }
+}

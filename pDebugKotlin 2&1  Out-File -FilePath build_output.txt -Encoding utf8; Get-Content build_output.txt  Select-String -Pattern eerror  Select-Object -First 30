@@ -1,0 +1,165 @@
+warning: in the working copy of 'android/app/build.gradle', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'android/app/release/output-metadata.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'android/app/src/main/java/com/xianxia/sect/core/GameConfig.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'android/app/src/main/java/com/xianxia/sect/core/data/ItemDatabase.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'android/app/src/main/java/com/xianxia/sect/core/engine/GameEngine.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'android/app/src/main/java/com/xianxia/sect/core/engine/SectWarBattleSystem.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'android/app/src/main/java/com/xianxia/sect/core/model/CultivatorCave.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'android/app/src/main/java/com/xianxia/sect/core/model/Disciple.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'android/app/src/main/java/com/xianxia/sect/core/model/GameData.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'android/app/src/main/java/com/xianxia/sect/core/model/ModelConverters.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'android/app/src/main/java/com/xianxia/sect/core/model/WarTeam.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'android/app/src/main/java/com/xianxia/sect/data/local/DatabaseMigrations.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'android/app/src/main/java/com/xianxia/sect/data/local/GameDatabase.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'android/app/src/main/java/com/xianxia/sect/ui/MainActivity.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'android/app/src/main/java/com/xianxia/sect/ui/game/MainGameScreen.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'android/app/src/main/java/com/xianxia/sect/ui/game/WorldMapScreen.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'android/app/src/main/java/com/xianxia/sect/ui/game/components/AllianceDialog.kt', LF will be replaced by CRLF the next time Git touches it
+.gitignore
+.trae/specs/comprehensive-database-audit/checklist.md
+.trae/specs/comprehensive-database-audit/spec.md
+.trae/specs/comprehensive-database-audit/tasks.md
+".trae/specs/comprehensive-database-audit/\351\227\256\351\242\230\346\270\205\345\215\225.md"
+.trae/specs/comprehensive-game-system-audit/checklist.md
+.trae/specs/comprehensive-game-system-audit/spec.md
+.trae/specs/comprehensive-game-system-audit/tasks.md
+".trae/specs/comprehensive-game-system-audit/\344\277\256\345\244\215\346\226\271\346\241\210.md"
+".trae/specs/comprehensive-game-system-audit/\351\227\256\351\242\230\346\270\205\345\215\225.md"
+.trae/specs/comprehensive-ui-fixes/checklist.md
+.trae/specs/comprehensive-ui-fixes/spec.md
+.trae/specs/comprehensive-ui-fixes/tasks.md
+.trae/specs/disciple-death-team-slot/checklist.md
+.trae/specs/disciple-death-team-slot/spec.md
+.trae/specs/disciple-death-team-slot/tasks.md
+.trae/specs/fix-ai-alliance-count/checklist.md
+.trae/specs/fix-ai-alliance-count/spec.md
+.trae/specs/fix-ai-alliance-count/tasks.md
+.trae/specs/fix-alchemy-slot-display/checklist.md
+.trae/specs/fix-alchemy-slot-display/spec.md
+.trae/specs/fix-alchemy-slot-display/tasks.md
+.trae/specs/fix-alliance-display-logic/checklist.md
+.trae/specs/fix-alliance-display-logic/spec.md
+.trae/specs/fix-alliance-display-logic/tasks.md
+.trae/specs/fix-alliance-error-crash/checklist.md
+.trae/specs/fix-alliance-error-crash/spec.md
+.trae/specs/fix-alliance-error-crash/tasks.md
+.trae/specs/fix-bulk-sell-price/checklist.md
+.trae/specs/fix-bulk-sell-price/spec.md
+.trae/specs/fix-bulk-sell-price/tasks.md
+.trae/specs/fix-direct-disciple-idle-filter/checklist.md
+.trae/specs/fix-direct-disciple-idle-filter/spec.md
+.trae/specs/fix-direct-disciple-idle-filter/tasks.md
+.trae/specs/fix-disciple-list-jump/checklist.md
+.trae/specs/fix-disciple-list-jump/spec.md
+.trae/specs/fix-disciple-list-jump/tasks.md
+.trae/specs/fix-disciple-position-conflict/checklist.md
+.trae/specs/fix-disciple-position-conflict/spec.md
+.trae/specs/fix-disciple-position-conflict/tasks.md
+.trae/specs/fix-forge-selection-button/checklist.md
+.trae/specs/fix-forge-selection-button/spec.md
+.trae/specs/fix-forge-selection-button/tasks.md
+.trae/specs/fix-quick-select-no-realm/checklist.md
+.trae/specs/fix-quick-select-no-realm/spec.md
+.trae/specs/fix-quick-select-no-realm/tasks.md
+.trae/specs/fix-reward-crash/checklist.md
+.trae/specs/fix-reward-crash/spec.md
+.trae/specs/fix-reward-crash/tasks.md
+.trae/specs/fix-reward-recursive-lock/checklist.md
+.trae/specs/fix-reward-recursive-lock/spec.md
+.trae/specs/fix-reward-recursive-lock/tasks.md
+.trae/specs/fix-reward-same-item-crash/checklist.md
+.trae/specs/fix-reward-same-item-crash/spec.md
+.trae/specs/fix-reward-same-item-crash/tasks.md
+.trae/specs/fix-storage-bag-and-manual-learn/checklist.md
+.trae/specs/fix-storage-bag-and-manual-learn/spec.md
+.trae/specs/fix-storage-bag-and-manual-learn/tasks.md
+.trae/specs/fix-ui-issues-comprehensive/checklist.md
+.trae/specs/fix-ui-issues-comprehensive/spec.md
+.trae/specs/fix-ui-issues-comprehensive/tasks.md
+.trae/specs/instant-auto-item-processing/checklist.md
+.trae/specs/instant-auto-item-processing/spec.md
+.trae/specs/instant-auto-item-processing/tasks.md
+.trae/specs/optimize-pill-names/checklist.md
+.trae/specs/optimize-pill-names/spec.md
+.trae/specs/optimize-pill-names/tasks.md
+.trae/specs/optimize-recipe-sorting/checklist.md
+.trae/specs/optimize-recipe-sorting/spec.md
+.trae/specs/optimize-recipe-sorting/tasks.md
+.trae/specs/remove-hostility-system/checklist.md
+.trae/specs/remove-hostility-system/spec.md
+.trae/specs/remove-hostility-system/tasks.md
+.trae/specs/remove-mine-efficiency/checklist.md
+.trae/specs/remove-mine-efficiency/spec.md
+.trae/specs/remove-mine-efficiency/tasks.md
+.trae/specs/reward-item-quantity-and-cultivation-speed/checklist.md
+.trae/specs/reward-item-quantity-and-cultivation-speed/spec.md
+.trae/specs/reward-item-quantity-and-cultivation-speed/tasks.md
+.trae/specs/sect-alliance-system/checklist.md
+.trae/specs/sect-alliance-system/spec.md
+.trae/specs/sect-alliance-system/tasks.md
+.trae/specs/sect-gift-favor-system/checklist.md
+.trae/specs/sect-gift-favor-system/spec.md
+.trae/specs/sect-gift-favor-system/tasks.md
+.trae/specs/taptap-compliance-integration/checklist.md
+.trae/specs/taptap-compliance-integration/spec.md
+.trae/specs/taptap-compliance-integration/tasks.md
+.trae/specs/unify-item-card-selection/checklist.md
+.trae/specs/unify-item-card-selection/spec.md
+.trae/specs/unify-item-card-selection/tasks.md
+.trae/specs/unify-selection-card-style/checklist.md
+.trae/specs/unify-selection-card-style/spec.md
+.trae/specs/unify-selection-card-style/tasks.md
+GameViewModel.kt
+VERSION_UPDATE_GUIDE.md
+android/app/build.gradle
+android/app/release/baselineProfiles/0/app-release.dm
+android/app/release/baselineProfiles/1/app-release.dm
+android/app/release/output-metadata.json
+android/app/src/main/AndroidManifest.xml
+android/app/src/main/java/com/xianxia/sect/core/GameConfig.kt
+android/app/src/main/java/com/xianxia/sect/core/config/GiftConfig.kt
+android/app/src/main/java/com/xianxia/sect/core/config/SectResponseTexts.kt
+android/app/src/main/java/com/xianxia/sect/core/data/BeastMaterialDatabase.kt
+android/app/src/main/java/com/xianxia/sect/core/data/EquipmentDatabase.kt
+android/app/src/main/java/com/xianxia/sect/core/data/ForgeRecipeDatabase.kt
+android/app/src/main/java/com/xianxia/sect/core/data/HerbDatabase.kt
+android/app/src/main/java/com/xianxia/sect/core/data/ItemDatabase.kt
+android/app/src/main/java/com/xianxia/sect/core/data/ManualDatabase.kt
+android/app/src/main/java/com/xianxia/sect/core/data/PillRecipeDatabase.kt
+android/app/src/main/java/com/xianxia/sect/core/data/PriceCalculator.kt
+android/app/src/main/java/com/xianxia/sect/core/data/TalentDatabase.kt
+android/app/src/main/java/com/xianxia/sect/core/engine/BattleSystem.kt
+android/app/src/main/java/com/xianxia/sect/core/engine/DiffUpdateSystem.kt
+android/app/src/main/java/com/xianxia/sect/core/engine/DiscipleEquipmentManager.kt
+android/app/src/main/java/com/xianxia/sect/core/engine/DiscipleManualManager.kt
+android/app/src/main/java/com/xianxia/sect/core/engine/EquipmentNurtureSystem.kt
+android/app/src/main/java/com/xianxia/sect/core/engine/GameEngine.kt
+android/app/src/main/java/com/xianxia/sect/core/engine/HerbGardenSystem.kt
+android/app/src/main/java/com/xianxia/sect/core/engine/SectWarBattleSystem.kt
+android/app/src/main/java/com/xianxia/sect/core/engine/TournamentSystem.kt
+android/app/src/main/java/com/xianxia/sect/core/engine/WorldMapGenerator.kt
+android/app/src/main/java/com/xianxia/sect/core/model/CultivatorCave.kt
+android/app/src/main/java/com/xianxia/sect/core/model/Disciple.kt
+android/app/src/main/java/com/xianxia/sect/core/model/GameData.kt
+android/app/src/main/java/com/xianxia/sect/core/model/Items.kt
+android/app/src/main/java/com/xianxia/sect/core/model/ModelConverters.kt
+android/app/src/main/java/com/xianxia/sect/core/model/WarTeam.kt
+android/app/src/main/java/com/xianxia/sect/core/model/WorldMap.kt
+android/app/src/main/java/com/xianxia/sect/core/util/BattleCalculator.kt
+android/app/src/main/java/com/xianxia/sect/core/util/GameUtils.kt
+android/app/src/main/java/com/xianxia/sect/core/util/StorageBagUtils.kt
+android/app/src/main/java/com/xianxia/sect/data/GameRepository.kt
+android/app/src/main/java/com/xianxia/sect/data/SaveManager.kt
+android/app/src/main/java/com/xianxia/sect/data/SessionManager.kt
+android/app/src/main/java/com/xianxia/sect/data/local/Daos.kt
+android/app/src/main/java/com/xianxia/sect/data/local/DatabaseMigrations.kt
+android/app/src/main/java/com/xianxia/sect/data/local/GameDatabase.kt
+android/app/src/main/java/com/xianxia/sect/data/model/SaveData.kt
+android/app/src/main/java/com/xianxia/sect/di/AppModule.kt
+android/app/src/main/java/com/xianxia/sect/taptap/ComplianceManager.kt
+android/app/src/main/java/com/xianxia/sect/taptap/TapTapAuthManager.java
+android/app/src/main/java/com/xianxia/sect/ui/MainActivity.kt
+android/app/src/main/java/com/xianxia/sect/ui/SaveSelectScreen.kt
+android/app/src/main/java/com/xianxia/sect/ui/components/ItemCard.kt
+android/app/src/main/java/com/xianxia/sect/ui/components/ItemInfoExtractor.kt
+android/app/src/main/java/com/xianxi

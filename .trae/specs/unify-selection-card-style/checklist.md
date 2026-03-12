@@ -1,0 +1,22 @@
+# Checklist
+
+- [x] 仓库界面使用5列网格布局显示道具
+- [x] EquipmentSlot 大小为正方形（aspectRatio(1f)）
+- [x] ManualSlot 大小为正方形（aspectRatio(1f)）
+- [x] SeedSelectionDialog 使用 LazyVerticalGrid 渲染种子列表（4列）
+- [x] SeedSelectionDialog 使用正方形卡片样式（aspectRatio(1f)）
+- [x] SeedSelectionDialog 卡片有稀有度边框
+- [x] SeedSelectionDialog 卡片内边距为 8.dp
+- [x] SeedSelectionDialog 查看按钮位置在右上角（offset(x = (-2).dp, y = 2.dp)）
+- [x] SeedSelectionDialog 查看按钮样式为 RoundedCornerShape(4.dp)、字体大小 8.sp、padding(horizontal = 6.dp, vertical = 2.dp)
+- [x] SeedSelectionDialog 种子详情对话框功能正常
+- [x] EquipmentSelectionCard 卡片内边距为 8.dp
+- [x] EquipmentSelectionCard 查看按钮位置在右上角（offset(x = (-2).dp, y = 2.dp)）
+- [x] EquipmentSelectionCard 查看按钮样式为 RoundedCornerShape(4.dp)、字体大小 8.sp、padding(horizontal = 6.dp, vertical = 2.dp)
+- [x] ManualSelectionCard 卡片内边距为 8.dp
+- [x] ManualSelectionCard 查看按钮位置在右上角（offset(x = (-2).dp, y = 2.dp)）
+- [x] ManualSelectionCard 查看按钮样式为 RoundedCornerShape(4.dp)、字体大小 8.sp、padding(horizontal = 6.dp, vertical = 2.dp)
+- [x] PillDetailDialog 无确认按钮
+- [x] EquipmentSelectionDialog 中装备详情对话框无确认按钮
+- [x] ManualSelectionDialog 中功法详情对话框无确认按钮
+- [x] 所有选择界面的卡片大小与选择丹药界面一致

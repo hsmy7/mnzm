@@ -1,0 +1,8 @@
+- [x] 已任长老的弟子不出现在其他长老选择列表中
+- [x] 已任长老的弟子不出现在亲传弟子选择列表中
+- [x] 已任亲传弟子的弟子不出现在长老选择列表中
+- [x] 已任亲传弟子的弟子不出现在其他亲传弟子选择列表中
+- [x] 后端验证逻辑正确阻止非法任命 - 长老任命 (GameViewModel.assignElder)
+- [x] 后端验证逻辑正确阻止非法任命 - 亲传弟子任命 (GameEngine.assignDirectDisciple)
+- [x] 后端验证逻辑正确阻止非法任命 - 亲传弟子任命 (GameViewModel.assignDirectDisciple)
+- [x] 代码编译无错误

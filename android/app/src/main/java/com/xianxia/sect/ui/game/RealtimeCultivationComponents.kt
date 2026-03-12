@@ -1,0 +1,175 @@
+package com.xianxia.sect.ui.game
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.xianxia.sect.core.engine.GameEngine
+import com.xianxia.sect.core.model.Disciple
+import kotlinx.coroutines.flow.StateFlow
+
+@Composable
+fun RealtimeCultivationProgress(
+    disciple: Disciple,
+    realtimeCultivation: Map<String, Double>,
+    modifier: Modifier = Modifier
+) {
+    val currentCultivation by remember(disciple.id, realtimeCultivation) {
+        derivedStateOf {
+            realtimeCultivation[disciple.id] ?: disciple.cultivation
+        }
+    }
+    
+    val progress by remember(currentCultivation, disciple.maxCultivation) {
+        derivedStateOf {
+            if (disciple.maxCultivation > 0) {
+                (currentCultivation / disciple.maxCultivation).coerceIn(0.0, 1.0).toFloat()
+            } else 0f
+        }
+    }
+    
+    val progressColor by remember(progress) {
+        derivedStateOf {
+            when {
+                progress >= 0.9f -> Color(0xFFE74C3C)
+                progress >= 0.7f -> Color(0xFFF39C12)
+                progress >= 0.5f -> Color(0xFF3498DB)
+                else -> Color(0xFF27AE60)
+            }
+        }
+    }
+    
+    Column(modifier = modifier) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "修为",
+                fontSize = 11.sp,
+                color = Color(0xFF666666)
+            )
+            Text(
+                text = "${String.format("%.1f", currentCultivation)} / ${disciple.maxCultivation}",
+                fontSize = 10.sp,
+                color = Color(0xFF999999)
+            )
+        }
+        
+        Spacer(modifier = Modifier.height(4.dp))
+        
+        LinearProgressIndicator(
+            progress = progress,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(6.dp)
+                .clip(RoundedCornerShape(3.dp)),
+            color = progressColor,
+            trackColor = Color(0xFFE0E0E0)
+        )
+    }
+}
+
+@Composable
+fun RealtimeDiscipleCard(
+    disciple: Disciple,
+    realtimeCultivation: Map<String, Double>,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val currentCultivation by remember(disciple.id, realtimeCultivation) {
+        derivedStateOf {
+            realtimeCultivation[disciple.id] ?: disciple.cultivation
+        }
+    }
+    
+    val cultivationProgress by remember(currentCultivation, disciple.maxCultivation) {
+        derivedStateOf {
+            if (disciple.maxCultivation > 0) {
+                (currentCultivation / disciple.maxCultivation).coerceIn(0.0, 1.0).toFloat()
+            } else 0f
+        }
+    }
+    
+    val realmColor = remember(disciple.realm) {
+        when (disciple.realm) {
+            0 -> Color(0xFFFFD700)
+            1 -> Color(0xFFE74C3C)
+            2 -> Color(0xFF9B59B6)
+            3 -> Color(0xFF3498DB)
+            4 -> Color(0xFF1ABC9C)
+            5 -> Color(0xFF27AE60)
+            6 -> Color(0xFFF39C12)
+            7 -> Color(0xFFE67E22)
+            8 -> Color(0xFF95A5A6)
+            else -> Color(0xFF7F8C8D)
+        }
+    }
+    
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        onClick = onClick
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = disciple.name,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+                
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(realmColor)
+                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = disciple.realmName,
+                        fontSize = 11.sp,
+                        color = Color.White
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            RealtimeCultivationProgress(
+                disciple = disciple,
+                realtimeCultivation = realtimeCultivation
+            )
+        }
+    }
+}
+
+@Composable
+fun rememberRealtimeCultivation(
+    highFrequencyData: StateFlow<GameEngine.HighFrequencyData>
+): Map<String, Double> {
+    val data by highFrequencyData.collectAsState()
+    return remember(data.timestamp) {
+        data.cultivationUpdates
+    }
+}

@@ -1,0 +1,40 @@
+warning: in the working copy of 'android/app/build.gradle', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'android/app/release/output-metadata.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'android/app/src/main/java/com/xianxia/sect/core/GameConfig.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'android/app/src/main/java/com/xianxia/sect/core/data/ItemDatabase.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'android/app/src/main/java/com/xianxia/sect/core/engine/GameEngine.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'android/app/src/main/java/com/xianxia/sect/core/engine/SectWarBattleSystem.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'android/app/src/main/java/com/xianxia/sect/core/model/CultivatorCave.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'android/app/src/main/java/com/xianxia/sect/core/model/Disciple.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'android/app/src/main/java/com/xianxia/sect/core/model/GameData.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'android/app/src/main/java/com/xianxia/sect/core/model/ModelConverters.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'android/app/src/main/java/com/xianxia/sect/core/model/WarTeam.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'android/app/src/main/java/com/xianxia/sect/data/local/DatabaseMigrations.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'android/app/src/main/java/com/xianxia/sect/data/local/GameDatabase.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'android/app/src/main/java/com/xianxia/sect/ui/MainActivity.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'android/app/src/main/java/com/xianxia/sect/ui/game/MainGameScreen.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'android/app/src/main/java/com/xianxia/sect/ui/game/WorldMapScreen.kt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'android/app/src/main/java/com/xianxia/sect/ui/game/components/AllianceDialog.kt', LF will be replaced by CRLF the next time Git touches it
+android/app/build.gradle
+android/app/release/baselineProfiles/0/app-release.dm
+android/app/release/baselineProfiles/1/app-release.dm
+android/app/release/output-metadata.json
+android/app/src/main/java/com/xianxia/sect/core/GameConfig.kt
+android/app/src/main/java/com/xianxia/sect/core/data/ItemDatabase.kt
+android/app/src/main/java/com/xianxia/sect/core/data/PillRecipeDatabase.kt
+android/app/src/main/java/com/xianxia/sect/core/engine/GameEngine.kt
+android/app/src/main/java/com/xianxia/sect/core/engine/SectWarBattleSystem.kt
+android/app/src/main/java/com/xianxia/sect/core/model/CultivatorCave.kt
+android/app/src/main/java/com/xianxia/sect/core/model/Disciple.kt
+android/app/src/main/java/com/xianxia/sect/core/model/GameData.kt
+android/app/src/main/java/com/xianxia/sect/core/model/ModelConverters.kt
+android/app/src/main/java/com/xianxia/sect/core/model/WarTeam.kt
+android/app/src/main/java/com/xianxia/sect/data/local/DatabaseMigrations.kt
+android/app/src/main/java/com/xianxia/sect/data/local/GameDatabase.kt
+android/app/src/main/java/com/xianxia/sect/ui/MainActivity.kt
+android/app/src/main/java/com/xianxia/sect/ui/game/GameViewModel.kt
+android/app/src/main/java/com/xianxia/sect/ui/game/MainGameScreen.kt
+android/app/src/main/java/com/xianxia/sect/ui/game/WorldMapScreen.kt
+android/app/src/main/java/com/xianxia/sect/ui/game/components/AllianceDialog.kt
+android/build_log.txt
+android/gradle.properties
