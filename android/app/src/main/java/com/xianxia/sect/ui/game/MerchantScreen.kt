@@ -9,7 +9,9 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,6 +26,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.xianxia.sect.core.data.BeastMaterialDatabase
 import com.xianxia.sect.core.data.EquipmentDatabase
+import com.xianxia.sect.core.data.ForgeRecipeDatabase
 import com.xianxia.sect.core.data.HerbDatabase
 import com.xianxia.sect.core.data.ManualDatabase
 import com.xianxia.sect.core.data.PillRecipeDatabase
@@ -687,7 +690,7 @@ fun ListingManagementDialog(
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
                             color = GameColors.TextSecondary,
-                            modifier = Modifier.width(50.dp),
+                            modifier = Modifier.width(60.dp),
                             textAlign = TextAlign.Center
                         )
                     }
@@ -764,9 +767,19 @@ private fun ListedItemCard(
         GameButton(
             text = "下架",
             onClick = onDelist,
-            modifier = Modifier.width(50.dp).height(24.dp)
+            modifier = Modifier.width(60.dp).height(28.dp)
         )
     }
+}
+
+private enum class ListingFilter(val displayName: String) {
+    ALL("全部"),
+    EQUIPMENT("装备"),
+    MANUAL("功法"),
+    PILL("丹药"),
+    HERB("灵药"),
+    SEED("种子"),
+    MATERIAL("材料")
 }
 
 @Composable
@@ -782,8 +795,7 @@ fun InventorySelectDialog(
     val herbs by viewModel.herbs.collectAsState()
     val seeds by viewModel.seeds.collectAsState()
 
-    var selectedTab by remember { mutableStateOf(0) }
-    val tabs = listOf("装备", "功法", "丹药", "材料", "灵药", "种子")
+    var selectedFilter by remember { mutableStateOf(ListingFilter.ALL) }
     val selectedItems = remember { mutableStateMapOf<String, Int>() }
     var showConfirmDialog by remember { mutableStateOf(false) }
     var isSubmitting by remember { mutableStateOf(false) }
@@ -851,53 +863,110 @@ fun InventorySelectDialog(
                     }
                 }
 
-                TabRow(
-                    selectedTabIndex = selectedTab,
-                    containerColor = GameColors.CardBackground,
-                    contentColor = GameColors.Primary
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(GameColors.PageBackground)
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    tabs.forEachIndexed { index, title ->
-                        Tab(
-                            selected = selectedTab == index,
-                            onClick = { selectedTab = index },
-                            text = { Text(title, fontSize = 13.sp) }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        ListingFilterButton(
+                            text = ListingFilter.ALL.displayName,
+                            selected = selectedFilter == ListingFilter.ALL,
+                            onClick = { selectedFilter = ListingFilter.ALL },
+                            modifier = Modifier.weight(1f)
                         )
+                        ListingFilterButton(
+                            text = ListingFilter.EQUIPMENT.displayName,
+                            selected = selectedFilter == ListingFilter.EQUIPMENT,
+                            onClick = { selectedFilter = ListingFilter.EQUIPMENT },
+                            modifier = Modifier.weight(1f)
+                        )
+                        ListingFilterButton(
+                            text = ListingFilter.PILL.displayName,
+                            selected = selectedFilter == ListingFilter.PILL,
+                            onClick = { selectedFilter = ListingFilter.PILL },
+                            modifier = Modifier.weight(1f)
+                        )
+                        ListingFilterButton(
+                            text = ListingFilter.MANUAL.displayName,
+                            selected = selectedFilter == ListingFilter.MANUAL,
+                            onClick = { selectedFilter = ListingFilter.MANUAL },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        ListingFilterButton(
+                            text = ListingFilter.HERB.displayName,
+                            selected = selectedFilter == ListingFilter.HERB,
+                            onClick = { selectedFilter = ListingFilter.HERB },
+                            modifier = Modifier.weight(1f)
+                        )
+                        ListingFilterButton(
+                            text = ListingFilter.SEED.displayName,
+                            selected = selectedFilter == ListingFilter.SEED,
+                            onClick = { selectedFilter = ListingFilter.SEED },
+                            modifier = Modifier.weight(1f)
+                        )
+                        ListingFilterButton(
+                            text = ListingFilter.MATERIAL.displayName,
+                            selected = selectedFilter == ListingFilter.MATERIAL,
+                            onClick = { selectedFilter = ListingFilter.MATERIAL },
+                            modifier = Modifier.weight(1f)
+                        )
+                        Spacer(modifier = Modifier.weight(1f))
                     }
                 }
 
                 Box(modifier = Modifier.weight(1f)) {
-                    when (selectedTab) {
-                        0 -> InventorySelectGrid(
+                    when (selectedFilter) {
+                        ListingFilter.ALL -> AllItemsSelectGrid(
+                            equipment = sortedEquipment,
+                            manuals = sortedManuals,
+                            pills = sortedPills,
+                            materials = sortedMaterials,
+                            herbs = sortedHerbs,
+                            seeds = sortedSeeds,
+                            selectedItems = selectedItems
+                        )
+                        ListingFilter.EQUIPMENT -> InventorySelectGrid(
                             items = sortedEquipment,
                             selectedItems = selectedItems,
                             emptyMessage = "暂无装备",
                             isStackable = false
                         )
-                        1 -> InventorySelectGrid(
+                        ListingFilter.MANUAL -> InventorySelectGrid(
                             items = sortedManuals,
                             selectedItems = selectedItems,
                             emptyMessage = "暂无功法",
                             isStackable = false
                         )
-                        2 -> InventorySelectGrid(
+                        ListingFilter.PILL -> InventorySelectGrid(
                             items = sortedPills,
                             selectedItems = selectedItems,
                             emptyMessage = "暂无丹药",
                             isStackable = true
                         )
-                        3 -> InventorySelectGrid(
+                        ListingFilter.MATERIAL -> InventorySelectGrid(
                             items = sortedMaterials,
                             selectedItems = selectedItems,
                             emptyMessage = "暂无材料",
                             isStackable = true
                         )
-                        4 -> InventorySelectGrid(
+                        ListingFilter.HERB -> InventorySelectGrid(
                             items = sortedHerbs,
                             selectedItems = selectedItems,
                             emptyMessage = "暂无灵药",
                             isStackable = true
                         )
-                        5 -> InventorySelectGrid(
+                        ListingFilter.SEED -> InventorySelectGrid(
                             items = sortedSeeds,
                             selectedItems = selectedItems,
                             emptyMessage = "暂无种子",
@@ -939,6 +1008,8 @@ private fun <T> InventorySelectGrid(
     var pendingItemId by remember { mutableStateOf<String?>(null) }
     var pendingItemName by remember { mutableStateOf("") }
     var pendingMaxQuantity by remember { mutableStateOf(1) }
+    var selectedItem by remember { mutableStateOf<T?>(null) }
+    var showDetailDialog by remember { mutableStateOf(false) }
 
     if (items.isEmpty()) {
         Box(
@@ -961,28 +1032,28 @@ private fun <T> InventorySelectGrid(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(items) { item ->
-                val (id, name, rarity, quantity) = when (item) {
-                    is Equipment -> Tuple4(item.id, item.name, item.rarity, 1)
-                    is Manual -> Tuple4(item.id, item.name, item.rarity, 1)
-                    is Pill -> Tuple4(item.id, item.name, item.rarity, item.quantity)
-                    is Material -> Tuple4(item.id, item.name, item.rarity, item.quantity)
-                    is Herb -> Tuple4(item.id, item.name, item.rarity, item.quantity)
-                    is Seed -> Tuple4(item.id, item.name, item.rarity, item.quantity)
-                    else -> Tuple4("", "", 1, 1)
+                val (id, name, description, rarity, quantity) = when (item) {
+                    is Equipment -> Tuple5(item.id, item.name, item.description, item.rarity, 1)
+                    is Manual -> Tuple5(item.id, item.name, item.description, item.rarity, 1)
+                    is Pill -> Tuple5(item.id, item.name, item.description, item.rarity, item.quantity)
+                    is Material -> Tuple5(item.id, item.name, item.description, item.rarity, item.quantity)
+                    is Herb -> Tuple5(item.id, item.name, item.description, item.rarity, item.quantity)
+                    is Seed -> Tuple5(item.id, item.name, item.description, item.rarity, item.quantity)
+                    else -> Tuple5("", "", "", 1, 1)
                 }
 
                 val isSelected = selectedItems.containsKey(id)
-                val selectedQuantity = selectedItems[id] ?: 0
 
                 UnifiedItemCard(
                     data = ItemCardData(
                         id = id,
                         name = name,
+                        description = description,
                         rarity = rarity,
                         quantity = quantity
                     ),
                     isSelected = isSelected,
-                    showViewButton = false,
+                    showViewButton = true,
                     onClick = {
                         if (isSelected) {
                             selectedItems.remove(id)
@@ -996,6 +1067,10 @@ private fun <T> InventorySelectGrid(
                                 selectedItems[id] = 1
                             }
                         }
+                    },
+                    onViewDetail = {
+                        selectedItem = item
+                        showDetailDialog = true
                     }
                 )
             }
@@ -1017,7 +1092,16 @@ private fun <T> InventorySelectGrid(
             }
         )
     }
+
+    if (showDetailDialog && selectedItem != null) {
+        InventoryItemDetailDialog(
+            item = selectedItem!!,
+            onDismiss = { showDetailDialog = false }
+        )
+    }
 }
+
+private data class Tuple5<A, B, C, D, E>(val first: A, val second: B, val third: C, val fourth: D, val fifth: E)
 
 @Composable
 private fun QuantitySelectDialog(
@@ -1107,7 +1191,494 @@ private fun QuantitySelectDialog(
     )
 }
 
-private data class Tuple4<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
+@Composable
+private fun ListingFilterButton(
+    text: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(if (selected) Color.Black else GameColors.ButtonBackground)
+            .border(1.dp, if (selected) Color.Black else GameColors.ButtonBorder, RoundedCornerShape(6.dp))
+            .clickable { onClick() }
+            .padding(vertical = 10.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            color = if (selected) Color.White else Color.Black
+        )
+    }
+}
+
+@Composable
+private fun AllItemsSelectGrid(
+    equipment: List<Equipment>,
+    manuals: List<Manual>,
+    pills: List<Pill>,
+    materials: List<Material>,
+    herbs: List<Herb>,
+    seeds: List<Seed>,
+    selectedItems: MutableMap<String, Int>
+) {
+    var showQuantityDialog by remember { mutableStateOf(false) }
+    var pendingItemId by remember { mutableStateOf<String?>(null) }
+    var pendingItemName by remember { mutableStateOf("") }
+    var pendingMaxQuantity by remember { mutableStateOf(1) }
+    var selectedItem by remember { mutableStateOf<Any?>(null) }
+    var showDetailDialog by remember { mutableStateOf(false) }
+
+    val allItems = remember(equipment, manuals, pills, materials, herbs, seeds) {
+        val items = mutableListOf<Any>()
+        items.addAll(equipment)
+        items.addAll(manuals)
+        items.addAll(pills)
+        items.addAll(materials)
+        items.addAll(herbs)
+        items.addAll(seeds)
+        items.sortedWith(compareByDescending<Any> {
+            when (it) {
+                is Equipment -> it.rarity
+                is Manual -> it.rarity
+                is Pill -> it.rarity
+                is Material -> it.rarity
+                is Herb -> it.rarity
+                is Seed -> it.rarity
+                else -> 1
+            }
+        }.thenBy {
+            when (it) {
+                is Equipment -> it.name
+                is Manual -> it.name
+                is Pill -> it.name
+                is Material -> it.name
+                is Herb -> it.name
+                is Seed -> it.name
+                else -> ""
+            }
+        })
+    }
+
+    if (allItems.isEmpty()) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "暂无道具",
+                fontSize = 12.sp,
+                color = GameColors.TextSecondary
+            )
+        }
+    } else {
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(4),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(allItems) { item ->
+                val (id, name, description, rarity, quantity, isStackable) = when (item) {
+                    is Equipment -> Tuple6(item.id, item.name, item.description, item.rarity, 1, false)
+                    is Manual -> Tuple6(item.id, item.name, item.description, item.rarity, 1, false)
+                    is Pill -> Tuple6(item.id, item.name, item.description, item.rarity, item.quantity, true)
+                    is Material -> Tuple6(item.id, item.name, item.description, item.rarity, item.quantity, true)
+                    is Herb -> Tuple6(item.id, item.name, item.description, item.rarity, item.quantity, true)
+                    is Seed -> Tuple6(item.id, item.name, item.description, item.rarity, item.quantity, true)
+                    else -> Tuple6("", "", "", 1, 1, false)
+                }
+
+                val isSelected = selectedItems.containsKey(id)
+
+                UnifiedItemCard(
+                    data = ItemCardData(
+                        id = id,
+                        name = name,
+                        description = description,
+                        rarity = rarity,
+                        quantity = quantity
+                    ),
+                    isSelected = isSelected,
+                    showViewButton = true,
+                    onClick = {
+                        if (isSelected) {
+                            selectedItems.remove(id)
+                        } else {
+                            if (isStackable && quantity > 1) {
+                                pendingItemId = id
+                                pendingItemName = name
+                                pendingMaxQuantity = quantity
+                                showQuantityDialog = true
+                            } else {
+                                selectedItems[id] = 1
+                            }
+                        }
+                    },
+                    onViewDetail = {
+                        selectedItem = item
+                        showDetailDialog = true
+                    }
+                )
+            }
+        }
+    }
+
+    if (showQuantityDialog && pendingItemId != null) {
+        QuantitySelectDialog(
+            itemName = pendingItemName,
+            maxQuantity = pendingMaxQuantity,
+            onConfirm = { qty ->
+                selectedItems[pendingItemId!!] = qty
+                showQuantityDialog = false
+                pendingItemId = null
+            },
+            onDismiss = {
+                showQuantityDialog = false
+                pendingItemId = null
+            }
+        )
+    }
+
+    if (showDetailDialog && selectedItem != null) {
+        InventoryItemDetailDialog(
+            item = selectedItem!!,
+            onDismiss = { showDetailDialog = false }
+        )
+    }
+}
+
+private data class Tuple6<A, B, C, D, E, F>(val first: A, val second: B, val third: C, val fourth: D, val fifth: E, val sixth: F)
+
+@Composable
+private fun InventoryItemDetailDialog(
+    item: Any,
+    onDismiss: () -> Unit
+) {
+    val name: String
+    val rarity: Int
+    val description: String
+    val effects: List<String>
+
+    when (item) {
+        is Equipment -> {
+            name = item.name
+            rarity = item.rarity
+            description = item.description
+            effects = buildList {
+                add("部位: ${item.slot.displayName}")
+                add("稀有度: ${getRarityName(item.rarity)}")
+                if (item.minRealm < 9) {
+                    add("需求境界: ${com.xianxia.sect.core.GameConfig.Realm.getName(item.minRealm)}")
+                }
+                if (item.nurtureLevel > 0) {
+                    add("孕养等级: Lv.${item.nurtureLevel}")
+                    val nurtureBonus = (item.totalMultiplier / com.xianxia.sect.core.GameConfig.Rarity.get(item.rarity).multiplier - 1.0) * 100
+                    if (nurtureBonus > 0) {
+                        add("  孕养加成: +${String.format("%.1f", nurtureBonus)}%")
+                    }
+                }
+                add("")
+                add("属性:")
+                val finalStats = item.getFinalStats()
+                val baseStats = item.stats
+                if (finalStats.physicalAttack > 0) {
+                    val bonus = finalStats.physicalAttack - baseStats.physicalAttack
+                    val bonusText = if (bonus > 0) " (↑$bonus)" else ""
+                    add("  物理攻击 +${finalStats.physicalAttack}$bonusText")
+                }
+                if (finalStats.magicAttack > 0) {
+                    val bonus = finalStats.magicAttack - baseStats.magicAttack
+                    val bonusText = if (bonus > 0) " (↑$bonus)" else ""
+                    add("  法术攻击 +${finalStats.magicAttack}$bonusText")
+                }
+                if (finalStats.physicalDefense > 0) {
+                    val bonus = finalStats.physicalDefense - baseStats.physicalDefense
+                    val bonusText = if (bonus > 0) " (↑$bonus)" else ""
+                    add("  物理防御 +${finalStats.physicalDefense}$bonusText")
+                }
+                if (finalStats.magicDefense > 0) {
+                    val bonus = finalStats.magicDefense - baseStats.magicDefense
+                    val bonusText = if (bonus > 0) " (↑$bonus)" else ""
+                    add("  法术防御 +${finalStats.magicDefense}$bonusText")
+                }
+                if (finalStats.speed > 0) {
+                    val bonus = finalStats.speed - baseStats.speed
+                    val bonusText = if (bonus > 0) " (↑$bonus)" else ""
+                    add("  速度 +${finalStats.speed}$bonusText")
+                }
+                if (finalStats.hp > 0) {
+                    val bonus = finalStats.hp - baseStats.hp
+                    val bonusText = if (bonus > 0) " (↑$bonus)" else ""
+                    add("  生命 +${finalStats.hp}$bonusText")
+                }
+                if (finalStats.mp > 0) {
+                    val bonus = finalStats.mp - baseStats.mp
+                    val bonusText = if (bonus > 0) " (↑$bonus)" else ""
+                    add("  灵力 +${finalStats.mp}$bonusText")
+                }
+                if (item.critChance > 0) add("  暴击率 +${String.format("%.1f", item.critChance * 100)}%")
+            }
+        }
+        is Manual -> {
+            name = item.name
+            rarity = item.rarity
+            description = item.description
+            effects = buildList {
+                add("类型: ${item.type.displayName}")
+                if (item.minRealm < 9) {
+                    add("需求境界: ${com.xianxia.sect.core.GameConfig.Realm.getName(item.minRealm)}")
+                }
+                add("")
+                val stats = item.stats
+                if (stats.isNotEmpty()) {
+                    add("属性加成:")
+                    stats.forEach { (key, value) ->
+                        val statName = when (key) {
+                            "cultivationSpeedPercent" -> "修炼速度"
+                            "physicalAttack" -> "物理攻击"
+                            "magicAttack" -> "法术攻击"
+                            "physicalDefense" -> "物理防御"
+                            "magicDefense" -> "法术防御"
+                            "hp" -> "生命"
+                            "mp" -> "灵力"
+                            "speed" -> "速度"
+                            "critRate" -> "暴击率"
+                            else -> key
+                        }
+                        if (key.contains("Percent")) {
+                            add("  $statName +$value%")
+                        } else {
+                            add("  $statName +$value")
+                        }
+                    }
+                }
+                item.skill?.let { skill ->
+                    add("")
+                    add("技能: ${skill.name}")
+                    if (skill.description.isNotEmpty()) {
+                        add("  ${skill.description}")
+                    }
+                    add("  伤害类型: ${if (skill.damageType == com.xianxia.sect.core.engine.DamageType.PHYSICAL) "物理" else "法术"}")
+                    add("  伤害倍率: ${String.format("%.1f", skill.damageMultiplier * 100)}%")
+                    add("  连击次数: ${skill.hits}")
+                    add("  冷却回合: ${skill.cooldown}")
+                    add("  灵力消耗: ${skill.mpCost}")
+                }
+            }
+        }
+        is Pill -> {
+            name = item.name
+            rarity = item.rarity
+            description = item.description
+            effects = buildList {
+                add("类型: ${item.category.displayName}")
+                add("数量: ${item.quantity}")
+                add("")
+                add("效果:")
+                when (item.category) {
+                    com.xianxia.sect.core.model.PillCategory.BREAKTHROUGH -> {
+                        if (item.breakthroughChance > 0) {
+                            add("  突破概率 +${String.format("%.1f", item.breakthroughChance * 100)}%")
+                        }
+                        if (item.targetRealm > 0) {
+                            add("  目标境界: ${com.xianxia.sect.core.GameConfig.Realm.getName(item.targetRealm)}")
+                        }
+                        if (item.isAscension) {
+                            add("  可用于渡劫")
+                        }
+                    }
+                    com.xianxia.sect.core.model.PillCategory.CULTIVATION -> {
+                        if (item.cultivationPercent > 0) {
+                            add("  修为 +${String.format("%.1f", item.cultivationPercent * 100)}%")
+                        }
+                        if (item.cultivationSpeed > 1.0) {
+                            add("  修炼速度 x${item.cultivationSpeed}")
+                        }
+                        if (item.skillExpPercent > 0) {
+                            add("  功法熟练度 +${String.format("%.1f", item.skillExpPercent * 100)}%")
+                        }
+                        if (item.extendLife > 0) {
+                            add("  延寿 ${item.extendLife} 年")
+                        }
+                    }
+                    com.xianxia.sect.core.model.PillCategory.BATTLE -> {
+                        if (item.physicalAttackPercent > 0) add("  物理攻击 +${String.format("%.1f", item.physicalAttackPercent * 100)}%")
+                        if (item.magicAttackPercent > 0) add("  法术攻击 +${String.format("%.1f", item.magicAttackPercent * 100)}%")
+                        if (item.physicalDefensePercent > 0) add("  物理防御 +${String.format("%.1f", item.physicalDefensePercent * 100)}%")
+                        if (item.magicDefensePercent > 0) add("  法术防御 +${String.format("%.1f", item.magicDefensePercent * 100)}%")
+                        if (item.hpPercent > 0) add("  生命 +${String.format("%.1f", item.hpPercent * 100)}%")
+                        if (item.mpPercent > 0) add("  灵力 +${String.format("%.1f", item.mpPercent * 100)}%")
+                        if (item.speedPercent > 0) add("  速度 +${String.format("%.1f", item.speedPercent * 100)}%")
+                        if (item.battleCount > 0) add("  持续 ${item.battleCount} 场战斗")
+                    }
+                    com.xianxia.sect.core.model.PillCategory.HEALING -> {
+                        if (item.heal > 0) add("  恢复生命 ${item.heal}")
+                        if (item.healPercent > 0) add("  恢复生命 ${String.format("%.1f", item.healPercent * 100)}%")
+                        if (item.healMaxHpPercent > 0) add("  恢复生命 ${String.format("%.1f", item.healMaxHpPercent * 100)}% 最大生命")
+                        if (item.mpRecoverMaxMpPercent > 0) add("  恢复灵力 ${String.format("%.1f", item.mpRecoverMaxMpPercent * 100)}% 最大灵力")
+                        if (item.revive) add("  可复活弟子")
+                        if (item.clearAll) add("  清除所有负面状态")
+                    }
+                }
+                if (item.duration > 0 && item.category != com.xianxia.sect.core.model.PillCategory.BATTLE) {
+                    add("  持续 ${item.duration} 月")
+                }
+                if (item.cannotStack) {
+                    add("  不可叠加")
+                }
+            }
+        }
+        is Material -> {
+            name = item.name
+            rarity = item.rarity
+            description = item.description
+            effects = buildList {
+                add("类型: ${item.category.displayName}")
+                add("数量: ${item.quantity}")
+                val forgeRecipes = com.xianxia.sect.core.data.ForgeRecipeDatabase.getRecipesByMaterial(item.id)
+                if (forgeRecipes.isNotEmpty()) {
+                    add("")
+                    add("可用于炼器:")
+                    forgeRecipes.take(5).forEach { recipe ->
+                        add("  · ${recipe.name}")
+                    }
+                    if (forgeRecipes.size > 5) {
+                        add("  · 等${forgeRecipes.size}种装备")
+                    }
+                }
+            }
+        }
+        is Herb -> {
+            name = item.name
+            rarity = item.rarity
+            description = item.description
+            effects = buildList {
+                if (item.category.isNotEmpty()) {
+                    add("类型: ${item.category}")
+                }
+                add("数量: ${item.quantity}")
+                val pillRecipes = com.xianxia.sect.core.data.PillRecipeDatabase.getRecipesByHerb(item.id)
+                if (pillRecipes.isNotEmpty()) {
+                    add("")
+                    add("可用于炼丹:")
+                    pillRecipes.take(5).forEach { recipe ->
+                        add("  · ${recipe.name}")
+                    }
+                    if (pillRecipes.size > 5) {
+                        add("  · 等${pillRecipes.size}种丹药")
+                    }
+                }
+            }
+        }
+        is Seed -> {
+            name = item.name
+            rarity = item.rarity
+            description = item.description
+            effects = buildList {
+                add("类型: 种子")
+                add("生长时间: ${item.growTime}个月")
+                add("收获数量: ${item.yield}")
+                add("数量: ${item.quantity}")
+                val herb = com.xianxia.sect.core.data.HerbDatabase.getHerbFromSeed(item.id)
+                if (herb != null) {
+                    add("")
+                    add("长成后:")
+                    add("  · ${herb.name}")
+                    add("  · ${herb.description}")
+                    val pillRecipes = com.xianxia.sect.core.data.PillRecipeDatabase.getRecipesByHerb(herb.id)
+                    if (pillRecipes.isNotEmpty()) {
+                        add("")
+                        add("可用于炼丹:")
+                        pillRecipes.take(3).forEach { recipe ->
+                            add("  · ${recipe.name}")
+                        }
+                        if (pillRecipes.size > 3) {
+                            add("  · 等${pillRecipes.size}种丹药")
+                        }
+                    }
+                } else {
+                    val herbName = com.xianxia.sect.core.data.HerbDatabase.getHerbNameFromSeedName(item.name)
+                    add("")
+                    add("长成后: $herbName")
+                }
+            }
+        }
+        else -> {
+            name = "未知物品"
+            rarity = 1
+            description = ""
+            effects = emptyList()
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = GameColors.PageBackground,
+        title = {
+            Text(
+                text = name,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = getRarityColor(rarity)
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState())
+            ) {
+                Text(
+                    text = getRarityName(rarity),
+                    fontSize = 11.sp,
+                    color = GameColors.TextSecondary
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Divider(color = GameColors.Background, thickness = 1.dp)
+                Spacer(modifier = Modifier.height(8.dp))
+
+                effects.forEach { effect ->
+                    if (effect.isEmpty()) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                    } else {
+                        Text(
+                            text = effect,
+                            fontSize = 12.sp,
+                            color = if (effect.startsWith("属性") || effect.startsWith("效果") || effect.startsWith("技能")) {
+                                GameColors.Primary
+                            } else {
+                                GameColors.TextPrimary
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+
+                if (description.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Divider(color = GameColors.Background, thickness = 1.dp)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = description,
+                        fontSize = 11.sp,
+                        color = GameColors.TextSecondary
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            GameButton(
+                text = "关闭",
+                onClick = onDismiss
+            )
+        }
+    )
+}
 
 @Composable
 private fun ConfirmListingDialog(

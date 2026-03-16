@@ -8406,25 +8406,10 @@ class GameEngine {
     suspend fun listItemsToMerchant(items: List<Pair<String, Int>>) {
         transactionMutex.withLock {
             val data = _gameData.value
-            val currentCount = data.playerListedItems.size
-            val maxListingCount = 20
-            
-            if (currentCount >= maxListingCount) {
-                addEvent("上架数量已达上限(${maxListingCount}种)", EventType.WARNING)
-                return@withLock
-            }
-            
-            val availableSlots = maxListingCount - currentCount
-            val itemsToList = items.take(availableSlots)
-            
-            if (itemsToList.size < items.size) {
-                addEvent("上架数量已达上限，仅能上架${itemsToList.size}种", EventType.WARNING)
-            }
-            
             val newPlayerListedItems = data.playerListedItems.toMutableList()
             var successCount = 0
             
-            itemsToList.forEach { (itemId, quantity) ->
+            items.forEach { (itemId, quantity) ->
                 val equipment = _equipment.value.find { it.id == itemId }
                 val manual = _manuals.value.find { it.id == itemId }
                 val pill = _pills.value.find { it.id == itemId }
