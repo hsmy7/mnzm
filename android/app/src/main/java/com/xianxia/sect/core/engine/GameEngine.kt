@@ -2339,6 +2339,7 @@ class GameEngine {
             _seeds.value = transaction.updatedSeeds
             _gameData.value = data.copy(herbGardenPlantSlots = transaction.updatedSlots)
             transaction.eventMessage?.let { addEvent(it, transaction.eventType) }
+            syncListedItemsWithInventory()
             return true
         } else {
             transaction.eventMessage?.let { addEvent(it, transaction.eventType) }
@@ -4122,6 +4123,7 @@ class GameEngine {
             val bonusPercent = ((recipe.duration - actualDuration) * 100 / recipe.duration)
             val speedText = if (bonusPercent > 0) "(加速${bonusPercent}%)" else ""
             addEvent("自动续炼：开始炼制${recipe.name}${speedText}", EventType.INFO)
+            syncListedItemsWithInventory()
         } else {
             // 材料不足，将槽位重置为空闲状态
             val idleSlot = slot.copy(
@@ -4267,6 +4269,7 @@ class GameEngine {
             val bonusPercent = ((recipe.duration - actualDuration) * 100 / recipe.duration)
             val speedText = if (bonusPercent > 0) "(加速${bonusPercent}%)" else ""
             addEvent("自动续炼：开始锻造${recipe.name}${speedText}", EventType.INFO)
+            syncListedItemsWithInventory()
         } else {
             // 材料不足，将槽位重置为空闲状态
             val idleSlot = slot.copy(
@@ -7719,6 +7722,8 @@ class GameEngine {
         } else {
             _pills.value = _pills.value.map { if (it.id == pillId) updatedPill else it }
         }
+        
+        syncListedItemsWithInventory()
     }
     
     fun exploreSect(sectId: String) {
@@ -8208,6 +8213,8 @@ class GameEngine {
         )
 
         addEvent("成功出售 ${itemIds.size} 件道具，获得 $totalPrice 灵石", EventType.SUCCESS)
+        
+        syncListedItemsWithInventory()
     }
 
     // 出售装备
@@ -8465,51 +8472,6 @@ class GameEngine {
                 )
                 
                 newPlayerListedItems.add(merchantItem)
-                
-                when (itemData) {
-                    is Equipment -> _equipment.value = _equipment.value.filter { it.id != itemId }
-                    is Manual -> _manuals.value = _manuals.value.filter { it.id != itemId }
-                    is Pill -> {
-                        if (itemData.quantity <= actualQuantity) {
-                            _pills.value = _pills.value.filter { it.id != itemId }
-                        } else {
-                            _pills.value = _pills.value.map {
-                                    if (it.id == itemId) it.copy(quantity = it.quantity - actualQuantity)
-                                    else it
-                                }
-                        }
-                    }
-                    is Material -> {
-                        if (itemData.quantity <= actualQuantity) {
-                            _materials.value = _materials.value.filter { it.id != itemId }
-                        } else {
-                            _materials.value = _materials.value.map {
-                                    if (it.id == itemId) it.copy(quantity = it.quantity - actualQuantity)
-                                    else it
-                                }
-                        }
-                    }
-                    is Herb -> {
-                        if (itemData.quantity <= actualQuantity) {
-                            _herbs.value = _herbs.value.filter { it.id != itemId }
-                        } else {
-                            _herbs.value = _herbs.value.map {
-                                    if (it.id == itemId) it.copy(quantity = it.quantity - actualQuantity)
-                                    else it
-                                }
-                        }
-                    }
-                    is Seed -> {
-                        if (itemData.quantity <= actualQuantity) {
-                            _seeds.value = _seeds.value.filter { it.id != itemId }
-                        } else {
-                            _seeds.value = _seeds.value.map {
-                                    if (it.id == itemId) it.copy(quantity = it.quantity - actualQuantity)
-                                    else it
-                                }
-                        }
-                    }
-                }
                 successCount++
             }
             
@@ -8534,9 +8496,117 @@ class GameEngine {
                 playerListedItems = updatedItems
             )
             
-            returnItemToInventory(item)
-            
             addEvent("下架了${item.name}", EventType.INFO)
+        }
+    }
+    
+    private fun removeItemFromInventory(item: MerchantItem) {
+        when (item.type) {
+            "equipment" -> {
+                _equipment.value = _equipment.value.filter { it.id != item.itemId }
+            }
+            "manual" -> {
+                _manuals.value = _manuals.value.filter { it.id != item.itemId }
+            }
+            "pill" -> {
+                val existingPill = _pills.value.find { it.id == item.itemId }
+                if (existingPill != null) {
+                    if (existingPill.quantity <= 1) {
+                        _pills.value = _pills.value.filter { it.id != item.itemId }
+                    } else {
+                        _pills.value = _pills.value.map {
+                            if (it.id == item.itemId) it.copy(quantity = it.quantity - 1)
+                            else it
+                        }
+                    }
+                }
+            }
+            "material" -> {
+                val existingMaterial = _materials.value.find { it.id == item.itemId }
+                if (existingMaterial != null) {
+                    if (existingMaterial.quantity <= 1) {
+                        _materials.value = _materials.value.filter { it.id != item.itemId }
+                    } else {
+                        _materials.value = _materials.value.map {
+                            if (it.id == item.itemId) it.copy(quantity = it.quantity - 1)
+                            else it
+                        }
+                    }
+                }
+            }
+            "herb" -> {
+                val existingHerb = _herbs.value.find { it.id == item.itemId }
+                if (existingHerb != null) {
+                    if (existingHerb.quantity <= 1) {
+                        _herbs.value = _herbs.value.filter { it.id != item.itemId }
+                    } else {
+                        _herbs.value = _herbs.value.map {
+                            if (it.id == item.itemId) it.copy(quantity = it.quantity - 1)
+                            else it
+                        }
+                    }
+                }
+            }
+            "seed" -> {
+                val existingSeed = _seeds.value.find { it.id == item.itemId }
+                if (existingSeed != null) {
+                    if (existingSeed.quantity <= 1) {
+                        _seeds.value = _seeds.value.filter { it.id != item.itemId }
+                    } else {
+                        _seeds.value = _seeds.value.map {
+                            if (it.id == item.itemId) it.copy(quantity = it.quantity - 1)
+                            else it
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    private fun syncListedItemsWithInventory() {
+        val data = _gameData.value
+        val currentListedItems = data.playerListedItems.toMutableList()
+        val itemsToRemove = mutableListOf<String>()
+        val itemsToUpdate = mutableListOf<Pair<String, Int>>()
+        
+        currentListedItems.forEach { item ->
+            val inventoryQuantity = when (item.type) {
+                "equipment" -> _equipment.value.count { it.id == item.itemId }
+                "manual" -> _manuals.value.count { it.id == item.itemId }
+                "pill" -> _pills.value.find { it.id == item.itemId }?.quantity ?: 0
+                "material" -> _materials.value.find { it.id == item.itemId }?.quantity ?: 0
+                "herb" -> _herbs.value.find { it.id == item.itemId }?.quantity ?: 0
+                "seed" -> _seeds.value.find { it.id == item.itemId }?.quantity ?: 0
+                else -> 0
+            }
+            
+            when {
+                inventoryQuantity == 0 -> {
+                    itemsToRemove.add(item.id)
+                    addEvent("上架的${item.name}已无库存，自动下架", EventType.WARNING)
+                }
+                inventoryQuantity < item.quantity -> {
+                    itemsToUpdate.add(item.id to inventoryQuantity)
+                    if (inventoryQuantity > 0) {
+                        addEvent("上架的${item.name}库存不足，已调整为${inventoryQuantity}个", EventType.WARNING)
+                    }
+                }
+            }
+        }
+        
+        if (itemsToRemove.isNotEmpty() || itemsToUpdate.isNotEmpty()) {
+            val updatedList = currentListedItems
+                .filterNot { it.id in itemsToRemove }
+                .map { item ->
+                    val update = itemsToUpdate.find { it.first == item.id }
+                    if (update != null) {
+                        item.copy(quantity = update.second)
+                    } else {
+                        item
+                    }
+                }
+            
+            _gameData.value = data.copy(playerListedItems = updatedList)
         }
     }
     
@@ -8705,6 +8775,7 @@ class GameEngine {
         val updatedListedItems = listedItems.toMutableList()
         val eventsToAdd = mutableListOf<Pair<String, EventType>>()
         var totalSpiritStonesEarned = 0
+        val itemsToRemoveFromInventory = mutableListOf<MerchantItem>()
 
         currentDisciples.forEachIndexed { index, disciple ->
             if (!disciple.isAlive || disciple.status == DiscipleStatus.REFLECTING) return@forEachIndexed
@@ -8719,6 +8790,7 @@ class GameEngine {
                     val result = discipleBuyItem(disciple, equipmentItem, data.gameYear, data.gameMonth)
                     currentDisciples[index] = result.first
                     updatedListedItems.removeAll { it.id == equipmentItem.id }
+                    itemsToRemoveFromInventory.add(equipmentItem)
                     eventsToAdd.add(result.second to EventType.INFO)
                     totalSpiritStonesEarned += equipmentItem.price
                     return@forEachIndexed
@@ -8732,6 +8804,7 @@ class GameEngine {
                     val result = discipleBuyItem(disciple, manualItem, data.gameYear, data.gameMonth)
                     currentDisciples[index] = result.first
                     updatedListedItems.removeAll { it.id == manualItem.id }
+                    itemsToRemoveFromInventory.add(manualItem)
                     eventsToAdd.add(result.second to EventType.INFO)
                     totalSpiritStonesEarned += manualItem.price
                     return@forEachIndexed
@@ -8750,10 +8823,15 @@ class GameEngine {
                 } else {
                     updatedListedItems.removeAll { it.id == pillItem.id }
                 }
+                itemsToRemoveFromInventory.add(pillItem)
                 eventsToAdd.add(result.second to EventType.INFO)
                 totalSpiritStonesEarned += pillItem.price
                 return@forEachIndexed
             }
+        }
+
+        itemsToRemoveFromInventory.forEach { item ->
+            removeItemFromInventory(item)
         }
 
         _disciples.value = currentDisciples

@@ -575,7 +575,8 @@ data class PlayerListItem(
     val name: String,
     val type: String,
     val rarity: Int,
-    val quantity: Int,
+    val inventoryQuantity: Int,
+    val listedQuantity: Int,
     val price: Int,
     val itemId: String
 )
@@ -588,15 +589,32 @@ fun ListingManagementDialog(
 ) {
     val playerListedItems = gameData?.playerListedItems ?: emptyList()
     var showInventorySelectDialog by remember { mutableStateOf(false) }
+    
+    val equipment by viewModel.equipment.collectAsState()
+    val manuals by viewModel.manuals.collectAsState()
+    val pills by viewModel.pills.collectAsState()
+    val materials by viewModel.materials.collectAsState()
+    val herbs by viewModel.herbs.collectAsState()
+    val seeds by viewModel.seeds.collectAsState()
 
-    val listItems = remember(playerListedItems) {
+    val listItems = remember(playerListedItems, equipment, manuals, pills, materials, herbs, seeds) {
         playerListedItems.map { item ->
+            val inventoryQty = when (item.type) {
+                "equipment" -> equipment.count { it.id == item.itemId }
+                "manual" -> manuals.count { it.id == item.itemId }
+                "pill" -> pills.find { it.id == item.itemId }?.quantity ?: 0
+                "material" -> materials.find { it.id == item.itemId }?.quantity ?: 0
+                "herb" -> herbs.find { it.id == item.itemId }?.quantity ?: 0
+                "seed" -> seeds.find { it.id == item.itemId }?.quantity ?: 0
+                else -> 0
+            }
             PlayerListItem(
                 id = item.id,
                 name = item.name,
                 type = item.type,
                 rarity = item.rarity,
-                quantity = item.quantity,
+                inventoryQuantity = inventoryQty,
+                listedQuantity = item.quantity,
                 price = item.price,
                 itemId = item.itemId
             )
@@ -660,7 +678,7 @@ fun ListingManagementDialog(
                             .fillMaxWidth()
                             .background(GameColors.Background)
                             .padding(horizontal = 12.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text(
                             text = "道具名称",
@@ -670,15 +688,23 @@ fun ListingManagementDialog(
                             modifier = Modifier.weight(1f)
                         )
                         Text(
-                            text = "数量",
+                            text = "道具数量",
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
                             color = GameColors.TextSecondary,
-                            modifier = Modifier.width(50.dp),
+                            modifier = Modifier.width(55.dp),
                             textAlign = TextAlign.Center
                         )
                         Text(
-                            text = "单价",
+                            text = "上架数量",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = GameColors.TextSecondary,
+                            modifier = Modifier.width(55.dp),
+                            textAlign = TextAlign.Center
+                        )
+                        Text(
+                            text = "价格",
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
                             color = GameColors.TextSecondary,
@@ -690,7 +716,7 @@ fun ListingManagementDialog(
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
                             color = GameColors.TextSecondary,
-                            modifier = Modifier.width(60.dp),
+                            modifier = Modifier.width(50.dp),
                             textAlign = TextAlign.Center
                         )
                     }
@@ -735,7 +761,7 @@ private fun ListedItemCard(
             .background(GameColors.PageBackground, RoundedCornerShape(4.dp))
             .border(1.dp, rarityColor.copy(alpha = 0.3f), RoundedCornerShape(4.dp))
             .padding(horizontal = 8.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
@@ -749,10 +775,18 @@ private fun ListedItemCard(
         )
 
         Text(
-            text = "${item.quantity}",
+            text = "${item.inventoryQuantity}",
             fontSize = 11.sp,
             color = GameColors.TextPrimary,
-            modifier = Modifier.width(50.dp),
+            modifier = Modifier.width(55.dp),
+            textAlign = TextAlign.Center
+        )
+
+        Text(
+            text = "${item.listedQuantity}",
+            fontSize = 11.sp,
+            color = GameColors.TextPrimary,
+            modifier = Modifier.width(55.dp),
             textAlign = TextAlign.Center
         )
 
@@ -767,7 +801,7 @@ private fun ListedItemCard(
         GameButton(
             text = "下架",
             onClick = onDelist,
-            modifier = Modifier.width(60.dp).height(28.dp)
+            modifier = Modifier.width(50.dp).height(28.dp)
         )
     }
 }
