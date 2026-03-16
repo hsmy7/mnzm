@@ -750,7 +750,7 @@ object PillRecipeDatabase {
             category = PillCategory.BATTLE,
             description = "物理攻击+25%基础值，持续1场战斗",
             materials = mapOf("spiritGrass12" to 2, "spiritFlower12" to 2, "spiritFruit10" to 2),
-            duration = 12,
+            duration = 18,
             successRate = 0.45,
             physicalAttackPercent = 0.25,
             battleCount = 1
@@ -763,7 +763,7 @@ object PillRecipeDatabase {
             category = PillCategory.BATTLE,
             description = "法术攻击+25%基础值，持续1场战斗",
             materials = mapOf("spiritFlower10" to 2, "spiritFruit11" to 2, "spiritGrass10" to 2),
-            duration = 12,
+            duration = 18,
             successRate = 0.45,
             magicAttackPercent = 0.25,
             battleCount = 1
@@ -776,7 +776,7 @@ object PillRecipeDatabase {
             category = PillCategory.BATTLE,
             description = "物理防御+25%基础值，持续1场战斗",
             materials = mapOf("spiritGrass11" to 2, "spiritFlower11" to 2, "spiritFruit12" to 2),
-            duration = 12,
+            duration = 18,
             successRate = 0.45,
             physicalDefensePercent = 0.25,
             battleCount = 1
@@ -789,7 +789,7 @@ object PillRecipeDatabase {
             category = PillCategory.BATTLE,
             description = "法术防御+25%基础值，持续1场战斗",
             materials = mapOf("spiritFlower12" to 2, "spiritFruit10" to 2, "spiritGrass11" to 2),
-            duration = 12,
+            duration = 18,
             successRate = 0.45,
             magicDefensePercent = 0.25,
             battleCount = 1
@@ -802,7 +802,7 @@ object PillRecipeDatabase {
             category = PillCategory.BATTLE,
             description = "生命值+25%基础值，持续1场战斗",
             materials = mapOf("spiritGrass10" to 2, "spiritFruit11" to 2, "spiritFlower12" to 2),
-            duration = 12,
+            duration = 18,
             successRate = 0.45,
             hpPercent = 0.25,
             battleCount = 1
@@ -815,7 +815,7 @@ object PillRecipeDatabase {
             category = PillCategory.BATTLE,
             description = "灵力容量+25%基础值，持续1场战斗",
             materials = mapOf("spiritFlower11" to 2, "spiritFruit12" to 2, "spiritGrass12" to 2),
-            duration = 12,
+            duration = 18,
             successRate = 0.45,
             mpPercent = 0.25,
             battleCount = 1
@@ -828,7 +828,7 @@ object PillRecipeDatabase {
             category = PillCategory.BATTLE,
             description = "速度+25%基础值，持续1场战斗",
             materials = mapOf("spiritGrass12" to 2, "spiritFlower10" to 2, "spiritFruit11" to 2),
-            duration = 12,
+            duration = 18,
             successRate = 0.45,
             speedPercent = 0.25,
             battleCount = 1
@@ -841,7 +841,7 @@ object PillRecipeDatabase {
             category = PillCategory.BATTLE,
             description = "物理攻击+20%，物理防御+20%，持续1场战斗",
             materials = mapOf("spiritGrass10" to 2, "spiritFruit12" to 2, "spiritFlower11" to 2),
-            duration = 12,
+            duration = 18,
             successRate = 0.45,
             physicalAttackPercent = 0.20,
             physicalDefensePercent = 0.20,
@@ -855,7 +855,7 @@ object PillRecipeDatabase {
             category = PillCategory.BATTLE,
             description = "法术攻击+20%，法术防御+20%，持续1场战斗",
             materials = mapOf("spiritFlower12" to 2, "spiritFruit10" to 2, "spiritGrass10" to 2),
-            duration = 12,
+            duration = 18,
             successRate = 0.45,
             magicAttackPercent = 0.20,
             magicDefensePercent = 0.20,
@@ -869,7 +869,7 @@ object PillRecipeDatabase {
             category = PillCategory.BATTLE,
             description = "生命值+20%，灵力容量+20%，持续1场战斗",
             materials = mapOf("spiritGrass11" to 2, "spiritFlower10" to 2, "spiritFruit12" to 2),
-            duration = 12,
+            duration = 18,
             successRate = 0.45,
             hpPercent = 0.20,
             mpPercent = 0.20,
@@ -883,7 +883,7 @@ object PillRecipeDatabase {
             category = PillCategory.HEALING,
             description = "恢复55%最大生命值",
             materials = mapOf("spiritGrass12" to 2, "spiritFlower11" to 2, "spiritFruit10" to 2),
-            duration = 12,
+            duration = 18,
             successRate = 0.45,
             healMaxHpPercent = 0.55
         ),
@@ -895,7 +895,7 @@ object PillRecipeDatabase {
             category = PillCategory.HEALING,
             description = "恢复55%最大灵力",
             materials = mapOf("spiritFlower10" to 2, "spiritFruit11" to 2, "spiritGrass11" to 2),
-            duration = 12,
+            duration = 18,
             successRate = 0.45,
             mpRecoverMaxMpPercent = 0.55
         ),
@@ -907,7 +907,7 @@ object PillRecipeDatabase {
             category = PillCategory.CULTIVATION,
             description = "立即获得35%修为上限的修为",
             materials = mapOf("spiritGrass10" to 2, "spiritFlower12" to 2, "spiritFruit11" to 2),
-            duration = 12,
+            duration = 18,
             successRate = 0.45,
             cultivationPercent = 0.35
         ),
@@ -919,7 +919,7 @@ object PillRecipeDatabase {
             category = PillCategory.CULTIVATION,
             description = "增加所有功法80%当前等级所需熟练度",
             materials = mapOf("spiritFlower11" to 2, "spiritFruit12" to 2, "spiritGrass12" to 2),
-            duration = 12,
+            duration = 18,
             successRate = 0.45,
             skillExpPercent = 0.80
         ),
@@ -931,7 +931,7 @@ object PillRecipeDatabase {
             category = PillCategory.CULTIVATION,
             description = "增加35年寿元",
             materials = mapOf("spiritGrass11" to 2, "spiritFruit10" to 2, "spiritFlower10" to 2),
-            duration = 12,
+            duration = 18,
             successRate = 0.45,
             extendLife = 35
         )
@@ -946,7 +946,7 @@ object PillRecipeDatabase {
             category = PillCategory.BREAKTHROUGH,
             description = "增加炼虚期突破合体期的成功概率30%",
             materials = mapOf("spiritGrass13" to 2, "spiritFlower14" to 2, "spiritFruit13" to 2, "spiritGrass15" to 2),
-            duration = 27,
+            duration = 30,
             successRate = 0.35,
             breakthroughChance = 0.30,
             targetRealm = 3
@@ -959,7 +959,7 @@ object PillRecipeDatabase {
             category = PillCategory.CULTIVATION,
             description = "提升修炼速度150%，持续1个月，效果期间不可重复使用",
             materials = mapOf("spiritGrass14" to 2, "spiritFlower13" to 2, "spiritFruit14" to 2, "spiritFlower15" to 2),
-            duration = 18,
+            duration = 30,
             successRate = 0.35,
             cultivationSpeed = 2.5,
             effectDuration = 1
@@ -972,7 +972,7 @@ object PillRecipeDatabase {
             category = PillCategory.BATTLE,
             description = "物理攻击+30%基础值，持续1场战斗",
             materials = mapOf("spiritGrass15" to 2, "spiritFlower15" to 2, "spiritFruit13" to 2, "spiritGrass13" to 2),
-            duration = 18,
+            duration = 30,
             successRate = 0.35,
             physicalAttackPercent = 0.30,
             battleCount = 1
@@ -985,7 +985,7 @@ object PillRecipeDatabase {
             category = PillCategory.BATTLE,
             description = "法术攻击+30%基础值，持续1场战斗",
             materials = mapOf("spiritFlower13" to 2, "spiritFruit14" to 2, "spiritGrass14" to 2, "spiritFruit15" to 2),
-            duration = 18,
+            duration = 30,
             successRate = 0.35,
             magicAttackPercent = 0.30,
             battleCount = 1
@@ -998,7 +998,7 @@ object PillRecipeDatabase {
             category = PillCategory.BATTLE,
             description = "物理防御+30%基础值，持续1场战斗",
             materials = mapOf("spiritGrass14" to 2, "spiritFlower14" to 2, "spiritFruit15" to 2, "spiritGrass15" to 2),
-            duration = 18,
+            duration = 30,
             successRate = 0.35,
             physicalDefensePercent = 0.30,
             battleCount = 1
@@ -1011,7 +1011,7 @@ object PillRecipeDatabase {
             category = PillCategory.BATTLE,
             description = "法术防御+30%基础值，持续1场战斗",
             materials = mapOf("spiritFlower15" to 2, "spiritFruit13" to 2, "spiritGrass13" to 2, "spiritFlower14" to 2),
-            duration = 18,
+            duration = 30,
             successRate = 0.35,
             magicDefensePercent = 0.30,
             battleCount = 1
@@ -1024,7 +1024,7 @@ object PillRecipeDatabase {
             category = PillCategory.BATTLE,
             description = "生命值+30%基础值，持续1场战斗",
             materials = mapOf("spiritGrass13" to 2, "spiritFruit14" to 2, "spiritFlower15" to 2, "spiritFruit13" to 2),
-            duration = 18,
+            duration = 30,
             successRate = 0.35,
             hpPercent = 0.30,
             battleCount = 1
@@ -1037,7 +1037,7 @@ object PillRecipeDatabase {
             category = PillCategory.BATTLE,
             description = "灵力容量+30%基础值，持续1场战斗",
             materials = mapOf("spiritFlower14" to 2, "spiritFruit15" to 2, "spiritGrass15" to 2, "spiritFlower13" to 2),
-            duration = 18,
+            duration = 30,
             successRate = 0.35,
             mpPercent = 0.30,
             battleCount = 1
@@ -1050,7 +1050,7 @@ object PillRecipeDatabase {
             category = PillCategory.BATTLE,
             description = "速度+30%基础值，持续1场战斗",
             materials = mapOf("spiritGrass15" to 2, "spiritFlower13" to 2, "spiritFruit14" to 2, "spiritGrass14" to 2),
-            duration = 18,
+            duration = 30,
             successRate = 0.35,
             speedPercent = 0.30,
             battleCount = 1
@@ -1063,7 +1063,7 @@ object PillRecipeDatabase {
             category = PillCategory.BATTLE,
             description = "物理攻击+24%，物理防御+24%，持续1场战斗",
             materials = mapOf("spiritGrass13" to 2, "spiritFruit15" to 2, "spiritFlower14" to 2, "spiritFruit14" to 2),
-            duration = 18,
+            duration = 30,
             successRate = 0.35,
             physicalAttackPercent = 0.24,
             physicalDefensePercent = 0.24,
@@ -1077,7 +1077,7 @@ object PillRecipeDatabase {
             category = PillCategory.BATTLE,
             description = "法术攻击+24%，法术防御+24%，持续1场战斗",
             materials = mapOf("spiritFlower15" to 2, "spiritFruit13" to 2, "spiritGrass14" to 2, "spiritFlower13" to 2),
-            duration = 18,
+            duration = 30,
             successRate = 0.35,
             magicAttackPercent = 0.24,
             magicDefensePercent = 0.24,
@@ -1091,7 +1091,7 @@ object PillRecipeDatabase {
             category = PillCategory.BATTLE,
             description = "生命值+24%，灵力容量+24%，持续1场战斗",
             materials = mapOf("spiritGrass14" to 2, "spiritFlower15" to 2, "spiritFruit13" to 2, "spiritGrass13" to 2),
-            duration = 18,
+            duration = 30,
             successRate = 0.35,
             hpPercent = 0.24,
             mpPercent = 0.24,
@@ -1105,7 +1105,7 @@ object PillRecipeDatabase {
             category = PillCategory.HEALING,
             description = "恢复70%最大生命值",
             materials = mapOf("spiritGrass15" to 2, "spiritFlower14" to 2, "spiritFruit15" to 2, "spiritGrass14" to 2),
-            duration = 18,
+            duration = 30,
             successRate = 0.35,
             healMaxHpPercent = 0.70
         ),
@@ -1117,7 +1117,7 @@ object PillRecipeDatabase {
             category = PillCategory.HEALING,
             description = "恢复70%最大灵力",
             materials = mapOf("spiritFlower13" to 2, "spiritFruit14" to 2, "spiritGrass13" to 2, "spiritFlower15" to 2),
-            duration = 18,
+            duration = 30,
             successRate = 0.35,
             mpRecoverMaxMpPercent = 0.70
         ),
@@ -1129,7 +1129,7 @@ object PillRecipeDatabase {
             category = PillCategory.CULTIVATION,
             description = "立即获得50%修为上限的修为",
             materials = mapOf("spiritGrass13" to 2, "spiritFlower13" to 2, "spiritFruit14" to 2, "spiritFruit15" to 2),
-            duration = 18,
+            duration = 30,
             successRate = 0.35,
             cultivationPercent = 0.50
         ),
@@ -1141,7 +1141,7 @@ object PillRecipeDatabase {
             category = PillCategory.CULTIVATION,
             description = "增加所有功法100%当前等级所需熟练度",
             materials = mapOf("spiritFlower14" to 2, "spiritFruit13" to 2, "spiritGrass15" to 2, "spiritFlower15" to 2),
-            duration = 18,
+            duration = 30,
             successRate = 0.35,
             skillExpPercent = 1.0
         ),
@@ -1153,7 +1153,7 @@ object PillRecipeDatabase {
             category = PillCategory.CULTIVATION,
             description = "增加50年寿元",
             materials = mapOf("spiritGrass14" to 2, "spiritFruit15" to 2, "spiritFlower13" to 2, "spiritGrass15" to 2),
-            duration = 18,
+            duration = 30,
             successRate = 0.35,
             extendLife = 50
         )
@@ -1168,7 +1168,7 @@ object PillRecipeDatabase {
             category = PillCategory.BREAKTHROUGH,
             description = "增加合体期突破大乘期的成功概率30%",
             materials = mapOf("spiritGrass18" to 2, "spiritFlower18" to 2, "spiritFruit18" to 2, "spiritFruit16" to 2),
-            duration = 36,
+            duration = 48,
             successRate = 0.20,
             breakthroughChance = 0.30,
             targetRealm = 2
@@ -1181,7 +1181,7 @@ object PillRecipeDatabase {
             category = PillCategory.BREAKTHROUGH,
             description = "增加大乘期突破渡劫期的成功概率30%",
             materials = mapOf("spiritGrass16" to 2, "spiritFlower16" to 2, "spiritFruit16" to 2, "spiritGrass17" to 2),
-            duration = 24,
+            duration = 48,
             successRate = 0.20,
             breakthroughChance = 0.30,
             targetRealm = 1
@@ -1194,7 +1194,7 @@ object PillRecipeDatabase {
             category = PillCategory.BREAKTHROUGH,
             description = "增加渡劫期飞升仙界的成功概率30%",
             materials = mapOf("spiritGrass18" to 2, "spiritFlower17" to 2, "spiritFruit18" to 2, "spiritFruit17" to 2),
-            duration = 24,
+            duration = 48,
             successRate = 0.20,
             breakthroughChance = 0.30,
             targetRealm = 0
@@ -1207,7 +1207,7 @@ object PillRecipeDatabase {
             category = PillCategory.CULTIVATION,
             description = "提升修炼速度200%，持续1个月，效果期间不可重复使用",
             materials = mapOf("spiritGrass17" to 2, "spiritFlower18" to 2, "spiritFruit17" to 2, "spiritFlower16" to 2),
-            duration = 24,
+            duration = 48,
             successRate = 0.20,
             cultivationSpeed = 3.0,
             effectDuration = 1
@@ -1220,7 +1220,7 @@ object PillRecipeDatabase {
             category = PillCategory.BATTLE,
             description = "物理攻击+40%基础值，持续1场战斗",
             materials = mapOf("spiritGrass18" to 2, "spiritFlower18" to 2, "spiritFruit16" to 2, "spiritGrass16" to 2),
-            duration = 24,
+            duration = 48,
             successRate = 0.20,
             physicalAttackPercent = 0.40,
             battleCount = 1
@@ -1233,7 +1233,7 @@ object PillRecipeDatabase {
             category = PillCategory.BATTLE,
             description = "法术攻击+40%基础值，持续1场战斗",
             materials = mapOf("spiritFlower16" to 2, "spiritFruit17" to 2, "spiritGrass17" to 2, "spiritFruit18" to 2),
-            duration = 24,
+            duration = 48,
             successRate = 0.20,
             magicAttackPercent = 0.40,
             battleCount = 1
@@ -1246,7 +1246,7 @@ object PillRecipeDatabase {
             category = PillCategory.BATTLE,
             description = "物理防御+40%基础值，持续1场战斗",
             materials = mapOf("spiritGrass17" to 2, "spiritFlower17" to 2, "spiritFruit18" to 2, "spiritGrass18" to 2),
-            duration = 24,
+            duration = 48,
             successRate = 0.20,
             physicalDefensePercent = 0.40,
             battleCount = 1
@@ -1259,7 +1259,7 @@ object PillRecipeDatabase {
             category = PillCategory.BATTLE,
             description = "法术防御+40%基础值，持续1场战斗",
             materials = mapOf("spiritFlower18" to 2, "spiritFruit16" to 2, "spiritGrass16" to 2, "spiritFlower17" to 2),
-            duration = 24,
+            duration = 48,
             successRate = 0.20,
             magicDefensePercent = 0.40,
             battleCount = 1
@@ -1272,7 +1272,7 @@ object PillRecipeDatabase {
             category = PillCategory.BATTLE,
             description = "生命值+40%基础值，持续1场战斗",
             materials = mapOf("spiritGrass16" to 2, "spiritFruit17" to 2, "spiritFlower18" to 2, "spiritFruit16" to 2),
-            duration = 24,
+            duration = 48,
             successRate = 0.20,
             hpPercent = 0.40,
             battleCount = 1
@@ -1285,7 +1285,7 @@ object PillRecipeDatabase {
             category = PillCategory.BATTLE,
             description = "灵力容量+40%基础值，持续1场战斗",
             materials = mapOf("spiritFlower17" to 2, "spiritFruit18" to 2, "spiritGrass18" to 2, "spiritFlower16" to 2),
-            duration = 24,
+            duration = 48,
             successRate = 0.20,
             mpPercent = 0.40,
             battleCount = 1
@@ -1298,7 +1298,7 @@ object PillRecipeDatabase {
             category = PillCategory.BATTLE,
             description = "速度+40%基础值，持续1场战斗",
             materials = mapOf("spiritGrass18" to 2, "spiritFlower16" to 2, "spiritFruit17" to 2, "spiritGrass17" to 2),
-            duration = 24,
+            duration = 48,
             successRate = 0.20,
             speedPercent = 0.40,
             battleCount = 1
@@ -1311,7 +1311,7 @@ object PillRecipeDatabase {
             category = PillCategory.BATTLE,
             description = "物理攻击+32%，物理防御+32%，持续1场战斗",
             materials = mapOf("spiritGrass16" to 2, "spiritFruit18" to 2, "spiritFlower17" to 2, "spiritFruit17" to 2),
-            duration = 24,
+            duration = 48,
             successRate = 0.20,
             physicalAttackPercent = 0.32,
             physicalDefensePercent = 0.32,
@@ -1325,7 +1325,7 @@ object PillRecipeDatabase {
             category = PillCategory.BATTLE,
             description = "法术攻击+32%，法术防御+32%，持续1场战斗",
             materials = mapOf("spiritFlower18" to 2, "spiritFruit16" to 2, "spiritGrass17" to 2, "spiritFlower16" to 2),
-            duration = 24,
+            duration = 48,
             successRate = 0.20,
             magicAttackPercent = 0.32,
             magicDefensePercent = 0.32,
@@ -1339,7 +1339,7 @@ object PillRecipeDatabase {
             category = PillCategory.BATTLE,
             description = "生命值+32%，灵力容量+32%，持续1场战斗",
             materials = mapOf("spiritGrass17" to 2, "spiritFlower18" to 2, "spiritFruit16" to 2, "spiritGrass16" to 2),
-            duration = 24,
+            duration = 48,
             successRate = 0.20,
             hpPercent = 0.32,
             mpPercent = 0.32,
@@ -1353,7 +1353,7 @@ object PillRecipeDatabase {
             category = PillCategory.HEALING,
             description = "恢复85%最大生命值",
             materials = mapOf("spiritGrass18" to 2, "spiritFlower17" to 2, "spiritFruit18" to 2, "spiritGrass17" to 2),
-            duration = 24,
+            duration = 48,
             successRate = 0.20,
             healMaxHpPercent = 0.85
         ),
@@ -1365,7 +1365,7 @@ object PillRecipeDatabase {
             category = PillCategory.HEALING,
             description = "恢复85%最大灵力",
             materials = mapOf("spiritFlower16" to 2, "spiritFruit18" to 2, "spiritGrass16" to 2, "spiritFlower18" to 2),
-            duration = 24,
+            duration = 48,
             successRate = 0.20,
             mpRecoverMaxMpPercent = 0.85
         ),
@@ -1377,7 +1377,7 @@ object PillRecipeDatabase {
             category = PillCategory.CULTIVATION,
             description = "立即获得80%修为上限的修为",
             materials = mapOf("spiritGrass16" to 2, "spiritFlower16" to 2, "spiritFruit17" to 2, "spiritFruit18" to 2),
-            duration = 24,
+            duration = 48,
             successRate = 0.20,
             cultivationPercent = 0.80
         ),
@@ -1389,7 +1389,7 @@ object PillRecipeDatabase {
             category = PillCategory.CULTIVATION,
             description = "增加所有功法150%当前等级所需熟练度",
             materials = mapOf("spiritFlower17" to 2, "spiritFruit16" to 2, "spiritGrass18" to 2, "spiritFlower18" to 2),
-            duration = 24,
+            duration = 48,
             successRate = 0.20,
             skillExpPercent = 1.5
         ),
@@ -1401,7 +1401,7 @@ object PillRecipeDatabase {
             category = PillCategory.CULTIVATION,
             description = "增加80年寿元",
             materials = mapOf("spiritGrass17" to 2, "spiritFruit18" to 2, "spiritFlower16" to 2, "spiritGrass18" to 2),
-            duration = 24,
+            duration = 48,
             successRate = 0.20,
             extendLife = 80
         )
@@ -1433,12 +1433,12 @@ object PillRecipeDatabase {
 
     fun getDurationByTier(tier: Int): Int {
         return when (tier) {
-            1 -> 2   // 一阶丹药: 2个月
-            2 -> 5   // 二阶丹药: 5个月
-            3 -> 9   // 三阶丹药: 9个月
-            4 -> 18  // 四阶丹药: 18个月 (增加50%)
-            5 -> 27  // 五阶丹药: 27个月 (增加50%)
-            6 -> 36  // 六阶丹药: 36个月 (增加50%)
+            1 -> 2
+            2 -> 5
+            3 -> 9
+            4 -> 18
+            5 -> 30
+            6 -> 48
             else -> 2
         }
     }

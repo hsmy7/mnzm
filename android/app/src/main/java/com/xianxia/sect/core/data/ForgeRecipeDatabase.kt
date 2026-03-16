@@ -77,33 +77,33 @@ object ForgeRecipeDatabase {
     )
 
     private val tier5Recipes = listOf(
-        ForgeRecipe("dragonSlayer", "屠龙刀", EquipmentSlot.WEAPON, 5, 5, "传说中屠龙的绝世神兵", mapOf("tigerBone4" to 6, "tigerTooth4" to 4, "tigerCore4" to 2, "dragonHorn4" to 2), 27, 0.30),
-        ForgeRecipe("godSlayer", "弑神剑", EquipmentSlot.WEAPON, 5, 5, "可弑杀神明的神剑", mapOf("tigerBone4" to 5, "tigerTooth4" to 4, "eagleClaw4" to 3, "tigerCore4" to 2), 27, 0.30),
-        ForgeRecipe("phoenixWing", "凤凰羽", EquipmentSlot.WEAPON, 5, 5, "凤凰羽翼化作的神兵", mapOf("eagleFeather4" to 6, "eagleClaw4" to 4, "eagleCore4" to 2, "snakeCore4" to 2), 27, 0.30),
-        ForgeRecipe("celestialOrb", "天星珠", EquipmentSlot.WEAPON, 5, 5, "凝聚星辰之力的宝珠", mapOf("snakeBone4" to 5, "snakeCore4" to 4, "foxCore4" to 2, "dragonCore4" to 2), 27, 0.30),
-        ForgeRecipe("earthArmor", "大地甲", EquipmentSlot.ARMOR, 5, 5, "承载大地之力的神甲", mapOf("snakeHide4" to 6, "snakeBone4" to 4, "snakeCore4" to 2, "dragonScale4" to 2), 27, 0.30),
-        ForgeRecipe("divinePlate", "神铸铠", EquipmentSlot.ARMOR, 5, 5, "神匠铸造的铠甲", mapOf("bearHide4" to 6, "bearBone4" to 4, "bearClaw4" to 2, "bearCore4" to 2), 27, 0.30),
-        ForgeRecipe("celestialRobe", "天罡袍", EquipmentSlot.ARMOR, 5, 5, "天罡星力凝聚的法袍", mapOf("turtleShell4" to 6, "turtleBone4" to 4, "turtleCore4" to 2, "dragonScale4" to 2), 27, 0.30),
-        ForgeRecipe("voidShadowRobe", "虚空影袍", EquipmentSlot.ARMOR, 5, 5, "穿梭于虚空阴影中的神秘法袍", mapOf("bearHide4" to 5, "snakeHide4" to 3, "bearCore4" to 3, "foxCore4" to 2), 27, 0.30),
-        ForgeRecipe("voidBoots", "虚空步", EquipmentSlot.BOOTS, 5, 5, "行走于虚空之间", mapOf("wolfHide4" to 5, "wolfTooth4" to 4, "wolfCore4" to 2, "dragonScale4" to 2), 27, 0.30),
-        ForgeRecipe("shadowStepBoots", "影舞步", EquipmentSlot.BOOTS, 5, 5, "如影子般飘逸的靴子", mapOf("wolfHide4" to 5, "eagleClaw4" to 3, "wolfCore4" to 2, "foxTail4" to 2), 27, 0.30),
-        ForgeRecipe("earthCore", "地灵核", EquipmentSlot.ACCESSORY, 5, 5, "大地灵核凝聚的至宝", mapOf("foxCore4" to 6, "foxBone4" to 4, "foxHide4" to 2, "dragonCore4" to 2), 27, 0.30),
-        ForgeRecipe("dragonEyePendant", "风行坠", EquipmentSlot.ACCESSORY, 5, 5, "蕴含风行法则的坠饰", mapOf("wolfTooth4" to 5, "eagleClaw4" to 4, "foxTail4" to 2, "wolfCore4" to 2), 27, 0.30)
+        ForgeRecipe("dragonSlayer", "屠龙刀", EquipmentSlot.WEAPON, 5, 5, "传说中屠龙的绝世神兵", mapOf("tigerBone4" to 6, "tigerTooth4" to 4, "tigerCore4" to 2, "dragonHorn4" to 2), 30, 0.30),
+        ForgeRecipe("godSlayer", "弑神剑", EquipmentSlot.WEAPON, 5, 5, "可弑杀神明的神剑", mapOf("tigerBone4" to 5, "tigerTooth4" to 4, "eagleClaw4" to 3, "tigerCore4" to 2), 30, 0.30),
+        ForgeRecipe("phoenixWing", "凤凰羽", EquipmentSlot.WEAPON, 5, 5, "凤凰羽翼化作的神兵", mapOf("eagleFeather4" to 6, "eagleClaw4" to 4, "eagleCore4" to 2, "snakeCore4" to 2), 30, 0.30),
+        ForgeRecipe("celestialOrb", "天星珠", EquipmentSlot.WEAPON, 5, 5, "凝聚星辰之力的宝珠", mapOf("snakeBone4" to 5, "snakeCore4" to 4, "foxCore4" to 2, "dragonCore4" to 2), 30, 0.30),
+        ForgeRecipe("earthArmor", "大地甲", EquipmentSlot.ARMOR, 5, 5, "承载大地之力的神甲", mapOf("snakeHide4" to 6, "snakeBone4" to 4, "snakeCore4" to 2, "dragonScale4" to 2), 30, 0.30),
+        ForgeRecipe("divinePlate", "神铸铠", EquipmentSlot.ARMOR, 5, 5, "神匠铸造的铠甲", mapOf("bearHide4" to 6, "bearBone4" to 4, "bearClaw4" to 2, "bearCore4" to 2), 30, 0.30),
+        ForgeRecipe("celestialRobe", "天罡袍", EquipmentSlot.ARMOR, 5, 5, "天罡星力凝聚的法袍", mapOf("turtleShell4" to 6, "turtleBone4" to 4, "turtleCore4" to 2, "dragonScale4" to 2), 30, 0.30),
+        ForgeRecipe("voidShadowRobe", "虚空影袍", EquipmentSlot.ARMOR, 5, 5, "穿梭于虚空阴影中的神秘法袍", mapOf("bearHide4" to 5, "snakeHide4" to 3, "bearCore4" to 3, "foxCore4" to 2), 30, 0.30),
+        ForgeRecipe("voidBoots", "虚空步", EquipmentSlot.BOOTS, 5, 5, "行走于虚空之间", mapOf("wolfHide4" to 5, "wolfTooth4" to 4, "wolfCore4" to 2, "dragonScale4" to 2), 30, 0.30),
+        ForgeRecipe("shadowStepBoots", "影舞步", EquipmentSlot.BOOTS, 5, 5, "如影子般飘逸的靴子", mapOf("wolfHide4" to 5, "eagleClaw4" to 3, "wolfCore4" to 2, "foxTail4" to 2), 30, 0.30),
+        ForgeRecipe("earthCore", "地灵核", EquipmentSlot.ACCESSORY, 5, 5, "大地灵核凝聚的至宝", mapOf("foxCore4" to 6, "foxBone4" to 4, "foxHide4" to 2, "dragonCore4" to 2), 30, 0.30),
+        ForgeRecipe("dragonEyePendant", "风行坠", EquipmentSlot.ACCESSORY, 5, 5, "蕴含风行法则的坠饰", mapOf("wolfTooth4" to 5, "eagleClaw4" to 4, "foxTail4" to 2, "wolfCore4" to 2), 30, 0.30)
     )
 
     private val tier6Recipes = listOf(
-        ForgeRecipe("immortalSword", "诛仙剑", EquipmentSlot.WEAPON, 6, 6, "上古仙人遗留的仙器", mapOf("tigerBone5" to 8, "tigerTooth5" to 5, "tigerCore5" to 3, "dragonHorn5" to 3), 36, 0.25),
-        ForgeRecipe("chaosBlade", "混沌刀", EquipmentSlot.WEAPON, 6, 6, "开天辟地时的混沌之刃", mapOf("tigerBone5" to 6, "tigerTooth5" to 5, "eagleClaw5" to 4, "tigerCore5" to 3), 36, 0.25),
-        ForgeRecipe("primordialStaff", "鸿蒙杖", EquipmentSlot.WEAPON, 6, 6, "鸿蒙初开时诞生的法杖", mapOf("snakeBone5" to 7, "snakeCore5" to 5, "eagleFeather5" to 3, "dragonCore5" to 3), 36, 0.25),
-        ForgeRecipe("yinYangOrb", "阴阳珠", EquipmentSlot.WEAPON, 6, 6, "蕴含阴阳大道的至宝", mapOf("snakeBone5" to 6, "snakeCore5" to 5, "foxCore5" to 3, "dragonCore5" to 3), 36, 0.25),
-        ForgeRecipe("immortalArmor", "不朽铠", EquipmentSlot.ARMOR, 6, 6, "仙界神甲", mapOf("snakeHide5" to 8, "snakeBone5" to 5, "snakeCore5" to 3, "dragonScale5" to 3), 36, 0.25),
-        ForgeRecipe("primordialArmor", "鸿蒙铠", EquipmentSlot.ARMOR, 6, 6, "鸿蒙初开时诞生的神甲", mapOf("bearHide5" to 8, "bearBone5" to 5, "bearCore5" to 3, "dragonBone5" to 3), 36, 0.25),
-        ForgeRecipe("immortalRobe", "仙衣", EquipmentSlot.ARMOR, 6, 6, "仙人穿着的防御至宝", mapOf("turtleShell5" to 8, "turtleBone5" to 5, "turtleCore5" to 3, "dragonScale5" to 3), 36, 0.25),
-        ForgeRecipe("chaosRobe", "混沌袍", EquipmentSlot.ARMOR, 6, 6, "混沌初开时诞生的法袍", mapOf("bearHide5" to 6, "snakeHide5" to 4, "bearCore5" to 4, "dragonBone5" to 3), 36, 0.25),
-        ForgeRecipe("immortalBoots", "仙踪步", EquipmentSlot.BOOTS, 6, 6, "仙人留下的神行之靴", mapOf("wolfHide5" to 7, "wolfTooth5" to 5, "wolfCore5" to 3, "dragonScale5" to 3), 36, 0.25),
-        ForgeRecipe("chaosStepBoots", "混沌履", EquipmentSlot.BOOTS, 6, 6, "踏混沌而行", mapOf("wolfHide5" to 6, "eagleClaw5" to 4, "wolfCore5" to 4, "dragonBone5" to 3), 36, 0.25),
-        ForgeRecipe("chaosBead", "混沌灵珠", EquipmentSlot.ACCESSORY, 6, 6, "混沌之力凝聚的宝珠", mapOf("foxCore5" to 8, "foxBone5" to 5, "foxHide5" to 3, "dragonCore5" to 3), 36, 0.25),
-        ForgeRecipe("heavenRing", "天行戒", EquipmentSlot.ACCESSORY, 6, 6, "承载天行法则的神戒", mapOf("wolfTooth5" to 7, "eagleClaw5" to 5, "foxTail5" to 3, "dragonScale5" to 3), 36, 0.25)
+        ForgeRecipe("immortalSword", "诛仙剑", EquipmentSlot.WEAPON, 6, 6, "上古仙人遗留的仙器", mapOf("tigerBone5" to 8, "tigerTooth5" to 5, "tigerCore5" to 3, "dragonHorn5" to 3), 48, 0.25),
+        ForgeRecipe("chaosBlade", "混沌刀", EquipmentSlot.WEAPON, 6, 6, "开天辟地时的混沌之刃", mapOf("tigerBone5" to 6, "tigerTooth5" to 5, "eagleClaw5" to 4, "tigerCore5" to 3), 48, 0.25),
+        ForgeRecipe("primordialStaff", "鸿蒙杖", EquipmentSlot.WEAPON, 6, 6, "鸿蒙初开时诞生的法杖", mapOf("snakeBone5" to 7, "snakeCore5" to 5, "eagleFeather5" to 3, "dragonCore5" to 3), 48, 0.25),
+        ForgeRecipe("yinYangOrb", "阴阳珠", EquipmentSlot.WEAPON, 6, 6, "蕴含阴阳大道的至宝", mapOf("snakeBone5" to 6, "snakeCore5" to 5, "foxCore5" to 3, "dragonCore5" to 3), 48, 0.25),
+        ForgeRecipe("immortalArmor", "不朽铠", EquipmentSlot.ARMOR, 6, 6, "仙界神甲", mapOf("snakeHide5" to 8, "snakeBone5" to 5, "snakeCore5" to 3, "dragonScale5" to 3), 48, 0.25),
+        ForgeRecipe("primordialArmor", "鸿蒙铠", EquipmentSlot.ARMOR, 6, 6, "鸿蒙初开时诞生的神甲", mapOf("bearHide5" to 8, "bearBone5" to 5, "bearCore5" to 3, "dragonBone5" to 3), 48, 0.25),
+        ForgeRecipe("immortalRobe", "仙衣", EquipmentSlot.ARMOR, 6, 6, "仙人穿着的防御至宝", mapOf("turtleShell5" to 8, "turtleBone5" to 5, "turtleCore5" to 3, "dragonScale5" to 3), 48, 0.25),
+        ForgeRecipe("chaosRobe", "混沌袍", EquipmentSlot.ARMOR, 6, 6, "混沌初开时诞生的法袍", mapOf("bearHide5" to 6, "snakeHide5" to 4, "bearCore5" to 4, "dragonBone5" to 3), 48, 0.25),
+        ForgeRecipe("immortalBoots", "仙踪步", EquipmentSlot.BOOTS, 6, 6, "仙人留下的神行之靴", mapOf("wolfHide5" to 7, "wolfTooth5" to 5, "wolfCore5" to 3, "dragonScale5" to 3), 48, 0.25),
+        ForgeRecipe("chaosStepBoots", "混沌履", EquipmentSlot.BOOTS, 6, 6, "踏混沌而行", mapOf("wolfHide5" to 6, "eagleClaw5" to 4, "wolfCore5" to 4, "dragonBone5" to 3), 48, 0.25),
+        ForgeRecipe("chaosBead", "混沌灵珠", EquipmentSlot.ACCESSORY, 6, 6, "混沌之力凝聚的宝珠", mapOf("foxCore5" to 8, "foxBone5" to 5, "foxHide5" to 3, "dragonCore5" to 3), 48, 0.25),
+        ForgeRecipe("heavenRing", "天行戒", EquipmentSlot.ACCESSORY, 6, 6, "承载天行法则的神戒", mapOf("wolfTooth5" to 7, "eagleClaw5" to 5, "foxTail5" to 3, "dragonScale5" to 3), 48, 0.25)
     )
 
     private val allRecipes = tier1Recipes + tier2Recipes + tier3Recipes + tier4Recipes + tier5Recipes + tier6Recipes
@@ -134,8 +134,8 @@ object ForgeRecipeDatabase {
             2 -> 5
             3 -> 9
             4 -> 18
-            5 -> 27
-            6 -> 36
+            5 -> 30
+            6 -> 48
             else -> 2
         }
     }
