@@ -1,6 +1,0 @@
-- [x] Disciple.kt中的getBreakthroughChance方法已添加innerElderComprehension参数
-- [x] 内门长老悟性加成公式正确实现：(悟性 - 50) / 10 * 0.01
-- [x] GameEngine.kt中的attemptBreakthrough方法正确判断弟子类型
-- [x] 内门弟子突破时能正确获取内门长老悟性
-- [x] 无内门长老时加成为0
-- [x] 非内门弟子不受此加成影响

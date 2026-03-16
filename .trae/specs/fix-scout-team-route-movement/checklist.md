@@ -1,7 +1,0 @@
-- [x] SupportTeamMarker 坐标计算逻辑已修复，与 ScoutTeamMarker 保持一致
-- [x] SupportTeam 创建时使用正确的像素坐标
-- [x] 探查队伍在世界地图上正确显示移动位置
-- [x] 支援队伍在世界地图上正确显示移动位置
-- [x] 探查队伍按照规划的路线逐段移动
-- [x] initializeWorldMap 修复了 connectedSectIds 为空的问题
-- [x] 探查队伍沿着贝塞尔曲线移动，与路线绘制保持一致

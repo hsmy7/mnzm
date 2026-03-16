@@ -3182,6 +3182,26 @@ class GameViewModel @Inject constructor(
         }
     }
 
+    fun listItemsToMerchant(items: List<Pair<String, Int>>) {
+        viewModelScope.launch {
+            try {
+                gameEngine.listItemsToMerchant(items)
+            } catch (e: Exception) {
+                _errorMessage.value = e.message ?: "上架失败"
+            }
+        }
+    }
+
+    fun removePlayerListedItem(itemId: String) {
+        viewModelScope.launch {
+            try {
+                gameEngine.removePlayerListedItem(itemId)
+            } catch (e: Exception) {
+                _errorMessage.value = e.message ?: "下架失败"
+            }
+        }
+    }
+
     fun buyFromTradingHall(itemId: String) {
         viewModelScope.launch {
         }

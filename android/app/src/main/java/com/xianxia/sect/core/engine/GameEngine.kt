@@ -1626,7 +1626,8 @@ class GameEngine {
             "processDiplomaticEvents" to { processDiplomaticEvents(year) },
             "processScoutInfoExpiry" to { processScoutInfoExpiry(year, month) },
             "processAISectAttackDecisions" to { processAISectAttackDecisions() },
-            "resetMonthlyUsedPills" to { resetMonthlyUsedPills() }
+            "resetMonthlyUsedPills" to { resetMonthlyUsedPills() },
+            "processDiscipleAutoBuyFromListing" to { processDiscipleAutoBuyFromListing() }
         )
 
         operations.forEach { (name, operation) ->
@@ -8402,86 +8403,438 @@ class GameEngine {
         }
     }
     
-    fun listItemsToMerchant(items: List<Pair<String, Int>>) {
-        val data = _gameData.value
-        val newPlayerListedItems = data.playerListedItems.toMutableList()
-        
-        items.forEach { (itemId, quantity) ->
-            // 从仓库中查找物品
-            val equipment = _equipment.value.find { it.id == itemId }
-            val manual = _manuals.value.find { it.id == itemId }
-            val pill = _pills.value.find { it.id == itemId }
-            val material = _materials.value.find { it.id == itemId }
-            val herb = _herbs.value.find { it.id == itemId }
-            val seed = _seeds.value.find { it.id == itemId }
+    suspend fun listItemsToMerchant(items: List<Pair<String, Int>>) {
+        transactionMutex.withLock {
+            val data = _gameData.value
+            val currentCount = data.playerListedItems.size
+            val maxListingCount = 20
             
-            val itemData = equipment ?: manual ?: pill ?: material ?: herb ?: seed ?: return@forEach
-            
-            val basePrice = when (itemData) {
-                is Equipment -> itemData.basePrice
-                is Manual -> itemData.basePrice
-                is Pill -> itemData.basePrice
-                is Material -> itemData.basePrice
-                is Herb -> itemData.basePrice
-                is Seed -> itemData.basePrice
-                else -> 0
+            if (currentCount >= maxListingCount) {
+                addEvent("上架数量已达上限(${maxListingCount}种)", EventType.WARNING)
+                return@withLock
             }
-            val sellPrice = (basePrice * 0.8).toInt().coerceAtLeast(1)
             
-            // 创建商人物品（添加到玩家上架列表）
-            val merchantItem = MerchantItem(
-                id = UUID.randomUUID().toString(),
-                name = itemData.name,
-                type = when (itemData) {
-                    is Equipment -> "equipment"
-                    is Manual -> "manual"
-                    is Pill -> "pill"
-                    is Material -> "material"
-                    is Herb -> "herb"
-                    is Seed -> "seed"
-                    else -> "material"
-                },
-                itemId = itemData.id,
-                rarity = itemData.rarity,
-                price = sellPrice,
-                quantity = quantity,
-                description = itemData.description,
-                obtainedYear = data.gameYear,
-                obtainedMonth = data.gameMonth
+            val availableSlots = maxListingCount - currentCount
+            val itemsToList = items.take(availableSlots)
+            
+            if (itemsToList.size < items.size) {
+                addEvent("上架数量已达上限，仅能上架${itemsToList.size}种", EventType.WARNING)
+            }
+            
+            val newPlayerListedItems = data.playerListedItems.toMutableList()
+            var successCount = 0
+            
+            itemsToList.forEach { (itemId, quantity) ->
+                val equipment = _equipment.value.find { it.id == itemId }
+                val manual = _manuals.value.find { it.id == itemId }
+                val pill = _pills.value.find { it.id == itemId }
+                val material = _materials.value.find { it.id == itemId }
+                val herb = _herbs.value.find { it.id == itemId }
+                val seed = _seeds.value.find { it.id == itemId }
+                
+                val itemData = equipment ?: manual ?: pill ?: material ?: herb ?: seed
+                if (itemData == null) {
+                    addEvent("找不到物品: ${itemData?.name ?: itemId}", EventType.WARNING)
+                    return@forEach
+                }
+                
+                val actualQuantity = when (itemData) {
+                    is Pill -> minOf(quantity, itemData.quantity)
+                    is Material -> minOf(quantity, itemData.quantity)
+                    is Herb -> minOf(quantity, itemData.quantity)
+                    is Seed -> minOf(quantity, itemData.quantity)
+                    else -> 1
+                }
+                
+                val basePrice = when (itemData) {
+                    is Equipment -> itemData.basePrice
+                    is Manual -> itemData.basePrice
+                    is Pill -> itemData.basePrice
+                    is Material -> itemData.basePrice
+                    is Herb -> itemData.basePrice
+                    is Seed -> itemData.basePrice
+                    else -> 0
+                }
+                val sellPrice = (basePrice * 0.8).toInt().coerceAtLeast(1)
+                
+                val merchantItem = MerchantItem(
+                    id = UUID.randomUUID().toString(),
+                    name = itemData.name,
+                    type = when (itemData) {
+                        is Equipment -> "equipment"
+                        is Manual -> "manual"
+                        is Pill -> "pill"
+                        is Material -> "material"
+                        is Herb -> "herb"
+                        is Seed -> "seed"
+                        else -> "material"
+                    },
+                    itemId = itemData.id,
+                    rarity = itemData.rarity,
+                    price = sellPrice,
+                    quantity = actualQuantity,
+                    description = itemData.description,
+                    data = itemData,
+                    obtainedYear = data.gameYear,
+                    obtainedMonth = data.gameMonth
+                )
+                
+                newPlayerListedItems.add(merchantItem)
+                
+                when (itemData) {
+                    is Equipment -> _equipment.value = _equipment.value.filter { it.id != itemId }
+                    is Manual -> _manuals.value = _manuals.value.filter { it.id != itemId }
+                    is Pill -> {
+                        if (itemData.quantity <= actualQuantity) {
+                            _pills.value = _pills.value.filter { it.id != itemId }
+                        } else {
+                            _pills.value = _pills.value.map {
+                                    if (it.id == itemId) it.copy(quantity = it.quantity - actualQuantity)
+                                    else it
+                                }
+                        }
+                    }
+                    is Material -> {
+                        if (itemData.quantity <= actualQuantity) {
+                            _materials.value = _materials.value.filter { it.id != itemId }
+                        } else {
+                            _materials.value = _materials.value.map {
+                                    if (it.id == itemId) it.copy(quantity = it.quantity - actualQuantity)
+                                    else it
+                                }
+                        }
+                    }
+                    is Herb -> {
+                        if (itemData.quantity <= actualQuantity) {
+                            _herbs.value = _herbs.value.filter { it.id != itemId }
+                        } else {
+                            _herbs.value = _herbs.value.map {
+                                    if (it.id == itemId) it.copy(quantity = it.quantity - actualQuantity)
+                                    else it
+                                }
+                        }
+                    }
+                    is Seed -> {
+                        if (itemData.quantity <= actualQuantity) {
+                            _seeds.value = _seeds.value.filter { it.id != itemId }
+                        } else {
+                            _seeds.value = _seeds.value.map {
+                                    if (it.id == itemId) it.copy(quantity = it.quantity - actualQuantity)
+                                    else it
+                                }
+                        }
+                    }
+                }
+                successCount++
+            }
+            
+            _gameData.value = data.copy(
+                playerListedItems = newPlayerListedItems
             )
             
-            newPlayerListedItems.add(merchantItem)
-            
-            // 从仓库中移除物品
-            when (itemData) {
-                is Equipment -> _equipment.value = _equipment.value.filter { it.id != itemId }
-                is Manual -> _manuals.value = _manuals.value.filter { it.id != itemId }
-                is Pill -> _pills.value = _pills.value.filter { it.id != itemId }
-                is Material -> _materials.value = _materials.value.filter { it.id != itemId }
-                is Herb -> _herbs.value = _herbs.value.filter { it.id != itemId }
-                is Seed -> _seeds.value = _seeds.value.filter { it.id != itemId }
+            if (successCount > 0) {
+                addEvent("成功上架${successCount}件物品", EventType.SUCCESS)
             }
         }
-        
-        _gameData.value = data.copy(
-            playerListedItems = newPlayerListedItems
-        )
-        
-        addEvent("成功上架${items.size}件物品", EventType.SUCCESS)
     }
     
-    fun removePlayerListedItem(itemId: String) {
+    suspend fun removePlayerListedItem(itemId: String) {
+        transactionMutex.withLock {
+            val data = _gameData.value
+            val item = data.playerListedItems.find { it.id == itemId } ?: return@withLock
+            
+            val updatedItems = data.playerListedItems.filter { it.id != itemId }
+            
+            _gameData.value = data.copy(
+                playerListedItems = updatedItems
+            )
+            
+            returnItemToInventory(item)
+            
+            addEvent("下架了${item.name}", EventType.INFO)
+        }
+    }
+    
+    private fun returnItemToInventory(item: MerchantItem) {
+        val savedData = item.data
+        when (item.type) {
+            "equipment" -> {
+                val existingEquipment = _equipment.value.find { it.id == item.itemId }
+                if (existingEquipment != null) {
+                    _equipment.value = _equipment.value.map {
+                        if (it.id == item.itemId) it.copy(ownerId = null, isEquipped = false)
+                        else it
+                    }
+                } else if (savedData is Equipment) {
+                    _equipment.value = _equipment.value + savedData.copy(ownerId = null, isEquipped = false)
+                } else {
+                    val template = EquipmentDatabase.getTemplateByName(item.name)
+                    if (template != null) {
+                        val equipment = EquipmentDatabase.createFromTemplate(template).copy(
+                            id = item.itemId,
+                            ownerId = null,
+                            isEquipped = false
+                        )
+                        _equipment.value = _equipment.value + equipment
+                    } else {
+                        addEvent("无法恢复装备: ${item.name}", EventType.WARNING)
+                    }
+                }
+            }
+            "manual" -> {
+                val existingManual = _manuals.value.find { it.id == item.itemId }
+                if (existingManual != null) {
+                    _manuals.value = _manuals.value.map {
+                        if (it.id == item.itemId) it.copy(ownerId = null, isLearned = false)
+                        else it
+                    }
+                } else if (savedData is Manual) {
+                    _manuals.value = _manuals.value + savedData.copy(ownerId = null, isLearned = false)
+                } else {
+                    val template = ManualDatabase.getByName(item.name)
+                    if (template != null) {
+                        val manual = ManualDatabase.createFromTemplate(template).copy(
+                            id = item.itemId,
+                            ownerId = null,
+                            isLearned = false
+                        )
+                        _manuals.value = _manuals.value + manual
+                    } else {
+                        addEvent("无法恢复功法: ${item.name}", EventType.WARNING)
+                    }
+                }
+            }
+            "pill" -> {
+                val existingPill = _pills.value.find { it.id == item.itemId }
+                if (existingPill != null) {
+                    _pills.value = _pills.value.map {
+                        if (it.id == item.itemId) it.copy(quantity = it.quantity + item.quantity)
+                        else it
+                    }
+                } else if (savedData is Pill) {
+                    _pills.value = _pills.value + savedData.copy(quantity = item.quantity)
+                } else {
+                    val recipe = PillRecipeDatabase.getRecipeByName(item.name)
+                    if (recipe != null) {
+                        val pill = Pill(
+                            id = item.itemId,
+                            name = item.name,
+                            description = item.description,
+                            rarity = item.rarity,
+                            quantity = item.quantity,
+                            category = recipe.category
+                        )
+                        _pills.value = _pills.value + pill
+                    } else {
+                        addEvent("无法恢复丹药: ${item.name}", EventType.WARNING)
+                    }
+                }
+            }
+            "material" -> {
+                val existingMaterial = _materials.value.find { it.id == item.itemId }
+                if (existingMaterial != null) {
+                    _materials.value = _materials.value.map {
+                        if (it.id == item.itemId) it.copy(quantity = it.quantity + item.quantity)
+                        else it
+                    }
+                } else if (savedData is Material) {
+                    _materials.value = _materials.value + savedData.copy(quantity = item.quantity)
+                } else {
+                    val materialTemplate = BeastMaterialDatabase.getMaterialByName(item.name)
+                    if (materialTemplate != null) {
+                        val material = Material(
+                            id = item.itemId,
+                            name = item.name,
+                            description = item.description,
+                            rarity = item.rarity,
+                            quantity = item.quantity,
+                            category = materialTemplate.materialCategory
+                        )
+                        _materials.value = _materials.value + material
+                    } else {
+                        addEvent("无法恢复材料: ${item.name}", EventType.WARNING)
+                    }
+                }
+            }
+            "herb" -> {
+                val existingHerb = _herbs.value.find { it.id == item.itemId }
+                if (existingHerb != null) {
+                    _herbs.value = _herbs.value.map {
+                        if (it.id == item.itemId) it.copy(quantity = it.quantity + item.quantity)
+                        else it
+                    }
+                } else if (savedData is Herb) {
+                    _herbs.value = _herbs.value + savedData.copy(quantity = item.quantity)
+                } else {
+                    val herbTemplate = HerbDatabase.getHerbByName(item.name)
+                    if (herbTemplate != null) {
+                        val herb = Herb(
+                            id = item.itemId,
+                            name = item.name,
+                            description = item.description,
+                            rarity = item.rarity,
+                            quantity = item.quantity
+                        )
+                        _herbs.value = _herbs.value + herb
+                    } else {
+                        addEvent("无法恢复灵药: ${item.name}", EventType.WARNING)
+                    }
+                }
+            }
+            "seed" -> {
+                val existingSeed = _seeds.value.find { it.id == item.itemId }
+                if (existingSeed != null) {
+                    _seeds.value = _seeds.value.map {
+                        if (it.id == item.itemId) it.copy(quantity = it.quantity + item.quantity)
+                        else it
+                    }
+                } else if (savedData is Seed) {
+                    _seeds.value = _seeds.value + savedData.copy(quantity = item.quantity)
+                } else {
+                    val seedTemplate = HerbDatabase.getSeedByName(item.name)
+                    if (seedTemplate != null) {
+                        val seed = Seed(
+                            id = item.itemId,
+                            name = item.name,
+                            description = item.description,
+                            rarity = item.rarity,
+                            quantity = item.quantity,
+                            growTime = seedTemplate.growTime,
+                            yield = seedTemplate.yield
+                        )
+                        _seeds.value = _seeds.value + seed
+                    } else {
+                        addEvent("无法恢复种子: ${item.name}", EventType.WARNING)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun processDiscipleAutoBuyFromListing() {
         val data = _gameData.value
-        val item = data.playerListedItems.find { it.id == itemId } ?: return
-        
-        // 从玩家上架列表中移除
-        val updatedItems = data.playerListedItems.filter { it.id != itemId }
-        
+        val listedItems = data.playerListedItems
+        if (listedItems.isEmpty()) return
+
+        val currentDisciples = _disciples.value.toMutableList()
+        val updatedListedItems = listedItems.toMutableList()
+        val eventsToAdd = mutableListOf<Pair<String, EventType>>()
+        var totalSpiritStonesEarned = 0
+
+        currentDisciples.forEachIndexed { index, disciple ->
+            if (!disciple.isAlive || disciple.status == DiscipleStatus.REFLECTING) return@forEachIndexed
+
+            val affordableItems = updatedListedItems.filter { it.price <= disciple.spiritStones }
+            if (affordableItems.isEmpty()) return@forEachIndexed
+
+            val equipmentItem = affordableItems.firstOrNull { it.type == "equipment" }
+            if (equipmentItem != null) {
+                val shouldBuy = shouldDiscipleBuyEquipment(disciple, equipmentItem)
+                if (shouldBuy) {
+                    val result = discipleBuyItem(disciple, equipmentItem, data.gameYear, data.gameMonth)
+                    currentDisciples[index] = result.first
+                    updatedListedItems.removeAll { it.id == equipmentItem.id }
+                    eventsToAdd.add(result.second to EventType.INFO)
+                    totalSpiritStonesEarned += equipmentItem.price
+                    return@forEachIndexed
+                }
+            }
+
+            val manualItem = affordableItems.firstOrNull { it.type == "manual" }
+            if (manualItem != null) {
+                val shouldBuy = shouldDiscipleBuyManual(disciple, manualItem)
+                if (shouldBuy) {
+                    val result = discipleBuyItem(disciple, manualItem, data.gameYear, data.gameMonth)
+                    currentDisciples[index] = result.first
+                    updatedListedItems.removeAll { it.id == manualItem.id }
+                    eventsToAdd.add(result.second to EventType.INFO)
+                    totalSpiritStonesEarned += manualItem.price
+                    return@forEachIndexed
+                }
+            }
+
+            val pillItem = affordableItems.firstOrNull { it.type == "pill" }
+            if (pillItem != null) {
+                val result = discipleBuyItem(disciple, pillItem, data.gameYear, data.gameMonth)
+                currentDisciples[index] = result.first
+                if (pillItem.quantity > 1) {
+                    val itemIndex = updatedListedItems.indexOfFirst { it.id == pillItem.id }
+                    if (itemIndex >= 0) {
+                        updatedListedItems[itemIndex] = pillItem.copy(quantity = pillItem.quantity - 1)
+                    }
+                } else {
+                    updatedListedItems.removeAll { it.id == pillItem.id }
+                }
+                eventsToAdd.add(result.second to EventType.INFO)
+                totalSpiritStonesEarned += pillItem.price
+                return@forEachIndexed
+            }
+        }
+
+        _disciples.value = currentDisciples
         _gameData.value = data.copy(
-            playerListedItems = updatedItems
+            playerListedItems = updatedListedItems,
+            spiritStones = data.spiritStones + totalSpiritStonesEarned
         )
+
+        eventsToAdd.forEach { (message, type) ->
+            addEvent(message, type)
+        }
         
-        addEvent("下架了${item.name}", EventType.INFO)
+        if (totalSpiritStonesEarned > 0) {
+            addEvent("弟子购买物品，获得${totalSpiritStonesEarned}灵石", EventType.SUCCESS)
+        }
+    }
+
+    private fun shouldDiscipleBuyEquipment(disciple: Disciple, item: MerchantItem): Boolean {
+        val equipment = _equipment.value.find { it.id == item.itemId } ?: return false
+
+        val currentEquipId = when (equipment.slot) {
+            EquipmentSlot.WEAPON -> disciple.weaponId
+            EquipmentSlot.ARMOR -> disciple.armorId
+            EquipmentSlot.BOOTS -> disciple.bootsId
+            EquipmentSlot.ACCESSORY -> disciple.accessoryId
+        }
+
+        val currentEquip = currentEquipId?.let { _equipment.value.find { it.id == currentEquipId } }
+        val currentRarity = currentEquip?.rarity ?: 0
+
+        return equipment.rarity > currentRarity
+    }
+
+    private fun shouldDiscipleBuyManual(disciple: Disciple, item: MerchantItem): Boolean {
+        if (disciple.manualIds.contains(item.itemId)) return false
+
+        val manual = _manuals.value.find { it.id == item.itemId } ?: return false
+        val currentManualCount = disciple.manualIds.size
+
+        return currentManualCount < 3 && manual.rarity >= 2
+    }
+
+    private fun discipleBuyItem(
+        disciple: Disciple,
+        item: MerchantItem,
+        gameYear: Int,
+        gameMonth: Int
+    ): Pair<Disciple, String> {
+        val updatedDisciple = disciple.copy(
+            spiritStones = disciple.spiritStones - item.price
+        )
+
+        val storageItem = StorageBagItem(
+            itemId = item.itemId,
+            itemType = item.type,
+            name = item.name,
+            rarity = item.rarity,
+            quantity = 1,
+            obtainedYear = gameYear,
+            obtainedMonth = gameMonth
+        )
+
+        val updatedBag = addStorageItemToBag(updatedDisciple.storageBagItems, storageItem)
+        val finalDisciple = updatedDisciple.copy(storageBagItems = updatedBag)
+
+        return finalDisciple to "${disciple.name} 购买了 ${item.name}（${item.price}灵石）"
     }
     
     fun updateMonthlySalary(salary: Map<Int, Int>) {

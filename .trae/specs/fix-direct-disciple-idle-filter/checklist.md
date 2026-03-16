@@ -1,3 +1,0 @@
-- [x] DirectDiscipleSelectionDialog 中弟子列表只显示空闲状态的弟子
-- [x] ElderDiscipleSelectionDialog 中弟子列表只显示空闲状态的弟子
-- [x] 代码编译通过，无语法错误（MainGameScreen.kt 修改部分无错误）

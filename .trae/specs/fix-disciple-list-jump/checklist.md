@@ -1,7 +1,0 @@
-- [x] MainGameScreen.kt 第105行移除了 `.statusBarsPadding()` 修饰符
-- [x] SectMainScreen.kt 第73行移除了 `.statusBarsPadding()` 修饰符
-- [x] MainActivity.kt 第245行移除了 `.statusBarsPadding()` 修饰符
-- [x] MainActivity.kt 第530行移除了 `.statusBarsPadding()` 修饰符
-- [x] SaveSelectScreen.kt 第41行移除了 `.statusBarsPadding()` 修饰符
-- [x] 所有界面布局正确，内容从屏幕顶部开始
-- [x] 界面进入时不会出现跳动
