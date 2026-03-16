@@ -8478,10 +8478,12 @@ class GameEngine {
             _gameData.value = data.copy(
                 playerListedItems = newPlayerListedItems
             )
-            
+
             if (successCount > 0) {
                 addEvent("成功上架${successCount}件物品", EventType.SUCCESS)
             }
+
+            syncListedItemsWithInventory()
         }
     }
     
@@ -8789,7 +8791,14 @@ class GameEngine {
                 if (shouldBuy) {
                     val result = discipleBuyItem(disciple, equipmentItem, data.gameYear, data.gameMonth)
                     currentDisciples[index] = result.first
-                    updatedListedItems.removeAll { it.id == equipmentItem.id }
+                    if (equipmentItem.quantity > 1) {
+                        val itemIndex = updatedListedItems.indexOfFirst { it.id == equipmentItem.id }
+                        if (itemIndex >= 0) {
+                            updatedListedItems[itemIndex] = equipmentItem.copy(quantity = equipmentItem.quantity - 1)
+                        }
+                    } else {
+                        updatedListedItems.removeAll { it.id == equipmentItem.id }
+                    }
                     itemsToRemoveFromInventory.add(equipmentItem)
                     eventsToAdd.add(result.second to EventType.INFO)
                     totalSpiritStonesEarned += equipmentItem.price
@@ -8803,7 +8812,14 @@ class GameEngine {
                 if (shouldBuy) {
                     val result = discipleBuyItem(disciple, manualItem, data.gameYear, data.gameMonth)
                     currentDisciples[index] = result.first
-                    updatedListedItems.removeAll { it.id == manualItem.id }
+                    if (manualItem.quantity > 1) {
+                        val itemIndex = updatedListedItems.indexOfFirst { it.id == manualItem.id }
+                        if (itemIndex >= 0) {
+                            updatedListedItems[itemIndex] = manualItem.copy(quantity = manualItem.quantity - 1)
+                        }
+                    } else {
+                        updatedListedItems.removeAll { it.id == manualItem.id }
+                    }
                     itemsToRemoveFromInventory.add(manualItem)
                     eventsToAdd.add(result.second to EventType.INFO)
                     totalSpiritStonesEarned += manualItem.price
@@ -8826,6 +8842,60 @@ class GameEngine {
                 itemsToRemoveFromInventory.add(pillItem)
                 eventsToAdd.add(result.second to EventType.INFO)
                 totalSpiritStonesEarned += pillItem.price
+                return@forEachIndexed
+            }
+
+            val materialItem = affordableItems.firstOrNull { it.type == "material" }
+            if (materialItem != null) {
+                val result = discipleBuyItem(disciple, materialItem, data.gameYear, data.gameMonth)
+                currentDisciples[index] = result.first
+                if (materialItem.quantity > 1) {
+                    val itemIndex = updatedListedItems.indexOfFirst { it.id == materialItem.id }
+                    if (itemIndex >= 0) {
+                        updatedListedItems[itemIndex] = materialItem.copy(quantity = materialItem.quantity - 1)
+                    }
+                } else {
+                    updatedListedItems.removeAll { it.id == materialItem.id }
+                }
+                itemsToRemoveFromInventory.add(materialItem)
+                eventsToAdd.add(result.second to EventType.INFO)
+                totalSpiritStonesEarned += materialItem.price
+                return@forEachIndexed
+            }
+
+            val herbItem = affordableItems.firstOrNull { it.type == "herb" }
+            if (herbItem != null) {
+                val result = discipleBuyItem(disciple, herbItem, data.gameYear, data.gameMonth)
+                currentDisciples[index] = result.first
+                if (herbItem.quantity > 1) {
+                    val itemIndex = updatedListedItems.indexOfFirst { it.id == herbItem.id }
+                    if (itemIndex >= 0) {
+                        updatedListedItems[itemIndex] = herbItem.copy(quantity = herbItem.quantity - 1)
+                    }
+                } else {
+                    updatedListedItems.removeAll { it.id == herbItem.id }
+                }
+                itemsToRemoveFromInventory.add(herbItem)
+                eventsToAdd.add(result.second to EventType.INFO)
+                totalSpiritStonesEarned += herbItem.price
+                return@forEachIndexed
+            }
+
+            val seedItem = affordableItems.firstOrNull { it.type == "seed" }
+            if (seedItem != null) {
+                val result = discipleBuyItem(disciple, seedItem, data.gameYear, data.gameMonth)
+                currentDisciples[index] = result.first
+                if (seedItem.quantity > 1) {
+                    val itemIndex = updatedListedItems.indexOfFirst { it.id == seedItem.id }
+                    if (itemIndex >= 0) {
+                        updatedListedItems[itemIndex] = seedItem.copy(quantity = seedItem.quantity - 1)
+                    }
+                } else {
+                    updatedListedItems.removeAll { it.id == seedItem.id }
+                }
+                itemsToRemoveFromInventory.add(seedItem)
+                eventsToAdd.add(result.second to EventType.INFO)
+                totalSpiritStonesEarned += seedItem.price
                 return@forEachIndexed
             }
         }

@@ -575,8 +575,7 @@ data class PlayerListItem(
     val name: String,
     val type: String,
     val rarity: Int,
-    val inventoryQuantity: Int,
-    val listedQuantity: Int,
+    val quantity: Int,
     val price: Int,
     val itemId: String
 )
@@ -589,32 +588,15 @@ fun ListingManagementDialog(
 ) {
     val playerListedItems = gameData?.playerListedItems ?: emptyList()
     var showInventorySelectDialog by remember { mutableStateOf(false) }
-    
-    val equipment by viewModel.equipment.collectAsState()
-    val manuals by viewModel.manuals.collectAsState()
-    val pills by viewModel.pills.collectAsState()
-    val materials by viewModel.materials.collectAsState()
-    val herbs by viewModel.herbs.collectAsState()
-    val seeds by viewModel.seeds.collectAsState()
 
-    val listItems = remember(playerListedItems, equipment, manuals, pills, materials, herbs, seeds) {
+    val listItems = remember(playerListedItems) {
         playerListedItems.map { item ->
-            val inventoryQty = when (item.type) {
-                "equipment" -> equipment.count { it.id == item.itemId }
-                "manual" -> manuals.count { it.id == item.itemId }
-                "pill" -> pills.find { it.id == item.itemId }?.quantity ?: 0
-                "material" -> materials.find { it.id == item.itemId }?.quantity ?: 0
-                "herb" -> herbs.find { it.id == item.itemId }?.quantity ?: 0
-                "seed" -> seeds.find { it.id == item.itemId }?.quantity ?: 0
-                else -> 0
-            }
             PlayerListItem(
                 id = item.id,
                 name = item.name,
                 type = item.type,
                 rarity = item.rarity,
-                inventoryQuantity = inventoryQty,
-                listedQuantity = item.quantity,
+                quantity = item.quantity,
                 price = item.price,
                 itemId = item.itemId
             )
@@ -688,15 +670,7 @@ fun ListingManagementDialog(
                             modifier = Modifier.weight(1f)
                         )
                         Text(
-                            text = "道具数量",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = GameColors.TextSecondary,
-                            modifier = Modifier.width(55.dp),
-                            textAlign = TextAlign.Center
-                        )
-                        Text(
-                            text = "上架数量",
+                            text = "数量",
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
                             color = GameColors.TextSecondary,
@@ -775,15 +749,7 @@ private fun ListedItemCard(
         )
 
         Text(
-            text = "${item.inventoryQuantity}",
-            fontSize = 11.sp,
-            color = GameColors.TextPrimary,
-            modifier = Modifier.width(55.dp),
-            textAlign = TextAlign.Center
-        )
-
-        Text(
-            text = "${item.listedQuantity}",
+            text = "${item.quantity}",
             fontSize = 11.sp,
             color = GameColors.TextPrimary,
             modifier = Modifier.width(55.dp),
@@ -821,7 +787,6 @@ fun InventorySelectDialog(
     viewModel: GameViewModel,
     onDismiss: () -> Unit
 ) {
-    val gameData by viewModel.gameData.collectAsState()
     val equipment by viewModel.equipment.collectAsState()
     val manuals by viewModel.manuals.collectAsState()
     val pills by viewModel.pills.collectAsState()
@@ -973,38 +938,32 @@ fun InventorySelectDialog(
                         ListingFilter.EQUIPMENT -> InventorySelectGrid(
                             items = sortedEquipment,
                             selectedItems = selectedItems,
-                            emptyMessage = "暂无装备",
-                            isStackable = false
+                            emptyMessage = "暂无装备"
                         )
                         ListingFilter.MANUAL -> InventorySelectGrid(
                             items = sortedManuals,
                             selectedItems = selectedItems,
-                            emptyMessage = "暂无功法",
-                            isStackable = false
+                            emptyMessage = "暂无功法"
                         )
                         ListingFilter.PILL -> InventorySelectGrid(
                             items = sortedPills,
                             selectedItems = selectedItems,
-                            emptyMessage = "暂无丹药",
-                            isStackable = true
+                            emptyMessage = "暂无丹药"
                         )
                         ListingFilter.MATERIAL -> InventorySelectGrid(
                             items = sortedMaterials,
                             selectedItems = selectedItems,
-                            emptyMessage = "暂无材料",
-                            isStackable = true
+                            emptyMessage = "暂无材料"
                         )
                         ListingFilter.HERB -> InventorySelectGrid(
                             items = sortedHerbs,
                             selectedItems = selectedItems,
-                            emptyMessage = "暂无灵药",
-                            isStackable = true
+                            emptyMessage = "暂无灵药"
                         )
                         ListingFilter.SEED -> InventorySelectGrid(
                             items = sortedSeeds,
                             selectedItems = selectedItems,
-                            emptyMessage = "暂无种子",
-                            isStackable = true
+                            emptyMessage = "暂无种子"
                         )
                     }
                 }
@@ -1035,13 +994,8 @@ fun InventorySelectDialog(
 private fun <T> InventorySelectGrid(
     items: List<T>,
     selectedItems: MutableMap<String, Int>,
-    emptyMessage: String,
-    isStackable: Boolean
+    emptyMessage: String
 ) {
-    var showQuantityDialog by remember { mutableStateOf(false) }
-    var pendingItemId by remember { mutableStateOf<String?>(null) }
-    var pendingItemName by remember { mutableStateOf("") }
-    var pendingMaxQuantity by remember { mutableStateOf(1) }
     var selectedItem by remember { mutableStateOf<T?>(null) }
     var showDetailDialog by remember { mutableStateOf(false) }
 
@@ -1092,14 +1046,7 @@ private fun <T> InventorySelectGrid(
                         if (isSelected) {
                             selectedItems.remove(id)
                         } else {
-                            if (isStackable && quantity > 1) {
-                                pendingItemId = id
-                                pendingItemName = name
-                                pendingMaxQuantity = quantity
-                                showQuantityDialog = true
-                            } else {
-                                selectedItems[id] = 1
-                            }
+                            selectedItems[id] = quantity
                         }
                     },
                     onViewDetail = {
@@ -1111,22 +1058,6 @@ private fun <T> InventorySelectGrid(
         }
     }
 
-    if (showQuantityDialog && pendingItemId != null) {
-        QuantitySelectDialog(
-            itemName = pendingItemName,
-            maxQuantity = pendingMaxQuantity,
-            onConfirm = { qty ->
-                selectedItems[pendingItemId!!] = qty
-                showQuantityDialog = false
-                pendingItemId = null
-            },
-            onDismiss = {
-                showQuantityDialog = false
-                pendingItemId = null
-            }
-        )
-    }
-
     if (showDetailDialog && selectedItem != null) {
         InventoryItemDetailDialog(
             item = selectedItem!!,
@@ -1136,94 +1067,6 @@ private fun <T> InventorySelectGrid(
 }
 
 private data class Tuple5<A, B, C, D, E>(val first: A, val second: B, val third: C, val fourth: D, val fifth: E)
-
-@Composable
-private fun QuantitySelectDialog(
-    itemName: String,
-    maxQuantity: Int,
-    onConfirm: (Int) -> Unit,
-    onDismiss: () -> Unit
-) {
-    var quantity by remember { mutableStateOf(1) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
-        title = {
-            Text(
-                text = "选择上架数量",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black
-            )
-        },
-        text = {
-            Column {
-                Text(
-                    text = itemName,
-                    fontSize = 12.sp,
-                    color = GameColors.TextPrimary
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    GameButton(
-                        text = "-",
-                        onClick = { if (quantity > 1) quantity-- },
-                        modifier = Modifier.size(36.dp)
-                    )
-                    Text(
-                        text = "$quantity / $maxQuantity",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = GameColors.TextPrimary
-                    )
-                    GameButton(
-                        text = "+",
-                        onClick = { if (quantity < maxQuantity) quantity++ },
-                        modifier = Modifier.size(36.dp)
-                    )
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    GameButton(
-                        text = "最小",
-                        onClick = { quantity = 1 },
-                        modifier = Modifier.weight(1f)
-                    )
-                    GameButton(
-                        text = "一半",
-                        onClick = { quantity = maxQuantity / 2 },
-                        modifier = Modifier.weight(1f)
-                    )
-                    GameButton(
-                        text = "全部",
-                        onClick = { quantity = maxQuantity },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            GameButton(
-                text = "确认",
-                onClick = { onConfirm(quantity) }
-            )
-        },
-        dismissButton = {
-            GameButton(
-                text = "取消",
-                onClick = onDismiss
-            )
-        }
-    )
-}
 
 @Composable
 private fun ListingFilterButton(
@@ -1260,10 +1103,6 @@ private fun AllItemsSelectGrid(
     seeds: List<Seed>,
     selectedItems: MutableMap<String, Int>
 ) {
-    var showQuantityDialog by remember { mutableStateOf(false) }
-    var pendingItemId by remember { mutableStateOf<String?>(null) }
-    var pendingItemName by remember { mutableStateOf("") }
-    var pendingMaxQuantity by remember { mutableStateOf(1) }
     var selectedItem by remember { mutableStateOf<Any?>(null) }
     var showDetailDialog by remember { mutableStateOf(false) }
 
@@ -1319,14 +1158,14 @@ private fun AllItemsSelectGrid(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(allItems) { item ->
-                val (id, name, description, rarity, quantity, isStackable) = when (item) {
-                    is Equipment -> Tuple6(item.id, item.name, item.description, item.rarity, 1, false)
-                    is Manual -> Tuple6(item.id, item.name, item.description, item.rarity, 1, false)
-                    is Pill -> Tuple6(item.id, item.name, item.description, item.rarity, item.quantity, true)
-                    is Material -> Tuple6(item.id, item.name, item.description, item.rarity, item.quantity, true)
-                    is Herb -> Tuple6(item.id, item.name, item.description, item.rarity, item.quantity, true)
-                    is Seed -> Tuple6(item.id, item.name, item.description, item.rarity, item.quantity, true)
-                    else -> Tuple6("", "", "", 1, 1, false)
+                val (id, name, description, rarity, quantity) = when (item) {
+                    is Equipment -> Tuple5(item.id, item.name, item.description, item.rarity, 1)
+                    is Manual -> Tuple5(item.id, item.name, item.description, item.rarity, 1)
+                    is Pill -> Tuple5(item.id, item.name, item.description, item.rarity, item.quantity)
+                    is Material -> Tuple5(item.id, item.name, item.description, item.rarity, item.quantity)
+                    is Herb -> Tuple5(item.id, item.name, item.description, item.rarity, item.quantity)
+                    is Seed -> Tuple5(item.id, item.name, item.description, item.rarity, item.quantity)
+                    else -> Tuple5("", "", "", 1, 1)
                 }
 
                 val isSelected = selectedItems.containsKey(id)
@@ -1345,14 +1184,7 @@ private fun AllItemsSelectGrid(
                         if (isSelected) {
                             selectedItems.remove(id)
                         } else {
-                            if (isStackable && quantity > 1) {
-                                pendingItemId = id
-                                pendingItemName = name
-                                pendingMaxQuantity = quantity
-                                showQuantityDialog = true
-                            } else {
-                                selectedItems[id] = 1
-                            }
+                            selectedItems[id] = quantity
                         }
                     },
                     onViewDetail = {
@@ -1364,22 +1196,6 @@ private fun AllItemsSelectGrid(
         }
     }
 
-    if (showQuantityDialog && pendingItemId != null) {
-        QuantitySelectDialog(
-            itemName = pendingItemName,
-            maxQuantity = pendingMaxQuantity,
-            onConfirm = { qty ->
-                selectedItems[pendingItemId!!] = qty
-                showQuantityDialog = false
-                pendingItemId = null
-            },
-            onDismiss = {
-                showQuantityDialog = false
-                pendingItemId = null
-            }
-        )
-    }
-
     if (showDetailDialog && selectedItem != null) {
         InventoryItemDetailDialog(
             item = selectedItem!!,
@@ -1387,8 +1203,6 @@ private fun AllItemsSelectGrid(
         )
     }
 }
-
-private data class Tuple6<A, B, C, D, E, F>(val first: A, val second: B, val third: C, val fourth: D, val fifth: E, val sixth: F)
 
 @Composable
 private fun InventoryItemDetailDialog(
