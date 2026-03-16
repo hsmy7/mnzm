@@ -1,6 +1,7 @@
 package com.xianxia.sect.ui.components
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
@@ -51,13 +52,14 @@ fun GameButton(
             disabledContainerColor = Color(0xFFE0E0E0),
             disabledContentColor = Color(0xFF9E9E9E)
         ),
-        border = BorderStroke(1.dp, borderColor)
+        border = BorderStroke(1.dp, borderColor),
+        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
     ) {
         Text(
             text = text,
             fontSize = 10.sp,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
+            overflow = TextOverflow.Clip,
             textAlign = TextAlign.Center
         )
     }

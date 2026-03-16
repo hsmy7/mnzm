@@ -659,38 +659,38 @@ fun ListingManagementDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .background(GameColors.Background)
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            .padding(horizontal = 8.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Text(
                             text = "道具名称",
-                            fontSize = 10.sp,
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             color = GameColors.TextSecondary,
                             modifier = Modifier.weight(1f)
                         )
                         Text(
                             text = "数量",
-                            fontSize = 10.sp,
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             color = GameColors.TextSecondary,
-                            modifier = Modifier.width(55.dp),
+                            modifier = Modifier.width(60.dp),
                             textAlign = TextAlign.Center
                         )
                         Text(
                             text = "价格",
-                            fontSize = 10.sp,
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             color = GameColors.TextSecondary,
-                            modifier = Modifier.width(50.dp),
+                            modifier = Modifier.width(60.dp),
                             textAlign = TextAlign.Center
                         )
                         Text(
                             text = "操作",
-                            fontSize = 10.sp,
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             color = GameColors.TextSecondary,
-                            modifier = Modifier.width(50.dp),
+                            modifier = Modifier.width(60.dp),
                             textAlign = TextAlign.Center
                         )
                     }
@@ -735,7 +735,7 @@ private fun ListedItemCard(
             .background(GameColors.PageBackground, RoundedCornerShape(4.dp))
             .border(1.dp, rarityColor.copy(alpha = 0.3f), RoundedCornerShape(4.dp))
             .padding(horizontal = 8.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
@@ -752,7 +752,7 @@ private fun ListedItemCard(
             text = "${item.quantity}",
             fontSize = 11.sp,
             color = GameColors.TextPrimary,
-            modifier = Modifier.width(55.dp),
+            modifier = Modifier.width(60.dp),
             textAlign = TextAlign.Center
         )
 
@@ -760,14 +760,14 @@ private fun ListedItemCard(
             text = "${item.price}",
             fontSize = 11.sp,
             color = GameColors.GoldDark,
-            modifier = Modifier.width(50.dp),
+            modifier = Modifier.width(60.dp),
             textAlign = TextAlign.Center
         )
 
         GameButton(
             text = "下架",
             onClick = onDelist,
-            modifier = Modifier.width(50.dp).height(28.dp)
+            modifier = Modifier.width(60.dp).height(32.dp)
         )
     }
 }
