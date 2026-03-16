@@ -54,11 +54,23 @@ import com.xianxia.sect.core.model.Manual
 import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.MerchantItem
 import com.xianxia.sect.core.model.Pill
+import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.model.SupportTeam
+import com.xianxia.sect.core.model.BattleTeam
+import com.xianxia.sect.core.model.BattleTeamSlot
+import com.xianxia.sect.core.model.BattleSlotType
 import com.xianxia.sect.core.model.ExplorationTeam
 import com.xianxia.sect.core.model.MapMarker
 import com.xianxia.sect.core.model.MapMarkerType
+import com.xianxia.sect.core.model.CultivatorCave
+import com.xianxia.sect.core.model.CaveStatus
+import com.xianxia.sect.core.model.BattleLog
+import com.xianxia.sect.core.model.BattleLogAction
+import com.xianxia.sect.core.model.BattleLogRound
+import com.xianxia.sect.core.model.BattleResult
+import com.xianxia.sect.core.model.ExplorationStatus
+import com.xianxia.sect.core.model.RedeemResult
 import com.xianxia.sect.data.model.SaveSlot
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.theme.XianxiaColorScheme
@@ -81,7 +93,6 @@ fun MainGameScreen(
     val gameData by viewModel.gameData.collectAsState()
     val disciples by viewModel.disciples.collectAsState()
     val events by viewModel.events.collectAsState()
-    val warTeams by viewModel.warTeams.collectAsState()
     val teams by viewModel.teams.collectAsState()
     val equipment by viewModel.equipment.collectAsState()
     val manuals by viewModel.manuals.collectAsState()
@@ -91,15 +102,11 @@ fun MainGameScreen(
 
     var selectedTab by remember { mutableStateOf(MainTab.OVERVIEW) }
 
-    // 对话框状态
-    val showWarHallDialog by viewModel.showWarHallDialog.collectAsState()
     val showRecruitDialog by viewModel.showRecruitDialog.collectAsState()
-    val showTournamentDialog by viewModel.showTournamentDialog.collectAsState()
     val showDiplomacyDialog by viewModel.showDiplomacyDialog.collectAsState()
     val showMerchantDialog by viewModel.showMerchantDialog.collectAsState()
     val showEventLogDialog by viewModel.showEventLogDialog.collectAsState()
     val showSalaryConfigDialog by viewModel.showSalaryConfigDialog.collectAsState()
-    val showSectManagementDialog by viewModel.showSectManagementDialog.collectAsState()
     val showWorldMapDialog by viewModel.showWorldMapDialog.collectAsState()
     val showSecretRealmDialog by viewModel.showSecretRealmDialog.collectAsState()
     val showSectTradeDialog by viewModel.showSectTradeDialog.collectAsState()
@@ -116,6 +123,14 @@ fun MainGameScreen(
     val showScoutDialog by viewModel.showScoutDialog.collectAsState()
     val selectedScoutSectId by viewModel.selectedScoutSectId.collectAsState()
     val showTianshuHallDialog by viewModel.showTianshuHallDialog.collectAsState()
+    
+    val showBattleTeamDialog by viewModel.showBattleTeamDialog.collectAsState()
+    val battleTeamSlots by viewModel.battleTeamSlots.collectAsState()
+    var selectedBattleTeamSlotIndex by remember { mutableStateOf<Int?>(null) }
+    val battleTeamMoveMode by viewModel.battleTeamMoveMode.collectAsState()
+    
+    val showBattleLogDialog by viewModel.showBattleLogDialog.collectAsState()
+    val battleLogs by viewModel.battleLogs.collectAsState()
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
@@ -148,15 +163,6 @@ fun MainGameScreen(
             )
         }
 
-        // 对话框
-        if (showWarHallDialog) {
-            WarHallDialog(
-                warTeams = warTeams,
-                viewModel = viewModel,
-                onDismiss = { viewModel.closeWarHallDialog() }
-            )
-        }
-
         if (showRecruitDialog) {
             RecruitDialog(
                 recruitList = gameData?.recruitList ?: emptyList(),
@@ -165,21 +171,7 @@ fun MainGameScreen(
                 onDismiss = { viewModel.closeRecruitDialog() }
             )
         }
-
-        if (showTournamentDialog) {
-            TournamentDialog(
-                gameData = gameData,
-                disciples = disciples.filter { it.isAlive },
-                equipment = equipment,
-                manuals = manuals,
-                pills = pills,
-                materials = materials,
-                herbs = herbs,
-                viewModel = viewModel,
-                onDismiss = { viewModel.closeTournamentDialog() }
-            )
-        }
-
+        
         if (showDiplomacyDialog) {
             DiplomacyDialog(
                 gameData = gameData,
@@ -211,20 +203,15 @@ fun MainGameScreen(
             )
         }
 
-        if (showSectManagementDialog) {
-            SectManagementDialog(
-                viewModel = viewModel,
-                onDismiss = { viewModel.closeSectManagementDialog() }
-            )
-        }
-
         if (showWorldMapDialog) {
             WorldMapDialog(
                 worldSects = gameData?.worldMapSects ?: emptyList(),
                 supportTeams = gameData?.supportTeams ?: emptyList(),
                 scoutTeams = teams,
                 gameData = gameData,
+                disciples = disciples,
                 viewModel = viewModel,
+                battleTeamMoveMode = battleTeamMoveMode,
                 onDismiss = { viewModel.closeWorldMapDialog() }
             )
         }
@@ -288,6 +275,7 @@ fun MainGameScreen(
             RequestSupportDialog(
                 allies = allies,
                 disciples = eligibleDisciples,
+                gameData = gameData,
                 viewModel = viewModel,
                 onDismiss = { viewModel.closeRequestSupportDialog() }
             )
@@ -301,6 +289,49 @@ fun MainGameScreen(
                 disciples = eligibleDisciples,
                 viewModel = viewModel,
                 onDismiss = { viewModel.closeScoutDialog() }
+            )
+        }
+        
+        if (showBattleTeamDialog) {
+            val hasExistingTeam = viewModel.hasBattleTeam()
+            val battleTeam = gameData.battleTeam
+            BattleTeamDialog(
+                slots = battleTeamSlots,
+                hasExistingTeam = hasExistingTeam,
+                teamStatus = battleTeam?.status ?: "idle",
+                isAtSect = battleTeam?.isAtSect ?: true,
+                onSlotClick = { slotIndex -> selectedBattleTeamSlotIndex = slotIndex },
+                onRemoveClick = { slotIndex -> viewModel.removeDiscipleFromBattleTeamSlot(slotIndex) },
+                onCreateTeam = { viewModel.createBattleTeam() },
+                onMoveClick = { viewModel.startBattleTeamMoveMode() },
+                onDisbandClick = { viewModel.disbandBattleTeam() },
+                onDismiss = { viewModel.closeBattleTeamDialog() }
+            )
+        }
+        
+        if (selectedBattleTeamSlotIndex != null) {
+            val selectedSlot = battleTeamSlots.find { it.index == selectedBattleTeamSlotIndex }
+            val isElderSlot = selectedSlot?.slotType == BattleSlotType.ELDER
+            val availableDisciples = if (isElderSlot) {
+                viewModel.getAvailableEldersForBattleTeam()
+            } else {
+                viewModel.getAvailableDisciplesForBattleTeam()
+            }
+            BattleTeamDiscipleSelectionDialog(
+                disciples = availableDisciples,
+                isElderSlot = isElderSlot,
+                onSelect = { disciple ->
+                    viewModel.assignDiscipleToBattleTeamSlot(selectedBattleTeamSlotIndex!!, disciple)
+                    selectedBattleTeamSlotIndex = null
+                },
+                onDismiss = { selectedBattleTeamSlotIndex = null }
+            )
+        }
+        
+        if (showBattleLogDialog) {
+            BattleLogListDialog(
+                battleLogs = battleLogs,
+                onDismiss = { viewModel.closeBattleLogDialog() }
             )
         }
     }
@@ -362,7 +393,7 @@ private fun WarehouseItemDetailDialog(
                             "hp" -> "生命"
                             "mp" -> "灵力"
                             "speed" -> "速度"
-                            "critChance" -> "暴击率"
+                            "critRate" -> "暴击率"
                             else -> key
                         }
                         if (key.contains("Percent")) {
@@ -375,6 +406,9 @@ private fun WarehouseItemDetailDialog(
                 item.skill?.let { skill ->
                     add("")
                     add("技能：${skill.name}")
+                    if (skill.description.isNotEmpty()) {
+                        add("  ${skill.description}")
+                    }
                     add("  伤害类型：${if (skill.damageType == com.xianxia.sect.core.engine.DamageType.PHYSICAL) "物理" else "法术"}")
                     add("  伤害倍率：${String.format("%.1f%%", skill.damageMultiplier * 100)}")
                     add("  连击次数：${skill.hits}")
@@ -423,8 +457,8 @@ private fun WarehouseItemDetailDialog(
                         if (item.magicAttackPercent > 0) add("  法术攻击 +${String.format("%.1f%%", item.magicAttackPercent * 100)}")
                         if (item.physicalDefensePercent > 0) add("  物理防御 +${String.format("%.1f%%", item.physicalDefensePercent * 100)}")
                         if (item.magicDefensePercent > 0) add("  法术防御 +${String.format("%.1f%%", item.magicDefensePercent * 100)}")
-                        if (item.hpPercent > 0) add("  生命上限 +${String.format("%.1f%%", item.hpPercent * 100)}")
-                        if (item.mpPercent > 0) add("  灵力上限 +${String.format("%.1f%%", item.mpPercent * 100)}")
+                        if (item.hpPercent > 0) add("  生命 +${String.format("%.1f%%", item.hpPercent * 100)}")
+                        if (item.mpPercent > 0) add("  灵力 +${String.format("%.1f%%", item.mpPercent * 100)}")
                         if (item.speedPercent > 0) add("  速度 +${String.format("%.1f%%", item.speedPercent * 100)}")
                         if (item.battleCount > 0) add("  持续 ${item.battleCount} 场战斗")
                     }
@@ -523,7 +557,7 @@ private fun WarehouseItemDetailDialog(
     
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.White,
+        containerColor = GameColors.PageBackground,
         title = {
             Text(
                 text = name,
@@ -552,7 +586,7 @@ private fun WarehouseItemDetailDialog(
                     color = Color(0xFF666666)
                 )
                 Spacer(modifier = Modifier.height(8.dp))
-                Divider(color = Color(0xFFE0E0E0), thickness = 1.dp)
+                Divider(color = GameColors.Border, thickness = 1.dp)
                 Spacer(modifier = Modifier.height(8.dp))
                 
                 effects.forEach { effect ->
@@ -574,7 +608,7 @@ private fun WarehouseItemDetailDialog(
                 
                 if (description.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(8.dp))
-                    Divider(color = Color(0xFFE0E0E0), thickness = 1.dp)
+                    Divider(color = GameColors.Border, thickness = 1.dp)
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = description,
@@ -601,7 +635,7 @@ private fun TopStatusBar(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color.White)
+            .background(GameColors.PageBackground)
             .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
         // 第一行：宗门名称和时间
@@ -650,11 +684,6 @@ private fun TopStatusBar(
                 value = "$discipleCount",
                 label = "弟子"
             )
-            ResourceItem(
-                icon = "⚔️",
-                value = "${gameData?.warTeams?.size ?: 0}",
-                label = "战团"
-            )
         }
     }
 }
@@ -699,7 +728,7 @@ private fun OverviewTab(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.White)
+            .background(GameColors.PageBackground)
     ) {
         // 第一板块：宗门信息板块（固定高度）
         SectInfoPanel(
@@ -720,113 +749,6 @@ private fun OverviewTab(
 }
 
 @Composable
-private fun QuickActionGrid(viewModel: GameViewModel) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = "快捷操作",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                QuickActionButton(
-                    icon = Icons.Default.AccountBalance,
-                    label = "宗门管理",
-                    color = Color.Black,
-                    onClick = { /* TODO */ }
-                )
-                QuickActionButton(
-                    icon = Icons.Default.Public,
-                    label = "世界地图",
-                    color = Color.Black,
-                    onClick = { /* TODO */ }
-                )
-                QuickActionButton(
-                    icon = Icons.Default.PersonAdd,
-                    label = "招募弟子",
-                    color = Color.Black,
-                    onClick = { viewModel.openRecruitDialog() }
-                )
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                QuickActionButton(
-                    icon = Icons.Default.ShoppingCart,
-                    label = "云游商人",
-                    color = Color.Black,
-                    onClick = { viewModel.openMerchantDialog() }
-                )
-                QuickActionButton(
-                    icon = Icons.Default.Security,
-                    label = "宗门战争",
-                    color = Color.Black,
-                    onClick = { viewModel.openWarHallDialog() }
-                )
-                QuickActionButton(
-                    icon = Icons.Default.Explore,
-                    label = "秘境探索",
-                    color = Color.Black,
-                    onClick = { /* TODO */ }
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun QuickActionButton(
-    icon: ImageVector,
-    label: String,
-    color: Color,
-    onClick: () -> Unit
-) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.clickable(onClick = onClick)
-    ) {
-        Box(
-            modifier = Modifier
-                .size(56.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(Color.White)
-                .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(8.dp))
-                .padding(12.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = label,
-                tint = Color.Black,
-                modifier = Modifier.size(28.dp)
-            )
-        }
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = label,
-            fontSize = 12.sp,
-            color = Color.Black
-        )
-    }
-}
-
-@Composable
 private fun EventLogCard(
     events: List<GameEvent>,
     onViewAll: () -> Unit
@@ -834,7 +756,7 @@ private fun EventLogCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = GameColors.PageBackground),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -900,7 +822,7 @@ private fun EventItem(event: GameEvent) {
             modifier = Modifier
                 .size(24.dp)
                 .clip(CircleShape)
-                .background(Color.White),
+                .background(GameColors.PageBackground),
             contentAlignment = Alignment.Center
         ) {
             Text(text = icon, fontSize = 12.sp, color = Color.Black)
@@ -929,7 +851,7 @@ private fun BottomNavigationBar(
     onTabSelected: (MainTab) -> Unit
 ) {
     NavigationBar(
-        containerColor = Color.White,
+        containerColor = GameColors.PageBackground,
         tonalElevation = 8.dp
     ) {
         NavigationBarItem(
@@ -1036,7 +958,7 @@ private fun DisciplesTab(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.White)
+            .background(GameColors.PageBackground)
     ) {
         RealmFilterBar(
             filters = realmFilters,
@@ -1101,7 +1023,7 @@ private fun RealmFilterBar(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color.White)
+            .background(GameColors.PageBackground)
             .padding(horizontal = 8.dp, vertical = 8.dp)
     ) {
         Row(
@@ -1150,8 +1072,8 @@ private fun FilterChip(
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(4.dp))
-            .background(if (isSelected) Color(0xFFE0E0E0) else Color.White)
-            .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(4.dp))
+            .background(if (isSelected) GameColors.Border else GameColors.PageBackground)
+            .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
             .clickable(onClick = onClick)
             .padding(vertical = 8.dp),
         contentAlignment = Alignment.Center
@@ -1175,7 +1097,7 @@ private fun DiscipleCard(
             .fillMaxWidth()
             .clickable { onClick() },
         shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = GameColors.PageBackground),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
@@ -1255,138 +1177,6 @@ private fun DiscipleCard(
 }
 
 @Composable
-private fun SectManagementDialog(
-    viewModel: GameViewModel,
-    onDismiss: () -> Unit
-) {
-    val gameData by viewModel.gameData.collectAsState()
-    val disciples by viewModel.disciples.collectAsState()
-    var showDiscipleSelection by remember { mutableStateOf<String?>(null) }
-    var showDirectDiscipleSelection by remember { mutableStateOf<Pair<String, Int>?>(null) }
-    
-    val elderSlots = gameData.elderSlots
-    val elderSlotTypes = listOf(
-        "herbGarden" to "灵植长老",
-        "alchemy" to "炼丹长老",
-        "forge" to "天工长老",
-        "library" to "藏经阁长老",
-        "spiritMine" to "灵矿长老",
-        "recruit" to "纳徒长老"
-    )
-    
-    CommonDialog(
-        title = "宗门管理",
-        onDismiss = onDismiss
-    ) {
-        Column(
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            elderSlotTypes.chunked(3).forEach { rowSlots ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
-                ) {
-                    rowSlots.forEach { (slotType, slotName) ->
-                        val elderId = when (slotType) {
-                            "herbGarden" -> elderSlots.herbGardenElder
-                            "alchemy" -> elderSlots.alchemyElder
-                            "forge" -> elderSlots.forgeElder
-                            "library" -> elderSlots.libraryElder
-                            "spiritMine" -> elderSlots.spiritMineElder
-                            "recruit" -> elderSlots.recruitElder
-                            else -> null
-                        }
-                        val elder = viewModel.getElderDisciple(elderId)
-                        
-                        val directDisciples = when (slotType) {
-                            "herbGarden" -> elderSlots.herbGardenDisciples
-                            "alchemy" -> elderSlots.alchemyDisciples
-                            "forge" -> elderSlots.forgeDisciples
-                            "library" -> elderSlots.libraryDisciples
-                            "spiritMine" -> elderSlots.spiritMineDisciples
-                            "recruit" -> elderSlots.recruitDisciples
-                            else -> emptyList()
-                        }
-                        
-                        ElderSlotWithDisciples(
-                            slotName = slotName,
-                            slotType = slotType,
-                            elder = elder,
-                            directDisciples = directDisciples,
-                            onElderClick = { showDiscipleSelection = slotType },
-                            onElderRemove = { viewModel.removeElder(slotType) },
-                            onDirectDiscipleClick = { index ->
-                                showDirectDiscipleSelection = Pair(slotType, index)
-                            },
-                            onDirectDiscipleRemove = { index ->
-                                viewModel.removeDirectDisciple(slotType, index)
-                            }
-                        )
-                    }
-                }
-            }
-        }
-    }
-    
-    showDiscipleSelection?.let { slotType ->
-        val currentElderId = when (slotType) {
-            "herbGarden" -> elderSlots.herbGardenElder
-            "alchemy" -> elderSlots.alchemyElder
-            "forge" -> elderSlots.forgeElder
-            "library" -> elderSlots.libraryElder
-            "spiritMine" -> elderSlots.spiritMineElder
-            "recruit" -> elderSlots.recruitElder
-            else -> null
-        }
-        // 根据槽位类型确定需要显示的属性
-        val requiredAttribute = when (slotType) {
-            "herbGarden" -> "spiritPlanting" to "灵植"
-            "alchemy" -> "pillRefining" to "炼丹"
-            "forge" -> "artifactRefining" to "炼器"
-            "library" -> "teaching" to "传道"
-            "spiritMine" -> "morality" to "道德"
-            "recruit" -> "charm" to "魅力"
-            else -> null
-        }
-        ElderDiscipleSelectionDialog(
-            disciples = disciples.filter { it.isAlive && it.realm <= 6 },
-            currentElderId = currentElderId,
-            requiredAttribute = requiredAttribute,
-            elderSlots = elderSlots,
-            onDismiss = { showDiscipleSelection = null },
-            onSelect = { discipleId ->
-                viewModel.assignElder(slotType, discipleId)
-                showDiscipleSelection = null
-            }
-        )
-    }
-    
-    showDirectDiscipleSelection?.let { (slotType, slotIndex) ->
-        // 根据槽位类型确定需要显示的属性
-        val requiredAttribute = when (slotType) {
-            "herbGarden" -> "spiritPlanting" to "灵植"
-            "alchemy" -> "pillRefining" to "炼丹"
-            "forge" -> "artifactRefining" to "炼器"
-            "library" -> "teaching" to "传道"
-            "spiritMine" -> "morality" to "道德"
-            "recruit" -> "charm" to "魅力"
-            else -> null
-        }
-        DirectDiscipleSelectionDialog(
-            disciples = disciples.filter { it.isAlive },
-            requiredAttribute = requiredAttribute,
-            elderSlots = elderSlots,
-            onDismiss = { showDirectDiscipleSelection = null },
-            onSelect = { discipleId ->
-                viewModel.assignDirectDisciple(slotType, slotIndex, discipleId)
-                showDirectDiscipleSelection = null
-            }
-        )
-    }
-}
-
-@Composable
 private fun ElderSlotWithDisciples(
     slotName: String,
     slotType: String,
@@ -1412,8 +1202,8 @@ private fun ElderSlotWithDisciples(
             modifier = Modifier
                 .size(50.dp)
                 .clip(RoundedCornerShape(6.dp))
-                .background(Color.White)
-                .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(6.dp))
+                .background(GameColors.PageBackground)
+                .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
                 .clickable(onClick = onElderClick),
             contentAlignment = Alignment.Center
         ) {
@@ -1449,8 +1239,8 @@ private fun ElderSlotWithDisciples(
         Box(
             modifier = Modifier
                 .clip(RoundedCornerShape(4.dp))
-                .background(Color.White)
-                .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(4.dp))
+                .background(GameColors.PageBackground)
+                .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
                 .clickable(onClick = onElderRemove)
                 .padding(horizontal = 8.dp, vertical = 3.dp)
         ) {
@@ -1505,8 +1295,8 @@ private fun DirectDiscipleSlotItem(
             modifier = Modifier
                 .size(40.dp)
                 .clip(RoundedCornerShape(4.dp))
-                .background(Color.White)
-                .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(4.dp))
+                .background(GameColors.PageBackground)
+                .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
                 .clickable(onClick = onClick),
             contentAlignment = Alignment.Center
         ) {
@@ -1542,8 +1332,8 @@ private fun DirectDiscipleSlotItem(
         Box(
             modifier = Modifier
                 .clip(RoundedCornerShape(3.dp))
-                .background(Color.White)
-                .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(3.dp))
+                .background(GameColors.PageBackground)
+                .border(1.dp, GameColors.Border, RoundedCornerShape(3.dp))
                 .clickable(onClick = onRemove)
                 .padding(horizontal = 6.dp, vertical = 2.dp)
         ) {
@@ -1621,7 +1411,7 @@ private fun DirectDiscipleSelectionDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.White,
+        containerColor = GameColors.PageBackground,
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1639,7 +1429,7 @@ private fun DirectDiscipleSelectionDialog(
                         .size(24.dp)
                         .clip(CircleShape)
                         .clickable { onDismiss() }
-                        .background(Color(0xFFF5F5F5)),
+                        .background(GameColors.CardBackground),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -1671,8 +1461,8 @@ private fun DirectDiscipleSelectionDialog(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clip(RoundedCornerShape(4.dp))
-                                    .background(if (isSelected) Color(0xFFE0E0E0) else Color.White)
-                                    .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(4.dp))
+                                    .background(if (isSelected) GameColors.Border else GameColors.PageBackground)
+                                    .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
                                     .clickable { selectedRealmFilter = if (isSelected) null else realm }
                                     .padding(vertical = 4.dp),
                                 contentAlignment = Alignment.Center
@@ -1697,8 +1487,8 @@ private fun DirectDiscipleSelectionDialog(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clip(RoundedCornerShape(4.dp))
-                                    .background(if (isSelected) Color(0xFFE0E0E0) else Color.White)
-                                    .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(4.dp))
+                                    .background(if (isSelected) GameColors.Border else GameColors.PageBackground)
+                                    .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
                                     .clickable { selectedRealmFilter = if (isSelected) null else realm }
                                     .padding(vertical = 4.dp),
                                 contentAlignment = Alignment.Center
@@ -1725,8 +1515,8 @@ private fun DirectDiscipleSelectionDialog(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(6.dp))
-                                .background(Color.White)
-                                .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(6.dp))
+                                .background(GameColors.PageBackground)
+                                .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
                                 .clickable { onSelect(disciple.id) }
                                 .padding(12.dp)
                         ) {
@@ -1789,6 +1579,1523 @@ private fun DirectDiscipleSelectionDialog(
     )
 }
 
+@Composable
+private fun RedeemCodeDialog(
+    viewModel: GameViewModel,
+    onDismiss: () -> Unit
+) {
+    var codeInput by remember { mutableStateOf("") }
+    val redeemResult by viewModel.redeemResult.collectAsState()
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = GameColors.PageBackground,
+        title = {
+            Text(
+                text = "兑换码",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedTextField(
+                    value = codeInput,
+                    onValueChange = { codeInput = it.uppercase() },
+                    label = { Text("请输入兑换码", fontSize = 12.sp) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp)
+                )
+
+                redeemResult?.let { result ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (result.success) Color(0xFFE8F5E9) else Color(0xFFFFEBEE)
+                        ),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = if (result.success) "兑换成功！" else "兑换失败",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (result.success) Color(0xFF2E7D32) else Color(0xFFC62828)
+                            )
+
+                            if (result.success && result.rewards.isNotEmpty()) {
+                                Text(
+                                    text = "获得奖励：",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFF666666)
+                                )
+                                result.rewards.forEach { reward ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        val rarityColor = try {
+                                            Color(android.graphics.Color.parseColor(GameConfig.Rarity.getColor(reward.rarity)))
+                                        } catch (e: Exception) {
+                                            Color(0xFF666666)
+                                        }
+                                        Box(
+                                            modifier = Modifier
+                                                .size(6.dp)
+                                                .clip(RoundedCornerShape(3.dp))
+                                                .background(rarityColor)
+                                        )
+                                        Text(
+                                            text = when (reward.type) {
+                                                "spiritStones" -> "${reward.quantity}灵石"
+                                                "disciple" -> "弟子 ${reward.name}"
+                                                else -> "${reward.name} ×${reward.quantity}"
+                                            },
+                                            fontSize = 11.sp,
+                                            color = Color.Black
+                                        )
+                                    }
+                                }
+                            }
+
+                            result.disciple?.let { disciple ->
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "弟子信息：",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF666666)
+                                )
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(GameColors.PageBackground)
+                                        .padding(8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = disciple.name,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.Black
+                                        )
+                                        Text(
+                                            text = disciple.genderName,
+                                            fontSize = 11.sp,
+                                            color = Color(0xFF666666)
+                                        )
+                                    }
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        val spiritRootColor = try {
+                                            Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))
+                                        } catch (e: Exception) {
+                                            Color(0xFF666666)
+                                        }
+                                        Text(
+                                            text = disciple.spiritRootName,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = spiritRootColor
+                                        )
+                                        Text(
+                                            text = disciple.realmName,
+                                            fontSize = 11.sp,
+                                            color = Color(0xFF666666)
+                                        )
+                                    }
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        Text(
+                                            text = "悟性 ${disciple.comprehension}",
+                                            fontSize = 10.sp,
+                                            color = Color(0xFF666666)
+                                        )
+                                        Text(
+                                            text = "智力 ${disciple.intelligence}",
+                                            fontSize = 10.sp,
+                                            color = Color(0xFF666666)
+                                        )
+                                        Text(
+                                            text = "魅力 ${disciple.charm}",
+                                            fontSize = 10.sp,
+                                            color = Color(0xFF666666)
+                                        )
+                                    }
+                                    if (disciple.talentIds.isNotEmpty()) {
+                                        Text(
+                                            text = "天赋：${disciple.talentIds.size}个",
+                                            fontSize = 10.sp,
+                                            color = Color(0xFF9B59B6)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                GameButton(
+                    text = "取消",
+                    onClick = onDismiss
+                )
+                GameButton(
+                    text = "兑换",
+                    onClick = {
+                        if (codeInput.isNotBlank()) {
+                            viewModel.redeemCode(codeInput.trim())
+                        }
+                    },
+                    enabled = codeInput.isNotBlank()
+                )
+            }
+        }
+    )
+}
+
+@Composable
+fun SecretRealmDialog(
+    disciples: List<Disciple>,
+    viewModel: GameViewModel,
+    onDismiss: () -> Unit
+) {
+    val secretRealms = remember { GameConfig.Dungeons.getAll() }
+    val teams by viewModel.teams.collectAsState()
+    var selectedRealm by remember { mutableStateOf<GameConfig.DungeonConfig?>(null) }
+    var showDispatchDialog by remember { mutableStateOf(false) }
+    var showTeamDialog by remember { mutableStateOf(false) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.85f),
+            shape = RoundedCornerShape(16.dp),
+            color = GameColors.PageBackground
+        ) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "秘境探索",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .clickable { onDismiss() }
+                            .background(Color(0xFFF5F5F5)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "×",
+                            fontSize = 16.sp,
+                            color = Color(0xFF666666)
+                        )
+                    }
+                }
+
+                HorizontalDivider(color = Color(0xFFE0E0E0), thickness = 1.dp)
+
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(secretRealms.chunked(2)) { rowRealms ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            rowRealms.forEach { realm ->
+                                val activeTeam = teams.find {
+                                    it.dungeon == realm.id &&
+                                    (it.status == ExplorationStatus.TRAVELING || it.status == ExplorationStatus.EXPLORING)
+                                }
+                                SecretRealmCard(
+                                    realm = realm,
+                                    hasActiveTeam = activeTeam != null,
+                                    modifier = Modifier.weight(1f),
+                                    onClick = {
+                                        selectedRealm = realm
+                                        if (activeTeam != null) {
+                                            showTeamDialog = true
+                                        } else {
+                                            showDispatchDialog = true
+                                        }
+                                    }
+                                )
+                            }
+                            if (rowRealms.size == 1) {
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showDispatchDialog && selectedRealm != null) {
+        DispatchTeamDialog(
+            realm = selectedRealm!!,
+            disciples = disciples,
+            viewModel = viewModel,
+            onDismiss = {
+                showDispatchDialog = false
+                selectedRealm = null
+            }
+        )
+    }
+
+    if (showTeamDialog && selectedRealm != null) {
+        ExplorationTeamDialog(
+            realm = selectedRealm!!,
+            viewModel = viewModel,
+            onDismiss = {
+                showTeamDialog = false
+                selectedRealm = null
+            }
+        )
+    }
+}
+
+@Composable
+private fun SecretRealmCard(
+    realm: GameConfig.DungeonConfig,
+    hasActiveTeam: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (hasActiveTeam) Color(0xFFE3F2FD) else GameColors.PageBackground
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = realm.name,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF333333)
+                )
+                if (hasActiveTeam) {
+                    Text(
+                        text = "探索中",
+                        fontSize = 10.sp,
+                        color = Color(0xFF2196F3),
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = realm.description,
+                fontSize = 11.sp,
+                color = Color(0xFF666666),
+                textAlign = TextAlign.Center,
+                maxLines = 2
+            )
+        }
+    }
+}
+
+@Composable
+private fun DispatchTeamDialog(
+    realm: GameConfig.DungeonConfig,
+    disciples: List<Disciple>,
+    viewModel: GameViewModel,
+    onDismiss: () -> Unit
+) {
+    val selectedDisciples = remember { mutableStateListOf<String>() }
+    val maxTeamSize = 7
+    var selectedRealmFilter by remember { mutableStateOf<Int?>(null) }
+
+    val idleDisciples = remember(disciples) {
+        disciples.filter { 
+            it.status == DiscipleStatus.IDLE && 
+            it.realmLayer > 0 && 
+            it.age >= 5 
+        }
+    }
+
+    val realmFilters = listOf(
+        0 to "仙人",
+        1 to "渡劫",
+        2 to "大乘",
+        3 to "合体",
+        4 to "炼虚",
+        5 to "化神",
+        6 to "元婴",
+        7 to "金丹",
+        8 to "筑基",
+        9 to "炼气"
+    )
+
+    val realmCounts = remember(idleDisciples) {
+        idleDisciples.groupingBy { it.realm }.eachCount()
+    }
+
+    val sortedDisciples = remember(idleDisciples) {
+        idleDisciples.sortedWith(
+            compareBy<Disciple> { it.realm }
+                .thenByDescending { it.realmLayer }
+        )
+    }
+
+    val filteredDisciples = remember(sortedDisciples, selectedRealmFilter) {
+        if (selectedRealmFilter == null) {
+            sortedDisciples
+        } else {
+            sortedDisciples.filter { it.realm == selectedRealmFilter }
+        }
+    }
+
+    val selectTopDisciples = {
+        val availableDisciples = idleDisciples
+            .filter { !selectedDisciples.contains(it.id) }
+            .sortedWith(
+                compareBy<Disciple> { it.realm }
+                    .thenByDescending { it.realmLayer }
+            )
+        val toSelect = availableDisciples.take(maxTeamSize - selectedDisciples.size)
+        toSelect.forEach { selectedDisciples.add(it.id) }
+    }
+
+    val clearSelection = {
+        selectedDisciples.clear()
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = GameColors.PageBackground,
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "派遣队伍 - ${realm.name}",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(GameColors.PageBackground)
+                            .border(1.dp, Color.Gray, RoundedCornerShape(4.dp))
+                            .clickable { selectTopDisciples() }
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "一键选择",
+                            fontSize = 11.sp,
+                            color = Color.Black
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(GameColors.PageBackground)
+                            .border(1.dp, Color.Gray, RoundedCornerShape(4.dp))
+                            .clickable { clearSelection() }
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "一键取消",
+                            fontSize = 11.sp,
+                            color = Color.Black
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .clickable { onDismiss() }
+                            .background(Color(0xFFF5F5F5)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "×",
+                            fontSize = 16.sp,
+                            color = Color(0xFF666666)
+                        )
+                    }
+                }
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 500.dp)
+            ) {
+                Text(
+                    text = "选择弟子 (${selectedDisciples.size}/$maxTeamSize)",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        realmFilters.take(5).forEach { (realmVal, name) ->
+                            val isSelected = selectedRealmFilter == realmVal
+                            val count = realmCounts[realmVal] ?: 0
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(if (isSelected) Color(0xFFE0E0E0) else GameColors.PageBackground)
+                                    .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(4.dp))
+                                    .clickable { selectedRealmFilter = if (isSelected) null else realmVal }
+                                    .padding(vertical = 4.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "$name $count",
+                                    fontSize = 9.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    color = Color.Black
+                                )
+                            }
+                        }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        realmFilters.drop(5).forEach { (realmVal, name) ->
+                            val isSelected = selectedRealmFilter == realmVal
+                            val count = realmCounts[realmVal] ?: 0
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(if (isSelected) Color(0xFFE0E0E0) else GameColors.PageBackground)
+                                    .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(4.dp))
+                                    .clickable { selectedRealmFilter = if (isSelected) null else realmVal }
+                                    .padding(vertical = 4.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "$name $count",
+                                    fontSize = 9.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    color = Color.Black
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                if (filteredDisciples.isEmpty()) {
+                    Text(
+                        text = "暂无可用弟子",
+                        fontSize = 12.sp,
+                        color = Color(0xFF999999)
+                    )
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        items(filteredDisciples) { disciple ->
+                            val isSelected = selectedDisciples.contains(disciple.id)
+                            val canSelect = isSelected || selectedDisciples.size < maxTeamSize
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(if (isSelected) Color(0xFFE3F2FD) else Color(0xFFF5F5F5))
+                                    .clickable(enabled = canSelect) {
+                                        if (isSelected) {
+                                            selectedDisciples.remove(disciple.id)
+                                        } else if (selectedDisciples.size < maxTeamSize) {
+                                            selectedDisciples.add(disciple.id)
+                                        }
+                                    }
+                                    .padding(8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text(
+                                        text = disciple.name,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.Black
+                                    )
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        val spiritRootColor = try {
+                                            Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))
+                                        } catch (e: Exception) {
+                                            Color(0xFF666666)
+                                        }
+                                        Text(
+                                            text = disciple.spiritRootName,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = spiritRootColor
+                                        )
+                                        Text(
+                                            text = disciple.realmName,
+                                            fontSize = 11.sp,
+                                            color = Color(0xFF666666)
+                                        )
+                                    }
+                                }
+                                if (isSelected) {
+                                    Text(
+                                        text = "✓",
+                                        fontSize = 14.sp,
+                                        color = Color(0xFF2196F3)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                TextButton(onClick = onDismiss) {
+                    Text("取消", color = Color(0xFF666666))
+                }
+                Button(
+                    onClick = {
+                        if (selectedDisciples.isNotEmpty()) {
+                            viewModel.dispatchTeamToDungeon(realm.id, selectedDisciples.toList())
+                            onDismiss()
+                        }
+                    },
+                    enabled = selectedDisciples.isNotEmpty()
+                ) {
+                    Text("派遣")
+                }
+            }
+        }
+    )
+}
+
+@Composable
+private fun ExplorationTeamDialog(
+    realm: GameConfig.DungeonConfig,
+    viewModel: GameViewModel,
+    onDismiss: () -> Unit
+) {
+    val teams by viewModel.teams.collectAsState()
+    val disciples by viewModel.disciples.collectAsState()
+    val equipment by viewModel.equipment.collectAsState()
+    val manuals by viewModel.manuals.collectAsState()
+    val gameData by viewModel.gameData.collectAsState()
+    val battleLogs by viewModel.battleLogs.collectAsState()
+    var selectedDisciple by remember { mutableStateOf<Disciple?>(null) }
+    var selectedBattleLog by remember { mutableStateOf<BattleLog?>(null) }
+
+    val activeTeam = teams.find {
+        it.dungeon == realm.id &&
+        (it.status == ExplorationStatus.TRAVELING || it.status == ExplorationStatus.EXPLORING)
+    }
+    
+    val teamBattleLogs = remember(battleLogs, activeTeam) {
+        if (activeTeam == null) emptyList()
+        else {
+            battleLogs
+                .filter { it.teamId == activeTeam.id }
+                .sortedByDescending { it.timestamp }
+                .take(20)
+        }
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.85f),
+            shape = RoundedCornerShape(16.dp),
+            color = GameColors.PageBackground
+        ) {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "${realm.name} - 探索队伍",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .clickable { onDismiss() }
+                            .background(Color(0xFFF5F5F5)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "×",
+                            fontSize = 16.sp,
+                            color = Color(0xFF666666)
+                        )
+                    }
+                }
+
+                HorizontalDivider(color = Color(0xFFE0E0E0), thickness = 1.dp)
+
+                if (activeTeam != null) {
+                    val teamMembers = activeTeam.memberIds.mapNotNull { memberId ->
+                        disciples.find { it.id == memberId }
+                    }
+
+                    LazyColumn(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp)
+                    ) {
+                        item {
+                            val remainingMonths = activeTeam.getRemainingMonths(gameData.gameYear, gameData.gameMonth)
+                            val remainingYears = remainingMonths / 12
+                            val remainingMonthsPart = remainingMonths % 12
+                            
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "队伍成员",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF333333)
+                                )
+                                Text(
+                                    text = "剩余时间: ${remainingYears}年${remainingMonthsPart}个月",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFF666666)
+                                )
+                            }
+                        }
+                        
+                        items(teamMembers.chunked(4)) { rowMembers ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 6.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
+                            ) {
+                                rowMembers.forEach { disciple ->
+                                    TeamMemberSlot(
+                                        disciple = disciple,
+                                        onClick = { selectedDisciple = disciple }
+                                    )
+                                }
+                                repeat(4 - rowMembers.size) {
+                                    Spacer(modifier = Modifier.size(40.dp))
+                                }
+                            }
+                        }
+                        
+                        item {
+                            Spacer(modifier = Modifier.height(16.dp))
+                            HorizontalDivider(color = Color(0xFFE0E0E0), thickness = 1.dp)
+                            Spacer(modifier = Modifier.height(12.dp))
+                            
+                            Text(
+                                text = "战斗日志",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF333333),
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                        }
+                        
+                        if (teamBattleLogs.isEmpty()) {
+                            item {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 24.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "暂无战斗记录",
+                                        fontSize = 12.sp,
+                                        color = Color(0xFF999999)
+                                    )
+                                }
+                            }
+                        } else {
+                            items(teamBattleLogs) { log ->
+                                BattleLogItem(
+                                    log = log,
+                                    onClick = { selectedBattleLog = log }
+                                )
+                            }
+                        }
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                viewModel.recallTeam(activeTeam.id)
+                                onDismiss()
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFFFF5722)
+                            )
+                        ) {
+                            Text(
+                                text = "召回队伍",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "该秘境没有正在探索的队伍",
+                            fontSize = 14.sp,
+                            color = Color(0xFF999999)
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    selectedDisciple?.let { disciple ->
+        val updatedDisciple = disciples.find { it.id == disciple.id } ?: disciple
+        DiscipleDetailDialog(
+            disciple = updatedDisciple,
+            allDisciples = disciples,
+            allEquipment = equipment,
+            allManuals = manuals,
+            manualProficiencies = gameData?.manualProficiencies ?: emptyMap(),
+            viewModel = viewModel,
+            onDismiss = { selectedDisciple = null }
+        )
+    }
+    
+    selectedBattleLog?.let { log ->
+        BattleLogDetailDialog(
+            log = log,
+            onDismiss = { selectedBattleLog = null }
+        )
+    }
+}
+
+@Composable
+private fun TeamMemberSlot(
+    disciple: Disciple,
+    onClick: () -> Unit
+) {
+    val isDead = !disciple.isAlive
+    
+    val currentHp = if (isDead) 0 else disciple.statusData["currentHp"]?.toIntOrNull() ?: disciple.maxHp
+    val hpPercent = disciple.maxHp.takeIf { it > 0 }?.let {
+        (currentHp.toFloat() / it.toFloat()).coerceIn(0f, 1f)
+    } ?: 1f
+
+    val hpColor = when {
+        hpPercent > 0.6f -> Color(0xFF4CAF50)
+        hpPercent > 0.3f -> Color(0xFFFF9800)
+        else -> Color(0xFFF44336)
+    }
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        if (isDead) {
+            Text(
+                text = "死亡",
+                fontSize = 8.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFFF44336),
+                maxLines = 1
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .width(40.dp)
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(Color(0xFFE0E0E0))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .fillMaxWidth(hpPercent)
+                        .background(hpColor)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(2.dp))
+
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .background(if (isDead) Color(0xFFEEEEEE) else Color.White)
+                .border(1.dp, if (isDead) Color(0xFFCCCCCC) else Color(0xFFE0E0E0), RoundedCornerShape(4.dp))
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = disciple.name,
+                    fontSize = 8.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isDead) Color(0xFF999999) else Color.Black,
+                    maxLines = 1
+                )
+                Text(
+                    text = disciple.realmName,
+                    fontSize = 7.sp,
+                    color = if (isDead) Color(0xFFAAAAAA) else Color(0xFF666666),
+                    maxLines = 1
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun BattleLogItem(
+    log: BattleLog,
+    onClick: () -> Unit
+) {
+    val resultColor = when (log.result) {
+        BattleResult.WIN -> Color(0xFF4CAF50)
+        BattleResult.LOSE -> Color(0xFFF44336)
+        BattleResult.DRAW -> Color(0xFFFF9800)
+    }
+    
+    val resultText = when (log.result) {
+        BattleResult.WIN -> "胜利"
+        BattleResult.LOSE -> "失败"
+        BattleResult.DRAW -> "平局"
+    }
+    
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFF8F8F8)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(
+                    text = "第${log.year}年${log.month}月",
+                    fontSize = 11.sp,
+                    color = Color(0xFF666666)
+                )
+                Text(
+                    text = "回合: ${log.turns} | 敌人: ${log.enemies.size}",
+                    fontSize = 10.sp,
+                    color = Color(0xFF999999)
+                )
+            }
+            
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(resultColor)
+                    .padding(horizontal = 12.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    text = resultText,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun BattleLogDetailDialog(
+    log: BattleLog,
+    onDismiss: () -> Unit
+) {
+    val resultColor = when (log.result) {
+        BattleResult.WIN -> Color(0xFF4CAF50)
+        BattleResult.LOSE -> Color(0xFFF44336)
+        BattleResult.DRAW -> Color(0xFFFF9800)
+    }
+    
+    val resultText = when (log.result) {
+        BattleResult.WIN -> "胜利"
+        BattleResult.LOSE -> "失败"
+        BattleResult.DRAW -> "平局"
+    }
+    
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.9f),
+            shape = RoundedCornerShape(16.dp),
+            color = GameColors.PageBackground
+        ) {
+            Column(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "战斗详情",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .clickable { onDismiss() }
+                            .background(Color(0xFFF5F5F5)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "×",
+                            fontSize = 16.sp,
+                            color = Color(0xFF666666)
+                        )
+                    }
+                }
+                
+                HorizontalDivider(color = Color(0xFFE0E0E0), thickness = 1.dp)
+                
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "第${log.year}年${log.month}月",
+                                fontSize = 12.sp,
+                                color = Color(0xFF666666)
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(resultColor)
+                                    .padding(horizontal = 12.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = resultText,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            }
+                        }
+                        
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "战斗回合: ${log.turns}",
+                            fontSize = 11.sp,
+                            color = Color(0xFF333333)
+                        )
+                        
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "我方弟子",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF333333)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                    
+                    items(log.teamMembers.chunked(4)) { rowMembers ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
+                        ) {
+                            rowMembers.forEach { member ->
+                                BattleParticipantSlot(
+                                    name = member.name,
+                                    realmName = member.realmName,
+                                    hp = member.hp,
+                                    maxHp = member.maxHp,
+                                    isAlive = member.isAlive
+                                )
+                            }
+                            repeat(4 - rowMembers.size) {
+                                Spacer(modifier = Modifier.size(40.dp))
+                            }
+                        }
+                    }
+                    
+                    item {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "敌方妖兽",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF333333)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                    
+                    items(log.enemies.chunked(4)) { rowEnemies ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
+                        ) {
+                            rowEnemies.forEach { enemy ->
+                                BattleParticipantSlot(
+                                    name = enemy.name,
+                                    realmName = enemy.realmName,
+                                    hp = enemy.hp,
+                                    maxHp = enemy.maxHp,
+                                    isAlive = enemy.isAlive
+                                )
+                            }
+                            repeat(4 - rowEnemies.size) {
+                                Spacer(modifier = Modifier.size(40.dp))
+                            }
+                        }
+                    }
+                    
+                    if (log.rounds.isNotEmpty()) {
+                        item {
+                            Spacer(modifier = Modifier.height(16.dp))
+                            HorizontalDivider(color = Color(0xFFE0E0E0), thickness = 1.dp)
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                text = "战斗过程",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF333333)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+                        
+                        items(log.rounds) { round ->
+                            BattleRoundItem(round = round)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BattleParticipantSlot(
+    name: String,
+    realmName: String,
+    hp: Int,
+    maxHp: Int,
+    isAlive: Boolean
+) {
+    val hpPercent = maxHp.takeIf { it > 0 }?.let {
+        (hp.toFloat() / it.toFloat()).coerceIn(0f, 1f)
+    } ?: 0f
+
+    val hpColor = when {
+        hpPercent > 0.6f -> Color(0xFF4CAF50)
+        hpPercent > 0.3f -> Color(0xFFFF9800)
+        else -> Color(0xFFF44336)
+    }
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .width(40.dp)
+                .height(4.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(Color(0xFFE0E0E0))
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .fillMaxWidth(hpPercent)
+                    .background(hpColor)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(2.dp))
+
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .background(if (isAlive) Color.White else Color(0xFFEEEEEE))
+                .border(1.dp, if (isAlive) Color(0xFFE0E0E0) else Color(0xFFCCCCCC), RoundedCornerShape(4.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            if (isAlive) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = name,
+                        fontSize = 8.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black,
+                        maxLines = 1
+                    )
+                    Text(
+                        text = realmName,
+                        fontSize = 7.sp,
+                        color = Color(0xFF666666),
+                        maxLines = 1
+                    )
+                }
+            } else {
+                Text(
+                    text = "死亡",
+                    fontSize = 8.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFFF44336),
+                    maxLines = 1
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun BattleRoundItem(
+    round: BattleLogRound
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+    ) {
+        Text(
+            text = "第${round.roundNumber}回合",
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF333333)
+        )
+        
+        round.actions.forEach { action ->
+            BattleActionItem(action = action)
+        }
+    }
+}
+
+@Composable
+private fun BattleActionItem(
+    action: BattleLogAction
+) {
+    val actionColor = when {
+        action.isKill -> Color(0xFFF44336)
+        action.isCrit -> Color(0xFFFF9800)
+        else -> Color(0xFF666666)
+    }
+    
+    val critText = if (action.isCrit) " [暴击]" else ""
+    val killText = if (action.isKill) " [击杀]" else ""
+    
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 8.dp, top = 2.dp)
+    ) {
+        Text(
+            text = "${action.attacker} → ${action.target}: ${action.damage}${critText}${killText}",
+            fontSize = 10.sp,
+            color = actionColor
+        )
+    }
+}
+
+@Composable
+private fun BattleLogListDialog(
+    battleLogs: List<BattleLog>,
+    onDismiss: () -> Unit
+) {
+    var selectedBattleLog by remember { mutableStateOf<BattleLog?>(null) }
+    val recentLogs = remember(battleLogs) {
+        battleLogs.sortedByDescending { it.timestamp }.take(30)
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.85f),
+            shape = RoundedCornerShape(16.dp),
+            color = GameColors.PageBackground
+        ) {
+            Column(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "战斗日志",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .clickable { onDismiss() }
+                            .background(Color(0xFFF5F5F5)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "×",
+                            fontSize = 16.sp,
+                            color = Color(0xFF666666)
+                        )
+                    }
+                }
+
+                HorizontalDivider(color = Color(0xFFE0E0E0), thickness = 1.dp)
+
+                if (recentLogs.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "暂无战斗记录",
+                            fontSize = 14.sp,
+                            color = Color(0xFF999999)
+                        )
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(recentLogs) { log ->
+                            BattleLogListItem(
+                                log = log,
+                                onClick = { selectedBattleLog = log }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    selectedBattleLog?.let { log ->
+        BattleLogDetailDialog(
+            log = log,
+            onDismiss = { selectedBattleLog = null }
+        )
+    }
+}
+
+@Composable
+private fun BattleLogListItem(
+    log: BattleLog,
+    onClick: () -> Unit
+) {
+    val resultColor = when (log.result) {
+        BattleResult.WIN -> Color(0xFF4CAF50)
+        BattleResult.LOSE -> Color(0xFFF44336)
+        BattleResult.DRAW -> Color(0xFFFF9800)
+    }
+
+    val resultText = when (log.result) {
+        BattleResult.WIN -> "胜利"
+        BattleResult.LOSE -> "失败"
+        BattleResult.DRAW -> "平局"
+    }
+
+    val typeText = log.type.displayName
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFF8F8F8)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = typeText,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF333333)
+                    )
+                    Text(
+                        text = "第${log.year}年${log.month}月",
+                        fontSize = 11.sp,
+                        color = Color(0xFF666666)
+                    )
+                }
+                Text(
+                    text = "回合: ${log.turns} | 敌人: ${log.enemies.size}",
+                    fontSize = 10.sp,
+                    color = Color(0xFF999999)
+                )
+            }
+            
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(resultColor)
+                    .padding(horizontal = 12.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    text = resultText,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+            }
+        }
+    }
+}
+
 private fun isDiscipleInAnyPosition(discipleId: String, elderSlots: ElderSlots): Boolean {
     if (elderSlots.viceSectMaster == discipleId) {
         return true
@@ -1799,7 +3106,6 @@ private fun isDiscipleInAnyPosition(discipleId: String, elderSlots: ElderSlots):
         elderSlots.alchemyElder,
         elderSlots.forgeElder,
         elderSlots.libraryElder,
-        elderSlots.spiritMineElder,
         elderSlots.recruitElder
     )
     
@@ -1812,7 +3118,6 @@ private fun isDiscipleInAnyPosition(discipleId: String, elderSlots: ElderSlots):
         elderSlots.alchemyDisciples,
         elderSlots.forgeDisciples,
         elderSlots.libraryDisciples,
-        elderSlots.spiritMineDisciples,
         elderSlots.recruitDisciples
     ).flatten().mapNotNull { it.discipleId }
     
@@ -1885,7 +3190,7 @@ private fun ElderDiscipleSelectionDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.White,
+        containerColor = GameColors.PageBackground,
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1903,7 +3208,7 @@ private fun ElderDiscipleSelectionDialog(
                         .size(24.dp)
                         .clip(CircleShape)
                         .clickable { onDismiss() }
-                        .background(Color(0xFFF5F5F5)),
+                        .background(GameColors.CardBackground),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -1935,8 +3240,8 @@ private fun ElderDiscipleSelectionDialog(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clip(RoundedCornerShape(4.dp))
-                                    .background(if (isSelected) Color(0xFFE0E0E0) else Color.White)
-                                    .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(4.dp))
+                                    .background(if (isSelected) GameColors.Border else GameColors.PageBackground)
+                                    .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
                                     .clickable { selectedRealmFilter = if (isSelected) null else realm }
                                     .padding(vertical = 4.dp),
                                 contentAlignment = Alignment.Center
@@ -1961,8 +3266,8 @@ private fun ElderDiscipleSelectionDialog(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clip(RoundedCornerShape(4.dp))
-                                    .background(if (isSelected) Color(0xFFE0E0E0) else Color.White)
-                                    .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(4.dp))
+                                    .background(if (isSelected) GameColors.Border else GameColors.PageBackground)
+                                    .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
                                     .clickable { selectedRealmFilter = if (isSelected) null else realm }
                                     .padding(vertical = 4.dp),
                                 contentAlignment = Alignment.Center
@@ -1989,8 +3294,8 @@ private fun ElderDiscipleSelectionDialog(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(6.dp))
-                                .background(Color.White)
-                                .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(6.dp))
+                                .background(GameColors.PageBackground)
+                                .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
                                 .clickable { onSelect(disciple.id) }
                                 .padding(12.dp)
                         ) {
@@ -2073,7 +3378,6 @@ private fun BuildingsTab(viewModel: GameViewModel) {
     val showLibraryDialog by viewModel.showLibraryDialog.collectAsState()
     val showWenDaoPeakDialog by viewModel.showWenDaoPeakDialog.collectAsState()
     val showQingyunPeakDialog by viewModel.showQingyunPeakDialog.collectAsState()
-    val showTournamentDialog by viewModel.showTournamentDialog.collectAsState()
     val showTianshuHallDialog by viewModel.showTianshuHallDialog.collectAsState()
     val showLawEnforcementHallDialog by viewModel.showLawEnforcementHallDialog.collectAsState()
 
@@ -2087,14 +3391,13 @@ private fun BuildingsTab(viewModel: GameViewModel) {
         Triple("青云峰", "管理内门弟子") { viewModel.openQingyunPeakDialog() },
         Triple("天枢殿", "处理宗门事务") { viewModel.openTianshuHallDialog() },
         Triple("执法堂", "维护宗门纪律") { viewModel.openLawEnforcementHallDialog() },
-        Triple("思过崖", "悔过自新之地") { viewModel.openReflectionCliffDialog() },
-        Triple("演武堂", "宗门大比") { viewModel.openTournamentDialog() }
+        Triple("思过崖", "悔过自新之地") { viewModel.openReflectionCliffDialog() }
     )
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.White)
+            .background(GameColors.PageBackground)
             .padding(12.dp)
     ) {
         Text(
@@ -2118,8 +3421,8 @@ private fun BuildingsTab(viewModel: GameViewModel) {
                             modifier = Modifier
                                 .weight(1f)
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(Color.White)
-                                .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(8.dp))
+                                .background(GameColors.PageBackground)
+                                .border(1.dp, GameColors.Border, RoundedCornerShape(8.dp))
                                 .clickable { onClick() }
                                 .padding(12.dp)
                         ) {
@@ -2217,20 +3520,6 @@ private fun BuildingsTab(viewModel: GameViewModel) {
         )
     }
 
-    if (showTournamentDialog) {
-        TournamentDialog(
-            gameData = gameData,
-            disciples = disciples.filter { it.isAlive },
-            equipment = equipment,
-            manuals = manuals,
-            pills = pills,
-            materials = materials,
-            herbs = herbs,
-            viewModel = viewModel,
-            onDismiss = { viewModel.closeTournamentDialog() }
-        )
-    }
-
     if (showTianshuHallDialog) {
         TianshuHallDialog(
             gameData = gameData,
@@ -2254,7 +3543,8 @@ private fun BuildingsTab(viewModel: GameViewModel) {
         ReflectionCliffDialog(
             disciples = disciples.filter { it.isAlive },
             gameData = gameData,
-            onDismiss = { viewModel.closeReflectionCliffDialog() }
+            onDismiss = { viewModel.closeReflectionCliffDialog() },
+            onExpelDisciple = { discipleId -> viewModel.expelDisciple(discipleId) }
         )
     }
 }
@@ -2279,11 +3569,45 @@ private fun WarehouseTab(viewModel: GameViewModel) {
     val seeds by viewModel.seeds.collectAsState()
     
     val equipment = remember(allEquipment) {
-        allEquipment.filter { !it.isEquipped }
+        allEquipment.filter { !it.isEquipped }.sortedWith(compareByDescending<Equipment> { it.rarity }.thenBy { it.name })
     }
     
     val manuals = remember(allManuals) {
-        allManuals.filter { !it.isLearned }
+        allManuals.filter { !it.isLearned }.sortedWith(compareByDescending<Manual> { it.rarity }.thenBy { it.name })
+    }
+    
+    val sortedPills = remember(pills) {
+        pills.sortedWith(compareByDescending<Pill> { it.rarity }.thenBy { it.name })
+    }
+    
+    val sortedMaterials = remember(materials) {
+        materials.sortedWith(compareByDescending<Material> { it.rarity }.thenBy { it.name })
+    }
+    
+    val sortedHerbs = remember(herbs) {
+        herbs.sortedWith(compareByDescending<Herb> { it.rarity }.thenBy { it.name })
+    }
+    
+    val sortedSeeds = remember(seeds) {
+        seeds.sortedWith(compareByDescending<Seed> { it.rarity }.thenBy { it.name })
+    }
+    
+    data class WarehouseItem(
+        val id: String,
+        val name: String,
+        val rarity: Int,
+        val item: Any
+    )
+    
+    val allSortedItems = remember(equipment, manuals, sortedPills, sortedMaterials, sortedHerbs, sortedSeeds) {
+        val items = mutableListOf<WarehouseItem>()
+        equipment.forEach { items.add(WarehouseItem(it.id, it.name, it.rarity, it)) }
+        manuals.forEach { items.add(WarehouseItem(it.id, it.name, it.rarity, it)) }
+        sortedPills.forEach { items.add(WarehouseItem(it.id, it.name, it.rarity, it)) }
+        sortedMaterials.forEach { items.add(WarehouseItem(it.id, it.name, it.rarity, it)) }
+        sortedHerbs.forEach { items.add(WarehouseItem(it.id, it.name, it.rarity, it)) }
+        sortedSeeds.forEach { items.add(WarehouseItem(it.id, it.name, it.rarity, it)) }
+        items.sortedWith(compareByDescending<WarehouseItem> { it.rarity }.thenBy { it.name })
     }
     
     var selectedFilter by remember { mutableStateOf(WarehouseFilter.ALL) }
@@ -2295,7 +3619,7 @@ private fun WarehouseTab(viewModel: GameViewModel) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.White)
+            .background(GameColors.PageBackground)
             .padding(16.dp)
     ) {
         Row(
@@ -2389,17 +3713,17 @@ private fun WarehouseTab(viewModel: GameViewModel) {
         
         Spacer(modifier = Modifier.height(12.dp))
         
-        val allItems = when (selectedFilter) {
-            WarehouseFilter.ALL -> equipment + manuals + pills + materials + herbs + seeds
-            WarehouseFilter.EQUIPMENT -> equipment
-            WarehouseFilter.PILL -> pills
-            WarehouseFilter.MANUAL -> manuals
-            WarehouseFilter.HERB -> herbs
-            WarehouseFilter.SEED -> seeds
-            WarehouseFilter.MATERIAL -> materials
+        val isEmpty = when (selectedFilter) {
+            WarehouseFilter.ALL -> allSortedItems.isEmpty()
+            WarehouseFilter.EQUIPMENT -> equipment.isEmpty()
+            WarehouseFilter.PILL -> sortedPills.isEmpty()
+            WarehouseFilter.MANUAL -> manuals.isEmpty()
+            WarehouseFilter.HERB -> sortedHerbs.isEmpty()
+            WarehouseFilter.SEED -> sortedSeeds.isEmpty()
+            WarehouseFilter.MATERIAL -> sortedMaterials.isEmpty()
         }
         
-        if (allItems.isEmpty()) {
+        if (isEmpty) {
             EmptyWarehouseMessage()
         } else {
             LazyVerticalGrid(
@@ -2410,83 +3734,45 @@ private fun WarehouseTab(viewModel: GameViewModel) {
             ) {
                 when (selectedFilter) {
                     WarehouseFilter.ALL -> {
-                        items(equipment, key = { "equipment_${it.id}" }) { item ->
-                            WarehouseEquipmentCard(
-                                equipment = item,
-                                isSelected = selectedItemId == item.id,
-                                onSelect = {
-                                    selectedItemId = if (selectedItemId == item.id) null else item.id
-                                },
-                                onViewDetail = {
-                                    selectedItem = item
-                                    showDetailDialog = true
-                                }
-                            )
-                        }
-                        items(manuals, key = { "manual_${it.id}" }) { item ->
-                            WarehouseManualCard(
-                                manual = item,
-                                isSelected = selectedItemId == item.id,
-                                onSelect = {
-                                    selectedItemId = if (selectedItemId == item.id) null else item.id
-                                },
-                                onViewDetail = {
-                                    selectedItem = item
-                                    showDetailDialog = true
-                                }
-                            )
-                        }
-                        items(pills, key = { "pill_${it.id}_${it.quantity}" }) { item ->
-                            WarehousePillCard(
-                                pill = item,
-                                isSelected = selectedItemId == item.id,
-                                onSelect = {
-                                    selectedItemId = if (selectedItemId == item.id) null else item.id
-                                },
-                                onViewDetail = {
-                                    selectedItem = item
-                                    showDetailDialog = true
-                                }
-                            )
-                        }
-                        items(materials, key = { "material_${it.id}_${it.quantity}" }) { item ->
-                            WarehouseMaterialCard(
-                                material = item,
-                                isSelected = selectedItemId == item.id,
-                                onSelect = {
-                                    selectedItemId = if (selectedItemId == item.id) null else item.id
-                                },
-                                onViewDetail = {
-                                    selectedItem = item
-                                    showDetailDialog = true
-                                }
-                            )
-                        }
-                        items(herbs, key = { "herb_${it.id}_${it.quantity}" }) { item ->
-                            WarehouseHerbCard(
-                                herb = item,
-                                isSelected = selectedItemId == item.id,
-                                onSelect = {
-                                    selectedItemId = if (selectedItemId == item.id) null else item.id
-                                },
-                                onViewDetail = {
-                                    selectedItem = item
-                                    showDetailDialog = true
-                                }
-                            )
-                        }
-                        items(seeds, key = { "seed_${it.id}_${it.quantity}" }) { item ->
-                            WarehouseSeedCard(
-                                seed = item,
-                                isSelected = selectedItemId == item.id,
-                                onSelect = {
-                                    selectedItemId = if (selectedItemId == item.id) null else item.id
-                                },
-                                onViewDetail = {
-                                    selectedItem = item
-                                    showDetailDialog = true
-                                }
-                            )
+                        items(allSortedItems, key = { "${it.item.javaClass.simpleName}_${it.id}" }) { warehouseItem ->
+                            when (val item = warehouseItem.item) {
+                                is Equipment -> WarehouseEquipmentCard(
+                                    equipment = item,
+                                    isSelected = selectedItemId == item.id,
+                                    onSelect = { selectedItemId = if (selectedItemId == item.id) null else item.id },
+                                    onViewDetail = { selectedItem = item; showDetailDialog = true }
+                                )
+                                is Manual -> WarehouseManualCard(
+                                    manual = item,
+                                    isSelected = selectedItemId == item.id,
+                                    onSelect = { selectedItemId = if (selectedItemId == item.id) null else item.id },
+                                    onViewDetail = { selectedItem = item; showDetailDialog = true }
+                                )
+                                is Pill -> WarehousePillCard(
+                                    pill = item,
+                                    isSelected = selectedItemId == item.id,
+                                    onSelect = { selectedItemId = if (selectedItemId == item.id) null else item.id },
+                                    onViewDetail = { selectedItem = item; showDetailDialog = true }
+                                )
+                                is Material -> WarehouseMaterialCard(
+                                    material = item,
+                                    isSelected = selectedItemId == item.id,
+                                    onSelect = { selectedItemId = if (selectedItemId == item.id) null else item.id },
+                                    onViewDetail = { selectedItem = item; showDetailDialog = true }
+                                )
+                                is Herb -> WarehouseHerbCard(
+                                    herb = item,
+                                    isSelected = selectedItemId == item.id,
+                                    onSelect = { selectedItemId = if (selectedItemId == item.id) null else item.id },
+                                    onViewDetail = { selectedItem = item; showDetailDialog = true }
+                                )
+                                is Seed -> WarehouseSeedCard(
+                                    seed = item,
+                                    isSelected = selectedItemId == item.id,
+                                    onSelect = { selectedItemId = if (selectedItemId == item.id) null else item.id },
+                                    onViewDetail = { selectedItem = item; showDetailDialog = true }
+                                )
+                            }
                         }
                     }
                     WarehouseFilter.EQUIPMENT -> {
@@ -2505,7 +3791,7 @@ private fun WarehouseTab(viewModel: GameViewModel) {
                         }
                     }
                     WarehouseFilter.PILL -> {
-                        items(pills, key = { "pill_${it.id}_${it.quantity}" }) { item ->
+                        items(sortedPills, key = { "pill_${it.id}_${it.quantity}" }) { item ->
                             WarehousePillCard(
                                 pill = item,
                                 isSelected = selectedItemId == item.id,
@@ -2535,7 +3821,7 @@ private fun WarehouseTab(viewModel: GameViewModel) {
                         }
                     }
                     WarehouseFilter.HERB -> {
-                        items(herbs, key = { "herb_${it.id}_${it.quantity}" }) { item ->
+                        items(sortedHerbs, key = { "herb_${it.id}_${it.quantity}" }) { item ->
                             WarehouseHerbCard(
                                 herb = item,
                                 isSelected = selectedItemId == item.id,
@@ -2550,7 +3836,7 @@ private fun WarehouseTab(viewModel: GameViewModel) {
                         }
                     }
                     WarehouseFilter.SEED -> {
-                        items(seeds, key = { "seed_${it.id}_${it.quantity}" }) { item ->
+                        items(sortedSeeds, key = { "seed_${it.id}_${it.quantity}" }) { item ->
                             WarehouseSeedCard(
                                 seed = item,
                                 isSelected = selectedItemId == item.id,
@@ -2565,7 +3851,7 @@ private fun WarehouseTab(viewModel: GameViewModel) {
                         }
                     }
                     WarehouseFilter.MATERIAL -> {
-                        items(materials, key = { "material_${it.id}_${it.quantity}" }) { item ->
+                        items(sortedMaterials, key = { "material_${it.id}_${it.quantity}" }) { item ->
                             WarehouseMaterialCard(
                                 material = item,
                                 isSelected = selectedItemId == item.id,
@@ -2701,7 +3987,7 @@ private fun BulkSellDialog(
                 .fillMaxWidth()
                 .fillMaxHeight(0.85f),
             shape = RoundedCornerShape(16.dp),
-            color = Color.White
+            color = GameColors.PageBackground
         ) {
             Column(
                 modifier = Modifier
@@ -3029,7 +4315,7 @@ private fun BulkSellDialog(
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(6.dp))
-                            .background(Color(0xFFE0E0E0))
+                            .background(GameColors.Border)
                             .clickable { onDismiss() }
                             .padding(vertical = 12.dp),
                         contentAlignment = Alignment.Center
@@ -3094,7 +4380,7 @@ private fun BulkSellItemCard(
             .aspectRatio(1f)
             .clip(RoundedCornerShape(6.dp))
             .border(2.dp, rarityColor, RoundedCornerShape(6.dp))
-            .background(Color.White)
+            .background(GameColors.PageBackground)
             .padding(4.dp)
     ) {
         Text(
@@ -3133,8 +4419,8 @@ private fun WarehouseFilterButton(
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(6.dp))
-            .background(if (selected) Color.Black else Color.White)
-            .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(6.dp))
+            .background(if (selected) Color.Black else GameColors.ButtonBackground)
+            .border(1.dp, if (selected) Color.Black else GameColors.ButtonBorder, RoundedCornerShape(6.dp))
             .clickable { onClick() }
             .padding(vertical = 10.dp),
         contentAlignment = Alignment.Center
@@ -3191,7 +4477,7 @@ private fun WarehouseEquipmentCard(
                 color = if (isSelected) Color(0xFFFFD700) else rarityColor,
                 shape = RoundedCornerShape(6.dp)
             )
-            .background(if (isSelected) Color(0xFFFFF8E1) else Color.White)
+            .background(if (isSelected) Color(0xFFFFF8E1) else GameColors.PageBackground)
             .clickable { onSelect() }
             .padding(4.dp)
     ) {
@@ -3256,7 +4542,7 @@ private fun WarehouseManualCard(
                 color = if (isSelected) Color(0xFFFFD700) else rarityColor,
                 shape = RoundedCornerShape(6.dp)
             )
-            .background(if (isSelected) Color(0xFFFFF8E1) else Color.White)
+            .background(if (isSelected) Color(0xFFFFF8E1) else GameColors.PageBackground)
             .clickable { onSelect() }
             .padding(4.dp)
     ) {
@@ -3321,7 +4607,7 @@ private fun WarehousePillCard(
                 color = if (isSelected) Color(0xFFFFD700) else rarityColor,
                 shape = RoundedCornerShape(6.dp)
             )
-            .background(if (isSelected) Color(0xFFFFF8E1) else Color.White)
+            .background(if (isSelected) Color(0xFFFFF8E1) else GameColors.PageBackground)
             .clickable { onSelect() }
             .padding(4.dp)
     ) {
@@ -3397,7 +4683,7 @@ private fun WarehouseMaterialCard(
                 color = if (isSelected) Color(0xFFFFD700) else rarityColor,
                 shape = RoundedCornerShape(6.dp)
             )
-            .background(if (isSelected) Color(0xFFFFF8E1) else Color.White)
+            .background(if (isSelected) Color(0xFFFFF8E1) else GameColors.PageBackground)
             .clickable { onSelect() }
             .padding(4.dp)
     ) {
@@ -3473,7 +4759,7 @@ private fun WarehouseHerbCard(
                 color = if (isSelected) Color(0xFFFFD700) else rarityColor,
                 shape = RoundedCornerShape(6.dp)
             )
-            .background(if (isSelected) Color(0xFFFFF8E1) else Color.White)
+            .background(if (isSelected) Color(0xFFFFF8E1) else GameColors.PageBackground)
             .clickable { onSelect() }
             .padding(4.dp)
     ) {
@@ -3549,7 +4835,7 @@ private fun WarehouseSeedCard(
                 color = if (isSelected) Color(0xFFFFD700) else rarityColor,
                 shape = RoundedCornerShape(6.dp)
             )
-            .background(if (isSelected) Color(0xFFFFF8E1) else Color.White)
+            .background(if (isSelected) Color(0xFFFFF8E1) else GameColors.PageBackground)
             .clickable { onSelect() }
             .padding(4.dp)
     ) {
@@ -3608,11 +4894,16 @@ private fun SettingsTab(
     
     var showSaveSlotDialog by remember { mutableStateOf(false) }
     var showRestartConfirmDialog by remember { mutableStateOf(false) }
+    var showResetDisciplesConfirmDialog by remember { mutableStateOf(false) }
+    var showRedeemCodeDialog by remember { mutableStateOf(false) }
+    
+    val showRedeemCodeDialogState by viewModel.showRedeemCodeDialog.collectAsState()
+    val redeemResult by viewModel.redeemResult.collectAsState()
     
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.White)
+            .background(GameColors.PageBackground)
             .padding(16.dp)
     ) {
         Text(
@@ -3646,8 +4937,8 @@ private fun SettingsTab(
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(6.dp))
-                            .background(if (isPaused) Color.Black else Color.White)
-                            .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(6.dp))
+                            .background(if (isPaused) Color.Black else GameColors.PageBackground)
+                            .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
                             .clickable { viewModel.togglePause() }
                             .padding(vertical = 12.dp),
                         contentAlignment = Alignment.Center
@@ -3664,8 +4955,8 @@ private fun SettingsTab(
                             modifier = Modifier
                                 .weight(1f)
                                 .clip(RoundedCornerShape(6.dp))
-                                .background(if (timeSpeed == speed && !isPaused) Color.Black else Color.White)
-                                .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(6.dp))
+                                .background(if (timeSpeed == speed && !isPaused) Color.Black else GameColors.PageBackground)
+                                .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
                                 .clickable { viewModel.setTimeSpeed(speed) }
                                 .padding(vertical = 12.dp),
                             contentAlignment = Alignment.Center
@@ -3698,8 +4989,8 @@ private fun SettingsTab(
                             modifier = Modifier
                                 .weight(1f)
                                 .clip(RoundedCornerShape(6.dp))
-                                .background(if (gameData.autoSaveIntervalMonths == interval) Color.Black else Color.White)
-                                .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(6.dp))
+                                .background(if (gameData.autoSaveIntervalMonths == interval) Color.Black else GameColors.PageBackground)
+                                .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
                                 .clickable { viewModel.setAutoSaveIntervalMonths(interval) }
                                 .padding(vertical = 12.dp),
                             contentAlignment = Alignment.Center
@@ -3727,8 +5018,8 @@ private fun SettingsTab(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(6.dp))
-                        .background(Color.White)
-                        .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(6.dp))
+                        .background(GameColors.PageBackground)
+                        .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
                         .clickable { viewModel.openSalaryConfigDialog() }
                         .padding(vertical = 12.dp),
                     contentAlignment = Alignment.Center
@@ -3758,8 +5049,8 @@ private fun SettingsTab(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(6.dp))
-                            .background(Color.White)
-                            .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(6.dp))
+                            .background(GameColors.PageBackground)
+                            .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
                             .clickable { showSaveSlotDialog = true }
                             .padding(vertical = 12.dp),
                         contentAlignment = Alignment.Center
@@ -3786,6 +5077,38 @@ private fun SettingsTab(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(6.dp))
+                        .background(Color(0xFF9B59B6))
+                        .clickable { viewModel.openRedeemCodeDialog() }
+                        .padding(vertical = 12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "兑换码",
+                        fontSize = 12.sp,
+                        color = Color.White
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(Color(0xFFF39C12))
+                        .clickable { showResetDisciplesConfirmDialog = true }
+                        .padding(vertical = 12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "重置弟子状态",
+                        fontSize = 12.sp,
+                        color = Color.White
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(6.dp))
                         .background(Color(0xFFE74C3C))
                         .clickable { showRestartConfirmDialog = true }
                         .padding(vertical = 12.dp),
@@ -3802,8 +5125,8 @@ private fun SettingsTab(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(6.dp))
-                        .background(Color.White)
-                        .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(6.dp))
+                        .background(GameColors.PageBackground)
+                        .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
                         .clickable { onLogout() }
                         .padding(vertical = 12.dp),
                     contentAlignment = Alignment.Center
@@ -3828,7 +5151,7 @@ private fun SettingsTab(
     if (showRestartConfirmDialog) {
         AlertDialog(
             onDismissRequest = { showRestartConfirmDialog = false },
-            containerColor = Color.White,
+            containerColor = GameColors.PageBackground,
             title = {
                 Text(
                     text = "确认重新开始",
@@ -3845,16 +5168,14 @@ private fun SettingsTab(
                 )
             },
             confirmButton = {
-                Button(
+                GameButton(
+                    text = "确认",
                     onClick = {
                         showRestartConfirmDialog = false
                         viewModel.restartGame()
                     },
-                    modifier = Modifier.height(32.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE74C3C))
-                ) {
-                    Text("确认", fontSize = 12.sp)
-                }
+                    modifier = Modifier.height(32.dp)
+                )
             },
             dismissButton = {
                 GameButton(
@@ -3862,6 +5183,51 @@ private fun SettingsTab(
                     onClick = { showRestartConfirmDialog = false }
                 )
             }
+        )
+    }
+
+    if (showResetDisciplesConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showResetDisciplesConfirmDialog = false },
+            containerColor = GameColors.PageBackground,
+            title = {
+                Text(
+                    text = "确认重置弟子状态",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+            },
+            text = {
+                Text(
+                    text = "确定要重置所有弟子状态吗？\n探索/战斗队伍将解散，工作/职务槽位将清空，思过崖弟子不受影响。",
+                    fontSize = 12.sp,
+                    color = Color(0xFF666666)
+                )
+            },
+            confirmButton = {
+                GameButton(
+                    text = "确认",
+                    onClick = {
+                        showResetDisciplesConfirmDialog = false
+                        viewModel.resetAllDisciplesStatus()
+                    },
+                    modifier = Modifier.height(32.dp)
+                )
+            },
+            dismissButton = {
+                GameButton(
+                    text = "取消",
+                    onClick = { showResetDisciplesConfirmDialog = false }
+                )
+            }
+        )
+    }
+
+    if (showRedeemCodeDialogState) {
+        RedeemCodeDialog(
+            viewModel = viewModel,
+            onDismiss = { viewModel.closeRedeemCodeDialog() }
         )
     }
 }
@@ -3880,13 +5246,13 @@ private fun SaveSlotDialog(
                 .fillMaxWidth()
                 .fillMaxHeight(0.85f),
             shape = RoundedCornerShape(16.dp),
-            color = Color.White
+            color = GameColors.PageBackground
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color.White)
+                        .background(GameColors.PageBackground)
                         .padding(16.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
@@ -3995,10 +5361,10 @@ private fun SaveSlotCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
-            .background(if (isSelected) Color(0xFFF0F0F0) else Color.White)
+            .background(if (isSelected) Color(0xFFF0F0F0) else GameColors.PageBackground)
             .border(
                 width = if (isSelected) 2.dp else 1.dp,
-                color = if (isSelected) Color.Black else Color(0xFFE0E0E0),
+                color = if (isSelected) Color.Black else GameColors.Border,
                 shape = RoundedCornerShape(8.dp)
             )
             .clickable { onClick() }
@@ -4072,7 +5438,7 @@ private fun SectInfoPanel(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color.White)
+            .background(GameColors.PageBackground)
             .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
         Text(
@@ -4136,7 +5502,7 @@ private fun InfoItem(
 
 /**
  * 第二板块：快捷操作板块
- * 包含：宗门管理、世界地图、招募弟子、秘境探索
+ * 包含：世界地图、招募弟子、云游商人、宗门外交、秘境探索
  */
 @Composable
 private fun QuickActionPanel(
@@ -4147,7 +5513,7 @@ private fun QuickActionPanel(
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 8.dp),
         shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFFFF)),
+        colors = CardDefaults.cardColors(containerColor = GameColors.PageBackground),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
@@ -4169,30 +5535,30 @@ private fun QuickActionPanel(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     QuickActionButton(
-                        text = "宗门管理",
-                        modifier = Modifier.weight(1f),
-                        onClick = { viewModel.openSectManagementDialog() }
-                    )
-                    QuickActionButton(
                         text = "世界地图",
                         modifier = Modifier.weight(1f),
                         onClick = { viewModel.openWorldMapDialog() }
                     )
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
                     QuickActionButton(
                         text = "招募弟子",
                         modifier = Modifier.weight(1f),
                         onClick = { viewModel.openRecruitDialog() }
                     )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     QuickActionButton(
                         text = "云游商人",
                         modifier = Modifier.weight(1f),
                         onClick = { viewModel.openMerchantDialog() }
+                    )
+                    QuickActionButton(
+                        text = "宗门外交",
+                        modifier = Modifier.weight(1f),
+                        onClick = { viewModel.openDiplomacyDialog() }
                     )
                 }
 
@@ -4201,14 +5567,14 @@ private fun QuickActionPanel(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     QuickActionButton(
-                        text = "宗门外交",
-                        modifier = Modifier.weight(1f),
-                        onClick = { viewModel.openDiplomacyDialog() }
-                    )
-                    QuickActionButton(
                         text = "秘境探索",
                         modifier = Modifier.weight(1f),
                         onClick = { viewModel.openSecretRealmDialog() }
+                    )
+                    QuickActionButton(
+                        text = "战斗日志",
+                        modifier = Modifier.weight(1f),
+                        onClick = { viewModel.openBattleLogDialog() }
                     )
                 }
             }
@@ -4228,8 +5594,8 @@ private fun QuickActionButton(
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(6.dp))
-            .background(Color.White)
-            .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(6.dp))
+            .background(GameColors.ButtonBackground)
+            .border(1.dp, GameColors.ButtonBorder, RoundedCornerShape(6.dp))
             .clickable(onClick = onClick)
             .padding(vertical = 14.dp),
         contentAlignment = Alignment.Center
@@ -4342,7 +5708,7 @@ private fun CommonDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.White,
+        containerColor = GameColors.PageBackground,
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -4360,7 +5726,7 @@ private fun CommonDialog(
                         .size(24.dp)
                         .clip(CircleShape)
                         .clickable { onDismiss() }
-                        .background(Color(0xFFF5F5F5)),
+                        .background(GameColors.CardBackground),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -4391,11 +5757,23 @@ private fun WorldMapDialog(
     supportTeams: List<SupportTeam> = emptyList(),
     scoutTeams: List<ExplorationTeam> = emptyList(),
     gameData: GameData?,
+    disciples: List<Disciple>,
     viewModel: GameViewModel,
+    battleTeamMoveMode: Boolean = false,
     onDismiss: () -> Unit
 ) {
     var selectedSect by remember { mutableStateOf<WorldSect?>(null) }
     var showSectDetail by remember { mutableStateOf(false) }
+    var selectedCave by remember { mutableStateOf<CultivatorCave?>(null) }
+    var showCaveDetail by remember { mutableStateOf(false) }
+    
+    val caves = gameData?.cultivatorCaves?.filter { it.status != CaveStatus.EXPIRED && it.status != CaveStatus.EXPLORED } ?: emptyList()
+    
+    val playerSect = gameData?.worldMapSects?.find { it.isPlayerSect }
+    val playerSectX = playerSect?.x ?: 2000f
+    val playerSectY = playerSect?.y ?: 1750f
+    
+    val caveExplorationTeams = gameData?.caveExplorationTeams ?: emptyList()
     
     val markers = remember(worldSects) {
         worldSects.map { sect ->
@@ -4408,7 +5786,7 @@ private fun WorldMapDialog(
                 level = sect.level,
                 ownerId = if (sect.isPlayerSect) "player" else sect.id,
                 isCapital = sect.isPlayerSect,
-                description = sect.levelName
+                description = if (sect.isPlayerSect) "" else sect.levelName
             )
         }
     }
@@ -4473,6 +5851,14 @@ private fun WorldMapDialog(
                 paths = paths,
                 supportTeams = supportTeams,
                 scoutTeams = scoutTeams,
+                caves = caves,
+                caveExplorationTeams = caveExplorationTeams,
+                battleTeam = gameData?.battleTeam,
+                aiBattleTeams = gameData?.aiBattleTeams ?: emptyList(),
+                worldSects = worldSects,
+                playerSectX = playerSectX,
+                playerSectY = playerSectY,
+                movableTargetSectIds = if (battleTeamMoveMode) viewModel.getMovableTargetSectIds() else emptyList(),
                 onBack = onDismiss,
                 onMarkerClick = { marker ->
                     val sect = worldSects.find { it.id == marker.id }
@@ -4481,7 +5867,15 @@ private fun WorldMapDialog(
                         showSectDetail = true
                     }
                 },
-                onFunctionClick = { function ->
+                onCaveClick = { cave ->
+                    selectedCave = cave
+                    showCaveDetail = true
+                },
+                onCreateTeamClick = { viewModel.openBattleTeamDialog() },
+                onManageTeamClick = { viewModel.openBattleTeamDialog() },
+                onBattleTeamMarkerClick = { viewModel.openBattleTeamDialog() },
+                onMovableTargetClick = { targetSectId ->
+                    viewModel.selectBattleTeamTarget(targetSectId)
                 }
             )
         }
@@ -4495,6 +5889,19 @@ private fun WorldMapDialog(
             onDismiss = { 
                 showSectDetail = false
                 selectedSect = null
+            }
+        )
+    }
+    
+    if (showCaveDetail && selectedCave != null) {
+        CaveDetailDialog(
+            cave = selectedCave!!,
+            gameData = gameData,
+            disciples = disciples,
+            viewModel = viewModel,
+            onDismiss = {
+                showCaveDetail = false
+                selectedCave = null
             }
         )
     }
@@ -4512,16 +5919,24 @@ private fun WorldMapSectDetailDialog(
     val hasGiftedThisYear = sect.lastGiftYear == currentYear
     var showGiftedMessage by remember { mutableStateOf(false) }
     
+    val playerSect = gameData?.worldMapSects?.find { it.isPlayerSect }
+    val relation = if (playerSect != null) {
+        gameData?.sectRelations?.find { 
+            (it.sectId1 == playerSect.id && it.sectId2 == sect.id) ||
+            (it.sectId1 == sect.id && it.sectId2 == playerSect.id)
+        }?.favor ?: 0
+    } else 0
+    
     val relationColor = when {
-        sect.relation >= 70 -> Color(0xFF4CAF50)
-        sect.relation >= 50 -> Color(0xFF8BC34A)
-        sect.relation >= 30 -> Color(0xFFFF9800)
+        relation >= 70 -> Color(0xFF4CAF50)
+        relation >= 50 -> Color(0xFF8BC34A)
+        relation >= 30 -> Color(0xFFFF9800)
         else -> Color(0xFFF44336)
     }
     
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.White,
+        containerColor = GameColors.PageBackground,
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -4538,17 +5953,19 @@ private fun WorldMapSectDetailDialog(
                         fontWeight = FontWeight.Bold,
                         color = Color.Black
                     )
-                    Text(
-                        text = sect.levelName,
-                        fontSize = 10.sp,
-                        color = Color(0xFF666666),
-                        modifier = Modifier
-                            .background(
-                                Color(0xFFF5F5F5),
-                                RoundedCornerShape(4.dp)
-                            )
-                            .padding(horizontal = 4.dp, vertical = 1.dp)
-                    )
+                    if (!sect.isPlayerSect) {
+                        Text(
+                            text = sect.levelName,
+                            fontSize = 10.sp,
+                            color = Color(0xFF666666),
+                            modifier = Modifier
+                                .background(
+                                    GameColors.CardBackground,
+                                    RoundedCornerShape(4.dp)
+                                )
+                                .padding(horizontal = 4.dp, vertical = 1.dp)
+                        )
+                    }
                     if (sect.isPlayerSect) {
                         Text(
                             text = "本宗",
@@ -4580,7 +5997,7 @@ private fun WorldMapSectDetailDialog(
                         .size(24.dp)
                         .clip(CircleShape)
                         .clickable { onDismiss() }
-                        .background(Color(0xFFF5F5F5)),
+                        .background(GameColors.CardBackground),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -4607,7 +6024,7 @@ private fun WorldMapSectDetailDialog(
                             color = Color(0xFF666666)
                         )
                         Text(
-                            text = "${sect.relation}",
+                            text = "$relation",
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
                             color = relationColor
@@ -4616,7 +6033,7 @@ private fun WorldMapSectDetailDialog(
                 }
                 
                 if (!sect.isPlayerSect) {
-                    HorizontalDivider(color = Color(0xFFE0E0E0), thickness = 1.dp)
+                    HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
                     
                     Text(
                         text = "弟子分布",
@@ -4706,7 +6123,7 @@ private fun WorldMapSectDetailDialog(
                 }
                 
                 if (!sect.isPlayerSect) {
-                    HorizontalDivider(color = Color(0xFFE0E0E0), thickness = 1.dp)
+                    HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
                     
                     Column(
                         modifier = Modifier.fillMaxWidth(),
@@ -4744,7 +6161,7 @@ private fun WorldMapSectDetailDialog(
                                     viewModel.formAlliance(sect.id)
                                     onDismiss()
                                 },
-                                enabled = sect.relation >= 90 || isAlly,
+                                enabled = relation >= 90 || isAlly,
                                 modifier = Modifier.weight(1f)
                             )
                         }
@@ -4768,7 +6185,7 @@ private fun WorldMapSectDetailDialog(
                         }
                     }
                 } else {
-                    HorizontalDivider(color = Color(0xFFE0E0E0), thickness = 1.dp)
+                    HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
                     
                     Box(
                         modifier = Modifier
@@ -4803,15 +6220,29 @@ fun DiplomacyDialog(
     viewModel: GameViewModel,
     onDismiss: () -> Unit
 ) {
-    val worldSects = gameData?.worldMapSects?.filter { !it.isPlayerSect }?.sortedByDescending { it.relation } ?: emptyList()
+    val playerSect = gameData?.worldMapSects?.find { it.isPlayerSect }
+    val worldSects = gameData?.worldMapSects?.filter { !it.isPlayerSect } ?: emptyList()
     val currentYear = gameData?.gameYear ?: 1
+    
+    val sectFavors = remember(playerSect, gameData?.sectRelations) {
+        if (playerSect != null) {
+            worldSects.associateWith { sect ->
+                gameData?.sectRelations?.find { 
+                    (it.sectId1 == playerSect.id && it.sectId2 == sect.id) ||
+                    (it.sectId1 == sect.id && it.sectId2 == playerSect.id)
+                }?.favor ?: 0
+            }
+        } else emptyMap()
+    }
+    
+    val sortedSects = worldSects.sortedByDescending { sectFavors[it] ?: 0 }
     
     var showGiftedMessage by remember { mutableStateOf(false) }
     
     Box(modifier = Modifier.fillMaxSize()) {
         AlertDialog(
             onDismissRequest = onDismiss,
-            containerColor = Color.White,
+            containerColor = GameColors.PageBackground,
             title = {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -4829,7 +6260,7 @@ fun DiplomacyDialog(
                             .size(24.dp)
                             .clip(CircleShape)
                             .clickable { onDismiss() }
-                            .background(Color(0xFFF5F5F5)),
+                            .background(GameColors.CardBackground),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
@@ -4852,10 +6283,11 @@ fun DiplomacyDialog(
                         modifier = Modifier.heightIn(max = 400.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(worldSects.size) { index ->
-                            val sect = worldSects[index]
+                        items(sortedSects.size) { index ->
+                            val sect = sortedSects[index]
                             DiplomacySectCard(
                                 sect = sect,
+                                relation = sectFavors[sect] ?: 0,
                                 currentYear = currentYear,
                                 isAlly = viewModel.isAlly(sect.id),
                                 onGift = {
@@ -4888,8 +6320,484 @@ fun DiplomacyDialog(
 }
 
 @Composable
+private fun CaveDetailDialog(
+    cave: CultivatorCave,
+    gameData: GameData?,
+    disciples: List<Disciple>,
+    viewModel: GameViewModel,
+    onDismiss: () -> Unit
+) {
+    val currentYear = gameData?.gameYear ?: 1
+    val currentMonth = gameData?.gameMonth ?: 1
+    val remainingMonths = cave.getRemainingMonths(currentYear, currentMonth)
+    
+    var showDiscipleSelection by remember { mutableStateOf(false) }
+    var selectedDisciples by remember { mutableStateOf<List<Disciple>>(emptyList()) }
+    
+    val statusColor = when (cave.status) {
+        CaveStatus.AVAILABLE -> Color(0xFF9C27B0)
+        CaveStatus.EXPLORING -> Color(0xFFFF9800)
+        CaveStatus.EXPLORED -> Color(0xFF4CAF50)
+        CaveStatus.EXPIRED -> Color(0xFF9E9E9E)
+    }
+    
+    val statusText = when (cave.status) {
+        CaveStatus.AVAILABLE -> "可探索"
+        CaveStatus.EXPLORING -> "探索中"
+        CaveStatus.EXPLORED -> "已探索"
+        CaveStatus.EXPIRED -> "已消失"
+    }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = GameColors.PageBackground,
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = cave.name,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+                    Text(
+                        text = statusText,
+                        fontSize = 10.sp,
+                        color = Color.White,
+                        modifier = Modifier
+                            .background(statusColor, RoundedCornerShape(4.dp))
+                            .padding(horizontal = 4.dp, vertical = 1.dp)
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clip(CircleShape)
+                        .clickable { onDismiss() }
+                        .background(GameColors.CardBackground),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "×",
+                        fontSize = 16.sp,
+                        color = Color(0xFF666666)
+                    )
+                }
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Text(
+                            text = "洞府境界",
+                            fontSize = 12.sp,
+                            color = Color(0xFF666666)
+                        )
+                        Text(
+                            text = cave.ownerRealmName,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF333333)
+                        )
+                    }
+                    
+                    if (cave.status != CaveStatus.EXPIRED) {
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(
+                                text = "剩余时间",
+                                fontSize = 12.sp,
+                                color = Color(0xFF666666)
+                            )
+                            Text(
+                                text = "${remainingMonths}月",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (remainingMonths <= 3) Color(0xFFF44336) else Color(0xFF333333)
+                            )
+                        }
+                    }
+                }
+                
+                HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
+                
+                when (cave.status) {
+                    CaveStatus.AVAILABLE -> {
+                        Text(
+                            text = "此洞府尚未被探索，派遣弟子前往探索可获得丰厚奖励。",
+                            fontSize = 12.sp,
+                            color = Color(0xFF666666)
+                        )
+                        if (selectedDisciples.isNotEmpty()) {
+                            Text(
+                                text = "已选择 ${selectedDisciples.size}/10 人: ${selectedDisciples.joinToString("、") { it.name }}",
+                                fontSize = 11.sp,
+                                color = Color(0xFF4CAF50)
+                            )
+                        }
+                    }
+                    CaveStatus.EXPLORING -> {
+                        val exploringTeam = gameData?.caveExplorationTeams?.find { it.caveId == cave.id }
+                        if (exploringTeam != null) {
+                            val progress = exploringTeam.getProgressPercent(currentYear, currentMonth)
+                            Column {
+                                Text(
+                                    text = "探索队伍: ${exploringTeam.memberNames.joinToString("、")}",
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF333333)
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    LinearProgressIndicator(
+                                        progress = { progress / 100f },
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(8.dp)
+                                            .clip(RoundedCornerShape(4.dp)),
+                                        color = Color(0xFF4CAF50),
+                                        trackColor = GameColors.Border
+                                    )
+                                    Text(
+                                        text = "$progress%",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF4CAF50)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    CaveStatus.EXPLORED -> {
+                        Text(
+                            text = "此洞府已被探索完毕。",
+                            fontSize = 12.sp,
+                            color = Color(0xFF666666)
+                        )
+                    }
+                    CaveStatus.EXPIRED -> {
+                        Text(
+                            text = "此洞府已经消失，无法再进行探索。",
+                            fontSize = 12.sp,
+                            color = Color(0xFF999999)
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            if (cave.status == CaveStatus.AVAILABLE) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (selectedDisciples.isNotEmpty()) {
+                        GameButton(
+                            text = "确认派遣",
+                            onClick = {
+                                viewModel.startCaveExploration(cave, selectedDisciples)
+                                onDismiss()
+                            }
+                        )
+                    }
+                    GameButton(
+                        text = if (selectedDisciples.isEmpty()) "选择弟子" else "修改选择",
+                        onClick = { showDiscipleSelection = true }
+                    )
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("关闭", color = Color(0xFF666666))
+            }
+        }
+    )
+    
+    if (showDiscipleSelection) {
+        CaveDiscipleSelectionDialog(
+            disciples = disciples,
+            selectedDisciples = selectedDisciples,
+            maxSelection = 10,
+            caveRealm = cave.ownerRealm,
+            onConfirm = { 
+                selectedDisciples = it
+                showDiscipleSelection = false
+            },
+            onDismiss = { showDiscipleSelection = false }
+        )
+    }
+}
+
+@Composable
+private fun CaveDiscipleSelectionDialog(
+    disciples: List<Disciple>,
+    selectedDisciples: List<Disciple>,
+    maxSelection: Int,
+    caveRealm: Int,
+    onConfirm: (List<Disciple>) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var selectedRealmFilter by remember { mutableStateOf<Int?>(null) }
+    var currentSelected by remember(selectedDisciples) { mutableStateOf(selectedDisciples.toMutableList()) }
+
+    val allRealmFilters = listOf(
+        0 to "仙人",
+        1 to "渡劫",
+        2 to "大乘",
+        3 to "合体",
+        4 to "炼虚",
+        5 to "化神",
+        6 to "元婴",
+        7 to "金丹",
+        8 to "筑基",
+        9 to "炼气"
+    )
+    
+    val realmFilters = remember(allRealmFilters, caveRealm) {
+        allRealmFilters.filter { it.first >= caveRealm }
+    }
+
+    val availableDisciples = remember(disciples, caveRealm) {
+        disciples.filter { disciple ->
+            disciple.status == DiscipleStatus.IDLE &&
+            disciple.realmLayer > 0 &&
+            disciple.age >= 5 &&
+            disciple.realm >= caveRealm
+        }.sortedWith(
+            compareBy<Disciple> { it.realm }
+                .thenByDescending { it.realmLayer }
+        )
+    }
+
+    val realmCounts = remember(availableDisciples) {
+        availableDisciples.groupingBy { it.realm }.eachCount()
+    }
+
+    val filteredDisciples = remember(availableDisciples, selectedRealmFilter) {
+        if (selectedRealmFilter == null) {
+            availableDisciples
+        } else {
+            availableDisciples.filter { it.realm == selectedRealmFilter }
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = GameColors.PageBackground,
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "选择探索弟子 (${currentSelected.size}/$maxSelection)",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+                Box(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clip(CircleShape)
+                        .clickable { onDismiss() }
+                        .background(GameColors.CardBackground),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "×",
+                        fontSize = 16.sp,
+                        color = Color(0xFF666666)
+                    )
+                }
+            }
+        },
+        text = {
+            if (availableDisciples.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(100.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "暂无空闲弟子",
+                        fontSize = 12.sp,
+                        color = Color(0xFF999999)
+                    )
+                }
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 500.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            realmFilters.take(5).forEach { (realm, name) ->
+                                val isSelected = selectedRealmFilter == realm
+                                val count = realmCounts[realm] ?: 0
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(if (isSelected) GameColors.Border else GameColors.PageBackground)
+                                        .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
+                                        .clickable { selectedRealmFilter = if (isSelected) null else realm }
+                                        .padding(vertical = 4.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "$name $count",
+                                        fontSize = 9.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        color = Color.Black
+                                    )
+                                }
+                            }
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            realmFilters.drop(5).forEach { (realm, name) ->
+                                val isSelected = selectedRealmFilter == realm
+                                val count = realmCounts[realm] ?: 0
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(if (isSelected) GameColors.Border else GameColors.PageBackground)
+                                        .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
+                                        .clickable { selectedRealmFilter = if (isSelected) null else realm }
+                                        .padding(vertical = 4.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "$name $count",
+                                        fontSize = 9.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        color = Color.Black
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    LazyColumn(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(filteredDisciples) { disciple ->
+                            val isSelected = disciple.id in currentSelected.map { it.id }
+                            val canSelect = isSelected || currentSelected.size < maxSelection
+                            
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(if (isSelected) Color(0xFFE8F5E9) else GameColors.PageBackground)
+                                    .border(
+                                        width = if (isSelected) 2.dp else 1.dp,
+                                        color = if (isSelected) Color(0xFF4CAF50) else GameColors.Border,
+                                        shape = RoundedCornerShape(6.dp)
+                                    )
+                                    .clickable(enabled = canSelect) {
+                                        if (isSelected) {
+                                            currentSelected = currentSelected.filter { it.id != disciple.id }.toMutableList()
+                                        } else if (currentSelected.size < maxSelection) {
+                                            currentSelected = (currentSelected + disciple).toMutableList()
+                                        }
+                                    }
+                                    .padding(12.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = disciple.name,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (canSelect) Color.Black else Color(0xFF999999)
+                                    )
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        val spiritRootColor = try {
+                                            Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))
+                                        } catch (e: Exception) {
+                                            Color(0xFF666666)
+                                        }
+                                        Text(
+                                            text = disciple.spiritRootName,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = spiritRootColor
+                                        )
+                                        Text(
+                                            text = disciple.realmName,
+                                            fontSize = 12.sp,
+                                            color = if (canSelect) Color(0xFF666666) else Color(0xFF999999)
+                                        )
+                                        if (isSelected) {
+                                            Text(
+                                                text = "✓",
+                                                fontSize = 12.sp,
+                                                color = Color(0xFF4CAF50),
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = { currentSelected = mutableListOf() }) {
+                    Text("清空", color = Color(0xFF666666))
+                }
+                GameButton(
+                    text = "确认",
+                    onClick = { onConfirm(currentSelected) }
+                )
+            }
+        }
+    )
+}
+
+@Composable
 private fun DiplomacySectCard(
     sect: WorldSect,
+    relation: Int,
     currentYear: Int,
     isAlly: Boolean,
     onGift: () -> Unit,
@@ -4898,9 +6806,9 @@ private fun DiplomacySectCard(
     onShowGiftedMessage: () -> Unit
 ) {
     val relationColor = when {
-        sect.relation >= 70 -> Color(0xFF4CAF50)
-        sect.relation >= 50 -> Color(0xFF8BC34A)
-        sect.relation >= 30 -> Color(0xFFFF9800)
+        relation >= 70 -> Color(0xFF4CAF50)
+        relation >= 50 -> Color(0xFF8BC34A)
+        relation >= 30 -> Color(0xFFFF9800)
         else -> Color(0xFFF44336)
     }
     
@@ -4909,7 +6817,7 @@ private fun DiplomacySectCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = GameColors.PageBackground),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
@@ -4961,7 +6869,7 @@ private fun DiplomacySectCard(
                         color = Color(0xFF666666)
                     )
                     Text(
-                        text = "${sect.relation}",
+                        text = "$relation",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = relationColor
@@ -4990,7 +6898,7 @@ private fun DiplomacySectCard(
                 GameButton(
                     text = if (isAlly) "盟约" else "结盟",
                     onClick = onFormAlliance,
-                    enabled = sect.relation >= 90 || isAlly,
+                    enabled = relation >= 90 || isAlly,
                     modifier = Modifier.weight(1f)
                 )
                 
@@ -5051,7 +6959,13 @@ fun SectTradeDialog(
     var showDetailDialog by remember { mutableStateOf(false) }
     var showRelationWarning by remember { mutableStateOf(false) }
     
-    val relation = sect?.relation ?: 0
+    val playerSect = gameData?.worldMapSects?.find { it.isPlayerSect }
+    val relation = if (playerSect != null && sect != null) {
+        gameData.sectRelations.find { 
+            (it.sectId1 == playerSect.id && it.sectId2 == sect.id) ||
+            (it.sectId1 == sect.id && it.sectId2 == playerSect.id)
+        }?.favor ?: 0
+    } else 0
     val isAlly = sect?.let { viewModel.isAlly(it.id) } ?: false
     
     val maxAllowedRarity = when {
@@ -5099,7 +7013,7 @@ fun SectTradeDialog(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(Color.White)
+                            .background(GameColors.PageBackground)
                             .padding(12.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
@@ -5210,7 +7124,7 @@ fun SectTradeDialog(
                                         modifier = Modifier
                                             .size(68.dp)
                                             .clip(RoundedCornerShape(6.dp))
-                                            .background(if (canBuyThisItem) Color.White else Color(0xFFE0E0E0))
+                                            .background(if (canBuyThisItem) GameColors.PageBackground else GameColors.Border)
                                             .border(
                                                 width = if (selectedItem?.id == item.id) 3.dp else 2.dp,
                                                 color = if (!canBuyThisItem) Color(0xFFBDBDBD) 
@@ -5479,7 +7393,7 @@ fun SectTradeDialog(
 
         AlertDialog(
             onDismissRequest = { showDetailDialog = false },
-            containerColor = Color.White,
+            containerColor = GameColors.PageBackground,
             title = {
                 Column {
                     Text(
@@ -5599,7 +7513,7 @@ fun TianshuHallDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.White,
+        containerColor = GameColors.PageBackground,
         title = {
             Box(
                 modifier = Modifier.fillMaxWidth()
@@ -5644,8 +7558,8 @@ fun TianshuHallDialog(
                         modifier = Modifier
                             .size(60.dp)
                             .clip(RoundedCornerShape(6.dp))
-                            .background(Color.White)
-                            .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(6.dp))
+                            .background(GameColors.PageBackground)
+                            .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
                             .clickable { showViceSectMasterSelectDialog = true },
                         contentAlignment = Alignment.Center
                     ) {
@@ -5681,8 +7595,8 @@ fun TianshuHallDialog(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(4.dp))
-                            .background(Color.White)
-                            .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(4.dp))
+                            .background(GameColors.PageBackground)
+                            .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
                             .clickable {
                                 if (viceSectMasterId != null) {
                                     viewModel.removeViceSectMaster()
@@ -5698,7 +7612,7 @@ fun TianshuHallDialog(
                     }
                 }
                 
-                HorizontalDivider(color = Color(0xFFE0E0E0), thickness = 1.dp)
+                HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
                 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -5734,7 +7648,7 @@ fun TianshuHallDialog(
         
         AlertDialog(
             onDismissRequest = { showViceSectMasterSelectDialog = false },
-            containerColor = Color.White,
+            containerColor = GameColors.PageBackground,
             title = {
                 Text(
                     text = "选择副宗主",
@@ -5758,8 +7672,8 @@ fun TianshuHallDialog(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(6.dp))
-                                .background(Color.White)
-                                .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(6.dp))
+                                .background(GameColors.PageBackground)
+                                .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
                                 .clickable {
                                     viewModel.setViceSectMaster(disciple.id)
                                     showViceSectMasterSelectDialog = false
@@ -5822,7 +7736,7 @@ fun TianshuHallDialog(
     if (showSectAffairsDialog) {
         AlertDialog(
             onDismissRequest = { showSectAffairsDialog = false },
-            containerColor = Color.White,
+            containerColor = GameColors.PageBackground,
             title = {
                 Text(
                     text = "宗门事务",
@@ -5855,7 +7769,7 @@ fun TianshuHallDialog(
     if (showSectPoliciesDialog) {
         AlertDialog(
             onDismissRequest = { showSectPoliciesDialog = false },
-            containerColor = Color.White,
+            containerColor = GameColors.PageBackground,
             title = {
                 Text(
                     text = "宗门政策",
@@ -5866,17 +7780,21 @@ fun TianshuHallDialog(
             },
             text = {
                 Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     val sectPolicies = gameData?.sectPolicies
+                    val viceBonus = viewModel.getViceSectMasterIntelligenceBonus()
+                    val viceBonusText = if (viceBonus > 0) " (副宗主加成+${(viceBonus * 100).toInt()}%)" else ""
                     
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = "灵矿增产",
                                 fontSize = 12.sp,
@@ -5884,9 +7802,14 @@ fun TianshuHallDialog(
                                 color = Color.Black
                             )
                             Text(
-                                text = "每月灵石产出+20%，采矿弟子忠诚-1",
+                                text = "灵石产出+20%$viceBonusText",
                                 fontSize = 10.sp,
                                 color = Color(0xFF666666)
+                            )
+                            Text(
+                                text = "采矿弟子忠诚-1/月",
+                                fontSize = 10.sp,
+                                color = Color(0xFF999999)
                             )
                         }
                         
@@ -5896,14 +7819,174 @@ fun TianshuHallDialog(
                         )
                     }
                     
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = Color(0xFFE0E0E0))
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp), color = GameColors.Border)
                     
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "丹道激励",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Black
+                            )
+                            Text(
+                                text = "炼丹成功率+10%$viceBonusText",
+                                fontSize = 10.sp,
+                                color = Color(0xFF666666)
+                            )
+                            Text(
+                                text = "每月消耗3000灵石",
+                                fontSize = 10.sp,
+                                color = Color(0xFF999999)
+                            )
+                        }
+                        
+                        Checkbox(
+                            checked = sectPolicies?.alchemyIncentive ?: false,
+                            onCheckedChange = { viewModel.toggleAlchemyIncentive() }
+                        )
+                    }
+                    
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp), color = GameColors.Border)
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "锻造激励",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Black
+                            )
+                            Text(
+                                text = "锻造成功率+10%$viceBonusText",
+                                fontSize = 10.sp,
+                                color = Color(0xFF666666)
+                            )
+                            Text(
+                                text = "每月消耗3000灵石",
+                                fontSize = 10.sp,
+                                color = Color(0xFF999999)
+                            )
+                        }
+                        
+                        Checkbox(
+                            checked = sectPolicies?.forgeIncentive ?: false,
+                            onCheckedChange = { viewModel.toggleForgeIncentive() }
+                        )
+                    }
+                    
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp), color = GameColors.Border)
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "灵药培育",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Black
+                            )
+                            Text(
+                                text = "灵药生长速度+20%$viceBonusText",
+                                fontSize = 10.sp,
+                                color = Color(0xFF666666)
+                            )
+                            Text(
+                                text = "每月消耗3000灵石",
+                                fontSize = 10.sp,
+                                color = Color(0xFF999999)
+                            )
+                        }
+                        
+                        Checkbox(
+                            checked = sectPolicies?.herbCultivation ?: false,
+                            onCheckedChange = { viewModel.toggleHerbCultivation() }
+                        )
+                    }
+                    
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp), color = GameColors.Border)
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "修行津贴",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Black
+                            )
+                            Text(
+                                text = "化神境以下弟子修炼速度+15%$viceBonusText",
+                                fontSize = 10.sp,
+                                color = Color(0xFF666666)
+                            )
+                            Text(
+                                text = "每月消耗4000灵石",
+                                fontSize = 10.sp,
+                                color = Color(0xFF999999)
+                            )
+                        }
+                        
+                        Checkbox(
+                            checked = sectPolicies?.cultivationSubsidy ?: false,
+                            onCheckedChange = { viewModel.toggleCultivationSubsidy() }
+                        )
+                    }
+                    
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp), color = GameColors.Border)
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "功法研习",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Black
+                            )
+                            Text(
+                                text = "功法修炼速度+20%$viceBonusText",
+                                fontSize = 10.sp,
+                                color = Color(0xFF666666)
+                            )
+                            Text(
+                                text = "每月消耗4000灵石",
+                                fontSize = 10.sp,
+                                color = Color(0xFF999999)
+                            )
+                        }
+                        
+                        Checkbox(
+                            checked = sectPolicies?.manualResearch ?: false,
+                            onCheckedChange = { viewModel.toggleManualResearch() }
+                        )
+                    }
+                    
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp), color = GameColors.Border)
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = "增强治安",
                                 fontSize = 12.sp,
@@ -5911,12 +7994,12 @@ fun TianshuHallDialog(
                                 color = Color.Black
                             )
                             Text(
-                                text = "每月消耗5000灵石，执法堂抓捕率+30%",
+                                text = "执法堂抓捕率+20%$viceBonusText",
                                 fontSize = 10.sp,
                                 color = Color(0xFF666666)
                             )
                             Text(
-                                text = "副宗主智力影响：以50为基准，每高5点+1%",
+                                text = "每月消耗3000灵石",
                                 fontSize = 10.sp,
                                 color = Color(0xFF999999)
                             )
@@ -5937,4 +8020,500 @@ fun TianshuHallDialog(
             }
         )
     }
+}
+
+@Composable
+private fun BattleTeamDialog(
+    slots: List<BattleTeamSlot>,
+    hasExistingTeam: Boolean,
+    teamStatus: String = "idle",
+    isAtSect: Boolean = true,
+    onSlotClick: (Int) -> Unit,
+    onRemoveClick: (Int) -> Unit,
+    onCreateTeam: () -> Unit,
+    onMoveClick: () -> Unit = {},
+    onDisbandClick: () -> Unit = {},
+    onDismiss: () -> Unit
+) {
+    val elderSlots = slots.filter { it.slotType == BattleSlotType.ELDER }
+    val discipleSlots = slots.filter { it.slotType == BattleSlotType.DISCIPLE }
+    val canManageTeam = hasExistingTeam && teamStatus == "idle" && isAtSect
+    var showDisbandConfirm by remember { mutableStateOf(false) }
+
+    if (showDisbandConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDisbandConfirm = false },
+            containerColor = GameColors.PageBackground,
+            title = {
+                Text(
+                    text = "确认解散",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+            },
+            text = {
+                Text(
+                    text = "解散后队伍配置将丢失，所有成员将恢复空闲状态。确定要解散战斗队伍吗？",
+                    fontSize = 12.sp,
+                    color = Color(0xFF666666)
+                )
+            },
+            confirmButton = {
+                GameButton(
+                    text = "确认解散",
+                    onClick = {
+                        showDisbandConfirm = false
+                        onDisbandClick()
+                    },
+                    backgroundColor = Color(0xFFE53935)
+                )
+            },
+            dismissButton = {
+                GameButton(
+                    text = "取消",
+                    onClick = { showDisbandConfirm = false }
+                )
+            }
+        )
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = GameColors.PageBackground,
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (hasExistingTeam) "管理战斗队伍" else "组建战斗队伍",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+                Box(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clip(CircleShape)
+                        .clickable { onDismiss() }
+                        .background(GameColors.CardBackground),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "×",
+                        fontSize = 16.sp,
+                        color = Color(0xFF666666)
+                    )
+                }
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 500.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = "战斗长老（元婴及以上）",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF666666)
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    elderSlots.forEach { slot ->
+                        BattleTeamSlotItem(
+                            slot = slot,
+                            onClick = { onSlotClick(slot.index) },
+                            onRemoveClick = { onRemoveClick(slot.index) }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = "战斗弟子",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF666666)
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    discipleSlots.take(4).forEach { slot ->
+                        BattleTeamSlotItem(
+                            slot = slot,
+                            onClick = { onSlotClick(slot.index) },
+                            onRemoveClick = { onRemoveClick(slot.index) }
+                        )
+                    }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    discipleSlots.drop(4).forEach { slot ->
+                        BattleTeamSlotItem(
+                            slot = slot,
+                            onClick = { onSlotClick(slot.index) },
+                            onRemoveClick = { onRemoveClick(slot.index) }
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                Text(
+                    text = "已选择 ${slots.count { it.discipleId != null }}/10 名弟子",
+                    fontSize = 11.sp,
+                    color = Color(0xFF666666)
+                )
+            }
+        },
+        confirmButton = {
+            if (hasExistingTeam) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (canManageTeam) {
+                        GameButton(
+                            text = "移动",
+                            onClick = onMoveClick
+                        )
+                        GameButton(
+                            text = "解散",
+                            onClick = { showDisbandConfirm = true },
+                            backgroundColor = Color(0xFFE53935)
+                        )
+                    }
+                    GameButton(
+                        text = "关闭",
+                        onClick = onDismiss
+                    )
+                }
+            } else {
+                GameButton(
+                    text = "组建队伍",
+                    onClick = onCreateTeam
+                )
+            }
+        }
+    )
+}
+
+@Composable
+private fun RowScope.BattleTeamSlotItem(
+    slot: BattleTeamSlot,
+    onClick: () -> Unit,
+    onRemoveClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier.weight(1f),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .aspectRatio(1f)
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(6.dp))
+                .background(if (slot.discipleId != null) Color(0xFFFFF8E1) else GameColors.CardBackground)
+                .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
+                .clickable { onClick() }
+                .padding(8.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            if (slot.discipleId != null) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = slot.discipleName,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black,
+                        maxLines = 1
+                    )
+                    Text(
+                        text = slot.discipleRealm,
+                        fontSize = 10.sp,
+                        color = Color(0xFF666666)
+                    )
+                }
+            } else {
+                Text(
+                    text = "+",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF999999)
+                )
+            }
+        }
+        
+        if (slot.discipleId != null) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "卸任",
+                fontSize = 10.sp,
+                color = Color(0xFFE53935),
+                modifier = Modifier.clickable { onRemoveClick() }
+            )
+        }
+    }
+}
+
+@Composable
+private fun BattleTeamDiscipleSelectionDialog(
+    disciples: List<Disciple>,
+    isElderSlot: Boolean = false,
+    onSelect: (Disciple) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var selectedRealmFilter by remember { mutableStateOf<Int?>(null) }
+
+    val realmFilters = if (isElderSlot) {
+        listOf(
+            0 to "仙人",
+            1 to "渡劫",
+            2 to "大乘",
+            3 to "合体",
+            4 to "炼虚",
+            5 to "化神",
+            6 to "元婴"
+        )
+    } else {
+        listOf(
+            0 to "仙人",
+            1 to "渡劫",
+            2 to "大乘",
+            3 to "合体",
+            4 to "炼虚",
+            5 to "化神",
+            6 to "元婴",
+            7 to "金丹",
+            8 to "筑基",
+            9 to "炼气"
+        )
+    }
+
+    val realmCounts = remember(disciples) {
+        disciples.groupingBy { it.realm }.eachCount()
+    }
+
+    val sortedDisciples = remember(disciples) {
+        disciples.sortedWith(
+            compareBy<Disciple> { it.realm }
+                .thenByDescending { it.realmLayer }
+        )
+    }
+
+    val filteredDisciples = remember(sortedDisciples, selectedRealmFilter) {
+        if (selectedRealmFilter == null) {
+            sortedDisciples
+        } else {
+            sortedDisciples.filter { it.realm == selectedRealmFilter }
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = GameColors.PageBackground,
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (isElderSlot) "选择战斗长老（元婴及以上）" else "选择战斗弟子",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+                Box(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clip(CircleShape)
+                        .clickable { onDismiss() }
+                        .background(GameColors.CardBackground),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "×",
+                        fontSize = 16.sp,
+                        color = Color(0xFF666666)
+                    )
+                }
+            }
+        },
+        text = {
+            if (disciples.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(100.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = if (isElderSlot) "暂无符合条件的战斗长老（需元婴及以上）" else "暂无可用弟子",
+                        fontSize = 12.sp,
+                        color = Color(0xFF999999)
+                    )
+                }
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 500.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        if (isElderSlot) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                realmFilters.forEach { (realm, name) ->
+                                    val isSelected = selectedRealmFilter == realm
+                                    val count = realmCounts[realm] ?: 0
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(if (isSelected) GameColors.Border else GameColors.PageBackground)
+                                            .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
+                                            .clickable { selectedRealmFilter = if (isSelected) null else realm }
+                                            .padding(vertical = 4.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = "$name $count",
+                                            fontSize = 9.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                            color = Color.Black
+                                        )
+                                    }
+                                }
+                            }
+                        } else {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                realmFilters.take(5).forEach { (realm, name) ->
+                                    val isSelected = selectedRealmFilter == realm
+                                    val count = realmCounts[realm] ?: 0
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(if (isSelected) GameColors.Border else GameColors.PageBackground)
+                                            .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
+                                            .clickable { selectedRealmFilter = if (isSelected) null else realm }
+                                            .padding(vertical = 4.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = "$name $count",
+                                            fontSize = 9.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                            color = Color.Black
+                                        )
+                                    }
+                                }
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                realmFilters.drop(5).forEach { (realm, name) ->
+                                    val isSelected = selectedRealmFilter == realm
+                                    val count = realmCounts[realm] ?: 0
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(if (isSelected) GameColors.Border else GameColors.PageBackground)
+                                            .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
+                                            .clickable { selectedRealmFilter = if (isSelected) null else realm }
+                                            .padding(vertical = 4.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = "$name $count",
+                                            fontSize = 9.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                            color = Color.Black
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    LazyColumn(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(filteredDisciples) { disciple ->
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(GameColors.PageBackground)
+                                    .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
+                                    .clickable { onSelect(disciple) }
+                                    .padding(12.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = disciple.name,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.Black
+                                    )
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        val spiritRootColor = try {
+                                            Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))
+                                        } catch (e: Exception) {
+                                            Color(0xFF666666)
+                                        }
+                                        Text(
+                                            text = disciple.spiritRootName,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = spiritRootColor
+                                        )
+                                        Text(
+                                            text = disciple.realmName,
+                                            fontSize = 11.sp,
+                                            color = Color(0xFF666666)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {}
+    )
 }

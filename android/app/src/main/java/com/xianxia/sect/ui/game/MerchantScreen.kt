@@ -28,6 +28,7 @@ import com.xianxia.sect.core.data.PillRecipeDatabase
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.MerchantItem
 import com.xianxia.sect.core.util.GameUtils
+import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.theme.GameColors
 
 @Composable
@@ -140,7 +141,7 @@ private fun MerchantHeader(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color.White)
+            .background(GameColors.PageBackground)
             .padding(12.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
@@ -181,7 +182,7 @@ private fun MerchantItemCard(
             modifier = Modifier
                 .size(68.dp)
                 .clip(RoundedCornerShape(6.dp))
-                .background(Color.White)
+                .background(GameColors.PageBackground)
                 .border(
                     width = if (isSelected) 3.dp else 2.dp,
                     color = if (isSelected) Color(0xFFFFD700) else rarityColor,
@@ -261,7 +262,7 @@ private fun PurchasePanel(
     
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = Color.White,
+        color = GameColors.PageBackground,
         tonalElevation = 4.dp
     ) {
         Column(
@@ -352,14 +353,12 @@ private fun PurchasePanel(
                             Text("取消", fontSize = 11.sp, color = GameColors.TextSecondary)
                         }
                         
-                        Button(
+                        GameButton(
+                            text = "确认购买",
                             onClick = onConfirm,
-                            enabled = canAfford && quantity > 0,
                             modifier = Modifier.height(32.dp),
-                            contentPadding = PaddingValues(horizontal = 16.dp)
-                        ) {
-                            Text("确认购买", fontSize = 11.sp)
-                        }
+                            enabled = canAfford && quantity > 0
+                        )
                     }
                 }
             } else {
@@ -412,7 +411,7 @@ private fun ItemDetailDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.White,
+        containerColor = GameColors.PageBackground,
         title = {
             Column {
                 Text(
@@ -498,12 +497,36 @@ private fun getItemEffectText(item: MerchantItem): String {
 
     val herb = HerbDatabase.getHerbByName(item.name)
     if (herb != null) {
-        return "用于炼制丹药的材料"
+        val recipes = PillRecipeDatabase.getRecipesByHerb(herb.id)
+        return if (recipes.isNotEmpty()) {
+            val recipeNames = recipes.take(3).map { it.name }
+            val result = "可用于炼制: ${recipeNames.joinToString("、")}"
+            if (recipes.size > 3) "$result 等${recipes.size}种丹药" else result
+        } else {
+            "用于炼制丹药的材料"
+        }
     }
 
     val seed = HerbDatabase.getSeedByName(item.name)
     if (seed != null) {
-        return "种植后可获得${seed.yield}个${seed.name.removeSuffix("种")}"
+        val herbFromSeed = HerbDatabase.getHerbFromSeed(seed.id)
+        val baseInfo = "种植后可获得${seed.yield}个${seed.name.removeSuffix("种")}"
+        return if (herbFromSeed != null) {
+            val recipes = PillRecipeDatabase.getRecipesByHerb(herbFromSeed.id)
+            if (recipes.isNotEmpty()) {
+                val recipeNames = recipes.take(2).map { it.name }
+                val pillInfo = "，可炼制${recipeNames.joinToString("、")}"
+                if (recipes.size > 2) {
+                    "$baseInfo$pillInfo 等${recipes.size}种丹药"
+                } else {
+                    "$baseInfo$pillInfo"
+                }
+            } else {
+                baseInfo
+            }
+        } else {
+            baseInfo
+        }
     }
 
     val material = BeastMaterialDatabase.getMaterialByName(item.name)

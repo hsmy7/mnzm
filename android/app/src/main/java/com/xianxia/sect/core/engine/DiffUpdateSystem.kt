@@ -9,7 +9,6 @@ import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.model.ExplorationTeam
 import com.xianxia.sect.core.model.BuildingSlot
-import com.xianxia.sect.core.model.WarTeam
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GameEvent
 import com.xianxia.sect.core.model.BattleLog
@@ -207,22 +206,6 @@ object DiffUpdateSystem {
         )
     }
     
-    fun diffWarTeams(
-        oldList: List<WarTeam>,
-        newList: List<WarTeam>
-    ): DiffResult<WarTeam> {
-        return diffLists(
-            oldList = oldList,
-            newList = newList,
-            idSelector = { it.id },
-            contentComparator = { old, new ->
-                old.id == new.id &&
-                old.status == new.status &&
-                old.stationedSectId == new.stationedSectId
-            }
-        )
-    }
-    
     fun diffGameData(
         oldData: GameData,
         newData: GameData
@@ -275,7 +258,6 @@ data class IncrementalUpdate(
     val seeds: DiffResult<Seed>? = null,
     val teams: DiffResult<ExplorationTeam>? = null,
     val buildingSlots: DiffResult<BuildingSlot>? = null,
-    val warTeams: DiffResult<WarTeam>? = null,
     val gameDataChanged: Boolean = false
 ) {
     val hasAnyChanges: Boolean
@@ -288,6 +270,5 @@ data class IncrementalUpdate(
                 (seeds?.hasChanges == true) ||
                 (teams?.hasChanges == true) ||
                 (buildingSlots?.hasChanges == true) ||
-                (warTeams?.hasChanges == true) ||
                 gameDataChanged
 }

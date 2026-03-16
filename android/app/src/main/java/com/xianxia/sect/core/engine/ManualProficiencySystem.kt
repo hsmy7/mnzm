@@ -186,14 +186,7 @@ object ManualProficiencySystem {
         currentManualCount: Int
     ): Boolean {
         // Disciples can only learn manuals appropriate for their realm
-        val minRealm = when (manualRarity) {
-            1 -> 9
-            2 -> 8
-            3 -> 7
-            4 -> 6
-            5 -> 5
-            else -> 9
-        }
+        val minRealm = GameConfig.Realm.getMinRealmForRarity(manualRarity)
         
         if (discipleRealm > minRealm) return false
         
@@ -215,14 +208,7 @@ object ManualProficiencySystem {
         currentManualTypes: Set<String>
     ): ManualInfo? {
         val eligible = availableManuals.filter { manual ->
-            val minRealm = when (manual.rarity) {
-                1 -> 9
-                2 -> 8
-                3 -> 7
-                4 -> 6
-                5 -> 5
-                else -> 9
-            }
+            val minRealm = GameConfig.Realm.getMinRealmForRarity(manual.rarity)
             
             discipleRealm <= minRealm &&
             !currentManualTypes.contains(manual.type) &&

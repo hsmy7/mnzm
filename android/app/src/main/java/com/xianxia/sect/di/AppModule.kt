@@ -83,14 +83,11 @@ object AppModule {
 
     @Provides
     fun provideForgeSlotDao(database: GameDatabase): ForgeSlotDao = database.forgeSlotDao()
-
-    @Provides
-    fun provideWarTeamDao(database: GameDatabase): WarTeamDao = database.warTeamDao()
-
+    
     @Provides
     @Singleton
     fun provideGameEngine(): GameEngine = GameEngine()
-
+    
     @Provides
     @Singleton
     fun provideGameRepository(
@@ -109,7 +106,6 @@ object AppModule {
         dungeonDao: DungeonDao,
         recipeDao: RecipeDao,
         battleLogDao: BattleLogDao,
-        warTeamDao: WarTeamDao,
         forgeSlotDao: ForgeSlotDao
     ): GameRepository {
         return GameRepository(
@@ -128,7 +124,6 @@ object AppModule {
             dungeonDao,
             recipeDao,
             battleLogDao,
-            warTeamDao,
             forgeSlotDao
         )
     }

@@ -25,6 +25,8 @@ import androidx.compose.foundation.layout.offset
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.data.PillRecipeDatabase
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.ui.theme.GameColors
 
 @Composable
 fun AlchemyDialog(
@@ -42,6 +44,7 @@ fun AlchemyDialog(
     var showElderSelection by remember { mutableStateOf(false) }
     var showDirectDiscipleSelection by remember { mutableStateOf<Int?>(null) }
     var showInnerDiscipleSelection by remember { mutableStateOf<Int?>(null) }
+    var showReserveDiscipleDialog by remember { mutableStateOf(false) }
 
     val elderSlots = gameData?.elderSlots ?: ElderSlots()
     val alchemyElder = disciples.find { it.id == elderSlots.alchemyElder }
@@ -50,7 +53,23 @@ fun AlchemyDialog(
 
     CommonDialog(
         title = "丹鼎殿",
-        onDismiss = onDismiss
+        onDismiss = onDismiss,
+        titleActions = {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(Color(0xFF9C27B0))
+                    .clickable { showReserveDiscipleDialog = true }
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    text = "储备弟子",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+            }
+        }
     ) {
         Column(
             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -76,7 +95,7 @@ fun AlchemyDialog(
 
             HorizontalDivider(
                 modifier = Modifier.padding(vertical = 4.dp),
-                color = Color(0xFFE0E0E0),
+                color = GameColors.Border,
                 thickness = 1.dp
             )
 
@@ -164,6 +183,14 @@ fun AlchemyDialog(
             }
         )
     }
+
+    if (showReserveDiscipleDialog) {
+        AlchemyReserveDiscipleDialog(
+            disciples = disciples,
+            viewModel = viewModel,
+            onDismiss = { showReserveDiscipleDialog = false }
+        )
+    }
 }
 
 @Composable
@@ -179,7 +206,7 @@ private fun AlchemySlotItem(
 
     val statusColor = when {
         isWorking -> Color(0xFF2196F3)
-        else -> Color(0xFFE0E0E0)
+        else -> GameColors.Border
     }
 
     Column(
@@ -196,7 +223,7 @@ private fun AlchemySlotItem(
             modifier = Modifier
                 .size(60.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(Color.White)
+                .background(GameColors.PageBackground)
                 .border(1.dp, statusColor, RoundedCornerShape(8.dp))
                 .clickable { onClick() },
             contentAlignment = Alignment.Center
@@ -236,8 +263,8 @@ private fun AlchemySlotItem(
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(6.dp))
-                    .background(Color.White)
-                    .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(6.dp))
+                    .background(GameColors.PageBackground)
+                    .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
                     .clickable { onRemove() }
                     .padding(horizontal = 12.dp, vertical = 6.dp)
             ) {
@@ -265,7 +292,8 @@ private fun PillSelectionDialog(
 
     CommonDialog(
         title = "选择丹药",
-        onDismiss = onDismiss
+        onDismiss = onDismiss,
+        enableScroll = false
     ) {
         val allRecipes = PillRecipeDatabase.getAllRecipes()
         
@@ -315,7 +343,7 @@ private fun PillSelectionDialog(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .clip(RoundedCornerShape(6.dp))
-                                .background(if (isSelected) Color(0xFFFFF8E1) else if (hasEnoughMaterials) Color.White else Color(0xFFF5F5F5))
+                                .background(if (isSelected) Color(0xFFFFF8E1) else if (hasEnoughMaterials) GameColors.PageBackground else GameColors.CardBackground)
                                 .border(
                                     if (isSelected) 3.dp else 2.dp,
                                     if (isSelected) Color(0xFFFFD700) else rarityColor,
@@ -380,7 +408,8 @@ private fun PillSelectionDialog(
             val selectedRecipeStatus = sortedRecipes.find { it.recipe.id == selectedRecipe?.id }
             val hasEnoughMaterialsForSelected = selectedRecipeStatus?.canCraft ?: false
             
-            Button(
+            GameButton(
+                text = "开始炼制",
                 onClick = {
                     selectedRecipe?.let { recipe ->
                         viewModel.startAlchemy(slotIndex, recipe)
@@ -388,17 +417,8 @@ private fun PillSelectionDialog(
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = selectedRecipe != null && hasEnoughMaterialsForSelected,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (selectedRecipe != null && hasEnoughMaterialsForSelected) Color(0xFF4CAF50) else Color(0xFFE0E0E0)
-                )
-            ) {
-                Text(
-                    text = "开始炼制",
-                    fontSize = 12.sp,
-                    color = if (selectedRecipe != null) Color.White else Color(0xFF999999)
-                )
-            }
+                enabled = selectedRecipe != null && hasEnoughMaterialsForSelected
+            )
         }
     }
 
@@ -425,7 +445,7 @@ private fun PillDetailDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.White,
+        containerColor = GameColors.PageBackground,
         title = {
             Text(
                 text = recipe.name,
@@ -688,11 +708,13 @@ private fun PillDetailDialog(
 private fun CommonDialog(
     title: String,
     onDismiss: () -> Unit,
+    enableScroll: Boolean = true,
+    titleActions: @Composable RowScope.() -> Unit = {},
     content: @Composable ColumnScope.() -> Unit
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.White,
+        containerColor = GameColors.PageBackground,
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -705,25 +727,36 @@ private fun CommonDialog(
                     fontWeight = FontWeight.Bold,
                     color = Color.Black
                 )
-                Box(
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clip(CircleShape)
-                        .clickable { onDismiss() }
-                        .background(Color(0xFFF5F5F5)),
-                    contentAlignment = Alignment.Center
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(
-                        text = "×",
-                        fontSize = 16.sp,
-                        color = Color(0xFF666666)
-                    )
+                    titleActions()
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .clickable { onDismiss() }
+                            .background(GameColors.CardBackground),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "×",
+                            fontSize = 16.sp,
+                            color = Color(0xFF666666)
+                        )
+                    }
                 }
             }
         },
         text = {
             Column(
-                modifier = Modifier.heightIn(max = 400.dp)
+                modifier = Modifier
+                    .heightIn(max = 400.dp)
+                    .then(
+                        if (enableScroll) Modifier.verticalScroll(rememberScrollState())
+                        else Modifier
+                    )
             ) {
                 content()
             }
@@ -745,7 +778,7 @@ private fun AlchemyElderSection(
             Color(0xFF9C27B0)
         }
     } else {
-        Color(0xFFE0E0E0)
+        GameColors.Border
     }
 
     Column(
@@ -766,7 +799,7 @@ private fun AlchemyElderSection(
                 modifier = Modifier
                     .size(70.dp)
                     .clip(RoundedCornerShape(8.dp))
-                    .background(Color.White)
+                    .background(GameColors.PageBackground)
                     .border(
                         2.dp,
                         elderBorderColor,
@@ -810,8 +843,8 @@ private fun AlchemyElderSection(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(6.dp))
-                        .background(Color.White)
-                        .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(6.dp))
+                        .background(GameColors.PageBackground)
+                        .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
                         .clickable { onElderRemove() }
                         .padding(horizontal = 12.dp, vertical = 6.dp)
                 ) {
@@ -928,7 +961,7 @@ private fun AlchemyDirectDiscipleSlotItem(
             Color(0xFF9C27B0)
         }
     } else {
-        Color(0xFFE0E0E0)
+        GameColors.Border
     }
 
     Column(
@@ -938,7 +971,7 @@ private fun AlchemyDirectDiscipleSlotItem(
             modifier = Modifier
                 .size(55.dp)
                 .clip(RoundedCornerShape(6.dp))
-                .background(Color.White)
+                .background(GameColors.PageBackground)
                 .border(
                     1.dp,
                     borderColor,
@@ -978,8 +1011,8 @@ private fun AlchemyDirectDiscipleSlotItem(
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(4.dp))
-                    .background(Color.White)
-                    .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(4.dp))
+                    .background(GameColors.PageBackground)
+                    .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
                     .clickable { onRemove() }
                     .padding(horizontal = 8.dp, vertical = 2.dp)
             ) {
@@ -1007,7 +1040,7 @@ private fun AlchemyInnerDiscipleSlotItem(
             Color(0xFF4CAF50)
         }
     } else {
-        Color(0xFFE0E0E0)
+        GameColors.Border
     }
 
     Column(
@@ -1017,7 +1050,7 @@ private fun AlchemyInnerDiscipleSlotItem(
             modifier = Modifier
                 .size(50.dp)
                 .clip(RoundedCornerShape(6.dp))
-                .background(Color.White)
+                .background(GameColors.PageBackground)
                 .border(
                     1.dp,
                     borderColor,
@@ -1057,8 +1090,8 @@ private fun AlchemyInnerDiscipleSlotItem(
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(4.dp))
-                    .background(Color.White)
-                    .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(4.dp))
+                    .background(GameColors.PageBackground)
+                    .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
                     .clickable { onRemove() }
                     .padding(horizontal = 6.dp, vertical = 2.dp)
             ) {
@@ -1127,7 +1160,7 @@ private fun AlchemyElderSelectionDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.White,
+        containerColor = GameColors.PageBackground,
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1145,7 +1178,7 @@ private fun AlchemyElderSelectionDialog(
                         .size(24.dp)
                         .clip(CircleShape)
                         .clickable { onDismiss() }
-                        .background(Color(0xFFF5F5F5)),
+                        .background(GameColors.CardBackground),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -1184,8 +1217,8 @@ private fun AlchemyElderSelectionDialog(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clip(RoundedCornerShape(4.dp))
-                                    .background(if (isSelected) Color(0xFFE0E0E0) else Color.White)
-                                    .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(4.dp))
+                                    .background(if (isSelected) GameColors.Border else GameColors.PageBackground)
+                                    .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
                                     .clickable { selectedRealmFilter = if (isSelected) null else realmVal }
                                     .padding(vertical = 4.dp),
                                 contentAlignment = Alignment.Center
@@ -1210,8 +1243,8 @@ private fun AlchemyElderSelectionDialog(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clip(RoundedCornerShape(4.dp))
-                                    .background(if (isSelected) Color(0xFFE0E0E0) else Color.White)
-                                    .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(4.dp))
+                                    .background(if (isSelected) GameColors.Border else GameColors.PageBackground)
+                                    .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
                                     .clickable { selectedRealmFilter = if (isSelected) null else realmVal }
                                     .padding(vertical = 4.dp),
                                 contentAlignment = Alignment.Center
@@ -1281,8 +1314,8 @@ private fun AlchemyDiscipleSelectionCard(
         modifier = Modifier
             .size(60.dp)
             .clip(RoundedCornerShape(6.dp))
-            .background(Color.White)
-            .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(6.dp))
+            .background(GameColors.PageBackground)
+            .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
@@ -1340,7 +1373,6 @@ private fun AlchemyDirectDiscipleSelectionDialog(
             elderSlots.alchemyDisciples,
             elderSlots.forgeDisciples,
             elderSlots.libraryDisciples,
-            elderSlots.spiritMineDisciples,
             elderSlots.recruitDisciples
         ).flatten().mapNotNull { it.discipleId }
     }
@@ -1378,7 +1410,7 @@ private fun AlchemyDirectDiscipleSelectionDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.White,
+        containerColor = GameColors.PageBackground,
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1396,7 +1428,7 @@ private fun AlchemyDirectDiscipleSelectionDialog(
                         .size(24.dp)
                         .clip(CircleShape)
                         .clickable { onDismiss() }
-                        .background(Color(0xFFF5F5F5)),
+                        .background(GameColors.CardBackground),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -1435,8 +1467,8 @@ private fun AlchemyDirectDiscipleSelectionDialog(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clip(RoundedCornerShape(4.dp))
-                                    .background(if (isSelected) Color(0xFFE0E0E0) else Color.White)
-                                    .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(4.dp))
+                                    .background(if (isSelected) GameColors.Border else GameColors.PageBackground)
+                                    .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
                                     .clickable { selectedRealmFilter = if (isSelected) null else realmVal }
                                     .padding(vertical = 4.dp),
                                 contentAlignment = Alignment.Center
@@ -1461,8 +1493,8 @@ private fun AlchemyDirectDiscipleSelectionDialog(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clip(RoundedCornerShape(4.dp))
-                                    .background(if (isSelected) Color(0xFFE0E0E0) else Color.White)
-                                    .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(4.dp))
+                                    .background(if (isSelected) GameColors.Border else GameColors.PageBackground)
+                                    .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
                                     .clickable { selectedRealmFilter = if (isSelected) null else realmVal }
                                     .padding(vertical = 4.dp),
                                 contentAlignment = Alignment.Center
@@ -1527,7 +1559,6 @@ private fun isDiscipleInAnyPosition(discipleId: String, elderSlots: ElderSlots):
         elderSlots.alchemyElder,
         elderSlots.forgeElder,
         elderSlots.libraryElder,
-        elderSlots.spiritMineElder,
         elderSlots.recruitElder
     )
 
@@ -1540,7 +1571,6 @@ private fun isDiscipleInAnyPosition(discipleId: String, elderSlots: ElderSlots):
         elderSlots.alchemyDisciples,
         elderSlots.forgeDisciples,
         elderSlots.libraryDisciples,
-        elderSlots.spiritMineDisciples,
         elderSlots.recruitDisciples
     ).flatten().mapNotNull { it.discipleId }
 
@@ -1585,7 +1615,6 @@ private fun AlchemyInnerDiscipleSelectionDialog(
             elderSlots.alchemyDisciples,
             elderSlots.forgeDisciples,
             elderSlots.libraryDisciples,
-            elderSlots.spiritMineDisciples,
             elderSlots.recruitDisciples
         ).flatten().mapNotNull { it.discipleId }
     }
@@ -1632,7 +1661,7 @@ private fun AlchemyInnerDiscipleSelectionDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.White,
+        containerColor = GameColors.PageBackground,
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1650,7 +1679,7 @@ private fun AlchemyInnerDiscipleSelectionDialog(
                         .size(24.dp)
                         .clip(CircleShape)
                         .clickable { onDismiss() }
-                        .background(Color(0xFFF5F5F5)),
+                        .background(GameColors.CardBackground),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -1689,8 +1718,8 @@ private fun AlchemyInnerDiscipleSelectionDialog(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clip(RoundedCornerShape(4.dp))
-                                    .background(if (isSelected) Color(0xFFE0E0E0) else Color.White)
-                                    .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(4.dp))
+                                    .background(if (isSelected) GameColors.Border else GameColors.PageBackground)
+                                    .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
                                     .clickable { selectedRealmFilter = if (isSelected) null else realmVal }
                                     .padding(vertical = 4.dp),
                                 contentAlignment = Alignment.Center
@@ -1715,8 +1744,8 @@ private fun AlchemyInnerDiscipleSelectionDialog(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clip(RoundedCornerShape(4.dp))
-                                    .background(if (isSelected) Color(0xFFE0E0E0) else Color.White)
-                                    .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(4.dp))
+                                    .background(if (isSelected) GameColors.Border else GameColors.PageBackground)
+                                    .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
                                     .clickable { selectedRealmFilter = if (isSelected) null else realmVal }
                                     .padding(vertical = 4.dp),
                                 contentAlignment = Alignment.Center
@@ -1769,4 +1798,350 @@ private fun AlchemyInnerDiscipleSelectionDialog(
         },
         confirmButton = {}
     )
+}
+
+@Composable
+private fun AlchemyReserveDiscipleDialog(
+    disciples: List<Disciple>,
+    viewModel: GameViewModel,
+    onDismiss: () -> Unit
+) {
+    var showAddDialog by remember { mutableStateOf(false) }
+    
+    val reserveDisciples = viewModel.getAlchemyReserveDisciplesWithInfo()
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = GameColors.PageBackground,
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "储备弟子",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(Color(0xFF9C27B0))
+                            .clickable { showAddDialog = true }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "添加",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .clickable { onDismiss() }
+                            .background(GameColors.CardBackground),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "×",
+                            fontSize = 16.sp,
+                            color = Color(0xFF666666)
+                        )
+                    }
+                }
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 400.dp)
+            ) {
+                if (reserveDisciples.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(200.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "暂无储备弟子",
+                            fontSize = 12.sp,
+                            color = Color(0xFF999999)
+                        )
+                    }
+                } else {
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(4),
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(reserveDisciples.size) { index ->
+                            val disciple = reserveDisciples[index]
+                            AlchemyReserveDiscipleCard(
+                                disciple = disciple,
+                                onRemove = { viewModel.removeAlchemyReserveDisciple(disciple.id) }
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {}
+    )
+
+    if (showAddDialog) {
+        AlchemyReserveDiscipleAddDialog(
+            viewModel = viewModel,
+            onDismiss = { showAddDialog = false }
+        )
+    }
+}
+
+@Composable
+private fun AlchemyReserveDiscipleCard(
+    disciple: Disciple,
+    onRemove: () -> Unit
+) {
+    val spiritRootColor = try {
+        Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))
+    } catch (e: Exception) {
+        Color(0xFF666666)
+    }
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .size(60.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(GameColors.PageBackground)
+                .border(1.dp, spiritRootColor, RoundedCornerShape(6.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = disciple.name,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black,
+                    maxLines = 1
+                )
+                Text(
+                    text = disciple.spiritRootType,
+                    fontSize = 7.sp,
+                    color = spiritRootColor,
+                    maxLines = 1
+                )
+                Text(
+                    text = disciple.realmName,
+                    fontSize = 8.sp,
+                    color = Color(0xFF666666),
+                    maxLines = 1
+                )
+                Text(
+                    text = "炼丹:${disciple.pillRefining}",
+                    fontSize = 7.sp,
+                    color = Color(0xFF9C27B0),
+                    maxLines = 1
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(4.dp))
+                .background(GameColors.PageBackground)
+                .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
+                .clickable { onRemove() }
+                .padding(horizontal = 8.dp, vertical = 2.dp)
+        ) {
+            Text(
+                text = "移除",
+                fontSize = 9.sp,
+                color = Color.Black
+            )
+        }
+    }
+}
+
+@Composable
+private fun AlchemyReserveDiscipleAddDialog(
+    viewModel: GameViewModel,
+    onDismiss: () -> Unit
+) {
+    val availableDisciples = viewModel.getAvailableDisciplesForAlchemyReserve()
+    val selectedIds = remember { mutableStateListOf<String>() }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = GameColors.PageBackground,
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "添加储备弟子",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+                Box(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clip(CircleShape)
+                        .clickable { onDismiss() }
+                        .background(GameColors.CardBackground),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "×",
+                        fontSize = 16.sp,
+                        color = Color(0xFF666666)
+                    )
+                }
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 400.dp)
+            ) {
+                Text(
+                    text = "推荐属性: 炼丹（按炼丹属性排序）",
+                    fontSize = 10.sp,
+                    color = Color(0xFF999999),
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+
+                if (availableDisciples.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "暂无可用弟子",
+                            fontSize = 12.sp,
+                            color = Color(0xFF999999)
+                        )
+                    }
+                } else {
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(4),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(availableDisciples.size) { index ->
+                            val disciple = availableDisciples[index]
+                            val isSelected = selectedIds.contains(disciple.id)
+                            AlchemyReserveDiscipleSelectCard(
+                                disciple = disciple,
+                                isSelected = isSelected,
+                                onClick = {
+                                    if (isSelected) {
+                                        selectedIds.remove(disciple.id)
+                                    } else {
+                                        selectedIds.add(disciple.id)
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                GameButton(
+                    text = "添加${if (selectedIds.isNotEmpty()) "(${selectedIds.size})" else ""}",
+                    onClick = {
+                        if (selectedIds.isNotEmpty()) {
+                            viewModel.addAlchemyReserveDisciples(selectedIds.toList())
+                            onDismiss()
+                        }
+                    }
+                )
+            }
+        }
+    )
+}
+
+@Composable
+private fun AlchemyReserveDiscipleSelectCard(
+    disciple: Disciple,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    val spiritRootColor = try {
+        Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))
+    } catch (e: Exception) {
+        Color(0xFF666666)
+    }
+
+    val borderColor = if (isSelected) Color(0xFFFFD700) else spiritRootColor
+    val borderWidth = if (isSelected) 3.dp else 1.dp
+
+    Box(
+        modifier = Modifier
+            .size(60.dp)
+            .clip(RoundedCornerShape(6.dp))
+            .background(if (isSelected) Color(0xFFFFF8E1) else GameColors.PageBackground)
+            .border(borderWidth, borderColor, RoundedCornerShape(6.dp))
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = disciple.name,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black,
+                maxLines = 1
+            )
+            Text(
+                text = disciple.spiritRootType,
+                fontSize = 7.sp,
+                color = spiritRootColor,
+                maxLines = 1
+            )
+            Text(
+                text = disciple.realmName,
+                fontSize = 8.sp,
+                color = Color(0xFF666666),
+                maxLines = 1
+            )
+            Text(
+                text = "炼丹:${disciple.pillRefining}",
+                fontSize = 7.sp,
+                color = Color(0xFF9C27B0),
+                maxLines = 1
+            )
+        }
+    }
 }

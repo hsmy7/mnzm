@@ -4,7 +4,7 @@ object GameConfig {
     
     object Game {
         const val NAME = "模拟宗门"
-        const val VERSION = "1.4.19"
+        const val VERSION = "1.4.32"
         const val AUTO_SAVE_INTERVAL = 60
         const val MAX_SAVE_SLOTS = 5
     }
@@ -25,17 +25,6 @@ object GameConfig {
         const val REALM_SPEED_BONUS = 1.5
         const val BREAKTHROUGH_LAYER_PENALTY = 0.9
         const val SPIRIT_ROOT_QUALITY_BONUS_PER_LEVEL = 0.15
-        const val SPIRIT_ROOT_COUNT_PENALTY_1 = 1.0
-        const val SPIRIT_ROOT_COUNT_PENALTY_2 = 0.8
-        const val SPIRIT_ROOT_COUNT_PENALTY_3 = 0.6
-        const val SPIRIT_ROOT_COUNT_PENALTY_4 = 0.4
-        const val SPIRIT_ROOT_COUNT_PENALTY_5 = 0.2
-        
-        // 灵根品质突破限制
-        const val HIGH_REALM_BREAKTHROUGH_PENALTY_4_ROOT = 0.6
-        const val HIGH_REALM_BREAKTHROUGH_PENALTY_3_ROOT = 0.75
-        const val HIGH_REALM_THRESHOLD_4_ROOT = 5
-        const val HIGH_REALM_THRESHOLD_3_ROOT = 2
     }
     
     object Rarity {
@@ -57,16 +46,16 @@ object GameConfig {
     
     object Realm {
         val CONFIGS = mapOf(
-            9 to RealmConfig(9, "炼气", 225, 10, 0.75, 1.0, 100, 9),
-            8 to RealmConfig(8, "筑基", 450, 30, 0.60, 1.5, 300, 9),
-            7 to RealmConfig(7, "金丹", 900, 50, 0.50, 2.0, 500, 9),
-            6 to RealmConfig(6, "元婴", 1800, 80, 0.40, 3.0, 800, 9),
-            5 to RealmConfig(5, "化神", 3600, 110, 0.30, 4.0, 1200, 9),
-            4 to RealmConfig(4, "炼虚", 16000, 180, 0.30, 5.0, 2000, 9),
-            3 to RealmConfig(3, "合体", 32000, 220, 0.20, 6.0, 3000, 9),
-            2 to RealmConfig(2, "大乘", 64000, 280, 0.10, 8.0, 5000, 9),
-            1 to RealmConfig(1, "渡劫", 128000, 360, 0.05, 10.0, 9999, 9),
-            0 to RealmConfig(0, "仙人", 256000, 500, 0.0, 15.0, 99999, 9)
+            9 to RealmConfig(9, "炼气", 225, 10, 0.75, 1.0, 80, 9),
+            8 to RealmConfig(8, "筑基", 450, 30, 0.60, 1.5, 120, 9),
+            7 to RealmConfig(7, "金丹", 900, 50, 0.50, 2.0, 200, 9),
+            6 to RealmConfig(6, "元婴", 1800, 80, 0.40, 3.0, 300, 9),
+            5 to RealmConfig(5, "化神", 3600, 110, 0.30, 4.0, 500, 9),
+            4 to RealmConfig(4, "炼虚", 16000, 180, 0.30, 5.0, 800, 9),
+            3 to RealmConfig(3, "合体", 32000, 220, 0.20, 6.0, 1500, 9),
+            2 to RealmConfig(2, "大乘", 64000, 280, 0.10, 8.0, 3000, 9),
+            1 to RealmConfig(1, "渡劫", 128000, 360, 0.05, 10.0, 5000, 9),
+            0 to RealmConfig(0, "仙人", 256000, 500, 0.0, 15.0, 9999, 9)
         )
         
         fun get(realm: Int): RealmConfig = CONFIGS[realm] ?: CONFIGS.getValue(9)
@@ -76,6 +65,25 @@ object GameConfig {
         fun getCultivationBase(realm: Int): Int = get(realm).cultivationBase
         
         fun getBreakthroughChance(realm: Int): Double = get(realm).breakthroughChance
+        
+        fun getMaxRarity(realm: Int): Int = when (realm) {
+            9, 8 -> 1
+            7 -> 2
+            6, 5, 4 -> 4
+            3 -> 5
+            2, 1, 0 -> 6
+            else -> 1
+        }
+        
+        fun getMinRealmForRarity(rarity: Int): Int = when (rarity) {
+            1 -> 9
+            2 -> 7
+            3 -> 6
+            4 -> 6
+            5 -> 3
+            6 -> 2
+            else -> 9
+        }
     }
     
     object SpiritRoot {
@@ -89,13 +97,13 @@ object GameConfig {
             "earth" to SpiritRootConfig("earth", "土", "#95a5a6", 1.0)
         )
         
-        // 灵根数量权重配置（参考项目）
+        // 灵根数量权重配置（增量值，非累积值）
         val COUNT_WEIGHTS = mapOf(
-            1 to 0.08,  // 单灵根 8%
-            2 to 0.20,  // 双灵根 20%
-            3 to 0.35,  // 三灵根 35%
-            4 to 0.60,  // 四灵根 60%
-            5 to 0.75   // 五灵根 75%
+            1 to 0.06,  // 单灵根 6%
+            2 to 0.12,  // 双灵根 12%
+            3 to 0.15,  // 三灵根 15%
+            4 to 0.27,  // 四灵根 27%
+            5 to 0.40   // 五灵根 40%
         )
         
         fun get(type: String): SpiritRootConfig = TYPES[type] ?: TYPES.getValue("metal")
@@ -284,6 +292,49 @@ object GameConfig {
             reputation = 100,
             spiritHerbs = 50
         )
+    }
+    
+    object PlayerProtection {
+        const val PROTECTION_YEARS = 100
+    }
+    
+    /**
+     * 宗门政策配置
+     * 包含所有政策的消耗金额、基础效果和名称
+     */
+    object PolicyConfig {
+        // 政策消耗金额（灵石/月）
+        const val SPIRIT_MINE_BOOST_COST = 0L           // 灵矿增产无灵石消耗
+        const val ENHANCED_SECURITY_COST = 3000L
+        const val ALCHEMY_INCENTIVE_COST = 3000L
+        const val FORGE_INCENTIVE_COST = 3000L
+        const val HERB_CULTIVATION_COST = 3000L
+        const val CULTIVATION_SUBSIDY_COST = 4000L
+        const val MANUAL_RESEARCH_COST = 4000L
+        
+        // 政策名称
+        const val SPIRIT_MINE_BOOST_NAME = "灵矿增产"
+        const val ENHANCED_SECURITY_NAME = "增强治安"
+        const val ALCHEMY_INCENTIVE_NAME = "丹道激励"
+        const val FORGE_INCENTIVE_NAME = "锻造激励"
+        const val HERB_CULTIVATION_NAME = "灵药培育"
+        const val CULTIVATION_SUBSIDY_NAME = "修行津贴"
+        const val MANUAL_RESEARCH_NAME = "功法研习"
+        
+        // 政策基础效果
+        const val SPIRIT_MINE_BOOST_BASE_EFFECT = 0.20  // 灵石产出+20%
+        const val ENHANCED_SECURITY_BASE_EFFECT = 0.20  // 抓捕率+20%
+        const val ALCHEMY_INCENTIVE_BASE_EFFECT = 0.10  // 炼丹成功率+10%
+        const val FORGE_INCENTIVE_BASE_EFFECT = 0.10    // 锻造成功率+10%
+        const val HERB_CULTIVATION_BASE_EFFECT = 0.20   // 灵药生长速度+20%
+        const val CULTIVATION_SUBSIDY_BASE_EFFECT = 0.15 // 修炼速度+15%
+        const val MANUAL_RESEARCH_BASE_EFFECT = 0.20    // 功法修炼速度+20%
+        
+        // 副宗主智力加成基准值
+        const val VICE_SECT_MASTER_INTELLIGENCE_BASE = 50
+        // 每超过基准值5点智力，政策效果增加1%
+        const val VICE_SECT_MASTER_INTELLIGENCE_STEP = 5
+        const val VICE_SECT_MASTER_INTELLIGENCE_BONUS_PER_STEP = 0.01
     }
     
     data class RarityConfig(

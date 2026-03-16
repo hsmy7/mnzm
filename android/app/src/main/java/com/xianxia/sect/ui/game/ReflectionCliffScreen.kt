@@ -1,7 +1,6 @@
 package com.xianxia.sect.ui.game
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -15,20 +14,22 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.ui.theme.GameColors
 
 @Composable
 fun ReflectionCliffDialog(
     disciples: List<Disciple>,
     gameData: GameData?,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onExpelDisciple: (String) -> Unit = {}
 ) {
     val reflectingDisciples = disciples.filter { it.status == DiscipleStatus.REFLECTING }
+    var showExpelConfirmDialog by remember { mutableStateOf<Disciple?>(null) }
 
     CommonDialog(
         title = "思过崖",
@@ -84,29 +85,62 @@ fun ReflectionCliffDialog(
                     items(reflectingDisciples) { disciple ->
                         ReflectingDiscipleCard(
                             disciple = disciple,
-                            currentYear = gameData?.gameYear ?: 1
+                            currentYear = gameData?.gameYear ?: 1,
+                            onExpelClick = { showExpelConfirmDialog = disciple }
                         )
                     }
                 }
             }
         }
     }
+
+    showExpelConfirmDialog?.let { disciple ->
+        AlertDialog(
+            onDismissRequest = { showExpelConfirmDialog = null },
+            containerColor = GameColors.PageBackground,
+            title = {
+                Text(
+                    text = "确认驱逐",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+            },
+            text = {
+                Text(
+                    text = "确定要驱逐弟子 ${disciple.name} 吗？此操作不可撤销。",
+                    fontSize = 12.sp,
+                    color = Color(0xFF666666)
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onExpelDisciple(disciple.id)
+                        showExpelConfirmDialog = null
+                    }
+                ) {
+                    Text("确认", color = Color(0xFFE74C3C))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showExpelConfirmDialog = null }) {
+                    Text("取消", color = Color(0xFF666666))
+                }
+            }
+        )
+    }
 }
 
 @Composable
 private fun ReflectingDiscipleCard(
     disciple: Disciple,
-    currentYear: Int
+    currentYear: Int,
+    onExpelClick: () -> Unit = {}
 ) {
     val startYear = disciple.statusData["reflectionStartYear"]?.toIntOrNull() ?: currentYear
     val endYear = disciple.statusData["reflectionEndYear"]?.toIntOrNull() ?: (currentYear + 10)
     val remainingYears = (endYear - currentYear).coerceAtLeast(0)
-
-    val borderColor = try {
-        Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))
-    } catch (e: Exception) {
-        Color(0xFF9C27B0)
-    }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -119,24 +153,6 @@ private fun ReflectingDiscipleCard(
                 .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(CircleShape)
-                    .border(2.dp, borderColor, CircleShape)
-                    .background(Color.White),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = disciple.name.take(1),
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = borderColor
-                )
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -184,17 +200,35 @@ private fun ReflectingDiscipleCard(
             Column(
                 horizontalAlignment = Alignment.End
             ) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(Color(0xFF9C27B0))
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Text(
-                        text = "思过中",
-                        fontSize = 10.sp,
-                        color = Color.White
-                    )
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(Color(0xFFE74C3C))
+                            .clickable { onExpelClick() }
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "驱逐",
+                            fontSize = 10.sp,
+                            color = Color.White
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(Color(0xFF9C27B0))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "思过中",
+                            fontSize = 10.sp,
+                            color = Color.White
+                        )
+                    }
                 }
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
@@ -215,7 +249,7 @@ private fun CommonDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.White,
+        containerColor = GameColors.PageBackground,
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -233,7 +267,7 @@ private fun CommonDialog(
                         .size(24.dp)
                         .clip(CircleShape)
                         .clickable { onDismiss() }
-                        .background(Color(0xFFF5F5F5)),
+                        .background(GameColors.CardBackground),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(

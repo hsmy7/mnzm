@@ -52,7 +52,13 @@ fun GiftDialog(
     
     val currentYear = gameData?.gameYear ?: 1
     val hasGiftedThisYear = (sect?.lastGiftYear ?: 0) == currentYear
-    val relation = sect?.relation ?: 0
+    val playerSect = gameData?.worldMapSects?.find { it.isPlayerSect }
+    val relation = if (playerSect != null && sect != null) {
+        gameData.sectRelations.find { 
+            (it.sectId1 == playerSect.id && it.sectId2 == sect.id) ||
+            (it.sectId1 == sect.id && it.sectId2 == playerSect.id)
+        }?.favor ?: 0
+    } else 0
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -60,7 +66,7 @@ fun GiftDialog(
                 .fillMaxWidth()
                 .fillMaxHeight(0.85f),
             shape = RoundedCornerShape(16.dp),
-            color = Color.White
+            color = GameColors.PageBackground
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
                 Surface(
@@ -143,7 +149,7 @@ fun GiftDialog(
                 
                 TabRow(
                     selectedTabIndex = selectedTab,
-                    containerColor = Color.White,
+                    containerColor = GameColors.PageBackground,
                     contentColor = GameColors.Primary,
                     divider = {
                         HorizontalDivider(color = GameColors.Border)
@@ -299,7 +305,7 @@ private fun GiftTierCard(
             .border(1.5.dp, borderColor, RoundedCornerShape(12.dp)),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (isDisabled) Color(0xFFF5F5F5) else Color.White
+            containerColor = if (isDisabled) GameColors.CardBackground else GameColors.PageBackground
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = if (isDisabled) 0.dp else 2.dp),
         onClick = onClick,
@@ -396,7 +402,7 @@ private fun ItemGiftTab(
             ))
         }
         
-        items.sortedByDescending { it.rarity }
+        items.sortedWith(compareByDescending<GiftableItem> { it.rarity }.thenBy { it.name })
     }
     
     val filteredItems = remember(giftableItems, selectedType) {
@@ -676,6 +682,9 @@ private fun GiftItemDetailDialog(
             effects = buildList {
                 add("部位: ${item.slot.displayName}")
                 add("稀有度: ${getRarityName(item.rarity)}")
+                if (item.minRealm < 9) {
+                    add("需求境界: ${GameConfig.Realm.getName(item.minRealm)}")
+                }
                 if (item.nurtureLevel > 0) {
                     add("孕养等级: Lv.${item.nurtureLevel}")
                     val nurtureBonus = (item.totalMultiplier / GameConfig.Rarity.get(item.rarity).multiplier - 1.0)
@@ -748,7 +757,7 @@ private fun GiftItemDetailDialog(
                             "hp" -> "生命"
                             "mp" -> "灵力"
                             "speed" -> "速度"
-                            "critChance" -> "暴击率"
+                            "critRate" -> "暴击率"
                             else -> key
                         }
                         if (key.contains("Percent")) {
@@ -761,6 +770,9 @@ private fun GiftItemDetailDialog(
                 item.skill?.let { skill ->
                     add("")
                     add("技能: ${skill.name}")
+                    if (skill.description.isNotEmpty()) {
+                        add("  ${skill.description}")
+                    }
                     add("  伤害类型: ${if (skill.damageType == com.xianxia.sect.core.engine.DamageType.PHYSICAL) "物理" else "法术"}")
                     add("  伤害倍率: ${GameUtils.formatPercent(skill.damageMultiplier)}")
                     add("  连击次数: ${skill.hits}")
@@ -809,8 +821,8 @@ private fun GiftItemDetailDialog(
                         if (item.magicAttackPercent > 0) add("  法术攻击 +${GameUtils.formatPercent(item.magicAttackPercent)}")
                         if (item.physicalDefensePercent > 0) add("  物理防御 +${GameUtils.formatPercent(item.physicalDefensePercent)}")
                         if (item.magicDefensePercent > 0) add("  法术防御 +${GameUtils.formatPercent(item.magicDefensePercent)}")
-                        if (item.hpPercent > 0) add("  生命上限 +${GameUtils.formatPercent(item.hpPercent)}")
-                        if (item.mpPercent > 0) add("  灵力上限 +${GameUtils.formatPercent(item.mpPercent)}")
+                        if (item.hpPercent > 0) add("  生命 +${GameUtils.formatPercent(item.hpPercent)}")
+                        if (item.mpPercent > 0) add("  灵力 +${GameUtils.formatPercent(item.mpPercent)}")
                         if (item.speedPercent > 0) add("  速度 +${GameUtils.formatPercent(item.speedPercent)}")
                         if (item.battleCount > 0) add("  持续 ${item.battleCount} 场战斗")
                     }
@@ -841,7 +853,7 @@ private fun GiftItemDetailDialog(
     
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.White,
+        containerColor = GameColors.PageBackground,
         title = {
             Text(
                 text = name,

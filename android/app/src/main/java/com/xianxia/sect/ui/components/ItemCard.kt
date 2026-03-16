@@ -54,7 +54,7 @@ fun UnifiedItemCard(
             modifier = Modifier
                 .fillMaxSize()
                 .clip(RoundedCornerShape(6.dp))
-                .background(Color.White)
+                .background(GameColors.PageBackground)
                 .border(
                     width = if (isSelected) 3.dp else 2.dp,
                     color = if (isSelected) GameColors.SelectedBorder else rarityColor,
@@ -125,7 +125,7 @@ fun ItemCard(
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = GameColors.PageBackground),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         onClick = onClick ?: {}
     ) {
@@ -198,7 +198,7 @@ fun CompactItemCard(
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = GameColors.PageBackground),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         onClick = onClick ?: {}
     ) {

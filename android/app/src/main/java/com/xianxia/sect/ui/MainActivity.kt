@@ -29,6 +29,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.xianxia.sect.R
 import com.xianxia.sect.BuildConfig
+import com.xianxia.sect.core.CrashHandler
 import com.xianxia.sect.data.SessionManager
 import com.xianxia.sect.data.SaveManager
 import com.xianxia.sect.data.model.SaveSlot
@@ -36,6 +37,9 @@ import com.xianxia.sect.taptap.TapTapAuthManager
 import com.xianxia.sect.taptap.LoginData
 import com.xianxia.sect.taptap.ComplianceManager
 import com.xianxia.sect.ui.game.GameActivity
+import com.xianxia.sect.ui.game.LoadingScreen
+import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.theme.XianxiaTheme
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -49,7 +53,13 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var saveManager: SaveManager
     
+    @Inject
+    lateinit var crashHandler: CrashHandler
+    
     private var complianceDialogState = mutableStateOf<ComplianceDialogState?>(null)
+    private val loadingProgress = mutableStateOf(0f)
+    private var isLoadComplete = false
+    private val loadHandler = android.os.Handler(android.os.Looper.getMainLooper())
     
     companion object {
         private const val TAG = "MainActivity"
@@ -64,6 +74,9 @@ class MainActivity : ComponentActivity() {
     }
     
     override fun onCreate(savedInstanceState: Bundle?) {
+        // 切换回正常主题
+        setTheme(R.style.Theme_XianxiaSect)
+        
         super.onCreate(savedInstanceState)
         
         WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -79,19 +92,81 @@ class MainActivity : ComponentActivity() {
             return
         }
         
+        // 先显示加载界面
+        showLoadingScreen()
+        
+        // 启动进度条动画（持续更新直到加载完成）
+        startProgressAnimation()
+        
+        // 模拟加载完成（实际项目中应该根据真实加载状态）
+        loadHandler.postDelayed({
+            isLoadComplete = true
+        }, 500) // 0.5秒后标记加载完成
+    }
+    
+    private fun startProgressAnimation() {
+        val updateRunnable = object : Runnable {
+            override fun run() {
+                if (isLoadComplete) {
+                    // 加载完成，快速跳到100%
+                    loadingProgress.value = 1f
+                    loadHandler.postDelayed({ onLoadingComplete() }, 150)
+                } else {
+                    // 加载未完成，进度缓慢增长（最多到90%）
+                    val currentProgress = loadingProgress.value
+                    if (currentProgress < 0.9f) {
+                        loadingProgress.value = currentProgress + 0.05f
+                    }
+                    loadHandler.postDelayed(this, 50)
+                }
+            }
+        }
+        loadHandler.post(updateRunnable)
+    }
+    
+    private fun onLoadingComplete() {
         if (!sessionManager.hasAgreedPrivacy) {
+            // 新用户：显示隐私政策，同意后进入登录界面
             showPrivacyPolicyScreen()
             return
         }
         
+        // 检测崩溃恢复
+        if (crashHandler.hasCrashed() && saveManager.hasEmergencySave()) {
+            Log.i(TAG, "Detected crash with emergency save, showing recovery dialog")
+            showCrashRecoveryDialog()
+            return
+        }
+        
+        // 清理崩溃状态（如果存在但没有紧急存档）
+        if (crashHandler.hasCrashed()) {
+            Log.i(TAG, "Crash detected but no emergency save, clearing crash state")
+            crashHandler.clearCrashState()
+        }
+        
+        // 用户已同意隐私政策，初始化 TapTap SDK
         initTapTapSDK()
         
         if (sessionManager.isLoggedIn) {
+            // 老用户：直接进入存档选择界面
             showSaveSelectScreen()
             return
         }
         
+        // 新用户（已同意隐私政策但未登录）：进入登录界面
         showMainScreen()
+    }
+    
+    private fun showLoadingScreen() {
+        setContent {
+            XianxiaTheme {
+                val progress by loadingProgress
+                LoadingScreen(
+                    progress = progress,
+                    showProgress = true
+                )
+            }
+        }
     }
     
     private fun showMainScreen() {
@@ -136,10 +211,6 @@ class MainActivity : ComponentActivity() {
     }
     
     private fun showSaveSelectScreen() {
-        refreshSaveSelectScreen()
-    }
-
-    private fun refreshSaveSelectScreen() {
         val saveSlots = saveManager.getSaveSlots()
         setContent {
             XianxiaTheme {
@@ -171,7 +242,7 @@ class MainActivity : ComponentActivity() {
                         },
                         onDeleteSlot = { slot ->
                             saveManager.delete(slot)
-                            refreshSaveSelectScreen()
+                            showSaveSelectScreen()
                         },
                         onLogout = {
                             sessionManager.clearSession()
@@ -181,6 +252,89 @@ class MainActivity : ComponentActivity() {
                     )
                 }
             }
+        }
+    }
+    
+    /**
+     * 显示崩溃恢复对话框
+     * 当检测到上次游戏异常退出且存在紧急存档时调用
+     */
+    private fun showCrashRecoveryDialog() {
+        setContent {
+            XianxiaTheme {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = Color.White
+                ) {
+                    CrashRecoveryDialog(
+                        onRecover = {
+                            // 用户选择恢复
+                            recoverFromEmergencySave()
+                        },
+                        onDismiss = {
+                            // 用户选择不恢复
+                            clearCrashStateAndContinue()
+                        }
+                    )
+                }
+            }
+        }
+    }
+    
+    /**
+     * 从紧急存档恢复并进入游戏
+     */
+    private fun recoverFromEmergencySave() {
+        try {
+            val emergencyData = saveManager.loadEmergencySave()
+            if (emergencyData != null) {
+                Log.i(TAG, "Emergency save loaded successfully, sect: ${emergencyData.gameData.sectName}")
+                
+                // 清理紧急存档和崩溃状态
+                saveManager.clearEmergencySave()
+                crashHandler.clearCrashState()
+                
+                // 获取存档槽位
+                val slot = if (emergencyData.gameData.currentSlot > 0) emergencyData.gameData.currentSlot else 1
+                
+                // 将紧急存档保存到正常槽位
+                saveManager.save(slot, emergencyData)
+                
+                // 进入游戏
+                val intent = Intent(this, GameActivity::class.java)
+                intent.putExtra(EXTRA_SLOT, slot)
+                startActivity(intent)
+                finish()
+            } else {
+                Log.e(TAG, "Failed to load emergency save")
+                Toast.makeText(this, "恢复数据失败，将进入正常游戏", Toast.LENGTH_LONG).show()
+                clearCrashStateAndContinue()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error recovering from emergency save", e)
+            Toast.makeText(this, "恢复数据时发生错误", Toast.LENGTH_LONG).show()
+            clearCrashStateAndContinue()
+        }
+    }
+    
+    /**
+     * 清理崩溃状态并继续正常流程
+     */
+    private fun clearCrashStateAndContinue() {
+        try {
+            saveManager.clearEmergencySave()
+            crashHandler.clearCrashState()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error clearing crash state", e)
+        }
+        
+        // 继续正常流程
+        initTapTapSDK()
+        
+        if (sessionManager.isLoggedIn) {
+            showSaveSelectScreen()
+        } else {
+            showMainScreen()
         }
     }
     
@@ -452,7 +606,7 @@ fun MainScreen(
         Spacer(modifier = Modifier.height(100.dp))
         
         Text(
-            text = "v1.4.19",
+            text = "v${com.xianxia.sect.core.GameConfig.Game.VERSION}",
             color = Color(0xFF999999),
             fontSize = 12.sp
         )
@@ -611,14 +765,10 @@ fun PrivacyPolicyDialog(
             }
         },
         confirmButton = {
-            Button(
-                onClick = onAgree,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF4CAF50)
-                )
-            ) {
-                Text("同意并继续")
-            }
+            GameButton(
+                text = "同意并继续",
+                onClick = onAgree
+            )
         },
         dismissButton = {
             TextButton(onClick = onDisagree) {
@@ -750,25 +900,89 @@ fun PrivacyPolicyScreen(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Button(
+            GameButton(
+                text = "退出",
                 onClick = onDisagree,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF999999)
-                ),
                 modifier = Modifier.weight(1f)
-            ) {
-                Text("退出")
-            }
+            )
             
-            Button(
+            GameButton(
+                text = "同意并继续",
                 onClick = onAgree,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF4CAF50)
-                ),
                 modifier = Modifier.weight(1f)
-            ) {
-                Text("同意并继续")
-            }
+            )
         }
+    }
+}
+
+/**
+ * 崩溃恢复对话框
+ * 当检测到上次游戏异常退出时显示，询问用户是否恢复数据
+ */
+@Composable
+fun CrashRecoveryDialog(
+    onRecover: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.White),
+        contentAlignment = Alignment.Center
+    ) {
+        AlertDialog(
+            onDismissRequest = { },
+            title = { 
+                Text(
+                    text = "数据恢复",
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "检测到上次游戏异常退出，发现可恢复的游戏数据。",
+                        fontSize = 14.sp,
+                        lineHeight = 20.sp,
+                        textAlign = TextAlign.Center
+                    )
+                    
+                    Spacer(modifier = Modifier.height(12.dp))
+                    
+                    Text(
+                        text = "是否恢复上次的游戏进度？",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        textAlign = TextAlign.Center
+                    )
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    Text(
+                        text = "选择\"恢复\"将加载上次的游戏数据；\n选择\"不恢复\"将丢弃这些数据。",
+                        fontSize = 12.sp,
+                        color = Color(0xFF666666),
+                        textAlign = TextAlign.Center,
+                        lineHeight = 18.sp
+                    )
+                }
+            },
+            confirmButton = {
+                GameButton(
+                    text = "恢复",
+                    onClick = onRecover
+                )
+            },
+            dismissButton = {
+                TextButton(onClick = onDismiss) {
+                    Text("不恢复", color = Color(0xFF999999))
+                }
+            }
+        )
     }
 }

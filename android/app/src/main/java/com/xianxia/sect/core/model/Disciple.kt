@@ -18,7 +18,7 @@ data class Disciple(
     val spiritRootType: String = "metal",
     
     var age: Int = 16,
-    var lifespan: Int = 100,
+    var lifespan: Int = 80,
     var isAlive: Boolean = true,
     
     var gender: String = if (kotlin.random.Random.nextBoolean()) "male" else "female",
@@ -130,15 +130,7 @@ data class Disciple(
     val genderSymbol: String get() = if (gender == "male") "♂" else "♀"
     val hasPartner: Boolean get() = partnerId != null
     
-    // 计算悟性对修炼速度的加成（正面每点4%，负面每点2%）
-    val comprehensionSpeedBonus: Double get() {
-        val diff = comprehension - 50
-        return if (diff >= 0) {
-            1.0 + (diff * 0.04)
-        } else {
-            1.0 + (diff * 0.02)
-        }
-    }
+    val comprehensionSpeedBonus: Double get() = 1.0 + (comprehension - 50) * 0.02
     
     // 获取无任何加成的原始属性（境界加成 only）
     fun getRawBaseStats(): DiscipleStats {
@@ -274,17 +266,19 @@ data class Disciple(
                 val masteryLevel = proficiencyData?.masteryLevel ?: 0
                 val masteryBonus = ManualProficiencySystem.MasteryLevel.fromLevel(masteryLevel).bonus
                 
+                val hpValue = manual.stats["hp"] ?: manual.stats["maxHp"] ?: 0
+                val mpValue = manual.stats["mp"] ?: manual.stats["maxMp"] ?: 0
                 val manualStats = DiscipleStats(
-                    hp = ((manual.stats["maxHp"] ?: 0) * masteryBonus).toInt(),
-                    maxHp = ((manual.stats["maxHp"] ?: 0) * masteryBonus).toInt(),
-                    mp = ((manual.stats["maxMp"] ?: 0) * masteryBonus).toInt(),
-                    maxMp = ((manual.stats["maxMp"] ?: 0) * masteryBonus).toInt(),
+                    hp = (hpValue * masteryBonus).toInt(),
+                    maxHp = (hpValue * masteryBonus).toInt(),
+                    mp = (mpValue * masteryBonus).toInt(),
+                    maxMp = (mpValue * masteryBonus).toInt(),
                     physicalAttack = ((manual.stats["physicalAttack"] ?: 0) * masteryBonus).toInt(),
                     magicAttack = ((manual.stats["magicAttack"] ?: 0) * masteryBonus).toInt(),
                     physicalDefense = ((manual.stats["physicalDefense"] ?: 0) * masteryBonus).toInt(),
                     magicDefense = ((manual.stats["magicDefense"] ?: 0) * masteryBonus).toInt(),
                     speed = ((manual.stats["speed"] ?: 0) * masteryBonus).toInt(),
-                    critRate = 0.0
+                    critRate = 1.0
                 )
                 total = total + manualStats
                 totalCritRate += ((manual.stats["critRate"] ?: 0) * masteryBonus) / 100.0
@@ -342,7 +336,7 @@ data class Disciple(
     
     fun canBreakthrough(): Boolean = cultivation >= maxCultivation
     
-    fun getBreakthroughChance(pillBonus: Double = 0.0): Double {
+    fun getBreakthroughChance(pillBonus: Double = 0.0, innerElderComprehension: Int = 0, outerElderComprehensionBonus: Double = 0.0): Double {
         // 仙人境界无法突破
         if (realm <= 0) return 0.0
         
@@ -356,22 +350,14 @@ data class Disciple(
         val spiritRootCount = spiritRoot.types.size
         val targetRealm = realm - 1 // 要突破到的境界
         
-        if (spiritRootCount >= 4 && targetRealm <= 5) {
-            // 四灵根及以下突破到化神境及以上：概率降低40%（仍有60%）
-            chance *= 0.6
-        } else if (spiritRootCount == 3 && targetRealm <= 2) {
-            // 三灵根突破到合体境及以上：概率降低25%（仍有75%）
-            chance *= 0.75
-        } else {
-            // 灵根加成：根据灵根数量和目标境界给予加成
-            // 化神及以下（targetRealm >= 5）保持原加成，化神以上（targetRealm < 5）降低加成
-            val multiplier = when (spiritRootCount) {
-                1 -> if (targetRealm >= 5) 1.5 else 1.2  // 单灵根：化神及以下+50%，化神以上+20%
-                2 -> if (targetRealm >= 5) 1.25 else 1.1 // 双灵根：化神及以下+25%，化神以上+10%
-                else -> 1.0 // 三灵根及以上无额外加成
-            }
-            chance *= multiplier
+        // 灵根加成：根据灵根数量和目标境界给予加成
+        // 化神及以下（targetRealm >= 5）保持原加成，化神以上（targetRealm < 5）降低加成
+        val multiplier = when (spiritRootCount) {
+            1 -> if (targetRealm >= 5) 1.5 else 1.2  // 单灵根：化神及以下+50%，化神以上+20%
+            2 -> if (targetRealm >= 5) 1.25 else 1.1 // 双灵根：化神及以下+25%，化神以上+10%
+            else -> 1.0 // 三灵根及以上无额外加成
         }
+        chance *= multiplier
         
         // 丹药加成
         chance += pillBonus
@@ -385,6 +371,15 @@ data class Disciple(
         val comprehensionBonus = (comprehension - 50) / 5 * 0.005
         chance += comprehensionBonus
 
+        // 内门长老悟性加成（50为基准，每高10点增加1%，每低10点减少1%）
+        if (innerElderComprehension > 0) {
+            val innerElderBonus = (innerElderComprehension - 50) * 0.001
+            chance += innerElderBonus
+        }
+
+        // 外门长老悟性加成（50为基准，每高5点增加1%，每低5点减少1%）
+        chance += outerElderComprehensionBonus
+
         // 突破失败次数加成（每次失败增加3%）
         chance += breakthroughFailCount * 0.03
 
@@ -394,7 +389,7 @@ data class Disciple(
 }
 
 enum class DiscipleStatus {
-    IDLE, CULTIVATING, EXPLORING, ALCHEMY, FORGING, FARMING, STUDYING, BATTLE, WORKING, SCOUTING, MINING, REFLECTING;
+    IDLE, CULTIVATING, EXPLORING, ALCHEMY, FORGING, FARMING, STUDYING, BATTLE, WORKING, SCOUTING, MINING, REFLECTING, LAW_ENFORCING, PREACHING, MANAGING;
 
     val displayName: String get() = when (this) {
         IDLE -> "空闲"
@@ -409,6 +404,9 @@ enum class DiscipleStatus {
         SCOUTING -> "探查中"
         MINING -> "采矿中"
         REFLECTING -> "思过中"
+        LAW_ENFORCING -> "执法中"
+        PREACHING -> "传道中"
+        MANAGING -> "管理中"
     }
 }
 

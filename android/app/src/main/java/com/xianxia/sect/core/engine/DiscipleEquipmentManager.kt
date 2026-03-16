@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.engine
 
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.*
 
 object DiscipleEquipmentManager {
@@ -57,6 +58,7 @@ object DiscipleEquipmentManager {
         val bagEquipments = disciple.storageBagItems
             .filter { it.itemType == "equipment" }
             .mapNotNull { equipmentMap[it.itemId] }
+            .filter { disciple.realm <= it.minRealm }
         
         if (bagEquipments.isEmpty()) {
             return EquipmentProcessResult(disciple, emptyList(), emptyList())
@@ -156,7 +158,8 @@ object DiscipleEquipmentManager {
     }
     
     fun canEquip(disciple: Disciple, equipment: Equipment): Boolean {
-        return equipment.slot != null && equipment.ownerId == null
+        if (equipment.slot == null || equipment.ownerId != null) return false
+        return disciple.realm <= equipment.minRealm
     }
     
     fun getEquipSlot(disciple: Disciple, slot: EquipmentSlot): String? {

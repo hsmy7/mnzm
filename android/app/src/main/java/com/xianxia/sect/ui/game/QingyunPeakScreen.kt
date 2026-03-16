@@ -21,6 +21,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.ui.theme.GameColors
 
 @Composable
 fun QingyunPeakDialog(
@@ -40,7 +41,7 @@ fun QingyunPeakDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.White,
+        containerColor = GameColors.PageBackground,
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -58,7 +59,7 @@ fun QingyunPeakDialog(
                         .size(24.dp)
                         .clip(CircleShape)
                         .clickable { onDismiss() }
-                        .background(Color(0xFFF5F5F5)),
+                        .background(GameColors.CardBackground),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -172,7 +173,7 @@ private fun ElderSection(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
-            .background(Color(0xFFF5F5F5))
+            .background(GameColors.CardBackground)
             .padding(12.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -230,14 +231,14 @@ private fun QingyunElderSlotItem(
                 Color(0xFFE0E0E0)
             }
         } else {
-            Color(0xFFE0E0E0)
+            GameColors.Border
         }
 
         Box(
             modifier = Modifier
                 .size(60.dp)
                 .clip(RoundedCornerShape(6.dp))
-                .background(Color.White)
+                .background(GameColors.PageBackground)
                 .border(1.dp, borderColor, RoundedCornerShape(6.dp))
                 .clickable(onClick = onClick),
             contentAlignment = Alignment.Center
@@ -275,8 +276,8 @@ private fun QingyunElderSlotItem(
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(4.dp))
-                    .background(Color.White)
-                    .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(4.dp))
+                    .background(GameColors.PageBackground)
+                    .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
                     .clickable(onClick = onRemove)
                     .padding(horizontal = 12.dp, vertical = 4.dp)
             ) {
@@ -300,7 +301,7 @@ private fun PreachingMastersSection(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
-            .background(Color(0xFFF5F5F5))
+            .background(GameColors.CardBackground)
             .padding(12.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -351,14 +352,14 @@ private fun QingyunPreachingMasterSlotItem(
                 Color(0xFF9C27B0)
             }
         } else {
-            Color(0xFFE0E0E0)
+            GameColors.Border
         }
 
         Box(
             modifier = Modifier
                 .size(50.dp)
                 .clip(RoundedCornerShape(4.dp))
-                .background(Color.White)
+                .background(GameColors.PageBackground)
                 .border(1.dp, borderColor, RoundedCornerShape(4.dp))
                 .clickable(onClick = onClick),
             contentAlignment = Alignment.Center
@@ -396,8 +397,8 @@ private fun QingyunPreachingMasterSlotItem(
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(3.dp))
-                    .background(Color.White)
-                    .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(3.dp))
+                    .background(GameColors.PageBackground)
+                    .border(1.dp, GameColors.Border, RoundedCornerShape(3.dp))
                     .clickable(onClick = onRemove)
                     .padding(horizontal = 8.dp, vertical = 2.dp)
             ) {
@@ -423,7 +424,7 @@ private fun InnerDisciplesSection(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
-            .background(Color(0xFFF5F5F5))
+            .background(GameColors.CardBackground)
             .padding(12.dp)
     ) {
         Row(
@@ -481,14 +482,14 @@ private fun QingyunInnerDiscipleItem(
     val borderColor = try {
         Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))
     } catch (e: Exception) {
-        Color(0xFFE0E0E0)
+        GameColors.Border
     }
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(6.dp))
-            .background(Color.White)
+            .background(GameColors.PageBackground)
             .border(1.dp, borderColor, RoundedCornerShape(6.dp))
             .padding(8.dp)
     ) {
@@ -566,7 +567,7 @@ private fun QingyunDiscipleSelectionDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.White,
+        containerColor = GameColors.PageBackground,
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -584,7 +585,7 @@ private fun QingyunDiscipleSelectionDialog(
                         .size(24.dp)
                         .clip(CircleShape)
                         .clickable { onDismiss() }
-                        .background(Color(0xFFF5F5F5)),
+                        .background(GameColors.CardBackground),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -644,8 +645,8 @@ private fun QingyunDiscipleSelectionDialog(
                                     modifier = Modifier
                                         .weight(1f)
                                         .clip(RoundedCornerShape(4.dp))
-                                        .background(if (isSelected) Color(0xFFE0E0E0) else Color.White)
-                                        .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(4.dp))
+                                        .background(if (isSelected) GameColors.Border else GameColors.PageBackground)
+                                        .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
                                         .clickable { selectedRealmFilter = if (isSelected) null else realm }
                                         .padding(vertical = 4.dp),
                                     contentAlignment = Alignment.Center
@@ -670,8 +671,8 @@ private fun QingyunDiscipleSelectionDialog(
                                     modifier = Modifier
                                         .weight(1f)
                                         .clip(RoundedCornerShape(4.dp))
-                                        .background(if (isSelected) Color(0xFFE0E0E0) else Color.White)
-                                        .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(4.dp))
+                                        .background(if (isSelected) GameColors.Border else GameColors.PageBackground)
+                                        .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
                                         .clickable { selectedRealmFilter = if (isSelected) null else realm }
                                         .padding(vertical = 4.dp),
                                     contentAlignment = Alignment.Center
@@ -699,8 +700,8 @@ private fun QingyunDiscipleSelectionDialog(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(6.dp))
-                                    .background(if (isCurrent) Color(0xFFE0E0E0) else Color.White)
-                                    .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(6.dp))
+                                    .background(if (isCurrent) GameColors.Border else GameColors.PageBackground)
+                                    .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
                                     .clickable { onSelect(disciple) }
                                     .padding(12.dp)
                             ) {

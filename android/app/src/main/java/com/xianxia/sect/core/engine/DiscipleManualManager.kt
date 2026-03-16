@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.engine
 
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.data.TalentDatabase
 import com.xianxia.sect.core.model.*
 
@@ -35,7 +36,8 @@ object DiscipleManualManager {
             .filter { it.itemType == "manual" && !disciple.manualIds.contains(it.itemId) }
             .mapNotNull { manuals[it.itemId] }
             .filter { manual -> 
-                if (hasMindManual) manual.type != ManualType.MIND else true 
+                val canLearnByRealm = disciple.realm <= manual.minRealm
+                if (hasMindManual) manual.type != ManualType.MIND && canLearnByRealm else canLearnByRealm
             }
         
         if (bagManuals.isEmpty()) {
@@ -157,14 +159,13 @@ object DiscipleManualManager {
         return ManualLearnResult(updatedDisciple, events, learnedManual, replacedManual)
     }
     
-    fun canLearn(disciple: Disciple, manual: Manual): Boolean {
+    fun canLearn(disciple: Disciple, manual: Manual, allManuals: Map<String, Manual>): Boolean {
         val maxSlots = calculateMaxManualSlots(disciple)
-        val hasMindManual = disciple.manualIds.any { manuals[it]?.type == ManualType.MIND }
+        val hasMindManual = disciple.manualIds.any { allManuals[it]?.type == ManualType.MIND }
         
         return !disciple.manualIds.contains(manual.id) &&
+               disciple.realm <= manual.minRealm &&
                (manual.type != ManualType.MIND || !hasMindManual) &&
                disciple.manualIds.size < maxSlots
     }
-    
-    private val manuals: Map<String, Manual> get() = emptyMap()
 }

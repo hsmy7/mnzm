@@ -8,19 +8,20 @@ object GameColors {
     val Secondary = Color(0xFF00A86B)
     val SecondaryVariant = Color(0xFF008B5A)
     
-    val Background = Color(0xFFFFFFFF)
-    val BackgroundDark = Color(0xFFFFFFFF)
-    val Surface = Color(0xFFFFFFFF)
-    val SurfaceDark = Color(0xFFFFFFFF)
+    val PageBackground = Color(0xFFF8F5F2)
+    val Background = Color(0xFFF8F5F2)
+    val BackgroundDark = Color(0xFFF8F5F2)
+    val Surface = Color(0xFFF8F5F2)
+    val SurfaceDark = Color(0xFFF8F5F2)
     
     val TextPrimary = Color(0xFF000000)
     val TextSecondary = Color(0xFF666666)
     val TextTertiary = Color(0xFF999999)
     val TextOnPrimary = Color(0xFFFFFFFF)
     
-    val Border = Color(0xFFDDDDDD)
-    val BorderLight = Color(0xFFEEEEEE)
-    val Divider = Color(0xFFE0E0E0)
+    val Border = Color(0xFFDCD6D0)
+    val BorderLight = Color(0xFFDCD6D0)
+    val Divider = Color(0xFFDCD6D0)
     
     val Success = Color(0xFF4CAF50)
     val Warning = Color(0xFFFF9800)
@@ -33,8 +34,8 @@ object GameColors {
     val SpiritBlue = Color(0xFF4A90E2)
     val CultivationPurple = Color(0xFF9B59B6)
     
-    val CardBackground = Color(0xFFFFFFFF)
-    val CardBackgroundSelected = Color(0xFFFFFFFF)
+    val CardBackground = Color(0xFFE9E4DF)
+    val CardBackgroundSelected = Color(0xFFE9E4DF)
     
     val RarityCommon = Color(0xFF95A5A6)
     val RaritySpirit = Color(0xFF27AE60)
@@ -141,8 +142,8 @@ fun getSpiritRootColor(rootType: String): Color = GameColors.getSpiritRootColor(
 
 // XianxiaColorScheme for UI components
 data class XianxiaColorScheme(
-    val cardBackground: Color = Color(0xFFF5F5F5),
-    val cardBorder: Color = Color(0xFFE0E0E0),
+    val cardBackground: Color = Color(0xFFE9E4DF),
+    val cardBorder: Color = Color(0xFFDCD6D0),
     val primaryGold: Color = Color(0xFFFFD700),
     val textLight: Color = Color(0xFF666666),
     val textDark: Color = Color(0xFF333333),

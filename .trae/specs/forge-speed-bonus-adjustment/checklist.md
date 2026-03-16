@@ -1,0 +1,5 @@
+- [x] 天工长老炼器属性速度加成计算正确（每5点偏离50增加1%）
+- [x] 亲传弟子炼器属性速度加成计算正确（每10点偏离50增加1%）
+- [x] 成功率加成保持不变（长老每5点增加1%，亲传弟子每10点增加1%）
+- [x] `calculateWorkDurationWithAllDisciples()` 方法正确调用 `calculateElderAndDisciplesBonus("forge")`
+- [x] 代码编译通过，无错误（本次修改无错误）

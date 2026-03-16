@@ -12,6 +12,7 @@ import com.xianxia.sect.core.data.ItemDatabase
 import com.xianxia.sect.core.data.ManualDatabase
 import com.xianxia.sect.core.data.PillRecipeDatabase
 import com.xianxia.sect.core.data.TalentDatabase
+import com.xianxia.sect.core.engine.RedeemCodeManager
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.util.GameUtils
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -63,9 +64,6 @@ class GameEngine {
     private val _alchemySlots = MutableStateFlow<List<AlchemySlot>>(emptyList())
     val alchemySlots: StateFlow<List<AlchemySlot>> = _alchemySlots.asStateFlow()
     
-    private val _warTeams = MutableStateFlow<List<WarTeam>>(emptyList())
-    val warTeams: StateFlow<List<WarTeam>> = _warTeams.asStateFlow()
-    
     private val _highFrequencyData = MutableStateFlow(HighFrequencyData())
     val highFrequencyData: StateFlow<HighFrequencyData> = _highFrequencyData.asStateFlow()
     
@@ -84,6 +82,7 @@ class GameEngine {
     private var tickCounter = 0
     
     companion object {
+        private const val TAG = "GameEngine"
         private const val TICKS_PER_SECOND = 5
     }
     
@@ -100,7 +99,6 @@ class GameEngine {
         val buildingSlots: List<BuildingSlot>,
         val events: List<GameEvent>,
         val battleLogs: List<BattleLog>,
-        val warTeams: List<WarTeam>,
         val alliances: List<Alliance>,
         val supportTeams: List<SupportTeam>
     )
@@ -124,11 +122,34 @@ class GameEngine {
                 buildingSlots = _buildingSlots.value,
                 events = _events.value,
                 battleLogs = _battleLogs.value,
-                warTeams = _warTeams.value,
                 alliances = _gameData.value.alliances,
                 supportTeams = _gameData.value.supportTeams
             )
         }
+    }
+    
+    /**
+     * 获取游戏状态快照（同步版本，用于崩溃处理等紧急场景）
+     * 注意：此方法直接读取 StateFlow 当前值，不使用锁，可能在数据更新过程中读取到不一致的状态
+     * 仅在紧急保存时使用，正常保存应使用 getStateSnapshot()
+     */
+    fun getStateSnapshotSync(): GameStateSnapshot {
+        return GameStateSnapshot(
+            gameData = _gameData.value,
+            disciples = _disciples.value,
+            equipment = _equipment.value,
+            manuals = _manuals.value,
+            pills = _pills.value,
+            materials = _materials.value,
+            herbs = _herbs.value,
+            seeds = _seeds.value,
+            teams = _teams.value,
+            buildingSlots = _buildingSlots.value,
+            events = _events.value,
+            battleLogs = _battleLogs.value,
+            alliances = _gameData.value.alliances,
+            supportTeams = _gameData.value.supportTeams
+        )
     }
     
     private inner class GameTransaction {
@@ -143,7 +164,6 @@ class GameEngine {
         private var teamsSnapshot: List<ExplorationTeam> = _teams.value
         private var buildingSlotsSnapshot: List<BuildingSlot> = _buildingSlots.value
         private var battleLogsSnapshot: List<BattleLog> = _battleLogs.value
-        private var warTeamsSnapshot: List<WarTeam> = _warTeams.value
         private var eventsSnapshot: List<GameEvent> = _events.value
         private val pendingEvents = mutableListOf<Pair<String, EventType>>()
         
@@ -158,7 +178,6 @@ class GameEngine {
         val teams: List<ExplorationTeam> get() = teamsSnapshot
         val buildingSlots: List<BuildingSlot> get() = buildingSlotsSnapshot
         val battleLogs: List<BattleLog> get() = battleLogsSnapshot
-        val warTeams: List<WarTeam> get() = warTeamsSnapshot
         
         fun updateGameData(update: (GameData) -> GameData) {
             gameDataSnapshot = update(gameDataSnapshot)
@@ -204,11 +223,6 @@ class GameEngine {
             battleLogsSnapshot = update(battleLogsSnapshot)
         }
         
-        fun updateWarTeams(update: (List<WarTeam>) -> List<WarTeam>) {
-            warTeamsSnapshot = update(warTeamsSnapshot)
-            gameDataSnapshot = gameDataSnapshot.copy(warTeams = warTeamsSnapshot)
-        }
-        
         fun addEvent(message: String, type: EventType) {
             pendingEvents.add(message to type)
         }
@@ -225,7 +239,6 @@ class GameEngine {
             _teams.value = teamsSnapshot
             _buildingSlots.value = buildingSlotsSnapshot
             _battleLogs.value = battleLogsSnapshot
-            _warTeams.value = warTeamsSnapshot
             
             return pendingEvents.toList()
         }
@@ -297,8 +310,9 @@ class GameEngine {
         _buildingSlots.value = emptyList()
         _events.value = emptyList()
         _battleLogs.value = emptyList()
-        _warTeams.value = emptyList()
-        _alchemySlots.value = emptyList()
+        _alchemySlots.value = (0 until 3).map { index ->
+            AlchemySlot(slotIndex = index)
+        }
         
         val initialManual = ManualDatabase.getByType(ManualType.MIND)
             .filter { it.rarity == 1 }
@@ -321,12 +335,6 @@ class GameEngine {
         addEvent("欢迎来到 $sectName！宗门初立，请好好经营。", EventType.SUCCESS)
     }
     
-    private fun updateWarTeamsSync(newTeams: List<WarTeam>) {
-        _warTeams.value = newTeams
-        val currentData = _gameData.value
-        _gameData.value = currentData.copy(warTeams = newTeams)
-    }
-    
     fun updateGameData(update: (GameData) -> GameData) {
         _gameData.value = update(_gameData.value)
     }
@@ -344,15 +352,13 @@ class GameEngine {
         slots: List<BuildingSlot>,
         events: List<GameEvent>,
         battleLogs: List<BattleLog> = emptyList(),
-        warTeams: List<WarTeam> = emptyList(),
         alliances: List<Alliance> = emptyList(),
-        supportTeams: List<SupportTeam> = emptyList()
+        supportTeams: List<SupportTeam> = emptyList(),
+        alchemySlots: List<AlchemySlot> = emptyList()
     ) {
-        val resolvedWarTeams = warTeams.ifEmpty { gameData.warTeams }
         val resolvedAlliances = alliances.ifEmpty { gameData.alliances }
         val resolvedSupportTeams = supportTeams.ifEmpty { gameData.supportTeams }
         val finalGameData = gameData.copy(
-            warTeams = resolvedWarTeams,
             alliances = resolvedAlliances,
             supportTeams = resolvedSupportTeams
         )
@@ -369,15 +375,44 @@ class GameEngine {
         _buildingSlots.value = slots
         _events.value = events
         _battleLogs.value = battleLogs
-        _warTeams.value = resolvedWarTeams
+        _alchemySlots.value = alchemySlots.ifEmpty {
+            (0 until 3).map { index -> AlchemySlot(slotIndex = index) }
+        }
 
         initializeWorldMap()
+
+        val playerSect = _gameData.value.worldMapSects.find { it.isPlayerSect }
+        if (playerSect != null) {
+            val existingPlayerRelations = _gameData.value.sectRelations.filter {
+                it.sectId1 == playerSect.id || it.sectId2 == playerSect.id
+            }
+            val missingSects = _gameData.value.worldMapSects.filter { sect ->
+                !sect.isPlayerSect && existingPlayerRelations.none { r ->
+                    r.sectId1 == sect.id || r.sectId2 == sect.id
+                }
+            }
+            if (missingSects.isNotEmpty()) {
+                val newRelations = missingSects.map { sect ->
+                    SectRelation(
+                        sectId1 = minOf(playerSect.id, sect.id),
+                        sectId2 = maxOf(playerSect.id, sect.id),
+                        favor = sect.relation.coerceIn(0, 100),
+                        lastInteractionYear = 0
+                    )
+                }
+                _gameData.value = _gameData.value.copy(
+                    sectRelations = _gameData.value.sectRelations + newRelations
+                )
+            }
+        }
 
         initializeHerbGardenSlots()
 
         initializeLibrarySlots()
 
         checkAndInitMerchant(gameData.gameYear)
+
+        validateAndFixSpiritMineData()
     }
     
     private fun checkAndInitMerchant(currentYear: Int) {
@@ -434,6 +469,85 @@ class GameEngine {
             _gameData.value = data.copy(librarySlots = initializedSlots)
         }
     }
+
+    /**
+     * 校验并修复灵矿槽位与弟子状态的数据一致性
+     * 解决弟子状态为MINING但槽位无记录的问题
+     * 同时处理：无效弟子ID、重复分配、死亡弟子等边界情况
+     */
+    fun validateAndFixSpiritMineData() {
+        val existingDiscipleIds = _disciples.value.map { it.id }.toSet()
+        val deadDiscipleIds = _disciples.value.filter { !it.isAlive }.map { it.id }.toSet()
+
+        val data = _gameData.value
+        val spiritMineSlots = data.spiritMineSlots
+        val spiritMineDeaconDisciples = data.elderSlots.spiritMineDeaconDisciples
+
+        val validMiningDiscipleIds = spiritMineSlots
+            .mapNotNull { it.discipleId }
+            .filter { it in existingDiscipleIds && it !in deadDiscipleIds }
+            .toSet()
+
+        val validDeaconDiscipleIds = spiritMineDeaconDisciples
+            .mapNotNull { it.discipleId }
+            .filter { it in existingDiscipleIds && it !in deadDiscipleIds }
+            .toSet()
+
+        val duplicateIds = (validMiningDiscipleIds + validDeaconDiscipleIds)
+            .groupingBy { it }
+            .eachCount()
+            .filter { it.value > 1 }
+            .keys
+
+        val allValidMiningDiscipleIds = (validMiningDiscipleIds + validDeaconDiscipleIds) - duplicateIds
+
+        val updatedDisciples = _disciples.value.map { disciple ->
+            when {
+                disciple.status == DiscipleStatus.MINING && disciple.id !in allValidMiningDiscipleIds -> {
+                    disciple.copy(status = DiscipleStatus.IDLE)
+                }
+                disciple.status != DiscipleStatus.MINING && disciple.id in allValidMiningDiscipleIds -> {
+                    disciple.copy(status = DiscipleStatus.MINING)
+                }
+                else -> disciple
+            }
+        }
+
+        val updatedSpiritMineSlots = spiritMineSlots.mapIndexed { index, slot ->
+            when {
+                slot.discipleId == null -> slot
+                slot.discipleId !in existingDiscipleIds -> slot.copy(discipleId = null, discipleName = "")
+                slot.discipleId in deadDiscipleIds -> slot.copy(discipleId = null, discipleName = "")
+                slot.discipleId in duplicateIds && index > spiritMineSlots.indexOfFirst { it.discipleId == slot.discipleId } -> {
+                    slot.copy(discipleId = null, discipleName = "")
+                }
+                else -> slot
+            }
+        }
+
+        val updatedDeaconDisciples = spiritMineDeaconDisciples.mapIndexed { index, slot ->
+            when {
+                slot.discipleId == null -> slot
+                slot.discipleId !in existingDiscipleIds -> slot.copy(discipleId = null, discipleName = "", discipleRealm = "", discipleSpiritRootColor = "#E0E0E0")
+                slot.discipleId in deadDiscipleIds -> slot.copy(discipleId = null, discipleName = "", discipleRealm = "", discipleSpiritRootColor = "#E0E0E0")
+                slot.discipleId in duplicateIds && index > spiritMineDeaconDisciples.indexOfFirst { it.discipleId == slot.discipleId } -> {
+                    slot.copy(discipleId = null, discipleName = "", discipleRealm = "", discipleSpiritRootColor = "#E0E0E0")
+                }
+                else -> slot
+            }
+        }
+
+        _disciples.value = updatedDisciples
+
+        val latestData = _gameData.value
+        if (updatedSpiritMineSlots != spiritMineSlots || updatedDeaconDisciples != spiritMineDeaconDisciples) {
+            val updatedElderSlots = latestData.elderSlots.copy(spiritMineDeaconDisciples = updatedDeaconDisciples)
+            _gameData.value = latestData.copy(
+                spiritMineSlots = updatedSpiritMineSlots,
+                elderSlots = updatedElderSlots
+            )
+        }
+    }
     
     fun assignDiscipleToLibrarySlot(slotIndex: Int, discipleId: String, discipleName: String) {
         val data = _gameData.value
@@ -475,6 +589,7 @@ class GameEngine {
     }
     
     fun advanceDay() {
+        val startTime = System.currentTimeMillis()
         try {
             val data = _gameData.value
 
@@ -490,6 +605,7 @@ class GameEngine {
                 if (newMonth > GameConfig.Time.MONTHS_PER_YEAR) {
                     newMonth = 1
                     newYear++
+                    Log.i(TAG, "Year advanced: $newYear")
                 }
             }
 
@@ -499,25 +615,82 @@ class GameEngine {
                 gameDay = newDay
             )
 
-            processDailyEvents(newYear, newMonth, newDay)
+            try {
+                processDailyEvents(newYear, newMonth, newDay)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error in processDailyEvents - " +
+                    "Game: Year=$newYear, Month=$newMonth, Day=$newDay, " +
+                    "Sect=${data.sectName}", e)
+            }
             
             if (monthChanged) {
-                processMonthlyEvents(newYear, newMonth)
+                Log.d(TAG, "Month changed to $newMonth, processing monthly events")
+                try {
+                    processMonthlyEvents(newYear, newMonth)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error in processMonthlyEvents - " +
+                        "Game: Year=$newYear, Month=$newMonth, " +
+                        "Sect=${data.sectName}, Disciples=${_disciples.value.size}, " +
+                        "Teams=${_teams.value.size}, BuildingSlots=${_buildingSlots.value.size}", e)
+                }
+            }
+            
+            val elapsed = System.currentTimeMillis() - startTime
+            if (elapsed > 100) {
+                Log.w(TAG, "advanceDay took ${elapsed}ms (year=$newYear, month=$newMonth, day=$newDay)")
             }
         } catch (e: Exception) {
-            Log.e("GameEngine", "Error in advanceDay", e)
+            val data = _gameData.value
+            Log.e(TAG, "Critical error in advanceDay - " +
+                "Game: Year=${data.gameYear}, Month=${data.gameMonth}, Day=${data.gameDay}, " +
+                "Sect=${data.sectName}, SpiritStones=${data.spiritStones}", e)
         }
     }
     
     private fun processDailyEvents(year: Int, month: Int, day: Int) {
-        processScoutTeamMovement()
+        val data = _gameData.value
+        
+        try {
+            processScoutTeamMovement()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in processScoutTeamMovement - " +
+                "Game: Year=$year, Month=$month, Day=$day, Teams=${_teams.value.size}", e)
+        }
+        
+        try {
+            processCaveExplorationTeamMovement()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in processCaveExplorationTeamMovement - " +
+                "Game: Year=$year, Month=$month, Day=$day, CaveTeams=${data.caveExplorationTeams.size}", e)
+        }
+        
+        try {
+            processBattleTeamMovement()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in processBattleTeamMovement - " +
+                "Game: Year=$year, Month=$month, Day=$day, BattleTeam=${data.battleTeam?.id}", e)
+        }
+        
+        try {
+            processSupportTeamMovement()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in processSupportTeamMovement - " +
+                "Game: Year=$year, Month=$month, Day=$day, SupportTeams=${data.supportTeams.size}", e)
+        }
+        
+        try {
+            processAIBattleTeamMovement()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in processAIBattleTeamMovement - " +
+                "Game: Year=$year, Month=$month, Day=$day, WorldSects=${data.worldMapSects.size}", e)
+        }
     }
     
     private fun processScoutTeamMovement() {
         val data = _gameData.value
         val updatedTeams = _teams.value.map { team ->
             if (team.status == ExplorationStatus.SCOUTING && team.moveProgress < 1f) {
-                val progressIncrement = 1f / team.duration.coerceAtLeast(1)
+                val progressIncrement = 1f / team.duration.coerceAtLeast(1) * 1.5f
                 val newProgress = (team.moveProgress + progressIncrement).coerceAtMost(1f)
                 
                 val targetSect = data.worldMapSects.find { it.id == team.scoutTargetSectId }
@@ -535,8 +708,8 @@ class GameEngine {
                     )
                     Pair(bezierPos.first, bezierPos.second)
                 } else {
-                    val x = team.currentX + (team.targetX - team.currentX) * progressIncrement
-                    val y = team.currentY + (team.targetY - team.currentY) * progressIncrement
+                    val x = team.currentX + (team.targetX - team.currentX) * newProgress
+                    val y = team.currentY + (team.targetY - team.currentY) * newProgress
                     Pair(x, y)
                 }
                 
@@ -590,6 +763,743 @@ class GameEngine {
         return Pair(posX.toFloat(), posY.toFloat())
     }
     
+    private fun processCaveExplorationTeamMovement() {
+        try {
+            val data = _gameData.value
+            
+            val updatedTeams = data.caveExplorationTeams.map { team ->
+                if (team.status == CaveExplorationStatus.TRAVELING && team.moveProgress < 1f) {
+                    val progressIncrement = 1f / team.duration.coerceAtLeast(1) * 1.5f
+                    val newProgress = (team.moveProgress + progressIncrement).coerceAtMost(1f)
+                    
+                    val newX = team.startX + (team.targetX - team.startX) * newProgress
+                    val newY = team.startY + (team.targetY - team.startY) * newProgress
+                    
+                    team.copy(
+                        moveProgress = newProgress,
+                        currentX = if (newProgress >= 1f) team.targetX else newX,
+                        currentY = if (newProgress >= 1f) team.targetY else newY
+                    )
+                } else {
+                    team
+                }
+            }
+            
+            _gameData.value = data.copy(caveExplorationTeams = updatedTeams)
+            
+            val teamsWithMissingCave = mutableListOf<CaveExplorationTeam>()
+            updatedTeams.filter { it.status == CaveExplorationStatus.TRAVELING && it.moveProgress >= 1f }.forEach { team ->
+                val cave = data.cultivatorCaves.find { it.id == team.caveId }
+                if (cave != null) {
+                    startCaveExplorationPhase(team, cave)
+                } else {
+                    teamsWithMissingCave.add(team)
+                }
+            }
+            
+            teamsWithMissingCave.forEach { team ->
+                addEvent("探索队伍前往的${team.caveName}已消失，队伍返回宗门", EventType.WARNING)
+                resetCaveExplorationTeamMembersStatus(team)
+                val currentData = _gameData.value
+                _gameData.value = currentData.copy(
+                    caveExplorationTeams = currentData.caveExplorationTeams.filter { it.id != team.id }
+                )
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in processCaveExplorationTeamMovement", e)
+            addEvent("探索队伍移动处理发生错误，请检查队伍状态", EventType.WARNING)
+        }
+    }
+    
+    private fun resetCaveExplorationTeamMembersStatus(team: CaveExplorationTeam) {
+        team.memberIds.forEach { memberId ->
+            val disciple = _disciples.value.find { it.id == memberId }
+            if (disciple != null && disciple.status == DiscipleStatus.EXPLORING) {
+                _disciples.value = _disciples.value.map { 
+                    if (it.id == memberId) it.copy(status = DiscipleStatus.IDLE) else it 
+                }
+            }
+        }
+    }
+    
+    private fun startCaveExplorationPhase(team: CaveExplorationTeam, cave: CultivatorCave) {
+        val data = _gameData.value
+        val updatedTeam = team.copy(status = CaveExplorationStatus.EXPLORING)
+        
+        _gameData.value = data.copy(
+            caveExplorationTeams = data.caveExplorationTeams.map { 
+                if (it.id == team.id) updatedTeam else it 
+            }
+        )
+        
+        addEvent("探索队伍已抵达${cave.name}，开始探索", EventType.INFO)
+    }
+    
+    private fun processBattleTeamMovement() {
+        val data = _gameData.value
+        val battleTeam = data.battleTeam ?: return
+        
+        if (battleTeam.status != "moving" || battleTeam.moveProgress >= 1f) return
+        
+        val route = battleTeam.route
+        if (route.isEmpty()) return
+        
+        val currentSectId = route.getOrNull(battleTeam.currentRouteIndex) ?: return
+        val nextSectId = route.getOrNull(battleTeam.currentRouteIndex + 1)
+        
+        val currentSect = data.worldMapSects.find { it.id == currentSectId } ?: return
+        
+        val targetSect = if (nextSectId != null) {
+            data.worldMapSects.find { it.id == nextSectId } ?: return
+        } else {
+            val targetId = battleTeam.targetSectId ?: return
+            data.worldMapSects.find { it.id == targetId } ?: return
+        }
+        
+        val distance = kotlin.math.sqrt(
+            (targetSect.x - currentSect.x) * (targetSect.x - currentSect.x) +
+            (targetSect.y - currentSect.y) * (targetSect.y - currentSect.y)
+        )
+        
+        val duration = (distance / 100f).coerceAtLeast(1f).toInt()
+        val progressIncrement = 1f / duration.coerceAtLeast(1) * 1.5f
+        val newProgress = (battleTeam.moveProgress + progressIncrement).coerceAtMost(1f)
+        
+        val newX = currentSect.x + (targetSect.x - currentSect.x) * newProgress
+        val newY = currentSect.y + (targetSect.y - currentSect.y) * newProgress
+        
+        if (newProgress >= 1f) {
+            if (nextSectId != null) {
+                val updatedTeam = battleTeam.copy(
+                    currentRouteIndex = battleTeam.currentRouteIndex + 1,
+                    moveProgress = 0f,
+                    currentX = targetSect.x,
+                    currentY = targetSect.y
+                )
+                _gameData.value = data.copy(battleTeam = updatedTeam)
+            } else {
+                if (battleTeam.isReturning) {
+                    val playerSect = data.worldMapSects.find { it.isPlayerSect }
+                    val originSectId = battleTeam.originSectId
+                    val isReturningToPlayerSect = originSectId == null || originSectId == playerSect?.id
+                    
+                    if (isReturningToPlayerSect) {
+                        val updatedTeam = battleTeam.copy(
+                            status = "idle",
+                            isAtSect = true,
+                            moveProgress = 0f,
+                            currentX = targetSect.x,
+                            currentY = targetSect.y,
+                            targetSectId = null,
+                            originSectId = null,
+                            route = emptyList(),
+                            currentRouteIndex = 0,
+                            isReturning = false,
+                            isOccupying = false,
+                            occupiedSectId = null
+                        )
+                        _gameData.value = data.copy(battleTeam = updatedTeam)
+                    } else {
+                        val updatedSects = data.worldMapSects.map { sect ->
+                            if (sect.id == originSectId) {
+                                sect.copy(occupierBattleTeamId = battleTeam.id)
+                            } else {
+                                sect
+                            }
+                        }
+                        val updatedTeam = battleTeam.copy(
+                            status = "stationed",
+                            isAtSect = false,
+                            moveProgress = 0f,
+                            currentX = targetSect.x,
+                            currentY = targetSect.y,
+                            targetSectId = null,
+                            route = emptyList(),
+                            currentRouteIndex = 0,
+                            isReturning = false,
+                            isOccupying = true,
+                            occupiedSectId = originSectId
+                        )
+                        _gameData.value = data.copy(
+                            battleTeam = updatedTeam,
+                            worldMapSects = updatedSects
+                        )
+                    }
+                } else {
+                    val updatedTeam = battleTeam.copy(
+                        status = "battle",
+                        moveProgress = 1f,
+                        currentX = targetSect.x,
+                        currentY = targetSect.y
+                    )
+                    _gameData.value = data.copy(battleTeam = updatedTeam)
+                    
+                    if (updatedTeam.status == "battle" && !updatedTeam.isReturning) {
+                        triggerBattleTeamCombat(updatedTeam)
+                    }
+                }
+            }
+        } else {
+            val updatedTeam = battleTeam.copy(
+                moveProgress = newProgress,
+                currentX = newX,
+                currentY = newY
+            )
+            _gameData.value = data.copy(battleTeam = updatedTeam)
+        }
+    }
+    
+    fun startBattleTeamMove(targetSectId: String) {
+        val data = _gameData.value
+        val battleTeam = data.battleTeam ?: return
+        
+        val playerSect = data.worldMapSects.find { it.isPlayerSect } ?: return
+        val targetSect = data.worldMapSects.find { it.id == targetSectId } ?: return
+        
+        val startSectId = if (battleTeam.isOccupying && battleTeam.occupiedSectId != null) {
+            val occupiedSectId = battleTeam.occupiedSectId!!
+            val updatedSects = data.worldMapSects.map { sect ->
+                if (sect.id == occupiedSectId) {
+                    sect.copy(occupierBattleTeamId = null)
+                } else {
+                    sect
+                }
+            }
+            _gameData.value = data.copy(worldMapSects = updatedSects)
+            occupiedSectId
+        } else {
+            playerSect.id
+        }
+        
+        val startSect = _gameData.value.worldMapSects.find { it.id == startSectId } ?: playerSect
+        
+        if (!AISectAttackManager.isRouteConnected(startSect, targetSect, _gameData.value)) {
+            addEvent("目标宗门不在可达路线上", EventType.DANGER)
+            return
+        }
+        
+        val route = calculateRoute(startSectId, targetSectId, _gameData.value.worldMapSects)
+        
+        val updatedTeam = battleTeam.copy(
+            status = "moving",
+            isAtSect = false,
+            targetSectId = targetSectId,
+            originSectId = startSectId,
+            route = route,
+            currentRouteIndex = 0,
+            moveProgress = 0f,
+            currentX = startSect.x,
+            currentY = startSect.y,
+            targetX = targetSect.x,
+            targetY = targetSect.y,
+            isReturning = false,
+            isOccupying = false,
+            occupiedSectId = null
+        )
+        
+        val updatedData = if (!targetSect.isPlayerSect && data.isPlayerProtected) {
+            _gameData.value.copy(
+                battleTeam = updatedTeam,
+                playerHasAttackedAI = true
+            )
+        } else {
+            _gameData.value.copy(battleTeam = updatedTeam)
+        }
+        
+        _gameData.value = updatedData
+        addEvent("战斗队伍开始向${targetSect.name}进发", EventType.INFO)
+    }
+    
+    private fun calculateRoute(fromId: String, toId: String, sects: List<WorldSect>): List<String> {
+        val route = mutableListOf<String>()
+        route.add(fromId)
+        
+        val fromSect = sects.find { it.id == fromId } ?: return route
+        if (fromSect.connectedSectIds.contains(toId)) {
+            route.add(toId)
+            return route
+        }
+        
+        val visited = mutableSetOf(fromId)
+        val queue = ArrayDeque<List<String>>()
+        queue.add(listOf(fromId))
+        
+        while (queue.isNotEmpty()) {
+            val currentRoute = queue.removeFirst()
+            val currentId = currentRoute.last()
+            val currentSect = sects.find { it.id == currentId } ?: continue
+            
+            for (connectedId in currentSect.connectedSectIds) {
+                if (connectedId == toId) {
+                    return currentRoute + connectedId
+                }
+                if (connectedId !in visited) {
+                    visited.add(connectedId)
+                    queue.add(currentRoute + connectedId)
+                }
+            }
+        }
+        
+        return route
+    }
+    
+    private fun triggerBattleTeamCombat(battleTeam: BattleTeam) {
+        val data = _gameData.value
+        val targetSectId = battleTeam.targetSectId ?: return
+        val targetSect = data.worldMapSects.find { it.id == targetSectId } ?: return
+        
+        val teamMembers = battleTeam.slots.filter { it.discipleId != null && it.isAlive }.mapNotNull { slot ->
+            _disciples.value.find { it.id == slot.discipleId }
+        }.filter { it.isAlive }
+        
+        if (teamMembers.isEmpty()) {
+            addEvent("战斗队伍无可用弟子，自动返回", EventType.DANGER)
+            returnBattleTeam(battleTeam)
+            return
+        }
+        
+        val hasHighRealmDisciple = targetSect.aiDisciples.any { it.isAlive && it.realm <= 5 }
+        if (!hasHighRealmDisciple) {
+            occupySect(battleTeam, targetSect)
+            return
+        }
+        
+        val defenseTeam = generateAISectDefenseTeam(targetSect)
+        
+        if (defenseTeam.isEmpty()) {
+            occupySect(battleTeam, targetSect)
+            return
+        }
+        
+        val battleResult = executeBattleTeamCombat(teamMembers, defenseTeam, targetSect)
+        
+        val updatedTargetSect = _gameData.value.worldMapSects.find { it.id == targetSectId } ?: targetSect
+        
+        if (battleResult.teamWins) {
+            val hasRemainingHighRealm = updatedTargetSect.aiDisciples.any { it.isAlive && it.realm <= 5 }
+            if (!hasRemainingHighRealm) {
+                occupySect(battleTeam, updatedTargetSect)
+            } else {
+                addEvent("战斗队伍在${updatedTargetSect.name}战斗胜利，开始返回", EventType.SUCCESS)
+                returnBattleTeam(battleTeam)
+            }
+        } else {
+            addEvent("战斗队伍在${updatedTargetSect.name}战斗失败，开始返回", EventType.DANGER)
+            returnBattleTeam(battleTeam)
+        }
+        
+        removeDeadDisciplesFromBattleTeam()
+    }
+    
+    private fun generateAISectDefenseTeam(targetSect: WorldSect): List<AISectDisciple> {
+        val sortedDisciples = targetSect.aiDisciples
+            .filter { it.isAlive }
+            .sortedBy { it.realm }
+        
+        return sortedDisciples.take(10)
+    }
+    
+    private fun executeBattleTeamCombat(
+        teamMembers: List<Disciple>,
+        defenseTeam: List<AISectDisciple>,
+        targetSect: WorldSect
+    ): BattleTeamCombatResult {
+        val teamCombatants = teamMembers.map { disciple ->
+            val stats = disciple.getBaseStats()
+            Combatant(
+                id = disciple.id,
+                name = disciple.name,
+                type = CombatantType.DISCIPLE,
+                hp = stats.maxHp,
+                maxHp = stats.maxHp,
+                mp = stats.maxMp,
+                maxMp = stats.maxMp,
+                physicalAttack = stats.physicalAttack,
+                magicAttack = stats.magicAttack,
+                physicalDefense = stats.physicalDefense,
+                magicDefense = stats.magicDefense,
+                speed = stats.speed,
+                critRate = stats.critRate,
+                skills = emptyList(),
+                realm = disciple.realm,
+                realmName = disciple.realmName,
+                realmLayer = disciple.realmLayer
+            )
+        }
+        
+        val enemyCombatants = defenseTeam.mapIndexed { index, aiDisciple ->
+            val stats = aiDisciple.getBaseStats()
+            Combatant(
+                id = aiDisciple.id,
+                name = aiDisciple.name,
+                type = CombatantType.BEAST,
+                hp = stats.maxHp,
+                maxHp = stats.maxHp,
+                mp = stats.maxMp,
+                maxMp = stats.maxMp,
+                physicalAttack = stats.physicalAttack,
+                magicAttack = stats.magicAttack,
+                physicalDefense = stats.physicalDefense,
+                magicDefense = stats.magicDefense,
+                speed = stats.speed,
+                critRate = 0.05 + aiDisciple.realm * 0.01,
+                skills = emptyList(),
+                realm = aiDisciple.realm,
+                realmName = GameConfig.Realm.getName(aiDisciple.realm),
+                realmLayer = aiDisciple.realmLayer
+            )
+        }
+        
+        val battle = Battle(
+            team = teamCombatants,
+            beasts = enemyCombatants,
+            turn = 0,
+            isFinished = false,
+            winner = null
+        )
+        
+        val battleResult = BattleSystem.executeBattle(battle)
+        
+        val teamDeadIds = mutableSetOf<String>()
+        val enemyDeadIds = mutableSetOf<String>()
+        
+        battleResult.battle.team.forEach { combatant ->
+            if (combatant.isDead) {
+                teamDeadIds.add(combatant.id)
+            }
+        }
+        
+        battleResult.battle.beasts.forEach { combatant ->
+            if (combatant.isDead) {
+                enemyDeadIds.add(combatant.id)
+            }
+        }
+        
+        teamDeadIds.forEach { discipleId ->
+            _disciples.value = _disciples.value.map { 
+                if (it.id == discipleId) it.copy(isAlive = false) else it 
+            }
+        }
+        
+        val data = _gameData.value
+        val updatedSects = data.worldMapSects.map { sect ->
+            if (sect.id == targetSect.id) {
+                val aliveAiDisciples = sect.aiDisciples.filter { it.id !in enemyDeadIds }
+                sect.copy(aiDisciples = aliveAiDisciples)
+            } else {
+                sect
+            }
+        }
+        _gameData.value = data.copy(worldMapSects = updatedSects)
+        
+        return BattleTeamCombatResult(
+            teamWins = battleResult.victory,
+            teamCasualties = teamDeadIds.size,
+            enemyCasualties = enemyDeadIds.size
+        )
+    }
+    
+    private data class BattleTeamCombatResult(
+        val teamWins: Boolean,
+        val teamCasualties: Int,
+        val enemyCasualties: Int
+    )
+    
+    private fun returnBattleTeam(battleTeam: BattleTeam) {
+        val data = _gameData.value
+        val playerSect = data.worldMapSects.find { it.isPlayerSect } ?: return
+        
+        val originSectId = battleTeam.originSectId ?: playerSect.id
+        val originSect = data.worldMapSects.find { it.id == originSectId } ?: playerSect
+        
+        val currentPositionId = when {
+            battleTeam.status == "battle" && battleTeam.targetSectId != null -> {
+                battleTeam.targetSectId!!
+            }
+            battleTeam.status == "moving" && battleTeam.route.isNotEmpty() -> {
+                battleTeam.route.getOrNull(battleTeam.currentRouteIndex) ?: originSectId
+            }
+            battleTeam.isOccupying && battleTeam.occupiedSectId != null -> {
+                battleTeam.occupiedSectId
+            }
+            else -> originSectId
+        }
+        
+        val returnRoute = calculateRoute(currentPositionId, originSectId, data.worldMapSects)
+        
+        val updatedTeam = battleTeam.copy(
+            status = "moving",
+            targetSectId = originSectId,
+            route = returnRoute,
+            currentRouteIndex = 0,
+            moveProgress = 0f,
+            targetX = originSect.x,
+            targetY = originSect.y,
+            isReturning = true
+        )
+        
+        _gameData.value = data.copy(battleTeam = updatedTeam)
+    }
+    
+    private fun removeDeadDisciplesFromBattleTeam() {
+        val data = _gameData.value
+        val battleTeam = data.battleTeam ?: return
+        
+        val updatedSlots = battleTeam.slots.map { slot ->
+            if (slot.discipleId != null) {
+                val disciple = _disciples.value.find { it.id == slot.discipleId }
+                if (disciple != null && !disciple.isAlive) {
+                    slot.copy(isAlive = false)
+                } else {
+                    slot
+                }
+            } else {
+                slot
+            }
+        }
+        
+        val updatedTeam = battleTeam.copy(slots = updatedSlots)
+        _gameData.value = data.copy(battleTeam = updatedTeam)
+    }
+    
+    private fun occupySect(battleTeam: BattleTeam, targetSect: WorldSect) {
+        val data = _gameData.value
+        val currentTargetSect = data.worldMapSects.find { it.id == targetSect.id } ?: targetSect
+        
+        val aliveAiDisciples = currentTargetSect.aiDisciples.filter { it.isAlive }
+        
+        val newPlayerDisciples = aliveAiDisciples.map { aiDisciple ->
+            Disciple(
+                id = java.util.UUID.randomUUID().toString(),
+                name = aiDisciple.name,
+                realm = aiDisciple.realm,
+                realmLayer = aiDisciple.realmLayer,
+                cultivation = aiDisciple.cultivation,
+                spiritRootType = aiDisciple.spiritRootType,
+                age = aiDisciple.age,
+                lifespan = aiDisciple.lifespan,
+                status = DiscipleStatus.IDLE,
+                discipleType = "outer",
+                recruitedMonth = data.gameYear * 12 + data.gameMonth
+            )
+        }
+        
+        _disciples.value = _disciples.value + newPlayerDisciples
+        
+        val sectWarehouse = currentTargetSect.warehouse
+        var warehouseItemText = ""
+        if (sectWarehouse.items.isNotEmpty()) {
+            _gameData.value = _gameData.value.copy(
+                spiritStones = _gameData.value.spiritStones + sectWarehouse.spiritStones
+            )
+            
+            sectWarehouse.items.forEach { item ->
+                when (item.itemType) {
+                    "pill" -> {
+                        val recipe = PillRecipeDatabase.getRecipeById(item.itemId)
+                        if (recipe != null) {
+                            repeat(item.quantity) {
+                                val pill = Pill(
+                                    id = java.util.UUID.randomUUID().toString(),
+                                    name = recipe.name,
+                                    rarity = recipe.rarity,
+                                    quantity = 1,
+                                    description = recipe.description,
+                                    category = recipe.category,
+                                    breakthroughChance = recipe.breakthroughChance,
+                                    targetRealm = recipe.targetRealm,
+                                    cultivationSpeed = recipe.cultivationSpeed,
+                                    duration = recipe.effectDuration,
+                                    extendLife = recipe.extendLife,
+                                    physicalAttackPercent = recipe.physicalAttackPercent,
+                                    magicAttackPercent = recipe.magicAttackPercent,
+                                    physicalDefensePercent = recipe.physicalDefensePercent,
+                                    magicDefensePercent = recipe.magicDefensePercent,
+                                    hpPercent = recipe.hpPercent,
+                                    mpPercent = recipe.mpPercent,
+                                    speedPercent = recipe.speedPercent,
+                                    healPercent = recipe.healPercent,
+                                    healMaxHpPercent = recipe.healMaxHpPercent,
+                                    heal = recipe.heal,
+                                    battleCount = recipe.battleCount
+                                )
+                                addPillToWarehouse(pill)
+                            }
+                        } else {
+                            Log.w(TAG, "无法找到丹药配方: ${item.itemId}, 物品: ${item.itemName}")
+                        }
+                    }
+                    "equipment" -> {
+                        val template = EquipmentDatabase.getById(item.itemId)
+                        if (template != null) {
+                            repeat(item.quantity) {
+                                val equipment = Equipment(
+                                    id = java.util.UUID.randomUUID().toString(),
+                                    name = template.name,
+                                    slot = template.slot,
+                                    rarity = item.rarity,
+                                    physicalAttack = template.physicalAttack,
+                                    magicAttack = template.magicAttack,
+                                    physicalDefense = template.physicalDefense,
+                                    magicDefense = template.magicDefense,
+                                    speed = template.speed,
+                                    hp = template.hp,
+                                    mp = template.mp,
+                                    description = template.description,
+                                    minRealm = GameConfig.Realm.getMinRealmForRarity(item.rarity)
+                                )
+                                _equipment.value = _equipment.value + equipment
+                            }
+                        } else {
+                            Log.w(TAG, "无法找到装备模板: ${item.itemId}, 物品: ${item.itemName}")
+                        }
+                    }
+                    "manual" -> {
+                        val template = ManualDatabase.getById(item.itemId)
+                        if (template != null) {
+                            repeat(item.quantity) {
+                                val manual = Manual(
+                                    id = java.util.UUID.randomUUID().toString(),
+                                    name = template.name,
+                                    rarity = item.rarity,
+                                    description = template.description,
+                                    type = template.type,
+                                    stats = template.stats,
+                                    minRealm = GameConfig.Realm.getMinRealmForRarity(item.rarity)
+                                )
+                                if (_manuals.value.none { it.name == manual.name }) {
+                                    _manuals.value = _manuals.value + manual
+                                }
+                            }
+                        } else {
+                            Log.w(TAG, "无法找到功法模板: ${item.itemId}, 物品: ${item.itemName}")
+                        }
+                    }
+                    "material" -> {
+                        val existingMaterial = _materials.value.find { it.name == item.itemName }
+                        if (existingMaterial != null) {
+                            _materials.value = _materials.value.map { 
+                                if (it.name == item.itemName) it.copy(quantity = it.quantity + item.quantity) else it 
+                            }
+                        } else {
+                            val material = Material(
+                                id = java.util.UUID.randomUUID().toString(),
+                                name = item.itemName,
+                                rarity = item.rarity,
+                                quantity = item.quantity
+                            )
+                            _materials.value = _materials.value + material
+                        }
+                    }
+                    "herb" -> {
+                        val existingHerb = _herbs.value.find { it.name == item.itemName }
+                        if (existingHerb != null) {
+                            _herbs.value = _herbs.value.map { 
+                                if (it.name == item.itemName) it.copy(quantity = it.quantity + item.quantity) else it 
+                            }
+                        } else {
+                            val herb = Herb(
+                                id = java.util.UUID.randomUUID().toString(),
+                                name = item.itemName,
+                                rarity = item.rarity,
+                                quantity = item.quantity
+                            )
+                            _herbs.value = _herbs.value + herb
+                        }
+                    }
+                    "seed" -> {
+                        val existingSeed = _seeds.value.find { it.name == item.itemName }
+                        if (existingSeed != null) {
+                            _seeds.value = _seeds.value.map { 
+                                if (it.name == item.itemName) it.copy(quantity = it.quantity + item.quantity) else it 
+                            }
+                        } else {
+                            val seed = Seed(
+                                id = java.util.UUID.randomUUID().toString(),
+                                name = item.itemName,
+                                rarity = item.rarity,
+                                quantity = item.quantity
+                            )
+                            _seeds.value = _seeds.value + seed
+                        }
+                    }
+                }
+            }
+            
+            val totalItems = sectWarehouse.items.sumOf { it.quantity }
+            warehouseItemText = "，获得仓库内${totalItems}件物品和${sectWarehouse.spiritStones}灵石"
+        }
+        
+        val updatedSects = data.worldMapSects.map { sect ->
+            if (sect.id == currentTargetSect.id) {
+                sect.copy(
+                    isPlayerOccupied = true,
+                    occupierBattleTeamId = battleTeam.id,
+                    aiDisciples = emptyList(),
+                    warehouse = SectWarehouse()
+                )
+            } else {
+                sect
+            }
+        }
+        
+        when (currentTargetSect.levelName) {
+            "小型宗门" -> {
+                val currentSize = data.spiritMineSlots.size
+                val newSlots = (0 until 3).map { index ->
+                    SpiritMineSlot(index = currentSize + index)
+                }
+                _gameData.value = data.copy(spiritMineSlots = data.spiritMineSlots + newSlots)
+                addEvent("占领小型宗门${currentTargetSect.name}，灵矿槽位+3", EventType.SUCCESS)
+            }
+            "中型宗门" -> {
+                val currentSize = _alchemySlots.value.size
+                val newSlots = (0 until 3).map { index ->
+                    AlchemySlot(slotIndex = currentSize + index)
+                }
+                _alchemySlots.value = _alchemySlots.value + newSlots
+                addEvent("占领中型宗门${currentTargetSect.name}，炼丹槽位+3", EventType.SUCCESS)
+            }
+            "大型宗门" -> {
+                val currentSize = _buildingSlots.value.size
+                val newSlots = (0 until 3).map { index ->
+                    BuildingSlot(slotIndex = currentSize + index, type = SlotType.FORGING)
+                }
+                _buildingSlots.value = _buildingSlots.value + newSlots
+                addEvent("占领大型宗门${currentTargetSect.name}，炼器槽位+3", EventType.SUCCESS)
+            }
+            "顶级宗门" -> {
+                val currentSize = data.librarySlots.size
+                val newSlots = (0 until 3).map { index ->
+                    LibrarySlot(index = currentSize + index)
+                }
+                _gameData.value = _gameData.value.copy(librarySlots = data.librarySlots + newSlots)
+                addEvent("占领顶级宗门${currentTargetSect.name}，藏经阁槽位+3", EventType.SUCCESS)
+            }
+        }
+        
+        val updatedTeam = battleTeam.copy(
+            status = "stationed",
+            isAtSect = false,
+            isOccupying = true,
+            occupiedSectId = currentTargetSect.id,
+            targetSectId = null,
+            route = emptyList(),
+            currentRouteIndex = 0,
+            moveProgress = 0f,
+            isReturning = false,
+            currentX = currentTargetSect.x,
+            currentY = currentTargetSect.y
+        )
+        
+        _gameData.value = _gameData.value.copy(
+            worldMapSects = updatedSects,
+            battleTeam = updatedTeam
+        )
+        
+        addEvent("成功占领${targetSect.name}，获得${aliveAiDisciples.size}名弟子${warehouseItemText}", EventType.SUCCESS)
+    }
+    
     private fun triggerScoutBattleOnArrival(team: ExplorationTeam) {
         val currentTeam = _teams.value.find { it.id == team.id }
         if (currentTeam?.status != ExplorationStatus.SCOUTING) {
@@ -605,6 +1515,7 @@ class GameEngine {
     }
     
     fun processSecondTick() {
+        val startTime = System.currentTimeMillis()
         tickCounter++
         
         val isSecondTick = tickCounter >= TICKS_PER_SECOND
@@ -612,29 +1523,44 @@ class GameEngine {
             tickCounter = 0
         }
         
+        val data = _gameData.value
+        
         try {
             processDiscipleCultivation(isSecondTick)
         } catch (e: Exception) {
-            Log.e("GameEngine", "Error in processDiscipleCultivation", e)
+            Log.e(TAG, "Error in processDiscipleCultivation - " +
+                "Game: Year=${data.gameYear}, Month=${data.gameMonth}, Day=${data.gameDay}, " +
+                "Disciples count=${_disciples.value.size}", e)
         }
+        
         try {
             processManualProficiencyPerSecond(isSecondTick)
         } catch (e: Exception) {
-            Log.e("GameEngine", "Error in processManualProficiencyPerSecond", e)
+            Log.e(TAG, "Error in processManualProficiencyPerSecond - " +
+                "Game: Year=${data.gameYear}, Month=${data.gameMonth}, Day=${data.gameDay}, " +
+                "Manuals count=${_manuals.value.size}", e)
         }
+        
         try {
             processEquipmentAutoNurture(isSecondTick)
         } catch (e: Exception) {
-            Log.e("GameEngine", "Error in processEquipmentAutoNurture", e)
-        }
-        try {
-            processWarTeamTravel()
-        } catch (e: Exception) {
-            Log.e("GameEngine", "Error in processWarTeamTravel", e)
+            Log.e(TAG, "Error in processEquipmentAutoNurture - " +
+                "Game: Year=${data.gameYear}, Month=${data.gameMonth}, Day=${data.gameDay}, " +
+                "Equipment count=${_equipment.value.size}", e)
         }
         
         if (isSecondTick) {
-            processRealTimeUpdates()
+            try {
+                processRealTimeUpdates()
+            } catch (e: Exception) {
+                Log.e(TAG, "Error in processRealTimeUpdates - " +
+                    "Game: Year=${data.gameYear}, Month=${data.gameMonth}, Day=${data.gameDay}", e)
+            }
+        }
+        
+        val elapsed = System.currentTimeMillis() - startTime
+        if (elapsed > 50) {
+            Log.w(TAG, "processSecondTick took ${elapsed}ms (isSecondTick=$isSecondTick)")
         }
     }
     
@@ -669,6 +1595,8 @@ class GameEngine {
     }
     
     private fun processMonthlyEvents(year: Int, month: Int) {
+        val data = _gameData.value
+        
         val operations = listOf(
             "payMonthlySalary" to { payMonthlySalary() },
             "processBuildingSlots" to { processBuildingSlots(year, month) },
@@ -680,24 +1608,24 @@ class GameEngine {
             "processAlchemySlots" to { processAlchemySlots(year, month) },
             "processManualProficiency" to { processManualProficiency() },
             "processDiscipleAutoEquip" to { processDiscipleAutoEquip() },
-            "checkTournament" to { checkTournament(year) },
-            "checkOuterDiscipleTournament" to { checkOuterDiscipleTournament(year) },
             "processPillEffectDuration" to { processPillEffectDuration() },
             "processCaveLifecycle" to { processCaveLifecycle(year, month) },
-            "processWarTeamsMonthly" to { processWarTeamsMonthly(year, month) },
             "processLoyaltyDesertion" to { processLoyaltyDesertion() },
-            "processEnhancedSecurity" to { processEnhancedSecurity() },
+            "processPolicyCosts" to { processPolicyCosts() },
             "processMoralityTheft" to { processMoralityTheft() },
             "processLawEnforcementReserveAutoFill" to { processLawEnforcementReserveAutoFill() },
+            "processHerbGardenReserveAutoFill" to { processHerbGardenReserveAutoFill() },
+            "processAlchemyReserveAutoFill" to { processAlchemyReserveAutoFill() },
+            "processForgeReserveAutoFill" to { processForgeReserveAutoFill() },
             "processReflectionEnd" to { processReflectionEnd(year) },
             "checkAllianceExpiry" to { checkAllianceExpiry(year) },
             "checkAllianceFavorDrop" to { checkAllianceFavorDrop() },
             "processAIAlliances" to { processAIAlliances(year) },
             "processCrossSectPartnerMatching" to { processCrossSectPartnerMatching(year, month) },
             "processCrossSectChildGeneration" to { processCrossSectChildGeneration(year) },
-            "processSupportTeamsMonthly" to { processSupportTeamsMonthly(year, month) },
             "processDiplomaticEvents" to { processDiplomaticEvents(year) },
             "processScoutInfoExpiry" to { processScoutInfoExpiry(year, month) },
+            "processAISectAttackDecisions" to { processAISectAttackDecisions() },
             "resetMonthlyUsedPills" to { resetMonthlyUsedPills() }
         )
 
@@ -705,7 +1633,9 @@ class GameEngine {
             try {
                 operation()
             } catch (e: Exception) {
-                Log.e("GameEngine", "Error in $name", e)
+                Log.e(TAG, "Error in $name - " +
+                    "Game: Year=$year, Month=$month, Sect=${data.sectName}, " +
+                    "Disciples=${_disciples.value.size}, SpiritStones=${data.spiritStones}", e)
             }
         }
 
@@ -713,14 +1643,32 @@ class GameEngine {
         // 招募弟子列表每年一月刷新
         // 重置所有宗门的送礼限制
         if (month == 1) {
-            try {
-                processAging(year)
-                refreshRecruitList(year)
-                resetSectGiftYear()
-                processSectRelationNaturalChange(year)
-            } catch (e: Exception) {
-                Log.e("GameEngine", "Error in yearly operations", e)
+            val yearlyOperations = listOf(
+                "processAging" to { processAging(year) },
+                "refreshRecruitList" to { refreshRecruitList(year) },
+                "resetSectGiftYear" to { resetSectGiftYear() },
+                "processSectRelationNaturalChange" to { processSectRelationNaturalChange(year) },
+                "processAISectDisciplesRecruitment" to { processAISectDisciplesRecruitment(year) },
+                "processAISectDisciplesAging" to { processAISectDisciplesAging(year) },
+                "generateYearlyItemsForAISects" to { generateYearlyItemsForAISects() },
+                "processOuterTournament" to { processOuterTournament(year) }
+            )
+            
+            yearlyOperations.forEach { (name, operation) ->
+                try {
+                    operation()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error in yearly operation $name - " +
+                        "Game: Year=$year, Sect=${data.sectName}", e)
+                }
             }
+        }
+        
+        try {
+            processAISectDisciplesCultivation()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in processAISectDisciplesCultivation - " +
+                "Game: Year=$year, Month=$month, Sect=${data.sectName}", e)
         }
     }
 
@@ -732,28 +1680,32 @@ class GameEngine {
     private fun resetSectGiftYear() {
         val data = _gameData.value
         val previousYear = data.gameYear - 1
+        val playerSect = data.worldMapSects.find { it.isPlayerSect }
         
         val updatedSects = data.worldMapSects.map { sect ->
-            // 只对AI宗门（非玩家宗门）进行处理
             if (sect.id != "player") {
-                // 检查是否在上一年收到过礼物（lastGiftYear == previousYear表示收到过）
-                if (sect.lastGiftYear != previousYear) {
-                    // 未收到礼物，好感度减一（最低为0）
-                    val newRelation = (sect.relation - 1).coerceAtLeast(0)
-                    sect.copy(
-                        lastGiftYear = 0,
-                        relation = newRelation
-                    )
-                } else {
-                    // 收到过礼物，只重置lastGiftYear
-                    sect.copy(lastGiftYear = 0)
-                }
+                sect.copy(lastGiftYear = 0)
             } else {
-                // 玩家宗门只重置lastGiftYear
                 sect.copy(lastGiftYear = 0)
             }
         }
-        _gameData.value = data.copy(worldMapSects = updatedSects)
+
+        var updatedRelations = data.sectRelations.toMutableList()
+        if (playerSect != null) {
+            for (i in updatedRelations.indices) {
+                val relation = updatedRelations[i]
+                if (relation.sectId1 == playerSect.id || relation.sectId2 == playerSect.id) {
+                    val otherSectId = if (relation.sectId1 == playerSect.id) relation.sectId2 else relation.sectId1
+                    val targetSect = data.worldMapSects.find { it.id == otherSectId }
+                    if (targetSect != null && targetSect.lastGiftYear != previousYear) {
+                        val newFavor = (relation.favor - 1).coerceAtLeast(0)
+                        updatedRelations[i] = relation.copy(favor = newFavor, lastInteractionYear = data.gameYear)
+                    }
+                }
+            }
+        }
+
+        _gameData.value = data.copy(worldMapSects = updatedSects, sectRelations = updatedRelations)
     }
     
     /**
@@ -778,21 +1730,7 @@ class GameEngine {
                 val index = updatedRelations.indexOfFirst { it.sectId1 == id1 && it.sectId2 == id2 }
                 val currentFavor = if (index >= 0) updatedRelations[index].favor else 30
                 
-                var naturalChange = Random.nextInt(-3, 4)
-                
-                if (sect1.isRighteous == sect2.isRighteous) {
-                    naturalChange += 1
-                }
-                
-                val isAdjacent = sect1.connectedSectIds.contains(sect2.id)
-                if (isAdjacent) {
-                    naturalChange += Random.nextInt(-1, 2)
-                }
-                
-                val levelDiff = kotlin.math.abs(sect1.level - sect2.level)
-                if (levelDiff > 2) {
-                    naturalChange -= 1
-                }
+                val naturalChange = if (Random.nextBoolean()) Random.nextInt(1, 6) else -Random.nextInt(1, 6)
                 
                 val newFavor = (currentFavor + naturalChange).coerceIn(0, 100)
                 
@@ -839,33 +1777,65 @@ class GameEngine {
         
         val eventRoll = Random.nextDouble()
         val (favorDelta, eventText) = when {
-            eventRoll < 0.2 -> {
+            eventRoll < 0.12 -> {
                 val delta = Random.nextInt(8, 16)
                 Pair(delta, "${sect1.name}与${sect2.name}互赠礼物，关系改善")
             }
-            eventRoll < 0.35 -> {
+            eventRoll < 0.22 -> {
                 val delta = Random.nextInt(5, 11)
                 Pair(delta, "${sect1.name}与${sect2.name}进行友好交流，关系增进")
             }
-            eventRoll < 0.5 -> {
+            eventRoll < 0.30 -> {
                 val delta = Random.nextInt(3, 8)
                 Pair(delta, "${sect1.name}与${sect2.name}达成资源互换协议")
+            }
+            eventRoll < 0.36 -> {
+                val delta = Random.nextInt(10, 21)
+                Pair(delta, "${sect1.name}与${sect2.name}因共同危机而关系升温")
+            }
+            eventRoll < 0.43 -> {
+                val delta = Random.nextInt(6, 13)
+                Pair(delta, "${sect1.name}与${sect2.name}联合探索秘境，共享收获")
+            }
+            eventRoll < 0.48 -> {
+                val delta = Random.nextInt(4, 9)
+                Pair(delta, "${sect1.name}与${sect2.name}交换弟子进行交流学习")
+            }
+            eventRoll < 0.52 -> {
+                val delta = Random.nextInt(5, 11)
+                Pair(delta, "${sect1.name}与${sect2.name}联合举办比武大会")
+            }
+            eventRoll < 0.55 -> {
+                val delta = Random.nextInt(12, 19)
+                Pair(delta, "${sect1.name}与${sect2.name}缔结姻亲之约")
             }
             eventRoll < 0.65 -> {
                 val delta = -Random.nextInt(5, 11)
                 Pair(delta, "${sect1.name}与${sect2.name}发生边界争端")
             }
-            eventRoll < 0.8 -> {
+            eventRoll < 0.75 -> {
                 val delta = -Random.nextInt(8, 16)
                 Pair(delta, "${sect1.name}与${sect2.name}产生误会，关系恶化")
             }
-            eventRoll < 0.9 -> {
+            eventRoll < 0.81 -> {
                 val delta = -Random.nextInt(12, 21)
                 Pair(delta, "${sect1.name}背后诋毁${sect2.name}，关系急剧恶化")
             }
+            eventRoll < 0.87 -> {
+                val delta = -Random.nextInt(6, 13)
+                Pair(delta, "${sect1.name}与${sect2.name}争夺灵矿资源发生冲突")
+            }
+            eventRoll < 0.92 -> {
+                val delta = -Random.nextInt(8, 15)
+                Pair(delta, "${sect1.name}挖角${sect2.name}核心弟子")
+            }
+            eventRoll < 0.96 -> {
+                val delta = -Random.nextInt(15, 26)
+                Pair(delta, "${sect1.name}发现${sect2.name}派遣间谍")
+            }
             else -> {
-                val delta = Random.nextInt(10, 21)
-                Pair(delta, "${sect1.name}与${sect2.name}因共同危机而关系升温")
+                val delta = -Random.nextInt(5, 11)
+                Pair(delta, "${sect1.name}拒绝${sect2.name}紧急援助请求")
             }
         }
         
@@ -1226,9 +2196,18 @@ class GameEngine {
             mutableSeeds.removeAt(seedIndex)
         }
         
-        // 计算实际耗时（考虑速度加成 + 长老/亲传弟子加成）
+        // 计算实际耗时（考虑速度加成 + 长老/亲传弟子加成 + 灵药培育政策加成）
         val baseDuration = seed.growTime
-        val actualDuration = (baseDuration * (1.0 - elderBonus.speedBonus)).toInt().coerceAtLeast(1)
+        var speedBonus = elderBonus.speedBonus
+        
+        // 灵药培育政策加成
+        if (_gameData.value.sectPolicies.herbCultivation) {
+            val basePolicyBonus = 0.20
+            val viceSectMasterBonus = calculateViceSectMasterPolicyBonus()
+            speedBonus += basePolicyBonus * (1 + viceSectMasterBonus)
+        }
+        
+        val actualDuration = (baseDuration * (1.0 - speedBonus)).toInt().coerceAtLeast(1)
         
         // 计算实际产量（考虑产量加成）
         val baseYield = seed.yield
@@ -1261,7 +2240,7 @@ class GameEngine {
                     if (recipe != null) {
                         val elderBonus = calculateElderAndDisciplesBonus("alchemy")
                         val totalSuccessBonus = elderBonus.successBonus
-                        val finalSuccessRate = (recipe.successRate + totalSuccessBonus).coerceAtMost(0.95)
+                        val finalSuccessRate = recipe.successRate + totalSuccessBonus
                         
                         val success = Random.nextDouble() < finalSuccessRate
                         
@@ -1304,6 +2283,11 @@ class GameEngine {
                     }
                 }
                 
+                // 同步更新 _buildingSlots
+                _buildingSlots.value = _buildingSlots.value.filter {
+                    !(it.buildingId == "alchemyRoom" && it.slotIndex == slot.slotIndex)
+                }
+
                 AlchemySlot(
                     id = slot.id,
                     slotIndex = slot.slotIndex,
@@ -1801,7 +2785,9 @@ class GameEngine {
             manuals[item.itemId] ?: createManualFromStorageItem(item)
         }.filter { manual ->
             // 如果已有心法，过滤掉心法类型；否则可以学习所有类型
-            if (hasMindManual) manual.type != ManualType.MIND else true
+            // 同时过滤掉境界不足的功法
+            val canLearnByRealm = disciple.realm <= manual.minRealm
+            if (hasMindManual) manual.type != ManualType.MIND && canLearnByRealm else canLearnByRealm
         }
 
         if (bagManuals.isEmpty()) {
@@ -2130,7 +3116,8 @@ class GameEngine {
         }.mapNotNull { item ->
             manuals[item.itemId] ?: createManualFromStorageItem(item)
         }.filter { manual ->
-            if (hasMindManual) manual.type != ManualType.MIND else true
+            val canLearnByRealm = disciple.realm <= manual.minRealm
+            if (hasMindManual) manual.type != ManualType.MIND && canLearnByRealm else canLearnByRealm
         }
 
         if (bagManuals.isEmpty()) {
@@ -2227,61 +3214,6 @@ class GameEngine {
         return InstantManualResult(updatedDisciple, events)
     }
 
-    private fun checkTournament(year: Int) {
-        autoHoldTournamentsIfNeeded()
-    }
-    
-    private fun checkOuterDiscipleTournament(year: Int) {
-        val data = _gameData.value
-        if (year - data.outerTournamentLastYear < 3) return
-        
-        val outerDisciples = _disciples.value.filter { 
-            it.isAlive && it.discipleType == "outer" 
-        }
-        
-        if (outerDisciples.size < 2) {
-            _gameData.value = data.copy(outerTournamentLastYear = year)
-            return
-        }
-        
-        val equipmentMap = _equipment.value.associateBy { it.id }
-        val manualMap = _manuals.value.associateBy { it.id }
-        val allManualProficiencies = data.manualProficiencies
-        
-        val sortedDisciples = outerDisciples.sortedByDescending { disciple ->
-            val proficienciesMap = (allManualProficiencies[disciple.id] ?: emptyList())
-                .associateBy { it.manualId }
-            val stats = disciple.getFinalStats(equipmentMap, manualMap, proficienciesMap)
-            stats.physicalAttack + stats.magicAttack + stats.physicalDefense + stats.magicDefense
-        }
-        
-        val top20 = sortedDisciples.take(20)
-        val promotedCount = top20.size
-        
-        if (promotedCount > 0) {
-            val promotedIds = top20.map { it.id }.toSet()
-            
-            _disciples.value = _disciples.value.map { disciple ->
-                if (disciple.id in promotedIds) {
-                    disciple.copy(discipleType = "inner")
-                } else {
-                    disciple
-                }
-            }
-            
-            _gameData.value = data.copy(outerTournamentLastYear = year)
-            
-            val promotedNames = top20.take(5).map { it.name }
-            val nameList = if (top20.size <= 5) {
-                promotedNames.joinToString("、")
-            } else {
-                "${promotedNames.joinToString("、")}等${promotedCount}人"
-            }
-            
-            addEvent("外门弟子大比结束！$nameList 晋升为内门弟子，可在青云峰分配任务", EventType.SUCCESS)
-        }
-    }
-    
     private fun checkMerchantRefresh(year: Int) {
         val data = _gameData.value
         // 每五年刷新一次（年份是5的倍数时刷新）
@@ -2389,6 +3321,8 @@ class GameEngine {
     
     private fun processDiscipleCultivation(isSecondTick: Boolean = true) {
         val librarySlots = _gameData.value.librarySlots
+        val wenDaoTeachingBonus = calculateWenDaoPeakTeachingBonus()
+        val qingyunTeachingBonus = calculateQingyunPeakTeachingBonus()
         
         val updatedDisciples = _disciples.value.map { disciple ->
             if (!disciple.isAlive || !disciple.canCultivate) {
@@ -2410,6 +3344,36 @@ class GameEngine {
 
             val talentBonus = calculateTalentCultivationBonus(currentDisciple)
             speed *= (1 + talentBonus)
+            
+            /**
+             * 修行津贴政策效果计算
+             * 
+             * 基础效果：化神境以下弟子修炼速度+15%
+             * 副宗主加成：智力50为基准，每多5点+1%
+             * 消耗：每月4000灵石
+             * 
+             * 计算公式：
+             * 实际修炼速度加成 = 15% × (1 + 副宗主加成)
+             * 
+             * 示例（副宗主智力60）：
+             * 副宗主加成 = (60-50)/5 × 1% = 2%
+             * 实际修炼速度加成 = 15% × 1.02 = 15.3%
+             */
+            if (_gameData.value.sectPolicies.cultivationSubsidy && disciple.realm < 5) {
+                val basePolicyBonus = GameConfig.PolicyConfig.CULTIVATION_SUBSIDY_BASE_EFFECT
+                val viceSectMasterBonus = calculateViceSectMasterPolicyBonus()
+                speed *= (1 + basePolicyBonus * (1 + viceSectMasterBonus))
+            }
+
+            // 外门弟子享受问道峰传道加成
+            if (disciple.discipleType == "outer" && wenDaoTeachingBonus > 0) {
+                speed *= (1 + wenDaoTeachingBonus)
+            }
+
+            // 内门弟子享受青云峰传道加成
+            if (disciple.discipleType == "inner" && qingyunTeachingBonus > 0) {
+                speed *= (1 + qingyunTeachingBonus)
+            }
 
             val tickMultiplier = 1.0 / TICKS_PER_SECOND
             val totalGain = speed * tickMultiplier
@@ -2477,6 +3441,29 @@ class GameEngine {
 
             val talentEffects = TalentDatabase.calculateTalentEffects(disciple.talentIds)
             val manualLearnSpeedBonus = talentEffects["manualLearnSpeed"] ?: 0.0
+            
+            /**
+             * 功法研习政策效果计算
+             * 
+             * 基础效果：功法修炼速度+20%
+             * 副宗主加成：智力50为基准，每多5点+1%
+             * 消耗：每月4000灵石
+             * 
+             * 计算公式：
+             * 实际功法修炼速度加成 = 20% × (1 + 副宗主加成)
+             * 
+             * 示例（副宗主智力75）：
+             * 副宗主加成 = (75-50)/5 × 1% = 5%
+             * 实际功法修炼速度加成 = 20% × 1.05 = 21%
+             */
+            var policyManualBonus = 0.0
+            if (_gameData.value.sectPolicies.manualResearch) {
+                val basePolicyBonus = GameConfig.PolicyConfig.MANUAL_RESEARCH_BASE_EFFECT
+                val viceSectMasterBonus = calculateViceSectMasterPolicyBonus()
+                policyManualBonus = basePolicyBonus * (1 + viceSectMasterBonus)
+            }
+            
+            val totalManualBonus = manualLearnSpeedBonus + policyManualBonus
 
             disciple.manualIds.forEach { manualId ->
                 val manual = _manuals.value.find { it.id == manualId } ?: return@forEach
@@ -2487,7 +3474,7 @@ class GameEngine {
                     discipleRealm = disciple.realm,
                     manualRarity = manual.rarity,
                     libraryBonus = libraryBonus,
-                    talentBonus = manualLearnSpeedBonus
+                    talentBonus = totalManualBonus
                 )
 
                 if (existingIndex >= 0) {
@@ -2610,6 +3597,11 @@ class GameEngine {
     private fun autoUseBreakthroughPills(disciple: Disciple): Pair<Disciple, Double> {
         if (disciple.storageBagItems.isEmpty()) return Pair(disciple, 0.0)
         
+        // 只有大境界突破才使用突破丹药
+        if (!TribulationSystem.isBigBreakthrough(disciple)) {
+            return Pair(disciple, 0.0)
+        }
+        
         val breakthroughPill = disciple.storageBagItems.find { item ->
             item.itemType == "pill" && item.effect?.breakthroughChance != null && item.effect.breakthroughChance > 0
         }
@@ -2727,7 +3719,32 @@ class GameEngine {
             return disciple
         }
 
-        val chance = disciple.getBreakthroughChance(pillBonus)
+        // 获取内门长老悟性加成（仅对内门弟子生效）
+        var innerElderComprehension = 0
+        if (disciple.discipleType == "inner") {
+            val innerElderId = _gameData.value.elderSlots.innerElder
+            if (innerElderId != null) {
+                val innerElder = _disciples.value.find { it.id == innerElderId }
+                if (innerElder != null && innerElder.isAlive) {
+                    innerElderComprehension = innerElder.comprehension
+                }
+            }
+        }
+
+        // 获取外门长老悟性加成（仅对外门弟子生效）
+        var outerElderComprehensionBonus = 0.0
+        if (disciple.discipleType == "outer") {
+            val outerElderId = _gameData.value.elderSlots.outerElder
+            if (outerElderId != null) {
+                val outerElder = _disciples.value.find { it.id == outerElderId }
+                if (outerElder != null && outerElder.isAlive) {
+                    // 外门长老悟性加成：以50为基准，每高5点增加1%，每低5点减少1%
+                    outerElderComprehensionBonus = (outerElder.comprehension - 50) / 5.0 * 0.01
+                }
+            }
+        }
+
+        val chance = disciple.getBreakthroughChance(pillBonus, innerElderComprehension, outerElderComprehensionBonus)
         val isBigBreakthrough = TribulationSystem.isBigBreakthrough(disciple)
 
         if (isBigBreakthrough) {
@@ -2851,14 +3868,30 @@ class GameEngine {
         
         if (mineSlots.isEmpty()) return
         
-        // 计算长老和亲传弟子的产量加成
-        val elderBonus = calculateElderAndDisciplesBonus("spiritMine")
-        var yieldMultiplier = 1.0 + elderBonus.yieldBonus
+        // 计算执事道德加成
+        val deaconBonus = calculateSpiritMineDeaconBonus()
         
-        // 灵矿增产政策：产出+20%
+        var yieldMultiplier = 1.0 + deaconBonus
+        
+        /**
+         * 灵矿增产政策效果计算
+         * 
+         * 基础效果：灵石产出+20%
+         * 副宗主加成：智力50为基准，每多5点+1%
+         * 副作用：采矿弟子忠诚度每月-1
+         * 
+         * 计算公式：
+         * 实际产出倍数 = 1.0 + 20% × (1 + 副宗主加成)
+         * 
+         * 示例（副宗主智力70）：
+         * 副宗主加成 = (70-50)/5 × 1% = 4%
+         * 实际产出倍数 = 1.0 + 20% × 1.04 = 1.208 (即+20.8%)
+         */
         val spiritMineBoostEnabled = data.sectPolicies.spiritMineBoost
         if (spiritMineBoostEnabled) {
-            yieldMultiplier += 0.2
+            val baseBonus = GameConfig.PolicyConfig.SPIRIT_MINE_BOOST_BASE_EFFECT
+            val viceSectMasterBonus = calculateViceSectMasterPolicyBonus()
+            yieldMultiplier += baseBonus * (1 + viceSectMasterBonus)
         }
         
         var totalOutput = 0L
@@ -2902,11 +3935,28 @@ class GameEngine {
         
         if (totalOutput > 0) {
             _gameData.value = _gameData.value.copy(spiritStones = _gameData.value.spiritStones + totalOutput)
-            val bonusText = if (elderBonus.yieldBonus != 0.0) {
-                " (长老加成${if (elderBonus.yieldBonus > 0) "+" else ""}${GameUtils.formatPercent(elderBonus.yieldBonus)})"
+            val deaconBonusText = if (deaconBonus > 0) {
+                " (执事加成+${GameUtils.formatPercent(deaconBonus)})"
             } else ""
             val policyText = if (spiritMineBoostEnabled) " (增产令+20%)" else ""
-            addEvent("灵矿场${workingDiscipleCount}名弟子开采获得${totalOutput}灵石${bonusText}${policyText}", EventType.SUCCESS)
+            addEvent("灵矿场${workingDiscipleCount}名弟子开采获得${totalOutput}灵石${deaconBonusText}${policyText}", EventType.SUCCESS)
+        }
+    }
+    
+    /**
+     * 计算灵矿执事的道德加成
+     * 以道德50为基准，每高5点增加2%产量
+     */
+    private fun calculateSpiritMineDeaconBonus(): Double {
+        val data = _gameData.value
+        val deaconSlots = data.elderSlots.spiritMineDeaconDisciples
+        
+        return deaconSlots.mapNotNull { slot ->
+            slot.discipleId?.let { id -> _disciples.value.find { it.id == id } }
+        }.sumOf { disciple ->
+            // 以道德50为基准，每高5点增加2%产量
+            val moralityDiff = disciple.morality - 50
+            (moralityDiff / 5.0) * 0.02
         }
     }
     
@@ -2920,8 +3970,30 @@ class GameEngine {
         // 计算成功率加成
         val disciple = _disciples.value.find { it.id == slot.discipleId }
         val discipleSuccessBonus = calculateSuccessRateBonus(disciple, "alchemyRoom")
-        val totalSuccessBonus = discipleSuccessBonus + elderBonus.successBonus
-        val finalSuccessRate = (recipe.successRate + totalSuccessBonus).coerceAtMost(0.95)
+        
+        /**
+         * 丹道激励政策效果计算
+         * 
+         * 基础效果：炼丹成功率+10%
+         * 副宗主加成：智力50为基准，每多5点+1%
+         * 消耗：每月3000灵石
+         * 
+         * 计算公式：
+         * 实际成功率加成 = 10% × (1 + 副宗主加成)
+         * 
+         * 示例（副宗主智力60）：
+         * 副宗主加成 = (60-50)/5 × 1% = 2%
+         * 实际成功率加成 = 10% × 1.02 = 10.2%
+         */
+        var policySuccessBonus = 0.0
+        if (_gameData.value.sectPolicies.alchemyIncentive) {
+            val baseBonus = GameConfig.PolicyConfig.ALCHEMY_INCENTIVE_BASE_EFFECT
+            val viceSectMasterBonus = calculateViceSectMasterPolicyBonus()
+            policySuccessBonus = baseBonus * (1 + viceSectMasterBonus)
+        }
+        
+        val totalSuccessBonus = discipleSuccessBonus + elderBonus.successBonus + policySuccessBonus
+        val finalSuccessRate = recipe.successRate + totalSuccessBonus
 
         val success = Random.nextDouble() < finalSuccessRate
 
@@ -3004,9 +4076,8 @@ class GameEngine {
                 }.filter { it.quantity > 0 }
             }
 
-            // 计算实际耗时（考虑速度加成 + 长老/亲传弟子加成）
-            val baseDuration = calculateWorkDurationWithAllDisciples(recipe.duration, "alchemyRoom")
-            val actualDuration = (baseDuration * (1.0 - elderBonus.speedBonus)).toInt().coerceAtLeast(1)
+            // 计算实际耗时（已在 calculateWorkDurationWithAllDisciples 中包含长老/亲传弟子速度加成）
+            val actualDuration = calculateWorkDurationWithAllDisciples(recipe.duration, "alchemyRoom")
 
             // 更新槽位状态，继续炼制同一种丹药
             val data = _gameData.value
@@ -3019,6 +4090,32 @@ class GameEngine {
 
             _buildingSlots.value = _buildingSlots.value.map {
                 if (it.id == slot.id) updatedSlot else it
+            }
+
+            // 同步更新 _alchemySlots
+            val newAlchemySlot = AlchemySlot(
+                slotIndex = slot.slotIndex,
+                recipeId = recipe.id,
+                recipeName = recipe.name,
+                pillName = recipe.name,
+                pillRarity = recipe.rarity,
+                startYear = data.gameYear,
+                startMonth = data.gameMonth,
+                duration = actualDuration,
+                status = AlchemySlotStatus.WORKING,
+                successRate = recipe.successRate,
+                requiredMaterials = recipe.materials
+            )
+            val currentAlchemySlots = _alchemySlots.value
+            if (slot.slotIndex < currentAlchemySlots.size) {
+                _alchemySlots.value = currentAlchemySlots.mapIndexed { index, s -> if (index == slot.slotIndex) newAlchemySlot else s }
+            } else {
+                val filledSlots = currentAlchemySlots.toMutableList()
+                while (filledSlots.size < slot.slotIndex) {
+                    filledSlots.add(AlchemySlot(slotIndex = filledSlots.size))
+                }
+                filledSlots.add(newAlchemySlot)
+                _alchemySlots.value = filledSlots
             }
 
             val bonusPercent = ((recipe.duration - actualDuration) * 100 / recipe.duration)
@@ -3036,6 +4133,32 @@ class GameEngine {
             _buildingSlots.value = _buildingSlots.value.map {
                 if (it.id == slot.id) idleSlot else it
             }
+
+            // 同步更新 _alchemySlots 为空闲状态
+            val currentAlchemySlots = _alchemySlots.value
+            if (slot.slotIndex < currentAlchemySlots.size) {
+                _alchemySlots.value = currentAlchemySlots.mapIndexed { index, s ->
+                    if (index == slot.slotIndex) {
+                        AlchemySlot(
+                            slotIndex = slot.slotIndex,
+                            status = AlchemySlotStatus.IDLE
+                        )
+                    } else {
+                        s
+                    }
+                }
+            } else {
+                val filledSlots = currentAlchemySlots.toMutableList()
+                while (filledSlots.size < slot.slotIndex) {
+                    filledSlots.add(AlchemySlot(slotIndex = filledSlots.size))
+                }
+                filledSlots.add(AlchemySlot(
+                    slotIndex = slot.slotIndex,
+                    status = AlchemySlotStatus.IDLE
+                ))
+                _alchemySlots.value = filledSlots
+            }
+
             addEvent("草药不足，无法自动续炼${recipe.name}", EventType.WARNING)
         }
     }
@@ -3050,8 +4173,30 @@ class GameEngine {
         // 计算成功率加成
         val disciple = _disciples.value.find { it.id == slot.discipleId }
         val discipleSuccessBonus = calculateSuccessRateBonus(disciple, "forge")
-        val totalSuccessBonus = discipleSuccessBonus + elderBonus.successBonus
-        val finalSuccessRate = (recipe.successRate + totalSuccessBonus).coerceAtMost(0.95)
+        
+        /**
+         * 锻造激励政策效果计算
+         * 
+         * 基础效果：锻造成功率+10%
+         * 副宗主加成：智力50为基准，每多5点+1%
+         * 消耗：每月3000灵石
+         * 
+         * 计算公式：
+         * 实际成功率加成 = 10% × (1 + 副宗主加成)
+         * 
+         * 示例（副宗主智力55）：
+         * 副宗主加成 = (55-50)/5 × 1% = 1%
+         * 实际成功率加成 = 10% × 1.01 = 10.1%
+         */
+        var policySuccessBonus = 0.0
+        if (_gameData.value.sectPolicies.forgeIncentive) {
+            val baseBonus = GameConfig.PolicyConfig.FORGE_INCENTIVE_BASE_EFFECT
+            val viceSectMasterBonus = calculateViceSectMasterPolicyBonus()
+            policySuccessBonus = baseBonus * (1 + viceSectMasterBonus)
+        }
+        
+        val totalSuccessBonus = discipleSuccessBonus + elderBonus.successBonus + policySuccessBonus
+        val finalSuccessRate = recipe.successRate + totalSuccessBonus
 
         val success = Random.nextDouble() < finalSuccessRate
 
@@ -3102,9 +4247,8 @@ class GameEngine {
                 }.filter { it.quantity > 0 }
             }
 
-            // 计算实际耗时（考虑速度加成 + 长老/亲传弟子加成）
-            val baseDuration = calculateWorkDurationWithAllDisciples(recipe.duration, "forge")
-            val actualDuration = (baseDuration * (1.0 - elderBonus.speedBonus)).toInt().coerceAtLeast(1)
+            // 计算实际耗时（已在 calculateWorkDurationWithAllDisciples 中包含长老/亲传弟子速度加成）
+            val actualDuration = calculateWorkDurationWithAllDisciples(recipe.duration, "forge")
 
             // 更新槽位状态，继续炼制同一种装备
             val data = _gameData.value
@@ -3148,7 +4292,8 @@ class GameEngine {
                 name = recipe.name,
                 rarity = recipe.rarity,
                 description = recipe.description,
-                slot = recipe.type
+                slot = recipe.type,
+                minRealm = GameConfig.Realm.getMinRealmForRarity(recipe.rarity)
             )
         }
     }
@@ -3163,7 +4308,8 @@ class GameEngine {
                 name = item.name,
                 rarity = item.rarity,
                 description = item.description,
-                slot = EquipmentSlot.values().random()
+                slot = EquipmentSlot.values().random(),
+                minRealm = GameConfig.Realm.getMinRealmForRarity(item.rarity)
             )
         }
     }
@@ -3178,7 +4324,8 @@ class GameEngine {
                 name = item.name,
                 rarity = item.rarity,
                 description = "",
-                slot = EquipmentSlot.values().random()
+                slot = EquipmentSlot.values().random(),
+                minRealm = GameConfig.Realm.getMinRealmForRarity(item.rarity)
             )
         }
     }
@@ -3193,7 +4340,8 @@ class GameEngine {
                 name = item.name,
                 rarity = item.rarity,
                 description = item.description,
-                type = ManualType.values().random()
+                type = ManualType.values().random(),
+                minRealm = GameConfig.Realm.getMinRealmForRarity(item.rarity)
             )
         }
     }
@@ -3223,7 +4371,8 @@ class GameEngine {
                 name = item.name,
                 rarity = item.rarity,
                 description = "",
-                type = ManualType.values().random()
+                type = ManualType.values().random(),
+                minRealm = GameConfig.Realm.getMinRealmForRarity(item.rarity)
             )
         }
     }
@@ -3356,7 +4505,8 @@ class GameEngine {
             Equipment(
                 id = item.itemId,
                 name = item.name,
-                rarity = item.rarity
+                rarity = item.rarity,
+                minRealm = GameConfig.Realm.getMinRealmForRarity(item.rarity)
             )
         }
     }
@@ -3370,13 +4520,14 @@ class GameEngine {
                 rarity = item.rarity,
                 description = template.description,
                 type = template.type,
-                minRealm = template.minRealm
+                minRealm = GameConfig.Realm.getMinRealmForRarity(item.rarity)
             )
         } else {
             Manual(
                 id = item.itemId,
                 name = item.name,
-                rarity = item.rarity
+                rarity = item.rarity,
+                minRealm = GameConfig.Realm.getMinRealmForRarity(item.rarity)
             )
         }
     }
@@ -3474,7 +4625,7 @@ class GameEngine {
      * 根据队伍平均境界获取奖励品阶范围
      * 炼气筑基：凡品
      * 金丹元婴：凡品 - 灵品
-     * 化神：凡品 - 宝品
+     * 化神：灵品 - 宝品
      * 炼虚：宝品 - 地品
      * 合体：宝品 - 地品
      * 大乘：宝品 - 地品
@@ -3486,15 +4637,15 @@ class GameEngine {
         // 9=炼气期, 8=筑基期, 7=金丹期, 6=元婴期, 5=化神期
         // 4=炼虚期, 3=合体期, 2=大乘期, 1=渡劫期, 0=仙人
         return when {
-            avgRealm >= 8.0 -> Pair(1, 1)   // 炼气期：凡品
-            avgRealm >= 7.0 -> Pair(1, 1)   // 筑基期：凡品
-            avgRealm >= 6.0 -> Pair(1, 2)   // 金丹期：凡品-灵品
-            avgRealm >= 5.0 -> Pair(1, 2)   // 元婴期：凡品-灵品
-            avgRealm >= 4.0 -> Pair(1, 3)   // 化神期：凡品-宝品
-            avgRealm >= 3.0 -> Pair(3, 5)   // 炼虚期：宝品-地品
-            avgRealm >= 2.0 -> Pair(3, 5)   // 合体期：宝品-地品
-            avgRealm >= 1.0 -> Pair(3, 5)   // 大乘期：宝品-地品
-            avgRealm >= 0.5 -> Pair(5, 6)   // 渡劫期：地品-天品
+            avgRealm >= 9.0 -> Pair(1, 1)   // 炼气期：凡品
+            avgRealm >= 8.0 -> Pair(1, 1)   // 筑基期：凡品
+            avgRealm >= 7.0 -> Pair(1, 2)   // 金丹期：凡品-灵品
+            avgRealm >= 6.0 -> Pair(1, 2)   // 元婴期：凡品-灵品
+            avgRealm >= 5.0 -> Pair(2, 3)   // 化神期：灵品-宝品
+            avgRealm >= 4.0 -> Pair(3, 5)   // 炼虚期：宝品-地品
+            avgRealm >= 3.0 -> Pair(3, 5)   // 合体期：宝品-地品
+            avgRealm >= 2.0 -> Pair(3, 5)   // 大乘期：宝品-地品
+            avgRealm >= 1.0 -> Pair(5, 6)   // 渡劫期：地品-天品
             else -> Pair(5, 6)              // 仙人境界：地品-天品
         }
     }
@@ -4484,7 +5635,12 @@ class GameEngine {
     /**
      * 处理弟子忠诚脱离判定
      * 忠诚低于50点时，每月有概率脱离宗门
-     * 以50点为准，每少一点增加2%脱离概率
+     * 忠诚分段脱离概率：
+     * - 忠诚40-49：每月1%脱离
+     * - 忠诚30-39：每月5%脱离
+     * - 忠诚20-29：每月15%脱离
+     * - 忠诚10-19：每月30%脱离
+     * - 忠诚0-9：每月50%脱离
      * 新招募弟子与初始弟子一年内不会脱离宗门
      * 子嗣7岁前不会脱离宗门
      */
@@ -4494,6 +5650,11 @@ class GameEngine {
 
         _disciples.value = _disciples.value.filter { disciple ->
             if (!disciple.isAlive || disciple.loyalty >= 50) {
+                return@filter true
+            }
+
+            // 思过崖弟子不能脱离宗门
+            if (disciple.status == DiscipleStatus.REFLECTING) {
                 return@filter true
             }
 
@@ -4508,8 +5669,15 @@ class GameEngine {
                 return@filter true
             }
 
-            // 计算脱离概率：(50 - 忠诚) * 2%
-            val desertionChance = (50 - disciple.loyalty) * 0.02
+            // 根据忠诚分段计算脱离概率
+            val desertionChance = when (disciple.loyalty) {
+                in 40..49 -> 0.01
+                in 30..39 -> 0.05
+                in 20..29 -> 0.15
+                in 10..19 -> 0.30
+                in 0..9 -> 0.50
+                else -> 0.0
+            }
             val roll = Random.nextDouble()
 
             if (roll < desertionChance) {
@@ -4557,6 +5725,11 @@ class GameEngine {
                 return@forEach
             }
 
+            // 思过崖弟子不能偷盗
+            if (disciple.status == DiscipleStatus.REFLECTING) {
+                return@forEach
+            }
+
             // 子嗣保护期：7岁前不会偷盗
             if (disciple.age < 7) {
                 return@forEach
@@ -4598,23 +5771,29 @@ class GameEngine {
         // 计算抓捕概率（累计计算，智力低于50有负面效果）
         // 执法长老：智力以50为基准，每高1点增加0.5%抓捕概率，低于50则减少
         // 执法弟子：智力以50为基准，每高5点增加0.5%抓捕概率，低于50则减少
-        // 增强治安政策：基础+30%抓捕率，副宗主智力以50为基准，每高5点增加1%
+        // 增强治安政策：基础+20%抓捕率，副宗主智力以50为基准，每高5点增加1%
         fun calculateArrestChance(): Double {
             var totalChance = 0.0
             
-            // 增强治安政策效果
+            /**
+             * 增强治安政策效果计算
+             * 
+             * 基础效果：执法堂抓捕率+20%
+             * 副宗主加成：智力50为基准，每多5点+1%
+             * 消耗：每月3000灵石
+             * 
+             * 计算公式：
+             * 实际抓捕率加成 = 20% × (1 + 副宗主加成)
+             * 
+             * 示例（副宗主智力65）：
+             * 副宗主加成 = (65-50)/5 × 1% = 3%
+             * 实际抓捕率加成 = 20% × 1.03 = 20.6%
+             */
             val enhancedSecurityEnabled = _gameData.value.sectPolicies.enhancedSecurity
             if (enhancedSecurityEnabled) {
-                // 基础30%抓捕率
-                totalChance += 0.30
-                
-                // 副宗主智力影响：以50为基准，每高5点增加1%
-                val viceSectMasterId = _gameData.value.elderSlots.viceSectMaster
-                val viceSectMaster = _disciples.value.find { it.id == viceSectMasterId }
-                viceSectMaster?.let { vice ->
-                    val viceBonus = (vice.intelligence - 50) / 5.0 * 0.01
-                    totalChance += viceBonus
-                }
+                val baseBonus = GameConfig.PolicyConfig.ENHANCED_SECURITY_BASE_EFFECT
+                val viceSectMasterBonus = calculateViceSectMasterPolicyBonus()
+                totalChance += baseBonus * (1 + viceSectMasterBonus)
             }
             
             // 执法长老的抓捕概率
@@ -4857,22 +6036,68 @@ class GameEngine {
         }
     }
 
-    private fun processEnhancedSecurity() {
-        val enhancedSecurityEnabled = _gameData.value.sectPolicies.enhancedSecurity
-        if (!enhancedSecurityEnabled) return
+    /**
+     * 统一处理所有政策的月度灵石消耗
+     * 包括：增强治安、丹道激励、锻造激励、灵药培育、修行津贴、功法研习
+     * 当灵石不足时，按优先级顺序自动关闭政策
+     */
+    private fun processPolicyCosts() {
+        val policies = _gameData.value.sectPolicies
+        var totalCost = 0L
+        val policiesToDisable = mutableListOf<String>()
         
-        val cost = 5000L
+        // 计算所有启用政策的总消耗
+        if (policies.enhancedSecurity) totalCost += GameConfig.PolicyConfig.ENHANCED_SECURITY_COST
+        if (policies.alchemyIncentive) totalCost += GameConfig.PolicyConfig.ALCHEMY_INCENTIVE_COST
+        if (policies.forgeIncentive) totalCost += GameConfig.PolicyConfig.FORGE_INCENTIVE_COST
+        if (policies.herbCultivation) totalCost += GameConfig.PolicyConfig.HERB_CULTIVATION_COST
+        if (policies.cultivationSubsidy) totalCost += GameConfig.PolicyConfig.CULTIVATION_SUBSIDY_COST
+        if (policies.manualResearch) totalCost += GameConfig.PolicyConfig.MANUAL_RESEARCH_COST
+        
         val currentStones = _gameData.value.spiritStones
         
-        if (currentStones >= cost) {
-            _gameData.value = _gameData.value.copy(spiritStones = currentStones - cost)
-            addEvent("增强治安政策消耗5000灵石", EventType.INFO)
+        if (currentStones >= totalCost) {
+            // 灵石充足，扣除总消耗
+            _gameData.value = _gameData.value.copy(spiritStones = currentStones - totalCost)
+            if (totalCost > 0) {
+                addEvent("政策消耗${totalCost}灵石", EventType.INFO)
+            }
         } else {
-            val currentPolicies = _gameData.value.sectPolicies
-            _gameData.value = _gameData.value.copy(
-                sectPolicies = currentPolicies.copy(enhancedSecurity = false)
+            // 灵石不足，按优先级顺序关闭政策（消耗低的先关闭）
+            var newPolicies = policies
+            var remainingStones = currentStones
+            
+            // 政策列表按消耗金额排序（低到高）
+            val policyCosts = listOf(
+                Triple(GameConfig.PolicyConfig.ENHANCED_SECURITY_NAME, policies.enhancedSecurity, GameConfig.PolicyConfig.ENHANCED_SECURITY_COST) to 
+                    { p: SectPolicies -> p.copy(enhancedSecurity = false) },
+                Triple(GameConfig.PolicyConfig.ALCHEMY_INCENTIVE_NAME, policies.alchemyIncentive, GameConfig.PolicyConfig.ALCHEMY_INCENTIVE_COST) to 
+                    { p: SectPolicies -> p.copy(alchemyIncentive = false) },
+                Triple(GameConfig.PolicyConfig.FORGE_INCENTIVE_NAME, policies.forgeIncentive, GameConfig.PolicyConfig.FORGE_INCENTIVE_COST) to 
+                    { p: SectPolicies -> p.copy(forgeIncentive = false) },
+                Triple(GameConfig.PolicyConfig.HERB_CULTIVATION_NAME, policies.herbCultivation, GameConfig.PolicyConfig.HERB_CULTIVATION_COST) to 
+                    { p: SectPolicies -> p.copy(herbCultivation = false) },
+                Triple(GameConfig.PolicyConfig.CULTIVATION_SUBSIDY_NAME, policies.cultivationSubsidy, GameConfig.PolicyConfig.CULTIVATION_SUBSIDY_COST) to 
+                    { p: SectPolicies -> p.copy(cultivationSubsidy = false) },
+                Triple(GameConfig.PolicyConfig.MANUAL_RESEARCH_NAME, policies.manualResearch, GameConfig.PolicyConfig.MANUAL_RESEARCH_COST) to 
+                    { p: SectPolicies -> p.copy(manualResearch = false) }
             )
-            addEvent("灵石不足（当前${currentStones}），增强治安政策已自动关闭", EventType.WARNING)
+            
+            for ((info, updater) in policyCosts) {
+                val (name, enabled, cost) = info
+                if (enabled && remainingStones < cost) {
+                    newPolicies = updater(newPolicies)
+                    policiesToDisable.add(name)
+                } else if (enabled) {
+                    remainingStones -= cost
+                }
+            }
+            
+            _gameData.value = _gameData.value.copy(sectPolicies = newPolicies)
+            
+            if (policiesToDisable.isNotEmpty()) {
+                addEvent("灵石不足，${policiesToDisable.joinToString("、")}政策已自动关闭", EventType.WARNING)
+            }
         }
     }
 
@@ -4891,7 +6116,7 @@ class GameEngine {
         
         val aliveReserveDisciples = reserveDisciples.filter { slot ->
             val disciple = _disciples.value.find { it.id == slot.discipleId }
-            disciple != null && disciple.isAlive
+            disciple != null && disciple.isAlive && disciple.status != DiscipleStatus.REFLECTING
         }.sortedByDescending { slot ->
             _disciples.value.find { it.id == slot.discipleId }?.intelligence ?: 0
         }.toMutableList()
@@ -4929,6 +6154,205 @@ class GameEngine {
             val updatedElderSlots = data.elderSlots.copy(
                 lawEnforcementDisciples = updatedLawDisciples,
                 lawEnforcementReserveDisciples = updatedReserveDisciples
+            )
+            _gameData.value = data.copy(elderSlots = updatedElderSlots)
+            
+            // 更新从储备弟子补位过来的弟子状态为执法中
+            val originalLawDiscipleIds = lawDisciples.mapNotNull { it.discipleId }
+            val newLawDiscipleIds = updatedLawDisciples.mapNotNull { it.discipleId }
+            val promotedDiscipleIds = newLawDiscipleIds.filter { !originalLawDiscipleIds.contains(it) }
+            
+            if (promotedDiscipleIds.isNotEmpty()) {
+                _disciples.value = _disciples.value.map { disciple ->
+                    if (promotedDiscipleIds.contains(disciple.id)) {
+                        disciple.copy(status = DiscipleStatus.LAW_ENFORCING)
+                    } else {
+                        disciple
+                    }
+                }
+            }
+        }
+    }
+
+    private fun processHerbGardenReserveAutoFill() {
+        val data = _gameData.value
+        if (data.elderSlots.herbGardenElder == null) return
+        
+        val innerDisciples = data.elderSlots.herbGardenInnerDisciples
+        val reserveDisciples = data.elderSlots.herbGardenReserveDisciples
+        
+        val emptySlots = (0..7).filter { index -> 
+            innerDisciples.none { it.index == index && it.discipleId != null }
+        }
+        
+        if (emptySlots.isEmpty() || reserveDisciples.isEmpty()) return
+        
+        val aliveReserveDisciples = reserveDisciples.filter { slot ->
+            val disciple = _disciples.value.find { it.id == slot.discipleId }
+            disciple != null && disciple.isAlive && disciple.status != DiscipleStatus.REFLECTING
+        }.sortedByDescending { slot ->
+            _disciples.value.find { it.id == slot.discipleId }?.spiritPlanting ?: 0
+        }.toMutableList()
+        
+        if (aliveReserveDisciples.isEmpty()) return
+        
+        val updatedInnerDisciples = innerDisciples.toMutableList()
+        val updatedReserveDisciples = reserveDisciples.toMutableList()
+        var filledCount = 0
+        
+        for (emptyIndex in emptySlots) {
+            if (aliveReserveDisciples.isEmpty()) break
+            
+            val reserveToPromote = aliveReserveDisciples.first()
+            val reserveIndex = reserveToPromote.index
+            
+            val existingSlotIndex = updatedInnerDisciples.indexOfFirst { it.index == emptyIndex }
+            if (existingSlotIndex >= 0) {
+                updatedInnerDisciples[existingSlotIndex] = reserveToPromote.copy(index = emptyIndex)
+            } else {
+                updatedInnerDisciples.add(reserveToPromote.copy(index = emptyIndex))
+            }
+            
+            updatedReserveDisciples.removeAll(predicate = { it.index == reserveIndex })
+            aliveReserveDisciples.removeAll(predicate = { it.index == reserveIndex })
+            
+            addEvent(
+                "储备弟子 ${reserveToPromote.discipleName} 自动补位为灵药宛内门弟子",
+                EventType.SUCCESS
+            )
+            filledCount++
+        }
+        
+        if (filledCount > 0) {
+            val updatedElderSlots = data.elderSlots.copy(
+                herbGardenInnerDisciples = updatedInnerDisciples,
+                herbGardenReserveDisciples = updatedReserveDisciples
+            )
+            _gameData.value = data.copy(elderSlots = updatedElderSlots)
+            
+            // 更新补位弟子的状态为工作中
+            val promotedDiscipleIds = updatedInnerDisciples.mapNotNull { it.discipleId }
+            _disciples.value = _disciples.value.map { disciple ->
+                if (promotedDiscipleIds.contains(disciple.id)) {
+                    disciple.copy(status = DiscipleStatus.WORKING)
+                } else {
+                    disciple
+                }
+            }
+        }
+    }
+
+    private fun processAlchemyReserveAutoFill() {
+        val data = _gameData.value
+        if (data.elderSlots.alchemyElder == null) return
+        
+        val innerDisciples = data.elderSlots.alchemyInnerDisciples
+        val reserveDisciples = data.elderSlots.alchemyReserveDisciples
+        
+        val emptySlots = (0..7).filter { index -> 
+            innerDisciples.none { it.index == index && it.discipleId != null }
+        }
+        
+        if (emptySlots.isEmpty() || reserveDisciples.isEmpty()) return
+        
+        val aliveReserveDisciples = reserveDisciples.filter { slot ->
+            val disciple = _disciples.value.find { it.id == slot.discipleId }
+            disciple != null && disciple.isAlive && disciple.status != DiscipleStatus.REFLECTING
+        }.sortedByDescending { slot ->
+            _disciples.value.find { it.id == slot.discipleId }?.pillRefining ?: 0
+        }.toMutableList()
+        
+        if (aliveReserveDisciples.isEmpty()) return
+        
+        val updatedInnerDisciples = innerDisciples.toMutableList()
+        val updatedReserveDisciples = reserveDisciples.toMutableList()
+        var filledCount = 0
+        
+        for (emptyIndex in emptySlots) {
+            if (aliveReserveDisciples.isEmpty()) break
+            
+            val reserveToPromote = aliveReserveDisciples.first()
+            val reserveIndex = reserveToPromote.index
+            
+            val existingSlotIndex = updatedInnerDisciples.indexOfFirst { it.index == emptyIndex }
+            if (existingSlotIndex >= 0) {
+                updatedInnerDisciples[existingSlotIndex] = reserveToPromote.copy(index = emptyIndex)
+            } else {
+                updatedInnerDisciples.add(reserveToPromote.copy(index = emptyIndex))
+            }
+            
+            updatedReserveDisciples.removeAll(predicate = { it.index == reserveIndex })
+            aliveReserveDisciples.removeAll(predicate = { it.index == reserveIndex })
+            
+            addEvent(
+                "储备弟子 ${reserveToPromote.discipleName} 自动补位为丹鼎殿内门弟子",
+                EventType.SUCCESS
+            )
+            filledCount++
+        }
+        
+        if (filledCount > 0) {
+            val updatedElderSlots = data.elderSlots.copy(
+                alchemyInnerDisciples = updatedInnerDisciples,
+                alchemyReserveDisciples = updatedReserveDisciples
+            )
+            _gameData.value = data.copy(elderSlots = updatedElderSlots)
+        }
+    }
+
+    private fun processForgeReserveAutoFill() {
+        val data = _gameData.value
+        if (data.elderSlots.forgeElder == null) return
+        
+        val innerDisciples = data.elderSlots.forgeInnerDisciples
+        val reserveDisciples = data.elderSlots.forgeReserveDisciples
+        
+        val emptySlots = (0..7).filter { index -> 
+            innerDisciples.none { it.index == index && it.discipleId != null }
+        }
+        
+        if (emptySlots.isEmpty() || reserveDisciples.isEmpty()) return
+        
+        val aliveReserveDisciples = reserveDisciples.filter { slot ->
+            val disciple = _disciples.value.find { it.id == slot.discipleId }
+            disciple != null && disciple.isAlive && disciple.status != DiscipleStatus.REFLECTING
+        }.sortedByDescending { slot ->
+            _disciples.value.find { it.id == slot.discipleId }?.artifactRefining ?: 0
+        }.toMutableList()
+        
+        if (aliveReserveDisciples.isEmpty()) return
+        
+        val updatedInnerDisciples = innerDisciples.toMutableList()
+        val updatedReserveDisciples = reserveDisciples.toMutableList()
+        var filledCount = 0
+        
+        for (emptyIndex in emptySlots) {
+            if (aliveReserveDisciples.isEmpty()) break
+            
+            val reserveToPromote = aliveReserveDisciples.first()
+            val reserveIndex = reserveToPromote.index
+            
+            val existingSlotIndex = updatedInnerDisciples.indexOfFirst { it.index == emptyIndex }
+            if (existingSlotIndex >= 0) {
+                updatedInnerDisciples[existingSlotIndex] = reserveToPromote.copy(index = emptyIndex)
+            } else {
+                updatedInnerDisciples.add(reserveToPromote.copy(index = emptyIndex))
+            }
+            
+            updatedReserveDisciples.removeAll(predicate = { it.index == reserveIndex })
+            aliveReserveDisciples.removeAll(predicate = { it.index == reserveIndex })
+            
+            addEvent(
+                "储备弟子 ${reserveToPromote.discipleName} 自动补位为天工峰内门弟子",
+                EventType.SUCCESS
+            )
+            filledCount++
+        }
+        
+        if (filledCount > 0) {
+            val updatedElderSlots = data.elderSlots.copy(
+                forgeInnerDisciples = updatedInnerDisciples,
+                forgeReserveDisciples = updatedReserveDisciples
             )
             _gameData.value = data.copy(elderSlots = updatedElderSlots)
         }
@@ -5143,7 +6567,7 @@ class GameEngine {
             parentId2 = parent2.id,
             intelligence = Random.nextInt(1, 101),
             charm = Random.nextInt(1, 101),
-            loyalty = Random.nextInt(30, 61),
+            loyalty = Random.nextInt(70, 101),
             comprehension = Random.nextInt(1, 101),
             artifactRefining = Random.nextInt(1, 101),
             pillRefining = Random.nextInt(1, 101),
@@ -5234,15 +6658,6 @@ class GameEngine {
             }
         }
         
-        _warTeams.value = _warTeams.value.map { team ->
-            val newMembers = team.members.filter { it.discipleId != discipleId }
-            if (newMembers.size != team.members.size) {
-                team.copy(members = newMembers)
-            } else {
-                team
-            }
-        }
-        
         val updatedSpiritMineSlots = data.spiritMineSlots.map { slot ->
             if (slot.discipleId == discipleId) {
                 slot.copy(discipleId = null, discipleName = "")
@@ -5273,9 +6688,6 @@ class GameEngine {
             if (elders.libraryElder == discipleId) {
                 updated = updated.copy(libraryElder = null)
             }
-            if (elders.spiritMineElder == discipleId) {
-                updated = updated.copy(spiritMineElder = null)
-            }
             if (elders.recruitElder == discipleId) {
                 updated = updated.copy(recruitElder = null)
             }
@@ -5284,7 +6696,6 @@ class GameEngine {
                 alchemyDisciples = elders.alchemyDisciples.map { if (it.discipleId == discipleId) it.copy(discipleId = null, discipleName = "", discipleRealm = "") else it },
                 forgeDisciples = elders.forgeDisciples.map { if (it.discipleId == discipleId) it.copy(discipleId = null, discipleName = "", discipleRealm = "") else it },
                 libraryDisciples = elders.libraryDisciples.map { if (it.discipleId == discipleId) it.copy(discipleId = null, discipleName = "", discipleRealm = "") else it },
-                spiritMineDisciples = elders.spiritMineDisciples.map { if (it.discipleId == discipleId) it.copy(discipleId = null, discipleName = "", discipleRealm = "") else it },
                 recruitDisciples = elders.recruitDisciples.map { if (it.discipleId == discipleId) it.copy(discipleId = null, discipleName = "", discipleRealm = "") else it }
             )
         }
@@ -5377,7 +6788,7 @@ class GameEngine {
                 try {
                     processDiscipleItemInstantly(discipleId, "pill")
                 } catch (e: Exception) {
-                    Log.e("GameEngine", "Error processing pill instantly", e)
+                    Log.e(TAG, "Error processing pill instantly", e)
                 }
             }
             "equipment" -> {
@@ -5400,7 +6811,7 @@ class GameEngine {
                 try {
                     processDiscipleItemInstantly(discipleId, "equipment")
                 } catch (e: Exception) {
-                    Log.e("GameEngine", "Error processing equipment instantly", e)
+                    Log.e(TAG, "Error processing equipment instantly", e)
                 }
             }
             "manual" -> {
@@ -5423,7 +6834,7 @@ class GameEngine {
                 try {
                     processDiscipleItemInstantly(discipleId, "manual")
                 } catch (e: Exception) {
-                    Log.e("GameEngine", "Error processing manual instantly", e)
+                    Log.e(TAG, "Error processing manual instantly", e)
                 }
             }
         }
@@ -5671,21 +7082,21 @@ class GameEngine {
                 try {
                     processDiscipleItemInstantlyInternal(discipleId, "pill")
                 } catch (e: Exception) {
-                    Log.e("GameEngine", "Error processing pills instantly", e)
+                    Log.e(TAG, "Error processing pills instantly", e)
                 }
             }
             if (hasEquipment) {
                 try {
                     processDiscipleItemInstantlyInternal(discipleId, "equipment")
                 } catch (e: Exception) {
-                    Log.e("GameEngine", "Error processing equipment instantly", e)
+                    Log.e(TAG, "Error processing equipment instantly", e)
                 }
             }
             if (hasManuals) {
                 try {
                     processDiscipleItemInstantlyInternal(discipleId, "manual")
                 } catch (e: Exception) {
-                    Log.e("GameEngine", "Error processing manuals instantly", e)
+                    Log.e(TAG, "Error processing manuals instantly", e)
                 }
             }
         }
@@ -5784,7 +7195,8 @@ class GameEngine {
             generateRandomDisciple(isInitial = true).copy(
                 realm = realm,
                 realmLayer = 9,
-                cultivation = GameConfig.Realm.get(realm).cultivationBase.toDouble() * 9
+                cultivation = GameConfig.Realm.get(realm).cultivationBase.toDouble() * 9,
+                lifespan = GameConfig.Realm.get(realm).maxAge
             )
         }
     }
@@ -5967,6 +7379,12 @@ class GameEngine {
         val equip = _equipment.value.find { it.id == equipmentId } ?: return
         val disciple = _disciples.value.find { it.id == discipleId } ?: return
         
+        if (disciple.realm > equip.minRealm) {
+            val realmName = GameConfig.Realm.getName(equip.minRealm)
+            addEvent("${disciple.name} 境界不足，需要达到${realmName}才能装备${equip.name}", EventType.WARNING)
+            return
+        }
+        
         // 检查装备是否已被其他弟子穿戴
         if (equip.isEquipped && equip.ownerId != null && equip.ownerId != discipleId) {
             val currentOwner = _disciples.value.find { it.id == equip.ownerId }
@@ -6046,6 +7464,12 @@ class GameEngine {
             return
         }
         
+        if (disciple.realm > manual.minRealm) {
+            val realmName = GameConfig.Realm.getName(manual.minRealm)
+            addEvent("${disciple.name} 境界不足，需要达到${realmName}才能学习${manual.name}", EventType.WARNING)
+            return
+        }
+        
         val talentEffects = TalentDatabase.calculateTalentEffects(disciple.talentIds)
         val manualSlotBonus = talentEffects["manualSlot"]?.toInt() ?: 0
         val maxManualSlots = 5 + manualSlotBonus
@@ -6105,6 +7529,12 @@ class GameEngine {
         
         if (disciple.manualIds.contains(newManualId)) {
             addEvent("弟子不能学习相同的功法", EventType.WARNING)
+            return
+        }
+        
+        if (disciple.realm > newManual.minRealm) {
+            val realmName = GameConfig.Realm.getName(newManual.minRealm)
+            addEvent("${disciple.name} 境界不足，需要达到${realmName}才能学习${newManual.name}", EventType.WARNING)
             return
         }
         
@@ -6327,17 +7757,27 @@ class GameEngine {
     fun interactWithSect(sectId: String, action: String) {
         val data = _gameData.value
         val sect = data.worldMapSects.find { it.id == sectId } ?: return
+        val playerSect = data.worldMapSects.find { it.isPlayerSect }
+        val currentFavor = if (playerSect != null) {
+            data.sectRelations.find { 
+                (it.sectId1 == playerSect.id && it.sectId2 == sectId) ||
+                (it.sectId1 == sectId && it.sectId2 == playerSect.id)
+            }?.favor ?: 0
+        } else 0
         
         when (action) {
             "gift" -> {
                 val giftCost = 1000L
                 if (data.spiritStones >= giftCost) {
-                    val newRelation = minOf(100, sect.relation + 10)
+                    val newFavor = minOf(100, currentFavor + 10)
+                    val updatedRelations = if (playerSect != null) {
+                        updateSectRelationFavor(data.sectRelations, playerSect.id, sectId, newFavor, data.gameYear)
+                    } else {
+                        data.sectRelations
+                    }
                     _gameData.value = _gameData.value.copy(
                         spiritStones = _gameData.value.spiritStones - giftCost,
-                        worldMapSects = data.worldMapSects.map { 
-                            if (it.id == sectId) it.copy(relation = newRelation) else it 
-                        }
+                        sectRelations = updatedRelations
                     )
                     addEvent("向${sect.name}送礼，好感度+10", EventType.SUCCESS)
                 } else {
@@ -6345,15 +7785,15 @@ class GameEngine {
                 }
             }
             "ally" -> {
-                if (sect.relation >= 50) {
+                if (currentFavor >= 90) {
                     addEvent("与${sect.name}结为盟友", EventType.SUCCESS)
                     _gameData.value = data.copy(
                         worldMapSects = data.worldMapSects.map { 
-                            if (it.id == sectId) it.copy(relation = 100) else it 
+                            if (it.id == sectId) it.copy(allianceId = "player_alliance_${System.currentTimeMillis()}", allianceStartYear = _gameData.value.gameYear) else it 
                         }
                     )
                 } else {
-                    addEvent("${sect.name}关系不足，拒绝结盟", EventType.WARNING)
+                    addEvent("${sect.name}好感度不足90，拒绝结盟", EventType.WARNING)
                 }
             }
         }
@@ -7044,92 +8484,6 @@ class GameEngine {
         addEvent("下架了${item.name}", EventType.INFO)
     }
     
-    fun startTournament(realm: Int) {
-        val data = _gameData.value
-        val realmName = GameConfig.Realm.getName(realm)
-        
-        val disciples = _disciples.value.filter { it.isAlive && it.realm == realm }
-        
-        if (disciples.size < 2) {
-            addEvent("${realmName}境界弟子人数不足，无法举办宗门大比", EventType.WARNING)
-            return
-        }
-        
-        val currentYear = data.gameYear
-        if (currentYear - data.tournamentLastYear < 3) {
-            addEvent("距离上次大比不足三年，无法举办", EventType.WARNING)
-            return
-        }
-        
-        val reward = data.tournamentRewards[realm]
-        val participants = disciples.sortedByDescending { it.physicalAttack + it.magicAttack }
-        
-        participants.forEachIndexed { index, disciple ->
-            when (index) {
-                0 -> {
-                    addEvent("${realmName}大比圆满结束！${disciple.name}获得冠军！", EventType.SUCCESS)
-                    reward?.let { r ->
-                        if (r.championSpiritStones > 0) {
-                            _gameData.value = _gameData.value.copy(
-                                spiritStones = _gameData.value.spiritStones + r.championSpiritStones
-                            )
-                            addEvent("${disciple.name}获得冠军奖励 ${r.championSpiritStones} 灵石", EventType.SUCCESS)
-                        }
-                    }
-                }
-                1 -> {
-                    addEvent("${disciple.name}获得${realmName}大比亚军", EventType.INFO)
-                    reward?.let { r ->
-                        if (r.runnerUpSpiritStones > 0) {
-                            _gameData.value = _gameData.value.copy(
-                                spiritStones = _gameData.value.spiritStones + r.runnerUpSpiritStones
-                            )
-                            addEvent("${disciple.name}获得亚军奖励 ${r.runnerUpSpiritStones} 灵石", EventType.SUCCESS)
-                        }
-                    }
-                }
-                2, 3 -> {
-                    addEvent("${disciple.name}进入${realmName}大比四强", EventType.INFO)
-                    reward?.let { r ->
-                        if (r.semifinalSpiritStones > 0) {
-                            _gameData.value = _gameData.value.copy(
-                                spiritStones = _gameData.value.spiritStones + r.semifinalSpiritStones
-                            )
-                            addEvent("${disciple.name}获得四强奖励 ${r.semifinalSpiritStones} 灵石", EventType.SUCCESS)
-                        }
-                    }
-                }
-                else -> {
-                    reward?.let { r ->
-                        if (r.participantSpiritStones > 0) {
-                            _gameData.value = _gameData.value.copy(
-                                spiritStones = _gameData.value.spiritStones + r.participantSpiritStones
-                            )
-                        }
-                    }
-                }
-            }
-        }
-        
-        _gameData.value = data.copy(
-            tournamentLastYear = currentYear
-        )
-        
-        addEvent("${realmName}大比已举办，共${participants.size}名弟子参加", EventType.SUCCESS)
-    }
-    
-    fun toggleTournamentRealm(realm: Int, enabled: Boolean) {
-        val data = _gameData.value
-        val newEnabled = data.tournamentRealmEnabled.toMutableMap()
-        newEnabled[realm] = enabled
-        _gameData.value = data.copy(tournamentRealmEnabled = newEnabled)
-    }
-    
-    fun toggleTournamentAutoHold(enabled: Boolean) {
-        val data = _gameData.value
-        _gameData.value = data.copy(tournamentAutoHold = enabled)
-    }
-    
     fun updateMonthlySalary(salary: Map<Int, Int>) {
         val data = _gameData.value
         _gameData.value = data.copy(monthlySalary = salary)
@@ -7141,6 +8495,87 @@ class GameEngine {
     }
 
     /**
+     * 卸任执法长老，同时清空所有执法弟子的状态
+     */
+    fun removeLawEnforcementElderAndDisciples() {
+        val data = _gameData.value
+        val lawEnforcementDiscipleIds = data.elderSlots.lawEnforcementDisciples.mapNotNull { it.discipleId }
+
+        // 清空执法长老和执法弟子槽位
+        _gameData.value = data.copy(
+            elderSlots = data.elderSlots.copy(
+                lawEnforcementElder = null,
+                lawEnforcementDisciples = emptyList()
+            )
+        )
+
+        // 恢复所有执法弟子的空闲状态
+        if (lawEnforcementDiscipleIds.isNotEmpty()) {
+            _disciples.value = _disciples.value.map { disciple ->
+                if (lawEnforcementDiscipleIds.contains(disciple.id)) {
+                    disciple.copy(status = DiscipleStatus.IDLE)
+                } else {
+                    disciple
+                }
+            }
+        }
+    }
+
+    /**
+     * 卸任传道长老，同时清空所有传道师的状态
+     */
+    fun removePreachingElderAndMasters() {
+        val data = _gameData.value
+        val preachingMasterIds = data.elderSlots.preachingMasters.mapNotNull { it.discipleId }
+
+        // 清空传道长老和传道师槽位
+        _gameData.value = data.copy(
+            elderSlots = data.elderSlots.copy(
+                preachingElder = null,
+                preachingMasters = emptyList()
+            )
+        )
+
+        // 恢复所有传道师的空闲状态
+        if (preachingMasterIds.isNotEmpty()) {
+            _disciples.value = _disciples.value.map { disciple ->
+                if (preachingMasterIds.contains(disciple.id)) {
+                    disciple.copy(status = DiscipleStatus.IDLE)
+                } else {
+                    disciple
+                }
+            }
+        }
+    }
+
+    /**
+     * 卸任青云传道长老，同时清空所有青云传道师的状态
+     */
+    fun removeQingyunPreachingElderAndMasters() {
+        val data = _gameData.value
+        val qingyunPreachingMasterIds = data.elderSlots.qingyunPreachingMasters.mapNotNull { it.discipleId }
+
+        // 清空青云传道长老和青云传道师槽位
+        _gameData.value = data.copy(
+            elderSlots = data.elderSlots.copy(
+                qingyunPreachingElder = null,
+                qingyunPreachingMasters = emptyList()
+            )
+        )
+
+        // 恢复所有青云传道师的空闲状态
+        if (qingyunPreachingMasterIds.isNotEmpty()) {
+            _disciples.value = _disciples.value.map { disciple ->
+                if (qingyunPreachingMasterIds.contains(disciple.id)) {
+                    disciple.copy(status = DiscipleStatus.IDLE)
+                } else {
+                    disciple
+                }
+            }
+        }
+    }
+
+    /**
      * 计算长老和亲传弟子对建筑的加成
      * @param buildingType 建筑类型: spiritMine, herbGarden, alchemy, forge, library
      * @return Pair(产量加成百分比, 速度加成百分比, 成功率加成百分比, 成熟时间减少百分比)
@@ -7148,7 +8583,7 @@ class GameEngine {
     private fun calculateElderAndDisciplesBonus(buildingType: String): ElderBonusResult {
         val data = _gameData.value
         val (elderId, discipleSlots) = when (buildingType) {
-            "spiritMine" -> data.elderSlots.spiritMineElder to data.elderSlots.spiritMineDisciples
+            "spiritMine" -> return ElderBonusResult()
             "herbGarden" -> data.elderSlots.herbGardenElder to data.elderSlots.herbGardenDisciples
             "alchemy" -> data.elderSlots.alchemyElder to data.elderSlots.alchemyDisciples
             "forge" -> data.elderSlots.forgeElder to data.elderSlots.forgeDisciples
@@ -7167,61 +8602,46 @@ class GameEngine {
         var growTimeReduction = 0.0
 
         when (buildingType) {
-            "spiritMine" -> {
-                // 灵矿场：受道德属性影响
-                // 长老：以50为基础，每多1点增加2%产量，每少1点减少2%
-                elder?.let { e ->
-                    val moralityDiff = e.morality - 50
-                    yieldBonus += moralityDiff * 0.02
-                }
-                // 亲传弟子：以50为基础，每多5点增加2%产量，每少5点减少2%
-                disciples.forEach { d ->
-                    val moralityDiff = d.morality - 50
-                    yieldBonus += (moralityDiff / 5.0) * 0.02
-                }
-            }
             "herbGarden" -> {
                 // 灵药园：受灵植属性影响
-                // 长老：每多1点增加1%产量，每多5点减少1%成熟时间
+                // 长老：以50为基准，每高5点增加1%成熟速度，每低5点减少1%成熟速度
                 elder?.let { e ->
                     val spiritPlantingDiff = e.spiritPlanting - 50
-                    yieldBonus += spiritPlantingDiff * 0.01
                     growTimeReduction += (spiritPlantingDiff / 5.0) * 0.01
                 }
-                // 亲传弟子：每多5点增加1%产量，每多10点减少1%成熟时间
+                // 亲传弟子：以50为基准，每高10点增加1%成熟速度，每低10点减少1%成熟速度
                 disciples.forEach { d ->
                     val spiritPlantingDiff = d.spiritPlanting - 50
-                    yieldBonus += (spiritPlantingDiff / 5.0) * 0.01
                     growTimeReduction += (spiritPlantingDiff / 10.0) * 0.01
                 }
             }
             "alchemy" -> {
                 // 炼丹房：受炼丹属性影响
-                // 长老：每多1点增加1%炼制速度，每多5点增加1%成功率
+                // 长老：以50为基准，每高5点增加1%炼制速度，每低5点减少1%炼制速度；每多5点增加1%成功率
                 elder?.let { e ->
                     val pillRefiningDiff = e.pillRefining - 50
-                    speedBonus += pillRefiningDiff * 0.01
+                    speedBonus += (pillRefiningDiff / 5.0) * 0.01
                     successBonus += (pillRefiningDiff / 5.0) * 0.01
                 }
-                // 亲传弟子：每多5点增加1%炼制速度，每多10点增加1%成功率
+                // 亲传弟子：以50为基准，每高10点增加1%炼制速度，每低10点减少1%炼制速度；每多10点增加1%成功率
                 disciples.forEach { d ->
                     val pillRefiningDiff = d.pillRefining - 50
-                    speedBonus += (pillRefiningDiff / 5.0) * 0.01
+                    speedBonus += (pillRefiningDiff / 10.0) * 0.01
                     successBonus += (pillRefiningDiff / 10.0) * 0.01
                 }
             }
             "forge" -> {
                 // 天工峰：受炼器属性影响
-                // 长老：每多1点增加1%炼制速度，每多5点增加1%成功率
+                // 长老：每多5点增加1%炼制速度，每多5点增加1%成功率
                 elder?.let { e ->
                     val artifactRefiningDiff = e.artifactRefining - 50
-                    speedBonus += artifactRefiningDiff * 0.01
+                    speedBonus += (artifactRefiningDiff / 5.0) * 0.01
                     successBonus += (artifactRefiningDiff / 5.0) * 0.01
                 }
-                // 亲传弟子：每多5点增加1%炼制速度，每多10点增加1%成功率
+                // 亲传弟子：每多10点增加1%炼制速度，每多10点增加1%成功率
                 disciples.forEach { d ->
                     val artifactRefiningDiff = d.artifactRefining - 50
-                    speedBonus += (artifactRefiningDiff / 5.0) * 0.01
+                    speedBonus += (artifactRefiningDiff / 10.0) * 0.01
                     successBonus += (artifactRefiningDiff / 10.0) * 0.01
                 }
             }
@@ -7241,10 +8661,10 @@ class GameEngine {
         }
 
         return ElderBonusResult(
-            yieldBonus = yieldBonus.coerceAtLeast(-0.5),
-            speedBonus = speedBonus.coerceAtLeast(-0.5),
-            successBonus = successBonus.coerceAtLeast(-0.3).coerceAtMost(0.3),
-            growTimeReduction = growTimeReduction.coerceAtLeast(-0.3).coerceAtMost(0.5)
+            yieldBonus = yieldBonus,
+            speedBonus = speedBonus,
+            successBonus = successBonus,
+            growTimeReduction = growTimeReduction
         )
     }
 
@@ -7254,6 +8674,38 @@ class GameEngine {
         val successBonus: Double = 0.0,
         val growTimeReduction: Double = 0.0
     )
+
+    /**
+     * 计算副宗主智力对政策效果的加成
+     * 
+     * 计算规则：
+     * - 基准智力值为50点，此时无加成
+     * - 每超过基准值5点智力，政策效果增加1%
+     * - 计算公式：加成比例 = ((智力 - 50) / 5) * 1%
+     * 
+     * 示例：
+     * - 智力50：加成0% (基准值)
+     * - 智力55：加成1%
+     * - 智力60：加成2%
+     * - 智力70：加成4%
+     * 
+     * 政策效果计算公式：
+     * 实际效果 = 基础效果 × (1 + 副宗主加成)
+     * 
+     * @return 副宗主智力加成比例，范围[0.0, +∞)
+     */
+    private fun calculateViceSectMasterPolicyBonus(): Double {
+        val viceSectMasterId = _gameData.value.elderSlots.viceSectMaster ?: return 0.0
+        val viceSectMaster = _disciples.value.find { it.id == viceSectMasterId } ?: return 0.0
+        val intelligence = viceSectMaster.intelligence
+        
+        // 使用GameConfig中的常量进行计算
+        val baseIntelligence = GameConfig.PolicyConfig.VICE_SECT_MASTER_INTELLIGENCE_BASE
+        val step = GameConfig.PolicyConfig.VICE_SECT_MASTER_INTELLIGENCE_STEP
+        val bonusPerStep = GameConfig.PolicyConfig.VICE_SECT_MASTER_INTELLIGENCE_BONUS_PER_STEP
+        
+        return ((intelligence - baseIntelligence) / step.toDouble() * bonusPerStep).coerceAtLeast(0.0)
+    }
     
     fun assignDirectDisciple(elderSlotType: String, slotIndex: Int, discipleId: String, discipleName: String, discipleRealm: String, discipleSpiritRootColor: String = "#E0E0E0") {
         val data = _gameData.value
@@ -7263,7 +8715,7 @@ class GameEngine {
             "alchemy" -> data.elderSlots.alchemyElder != null
             "forge" -> data.elderSlots.forgeElder != null
             "library" -> data.elderSlots.libraryElder != null
-            "spiritMine" -> data.elderSlots.spiritMineElder != null
+            "spiritMine" -> false
             "recruit" -> data.elderSlots.recruitElder != null
             "preachingMasters" -> data.elderSlots.preachingElder != null
             "lawEnforcementDisciples" -> data.elderSlots.lawEnforcementElder != null
@@ -7282,7 +8734,6 @@ class GameEngine {
             "alchemy" -> data.elderSlots.alchemyDisciples
             "forge" -> data.elderSlots.forgeDisciples
             "library" -> data.elderSlots.libraryDisciples
-            "spiritMine" -> data.elderSlots.spiritMineDisciples
             "recruit" -> data.elderSlots.recruitDisciples
             "preachingMasters" -> data.elderSlots.preachingMasters
             "lawEnforcementDisciples" -> data.elderSlots.lawEnforcementDisciples
@@ -7296,7 +8747,6 @@ class GameEngine {
             data.elderSlots.alchemyDisciples,
             data.elderSlots.forgeDisciples,
             data.elderSlots.libraryDisciples,
-            data.elderSlots.spiritMineDisciples,
             data.elderSlots.recruitDisciples,
             data.elderSlots.preachingMasters,
             data.elderSlots.lawEnforcementDisciples,
@@ -7314,7 +8764,6 @@ class GameEngine {
             data.elderSlots.alchemyElder,
             data.elderSlots.forgeElder,
             data.elderSlots.libraryElder,
-            data.elderSlots.spiritMineElder,
             data.elderSlots.recruitElder,
             data.elderSlots.outerElder,
             data.elderSlots.preachingElder,
@@ -7348,7 +8797,6 @@ class GameEngine {
             "alchemy" -> data.elderSlots.copy(alchemyDisciples = currentSlots)
             "forge" -> data.elderSlots.copy(forgeDisciples = currentSlots)
             "library" -> data.elderSlots.copy(libraryDisciples = currentSlots)
-            "spiritMine" -> data.elderSlots.copy(spiritMineDisciples = currentSlots)
             "recruit" -> data.elderSlots.copy(recruitDisciples = currentSlots)
             "preachingMasters" -> data.elderSlots.copy(preachingMasters = currentSlots)
             "lawEnforcementDisciples" -> data.elderSlots.copy(lawEnforcementDisciples = currentSlots)
@@ -7358,6 +8806,21 @@ class GameEngine {
         }
         
         _gameData.value = data.copy(elderSlots = updatedElderSlots)
+        
+        // 更新弟子状态
+        when (elderSlotType) {
+            "lawEnforcementDisciples" -> {
+                _disciples.value = _disciples.value.map {
+                    if (it.id == discipleId) it.copy(status = DiscipleStatus.LAW_ENFORCING) else it
+                }
+            }
+            "preachingMasters", "qingyunPreachingMasters" -> {
+                _disciples.value = _disciples.value.map {
+                    if (it.id == discipleId) it.copy(status = DiscipleStatus.PREACHING) else it
+                }
+            }
+        }
+
         val positionName = when (elderSlotType) {
             "lawEnforcementDisciples" -> "执法弟子"
             "lawEnforcementReserveDisciples" -> "储备弟子"
@@ -7369,17 +8832,27 @@ class GameEngine {
     
     fun removeDirectDisciple(elderSlotType: String, slotIndex: Int) {
         val data = _gameData.value
+        
+        // 获取被移除的弟子ID（用于状态恢复）
+        val removedDiscipleId = when (elderSlotType) {
+            "lawEnforcementDisciples" -> data.elderSlots.lawEnforcementDisciples.find { it.index == slotIndex }?.discipleId
+            "preachingMasters" -> data.elderSlots.preachingMasters.find { it.index == slotIndex }?.discipleId
+            "qingyunPreachingMasters" -> data.elderSlots.qingyunPreachingMasters.find { it.index == slotIndex }?.discipleId
+            "spiritMineDeacon" -> data.elderSlots.spiritMineDeaconDisciples.find { it.index == slotIndex }?.discipleId
+            else -> null
+        }
+        
         val currentSlots = when (elderSlotType) {
             "herbGarden" -> data.elderSlots.herbGardenDisciples
             "alchemy" -> data.elderSlots.alchemyDisciples
             "forge" -> data.elderSlots.forgeDisciples
             "library" -> data.elderSlots.libraryDisciples
-            "spiritMine" -> data.elderSlots.spiritMineDisciples
             "recruit" -> data.elderSlots.recruitDisciples
             "preachingMasters" -> data.elderSlots.preachingMasters
             "lawEnforcementDisciples" -> data.elderSlots.lawEnforcementDisciples
             "lawEnforcementReserveDisciples" -> data.elderSlots.lawEnforcementReserveDisciples
             "qingyunPreachingMasters" -> data.elderSlots.qingyunPreachingMasters
+            "spiritMineDeacon" -> data.elderSlots.spiritMineDeaconDisciples
             else -> emptyList()
         }.filter { it.index != slotIndex }
         
@@ -7388,16 +8861,23 @@ class GameEngine {
             "alchemy" -> data.elderSlots.copy(alchemyDisciples = currentSlots)
             "forge" -> data.elderSlots.copy(forgeDisciples = currentSlots)
             "library" -> data.elderSlots.copy(libraryDisciples = currentSlots)
-            "spiritMine" -> data.elderSlots.copy(spiritMineDisciples = currentSlots)
             "recruit" -> data.elderSlots.copy(recruitDisciples = currentSlots)
             "preachingMasters" -> data.elderSlots.copy(preachingMasters = currentSlots)
             "lawEnforcementDisciples" -> data.elderSlots.copy(lawEnforcementDisciples = currentSlots)
             "lawEnforcementReserveDisciples" -> data.elderSlots.copy(lawEnforcementReserveDisciples = currentSlots)
             "qingyunPreachingMasters" -> data.elderSlots.copy(qingyunPreachingMasters = currentSlots)
+            "spiritMineDeacon" -> data.elderSlots.copy(spiritMineDeaconDisciples = currentSlots)
             else -> data.elderSlots
         }
         
         _gameData.value = data.copy(elderSlots = updatedElderSlots)
+        
+        // 恢复弟子的空闲状态
+        removedDiscipleId?.let { discipleId ->
+            _disciples.value = _disciples.value.map {
+                if (it.id == discipleId) it.copy(status = DiscipleStatus.IDLE) else it
+            }
+        }
     }
     
     fun assignInnerDisciple(elderSlotType: String, slotIndex: Int, discipleId: String, discipleName: String, discipleRealm: String, discipleSpiritRootColor: String = "#E0E0E0") {
@@ -7426,7 +8906,6 @@ class GameEngine {
             data.elderSlots.alchemyDisciples,
             data.elderSlots.forgeDisciples,
             data.elderSlots.libraryDisciples,
-            data.elderSlots.spiritMineDisciples,
             data.elderSlots.recruitDisciples,
             data.elderSlots.preachingMasters,
             data.elderSlots.lawEnforcementDisciples,
@@ -7443,7 +8922,6 @@ class GameEngine {
             data.elderSlots.alchemyElder,
             data.elderSlots.forgeElder,
             data.elderSlots.libraryElder,
-            data.elderSlots.spiritMineElder,
             data.elderSlots.recruitElder,
             data.elderSlots.outerElder,
             data.elderSlots.preachingElder,
@@ -7512,7 +8990,10 @@ class GameEngine {
     }
 
     fun isDiscipleAssignedToSpiritMine(discipleId: String): Boolean {
-        return _gameData.value.spiritMineSlots.any { it.discipleId == discipleId }
+        val data = _gameData.value
+        val inMinerSlots = data.spiritMineSlots.any { it.discipleId == discipleId }
+        val inDeaconSlots = data.elderSlots.spiritMineDeaconDisciples.any { it.discipleId == discipleId }
+        return inMinerSlots || inDeaconSlots
     }
     
     fun updateMonthlySalaryEnabled(realm: Int, enabled: Boolean) {
@@ -7520,31 +9001,6 @@ class GameEngine {
         val newEnabled = data.monthlySalaryEnabled.toMutableMap()
         newEnabled[realm] = enabled
         _gameData.value = data.copy(monthlySalaryEnabled = newEnabled)
-    }
-    
-    fun updateTournamentRewards(realm: Int, reward: TournamentReward) {
-        val data = _gameData.value
-        val newRewards = data.tournamentRewards.toMutableMap()
-        newRewards[realm] = reward
-        _gameData.value = data.copy(tournamentRewards = newRewards)
-    }
-    
-    fun autoHoldTournamentsIfNeeded() {
-        val data = _gameData.value
-        if (!data.tournamentAutoHold) return
-        
-        val currentYear = data.gameYear
-        if (currentYear - data.tournamentLastYear < 5) return
-        
-        data.tournamentRealmEnabled.forEach { (realm, enabled) ->
-            if (enabled) {
-                val realmDisciples = _disciples.value.filter { it.isAlive && it.realm == realm }
-                if (realmDisciples.size >= 2) {
-                    startTournament(realm)
-                    return
-                }
-            }
-        }
     }
     
     fun addEvent(message: String, type: EventType = EventType.INFO) {
@@ -7831,28 +9287,32 @@ class GameEngine {
     }
 
     /**
-     * 计算工作耗时，只受长老影响（新系统 - 移除弟子个人属性）
+     * 计算工作耗时，受长老和亲传弟子影响
      * @param baseDuration 基础耗时
      * @param buildingId 建筑类型
      * @return 实际耗时
      */
     private fun calculateWorkDurationWithAllDisciples(baseDuration: Int, buildingId: String): Int {
-        // 获取该建筑所有入驻的弟子（用于检查是否有人工作）
-        val buildingSlots = _buildingSlots.value.filter { it.buildingId == buildingId }
-        val assignedDiscipleIds = buildingSlots.mapNotNull { it.discipleId }
-        
-        // 如果没有弟子入驻，返回基础耗时
-        if (assignedDiscipleIds.isEmpty()) return baseDuration
-
         var totalSpeedBonus = 0.0
 
-        // 只计算长老职位加成（移除弟子个人属性、境界、天赋、功法加成）
-        totalSpeedBonus += getElderPositionBonus(buildingId)
+        when (buildingId) {
+            "alchemyRoom" -> {
+                val elderBonus = calculateElderAndDisciplesBonus("alchemy")
+                totalSpeedBonus += elderBonus.speedBonus
+            }
+            "forge" -> {
+                val elderBonus = calculateElderAndDisciplesBonus("forge")
+                totalSpeedBonus += elderBonus.speedBonus
+            }
+            else -> {
+                val buildingSlots = _buildingSlots.value.filter { it.buildingId == buildingId }
+                val assignedDiscipleIds = buildingSlots.mapNotNull { it.discipleId }
+                if (assignedDiscipleIds.isNotEmpty()) {
+                    totalSpeedBonus += getElderPositionBonus(buildingId)
+                }
+            }
+        }
 
-        // 总加成上限 300%
-        totalSpeedBonus = totalSpeedBonus.coerceAtMost(3.0)
-
-        // 使用新的时间计算公式
         return calculateReducedDuration(baseDuration, totalSpeedBonus)
     }
 
@@ -7952,6 +9412,88 @@ class GameEngine {
     }
 
     /**
+     * 计算问道峰传道长老和传道师的传道属性对外门弟子修炼速度的加成
+     * 传道长老：以50为基准，每高5点增加2%修炼速度
+     * 传道师：以50为基准，每高5点增加1%修炼速度
+     * @return 传道属性加成（百分比，如0.1表示+10%）
+     */
+    private fun calculateWenDaoPeakTeachingBonus(): Double {
+        val data = _gameData.value
+        val elderSlots = data.elderSlots
+        
+        var totalBonus = 0.0
+        
+        // 获取传道长老
+        val preachingElderId = elderSlots.preachingElder
+        if (preachingElderId != null) {
+            val preachingElder = _disciples.value.find { it.id == preachingElderId }
+            if (preachingElder != null && preachingElder.isAlive) {
+                // 传道长老：以50为基准，每高5点增加2%
+                val teachingDiff = preachingElder.teaching - 50
+                if (teachingDiff > 0) {
+                    totalBonus += (teachingDiff / 5.0) * 0.02
+                }
+            }
+        }
+        
+        // 获取传道师的传道属性加成
+        val preachingMasters = elderSlots.preachingMasters
+        preachingMasters.filter { it.isActive }.forEach { slot ->
+            val master = _disciples.value.find { it.id == slot.discipleId }
+            if (master != null && master.isAlive) {
+                // 传道师：以50为基准，每高5点增加1%
+                val teachingDiff = master.teaching - 50
+                if (teachingDiff > 0) {
+                    totalBonus += (teachingDiff / 5.0) * 0.01
+                }
+            }
+        }
+        
+        return totalBonus
+    }
+
+    /**
+     * 计算青云峰传道长老和传道师的传道属性对内门弟子修炼速度的加成
+     * 传道长老：以50为基准，每高5点增加3%修炼速度
+     * 传道师：以50为基准，每高5点增加1%修炼速度
+     * @return 传道属性加成（百分比，如0.1表示+10%）
+     */
+    private fun calculateQingyunPeakTeachingBonus(): Double {
+        val data = _gameData.value
+        val elderSlots = data.elderSlots
+        
+        var totalBonus = 0.0
+        
+        // 获取青云峰传道长老
+        val qingyunPreachingElderId = elderSlots.qingyunPreachingElder
+        if (qingyunPreachingElderId != null) {
+            val qingyunPreachingElder = _disciples.value.find { it.id == qingyunPreachingElderId }
+            if (qingyunPreachingElder != null && qingyunPreachingElder.isAlive) {
+                // 传道长老：以50为基准，每高5点增加3%
+                val teachingDiff = qingyunPreachingElder.teaching - 50
+                if (teachingDiff > 0) {
+                    totalBonus += (teachingDiff / 5.0) * 0.03
+                }
+            }
+        }
+        
+        // 获取青云峰传道师的传道属性加成
+        val qingyunPreachingMasters = elderSlots.qingyunPreachingMasters
+        qingyunPreachingMasters.filter { it.isActive }.forEach { slot ->
+            val master = _disciples.value.find { it.id == slot.discipleId }
+            if (master != null && master.isAlive) {
+                // 传道师：以50为基准，每高5点增加1%
+                val teachingDiff = master.teaching - 50
+                if (teachingDiff > 0) {
+                    totalBonus += (teachingDiff / 5.0) * 0.01
+                }
+            }
+        }
+        
+        return totalBonus
+    }
+
+    /**
      * 计算纳徒长老及其亲传弟子魅力对招募弟子人数上限的加成
      * 50点为基准值，超过50点增加最大弟子数，低于50点减少最大弟子数
      * 长老每偏离50点15点影响1名，亲传弟子每偏离50点25点影响1名
@@ -8010,14 +9552,11 @@ class GameEngine {
     /**
      * 计算减少后的时间
      * 确保高加成能明显减少月份
-     * 加成上限300%，最大可减少75%的时间
      */
     private fun calculateReducedDuration(baseDuration: Int, speedBonus: Double): Int {
         if (speedBonus <= 0) return baseDuration
 
-        // 最大减少75%的时间（当加成达到300%时）
-        val effectiveBonus = speedBonus.coerceAtMost(3.0)
-        val reductionPercent = (effectiveBonus / 4.0).coerceAtMost(0.75)
+        val reductionPercent = speedBonus / 4.0
 
         val reducedMonths = (baseDuration * reductionPercent).toInt()
         return (baseDuration - reducedMonths).coerceAtLeast(1)
@@ -8058,7 +9597,7 @@ class GameEngine {
         // 3. 功法加成
         bonus += getSuccessRateManualBonus(disciple, buildingId)
 
-        return bonus.coerceAtMost(0.30) // 成功率加成上限30%
+        return bonus
     }
 
     /**
@@ -8170,10 +9709,17 @@ class GameEngine {
             )
             
             val currentAlchemySlots = _alchemySlots.value
-            _alchemySlots.value = if (slotIndex < currentAlchemySlots.size) {
-                currentAlchemySlots.mapIndexed { index, s -> if (index == slotIndex) newAlchemySlot else s }
+            if (slotIndex < currentAlchemySlots.size) {
+                _alchemySlots.value = currentAlchemySlots.mapIndexed { index, s -> 
+                    if (index == slotIndex) newAlchemySlot else s 
+                }
             } else {
-                currentAlchemySlots + newAlchemySlot
+                val filledSlots = currentAlchemySlots.toMutableList()
+                while (filledSlots.size < slotIndex) {
+                    filledSlots.add(AlchemySlot(slotIndex = filledSlots.size))
+                }
+                filledSlots.add(newAlchemySlot)
+                _alchemySlots.value = filledSlots
             }
         }
         
@@ -8281,24 +9827,50 @@ class GameEngine {
         
         _materials.value = consumedMaterials
         
+        val data = _gameData.value
         val newSlot = AlchemySlot(
             slotIndex = slotIndex,
             recipeId = recipe.id,
             recipeName = recipe.name,
             pillName = recipe.pillName,
             pillRarity = recipe.pillRarity,
-            startYear = _gameData.value.gameYear,
-            startMonth = _gameData.value.gameMonth,
+            startYear = data.gameYear,
+            startMonth = data.gameMonth,
             duration = recipe.duration,
             status = AlchemySlotStatus.WORKING,
             successRate = recipe.successRate,
             requiredMaterials = recipe.materials
         )
         
-        _alchemySlots.value = if (slotIndex < currentSlots.size) {
-            currentSlots.mapIndexed { index, s -> if (index == slotIndex) newSlot else s }
+        if (slotIndex < currentSlots.size) {
+            _alchemySlots.value = currentSlots.mapIndexed { index, s -> if (index == slotIndex) newSlot else s }
         } else {
-            currentSlots + newSlot
+            val filledSlots = currentSlots.toMutableList()
+            while (filledSlots.size < slotIndex) {
+                filledSlots.add(AlchemySlot(slotIndex = filledSlots.size))
+            }
+            filledSlots.add(newSlot)
+            _alchemySlots.value = filledSlots
+        }
+
+        // 同步更新 _buildingSlots
+        val newBuildingSlot = BuildingSlot(
+            buildingId = "alchemyRoom",
+            slotIndex = slotIndex,
+            recipeId = recipe.id,
+            recipeName = recipe.name,
+            startYear = data.gameYear,
+            startMonth = data.gameMonth,
+            duration = recipe.duration,
+            status = SlotStatus.WORKING
+        )
+        val existingBuildingSlot = _buildingSlots.value.find { 
+            it.buildingId == "alchemyRoom" && it.slotIndex == slotIndex 
+        }
+        _buildingSlots.value = if (existingBuildingSlot != null) {
+            _buildingSlots.value.map { if (it.id == existingBuildingSlot.id) newBuildingSlot else it }
+        } else {
+            _buildingSlots.value + newBuildingSlot
         }
         
         addEvent("开始炼制${recipe.name}", EventType.INFO)
@@ -8351,6 +9923,11 @@ class GameEngine {
                 s
             }
         }
+
+        // 同步更新 _buildingSlots
+        _buildingSlots.value = _buildingSlots.value.filter {
+            !(it.buildingId == "alchemyRoom" && it.slotIndex == slotIndex)
+        }
         
         return AlchemyResult(
             success = success,
@@ -8378,6 +9955,12 @@ class GameEngine {
                 s
             }
         }
+
+        // 同步更新 _buildingSlots
+        _buildingSlots.value = _buildingSlots.value.filter {
+            !(it.buildingId == "alchemyRoom" && it.slotIndex == slotIndex)
+        }
+
         addEvent("已取消炼丹任务", EventType.INFO)
     }
     
@@ -8523,7 +10106,7 @@ class GameEngine {
         val disciple = _disciples.value.find { it.id == existingSlot.discipleId }
         val discipleSuccessBonus = calculateSuccessRateBonus(disciple, "forge")
         val totalSuccessBonus = discipleSuccessBonus + elderBonus.successBonus
-        val finalSuccessRate = (recipe.successRate + totalSuccessBonus).coerceAtMost(0.95)
+        val finalSuccessRate = recipe.successRate + totalSuccessBonus
         
         val success = Random.nextDouble() < finalSuccessRate
         
@@ -8559,12 +10142,12 @@ class GameEngine {
     }
     
     fun sortWarehouse() {
-        _equipment.value = _equipment.value.sortedByDescending { it.rarity }
-        _manuals.value = _manuals.value.sortedByDescending { it.rarity }
-        _pills.value = _pills.value.sortedByDescending { it.rarity }
-        _materials.value = _materials.value.sortedByDescending { it.rarity }
-        _herbs.value = _herbs.value.sortedByDescending { it.rarity }
-        _seeds.value = _seeds.value.sortedByDescending { it.rarity }
+        _equipment.value = _equipment.value.sortedWith(compareByDescending<Equipment> { it.rarity }.thenBy { it.name })
+        _manuals.value = _manuals.value.sortedWith(compareByDescending<Manual> { it.rarity }.thenBy { it.name })
+        _pills.value = _pills.value.sortedWith(compareByDescending<Pill> { it.rarity }.thenBy { it.name })
+        _materials.value = _materials.value.sortedWith(compareByDescending<Material> { it.rarity }.thenBy { it.name })
+        _herbs.value = _herbs.value.sortedWith(compareByDescending<Herb> { it.rarity }.thenBy { it.name })
+        _seeds.value = _seeds.value.sortedWith(compareByDescending<Seed> { it.rarity }.thenBy { it.name })
         
         addEvent("仓库整理完成", EventType.INFO)
     }
@@ -8647,6 +10230,7 @@ class GameEngine {
 
     /**
      * 触发探查战斗
+     * 使用AI宗门的真实弟子进行战斗
      */
     private fun triggerScoutBattle(team: ExplorationTeam, targetSect: WorldSect, currentYear: Int, currentMonth: Int) {
         // 获取队伍成员
@@ -8660,12 +10244,22 @@ class GameEngine {
             return
         }
 
-        // 计算队伍平均境界
-        val avgRealm = calculateTeamAvgRealm(teamMembers)
+        // 从目标宗门的真实AI弟子中选择战斗敌人
+        // 筛选筑基（8）和炼气（9）境界的存活弟子
+        val eligibleDisciples = targetSect.aiDisciples
+            .filter { it.isAlive && (it.realm == 8 || it.realm == 9) }
+            .shuffled()
+            .take(20)
 
-        // 生成AI宗门弟子（5-10人，境界为探查队伍平均境界）
-        val enemyCount = Random.nextInt(5, 11) // 5-10人
-        val enemies = generateScoutEnemies(enemyCount, avgRealm)
+        // 如果没有符合条件的弟子，探查自动成功
+        if (eligibleDisciples.isEmpty()) {
+            addEvent("探查队伍【${team.name}】发现${targetSect.name}没有筑基及以下弟子，探查成功", EventType.SUCCESS)
+            completeScoutMission(team, true, targetSect, currentYear, currentMonth)
+            return
+        }
+
+        // 将AI弟子转换为战斗敌人格式
+        val enemies = generateScoutEnemiesFromAIDisciples(eligibleDisciples)
 
         // 简化战斗：计算双方总战力
         val teamPower = teamMembers.sumOf { member ->
@@ -8697,6 +10291,20 @@ class GameEngine {
             (enemies.size * finalAdvantage * Random.nextDouble()).toInt()
         }
 
+        // 提前确定伤亡弟子列表（确保BattleLog和状态更新一致）
+        val casualties = if (teamWins) {
+            teamMembers.shuffled().take(teamCasualties)
+        } else {
+            teamMembers
+        }
+
+        // 确定被击败的AI弟子列表
+        val defeatedEnemyIds = if (teamWins) {
+            enemies.map { it.id }.toSet()
+        } else {
+            enemies.shuffled().take(enemiesDefeated).map { it.id }.toSet()
+        }
+
         // 生成战斗回合记录
         val rounds = generateScoutBattleRounds(teamMembers, enemies, teamWins, teamCasualties, enemiesDefeated)
 
@@ -8710,7 +10318,7 @@ class GameEngine {
                     name = member.name,
                     realm = member.realm,
                     realmName = member.realmName,
-                    isAlive = !teamMembers.shuffled().take(teamCasualties).any { it.id == member.id }
+                    isAlive = !casualties.any { it.id == member.id }
                 )
             },
             enemies = enemies.map { enemy ->
@@ -8742,89 +10350,52 @@ class GameEngine {
             completeScoutMission(team, false, targetSect, currentYear, currentMonth)
         }
 
-        // 更新弟子状态（根据战斗结果）
-        if (teamWins) {
-            // 随机选择阵亡弟子
-            val casualties = teamMembers.shuffled().take(teamCasualties)
-            casualties.forEach { casualty ->
-                val updatedDisciple = casualty.copy(isAlive = false)
-                _disciples.value = _disciples.value.map { if (it.id == casualty.id) updatedDisciple else it }
+        // 更新玩家弟子状态（根据战斗结果）
+        casualties.forEach { casualty ->
+            val updatedDisciple = casualty.copy(isAlive = false)
+            _disciples.value = _disciples.value.map { if (it.id == casualty.id) updatedDisciple else it }
+        }
+
+        // 更新AI宗门弟子状态（被击败的弟子标记为死亡）
+        if (defeatedEnemyIds.isNotEmpty()) {
+            val updatedSects = _gameData.value.worldMapSects.map { sect ->
+                if (sect.id == targetSect.id) {
+                    val updatedAiDisciples = sect.aiDisciples.map { disciple ->
+                        if (defeatedEnemyIds.contains(disciple.id)) {
+                            disciple.copy(isAlive = false)
+                        } else {
+                            disciple
+                        }
+                    }
+                    sect.copy(aiDisciples = updatedAiDisciples)
+                } else {
+                    sect
+                }
             }
-        } else {
-            // 全员阵亡
-            teamMembers.forEach { member ->
-                val updatedDisciple = member.copy(isAlive = false)
-                _disciples.value = _disciples.value.map { if (it.id == member.id) updatedDisciple else it }
-            }
+            _gameData.value = _gameData.value.copy(worldMapSects = updatedSects)
         }
     }
 
     /**
-     * 生成探查敌人
-     * 敌人数量为5-10人，境界严格根据探查队伍平均境界生成
+     * 从AI宗门真实弟子生成探查敌人
+     * 使用AI弟子的真实属性
      */
-    private fun generateScoutEnemies(count: Int, avgRealm: Double): List<BattleEnemy> {
-        val enemies = mutableListOf<BattleEnemy>()
-
-        // 根据平均境界确定敌人境界（严格按平均境界，只允许±1的浮动）
-        val baseRealm = avgRealm.toInt()
-        // 浮动范围：70%与平均境界相同，15%低一级，15%高一级
-        val realmVariations = listOf(-1, 0, 0, 0, 0, 0, 0, 1)
-
-        repeat(count) { index ->
-            val realmVariation = realmVariations.random()
-            val enemyRealm = (baseRealm + realmVariation).coerceIn(0, 9) // 限制在0-9范围内（仙人以下）
-            val realmName = getRealmNameByIndexForBattle(enemyRealm)
-
-            // 根据境界计算属性
-            val (hp, attack, defense, speed) = calculateEnemyStatsByRealm(enemyRealm)
-
-            enemies.add(BattleEnemy(
-                id = "scout_enemy_$index",
-                name = "${realmName}弟子",
-                realm = enemyRealm,
-                realmName = realmName,
-                hp = hp,
-                maxHp = hp,
-                attack = attack,
-                defense = defense,
-                speed = speed
-            ))
+    private fun generateScoutEnemiesFromAIDisciples(aiDisciples: List<AISectDisciple>): List<BattleEnemy> {
+        return aiDisciples.map { disciple ->
+            val stats = disciple.getBaseStats()
+            BattleEnemy(
+                id = disciple.id,
+                name = disciple.name,
+                realm = disciple.realm,
+                realmName = disciple.realmNameOnly,
+                realmLayer = disciple.realmLayer,
+                hp = stats.maxHp,
+                maxHp = stats.maxHp,
+                attack = stats.physicalAttack,
+                defense = stats.physicalDefense,
+                speed = stats.speed
+            )
         }
-
-        return enemies
-    }
-
-    /**
-     * 根据境界计算敌人属性
-     * AI宗门弟子基础属性与普通弟子一致
-     * 使用与普通弟子相同的计算方式：基础值 × 境界系数
-     */
-    private fun calculateEnemyStatsByRealm(realm: Int): Tuple4<Int, Int, Int, Int> {
-        // 获取境界配置（使用与普通弟子相同的配置）
-        val realmConfig = GameConfig.Realm.get(realm)
-        val realmMultiplier = realmConfig.multiplier
-        val layerBonus = 1.0  // AI弟子默认为第1层
-
-        // 基础属性计算（与普通弟子一致）
-        // 普通弟子：hp = (100 * spiritRootMultiplier * realmMultiplier * layerBonus)
-        // AI弟子默认使用双灵根加成（1.5倍）
-        val spiritRootMultiplier = 1.5
-
-        val hp = (100 * spiritRootMultiplier * realmMultiplier * layerBonus).toInt()
-        val attack = (10 * spiritRootMultiplier * realmMultiplier * layerBonus).toInt()
-        val defense = (5 * spiritRootMultiplier * realmMultiplier * layerBonus).toInt()
-        val speed = (10 * spiritRootMultiplier * realmMultiplier * layerBonus).toInt()
-
-        // 添加小幅随机波动（±5%）
-        val variance = 0.95 + Random.nextDouble() * 0.1
-
-        return Tuple4(
-            (hp * variance).toInt(),
-            (attack * variance).toInt(),
-            (defense * variance).toInt(),
-            (speed * variance).toInt()
-        )
     }
 
     /**
@@ -8964,7 +10535,7 @@ class GameEngine {
             val expiryYear = currentYear + 20
             val expiryMonth = currentMonth
 
-            val disciples = generateAISectDisciples(targetSect.level)
+            val disciples = targetSect.discipleCountByRealm
 
             updateSectInfo(targetSect.id, disciples, expiryYear, expiryMonth)
 
@@ -8974,70 +10545,63 @@ class GameEngine {
 
     /**
      * 生成AI宗门弟子分布
+     * 小型宗门(0): 最高化神(5)，1-5名化神弟子，以下各境界10-30名
+     * 中型宗门(1): 最高炼虚(4)，1-5名炼虚弟子，以下各境界10-30名
+     * 大型宗门(2): 最高大乘(2)，1-5名大乘弟子，以下各境界10-30名
+     * 顶级宗门(3): 最高渡劫(1)，1-5名渡劫弟子，以下各境界10-30名
      */
     private fun generateAISectDisciples(sectLevel: Int): Map<Int, Int> {
         val disciples = mutableMapOf<Int, Int>()
 
-        // 根据宗门等级确定弟子数量和境界分布
-        val totalDisciples = when (sectLevel) {
-            0 -> Random.nextInt(15, 26) // 小型宗门 15-25人
-            1 -> Random.nextInt(25, 41) // 中型宗门 25-40人
-            2 -> Random.nextInt(40, 61) // 大型宗门 40-60人
-            3 -> Random.nextInt(60, 101) // 顶级宗门 60-100人
-            else -> Random.nextInt(15, 26)
-        }
-
-        // 根据宗门等级确定最高境界
-        val maxRealm = when (sectLevel) {
-            0 -> 5 // 小型宗门最高元婴
-            1 -> 3 // 中型宗门最高炼虚
-            2 -> 1 // 大型宗门最高大乘
-            3 -> 0 // 顶级宗门最高渡劫/仙人
-            else -> 5
-        }
-
-        // 分配弟子到各境界
-        var remaining = totalDisciples
-
-        // 高境界弟子较少
-        for (realm in 0..maxRealm) {
-            if (remaining <= 0) break
-            val count = when (realm) {
-                0 -> if (sectLevel == 3) Random.nextInt(1, 4) else 0 // 渡劫期
-                1 -> if (sectLevel >= 2) Random.nextInt(1, 4) else 0 // 大乘期
-                2 -> if (sectLevel >= 2) Random.nextInt(2, 6) else 0 // 合体期
-                3 -> if (sectLevel >= 1) Random.nextInt(3, 8) else 0 // 炼虚期
-                4 -> Random.nextInt(5, 11) // 化神期
-                5 -> Random.nextInt(8, 16) // 元婴期
-                else -> 0
+        when (sectLevel) {
+            0 -> {
+                // 小型宗门：最高化神(5)，1-5名化神弟子，以下各境界10-30名
+                disciples[5] = Random.nextInt(1, 6) // 化神 1-5名
+                disciples[6] = Random.nextInt(10, 31) // 元婴 10-30名
+                disciples[7] = Random.nextInt(10, 31) // 金丹 10-30名
+                disciples[8] = Random.nextInt(10, 31) // 筑基 10-30名
+                disciples[9] = Random.nextInt(10, 31) // 炼气 10-30名
             }
-            if (count > 0) {
-                disciples[realm] = count.coerceAtMost(remaining)
-                remaining -= count
+            1 -> {
+                // 中型宗门：最高炼虚(4)，1-5名炼虚弟子，以下各境界10-30名
+                disciples[4] = Random.nextInt(1, 6) // 炼虚 1-5名
+                disciples[5] = Random.nextInt(10, 31) // 化神 10-30名
+                disciples[6] = Random.nextInt(10, 31) // 元婴 10-30名
+                disciples[7] = Random.nextInt(10, 31) // 金丹 10-30名
+                disciples[8] = Random.nextInt(10, 31) // 筑基 10-30名
+                disciples[9] = Random.nextInt(10, 31) // 炼气 10-30名
             }
-        }
-
-        // 中等境界
-        val midRealmCount = (remaining * 0.4).toInt()
-        if (midRealmCount > 0) {
-            disciples[6] = midRealmCount // 金丹期
-            remaining -= midRealmCount
-        }
-
-        val lowMidCount = (remaining * 0.5).toInt()
-        if (lowMidCount > 0) {
-            disciples[7] = lowMidCount // 筑基期
-            remaining -= lowMidCount
-        }
-
-        // 低境界占大部分
-        if (remaining > 0) {
-            disciples[9] = remaining // 炼气期
-        }
-
-        // 仙人境界（顶级宗门有几率有）
-        if (sectLevel == 3 && Random.nextDouble() < 0.3) {
-            disciples[0] = Random.nextInt(1, 3)
+            2 -> {
+                // 大型宗门：最高大乘(2)，1-5名大乘弟子，以下各境界10-30名
+                disciples[2] = Random.nextInt(1, 6) // 大乘 1-5名
+                disciples[3] = Random.nextInt(10, 31) // 合体 10-30名
+                disciples[4] = Random.nextInt(10, 31) // 炼虚 10-30名
+                disciples[5] = Random.nextInt(10, 31) // 化神 10-30名
+                disciples[6] = Random.nextInt(10, 31) // 元婴 10-30名
+                disciples[7] = Random.nextInt(10, 31) // 金丹 10-30名
+                disciples[8] = Random.nextInt(10, 31) // 筑基 10-30名
+                disciples[9] = Random.nextInt(10, 31) // 炼气 10-30名
+            }
+            3 -> {
+                // 顶级宗门：最高渡劫(1)，1-5名渡劫弟子，以下各境界10-30名
+                disciples[1] = Random.nextInt(1, 6) // 渡劫 1-5名
+                disciples[2] = Random.nextInt(10, 31) // 大乘 10-30名
+                disciples[3] = Random.nextInt(10, 31) // 合体 10-30名
+                disciples[4] = Random.nextInt(10, 31) // 炼虚 10-30名
+                disciples[5] = Random.nextInt(10, 31) // 化神 10-30名
+                disciples[6] = Random.nextInt(10, 31) // 元婴 10-30名
+                disciples[7] = Random.nextInt(10, 31) // 金丹 10-30名
+                disciples[8] = Random.nextInt(10, 31) // 筑基 10-30名
+                disciples[9] = Random.nextInt(10, 31) // 炼气 10-30名
+            }
+            else -> {
+                // 默认按小型宗门处理
+                disciples[5] = Random.nextInt(1, 6) // 化神 1-5名
+                disciples[6] = Random.nextInt(10, 31) // 元婴 10-30名
+                disciples[7] = Random.nextInt(10, 31) // 金丹 10-30名
+                disciples[8] = Random.nextInt(10, 31) // 筑基 10-30名
+                disciples[9] = Random.nextInt(10, 31) // 炼气 10-30名
+            }
         }
 
         return disciples
@@ -9132,22 +10696,21 @@ class GameEngine {
     private fun processCaveLifecycle(year: Int, month: Int) {
         val data = _gameData.value
 
-        // 1. 移除过期的洞府
         val activeCaves = data.cultivatorCaves.filter { cave ->
             !cave.isExpired(year, month) && cave.status != CaveStatus.EXPLORED
         }
 
-        // 2. 生成新的洞府（每月最多2座）
+        val connectionEdges = buildConnectionEdges(data.worldMapSects)
+
         val newCaves = CaveGenerator.generateCaves(
             existingSects = data.worldMapSects,
-            connectionEdges = emptyList(),
+            connectionEdges = connectionEdges,
             currentYear = year,
             currentMonth = month,
             existingCaves = activeCaves,
             maxNewCaves = 2
         )
 
-        // 3. 为每个洞府生成AI队伍（最多3个）
         val allAITeams = data.aiCaveTeams.toMutableList()
         activeCaves.forEach { cave ->
             val currentTeams = allAITeams.count { 
@@ -9164,30 +10727,44 @@ class GameEngine {
                 }
             }
         }
-
-        // 4. 处理玩家探索队伍状态转换
-        val updatedExplorationTeams = data.caveExplorationTeams.map { team ->
-            if (team.status == CaveExplorationStatus.TRAVELING) {
-                val elapsed = (year - team.startYear) * 12 + (month - team.startMonth)
-                if (elapsed >= team.duration) {
-                    team.copy(status = CaveExplorationStatus.EXPLORING)
-                } else {
-                    team
+        
+        var updatedSectsForAI = _gameData.value.worldMapSects.toMutableList()
+        val aiTeamsToRemove = mutableListOf<String>()
+        
+        allAITeams.filter { it.status == AITeamStatus.EXPLORING }.forEach { aiTeam ->
+            val cave = activeCaves.find { it.id == aiTeam.caveId } ?: return@forEach
+            
+            if (Random.nextDouble() < 0.3) {
+                val rewards = CaveExplorationSystem.generateVictoryRewards(cave)
+                val warehouseItems = SectWarehouseManager.convertCaveRewardsToWarehouseItems(rewards)
+                
+                val sectIndex = updatedSectsForAI.indexOfFirst { it.id == aiTeam.sectId }
+                if (sectIndex >= 0) {
+                    val sect = updatedSectsForAI[sectIndex]
+                    val updatedWarehouse = SectWarehouseManager.addItemsToWarehouse(sect.warehouse, warehouseItems)
+                    val warehouseWithStones = SectWarehouseManager.addSpiritStonesToWarehouse(
+                        updatedWarehouse,
+                        rewards.items.filter { it.type == "spiritStones" }.sumOf { it.quantity.toLong() }
+                    )
+                    updatedSectsForAI[sectIndex] = sect.copy(warehouse = warehouseWithStones)
+                    addEvent("${aiTeam.sectName}成功探索了${cave.name}，获得丰厚奖励", EventType.INFO)
                 }
-            } else {
-                team
+                
+                aiTeamsToRemove.add(aiTeam.id)
             }
         }
+        
+        val filteredAITeams = allAITeams.filter { it.id !in aiTeamsToRemove }
 
-        // 5. 处理到达洞府的探索队伍（自动开始战斗）
-        val teamsToComplete = updatedExplorationTeams.filter { 
+        val teamsToComplete = data.caveExplorationTeams.filter { 
             it.status == CaveExplorationStatus.EXPLORING 
         }
         
         var finalCaves = activeCaves.toMutableList()
-        var finalAITeams = allAITeams.toList()
-        var finalExplorationTeams = updatedExplorationTeams.toMutableList()
+        var finalAITeams = filteredAITeams.toList()
+        var finalExplorationTeams = data.caveExplorationTeams.toMutableList()
         val teamsWithMissingCave = mutableListOf<CaveExplorationTeam>()
+        val teamsWithError = mutableListOf<CaveExplorationTeam>()
 
         teamsToComplete.forEach { team ->
             val cave = finalCaves.find { it.id == team.caveId }
@@ -9195,37 +10772,117 @@ class GameEngine {
                 teamsWithMissingCave.add(team)
                 return@forEach
             }
-            val result = executeCaveExploration(team, cave, finalAITeams)
-            
-            finalCaves = result.first.toMutableList()
-            finalAITeams = result.second
-            if (result.third) {
-                finalExplorationTeams.removeAll { it.id == team.id }
+            try {
+                val result = executeCaveExploration(team, cave, finalAITeams)
+                
+                finalCaves = result.first.toMutableList()
+                finalAITeams = result.second
+                if (result.third) {
+                    finalExplorationTeams.removeAll { it.id == team.id }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error processing cave exploration for team ${team.id}", e)
+                teamsWithError.add(team)
             }
         }
 
         teamsWithMissingCave.forEach { team ->
             addEvent("探索队伍前往的${team.caveName}已消失，队伍返回宗门", EventType.WARNING)
-            team.memberIds.forEach { memberId ->
-                val disciple = _disciples.value.find { it.id == memberId }
-                if (disciple != null) {
-                    _disciples.value = _disciples.value.map { 
-                        if (it.id == memberId) it.copy(status = DiscipleStatus.IDLE) else it 
-                    }
-                }
-            }
+            resetCaveExplorationTeamMembersStatus(team)
             finalExplorationTeams.removeAll { it.id == team.id }
         }
 
-        _gameData.value = data.copy(
+        teamsWithError.forEach { team ->
+            addEvent("探索队伍${team.caveName}发生错误，队伍返回宗门", EventType.WARNING)
+            resetCaveExplorationTeamMembersStatus(team)
+            finalCaves = finalCaves.map { cave ->
+                if (cave.id == team.caveId && cave.status == CaveStatus.EXPLORING) {
+                    cave.copy(status = CaveStatus.AVAILABLE)
+                } else {
+                    cave
+                }
+            }.toMutableList()
+            finalExplorationTeams.removeAll { it.id == team.id }
+        }
+
+        val currentData = _gameData.value
+        _gameData.value = currentData.copy(
             cultivatorCaves = finalCaves + newCaves,
             aiCaveTeams = finalAITeams,
-            caveExplorationTeams = finalExplorationTeams
+            caveExplorationTeams = finalExplorationTeams,
+            worldMapSects = updatedSectsForAI
         )
 
-        // 通知新洞府生成
         newCaves.forEach { cave ->
             addEvent("发现${cave.ownerRealmName}洞府：${cave.name}", EventType.SUCCESS)
+        }
+    }
+
+    /**
+     * 处理洞府探索失败后的弟子状态更新
+     */
+    private fun handleCaveExplorationDefeat(team: CaveExplorationTeam, battleResult: BattleSystemResult?) {
+        if (battleResult == null) {
+            resetCaveExplorationTeamMembersStatus(team)
+            return
+        }
+        
+        val deadMemberIds = battleResult.log.teamMembers.filter { !it.isAlive }.map { it.id }.toSet()
+        val teamMemberHpMap = battleResult.log.teamMembers.associateBy { it.id }.mapValues { it.value.hp }
+        
+        team.memberIds.forEach { memberId ->
+            val disciple = _disciples.value.find { it.id == memberId }
+            if (disciple != null) {
+                _disciples.value = _disciples.value.map { d ->
+                    if (d.id != memberId) d
+                    else if (deadMemberIds.contains(memberId)) {
+                        d.copy(isAlive = false, status = DiscipleStatus.IDLE)
+                    } else {
+                        val finalHp = teamMemberHpMap[memberId] ?: d.maxHp
+                        val updatedStatusData = d.statusData + ("currentHp" to finalHp.toString())
+                        d.copy(status = DiscipleStatus.IDLE, statusData = updatedStatusData)
+                    }
+                }
+            }
+        }
+        
+        deadMemberIds.forEach { memberId ->
+            val disciple = _disciples.value.find { it.id == memberId }
+            if (disciple != null) {
+                addEvent("${disciple.name}在洞府探索中阵亡", EventType.DANGER)
+            }
+        }
+    }
+    
+    /**
+     * 处理洞府探索失败后的弟子状态更新（使用累积的战斗数据）
+     */
+    private fun handleCaveExplorationDefeatWithAllData(
+        team: CaveExplorationTeam, 
+        allDeadMemberIds: Set<String>, 
+        allMemberHpMap: Map<String, Int>
+    ) {
+        team.memberIds.forEach { memberId ->
+            val disciple = _disciples.value.find { it.id == memberId }
+            if (disciple != null) {
+                _disciples.value = _disciples.value.map { d ->
+                    if (d.id != memberId) d
+                    else if (allDeadMemberIds.contains(memberId)) {
+                        d.copy(isAlive = false, status = DiscipleStatus.IDLE)
+                    } else {
+                        val finalHp = allMemberHpMap[memberId] ?: d.maxHp
+                        val updatedStatusData = d.statusData + ("currentHp" to finalHp.toString())
+                        d.copy(status = DiscipleStatus.IDLE, statusData = updatedStatusData)
+                    }
+                }
+            }
+        }
+        
+        allDeadMemberIds.forEach { memberId ->
+            val disciple = _disciples.value.find { it.id == memberId }
+            if (disciple != null) {
+                addEvent("${disciple.name}在洞府探索中阵亡", EventType.DANGER)
+            }
         }
     }
 
@@ -9238,199 +10895,265 @@ class GameEngine {
         cave: CultivatorCave,
         currentAITeams: List<AICaveTeam>
     ): Triple<List<CultivatorCave>, List<AICaveTeam>, Boolean> {
-        val aliveDisciples = _disciples.value.filter { it.id in team.memberIds && it.isAlive }
-        val equipmentMap = _equipment.value.associateBy { it.id }
+        val allDeadMemberIds = mutableSetOf<String>()
+        val allMemberHpMap = mutableMapOf<String, Int>()
         
-        var aiTeams = currentAITeams.toMutableList()
-        var allVictories = true
-
-        // 1. 与AI队伍战斗
-        val caveAITeams = aiTeams.filter { 
-            it.caveId == cave.id && it.status == AITeamStatus.EXPLORING 
-        }
-        
-        for (aiTeam in caveAITeams) {
-            val battle = CaveExplorationSystem.createAIBattle(aliveDisciples, equipmentMap, aiTeam)
-            val battleResult = BattleSystem.executeBattle(battle)
+        try {
+            val equipmentMap = _equipment.value.associateBy { it.id }
             
-            // 战斗后清除战斗丹效果
-            clearBattlePillEffects(aliveDisciples)
+            var aiTeams = currentAITeams.toMutableList()
+            var allVictories = true
 
-            if (battleResult.victory) {
-                applyBattleVictoryBonuses(
-                    memberIds = battleResult.log.teamMembers.filter { it.isAlive }.map { it.id },
-                    addSoulPower = false
-                )
-                aiTeams = aiTeams.map { 
-                    if (it.id == aiTeam.id) it.copy(status = AITeamStatus.DEFEATED) else it 
-                }.toMutableList()
+            val caveAITeams = aiTeams.filter { 
+                it.caveId == cave.id && it.status == AITeamStatus.EXPLORING 
+            }
+            
+            var currentAliveDisciples = _disciples.value.filter { it.id in team.memberIds && it.isAlive }
+            
+            for (aiTeam in caveAITeams) {
+                val battle = CaveExplorationSystem.createAIBattle(currentAliveDisciples, equipmentMap, aiTeam)
+                val battleResult = BattleSystem.executeBattle(battle)
                 
-                val sect = _gameData.value.worldMapSects.find { it.id == aiTeam.sectId }
-                if (sect != null) {
-                    val updatedSects = _gameData.value.worldMapSects.map { s ->
-                        if (s.id == aiTeam.sectId) s else s
+                clearBattlePillEffects(currentAliveDisciples)
+
+                if (battleResult.victory) {
+                    battleResult.log.teamMembers.forEach { member ->
+                        if (!member.isAlive) {
+                            allDeadMemberIds.add(member.id)
+                        }
+                        allMemberHpMap[member.id] = member.hp
                     }
-                    _gameData.value = _gameData.value.copy(worldMapSects = updatedSects)
-                }
-                addEvent("击败${aiTeam.sectName}的探索队伍", EventType.SUCCESS)
-            } else {
-                allVictories = false
-                addEvent("被${aiTeam.sectName}的探索队伍击败", EventType.DANGER)
-                break
-            }
-        }
-
-        if (!allVictories) {
-            team.memberIds.forEach { memberId ->
-                val disciple = _disciples.value.find { it.id == memberId }
-                if (disciple != null) {
-                    _disciples.value = _disciples.value.map { 
-                        if (it.id == memberId) it.copy(status = DiscipleStatus.IDLE) else it 
-                    }
-                }
-            }
-            val updatedCaves = _gameData.value.cultivatorCaves.map { 
-                if (it.id == cave.id) it.copy(status = CaveStatus.AVAILABLE) else it 
-            }
-            return Triple(updatedCaves, aiTeams.toList(), true)
-        }
-
-        // 2. 与守护兽战斗
-        val guardianBattle = CaveExplorationSystem.createGuardianBattle(aliveDisciples, equipmentMap, cave)
-        val guardianResult = BattleSystem.executeBattle(guardianBattle)
-        
-        // 战斗后清除战斗丹效果
-        clearBattlePillEffects(aliveDisciples)
-
-        if (!guardianResult.victory) {
-            addEvent("被${cave.name}的守护兽击败", EventType.DANGER)
-            team.memberIds.forEach { memberId ->
-                val disciple = _disciples.value.find { it.id == memberId }
-                if (disciple != null) {
-                    _disciples.value = _disciples.value.map { 
-                        if (it.id == memberId) it.copy(status = DiscipleStatus.IDLE) else it 
-                    }
-                }
-            }
-            val updatedCaves = _gameData.value.cultivatorCaves.map { 
-                if (it.id == cave.id) it.copy(status = CaveStatus.AVAILABLE) else it 
-            }
-            return Triple(updatedCaves, aiTeams.toList(), true)
-        }
-
-        applyBattleVictoryBonuses(
-            memberIds = guardianResult.log.teamMembers.filter { it.isAlive }.map { it.id },
-            addSoulPower = false
-        )
-
-        // 3. 生成并发放奖励
-        val rewards = CaveExplorationSystem.generateVictoryRewards(cave)
-        rewards.items.forEach { item ->
-            when (item.type) {
-                "spiritStones" -> {
-                    val currentStones = _gameData.value.spiritStones
-                    _gameData.value = _gameData.value.copy(
-                        spiritStones = currentStones + item.quantity
+                    
+                    currentAliveDisciples = currentAliveDisciples.filter { it.id !in allDeadMemberIds }
+                    
+                    applyBattleVictoryBonuses(
+                        memberIds = battleResult.log.teamMembers.filter { it.isAlive }.map { it.id },
+                        addSoulPower = false
                     )
-                }
-                "equipment" -> {
-                    val template = EquipmentDatabase.getTemplateByName(item.name)
-                    if (template != null) {
-                        val equipment = Equipment(
-                            id = UUID.randomUUID().toString(),
-                            name = template.name,
-                            slot = template.slot,
-                            rarity = item.rarity,
-                            physicalAttack = template.physicalAttack,
-                            magicAttack = template.magicAttack,
-                            physicalDefense = template.physicalDefense,
-                            magicDefense = template.magicDefense,
-                            speed = template.speed,
-                            hp = template.hp,
-                            mp = template.mp,
-                            description = template.description
-                        )
-                        _equipment.value = _equipment.value + equipment
+                    aiTeams = aiTeams.map { 
+                        if (it.id == aiTeam.id) it.copy(status = AITeamStatus.DEFEATED) else it 
+                    }.toMutableList()
+                    
+                    addEvent("击败${aiTeam.sectName}的探索队伍", EventType.SUCCESS)
+                } else {
+                    allVictories = false
+                    battleResult.log.teamMembers.forEach { member ->
+                        if (!member.isAlive) {
+                            allDeadMemberIds.add(member.id)
+                        }
+                        allMemberHpMap[member.id] = member.hp
                     }
+                    addEvent("被${aiTeam.sectName}的探索队伍击败", EventType.DANGER)
+                    break
                 }
-                "pill" -> {
-                    val recipe = PillRecipeDatabase.getRecipeById(item.itemId)
-                    if (recipe != null) {
-                        val pill = Pill(
-                            id = UUID.randomUUID().toString(),
-                            name = recipe.name,
-                            rarity = recipe.rarity,
-                            quantity = item.quantity,
-                            description = recipe.description,
-                            category = recipe.category,
-                            breakthroughChance = recipe.breakthroughChance,
-                            targetRealm = recipe.targetRealm,
-                            cultivationSpeed = recipe.cultivationSpeed,
-                            duration = recipe.effectDuration,
-                            extendLife = recipe.extendLife,
-                            physicalAttackPercent = recipe.physicalAttackPercent,
-                            magicAttackPercent = recipe.magicAttackPercent,
-                            physicalDefensePercent = recipe.physicalDefensePercent,
-                            magicDefensePercent = recipe.magicDefensePercent,
-                            hpPercent = recipe.hpPercent,
-                            mpPercent = recipe.mpPercent,
-                            speedPercent = recipe.speedPercent,
-                            healPercent = recipe.healPercent,
-                            healMaxHpPercent = recipe.healMaxHpPercent,
-                            heal = recipe.heal,
-                            battleCount = recipe.battleCount
-                        )
-                        addPillToWarehouse(pill)
+            }
+
+            if (!allVictories) {
+                handleCaveExplorationDefeatWithAllData(team, allDeadMemberIds, allMemberHpMap)
+                val updatedCaves = _gameData.value.cultivatorCaves.map { 
+                    if (it.id == cave.id) it.copy(status = CaveStatus.AVAILABLE) else it 
+                }
+                return Triple(updatedCaves, aiTeams.toList(), true)
+            }
+
+            if (currentAliveDisciples.isEmpty()) {
+                addEvent("探索队伍全员阵亡，探索失败", EventType.DANGER)
+                handleCaveExplorationDefeatWithAllData(team, allDeadMemberIds, allMemberHpMap)
+                val updatedCaves = _gameData.value.cultivatorCaves.map { 
+                    if (it.id == cave.id) it.copy(status = CaveStatus.AVAILABLE) else it 
+                }
+                return Triple(updatedCaves, aiTeams.toList(), true)
+            }
+
+            val guardianBattle = CaveExplorationSystem.createGuardianBattle(currentAliveDisciples, equipmentMap, cave)
+            val guardianResult = BattleSystem.executeBattle(guardianBattle)
+            
+            clearBattlePillEffects(currentAliveDisciples)
+
+            if (!guardianResult.victory) {
+                guardianResult.log.teamMembers.forEach { member ->
+                    if (!member.isAlive) {
+                        allDeadMemberIds.add(member.id)
                     }
+                    allMemberHpMap[member.id] = member.hp
                 }
-                "manual" -> {
-                    val template = ManualDatabase.getByName(item.name)
-                    if (template != null) {
-                        val manual = Manual(
-                            id = UUID.randomUUID().toString(),
-                            name = template.name,
-                            rarity = item.rarity,
-                            description = template.description,
-                            type = template.type,
-                            stats = template.stats,
-                            minRealm = template.minRealm
+                addEvent("被${cave.name}的守护兽击败", EventType.DANGER)
+                handleCaveExplorationDefeatWithAllData(team, allDeadMemberIds, allMemberHpMap)
+                val updatedCaves = _gameData.value.cultivatorCaves.map { 
+                    if (it.id == cave.id) it.copy(status = CaveStatus.AVAILABLE) else it 
+                }
+                return Triple(updatedCaves, aiTeams.toList(), true)
+            }
+
+            guardianResult.log.teamMembers.forEach { member ->
+                if (!member.isAlive) {
+                    allDeadMemberIds.add(member.id)
+                }
+                allMemberHpMap[member.id] = member.hp
+            }
+
+            applyBattleVictoryBonuses(
+                memberIds = guardianResult.log.teamMembers.filter { it.isAlive }.map { it.id },
+                addSoulPower = false
+            )
+
+            val rewards = CaveExplorationSystem.generateVictoryRewards(cave)
+            rewards.items.forEach { item ->
+                when (item.type) {
+                    "spiritStones" -> {
+                        val currentStones = _gameData.value.spiritStones
+                        _gameData.value = _gameData.value.copy(
+                            spiritStones = currentStones + item.quantity
                         )
-                        // 检查是否已存在相同 id 的功法，避免重复
-                        if (_manuals.value.none { it.id == manual.id }) {
-                            _manuals.value = _manuals.value + manual
+                    }
+                    "equipment" -> {
+                        val template = EquipmentDatabase.getTemplateByName(item.name)
+                        if (template != null) {
+                            val equipment = Equipment(
+                                id = UUID.randomUUID().toString(),
+                                name = template.name,
+                                slot = template.slot,
+                                rarity = item.rarity,
+                                physicalAttack = template.physicalAttack,
+                                magicAttack = template.magicAttack,
+                                physicalDefense = template.physicalDefense,
+                                magicDefense = template.magicDefense,
+                                speed = template.speed,
+                                hp = template.hp,
+                                mp = template.mp,
+                                description = template.description,
+                                minRealm = GameConfig.Realm.getMinRealmForRarity(item.rarity)
+                            )
+                            _equipment.value = _equipment.value + equipment
+                        }
+                    }
+                    "pill" -> {
+                        val recipe = PillRecipeDatabase.getRecipeById(item.itemId)
+                        if (recipe != null) {
+                            val pill = Pill(
+                                id = UUID.randomUUID().toString(),
+                                name = recipe.name,
+                                rarity = recipe.rarity,
+                                quantity = item.quantity,
+                                description = recipe.description,
+                                category = recipe.category,
+                                breakthroughChance = recipe.breakthroughChance,
+                                targetRealm = recipe.targetRealm,
+                                cultivationSpeed = recipe.cultivationSpeed,
+                                duration = recipe.effectDuration,
+                                extendLife = recipe.extendLife,
+                                physicalAttackPercent = recipe.physicalAttackPercent,
+                                magicAttackPercent = recipe.magicAttackPercent,
+                                physicalDefensePercent = recipe.physicalDefensePercent,
+                                magicDefensePercent = recipe.magicDefensePercent,
+                                hpPercent = recipe.hpPercent,
+                                mpPercent = recipe.mpPercent,
+                                speedPercent = recipe.speedPercent,
+                                healPercent = recipe.healPercent,
+                                healMaxHpPercent = recipe.healMaxHpPercent,
+                                heal = recipe.heal,
+                                battleCount = recipe.battleCount
+                            )
+                            addPillToWarehouse(pill)
+                        }
+                    }
+                    "manual" -> {
+                        val template = ManualDatabase.getByName(item.name)
+                        if (template != null) {
+                            val manual = Manual(
+                                id = UUID.randomUUID().toString(),
+                                name = template.name,
+                                rarity = item.rarity,
+                                description = template.description,
+                                type = template.type,
+                                stats = template.stats,
+                                minRealm = GameConfig.Realm.getMinRealmForRarity(item.rarity)
+                            )
+                            if (_manuals.value.none { it.id == manual.id }) {
+                                _manuals.value = _manuals.value + manual
+                            }
                         }
                     }
                 }
             }
+
+            val finalCaves = _gameData.value.cultivatorCaves.filter { it.id != cave.id }
+            val finalAITeams = aiTeams.filter { it.caveId != cave.id }
+
+            team.memberIds.forEach { memberId ->
+                val disciple = _disciples.value.find { it.id == memberId }
+                if (disciple != null) {
+                    _disciples.value = _disciples.value.map { d ->
+                        if (d.id != memberId) d
+                        else if (allDeadMemberIds.contains(memberId)) {
+                            d.copy(isAlive = false, status = DiscipleStatus.IDLE)
+                        } else {
+                            val finalHp = allMemberHpMap[memberId] ?: d.maxHp
+                            val updatedStatusData = d.statusData + ("currentHp" to finalHp.toString())
+                            d.copy(status = DiscipleStatus.IDLE, statusData = updatedStatusData, soulPower = d.soulPower + 1)
+                        }
+                    }
+                }
+            }
+
+            allDeadMemberIds.forEach { memberId ->
+                val disciple = _disciples.value.find { it.id == memberId }
+                if (disciple != null) {
+                    addEvent("${disciple.name}在洞府探索中阵亡", EventType.DANGER)
+                }
+            }
+
+            addEvent("成功探索${cave.name}，获得丰厚奖励！存活弟子神魂+1", EventType.SUCCESS)
+            return Triple(finalCaves, finalAITeams, true)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in executeCaveExploration for cave ${cave.name}", e)
+            addEvent("洞府探索过程中发生错误，队伍返回宗门: ${e.message}", EventType.WARNING)
+            team.memberIds.forEach { memberId ->
+                val disciple = _disciples.value.find { it.id == memberId }
+                if (disciple != null && disciple.status == DiscipleStatus.EXPLORING) {
+                    _disciples.value = _disciples.value.map { 
+                        if (it.id == memberId) it.copy(status = DiscipleStatus.IDLE) else it 
+                    }
+                }
+            }
+            val updatedCaves = _gameData.value.cultivatorCaves.map { 
+                if (it.id == cave.id && it.status == CaveStatus.EXPLORING) {
+                    it.copy(status = CaveStatus.AVAILABLE)
+                } else {
+                    it
+                }
+            }
+            return Triple(updatedCaves, currentAITeams, true)
         }
+    }
 
-        // 4. 移除洞府和相关的AI队伍
-        val finalCaves = _gameData.value.cultivatorCaves.filter { it.id != cave.id }
-        val finalAITeams = aiTeams.filter { it.caveId != cave.id }
-
-        // 5. 战斗胜利后给存活的弟子增加神魂
-        val aliveMembers = guardianResult.log.teamMembers.filter { it.isAlive }
-        aliveMembers.forEach { member ->
-            val disciple = _disciples.value.find { it.id == member.id }
-            if (disciple != null) {
-                _disciples.value = _disciples.value.map {
-                    if (it.id == member.id) it.copy(soulPower = it.soulPower + 1) else it
+    private fun buildConnectionEdges(sects: List<WorldSect>): List<MSTEdge> {
+        val edges = mutableListOf<MSTEdge>()
+        val processedPairs = mutableSetOf<Pair<String, String>>()
+        
+        for (sect in sects) {
+            for (connectedId in sect.connectedSectIds) {
+                val pairKey = if (sect.id < connectedId) {
+                    Pair(sect.id, connectedId)
+                } else {
+                    Pair(connectedId, sect.id)
+                }
+                
+                if (pairKey !in processedPairs) {
+                    processedPairs.add(pairKey)
+                    val connectedSect = sects.find { it.id == connectedId }
+                    if (connectedSect != null) {
+                        val distance = kotlin.math.sqrt(
+                            (sect.x - connectedSect.x) * (sect.x - connectedSect.x) +
+                            (sect.y - connectedSect.y) * (sect.y - connectedSect.y)
+                        ).toDouble()
+                        edges.add(MSTEdge(sect, connectedSect, distance))
+                    }
                 }
             }
         }
-
-        // 6. 恢复弟子状态
-        team.memberIds.forEach { memberId ->
-            val disciple = _disciples.value.find { it.id == memberId }
-            if (disciple != null) {
-                _disciples.value = _disciples.value.map { 
-                    if (it.id == memberId) it.copy(status = DiscipleStatus.IDLE) else it 
-                }
-            }
-        }
-
-        addEvent("成功探索${cave.name}，获得丰厚奖励！存活弟子神魂+1", EventType.SUCCESS)
-        return Triple(finalCaves, finalAITeams, true)
+        
+        return edges
     }
 
     /**
@@ -9460,11 +11183,24 @@ class GameEngine {
             return
         }
 
+        val playerSect = data.worldMapSects.find { it.isPlayerSect }
+        val sectX = playerSect?.x ?: 2000f
+        val sectY = playerSect?.y ?: 1750f
+
+        val distance = kotlin.math.sqrt(
+            (cave.x - sectX) * (cave.x - sectX) +
+            (cave.y - sectY) * (cave.y - sectY)
+        )
+        val travelDuration = (distance / 200 * 30).toInt().coerceIn(1, 360)
+
         val team = CaveExplorationSystem.createCaveExplorationTeam(
             cave = cave,
             disciples = selectedDisciples,
             currentYear = data.gameYear,
-            currentMonth = data.gameMonth
+            currentMonth = data.gameMonth,
+            sectX = sectX,
+            sectY = sectY,
+            travelDuration = travelDuration
         )
 
         val updatedCave = cave.copy(status = CaveStatus.EXPLORING)
@@ -9482,7 +11218,7 @@ class GameEngine {
             caveExplorationTeams = data.caveExplorationTeams + team
         )
 
-        addEvent("派遣队伍前往${cave.name}探索", EventType.INFO)
+        addEvent("派遣队伍前往${cave.name}探索，预计${travelDuration}天后到达", EventType.INFO)
     }
 
     /**
@@ -9557,813 +11293,6 @@ class GameEngine {
         val d2Parents = listOfNotNull(d2.parentId1, d2.parentId2)
         
         return d1Parents.any { p1 -> d2Parents.any { p2 -> p1 == p2 } }
-    }
-
-    // ==================== 军团系统 ====================
-
-    /**
-     * 创建军团
-     * @param name 军团名称
-     * @param memberIds 成员ID列表（必须10人）
-     * @return 是否成功
-     */
-    fun createWarTeam(name: String, memberIds: List<String>): Boolean {
-        if (memberIds.size != 10) {
-            addEvent("军团必须由10名弟子组成", EventType.WARNING)
-            return false
-        }
-
-        val data = _gameData.value
-        val playerSect = data.worldMapSects.find { it.isPlayerSect }
-        if (playerSect == null) {
-            addEvent("找不到玩家宗门", EventType.WARNING)
-            return false
-        }
-
-        // 检查玩家宗门是否已有驻扎军团
-        val existingTeam = _warTeams.value.find { it.stationedSectId == playerSect.id }
-        if (existingTeam != null) {
-            addEvent("玩家宗门已有驻扎军团，无法创建新军团", EventType.WARNING)
-            return false
-        }
-
-        // 验证弟子状态
-        val disciples = _disciples.value.filter { it.id in memberIds }
-        if (disciples.size != 10) {
-            addEvent("部分弟子不存在", EventType.WARNING)
-            return false
-        }
-
-        for (disciple in disciples) {
-            if (!disciple.isAlive) {
-                addEvent("${disciple.name}已死亡，无法加入军团", EventType.WARNING)
-                return false
-            }
-            if (disciple.status != DiscipleStatus.IDLE) {
-                addEvent("${disciple.name}当前状态为${disciple.status.displayName}，无法加入军团", EventType.WARNING)
-                return false
-            }
-        }
-
-        // 更新弟子状态为WAR
-        _disciples.value = _disciples.value.map {
-            if (it.id in memberIds) it.copy(status = DiscipleStatus.BATTLE) else it
-        }
-
-        // 创建军团
-        val team = WarTeam(
-            id = UUID.randomUUID().toString(),
-            name = name,
-            memberIds = memberIds,
-            status = WarTeamStatus.IDLE,
-            stationedSectId = playerSect.id,
-            stationedSectName = playerSect.name
-        )
-
-        updateWarTeamsSync(_warTeams.value + team)
-
-        addEvent("军团【$name】创建成功，驻扎于${playerSect.name}", EventType.SUCCESS)
-        return true
-    }
-
-    /**
-     * 从存档加载军团数据
-     */
-    fun loadWarTeam(team: WarTeam) {
-        if (_warTeams.value.none { it.id == team.id }) {
-            updateWarTeamsSync(_warTeams.value + team)
-        }
-    }
-
-    /**
-     * 解散军团
-     */
-    fun disbandWarTeam(teamId: String): Boolean {
-        val team = _warTeams.value.find { it.id == teamId } ?: return false
-        val data = _gameData.value
-
-        val deadMemberIds = team.deadMemberIds.toSet()
-        val aliveMemberIds = team.memberIds.filter { it !in deadMemberIds }
-
-        _disciples.value = _disciples.value.map {
-            if (it.id in aliveMemberIds) it.copy(status = DiscipleStatus.IDLE) else it
-        }
-
-        if (deadMemberIds.isNotEmpty()) {
-            _equipment.value = _equipment.value.filter { equip ->
-                equip.ownerId !in deadMemberIds
-            }
-            _manuals.value = _manuals.value.filter { manual ->
-                manual.ownerId !in deadMemberIds
-            }
-            addEvent("军团【${team.name}】中${deadMemberIds.size}名阵亡弟子的装备与功法已随弟子消逝", EventType.INFO)
-        }
-
-        if (team.stationedSectId != null) {
-            val updatedSects = data.worldMapSects.map { sect ->
-                if (sect.occupierTeamId == team.id) {
-                    sect.copy(
-                        isOccupied = false,
-                        occupierTeamId = null,
-                        occupierTeamName = "",
-                        mineSlots = listOf(MineSlot(0), MineSlot(1), MineSlot(2))
-                    )
-                } else sect
-            }
-            _gameData.value = data.copy(worldMapSects = updatedSects)
-        }
-
-        updateWarTeamsSync(_warTeams.value.filter { it.id != teamId })
-
-        addEvent("军团【${team.name}】已解散", EventType.WARNING)
-        return true
-    }
-
-    /**
-     * 移动军团到己方宗门
-     */
-    fun moveWarTeam(teamId: String, targetSectId: String): Boolean {
-        val team = _warTeams.value.find { it.id == teamId } ?: return false
-        if (!team.canOperate) {
-            addEvent("军团当前无法移动", EventType.WARNING)
-            return false
-        }
-
-        val data = _gameData.value
-        val targetSect = data.worldMapSects.find { it.id == targetSectId }
-        if (targetSect == null || !targetSect.isOwned) {
-            addEvent("目标宗门不可用", EventType.WARNING)
-            return false
-        }
-
-        // 检查目标宗门是否已有其他军团驻扎
-        val existingTeam = _warTeams.value.find { 
-            it.stationedSectId == targetSectId && it.id != teamId 
-        }
-        if (existingTeam != null) {
-            addEvent("${targetSect.name}已有军团驻扎", EventType.WARNING)
-            return false
-        }
-
-        // 计算路径
-        val path = calculatePath(team.stationedSectId ?: "", targetSectId)
-        if (path.isEmpty()) {
-            addEvent("无法找到到达${targetSect.name}的路径", EventType.WARNING)
-            return false
-        }
-
-        // 开始行军
-        val currentTime = System.currentTimeMillis()
-        val travelTimePerNode = 5000L // 5秒/节点
-        val totalTravelTime = (path.size - 1) * travelTimePerNode
-
-        val updatedTeam = team.copy(
-            status = WarTeamStatus.TRAVELING,
-            targetSectId = targetSectId,
-            targetSectName = targetSect.name,
-            pathSectIds = path,
-            currentPathIndex = 0,
-            travelStartTime = currentTime,
-            travelEndTime = currentTime + totalTravelTime
-        )
-
-        updateWarTeamsSync(_warTeams.value.map { if (it.id == teamId) updatedTeam else it })
-
-        addEvent("军团【${team.name}】开始行军前往${targetSect.name}", EventType.INFO)
-        return true
-    }
-
-    /**
-     * 进攻宗门
-     */
-    fun attackSect(teamId: String, targetSectId: String): Boolean {
-        val team = _warTeams.value.find { it.id == teamId } ?: return false
-        if (!team.canOperate) {
-            addEvent("军团当前无法进攻", EventType.WARNING)
-            return false
-        }
-
-        val data = _gameData.value
-        val targetSect = data.worldMapSects.find { it.id == targetSectId }
-        if (targetSect == null || targetSect.isOwned) {
-            addEvent("目标宗门不可进攻", EventType.WARNING)
-            return false
-        }
-
-        // 检查是否攻击盟友
-        if (targetSect.allianceId != null) {
-            val alliance = data.alliances.find { it.id == targetSect.allianceId }
-            if (alliance != null && alliance.sectIds.contains("player")) {
-                handleAttackAlly(targetSectId)
-            }
-        }
-
-        // 检查是否相邻
-        val stationedSect = data.worldMapSects.find { it.id == team.stationedSectId }
-        if (stationedSect == null || !(stationedSect.connectedSectIds ?: emptyList()).contains(targetSectId)) {
-            addEvent("只能进攻相邻的敌方宗门", EventType.WARNING)
-            return false
-        }
-
-        // 计算路径
-        val path = calculatePath(team.stationedSectId ?: "", targetSectId)
-        if (path.isEmpty()) {
-            addEvent("无法找到进攻路径", EventType.WARNING)
-            return false
-        }
-
-        // 开始行军
-        val currentTime = System.currentTimeMillis()
-        val travelTimePerNode = 5000L
-        val totalTravelTime = (path.size - 1) * travelTimePerNode
-
-        val updatedTeam = team.copy(
-            status = WarTeamStatus.TRAVELING,
-            targetSectId = targetSectId,
-            targetSectName = targetSect.name,
-            pathSectIds = path,
-            currentPathIndex = 0,
-            travelStartTime = currentTime,
-            travelEndTime = currentTime + totalTravelTime
-        )
-
-        updateWarTeamsSync(_warTeams.value.map { if (it.id == teamId) updatedTeam else it })
-
-        addEvent("军团【${team.name}】开始进攻${targetSect.name}", EventType.INFO)
-        return true
-    }
-
-    /**
-     * 召回军团到玩家宗门
-     */
-    fun recallWarTeam(teamId: String): Boolean {
-        val team = _warTeams.value.find { it.id == teamId } ?: return false
-        if (team.status == WarTeamStatus.RETURNING) {
-            addEvent("军团正在返回中", EventType.WARNING)
-            return false
-        }
-
-        val data = _gameData.value
-        val playerSect = data.worldMapSects.find { it.isPlayerSect }
-        if (playerSect == null) return false
-
-        // 计算返回路径
-        val path = calculatePath(team.stationedSectId ?: "", playerSect.id)
-        if (path.isEmpty()) {
-            // 直接传送回玩家宗门
-            val updatedTeam = team.copy(
-                status = WarTeamStatus.IDLE,
-                stationedSectId = playerSect.id,
-                stationedSectName = playerSect.name,
-                targetSectId = null,
-                targetSectName = "",
-                pathSectIds = emptyList()
-            )
-            updateWarTeamsSync(_warTeams.value.map { if (it.id == teamId) updatedTeam else it })
-            addEvent("军团【${team.name}】已返回${playerSect.name}", EventType.INFO)
-            return true
-        }
-
-        val currentTime = System.currentTimeMillis()
-        val travelTimePerNode = 5000L
-        val totalTravelTime = (path.size - 1) * travelTimePerNode
-
-        val updatedTeam = team.copy(
-            status = WarTeamStatus.RETURNING,
-            targetSectId = playerSect.id,
-            targetSectName = playerSect.name,
-            pathSectIds = path,
-            currentPathIndex = 0,
-            travelStartTime = currentTime,
-            travelEndTime = currentTime + totalTravelTime
-        )
-
-        updateWarTeamsSync(_warTeams.value.map { if (it.id == teamId) updatedTeam else it })
-
-        addEvent("军团【${team.name}】开始返回${playerSect.name}", EventType.INFO)
-        return true
-    }
-
-    /**
-     * 处理军团月度事件（维护费、行军进度等）
-     */
-    private fun processWarTeamsMonthly(year: Int, month: Int) {
-        val data = _gameData.value
-        var totalCost = 0L
-        val teamsToRemove = mutableListOf<String>()
-
-        // 处理每个军团
-        _warTeams.value.forEach { team ->
-            totalCost += team.monthlyCost
-
-            // 检查灵石是否充足
-            if (data.spiritStones < totalCost) {
-                addEvent("灵石不足，军团【${team.name}】解散！", EventType.DANGER)
-                teamsToRemove.add(team.id)
-            }
-        }
-
-        // 解散灵石不足的军团
-        teamsToRemove.forEach { teamId ->
-            disbandWarTeam(teamId)
-        }
-
-        // 扣除维护费
-        if (totalCost > 0 && teamsToRemove.isEmpty()) {
-            _gameData.value = _gameData.value.copy(
-                spiritStones = _gameData.value.spiritStones - totalCost
-            )
-            addEvent("军团月度维护消耗：$totalCost 灵石", EventType.INFO)
-        }
-
-        // 结算占领地灵矿产出
-        processOccupiedMineOutput()
-    }
-
-    /**
-     * 处理行军进度（每秒调用）
-     */
-    fun processWarTeamTravel() {
-        val currentTime = System.currentTimeMillis()
-        val currentTeams = _warTeams.value.toMutableList()
-        val teamsToUpdate = mutableListOf<WarTeam>()
-        val eventsToAdd = mutableListOf<Pair<String, EventType>>()
-        var hasUpdates = false
-
-        currentTeams.forEachIndexed { index, team ->
-            if (team.status == WarTeamStatus.TRAVELING || team.status == WarTeamStatus.RETURNING) {
-                if (currentTime >= team.travelEndTime) {
-                    if (team.status == WarTeamStatus.TRAVELING) {
-                        executeWarBattle(team)
-                        hasUpdates = true
-                    } else {
-                        val data = _gameData.value
-                        val playerSect = data.worldMapSects.find { it.isPlayerSect }
-                        if (playerSect != null) {
-                            val updatedTeam = team.copy(
-                                status = WarTeamStatus.IDLE,
-                                stationedSectId = playerSect.id,
-                                stationedSectName = playerSect.name,
-                                targetSectId = null,
-                                targetSectName = "",
-                                pathSectIds = emptyList()
-                            )
-                            teamsToUpdate.add(updatedTeam)
-                            eventsToAdd.add("军团【${team.name}】已返回${playerSect.name}" to EventType.INFO)
-                            hasUpdates = true
-                        }
-                    }
-                } else {
-                    val progress = ((currentTime - team.travelStartTime).toFloat() /
-                        (team.travelEndTime - team.travelStartTime)).coerceIn(0f, 1f)
-                    val pathSize = team.pathSectIds.size
-                    val newIndex = if (pathSize > 1) {
-                        (progress * (pathSize - 1)).toInt()
-                    } else {
-                        0
-                    }
-                    if (newIndex != team.currentPathIndex) {
-                        val updatedTeam = team.copy(currentPathIndex = newIndex)
-                        teamsToUpdate.add(updatedTeam)
-                        hasUpdates = true
-                    } else {
-                        teamsToUpdate.add(team)
-                    }
-                }
-            } else {
-                teamsToUpdate.add(team)
-            }
-        }
-
-        if (hasUpdates && teamsToUpdate.isNotEmpty()) {
-            val newTeams = currentTeams.map { existingTeam ->
-                teamsToUpdate.find { it.id == existingTeam.id } ?: existingTeam
-            }
-            _warTeams.value = newTeams
-            _gameData.value = _gameData.value.copy(warTeams = newTeams)
-            eventsToAdd.forEach { (message, type) ->
-                addEvent(message, type)
-            }
-        }
-    }
-
-    /**
-     * 执行战斗
-     */
-    private fun executeWarBattle(team: WarTeam) {
-        val data = _gameData.value
-        val targetSect = data.worldMapSects.find { it.id == team.targetSectId }
-        if (targetSect == null) {
-            // 目标不存在，返回
-            returnTeamToStation(team)
-            return
-        }
-
-        // 获取进攻方弟子
-        val attackers = _disciples.value.filter { it.id in team.memberIds && it.isAlive }
-        if (attackers.size < 10) {
-            addEvent("军团【${team.name}】兵力不足，进攻失败", EventType.WARNING)
-            returnTeamToStation(team)
-            return
-        }
-
-        // 生成防守方
-        var defenders: List<DefenseDisciple> = if (targetSect.isOccupied && targetSect.occupierTeamId != null) {
-            // 已占领宗门：使用驻扎军团
-            val defenseTeam = _warTeams.value.find { it.id == targetSect.occupierTeamId }
-            if (defenseTeam != null) {
-                // 将弟子转换为DefenseDisciple
-                _disciples.value.filter { it.id in defenseTeam.memberIds && it.isAlive }.map { disciple ->
-                    val discipleProficiencies = data.manualProficiencies[disciple.id]?.associateBy { it.manualId } ?: emptyMap()
-                    val stats = disciple.getFinalStats(
-                        _equipment.value.associateBy { it.id },
-                        _manuals.value.associateBy { it.id },
-                        discipleProficiencies
-                    )
-                    DefenseDisciple(
-                        id = disciple.id,
-                        name = disciple.name,
-                        realm = disciple.realm,
-                        realmLayer = disciple.realmLayer,
-                        realmName = GameConfig.Realm.getName(disciple.realm),
-                        maxHp = stats.maxHp,
-                        maxMp = stats.maxMp,
-                        physicalAttack = stats.physicalAttack,
-                        magicAttack = stats.magicAttack,
-                        physicalDefense = stats.physicalDefense,
-                        magicDefense = stats.magicDefense,
-                        speed = stats.speed,
-                        critRate = stats.critRate
-                    )
-                }
-            } else {
-                generateAIDefenseTeam(targetSect)
-            }
-        } else {
-            // 未占领宗门：生成AI防守队伍
-            generateAIDefenseTeam(targetSect)
-        }
-        
-        // AI 宗门盟友支援逻辑
-        if (!targetSect.isPlayerSect && targetSect.allianceId != null) {
-            val allySupport = generateAllySupportForAISect(targetSect, data)
-            if (allySupport.isNotEmpty()) {
-                defenders = defenders + allySupport
-                addEvent("${targetSect.name}的盟友派出${allySupport.size}名弟子支援防守", EventType.INFO)
-            }
-            
-            // 实时更新共同敌人好感度
-            updateCommonEnemyFavorRealtime(targetSect.id, attackerIsPlayer = true)
-        }
-
-        // 执行战斗
-        val result = SectWarBattleSystem.executeBattle(
-            attackers = attackers,
-            defenders = defenders,
-            equipmentMap = _equipment.value.associateBy { it.id },
-            manuals = _manuals.value.associateBy { it.id },
-            manualProficiencies = data.manualProficiencies.mapValues { (_, list) -> 
-                list.associateBy { it.manualId } 
-            }
-        )
-        
-        // 战斗后清除战斗丹效果
-        clearBattlePillEffects(attackers)
-
-        if (result.victory) {
-            val deadIds = result.playerCasualties
-                .filter { it.injuryType == InjuryType.DEAD }
-                .map { it.discipleId }
-                .toSet()
-            applyBattleVictoryBonuses(
-                memberIds = team.memberIds.filter { it !in deadIds },
-                addSoulPower = false
-            )
-            // 胜利：占领宗门
-            occupySect(team, targetSect, result)
-        } else {
-            addEvent("军团【${team.name}】进攻${targetSect.name}失败，正在返回...", EventType.WARNING)
-            handleDefeatCasualties(result.playerCasualties, team.id)
-            returnTeamToStation(team)
-        }
-    }
-    
-    /**
-     * 为 AI 宗门生成盟友支援队伍
-     * 根据好感度决定是否派遣支援
-     */
-    private fun generateAllySupportForAISect(targetSect: WorldSect, data: GameData): List<DefenseDisciple> {
-        val alliance = data.alliances.find { it.id == targetSect.allianceId } ?: return emptyList()
-        
-        // 找到盟友宗门（排除目标宗门自己和玩家宗门）
-        val allySectId = alliance.sectIds.find { it != targetSect.id && it != "player" && it != "player_sect" } 
-            ?: return emptyList()
-        
-        val allySect = data.worldMapSects.find { it.id == allySectId } ?: return emptyList()
-        
-        // 获取盟友间的好感度
-        val relation = getSectRelation(targetSect.id, allySectId, data.sectRelations)
-        val favor = relation?.favor ?: 50
-        
-        // 好感度越高，派遣支援的概率越高
-        // 好感度 50-100 对应概率 0%-50%
-        val supportProbability = (favor - 50).coerceIn(0, 50) / 100.0
-        
-        if (Random.nextDouble() >= supportProbability) {
-            return emptyList()
-        }
-        
-        // 计算支援队伍规模
-        // 好感度越高，支援规模越大
-        val supportSize = when {
-            favor >= 90 -> (15..25).random()
-            favor >= 80 -> (10..20).random()
-            favor >= 70 -> (5..15).random()
-            favor >= 60 -> (3..10).random()
-            else -> (1..5).random()
-        }
-        
-        // 生成支援弟子
-        return generateAllySupportDisciples(allySect, supportSize)
-    }
-    
-    /**
-     * 生成盟友支援弟子
-     */
-    private fun generateAllySupportDisciples(allySect: WorldSect, size: Int): List<DefenseDisciple> {
-        val disciples = mutableListOf<DefenseDisciple>()
-        val maxRealm = allySect.maxRealm
-        
-        repeat(size) {
-            // 境界分布：最高境界较少，低境界较多
-            // maxRealm 值越小境界越高（0=仙人，9=炼气）
-            // 支援弟子境界不能高于宗门最高境界
-            val realm = when {
-                Random.nextDouble() < 0.1 -> maxRealm  // 10% 最高境界
-                Random.nextDouble() < 0.3 -> (maxRealm + 1).coerceAtMost(9)  // 20% 次高境界
-                Random.nextDouble() < 0.6 -> (maxRealm + 2).coerceAtMost(9)  // 30% 再次境界
-                else -> {
-                    val minRealm = (maxRealm + 3).coerceAtMost(9)
-                    if (minRealm <= 9) (minRealm..9).random() else 9
-                }
-            }
-            
-            val realmName = GameConfig.Realm.getName(realm)
-            val baseHp = 500 + (9 - realm) * 500
-            val baseAttack = 50 + (9 - realm) * 50
-            val baseDefense = 30 + (9 - realm) * 30
-            
-            disciples.add(DefenseDisciple(
-                id = "ally_support_${allySect.id}_${System.nanoTime()}_$it",
-                name = "${allySect.name}弟子${it + 1}",
-                realm = realm,
-                realmLayer = (1..9).random(),
-                realmName = realmName,
-                maxHp = baseHp,
-                hp = baseHp,
-                maxMp = baseHp / 2,
-                physicalAttack = baseAttack,
-                magicAttack = (baseAttack * 0.8).toInt(),
-                physicalDefense = baseDefense,
-                magicDefense = (baseDefense * 0.8).toInt(),
-                speed = 80 + (9 - realm) * 10,
-                critRate = 0.05 + (9 - realm) * 0.01
-            ))
-        }
-        
-        return disciples
-    }
-
-    /**
-     * 占领宗门
-     */
-    private fun occupySect(team: WarTeam, sect: WorldSect, result: WarBattleResult) {
-        val data = _gameData.value
-
-        // 处理原防守军团（如果存在）
-        if (sect.isOccupied && sect.occupierTeamId != null) {
-            val defeatedTeam = _warTeams.value.find { it.id == sect.occupierTeamId }
-            if (defeatedTeam != null) {
-                addEvent("军团【${team.name}】击败了${defeatedTeam.name}", EventType.SUCCESS)
-                // 被击败的军团返回玩家宗门
-                val playerSect = data.worldMapSects.find { it.isPlayerSect }
-                if (playerSect != null) {
-                    _warTeams.value = _warTeams.value.map {
-                        if (it.id == defeatedTeam.id) {
-                            it.copy(
-                                status = WarTeamStatus.IDLE,
-                                stationedSectId = playerSect.id,
-                                stationedSectName = playerSect.name
-                            )
-                        } else it
-                    }
-                }
-            }
-        }
-
-        // 更新宗门状态
-        val updatedSects = data.worldMapSects.map { s ->
-            if (s.id == sect.id) {
-                s.copy(
-                    isOccupied = true,
-                    occupierTeamId = team.id,
-                    occupierTeamName = team.name,
-                    mineSlots = listOf(MineSlot(0), MineSlot(1), MineSlot(2)),
-                    occupationTime = System.currentTimeMillis()
-                )
-            } else s
-        }
-
-        // 更新军团状态
-        val updatedTeam = team.copy(
-            status = WarTeamStatus.IDLE,
-            stationedSectId = sect.id,
-            stationedSectName = sect.name,
-            targetSectId = null,
-            targetSectName = "",
-            pathSectIds = emptyList()
-        )
-
-        val newWarTeams = _warTeams.value.map { if (it.id == team.id) updatedTeam else it }
-        _gameData.value = data.copy(worldMapSects = updatedSects)
-        updateWarTeamsSync(newWarTeams)
-
-        handleDefeatCasualties(result.playerCasualties, team.id)
-
-        addEvent("军团【${team.name}】成功占领${sect.name}！", EventType.SUCCESS)
-    }
-
-    /**
-     * 处理伤亡
-     */
-    private fun handleDefeatCasualties(casualties: List<Casualty>, teamId: String? = null) {
-        val deadDiscipleIds = mutableListOf<String>()
-        
-        casualties.forEach { casualty ->
-            val disciple = _disciples.value.find { it.id == casualty.discipleId }
-            if (disciple != null) {
-                when (casualty.injuryType) {
-                    InjuryType.DEAD -> {
-                        deadDiscipleIds.add(casualty.discipleId)
-                        _disciples.value = _disciples.value.filter { it.id != casualty.discipleId }
-                        addEvent("${casualty.name}在战斗中阵亡", EventType.DANGER)
-                    }
-                    InjuryType.SEVERE -> {
-                        addEvent("${casualty.name}重伤，需要${casualty.recoveryMonths}个月恢复", EventType.WARNING)
-                    }
-                    InjuryType.MODERATE -> {
-                        addEvent("${casualty.name}中伤，需要${casualty.recoveryMonths}个月恢复", EventType.WARNING)
-                    }
-                    InjuryType.LIGHT -> {
-                        addEvent("${casualty.name}轻伤", EventType.INFO)
-                    }
-                    else -> {}
-                }
-            }
-        }
-        
-        if (deadDiscipleIds.isNotEmpty() && teamId != null) {
-            val team = _warTeams.value.find { it.id == teamId }
-            if (team != null) {
-                val updatedTeam = team.copy(
-                    deadMemberIds = team.deadMemberIds + deadDiscipleIds
-                )
-                updateWarTeamsSync(_warTeams.value.map { if (it.id == teamId) updatedTeam else it })
-            }
-        }
-    }
-
-    /**
-     * 军团返回驻扎地
-     */
-    private fun returnTeamToStation(team: WarTeam) {
-        val data = _gameData.value
-        val playerSect = data.worldMapSects.find { it.isPlayerSect }
-        if (playerSect != null) {
-            val updatedTeam = team.copy(
-                status = WarTeamStatus.IDLE,
-                stationedSectId = playerSect.id,
-                stationedSectName = playerSect.name,
-                targetSectId = null,
-                targetSectName = "",
-                pathSectIds = emptyList()
-            )
-            updateWarTeamsSync(_warTeams.value.map { if (it.id == team.id) updatedTeam else it })
-        }
-    }
-
-    /**
-     * 生成AI防守队伍
-     */
-    private fun generateAIDefenseTeam(sect: WorldSect): List<DefenseDisciple> {
-        return SectWarBattleSystem.generateAIDefenseTeam(sect)
-    }
-
-    /**
-     * 计算行军路径（BFS）
-     */
-    private fun calculatePath(fromSectId: String, toSectId: String): List<String> {
-        if (fromSectId.isEmpty() || toSectId.isEmpty()) return emptyList()
-        if (fromSectId == toSectId) return listOf(fromSectId)
-
-        val data = _gameData.value
-        val sectMap = data.worldMapSects.associateBy { it.id }
-        
-        val visited = mutableSetOf<String>()
-        val queue = ArrayDeque<Pair<String, List<String>>>()
-        queue.add(fromSectId to listOf(fromSectId))
-        visited.add(fromSectId)
-
-        while (queue.isNotEmpty()) {
-            val (current, path) = queue.removeFirst()
-            val sect = sectMap[current] ?: continue
-
-            for (neighborId in (sect.connectedSectIds ?: emptyList())) {
-                if (neighborId == toSectId) {
-                    return path + neighborId
-                }
-                if (neighborId !in visited) {
-                    visited.add(neighborId)
-                    queue.add(neighborId to path + neighborId)
-                }
-            }
-        }
-
-        return emptyList()
-    }
-
-    /**
-     * 处理占领地灵矿产出
-     */
-    private fun processOccupiedMineOutput() {
-        val data = _gameData.value
-        var totalOutput = 0L
-
-        data.worldMapSects.filter { it.isOccupied }.forEach { sect ->
-            val activeSlots = sect.mineSlots.count { it.isActive }
-            if (activeSlots > 0) {
-                val output = calculateOccupiedMineOutput(sect.level, activeSlots)
-                totalOutput += output
-            }
-        }
-
-        if (totalOutput > 0) {
-            _gameData.value = _gameData.value.copy(
-                spiritStones = _gameData.value.spiritStones + totalOutput
-            )
-            addEvent("占领地灵矿产出：$totalOutput 灵石", EventType.SUCCESS)
-        }
-    }
-
-    /**
-     * 计算占领地灵矿产出
-     */
-    private fun calculateOccupiedMineOutput(sectLevel: Int, activeSlots: Int): Long {
-        val baseOutput = when (sectLevel) {
-            0 -> 100L
-            1 -> 200L
-            2 -> 350L
-            3 -> 500L
-            else -> 100L
-        }
-        return baseOutput * activeSlots / 3
-    }
-
-    /**
-     * 分配弟子到占领地灵矿
-     */
-    fun assignDiscipleToMineSlot(sectId: String, slotIndex: Int, discipleId: String?): Boolean {
-        val data = _gameData.value
-        val sect = data.worldMapSects.find { it.id == sectId }
-        if (sect == null || !sect.isOccupied) {
-            addEvent("该宗门未被占领", EventType.WARNING)
-            return false
-        }
-
-        val updatedSlots = sect.mineSlots.mapIndexed { index, slot ->
-            if (index == slotIndex) {
-                val disciple = discipleId?.let { _disciples.value.find { d -> d.id == it } }
-                MineSlot(
-                    index = index,
-                    discipleId = discipleId,
-                    discipleName = disciple?.name ?: "",
-                    isActive = discipleId != null
-                )
-            } else slot
-        }
-
-        val updatedSects = data.worldMapSects.map { 
-            if (it.id == sectId) it.copy(mineSlots = updatedSlots) else it 
-        }
-
-        _gameData.value = data.copy(worldMapSects = updatedSects)
-
-        if (discipleId != null) {
-            val disciple = _disciples.value.find { it.id == discipleId }
-            addEvent("${disciple?.name ?: "弟子"}被分配到${sect.name}灵矿", EventType.INFO)
-        }
-
-        return true
     }
 
     private fun generateSectTradeItems(year: Int): List<MerchantItem> {
@@ -10539,18 +11468,26 @@ class GameEngine {
         val sect = data.worldMapSects.find { it.id == sectId } ?: return
         val item = sect.tradeItems.find { it.id == itemId } ?: return
         
-        if (sect.relation < 40) {
+        val playerSect = data.worldMapSects.find { it.isPlayerSect }
+        val relation = if (playerSect != null) {
+            data.sectRelations.find { 
+                (it.sectId1 == playerSect.id && it.sectId2 == sectId) ||
+                (it.sectId1 == sectId && it.sectId2 == playerSect.id)
+            }?.favor ?: 0
+        } else 0
+        
+        if (relation < 40) {
             addEvent("好感度太低，无法与${sect.name}交易", EventType.WARNING)
             return
         }
         
         val maxAllowedRarity = when {
-            sect.relation >= 90 -> 6
-            sect.relation >= 80 -> 5
-            sect.relation >= 70 -> 4
-            sect.relation >= 60 -> 3
-            sect.relation >= 50 -> 2
-            sect.relation >= 40 -> 1
+            relation >= 90 -> 6
+            relation >= 80 -> 5
+            relation >= 70 -> 4
+            relation >= 60 -> 3
+            relation >= 50 -> 2
+            relation >= 40 -> 1
             else -> 0
         }
         
@@ -10561,7 +11498,7 @@ class GameEngine {
         
         // 计算价格折扣：好感度折扣 + 结盟折扣
         val relationDiscount = when {
-            sect.relation >= 70 -> (sect.relation - 70) * 0.01
+            relation >= 70 -> (relation - 70) * 0.01
             else -> 0.0
         }
         
@@ -10728,32 +11665,51 @@ class GameEngine {
             )
         }
 
-        // 送礼成功：扣除灵石、标记已送礼、增加好感度
-        val newFavor = (sect.relation + tierConfig.favor).coerceAtMost(100)
+        // 送礼成功：扣除灵石、标记已送礼、增加好感度（使用百分比计算）
+        val playerSect = data.worldMapSects.find { it.isPlayerSect }
+        val currentFavor = if (playerSect != null) {
+            data.sectRelations.find { 
+                (it.sectId1 == playerSect.id && it.sectId2 == sectId) ||
+                (it.sectId1 == sectId && it.sectId2 == playerSect.id)
+            }?.favor ?: 0
+        } else 0
+        
+        val percentage = GiftConfig.FavorPercentageConfig.getFavorPercentage(sect.level, tier)
+        val favorIncrease = if (percentage != null) {
+            val baseIncrease = currentFavor * percentage / 100
+            if (baseIncrease == 0) 1 else baseIncrease
+        } else {
+            1
+        }
+        val newFavor = (currentFavor + favorIncrease).coerceAtMost(100)
 
         val updatedSects = data.worldMapSects.map { currentSect ->
             if (currentSect.id == sectId) {
-                currentSect.copy(
-                    relation = newFavor,
-                    lastGiftYear = currentYear
-                )
+                currentSect.copy(lastGiftYear = currentYear)
             } else {
                 currentSect
             }
         }
 
+        val updatedRelations = if (playerSect != null) {
+            updateSectRelationFavor(data.sectRelations, playerSect.id, sectId, newFavor, currentYear)
+        } else {
+            data.sectRelations
+        }
+
         _gameData.value = data.copy(
             spiritStones = data.spiritStones - tierConfig.spiritStones,
-            worldMapSects = updatedSects
+            worldMapSects = updatedSects,
+            sectRelations = updatedRelations
         )
 
-        val responseText = SectResponseTexts.getAcceptResponse(sect.level, "spirit_stones", tierConfig.name, tierConfig.favor)
-        addEvent("向${sect.name}送礼${tierConfig.name}成功，好感度+${tierConfig.favor}", EventType.SUCCESS)
+        val responseText = SectResponseTexts.getAcceptResponse(sect.level, "spirit_stones", tierConfig.name, favorIncrease)
+        addEvent("向${sect.name}送礼${tierConfig.name}成功，好感度+${favorIncrease}", EventType.SUCCESS)
 
         return GiftResult(
             success = true,
             rejected = false,
-            favorChange = tierConfig.favor,
+            favorChange = favorIncrease,
             newFavor = newFavor,
             responseType = "accept",
             message = responseText
@@ -10860,8 +11816,26 @@ class GameEngine {
             }
         }
 
-        // 计算好感度
-        val baseFavor = getRarityFavor(itemRarity)
+        // 计算好感度（使用百分比增长）
+        val favorPercentage = GiftConfig.ItemFavorPercentageConfig.getFavorPercentage(sect.level, itemRarity)
+        
+        val playerSectForFavor = _gameData.value.worldMapSects.find { it.isPlayerSect }
+        val currentFavorValue = if (playerSectForFavor != null) {
+            _gameData.value.sectRelations.find { 
+                (it.sectId1 == playerSectForFavor.id && it.sectId2 == sectId) ||
+                (it.sectId1 == sectId && it.sectId2 == playerSectForFavor.id)
+            }?.favor ?: 0
+        } else 0
+        
+        val baseFavor = if (favorPercentage == null) {
+            1
+        } else {
+            if (currentFavorValue == 0) {
+                1
+            } else {
+                (currentFavorValue * favorPercentage / 100).coerceAtLeast(1)
+            }
+        }
         val totalFavor = baseFavor * actualQuantity
 
         // 计算拒绝概率
@@ -10886,15 +11860,21 @@ class GameEngine {
         // 送礼成功：移除物品、标记已送礼、增加好感度
         removeGiftItem(itemType, itemId, actualQuantity)
 
-        val newFavor = (sect.relation + totalFavor).coerceAtMost(100)
+        val newFavor = (currentFavorValue + totalFavor).coerceAtMost(100)
 
         val finalSects = _gameData.value.worldMapSects.map {
             if (it.id == sectId) {
-                it.copy(relation = newFavor, lastGiftYear = currentYear)
+                it.copy(lastGiftYear = currentYear)
             } else it
         }
 
-        _gameData.value = _gameData.value.copy(worldMapSects = finalSects)
+        val updatedRelations = if (playerSectForFavor != null) {
+            updateSectRelationFavor(_gameData.value.sectRelations, playerSectForFavor.id, sectId, newFavor, currentYear)
+        } else {
+            _gameData.value.sectRelations
+        }
+
+        _gameData.value = _gameData.value.copy(worldMapSects = finalSects, sectRelations = updatedRelations)
 
         val responseText = SectResponseTexts.getAcceptResponse(sect.level, itemType, itemName, totalFavor)
         val quantityText = if (actualQuantity > 1) "x$actualQuantity " else ""
@@ -10945,18 +11925,37 @@ class GameEngine {
      * 获取稀有度对应的好感度
      * @param rarity 稀有度 (1-6)
      * @return 好感度
+     * @deprecated 此方法已废弃，物品送礼好感度计算已改为百分比增长方式。
+     *             请使用 GiftConfig.ItemFavorPercentageConfig.getFavorPercentage() 获取百分比配置。
+     *             此方法仅保留用于兼容性，后续可能会被移除。
      */
+    @Deprecated(
+        message = "物品送礼好感度已改为百分比计算，请使用 ItemFavorPercentageConfig",
+        replaceWith = ReplaceWith("GiftConfig.ItemFavorPercentageConfig.getFavorPercentage(sectLevel, rarity)")
+    )
     fun getRarityFavor(rarity: Int): Int {
         return GiftConfig.RarityFavorConfig.getFavor(rarity)
     }
 
     /**
-     * 获取灵石送礼档位好感度
+     * 获取灵石送礼档位好感度增长百分比
+     * @param sectLevel 宗门等级 (0-3)
      * @param tier 档位 (1-4)
-     * @return 好感度
+     * @return 好感度增长百分比，如果档位不可用则返回null
      */
-    fun getSpiritStoneFavor(tier: Int): Int {
-        return GiftConfig.SpiritStoneGiftConfig.getTier(tier)?.favor ?: 0
+    fun getSpiritStoneFavorPercentage(sectLevel: Int, tier: Int): Int? {
+        return GiftConfig.FavorPercentageConfig.getFavorPercentage(sectLevel, tier)
+    }
+
+    /**
+     * 计算灵石送礼实际好感度增长
+     * @param currentFavor 当前好感度
+     * @param percentage 增长百分比
+     * @return 实际好感度增长值
+     */
+    fun calculateFavorIncrease(currentFavor: Int, percentage: Int): Int {
+        val baseIncrease = currentFavor * percentage / 100
+        return if (baseIncrease == 0) 1 else baseIncrease
     }
 
     /**
@@ -11061,7 +12060,15 @@ class GameEngine {
             return Triple(false, "游说弟子境界需要达到${realmName}及以上", 0)
         }
 
-        if (sect.relation < 90) {
+        val playerSect = data.worldMapSects.find { it.isPlayerSect }
+        val favor = if (playerSect != null) {
+            data.sectRelations.find { 
+                (it.sectId1 == playerSect.id && it.sectId2 == sectId) ||
+                (it.sectId1 == sectId && it.sectId2 == playerSect.id)
+            }?.favor ?: 0
+        } else 0
+
+        if (favor < 90) {
             return Triple(false, "好感度需要达到90以上", 0)
         }
 
@@ -11092,7 +12099,15 @@ class GameEngine {
         val sect = data.worldMapSects.find { it.id == sectId }!!
         val envoy = _disciples.value.find { it.id == envoyDiscipleId }!!
 
-        val successRate = calculatePersuasionSuccessRate(sect.relation, envoy.intelligence, envoy.charm)
+        val playerSect = data.worldMapSects.find { it.isPlayerSect }
+        val favor = if (playerSect != null) {
+            data.sectRelations.find { 
+                (it.sectId1 == playerSect.id && it.sectId2 == sectId) ||
+                (it.sectId1 == sectId && it.sectId2 == playerSect.id)
+            }?.favor ?: 0
+        } else 0
+
+        val successRate = calculatePersuasionSuccessRate(favor, envoy.intelligence, envoy.charm)
         val roll = Random.nextDouble()
 
         if (roll < successRate) {
@@ -11144,7 +12159,7 @@ class GameEngine {
         }
 
         val updatedSects = data.worldMapSects.map { s ->
-            if (s.id == sectId) s.copy(allianceId = null, allianceStartYear = 0, relation = (s.relation - 30).coerceAtLeast(0))
+            if (s.id == sectId) s.copy(allianceId = null, allianceStartYear = 0)
             else s
         }
 
@@ -11155,7 +12170,7 @@ class GameEngine {
             alliances = updatedAlliances
         )
 
-        addEvent("与${sect.name}解除结盟，好感度下降", EventType.WARNING)
+        addEvent("与${sect.name}解除结盟", EventType.WARNING)
         return Pair(true, "已解除结盟")
     }
 
@@ -11164,11 +12179,11 @@ class GameEngine {
      */
     private fun checkAllianceExpiry(year: Int) {
         val data = _gameData.value
-        val expiredAlliances = data.alliances.filter { year - it.startYear >= 3 }
+        val expiredAlliances = data.alliances.filter { year - it.startYear >= 5 }
 
         if (expiredAlliances.isEmpty()) return
 
-        val updatedAlliances = data.alliances.filter { year - it.startYear < 3 }
+        val updatedAlliances = data.alliances.filter { year - it.startYear < 5 }
         val updatedSects = data.worldMapSects.map { sect ->
             if (expiredAlliances.any { it.sectIds.contains(sect.id) }) {
                 sect.copy(allianceId = null, allianceStartYear = 0)
@@ -11194,16 +12209,22 @@ class GameEngine {
     private fun checkAllianceFavorDrop() {
         val data = _gameData.value
         val dissolvedAlliances = mutableListOf<Alliance>()
+        val playerSect = data.worldMapSects.find { it.isPlayerSect }
 
         data.alliances.forEach { alliance ->
             if (!alliance.sectIds.contains("player")) return@forEach
             
             val sectId = alliance.sectIds.find { it != "player" }
-            if (sectId != null) {
+            if (sectId != null && playerSect != null) {
                 val sect = data.worldMapSects.find { it.id == sectId }
-                if (sect != null && sect.relation < 90) {
+                val relation = data.sectRelations.find { 
+                    (it.sectId1 == playerSect.id && it.sectId2 == sectId) ||
+                    (it.sectId1 == sectId && it.sectId2 == playerSect.id)
+                }
+                val favor = relation?.favor ?: 0
+                if (favor < 90) {
                     dissolvedAlliances.add(alliance)
-                    addEvent("与${sect.name}的好感度过低，盟约自动解除", EventType.WARNING)
+                    addEvent("与${sect?.name ?: "宗门"}的好感度过低，盟约自动解除", EventType.WARNING)
                 }
             }
         }
@@ -11372,6 +12393,32 @@ class GameEngine {
     }
     
     /**
+     * 获取玩家宗门与指定宗门的好感度
+     * @param targetSectId 目标宗门ID
+     * @return 好感度值，如果不存在关系则返回0
+     */
+    fun getPlayerSectFavor(targetSectId: String): Int {
+        val data = _gameData.value
+        val playerSect = data.worldMapSects.find { it.isPlayerSect } ?: return 0
+        val relation = getSectRelation(playerSect.id, targetSectId, data.sectRelations)
+        return relation?.favor ?: 0
+    }
+    
+    /**
+     * 批量获取玩家宗门与多个宗门的好感度
+     * @param targetSectIds 目标宗门ID列表
+     * @return Map<宗门ID, 好感度值>
+     */
+    fun getPlayerSectFavors(targetSectIds: List<String>): Map<String, Int> {
+        val data = _gameData.value
+        val playerSect = data.worldMapSects.find { it.isPlayerSect } ?: return emptyMap()
+        return targetSectIds.associateWith { targetId ->
+            val relation = getSectRelation(playerSect.id, targetId, data.sectRelations)
+            relation?.favor ?: 0
+        }
+    }
+    
+    /**
      * 更新宗门关系
      */
     private fun updateSectRelation(
@@ -11402,12 +12449,45 @@ class GameEngine {
         }
     }
 
+
+    /**
+     * 直接设置宗门关系的好感度值
+     */
+    private fun updateSectRelationFavor(
+        relations: List<SectRelation>,
+        sectId1: String,
+        sectId2: String,
+        newFavor: Int,
+        year: Int = 0
+    ): List<SectRelation> {
+        val id1 = minOf(sectId1, sectId2)
+        val id2 = maxOf(sectId1, sectId2)
+        
+        val index = relations.indexOfFirst { it.sectId1 == id1 && it.sectId2 == id2 }
+        
+        return if (index >= 0) {
+            relations.mapIndexed { i, relation ->
+                if (i == index) {
+                    relation.copy(favor = newFavor.coerceIn(0, 100), lastInteractionYear = year)
+                } else {
+                    relation
+                }
+            }
+        } else {
+            relations + SectRelation(
+                sectId1 = id1,
+                sectId2 = id2,
+                favor = newFavor.coerceIn(0, 100),
+                lastInteractionYear = year
+            )
+        }
+    }
     /**
      * 计算支援队伍规模
-     * 支援弟子数量 = 5 + (好感度 - 90) × 5，最大55
+     * 支援弟子数量 = 好感度 - 90（以90为基准，每提升1点好感度增加1人，保底1人）
      */
     fun calculateSupportTeamSize(favorability: Int): Int {
-        return (5 + (favorability - 90) * 5).coerceIn(5, 55)
+        return (favorability - 90).coerceAtLeast(1)
     }
 
     /**
@@ -11438,12 +12518,71 @@ class GameEngine {
             return Pair(false, "求援弟子境界需要达到金丹及以上")
         }
 
+        val hasExistingSupportTeam = data.supportTeams.any { it.sourceSectId == allySectId && (it.isMoving || it.isStationed) }
+        if (hasExistingSupportTeam) {
+            return Pair(false, "该宗门已有支援队伍，无法再次派遣")
+        }
+
         return Pair(true, "可以求援")
     }
 
     /**
      * 请求支援
      */
+    /**
+     * 计算两点之间的距离
+     */
+    private fun calculateDistance(x1: Float, y1: Float, x2: Float, y2: Float): Int {
+        return kotlin.math.sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1)).toInt()
+    }
+
+    /**
+     * 使用BFS查找从起点到终点的最短路径
+     * @return 路径上的宗门ID列表（包含起点和终点），如果找不到返回null
+     */
+    private fun findShortestPath(
+        startSectId: String,
+        targetSectId: String,
+        sects: List<WorldSect>
+    ): List<String>? {
+        if (startSectId == targetSectId) return listOf(startSectId)
+        
+        val sectMap = sects.associateBy { it.id }
+        val queue = ArrayDeque<String>()
+        val visited = mutableSetOf<String>()
+        val parent = mutableMapOf<String, String>()
+        
+        queue.add(startSectId)
+        visited.add(startSectId)
+        
+        while (queue.isNotEmpty()) {
+            val current = queue.removeFirst()
+            val currentSect = sectMap[current] ?: continue
+            
+            for (neighborId in currentSect.connectedSectIds) {
+                if (neighborId !in visited) {
+                    visited.add(neighborId)
+                    parent[neighborId] = current
+                    
+                    if (neighborId == targetSectId) {
+                        val path = mutableListOf<String>()
+                        var node = targetSectId
+                        while (node != startSectId) {
+                            path.add(node)
+                            node = parent[node] ?: break
+                        }
+                        path.add(startSectId)
+                        return path.reversed()
+                    }
+                    
+                    queue.add(neighborId)
+                }
+            }
+        }
+        
+        return null
+    }
+
     fun requestSupport(allySectId: String, envoyDiscipleId: String): Pair<Boolean, String> {
         val (canRequest, message) = checkRequestSupportConditions(allySectId, envoyDiscipleId)
         
@@ -11455,49 +12594,167 @@ class GameEngine {
         val sect = data.worldMapSects.find { it.id == allySectId }!!
         val envoy = _disciples.value.find { it.id == envoyDiscipleId }!!
 
-        val successRate = calculatePersuasionSuccessRate(sect.relation, envoy.intelligence, envoy.charm)
+        val playerSectForFavor = data.worldMapSects.find { it.isPlayerSect }
+        val favor = if (playerSectForFavor != null) {
+            data.sectRelations.find { 
+                (it.sectId1 == playerSectForFavor.id && it.sectId2 == allySectId) ||
+                (it.sectId1 == allySectId && it.sectId2 == playerSectForFavor.id)
+            }?.favor ?: 0
+        } else 0
+
+        val successRate = calculatePersuasionSuccessRate(favor, envoy.intelligence, envoy.charm)
         val roll = Random.nextDouble()
 
         if (roll < successRate) {
-            val supportSize = calculateSupportTeamSize(sect.relation)
+            val supportSize = calculateSupportTeamSize(favor)
             val supportRealm = getSupportTeamRealm(sect.maxRealm)
             val realmName = GameConfig.Realm.getName(supportRealm)
             
-            // 生成支援队伍弟子
-            val newSupportDisciples = generateSupportDisciples(sect, supportSize, supportRealm, data.gameYear)
-            _disciples.value = _disciples.value + newSupportDisciples
+            val (selectedAiDisciples, updatedSect) = selectRealSupportDisciples(sect, supportSize, supportRealm)
             
-            // 创建支援队伍（在世界地图上显示）
+            if (selectedAiDisciples.isEmpty()) {
+                addEvent("${sect.name}没有符合条件的弟子可派遣", EventType.WARNING)
+                return Pair(false, "求援失败，对方没有符合条件的弟子")
+            }
+            
+            val playerSect = data.worldMapSects.find { it.isPlayerSect }
+            if (playerSect == null) {
+                return Pair(false, "找不到玩家宗门")
+            }
+            
+            val route = findShortestPath(sect.id, playerSect.id, data.worldMapSects)
+            if (route == null || route.size < 2) {
+                addEvent("无法找到从${sect.name}到玩家宗门的路线", EventType.WARNING)
+                return Pair(false, "求援失败，无法到达玩家宗门")
+            }
+            
+            val updatedSects = data.worldMapSects.map { s ->
+                if (s.id == sect.id) updatedSect else s
+            }
+            
+            val totalDistance = route.windowed(2).sumOf { (from, to) ->
+                val fromSect = data.worldMapSects.find { it.id == from }
+                val toSect = data.worldMapSects.find { it.id == to }
+                if (fromSect != null && toSect != null) {
+                    calculateDistance(fromSect.x, fromSect.y, toSect.x, toSect.y)
+                } else 0
+            }
+            
+            val travelDays = (totalDistance / 200 * 30 * 2 / 3).toInt().coerceIn(1, 360)
+            
+            var arrivalDay = data.gameDay + travelDays
+            var arrivalMonth = data.gameMonth
+            var arrivalYear = data.gameYear
+            
+            while (arrivalDay > 30) {
+                arrivalDay -= 30
+                arrivalMonth++
+                if (arrivalMonth > 12) {
+                    arrivalMonth = 1
+                    arrivalYear++
+                }
+            }
+            
             val supportTeam = SupportTeam(
                 id = java.util.UUID.randomUUID().toString(),
                 name = "${sect.name}支援队",
                 sourceSectId = sect.id,
                 sourceSectName = sect.name,
                 targetSectId = "player",
-                disciples = newSupportDisciples.map { it.id },
-                size = supportSize,
+                disciples = selectedAiDisciples.map { it.id },
+                aiDisciples = selectedAiDisciples,
+                size = selectedAiDisciples.size,
                 currentX = sect.x,
                 currentY = sect.y,
-                targetX = 0.5f,
-                targetY = 0.5f,
-                progress = 0f,
+                targetX = playerSect.x,
+                targetY = playerSect.y,
+                moveProgress = 0f,
                 status = "moving",
                 startYear = data.gameYear,
                 startMonth = data.gameMonth,
-                arrivalYear = data.gameYear + (sect.distance / 12),
-                arrivalMonth = (data.gameMonth + (sect.distance % 12)).let { if (it > 12) it - 12 else it }
+                startDay = data.gameDay,
+                duration = travelDays,
+                arrivalYear = arrivalYear,
+                arrivalMonth = arrivalMonth,
+                arrivalDay = arrivalDay,
+                route = route,
+                currentRouteIndex = 0,
+                currentSegmentProgress = 0f
             )
             
             _gameData.value = data.copy(
-                supportTeams = data.supportTeams + supportTeam
+                supportTeams = data.supportTeams + supportTeam,
+                worldMapSects = updatedSects
             )
             
-            addEvent("${sect.name}派遣${supportSize}名${realmName}及以下境界弟子前来支援", EventType.SUCCESS)
-            return Pair(true, "求援成功，${sect.name}将派遣${supportSize}名${realmName}及以下境界弟子支援")
+            addEvent("${sect.name}派遣${selectedAiDisciples.size}名${realmName}及以下境界弟子前来支援", EventType.SUCCESS)
+            return Pair(true, "求援成功，${sect.name}将派遣${selectedAiDisciples.size}名${realmName}及以下境界弟子支援")
         } else {
             addEvent("${sect.name}拒绝了支援请求", EventType.WARNING)
             return Pair(false, "求援失败")
         }
+    }
+
+    /**
+     * 从AI宗门的真实弟子中选择支援弟子
+     * @return Pair<选中的AISectDisciple列表, 更新后的WorldSect>
+     */
+    private fun selectRealSupportDisciples(
+        sect: WorldSect,
+        supportSize: Int,
+        maxRealm: Int
+    ): Pair<List<AISectDisciple>, WorldSect> {
+        val eligibleDisciples = sect.aiDisciples
+            .filter { it.isAlive && it.realm <= maxRealm }
+            .sortedByDescending { it.realm }
+        
+        if (eligibleDisciples.isEmpty()) {
+            return Pair(emptyList(), sect)
+        }
+        
+        val selectedAiDisciples = eligibleDisciples.take(supportSize)
+        val selectedIds = selectedAiDisciples.map { it.id }.toSet()
+        
+        val updatedAiDisciples = sect.aiDisciples.map { disciple ->
+            if (disciple.id in selectedIds) {
+                disciple.copy(isAlive = false)
+            } else {
+                disciple
+            }
+        }
+        
+        val updatedSect = sect.copy(aiDisciples = updatedAiDisciples)
+        
+        return Pair(selectedAiDisciples, updatedSect)
+    }
+    
+    /**
+     * 将AISectDisciple转换为Disciple
+     */
+    private fun convertAISectDiscipleToDisciple(aiDisciple: AISectDisciple, year: Int): Disciple {
+        return Disciple(
+            id = aiDisciple.id,
+            name = aiDisciple.name,
+            realm = aiDisciple.realm,
+            realmLayer = aiDisciple.realmLayer,
+            cultivation = aiDisciple.cultivation,
+            spiritRootType = aiDisciple.spiritRootType,
+            age = aiDisciple.age,
+            lifespan = aiDisciple.lifespan,
+            isAlive = true,
+            gender = if (Random.nextBoolean()) "male" else "female",
+            weaponId = aiDisciple.weaponId,
+            armorId = aiDisciple.armorId,
+            bootsId = aiDisciple.bootsId,
+            accessoryId = aiDisciple.accessoryId,
+            manualIds = aiDisciple.manualIds,
+            talentIds = aiDisciple.talentIds,
+            comprehension = aiDisciple.comprehension,
+            status = DiscipleStatus.IDLE,
+            loyalty = Random.nextInt(60, 80),
+            combatStatsVariance = aiDisciple.combatStatsVariance,
+            recruitedMonth = year * 12
+        )
     }
 
     /**
@@ -11567,7 +12824,7 @@ class GameEngine {
             charm = baseStats + Random.nextInt(-10, 11),
             morality = Random.nextInt(30, 80),
             status = DiscipleStatus.IDLE,
-            loyalty = Random.nextInt(60, 90),
+            loyalty = Random.nextInt(60, 80),
             combatStatsVariance = Random.nextInt(-30, 31)
         )
     }
@@ -11648,8 +12905,15 @@ class GameEngine {
 
         val alliance = data.alliances.find { it.id == sect.allianceId } ?: return false
 
+        val playerSect = data.worldMapSects.find { it.isPlayerSect }
+        val updatedRelations = if (playerSect != null) {
+            updateSectRelationFavor(data.sectRelations, playerSect.id, sectId, 0, data.gameYear)
+        } else {
+            data.sectRelations
+        }
+
         val updatedSects = data.worldMapSects.map { s ->
-            if (s.id == sectId) s.copy(allianceId = null, allianceStartYear = 0, relation = 0)
+            if (s.id == sectId) s.copy(allianceId = null, allianceStartYear = 0)
             else s
         }
 
@@ -11657,7 +12921,8 @@ class GameEngine {
 
         _gameData.value = data.copy(
             worldMapSects = updatedSects,
-            alliances = updatedAlliances
+            alliances = updatedAlliances,
+            sectRelations = updatedRelations
         )
 
         addEvent("背叛盟友${sect.name}，好感度降为0", EventType.DANGER)
@@ -11689,7 +12954,7 @@ class GameEngine {
         val data = _gameData.value
         val sect = data.worldMapSects.find { it.id == sectId } ?: return 0
         val alliance = data.alliances.find { it.id == sect.allianceId } ?: return 0
-        return (3 - (data.gameYear - alliance.startYear)).coerceAtLeast(0)
+        return (5 - (data.gameYear - alliance.startYear)).coerceAtLeast(0)
     }
 
     /**
@@ -11809,7 +13074,7 @@ class GameEngine {
             charm = mother.charm + Random.nextInt(-10, 11),
             morality = Random.nextInt(30, 80),
             status = DiscipleStatus.IDLE,
-            loyalty = Random.nextInt(60, 90),
+            loyalty = Random.nextInt(70, 101),
             parentId1 = mother.id,
             parentId2 = mother.partnerId,
             combatStatsVariance = Random.nextInt(-30, 31)
@@ -11817,54 +13082,715 @@ class GameEngine {
     }
 
     /**
-     * 处理支援队伍月度移动
+     * 处理支援队伍日度移动（沿路线移动）
      */
-    private fun processSupportTeamsMonthly(year: Int, month: Int) {
+    private fun processSupportTeamMovement() {
         val data = _gameData.value
         val updatedTeams = mutableListOf<SupportTeam>()
-        val teamsToRemove = mutableListOf<String>()
         
         data.supportTeams.forEach { team ->
-            if (team.status == "moving") {
-                val currentYear = data.gameYear
-                val currentMonth = data.gameMonth
-                val arrivalYear = team.arrivalYear
-                val arrivalMonth = team.arrivalMonth
-                
-                // 计算当前时间（从开始时间到当前时间的毫秒数）
-                val elapsedMonths = (currentYear - team.startYear) * 12 + (currentMonth - team.startMonth)
-                val elapsedSeconds = elapsedMonths * 30 * 24 * 60 * 60L
-                
-                // 计算总移动时间（毫秒）
-                val totalDurationMs = ((arrivalYear - team.startYear) * 12 + (arrivalMonth - team.startMonth)) * 30 * 24 * 60 * 60L
-                
-                val progress = if (totalDurationMs > 0) {
-                    (elapsedSeconds.toFloat() / totalDurationMs).coerceIn(0f, 1f)
-                } else {
-                    1f
+            if (team.status == "moving" && team.moveProgress < 1f) {
+                val route = team.route
+                if (route.isEmpty() || route.size < 2) {
+                    updatedTeams.add(team)
+                    return@forEach
                 }
                 
-                if (progress >= 1f) {
-                    // 支援弟子加入玩家宗门
-                    team.disciples.forEach { discipleId ->
-                        val disciple = _disciples.value.find { it.id == discipleId }
-                        if (disciple != null) {
-                            // 支援弟子已经存在于玩家宗门，无需额外处理
-                        }
-                    }
-                    
-                    addEvent("${team.sourceSectName}的支援队伍已到达，${team.size}名弟子加入宗门", EventType.SUCCESS)
-                    teamsToRemove.add(team.id)
+                val progressIncrement = 1f / team.duration.coerceAtLeast(1) * 1.5f
+                val newProgress = (team.moveProgress + progressIncrement).coerceAtMost(1f)
+                
+                if (newProgress >= 1f) {
+                    val playerSect = data.worldMapSects.find { it.isPlayerSect }
+                    addEvent("${team.sourceSectName}的支援队伍已到达并驻扎，共${team.size}名弟子", EventType.SUCCESS)
+                    updatedTeams.add(team.copy(
+                        moveProgress = 1f,
+                        status = "stationed",
+                        currentX = playerSect?.x ?: team.targetX,
+                        currentY = playerSect?.y ?: team.targetY,
+                        currentRouteIndex = route.size - 1,
+                        currentSegmentProgress = 1f
+                    ))
                 } else {
-                    updatedTeams.add(team.copy(progress = progress))
+                    val totalSegments = route.size - 1
+                    val segmentProgress = newProgress * totalSegments
+                    val currentSegment = segmentProgress.toInt().coerceIn(0, totalSegments - 1)
+                    val segmentLocalProgress = segmentProgress - currentSegment
+                    
+                    val fromSectId = route[currentSegment]
+                    val toSectId = route[currentSegment + 1]
+                    val fromSect = data.worldMapSects.find { it.id == fromSectId }
+                    val toSect = data.worldMapSects.find { it.id == toSectId }
+                    
+                    val currentX = if (fromSect != null && toSect != null) {
+                        fromSect.x + (toSect.x - fromSect.x) * segmentLocalProgress
+                    } else team.currentX
+                    
+                    val currentY = if (fromSect != null && toSect != null) {
+                        fromSect.y + (toSect.y - fromSect.y) * segmentLocalProgress
+                    } else team.currentY
+                    
+                    updatedTeams.add(team.copy(
+                        moveProgress = newProgress,
+                        currentX = currentX,
+                        currentY = currentY,
+                        currentRouteIndex = currentSegment,
+                        currentSegmentProgress = segmentLocalProgress
+                    ))
                 }
             } else {
                 updatedTeams.add(team)
             }
         }
         
-        _gameData.value = data.copy(
-            supportTeams = updatedTeams.filter { it.id !in teamsToRemove }
+        _gameData.value = data.copy(supportTeams = updatedTeams)
+    }
+    
+    private fun processAIBattleTeamMovement() {
+        val data = _gameData.value
+        val updatedTeams = data.aiBattleTeams.map { team ->
+            if (team.status == "moving") {
+                AISectAttackManager.updateAIBattleTeamMovement(team, data)
+            } else {
+                team
+            }
+        }
+        
+        _gameData.value = data.copy(aiBattleTeams = updatedTeams)
+        
+        updatedTeams.filter { AISectAttackManager.isTeamArrived(it) }.forEach { team ->
+            triggerAISectBattle(team)
+        }
+    }
+    
+    private fun triggerAISectBattle(team: AIBattleTeam) {
+        val data = _gameData.value
+        val defenderSect = data.worldMapSects.find { it.id == team.defenderSectId } ?: return
+        val attackerSect = data.worldMapSects.find { it.id == team.attackerSectId }
+        
+        if (team.isPlayerDefender) {
+            triggerPlayerSectBattle(team, defenderSect, attackerSect)
+            return
+        }
+        
+        val result = AISectAttackManager.executeAISectBattle(team, defenderSect)
+        
+        if (attackerSect != null) {
+            val updatedAttackerDisciples = attackerSect.aiDisciples.filter { it.id !in result.deadAttackerIds }
+            _gameData.value = _gameData.value.copy(
+                worldMapSects = _gameData.value.worldMapSects.map { sect ->
+                    if (sect.id == team.attackerSectId) {
+                        sect.copy(aiDisciples = updatedAttackerDisciples)
+                    } else {
+                        sect
+                    }
+                }
+            )
+        }
+        
+        val updatedDefenderDisciples = defenderSect.aiDisciples.filter { it.id !in result.deadDefenderIds }
+        _gameData.value = _gameData.value.copy(
+            worldMapSects = _gameData.value.worldMapSects.map { sect ->
+                if (sect.id == team.defenderSectId) {
+                    sect.copy(aiDisciples = updatedDefenderDisciples)
+                } else {
+                    sect
+                }
+            }
         )
+        
+        if (result.canOccupy) {
+            val currentData = _gameData.value
+            val defenderWarehouse = currentData.worldMapSects.find { it.id == team.defenderSectId }?.warehouse ?: SectWarehouse()
+            
+            _gameData.value = currentData.copy(
+                worldMapSects = currentData.worldMapSects.map { sect ->
+                    if (sect.id == team.defenderSectId) {
+                        sect.copy(
+                            occupierSectId = team.attackerSectId,
+                            warehouse = SectWarehouse()
+                        )
+                    } else if (sect.id == team.attackerSectId) {
+                        val mergedWarehouse = SectWarehouseManager.addItemsToWarehouse(sect.warehouse, defenderWarehouse.items)
+                        val finalWarehouse = SectWarehouseManager.addSpiritStonesToWarehouse(mergedWarehouse, defenderWarehouse.spiritStones)
+                        sect.copy(warehouse = finalWarehouse)
+                    } else {
+                        sect
+                    }
+                }
+            )
+            addEvent(AISectAttackManager.generateSectDestroyedEvent(team.attackerSectName, team.defenderSectName), EventType.DANGER)
+        }
+        
+        val updatedRelations = _gameData.value.sectRelations.map { relation ->
+            val isRelevantRelation = (relation.sectId1 == team.attackerSectId && relation.sectId2 == team.defenderSectId) ||
+                                     (relation.sectId1 == team.defenderSectId && relation.sectId2 == team.attackerSectId)
+            if (isRelevantRelation) {
+                relation.copy(favor = (relation.favor - 10).coerceIn(-100, 100))
+            } else {
+                relation
+            }
+        }
+        _gameData.value = _gameData.value.copy(sectRelations = updatedRelations)
+        
+        val aliveDisciples = team.disciples.filter { it.id !in result.deadAttackerIds }
+        _gameData.value = _gameData.value.copy(
+            aiBattleTeams = _gameData.value.aiBattleTeams.map { 
+                if (it.id == team.id) {
+                    it.copy(
+                        status = "returning",
+                        disciples = aliveDisciples,
+                        currentX = defenderSect.x,
+                        currentY = defenderSect.y,
+                        targetX = team.attackerStartX,
+                        targetY = team.attackerStartY,
+                        moveProgress = 0f
+                    )
+                } else it 
+            }
+        )
+    }
+    
+    private fun triggerPlayerSectBattle(team: AIBattleTeam, playerSect: WorldSect, attackerSect: WorldSect?) {
+        val data = _gameData.value
+        val playerDefenseTeam = AISectAttackManager.createPlayerDefenseTeam(_disciples.value)
+        
+        if (playerDefenseTeam.isEmpty()) {
+            addEvent("${team.attackerSectName}进攻我宗，但我宗无可用弟子防守！", EventType.DANGER)
+            processPlayerDefeat(team, attackerSect)
+            return
+        }
+        
+        val result = AISectAttackManager.executePlayerSectBattle(team, playerDefenseTeam)
+        
+        val deadPlayerDiscipleIds = result.deadDefenderIds
+        _disciples.value = _disciples.value.map { disciple ->
+            if (disciple.id in deadPlayerDiscipleIds) {
+                disciple.copy(isAlive = false)
+            } else {
+                disciple
+            }
+        }
+        
+        if (attackerSect != null) {
+            val updatedAttackerDisciples = attackerSect.aiDisciples.filter { it.id !in result.deadAttackerIds }
+            _gameData.value = _gameData.value.copy(
+                worldMapSects = _gameData.value.worldMapSects.map { sect ->
+                    if (sect.id == team.attackerSectId) {
+                        sect.copy(aiDisciples = updatedAttackerDisciples)
+                    } else {
+                        sect
+                    }
+                }
+            )
+        }
+        
+        val updatedPlayerRelations = _gameData.value.sectRelations.map { relation ->
+            val isRelevantRelation = (relation.sectId1 == team.attackerSectId && relation.sectId2 == playerSect.id) ||
+                                     (relation.sectId1 == playerSect.id && relation.sectId2 == team.attackerSectId)
+            if (isRelevantRelation) {
+                relation.copy(favor = (relation.favor - 15).coerceIn(0, 100))
+            } else {
+                relation
+            }
+        }
+
+        _gameData.value = _gameData.value.copy(sectRelations = updatedPlayerRelations)
+
+        if (result.winner == AIBattleWinner.ATTACKER) {
+            processPlayerDefeat(team, attackerSect)
+        } else {
+            addEvent("我宗成功击退${team.attackerSectName}的进攻！", EventType.SUCCESS)
+            val aliveDisciples = team.disciples.filter { it.id !in result.deadAttackerIds }
+            _gameData.value = _gameData.value.copy(
+                aiBattleTeams = _gameData.value.aiBattleTeams.map { 
+                    if (it.id == team.id) {
+                        it.copy(
+                            status = "returning",
+                            disciples = aliveDisciples,
+                            currentX = playerSect.x,
+                            currentY = playerSect.y,
+                            targetX = team.attackerStartX,
+                            targetY = team.attackerStartY,
+                            moveProgress = 0f
+                        )
+                    } else {
+                        it
+                    }
+                }
+            )
+        }
+    }
+    
+    private fun processPlayerDefeat(team: AIBattleTeam, attackerSect: WorldSect?) {
+        val data = _gameData.value
+        val lootResult = AISectAttackManager.calculatePlayerLootLoss(
+            data.spiritStones,
+            _materials.value,
+            _herbs.value,
+            _seeds.value,
+            _pills.value
+        )
+        
+        _gameData.value = data.copy(
+            spiritStones = data.spiritStones - lootResult.lostSpiritStones
+        )
+        
+        lootResult.lostMaterials.forEach { (itemName, itemCount) ->
+            when {
+                _materials.value.any { it.name == itemName } -> {
+                    _materials.value = _materials.value.map { material ->
+                        if (material.name == itemName && material.quantity > 0) {
+                            material.copy(quantity = (material.quantity - itemCount).coerceAtLeast(0))
+                        } else material
+                    }
+                }
+                _herbs.value.any { it.name == itemName } -> {
+                    _herbs.value = _herbs.value.map { herb ->
+                        if (herb.name == itemName && herb.quantity > 0) {
+                            herb.copy(quantity = (herb.quantity - itemCount).coerceAtLeast(0))
+                        } else herb
+                    }
+                }
+                _seeds.value.any { it.name == itemName } -> {
+                    _seeds.value = _seeds.value.map { seed ->
+                        if (seed.name == itemName && seed.quantity > 0) {
+                            seed.copy(quantity = (seed.quantity - itemCount).coerceAtLeast(0))
+                        } else seed
+                    }
+                }
+                _pills.value.any { it.name == itemName } -> {
+                    _pills.value = _pills.value.map { pill ->
+                        if (pill.name == itemName && pill.quantity > 0) {
+                            pill.copy(quantity = (pill.quantity - itemCount).coerceAtLeast(0))
+                        } else pill
+                    }
+                }
+            }
+        }
+        
+        if (attackerSect != null) {
+            val warehouseItems = SectWarehouseManager.convertLootLossToWarehouseItems(
+                lootResult.lostMaterials,
+                _materials.value,
+                _herbs.value,
+                _seeds.value,
+                _pills.value
+            )
+            val updatedWarehouse = SectWarehouseManager.addItemsToWarehouse(attackerSect.warehouse, warehouseItems)
+            val finalWarehouse = SectWarehouseManager.addSpiritStonesToWarehouse(updatedWarehouse, lootResult.lostSpiritStones)
+            
+            _gameData.value = _gameData.value.copy(
+                worldMapSects = _gameData.value.worldMapSects.map { sect ->
+                    if (sect.id == attackerSect.id) {
+                        sect.copy(warehouse = finalWarehouse)
+                    } else {
+                        sect
+                    }
+                }
+            )
+        }
+        
+        addEvent("我宗防守失败，被${team.attackerSectName}掠夺了${lootResult.lostSpiritStones}灵石和${lootResult.lostMaterials.size}种道具！", EventType.DANGER)
+        
+        _gameData.value = _gameData.value.copy(
+            aiBattleTeams = _gameData.value.aiBattleTeams.map { 
+                if (it.id == team.id) it.copy(status = "completed") else it 
+            }
+        )
+    }
+    
+    private fun processAISectAttackDecisions() {
+        val data = _gameData.value
+        
+        val newBattles = AISectAttackManager.decideAttacks(data)
+        val supportBattles = AISectAttackManager.checkAllianceSupport(data)
+        val playerAttack = AISectAttackManager.decidePlayerAttack(data)
+        
+        val allNewBattles = newBattles + supportBattles + listOfNotNull(playerAttack)
+        
+        if (allNewBattles.isNotEmpty()) {
+            _gameData.value = data.copy(
+                aiBattleTeams = data.aiBattleTeams + allNewBattles
+            )
+        }
+    }
+    
+    private fun processAISectDisciplesCultivation() {
+        val data = _gameData.value
+        var updatedSects = data.worldMapSects.map { sect ->
+            AISectDiscipleManager.processMonthlyCultivation(sect)
+        }
+        updatedSects = updatedSects.map { sect ->
+            AISectDiscipleManager.processManualMasteryGrowth(sect)
+        }
+        updatedSects = updatedSects.map { sect ->
+            AISectDiscipleManager.processEquipmentNurture(sect)
+        }
+        _gameData.value = data.copy(worldMapSects = updatedSects)
+    }
+    
+    private fun processAISectDisciplesRecruitment(year: Int) {
+        val data = _gameData.value
+        val updatedSects = data.worldMapSects.map { sect ->
+            AISectDiscipleManager.recruitDisciplesForSect(sect, year)
+        }
+        _gameData.value = data.copy(worldMapSects = updatedSects)
+    }
+    
+    private fun processAISectDisciplesAging(year: Int) {
+        val data = _gameData.value
+        val updatedSects = data.worldMapSects.map { sect ->
+            AISectDiscipleManager.processAging(sect)
+        }
+        _gameData.value = data.copy(worldMapSects = updatedSects)
+    }
+    
+    private fun generateYearlyItemsForAISects() {
+        val data = _gameData.value
+        val updatedSects = data.worldMapSects.map { sect ->
+            if (!sect.isPlayerSect && !sect.isPlayerOccupied) {
+                val newWarehouse = SectWarehouseManager.generateYearlyItemsForAISect(sect)
+                val existingWarehouse = sect.warehouse
+                val mergedWarehouse = SectWarehouseManager.addItemsToWarehouse(
+                    existingWarehouse,
+                    newWarehouse.items
+                )
+                val finalWarehouse = SectWarehouseManager.addSpiritStonesToWarehouse(
+                    mergedWarehouse,
+                    newWarehouse.spiritStones
+                )
+                sect.copy(warehouse = finalWarehouse)
+            } else {
+                sect
+            }
+        }
+        _gameData.value = data.copy(worldMapSects = updatedSects)
+    }
+
+    private fun processOuterTournament(year: Int) {
+        if (year % 3 != 0) {
+            return
+        }
+        
+        try {
+            val outerDisciples = _disciples.value.filter { 
+                it.isAlive && 
+                it.discipleType == "outer" && 
+                it.status != DiscipleStatus.REFLECTING
+            }
+            
+            if (outerDisciples.isEmpty()) {
+                addEvent("第${year}年外门大比：无符合条件的弟子参与", EventType.INFO)
+                return
+            }
+            
+            addEvent("第${year}年外门大比开始，共有${outerDisciples.size}名外门弟子参与", EventType.INFO)
+            
+            val sortedDisciples = outerDisciples.sortedWith(
+                compareByDescending<Disciple> { it.realm }
+                    .thenByDescending { it.realmLayer }
+                    .thenByDescending { it.cultivation }
+                    .thenByDescending { it.comprehension }
+            )
+            
+            val promotionCount = minOf(20, sortedDisciples.size)
+            val promotedDisciples = sortedDisciples.take(promotionCount)
+            val promotedIds = promotedDisciples.map { it.id }.toSet()
+            
+            _disciples.value = _disciples.value.map { disciple ->
+                if (disciple.id in promotedIds) {
+                    disciple.copy(discipleType = "inner")
+                } else {
+                    disciple
+                }
+            }
+            
+            val promotedNames = promotedDisciples.take(5).map { it.name }
+            val namesDisplay = if (promotedDisciples.size <= 5) {
+                promotedNames.joinToString("、")
+            } else {
+                "${promotedNames.joinToString("、")} 等${promotedDisciples.size}人"
+            }
+            
+            addEvent("第${year}年外门大比圆满结束，$namesDisplay 晋升为内门弟子", EventType.SUCCESS)
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in processOuterTournament", e)
+            addEvent("第${year}年外门大比处理出错", EventType.DANGER)
+        }
+    }
+
+    /**
+     * 重置所有弟子状态为空闲
+     * - 探索队伍解散，弟子变空闲
+     * - 战斗队伍解散，弟子变空闲
+     * - 工作槽位清空，弟子变空闲
+     * - 职务槽位清空，弟子变空闲
+     * - 思过崖弟子不受影响
+     */
+    fun resetAllDisciplesStatus() {
+        val data = _gameData.value
+        val discipleIdsToReset = mutableSetOf<String>()
+
+        // 1. 收集探索队伍中的弟子ID
+        _teams.value.forEach { team ->
+            discipleIdsToReset.addAll(team.memberIds)
+        }
+        _teams.value = emptyList()
+
+        // 2. 收集洞府探索队伍中的弟子ID
+        data.caveExplorationTeams.forEach { team ->
+            discipleIdsToReset.addAll(team.memberIds)
+        }
+
+        // 3. 收集战斗队伍中的弟子ID
+        data.battleTeam?.slots?.forEach { slot ->
+            slot.discipleId?.let { discipleIdsToReset.add(it) }
+        }
+
+        // 4. 收集工作槽位中的弟子ID (BuildingSlot)
+        _buildingSlots.value.forEach { slot ->
+            slot.discipleId?.let { discipleIdsToReset.add(it) }
+        }
+        _buildingSlots.value = emptyList()
+
+        // 5. 炼丹槽位没有discipleId，不需要重置弟子状态
+
+        // 6. 收集灵矿槽位中的弟子ID
+        data.spiritMineSlots.forEach { slot ->
+            slot.discipleId?.let { discipleIdsToReset.add(it) }
+        }
+
+        // 7. 收集藏经阁槽位中的弟子ID
+        data.librarySlots.forEach { slot ->
+            slot.discipleId?.let { discipleIdsToReset.add(it) }
+        }
+
+        // 8. 收集职务槽位中的弟子ID (ElderSlots)
+        val elderSlots = data.elderSlots
+        elderSlots.viceSectMaster?.let { discipleIdsToReset.add(it) }
+        elderSlots.herbGardenElder?.let { discipleIdsToReset.add(it) }
+        elderSlots.alchemyElder?.let { discipleIdsToReset.add(it) }
+        elderSlots.forgeElder?.let { discipleIdsToReset.add(it) }
+        elderSlots.libraryElder?.let { discipleIdsToReset.add(it) }
+        elderSlots.recruitElder?.let { discipleIdsToReset.add(it) }
+        elderSlots.outerElder?.let { discipleIdsToReset.add(it) }
+        elderSlots.preachingElder?.let { discipleIdsToReset.add(it) }
+        elderSlots.lawEnforcementElder?.let { discipleIdsToReset.add(it) }
+        elderSlots.innerElder?.let { discipleIdsToReset.add(it) }
+        elderSlots.qingyunPreachingElder?.let { discipleIdsToReset.add(it) }
+
+        // 收集亲传弟子槽位
+        elderSlots.preachingMasters.forEach { slot -> slot.discipleId?.let { discipleIdsToReset.add(it) } }
+        elderSlots.lawEnforcementDisciples.forEach { slot -> slot.discipleId?.let { discipleIdsToReset.add(it) } }
+        elderSlots.lawEnforcementReserveDisciples.forEach { slot -> slot.discipleId?.let { discipleIdsToReset.add(it) } }
+        elderSlots.qingyunPreachingMasters.forEach { slot -> slot.discipleId?.let { discipleIdsToReset.add(it) } }
+        elderSlots.herbGardenDisciples.forEach { slot -> slot.discipleId?.let { discipleIdsToReset.add(it) } }
+        elderSlots.alchemyDisciples.forEach { slot -> slot.discipleId?.let { discipleIdsToReset.add(it) } }
+        elderSlots.forgeDisciples.forEach { slot -> slot.discipleId?.let { discipleIdsToReset.add(it) } }
+        elderSlots.libraryDisciples.forEach { slot -> slot.discipleId?.let { discipleIdsToReset.add(it) } }
+        elderSlots.recruitDisciples.forEach { slot -> slot.discipleId?.let { discipleIdsToReset.add(it) } }
+        elderSlots.forgeInnerDisciples.forEach { slot -> slot.discipleId?.let { discipleIdsToReset.add(it) } }
+        elderSlots.alchemyInnerDisciples.forEach { slot -> slot.discipleId?.let { discipleIdsToReset.add(it) } }
+        elderSlots.herbGardenInnerDisciples.forEach { slot -> slot.discipleId?.let { discipleIdsToReset.add(it) } }
+        elderSlots.herbGardenReserveDisciples.forEach { slot -> slot.discipleId?.let { discipleIdsToReset.add(it) } }
+        elderSlots.alchemyReserveDisciples.forEach { slot -> slot.discipleId?.let { discipleIdsToReset.add(it) } }
+        elderSlots.forgeReserveDisciples.forEach { slot -> slot.discipleId?.let { discipleIdsToReset.add(it) } }
+        elderSlots.spiritMineDeaconDisciples.forEach { slot -> slot.discipleId?.let { discipleIdsToReset.add(it) } }
+
+        // 更新弟子状态为空闲（排除思过崖弟子）
+        _disciples.value = _disciples.value.map { disciple ->
+            if (discipleIdsToReset.contains(disciple.id) && disciple.status != DiscipleStatus.REFLECTING) {
+                disciple.copy(status = DiscipleStatus.IDLE)
+            } else {
+                disciple
+            }
+        }
+
+        // 清空GameData中的相关数据
+        _gameData.value = data.copy(
+            caveExplorationTeams = emptyList(),
+            battleTeam = null,
+            spiritMineSlots = data.spiritMineSlots.map { it.copy(discipleId = null, discipleName = "") },
+            librarySlots = data.librarySlots.map { it.copy(discipleId = null, discipleName = "") },
+            elderSlots = ElderSlots()
+        )
+
+        addEvent("已重置所有弟子状态，探索/战斗队伍已解散，工作/职务槽位已清空", EventType.INFO)
+    }
+
+    fun redeemCode(
+        code: String,
+        usedCodes: List<String>,
+        currentYear: Int,
+        currentMonth: Int
+    ): RedeemResult {
+        val validationResult = RedeemCodeManager.validateCode(
+            code = code,
+            usedCodes = usedCodes,
+            currentYear = currentYear,
+            currentMonth = currentMonth
+        )
+
+        if (!validationResult.success) {
+            return validationResult
+        }
+
+        val redeemCode = RedeemCodeManager.getRedeemCode(code) ?: return RedeemResult(
+            success = false,
+            message = "兑换码不存在"
+        )
+
+        val result = RedeemCodeManager.generateReward(redeemCode)
+
+        if (!result.success) {
+            return result
+        }
+
+        val data = _gameData.value
+
+        result.rewards.forEach { reward ->
+            when (reward.type) {
+                "spiritStones" -> {
+                    _gameData.value = _gameData.value.copy(
+                        spiritStones = _gameData.value.spiritStones + reward.quantity
+                    )
+                }
+                "equipment" -> {
+                    val equipment = EquipmentDatabase.generateRandom(
+                        minRarity = redeemCode.rarity,
+                        maxRarity = redeemCode.rarity
+                    )
+                    if (_equipment.value.none { it.id == equipment.id }) {
+                        _equipment.value = _equipment.value + equipment
+                    }
+                }
+                "manual" -> {
+                    val manual = ManualDatabase.generateRandom(
+                        minRarity = redeemCode.rarity,
+                        maxRarity = redeemCode.rarity
+                    )
+                    if (_manuals.value.none { it.id == manual.id }) {
+                        _manuals.value = _manuals.value + manual
+                    }
+                }
+                "pill" -> {
+                    val pill = ItemDatabase.generateRandomPill(
+                        minRarity = redeemCode.rarity,
+                        maxRarity = redeemCode.rarity
+                    )
+                    addPillToWarehouse(pill)
+                }
+                "material" -> {
+                    val material = ItemDatabase.generateRandomMaterial(
+                        minRarity = redeemCode.rarity,
+                        maxRarity = redeemCode.rarity
+                    )
+                    val existingMaterial = _materials.value.find {
+                        it.name == material.name && it.rarity == material.rarity
+                    }
+                    if (existingMaterial != null) {
+                        _materials.value = _materials.value.map {
+                            if (it.id == existingMaterial.id) {
+                                it.copy(quantity = it.quantity + 1)
+                            } else {
+                                it
+                            }
+                        }
+                    } else {
+                        _materials.value = _materials.value + material
+                    }
+                }
+                "herb" -> {
+                    val herbTemplate = HerbDatabase.generateRandomHerb(
+                        minRarity = redeemCode.rarity,
+                        maxRarity = redeemCode.rarity
+                    )
+                    val herb = Herb(
+                        id = java.util.UUID.randomUUID().toString(),
+                        name = herbTemplate.name,
+                        rarity = herbTemplate.rarity,
+                        description = herbTemplate.description,
+                        category = herbTemplate.category,
+                        quantity = 1
+                    )
+                    val existingHerb = _herbs.value.find {
+                        it.name == herb.name && it.rarity == herb.rarity
+                    }
+                    if (existingHerb != null) {
+                        _herbs.value = _herbs.value.map {
+                            if (it.id == existingHerb.id) {
+                                it.copy(quantity = it.quantity + 1)
+                            } else {
+                                it
+                            }
+                        }
+                    } else {
+                        _herbs.value = _herbs.value + herb
+                    }
+                }
+                "seed" -> {
+                    val seedTemplate = HerbDatabase.generateRandomSeed(
+                        minRarity = redeemCode.rarity,
+                        maxRarity = redeemCode.rarity
+                    )
+                    val seed = Seed(
+                        id = java.util.UUID.randomUUID().toString(),
+                        name = seedTemplate.name,
+                        rarity = seedTemplate.rarity,
+                        description = seedTemplate.description,
+                        growTime = seedTemplate.growTime,
+                        yield = seedTemplate.yield,
+                        quantity = 1
+                    )
+                    val existingSeed = _seeds.value.find {
+                        it.name == seed.name && it.rarity == seed.rarity
+                    }
+                    if (existingSeed != null) {
+                        _seeds.value = _seeds.value.map {
+                            if (it.id == existingSeed.id) {
+                                it.copy(quantity = it.quantity + 1)
+                            } else {
+                                it
+                            }
+                        }
+                    } else {
+                        _seeds.value = _seeds.value + seed
+                    }
+                }
+                "disciple" -> {
+                    result.disciple?.let { disciple ->
+                        val currentMonthValue = data.gameYear * 12 + data.gameMonth
+                        val discipleWithRecruitTime = disciple.copy(
+                            recruitedMonth = currentMonthValue
+                        )
+                        _disciples.value = _disciples.value + discipleWithRecruitTime
+                    }
+                }
+            }
+        }
+
+        result.disciples.forEach { disciple ->
+            val currentMonthValue = data.gameYear * 12 + data.gameMonth
+            val discipleWithRecruitTime = disciple.copy(
+                recruitedMonth = currentMonthValue
+            )
+            _disciples.value = _disciples.value + discipleWithRecruitTime
+        }
+
+        _gameData.value = _gameData.value.copy(
+            usedRedeemCodes = _gameData.value.usedRedeemCodes + code.uppercase()
+        )
+
+        val rewardDescription = result.rewards.joinToString("、") { reward ->
+            when (reward.type) {
+                "spiritStones" -> "${reward.quantity}灵石"
+                "disciple" -> "弟子${reward.name}"
+                else -> "${reward.name}×${reward.quantity}"
+            }
+        }
+        addEvent("兑换成功！获得：$rewardDescription", EventType.SUCCESS)
+
+        return result.copy(message = "兑换成功！获得：$rewardDescription")
     }
 }

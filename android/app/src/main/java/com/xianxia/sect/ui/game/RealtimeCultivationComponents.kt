@@ -14,6 +14,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.ui.theme.GameColors
 import kotlinx.coroutines.flow.StateFlow
 
 @Composable
@@ -74,7 +75,7 @@ fun RealtimeCultivationProgress(
                 .height(6.dp)
                 .clip(RoundedCornerShape(3.dp)),
             color = progressColor,
-            trackColor = Color(0xFFE0E0E0)
+            trackColor = GameColors.Border
         )
     }
 }
@@ -119,7 +120,7 @@ fun RealtimeDiscipleCard(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 8.dp, vertical = 4.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = GameColors.PageBackground),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         onClick = onClick
     ) {

@@ -11,13 +11,11 @@ object GiftConfig {
      * @param tier 档位等级 (1=薄礼, 2=厚礼, 3=重礼, 4=大礼)
      * @param name 档位名称
      * @param spiritStones 所需灵石数量
-     * @param favor 增加的好感度
      */
     data class SpiritStoneGiftTier(
         val tier: Int,
         val name: String,
-        val spiritStones: Long,
-        val favor: Int
+        val spiritStones: Long
     )
 
     /**
@@ -25,10 +23,10 @@ object GiftConfig {
      */
     object SpiritStoneGiftConfig {
         val TIERS = mapOf(
-            1 to SpiritStoneGiftTier(1, "薄礼", 20000L, 6),
-            2 to SpiritStoneGiftTier(2, "厚礼", 200000L, 18),
-            3 to SpiritStoneGiftTier(3, "重礼", 800000L, 30),
-            4 to SpiritStoneGiftTier(4, "大礼", 4000000L, 40)
+            1 to SpiritStoneGiftTier(1, "薄礼", 20000L),
+            2 to SpiritStoneGiftTier(2, "厚礼", 200000L),
+            3 to SpiritStoneGiftTier(3, "重礼", 800000L),
+            4 to SpiritStoneGiftTier(4, "大礼", 4000000L)
         )
 
         fun getTier(tier: Int): SpiritStoneGiftTier? = TIERS[tier]
@@ -36,6 +34,43 @@ object GiftConfig {
         fun getAllTiers(): List<SpiritStoneGiftTier> = TIERS.values.toList()
 
         fun getTierByName(name: String): SpiritStoneGiftTier? = TIERS.values.find { it.name == name }
+    }
+
+    /**
+     * 好感度百分比配置
+     * 根据宗门等级和送礼档位计算好感度增长百分比
+     */
+    object FavorPercentageConfig {
+        private val PERCENTAGE_MATRIX = mapOf(
+            0 to mapOf(
+                1 to 20,
+                2 to 40,
+                3 to 100,
+                4 to 200
+            ),
+            1 to mapOf(
+                1 to 10,
+                2 to 30,
+                3 to 70,
+                4 to 150
+            ),
+            2 to mapOf(
+                3 to 40,
+                4 to 70
+            ),
+            3 to mapOf(
+                3 to 30,
+                4 to 50
+            )
+        )
+
+        fun getFavorPercentage(sectLevel: Int, tier: Int): Int? {
+            return PERCENTAGE_MATRIX[sectLevel]?.get(tier)
+        }
+
+        fun isTierAvailableForSect(sectLevel: Int, tier: Int): Boolean {
+            return PERCENTAGE_MATRIX[sectLevel]?.containsKey(tier) == true
+        }
     }
 
     /**
@@ -64,6 +99,52 @@ object GiftConfig {
         fun getFavor(rarity: Int): Int = CONFIGS[rarity]?.favor ?: 1
 
         fun getConfig(rarity: Int): RarityFavor? = CONFIGS[rarity]
+    }
+
+    /**
+     * 物品送礼好感度百分比配置
+     * 根据宗门等级和物品稀有度计算好感度百分比
+     */
+    object ItemFavorPercentageConfig {
+        private val PERCENTAGE_MATRIX = mapOf(
+            0 to mapOf(
+                1 to 20,
+                2 to 40,
+                3 to 70,
+                4 to 140,
+                5 to 200,
+                6 to 300
+            ),
+            1 to mapOf(
+                1 to 10,
+                2 to 20,
+                3 to 40,
+                4 to 80,
+                5 to 150,
+                6 to 220
+            ),
+            2 to mapOf(
+                4 to 30,
+                5 to 60,
+                6 to 130
+            ),
+            3 to mapOf(
+                4 to 20,
+                5 to 50,
+                6 to 80
+            )
+        )
+
+        /**
+         * 获取好感度百分比
+         * @param sectLevel 宗门等级 (0-3)
+         * @param rarity 物品稀有度 (1-6)
+         * @return 好感度百分比，如果配置不存在则返回null（表示该稀有度会被拒绝）
+         */
+        fun getFavorPercentage(sectLevel: Int, rarity: Int): Int? {
+            val levelConfig = PERCENTAGE_MATRIX[sectLevel] ?: return null
+            return levelConfig[rarity]
+        }
     }
 
     /**

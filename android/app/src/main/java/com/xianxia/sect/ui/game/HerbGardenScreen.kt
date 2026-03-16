@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,6 +31,8 @@ import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DirectDiscipleSlot
 import com.xianxia.sect.core.model.ElderSlots
 import com.xianxia.sect.core.model.DiscipleStatus
+import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.ui.theme.GameColors
 
 @Composable
 fun HerbGardenDialog(
@@ -45,16 +48,34 @@ fun HerbGardenDialog(
     var showDirectDiscipleSelection by remember { mutableStateOf<Int?>(null) }
     var showInnerDiscipleSelection by remember { mutableStateOf<Int?>(null) }
     var showElderRemoveConfirm by remember { mutableStateOf(false) }
+    var showReserveDiscipleDialog by remember { mutableStateOf(false) }
 
     val elderSlots = gameData?.elderSlots ?: ElderSlots()
     val herbGardenElder = viewModel.getElderDisciple(elderSlots.herbGardenElder)
     val herbGardenDisciples = elderSlots.herbGardenDisciples
     val herbGardenInnerDisciples = elderSlots.herbGardenInnerDisciples
     val hasDirectDisciples = herbGardenDisciples.any { it.isActive }
+    val reserveDisciplesWithInfo = viewModel.getHerbGardenReserveDisciplesWithInfo()
 
     CommonDialog(
         title = "灵药宛",
-        onDismiss = onDismiss
+        onDismiss = onDismiss,
+        titleActions = {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(Color(0xFF4CAF50))
+                    .clickable { showReserveDiscipleDialog = true }
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    text = "储备弟子",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+            }
+        }
     ) {
         Column(
             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -86,7 +107,7 @@ fun HerbGardenDialog(
 
             HorizontalDivider(
                 modifier = Modifier.padding(vertical = 4.dp),
-                color = Color(0xFFE0E0E0),
+                color = GameColors.Border,
                 thickness = 1.dp
             )
 
@@ -169,6 +190,14 @@ fun HerbGardenDialog(
             onDismiss = { showElderRemoveConfirm = false }
         )
     }
+
+    if (showReserveDiscipleDialog) {
+        HerbGardenReserveDiscipleDialog(
+            reserveDisciples = reserveDisciplesWithInfo,
+            viewModel = viewModel,
+            onDismiss = { showReserveDiscipleDialog = false }
+        )
+    }
 }
 
 @Composable
@@ -180,7 +209,7 @@ private fun ElderRemoveConfirmDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.White,
+        containerColor = GameColors.PageBackground,
         title = {
             Text(
                 text = "确认卸任",
@@ -208,32 +237,16 @@ private fun ElderRemoveConfirmDialog(
             }
         },
         confirmButton = {
-            Button(
-                onClick = onConfirm,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFFE74C3C)
-                )
-            ) {
-                Text(
-                    text = "确认卸任",
-                    fontSize = 12.sp,
-                    color = Color.White
-                )
-            }
+            GameButton(
+                text = "确认卸任",
+                onClick = onConfirm
+            )
         },
         dismissButton = {
-            Button(
-                onClick = onDismiss,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFFE0E0E0)
-                )
-            ) {
-                Text(
-                    text = "取消",
-                    fontSize = 12.sp,
-                    color = Color(0xFF666666)
-                )
-            }
+            GameButton(
+                text = "取消",
+                onClick = onDismiss
+            )
         }
     )
 }
@@ -244,7 +257,6 @@ private fun getOccupiedIds(elderSlots: ElderSlots): Triple<List<String>, List<St
         elderSlots.alchemyElder,
         elderSlots.forgeElder,
         elderSlots.libraryElder,
-        elderSlots.spiritMineElder,
         elderSlots.recruitElder
     ).filterNotNull()
 
@@ -253,7 +265,6 @@ private fun getOccupiedIds(elderSlots: ElderSlots): Triple<List<String>, List<St
         elderSlots.alchemyDisciples,
         elderSlots.forgeDisciples,
         elderSlots.libraryDisciples,
-        elderSlots.spiritMineDisciples,
         elderSlots.recruitDisciples
     ).flatten().mapNotNull { it.discipleId }
 
@@ -279,7 +290,7 @@ private fun HerbGardenElderSection(
             Color(0xFF4CAF50)
         }
     } else {
-        Color(0xFFE0E0E0)
+        GameColors.Border
     }
 
     Column(
@@ -300,7 +311,7 @@ private fun HerbGardenElderSection(
                 modifier = Modifier
                     .size(70.dp)
                     .clip(RoundedCornerShape(8.dp))
-                    .background(Color.White)
+                    .background(GameColors.PageBackground)
                     .border(
                         2.dp,
                         elderBorderColor,
@@ -344,8 +355,8 @@ private fun HerbGardenElderSection(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(6.dp))
-                        .background(Color.White)
-                        .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(6.dp))
+                        .background(GameColors.PageBackground)
+                        .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
                         .clickable { onElderRemove() }
                         .padding(horizontal = 12.dp, vertical = 6.dp)
                 ) {
@@ -462,7 +473,7 @@ private fun HerbGardenDirectDiscipleSlotItem(
             Color(0xFF4CAF50)
         }
     } else {
-        Color(0xFFE0E0E0)
+        GameColors.Border
     }
 
     Column(
@@ -472,7 +483,7 @@ private fun HerbGardenDirectDiscipleSlotItem(
             modifier = Modifier
                 .size(55.dp)
                 .clip(RoundedCornerShape(6.dp))
-                .background(Color.White)
+                .background(GameColors.PageBackground)
                 .border(
                     1.dp,
                     borderColor,
@@ -512,8 +523,8 @@ private fun HerbGardenDirectDiscipleSlotItem(
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(4.dp))
-                    .background(Color.White)
-                    .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(4.dp))
+                    .background(GameColors.PageBackground)
+                    .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
                     .clickable { onRemove() }
                     .padding(horizontal = 8.dp, vertical = 2.dp)
             ) {
@@ -541,7 +552,7 @@ private fun HerbGardenInnerDiscipleSlotItem(
             Color(0xFF4CAF50)
         }
     } else {
-        Color(0xFFE0E0E0)
+        GameColors.Border
     }
 
     Column(
@@ -551,7 +562,7 @@ private fun HerbGardenInnerDiscipleSlotItem(
             modifier = Modifier
                 .size(50.dp)
                 .clip(RoundedCornerShape(6.dp))
-                .background(Color.White)
+                .background(GameColors.PageBackground)
                 .border(
                     1.dp,
                     borderColor,
@@ -591,8 +602,8 @@ private fun HerbGardenInnerDiscipleSlotItem(
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(4.dp))
-                    .background(Color.White)
-                    .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(4.dp))
+                    .background(GameColors.PageBackground)
+                    .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
                     .clickable { onRemove() }
                     .padding(horizontal = 6.dp, vertical = 2.dp)
             ) {
@@ -666,7 +677,7 @@ private fun HerbGardenElderSelectionDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.White,
+        containerColor = GameColors.PageBackground,
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -684,7 +695,7 @@ private fun HerbGardenElderSelectionDialog(
                         .size(24.dp)
                         .clip(CircleShape)
                         .clickable { onDismiss() }
-                        .background(Color(0xFFF5F5F5)),
+                        .background(GameColors.CardBackground),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -723,8 +734,8 @@ private fun HerbGardenElderSelectionDialog(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clip(RoundedCornerShape(4.dp))
-                                    .background(if (isSelected) Color(0xFFE0E0E0) else Color.White)
-                                    .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(4.dp))
+                                    .background(if (isSelected) GameColors.Border else GameColors.PageBackground)
+                                    .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
                                     .clickable { selectedRealmFilter = if (isSelected) null else realmVal }
                                     .padding(vertical = 4.dp),
                                 contentAlignment = Alignment.Center
@@ -749,8 +760,8 @@ private fun HerbGardenElderSelectionDialog(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clip(RoundedCornerShape(4.dp))
-                                    .background(if (isSelected) Color(0xFFE0E0E0) else Color.White)
-                                    .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(4.dp))
+                                    .background(if (isSelected) GameColors.Border else GameColors.PageBackground)
+                                    .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
                                     .clickable { selectedRealmFilter = if (isSelected) null else realmVal }
                                     .padding(vertical = 4.dp),
                                 contentAlignment = Alignment.Center
@@ -806,6 +817,435 @@ private fun HerbGardenElderSelectionDialog(
 }
 
 @Composable
+private fun HerbGardenReserveDiscipleDialog(
+    reserveDisciples: List<Disciple>,
+    viewModel: GameViewModel,
+    onDismiss: () -> Unit
+) {
+    var showAddDiscipleDialog by remember { mutableStateOf(false) }
+    
+    val sortedReserveDisciples = remember(reserveDisciples) {
+        reserveDisciples.sortedByDescending { it.spiritPlanting }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = GameColors.PageBackground,
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = "储备弟子",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+                    Text(
+                        text = "(${sortedReserveDisciples.size})",
+                        fontSize = 10.sp,
+                        color = Color(0xFF999999)
+                    )
+                }
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(Color(0xFF4CAF50))
+                            .clickable { showAddDiscipleDialog = true }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "+ 添加",
+                            fontSize = 10.sp,
+                            color = Color.White
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .clickable { onDismiss() }
+                            .background(GameColors.CardBackground),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "×",
+                            fontSize = 16.sp,
+                            color = Color(0xFF666666)
+                        )
+                    }
+                }
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "内门弟子空缺时自动补位",
+                    fontSize = 9.sp,
+                    color = Color(0xFF999999),
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center
+                )
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                if (sortedReserveDisciples.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(100.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "暂无储备弟子",
+                            fontSize = 12.sp,
+                            color = Color(0xFF999999)
+                        )
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 400.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        items(sortedReserveDisciples, key = { it.id }) { disciple ->
+                            HerbGardenReserveDiscipleCard(
+                                disciple = disciple,
+                                onRemove = { viewModel.removeHerbGardenReserveDisciple(disciple.id) }
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {}
+    )
+
+    if (showAddDiscipleDialog) {
+        HerbGardenAddReserveDiscipleDialog(
+            viewModel = viewModel,
+            onDismiss = { showAddDiscipleDialog = false }
+        )
+    }
+}
+
+@Composable
+private fun HerbGardenReserveDiscipleCard(
+    disciple: Disciple,
+    onRemove: () -> Unit
+) {
+    val spiritRootColor = try {
+        Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))
+    } catch (e: Exception) {
+        Color(0xFF666666)
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(6.dp))
+            .background(Color(0xFFF8F8F8))
+            .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
+            .padding(10.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = disciple.name,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black,
+                        maxLines = 1
+                    )
+                    Text(
+                        text = disciple.spiritRootName,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = spiritRootColor,
+                        maxLines = 1
+                    )
+                }
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "灵植: ${disciple.spiritPlanting}",
+                        fontSize = 10.sp,
+                        color = Color(0xFF4CAF50)
+                    )
+                    Text(
+                        text = disciple.realmName,
+                        fontSize = 10.sp,
+                        color = Color(0xFF666666)
+                    )
+                }
+            }
+            
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(GameColors.PageBackground)
+                    .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
+                    .clickable(onClick = onRemove)
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    text = "移除",
+                    fontSize = 10.sp,
+                    color = Color(0xFF666666)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HerbGardenAddReserveDiscipleDialog(
+    viewModel: GameViewModel,
+    onDismiss: () -> Unit
+) {
+    val availableDisciples = viewModel.getAvailableDisciplesForHerbGardenReserve()
+    val selectedDiscipleIds = remember { mutableStateListOf<String>() }
+    
+    val sortedDisciples = remember(availableDisciples) {
+        availableDisciples.sortedByDescending { it.spiritPlanting }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = GameColors.PageBackground,
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = "内门弟子",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+                    Text(
+                        text = "(${sortedDisciples.size})",
+                        fontSize = 10.sp,
+                        color = Color(0xFF999999)
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clip(CircleShape)
+                        .clickable { onDismiss() }
+                        .background(GameColors.CardBackground),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "×",
+                        fontSize = 16.sp,
+                        color = Color(0xFF666666)
+                    )
+                }
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "推荐属性: 灵植",
+                    fontSize = 9.sp,
+                    color = Color(0xFF4CAF50),
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center
+                )
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                if (sortedDisciples.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(100.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "暂无符合条件的弟子",
+                            fontSize = 12.sp,
+                            color = Color(0xFF999999)
+                        )
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 400.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        items(sortedDisciples, key = { it.id }) { disciple ->
+                            val isSelected = selectedDiscipleIds.contains(disciple.id)
+                            HerbGardenSelectableDiscipleCard(
+                                disciple = disciple,
+                                isSelected = isSelected,
+                                onClick = {
+                                    if (isSelected) {
+                                        selectedDiscipleIds.remove(disciple.id)
+                                    } else {
+                                        selectedDiscipleIds.add(disciple.id)
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(Color(0xFF4CAF50))
+                        .clickable {
+                            if (selectedDiscipleIds.isNotEmpty()) {
+                                viewModel.addHerbGardenReserveDisciples(selectedDiscipleIds.toList())
+                            }
+                            onDismiss()
+                        }
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        text = "添加${if (selectedDiscipleIds.isNotEmpty()) "(${selectedDiscipleIds.size})" else ""}",
+                        fontSize = 12.sp,
+                        color = Color.White
+                    )
+                }
+            }
+        }
+    )
+}
+
+@Composable
+private fun HerbGardenSelectableDiscipleCard(
+    disciple: Disciple,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    val spiritRootColor = try {
+        Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))
+    } catch (e: Exception) {
+        Color(0xFF666666)
+    }
+
+    val borderColor = if (isSelected) Color(0xFFFFD700) else GameColors.Border
+    val borderWidth = if (isSelected) 2.dp else 1.dp
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(6.dp))
+            .background(if (isSelected) Color(0xFFFFFBF0) else Color(0xFFF8F8F8))
+            .border(borderWidth, borderColor, RoundedCornerShape(6.dp))
+            .clickable(onClick = onClick)
+            .padding(10.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = disciple.name,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black,
+                        maxLines = 1
+                    )
+                    Text(
+                        text = disciple.spiritRootName,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = spiritRootColor,
+                        maxLines = 1
+                    )
+                }
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "灵植: ${disciple.spiritPlanting}",
+                        fontSize = 10.sp,
+                        color = Color(0xFF4CAF50)
+                    )
+                    Text(
+                        text = disciple.realmName,
+                        fontSize = 10.sp,
+                        color = Color(0xFF666666)
+                    )
+                }
+            }
+            
+            if (isSelected) {
+                Box(
+                    modifier = Modifier
+                        .size(20.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFFFD700)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "✓",
+                        fontSize = 12.sp,
+                        color = Color.White
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun HerbGardenDiscipleSelectionCard(
     disciple: Disciple,
     onClick: () -> Unit
@@ -820,8 +1260,8 @@ private fun HerbGardenDiscipleSelectionCard(
         modifier = Modifier
             .size(60.dp)
             .clip(RoundedCornerShape(6.dp))
-            .background(Color.White)
-            .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(6.dp))
+            .background(GameColors.PageBackground)
+            .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
@@ -910,7 +1350,7 @@ private fun HerbGardenDirectDiscipleSelectionDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.White,
+        containerColor = GameColors.PageBackground,
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -928,7 +1368,7 @@ private fun HerbGardenDirectDiscipleSelectionDialog(
                         .size(24.dp)
                         .clip(CircleShape)
                         .clickable { onDismiss() }
-                        .background(Color(0xFFF5F5F5)),
+                        .background(GameColors.CardBackground),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -967,8 +1407,8 @@ private fun HerbGardenDirectDiscipleSelectionDialog(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clip(RoundedCornerShape(4.dp))
-                                    .background(if (isSelected) Color(0xFFE0E0E0) else Color.White)
-                                    .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(4.dp))
+                                    .background(if (isSelected) GameColors.Border else GameColors.PageBackground)
+                                    .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
                                     .clickable { selectedRealmFilter = if (isSelected) null else realmVal }
                                     .padding(vertical = 4.dp),
                                 contentAlignment = Alignment.Center
@@ -993,8 +1433,8 @@ private fun HerbGardenDirectDiscipleSelectionDialog(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clip(RoundedCornerShape(4.dp))
-                                    .background(if (isSelected) Color(0xFFE0E0E0) else Color.White)
-                                    .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(4.dp))
+                                    .background(if (isSelected) GameColors.Border else GameColors.PageBackground)
+                                    .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
                                     .clickable { selectedRealmFilter = if (isSelected) null else realmVal }
                                     .padding(vertical = 4.dp),
                                 contentAlignment = Alignment.Center
@@ -1108,7 +1548,7 @@ private fun HerbGardenInnerDiscipleSelectionDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.White,
+        containerColor = GameColors.PageBackground,
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1126,7 +1566,7 @@ private fun HerbGardenInnerDiscipleSelectionDialog(
                         .size(24.dp)
                         .clip(CircleShape)
                         .clickable { onDismiss() }
-                        .background(Color(0xFFF5F5F5)),
+                        .background(GameColors.CardBackground),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -1165,8 +1605,8 @@ private fun HerbGardenInnerDiscipleSelectionDialog(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clip(RoundedCornerShape(4.dp))
-                                    .background(if (isSelected) Color(0xFFE0E0E0) else Color.White)
-                                    .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(4.dp))
+                                    .background(if (isSelected) GameColors.Border else GameColors.PageBackground)
+                                    .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
                                     .clickable { selectedRealmFilter = if (isSelected) null else realmVal }
                                     .padding(vertical = 4.dp),
                                 contentAlignment = Alignment.Center
@@ -1191,8 +1631,8 @@ private fun HerbGardenInnerDiscipleSelectionDialog(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clip(RoundedCornerShape(4.dp))
-                                    .background(if (isSelected) Color(0xFFE0E0E0) else Color.White)
-                                    .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(4.dp))
+                                    .background(if (isSelected) GameColors.Border else GameColors.PageBackground)
+                                    .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
                                     .clickable { selectedRealmFilter = if (isSelected) null else realmVal }
                                     .padding(vertical = 4.dp),
                                 contentAlignment = Alignment.Center
@@ -1274,7 +1714,7 @@ private fun PlantSlotItem(
             modifier = Modifier
                 .size(60.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(Color.White)
+                .background(GameColors.PageBackground)
                 .border(1.dp, statusColor, RoundedCornerShape(8.dp))
                 .clickable { onClick() },
             contentAlignment = Alignment.Center
@@ -1323,8 +1763,8 @@ private fun PlantSlotItem(
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(6.dp))
-                    .background(Color.White)
-                    .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(6.dp))
+                    .background(GameColors.PageBackground)
+                    .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
                     .clickable { onRemove() }
                     .padding(horizontal = 12.dp, vertical = 6.dp)
             ) {
@@ -1356,7 +1796,7 @@ private fun SeedSelectionDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.White,
+        containerColor = GameColors.PageBackground,
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1374,7 +1814,7 @@ private fun SeedSelectionDialog(
                         .size(24.dp)
                         .clip(CircleShape)
                         .clickable { onDismiss() }
-                        .background(Color(0xFFF5F5F5)),
+                        .background(GameColors.CardBackground),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -1429,23 +1869,15 @@ private fun SeedSelectionDialog(
             }
         },
         confirmButton = {
-            Button(
+            GameButton(
+                text = "确认种植",
                 onClick = {
                     selectedSeed?.let { seed ->
                         onSelect(seed)
                     }
                 },
-                enabled = selectedSeed != null,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (selectedSeed != null) Color(0xFF4CAF50) else Color(0xFFE0E0E0)
-                )
-            ) {
-                Text(
-                    text = "确认种植",
-                    fontSize = 12.sp,
-                    color = if (selectedSeed != null) Color.White else Color(0xFF999999)
-                )
-            }
+                enabled = selectedSeed != null
+            )
         }
     )
 }
@@ -1472,7 +1904,7 @@ private fun SeedSelectionCard(
             modifier = Modifier
                 .fillMaxSize()
                 .clip(RoundedCornerShape(6.dp))
-                .background(if (isSelected) Color(0xFFFFF8E1) else Color.White)
+                .background(if (isSelected) Color(0xFFFFF8E1) else GameColors.PageBackground)
                 .border(
                     if (isSelected) 3.dp else 2.dp,
                     if (isSelected) Color(0xFFFFD700) else rarityColor,
@@ -1550,7 +1982,7 @@ private fun SeedDetailDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.White,
+        containerColor = GameColors.PageBackground,
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1568,7 +2000,7 @@ private fun SeedDetailDialog(
                         .size(24.dp)
                         .clip(CircleShape)
                         .clickable { onDismiss() }
-                        .background(Color(0xFFF5F5F5)),
+                        .background(GameColors.CardBackground),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -1704,11 +2136,12 @@ private fun SeedDetailDialog(
 private fun CommonDialog(
     title: String,
     onDismiss: () -> Unit,
+    titleActions: @Composable RowScope.() -> Unit = {},
     content: @Composable ColumnScope.() -> Unit
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.White,
+        containerColor = GameColors.PageBackground,
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1721,19 +2154,25 @@ private fun CommonDialog(
                     fontWeight = FontWeight.Bold,
                     color = Color.Black
                 )
-                Box(
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clip(CircleShape)
-                        .clickable { onDismiss() }
-                        .background(Color(0xFFF5F5F5)),
-                    contentAlignment = Alignment.Center
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(
-                        text = "×",
-                        fontSize = 16.sp,
-                        color = Color(0xFF666666)
-                    )
+                    titleActions()
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .clickable { onDismiss() }
+                            .background(GameColors.CardBackground),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "×",
+                            fontSize = 16.sp,
+                            color = Color(0xFF666666)
+                        )
+                    }
                 }
             }
         },

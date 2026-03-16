@@ -39,7 +39,13 @@ fun AllianceDialog(
     val allianceCost = sect?.level?.let { viewModel.getAllianceCost(it) } ?: 0L
     val spiritStones = gameData?.spiritStones ?: 0L
     val canAfford = spiritStones >= allianceCost
-    val relation = sect?.relation ?: 0
+    val playerSect = gameData?.worldMapSects?.find { it.isPlayerSect }
+    val relation = if (playerSect != null && sect != null) {
+        gameData.sectRelations.find { 
+            (it.sectId1 == playerSect.id && it.sectId2 == sect.id) ||
+            (it.sectId1 == sect.id && it.sectId2 == playerSect.id)
+        }?.favor ?: 0
+    } else 0
     val meetsFavorRequirement = relation >= 90
     val hasOtherAlliance = sect?.allianceId != null && !isAlly
     var showAlreadyAllianceDialog by remember { mutableStateOf(false) }
@@ -50,7 +56,7 @@ fun AllianceDialog(
                 .fillMaxWidth()
                 .wrapContentHeight(),
             shape = RoundedCornerShape(16.dp),
-            color = Color.White
+            color = GameColors.PageBackground
         ) {
             Column(
                 modifier = Modifier.padding(20.dp)
@@ -317,7 +323,7 @@ fun EnvoyDiscipleSelectDialog(
                 .fillMaxWidth()
                 .fillMaxHeight(0.7f),
             shape = RoundedCornerShape(16.dp),
-            color = Color.White
+            color = GameColors.PageBackground
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
                 Surface(
@@ -413,7 +419,7 @@ private fun DiscipleSelectCard(
             .border(1.5.dp, borderColor, RoundedCornerShape(8.dp)),
         shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) GameColors.Primary.copy(alpha = 0.05f) else Color.White
+            containerColor = if (isSelected) GameColors.Primary.copy(alpha = 0.05f) else GameColors.PageBackground
         ),
         onClick = onClick
     ) {
@@ -463,11 +469,24 @@ private fun DiscipleSelectCard(
 fun RequestSupportDialog(
     allies: List<WorldSect>,
     disciples: List<Disciple>,
+    gameData: com.xianxia.sect.core.model.GameData?,
     viewModel: GameViewModel,
     onDismiss: () -> Unit
 ) {
     var selectedAlly by remember { mutableStateOf<WorldSect?>(null) }
     var selectedDisciple by remember { mutableStateOf<Disciple?>(null) }
+    
+    val playerSect = gameData?.worldMapSects?.find { it.isPlayerSect }
+    val allyFavors = remember(playerSect, gameData?.sectRelations, allies) {
+        if (playerSect != null) {
+            allies.associateWith { ally ->
+                gameData?.sectRelations?.find { 
+                    (it.sectId1 == playerSect.id && it.sectId2 == ally.id) ||
+                    (it.sectId1 == ally.id && it.sectId2 == playerSect.id)
+                }?.favor ?: 0
+            }
+        } else emptyMap()
+    }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -475,7 +494,7 @@ fun RequestSupportDialog(
                 .fillMaxWidth()
                 .fillMaxHeight(0.8f),
             shape = RoundedCornerShape(16.dp),
-            color = Color.White
+            color = GameColors.PageBackground
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
                 Surface(
@@ -534,6 +553,7 @@ fun RequestSupportDialog(
                             items(allies, key = { it.id }) { ally ->
                                 AllySelectCard(
                                     ally = ally,
+                                    relation = allyFavors[ally] ?: 0,
                                     isSelected = selectedAlly?.id == ally.id,
                                     onClick = { selectedAlly = ally }
                                 )
@@ -605,6 +625,7 @@ fun RequestSupportDialog(
 @Composable
 private fun AllySelectCard(
     ally: WorldSect,
+    relation: Int,
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
@@ -616,7 +637,7 @@ private fun AllySelectCard(
             .border(1.5.dp, borderColor, RoundedCornerShape(8.dp)),
         shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) GameColors.Primary.copy(alpha = 0.05f) else Color.White
+            containerColor = if (isSelected) GameColors.Primary.copy(alpha = 0.05f) else GameColors.PageBackground
         ),
         onClick = onClick
     ) {
@@ -643,7 +664,7 @@ private fun AllySelectCard(
             }
 
             Text(
-                text = "好感度 ${ally.relation}",
+                text = "好感度 $relation",
                 fontSize = 12.sp,
                 color = Color.Black
             )
@@ -697,7 +718,7 @@ fun ScoutDiscipleSelectDialog(
                 .fillMaxWidth()
                 .fillMaxHeight(0.8f),
             shape = RoundedCornerShape(16.dp),
-            color = Color.White
+            color = GameColors.PageBackground
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
                 Surface(
@@ -802,7 +823,7 @@ private fun ScoutRealmFilterBar(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color.White)
+            .background(GameColors.PageBackground)
             .padding(horizontal = 8.dp, vertical = 8.dp)
     ) {
         Row(
@@ -851,8 +872,8 @@ private fun ScoutFilterChip(
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(4.dp))
-            .background(if (isSelected) Color(0xFFE0E0E0) else Color.White)
-            .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(4.dp))
+            .background(if (isSelected) GameColors.Border else GameColors.PageBackground)
+            .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
             .clickable(onClick = onClick)
             .padding(vertical = 8.dp),
         contentAlignment = Alignment.Center
@@ -880,7 +901,7 @@ private fun ScoutDiscipleCard(
             .border(1.5.dp, borderColor, RoundedCornerShape(8.dp)),
         shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) Color(0xFF2196F3).copy(alpha = 0.05f) else Color.White
+            containerColor = if (isSelected) Color(0xFF2196F3).copy(alpha = 0.05f) else GameColors.PageBackground
         ),
         onClick = onClick
     ) {

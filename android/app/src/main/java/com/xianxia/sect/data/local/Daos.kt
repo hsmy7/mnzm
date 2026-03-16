@@ -374,42 +374,6 @@ interface BattleLogDao {
 }
 
 @Dao
-interface WarTeamDao {
-    @Query("SELECT * FROM war_teams")
-    fun getAll(): Flow<List<WarTeam>>
-    
-    @Query("SELECT * FROM war_teams WHERE id = :id")
-    suspend fun getById(id: String): WarTeam?
-    
-    @Query("SELECT * FROM war_teams WHERE status = :status")
-    suspend fun getByStatus(status: WarTeamStatus): List<WarTeam>
-    
-    @Query("SELECT * FROM war_teams WHERE stationedSectId = :sectId")
-    suspend fun getByStationedSect(sectId: String): List<WarTeam>
-    
-    @Query("SELECT * FROM war_teams WHERE targetSectId = :sectId")
-    suspend fun getByTargetSect(sectId: String): List<WarTeam>
-    
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insert(warTeam: WarTeam)
-    
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertAll(warTeams: List<WarTeam>)
-    
-    @Update
-    suspend fun update(warTeam: WarTeam)
-    
-    @Update
-    suspend fun updateAll(warTeams: List<WarTeam>)
-    
-    @Delete
-    suspend fun delete(warTeam: WarTeam)
-    
-    @Query("DELETE FROM war_teams")
-    suspend fun deleteAll()
-}
-
-@Dao
 interface ForgeSlotDao {
     @Query("SELECT * FROM forge_slots ORDER BY slotIndex")
     fun getAll(): Flow<List<ForgeSlot>>

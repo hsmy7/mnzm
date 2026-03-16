@@ -30,6 +30,7 @@ import com.xianxia.sect.core.engine.ManualProficiencySystem
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.ui.components.EmptyListMessage
+import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.getRarityColor
 import com.xianxia.sect.ui.theme.GameColors
 
@@ -86,7 +87,7 @@ fun DiscipleDetailDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.White,
+        containerColor = GameColors.PageBackground,
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -151,7 +152,7 @@ fun DiscipleDetailDialog(
                         .size(24.dp)
                         .clip(CircleShape)
                         .clickable { onDismiss() }
-                        .background(Color(0xFFF5F5F5)),
+                        .background(GameColors.CardBackground),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -173,15 +174,17 @@ fun DiscipleDetailDialog(
                 BasicInfoSection(
                     disciple = disciple,
                     allManuals = allManuals,
-                    manualProficiencies = manualProficiencies
+                    manualProficiencies = manualProficiencies,
+                    position = viewModel?.getDisciplePosition(disciple.id),
+                    isWorkStatusPosition = viewModel?.isPositionWorkStatus(disciple.id) ?: false
                 )
-                Divider(color = Color(0xFFE0E0E0), thickness = 1.dp)
+                Divider(color = GameColors.Border, thickness = 1.dp)
                 TalentsSection(talents)
-                Divider(color = Color(0xFFE0E0E0), thickness = 1.dp)
+                Divider(color = GameColors.Border, thickness = 1.dp)
                 AttributesSection(disciple)
-                Divider(color = Color(0xFFE0E0E0), thickness = 1.dp)
+                Divider(color = GameColors.Border, thickness = 1.dp)
                 CombatStatsSection(disciple)
-                Divider(color = Color(0xFFE0E0E0), thickness = 1.dp)
+                Divider(color = GameColors.Border, thickness = 1.dp)
                 EquipmentSection(
                     weapon = weapon,
                     armor = armor,
@@ -190,7 +193,7 @@ fun DiscipleDetailDialog(
                     onSlotClick = { slotType -> showEquipmentSelection = slotType },
                     onEquipmentClick = { equipment -> showEquipmentDetailDialog = equipment }
                 )
-                Divider(color = Color(0xFFE0E0E0), thickness = 1.dp)
+                Divider(color = GameColors.Border, thickness = 1.dp)
                 ManualsSection(
                     manuals = learnedManuals,
                     maxSlots = maxManualSlots,
@@ -228,7 +231,7 @@ fun DiscipleDetailDialog(
     if (showExpelConfirmDialog) {
         AlertDialog(
             onDismissRequest = { showExpelConfirmDialog = false },
-            containerColor = Color.White,
+            containerColor = GameColors.PageBackground,
             title = {
                 Text(
                     text = "确认驱逐",
@@ -402,7 +405,7 @@ private fun RelationsDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.White,
+        containerColor = GameColors.PageBackground,
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -420,7 +423,7 @@ private fun RelationsDialog(
                         .size(24.dp)
                         .clip(CircleShape)
                         .clickable { onDismiss() }
-                        .background(Color(0xFFF5F5F5)),
+                        .background(GameColors.CardBackground),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -539,7 +542,7 @@ private fun ManualDetailDialog(
     if (showReplaceSelection) {
         AlertDialog(
             onDismissRequest = { showReplaceSelection = false },
-            containerColor = Color.White,
+            containerColor = GameColors.PageBackground,
             title = {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -557,7 +560,7 @@ private fun ManualDetailDialog(
                             .size(24.dp)
                             .clip(CircleShape)
                             .clickable { showReplaceSelection = false }
-                            .background(Color(0xFFF5F5F5)),
+                            .background(GameColors.CardBackground),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
@@ -600,10 +603,10 @@ private fun ManualDetailDialog(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(6.dp))
-                                    .background(if (isSelected) Color(0xFFE3F2FD) else Color.White)
+                                    .background(if (isSelected) Color(0xFFE3F2FD) else GameColors.PageBackground)
                                     .border(
                                         width = if (isSelected) 2.dp else 1.dp,
-                                        color = if (isSelected) Color(0xFF2196F3) else Color(0xFFE0E0E0),
+                                        color = if (isSelected) Color(0xFF2196F3) else GameColors.Border,
                                         shape = RoundedCornerShape(6.dp)
                                     )
                                     .clickable { selectedManualId = newManual.id }
@@ -645,23 +648,22 @@ private fun ManualDetailDialog(
                     TextButton(onClick = { showReplaceSelection = false }) {
                         Text("取消", color = Color(0xFF666666))
                     }
-                    Button(
+                    GameButton(
+                        text = "确认更换",
                         onClick = {
                             if (selectedManualId != null) {
                                 onReplace(selectedManualId!!)
                             }
                         },
                         enabled = selectedManualId != null
-                    ) {
-                        Text("确认更换")
-                    }
+                    )
                 }
             }
         )
     } else {
         AlertDialog(
             onDismissRequest = onDismiss,
-            containerColor = Color.White,
+            containerColor = GameColors.PageBackground,
             title = {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -679,7 +681,7 @@ private fun ManualDetailDialog(
                             .size(24.dp)
                             .clip(CircleShape)
                             .clickable { onDismiss() }
-                            .background(Color(0xFFF5F5F5)),
+                            .background(GameColors.CardBackground),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
@@ -704,7 +706,7 @@ private fun ManualDetailDialog(
                         color = Color(0xFF666666)
                     )
 
-                    Divider(color = Color(0xFFE0E0E0), thickness = 1.dp)
+                    Divider(color = GameColors.Border, thickness = 1.dp)
 
                     Text(
                         text = manual.description,
@@ -712,7 +714,7 @@ private fun ManualDetailDialog(
                         color = Color(0xFF333333)
                     )
 
-                    Divider(color = Color(0xFFE0E0E0), thickness = 1.dp)
+                    Divider(color = GameColors.Border, thickness = 1.dp)
 
                     Text(
                         text = "熟练度",
@@ -774,7 +776,7 @@ private fun ManualDetailDialog(
                         )
                     }
 
-                    Divider(color = Color(0xFFE0E0E0), thickness = 1.dp)
+                    Divider(color = GameColors.Border, thickness = 1.dp)
 
                     Text(
                         text = "加成效果",
@@ -795,7 +797,7 @@ private fun ManualDetailDialog(
                                 "hp" -> "生命"
                                 "mp" -> "灵力"
                                 "speed" -> "速度"
-                                "critChance" -> "暴击率"
+                                "critRate" -> "暴击率"
                                 else -> key
                             }
                             val bonusMultiplier = mastery.bonus
@@ -837,6 +839,13 @@ private fun ManualDetailDialog(
                             fontWeight = FontWeight.Bold,
                             color = rarityColor
                         )
+                        if (skill.description.isNotEmpty()) {
+                            Text(
+                                text = skill.description,
+                                fontSize = 10.sp,
+                                color = Color(0xFF333333)
+                            )
+                        }
                         Text(
                             text = "伤害类型：${if (skill.damageType == com.xianxia.sect.core.engine.DamageType.PHYSICAL) "物理" else "法术"}",
                             fontSize = 10.sp,
@@ -881,9 +890,10 @@ private fun ManualDetailDialog(
                     TextButton(onClick = { showForgetConfirmDialog = true }) {
                         Text("遗忘", color = Color(0xFFE74C3C))
                     }
-                    Button(onClick = { showReplaceSelection = true }) {
-                        Text("更换")
-                    }
+                    GameButton(
+                        text = "更换",
+                        onClick = { showReplaceSelection = true }
+                    )
                 }
             }
         )
@@ -892,7 +902,7 @@ private fun ManualDetailDialog(
     if (showForgetConfirmDialog) {
         AlertDialog(
             onDismissRequest = { showForgetConfirmDialog = false },
-            containerColor = Color.White,
+            containerColor = GameColors.PageBackground,
             title = {
                 Text(
                     text = "确认遗忘",
@@ -979,7 +989,7 @@ private fun EquipmentDetailDialog(
     if (showReplaceSelection) {
         AlertDialog(
             onDismissRequest = { showReplaceSelection = false },
-            containerColor = Color.White,
+            containerColor = GameColors.PageBackground,
             title = {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -997,7 +1007,7 @@ private fun EquipmentDetailDialog(
                             .size(24.dp)
                             .clip(CircleShape)
                             .clickable { showReplaceSelection = false }
-                            .background(Color(0xFFF5F5F5)),
+                            .background(GameColors.CardBackground),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
@@ -1040,10 +1050,10 @@ private fun EquipmentDetailDialog(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(6.dp))
-                                    .background(if (isSelected) Color(0xFFE3F2FD) else Color.White)
+                                    .background(if (isSelected) Color(0xFFE3F2FD) else GameColors.PageBackground)
                                     .border(
                                         width = if (isSelected) 2.dp else 1.dp,
-                                        color = if (isSelected) Color(0xFF2196F3) else Color(0xFFE0E0E0),
+                                        color = if (isSelected) Color(0xFF2196F3) else GameColors.Border,
                                         shape = RoundedCornerShape(6.dp)
                                     )
                                     .clickable { selectedEquipmentId = newEquip.id }
@@ -1097,23 +1107,22 @@ private fun EquipmentDetailDialog(
                     TextButton(onClick = { showReplaceSelection = false }) {
                         Text("取消", color = Color(0xFF666666))
                     }
-                    Button(
+                    GameButton(
+                        text = "确认更换",
                         onClick = {
                             if (selectedEquipmentId != null) {
                                 onReplace(selectedEquipmentId!!)
                             }
                         },
                         enabled = selectedEquipmentId != null
-                    ) {
-                        Text("确认更换")
-                    }
+                    )
                 }
             }
         )
     } else {
         AlertDialog(
             onDismissRequest = onDismiss,
-            containerColor = Color.White,
+            containerColor = GameColors.PageBackground,
             title = {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -1131,7 +1140,7 @@ private fun EquipmentDetailDialog(
                             .size(24.dp)
                             .clip(CircleShape)
                             .clickable { onDismiss() }
-                            .background(Color(0xFFF5F5F5)),
+                            .background(GameColors.CardBackground),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
@@ -1155,8 +1164,16 @@ private fun EquipmentDetailDialog(
                         fontSize = 11.sp,
                         color = Color(0xFF666666)
                     )
+                    
+                    if (equipment.minRealm < 9) {
+                        Text(
+                            text = "需求境界：${com.xianxia.sect.core.GameConfig.Realm.getName(equipment.minRealm)}",
+                            fontSize = 11.sp,
+                            color = Color(0xFFE74C3C)
+                        )
+                    }
 
-                    Divider(color = Color(0xFFE0E0E0), thickness = 1.dp)
+                    Divider(color = GameColors.Border, thickness = 1.dp)
 
                     Text(
                         text = equipment.description,
@@ -1164,7 +1181,7 @@ private fun EquipmentDetailDialog(
                         color = Color(0xFF333333)
                     )
 
-                    Divider(color = Color(0xFFE0E0E0), thickness = 1.dp)
+                    Divider(color = GameColors.Border, thickness = 1.dp)
 
                     Text(
                         text = "孕养等级",
@@ -1220,7 +1237,7 @@ private fun EquipmentDetailDialog(
                         )
                     }
 
-                    Divider(color = Color(0xFFE0E0E0), thickness = 1.dp)
+                    Divider(color = GameColors.Border, thickness = 1.dp)
 
                     Text(
                         text = "加成效果",
@@ -1429,9 +1446,10 @@ private fun EquipmentDetailDialog(
                     TextButton(onClick = onUnequip) {
                         Text("卸下", color = Color(0xFFE74C3C))
                     }
-                    Button(onClick = { showReplaceSelection = true }) {
-                        Text("更换")
-                    }
+                    GameButton(
+                        text = "更换",
+                        onClick = { showReplaceSelection = true }
+                    )
                 }
             }
         )
@@ -1470,7 +1488,7 @@ private fun EquipmentSelectionDialog(
     
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.White,
+        containerColor = GameColors.PageBackground,
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1488,7 +1506,7 @@ private fun EquipmentSelectionDialog(
                         .size(24.dp)
                         .clip(CircleShape)
                         .clickable { onDismiss() }
-                        .background(Color(0xFFF5F5F5)),
+                        .background(GameColors.CardBackground),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -1535,12 +1553,11 @@ private fun EquipmentSelectionDialog(
                 TextButton(onClick = onDismiss) {
                     Text("取消", color = Color(0xFF666666))
                 }
-                Button(
+                GameButton(
+                    text = "确认装备",
                     onClick = onConfirm,
                     enabled = selectedEquipmentId != null
-                ) {
-                    Text("确认装备")
-                }
+                )
             }
         }
     )
@@ -1558,7 +1575,7 @@ private fun EquipmentSelectionDialog(
         }
         AlertDialog(
             onDismissRequest = { showDetailEquipment = null },
-            containerColor = Color.White,
+            containerColor = GameColors.PageBackground,
             title = {
                 Text(
                     text = equipment.name,
@@ -1574,8 +1591,15 @@ private fun EquipmentSelectionDialog(
                         fontSize = 11.sp,
                         color = Color(0xFF666666)
                     )
+                    if (equipment.minRealm < 9) {
+                        Text(
+                            text = "需求境界：${com.xianxia.sect.core.GameConfig.Realm.getName(equipment.minRealm)}",
+                            fontSize = 11.sp,
+                            color = Color(0xFFE74C3C)
+                        )
+                    }
                     Spacer(modifier = Modifier.height(8.dp))
-                    Divider(color = Color(0xFFE0E0E0), thickness = 1.dp)
+                    Divider(color = GameColors.Border, thickness = 1.dp)
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = equipment.description,
@@ -1636,7 +1660,7 @@ private fun EquipmentSelectionCard(
                 color = if (isSelected) Color(0xFFFFD700) else rarityColor,
                 shape = RoundedCornerShape(6.dp)
             )
-            .background(if (isSelected) Color(0xFFFFF8E1) else Color.White)
+            .background(if (isSelected) Color(0xFFFFF8E1) else GameColors.PageBackground)
             .clickable { onSelect() }
             .padding(8.dp)
     ) {
@@ -1692,7 +1716,7 @@ private fun ManualSelectionDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.White,
+        containerColor = GameColors.PageBackground,
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1710,7 +1734,7 @@ private fun ManualSelectionDialog(
                         .size(24.dp)
                         .clip(CircleShape)
                         .clickable { onDismiss() }
-                        .background(Color(0xFFF5F5F5)),
+                        .background(GameColors.CardBackground),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -1759,12 +1783,11 @@ private fun ManualSelectionDialog(
                 TextButton(onClick = onDismiss) {
                     Text("取消", color = Color(0xFF666666))
                 }
-                Button(
+                GameButton(
+                    text = "确认学习",
                     onClick = onConfirm,
                     enabled = selectedManualId != null
-                ) {
-                    Text("确认学习")
-                }
+                )
             }
         }
     )
@@ -1782,7 +1805,7 @@ private fun ManualSelectionDialog(
         }
         AlertDialog(
             onDismissRequest = { showDetailManual = null },
-            containerColor = Color.White,
+            containerColor = GameColors.PageBackground,
             title = {
                 Text(
                     text = manual.name,
@@ -1799,7 +1822,7 @@ private fun ManualSelectionDialog(
                         color = Color(0xFF666666)
                     )
                     Spacer(modifier = Modifier.height(8.dp))
-                    Divider(color = Color(0xFFE0E0E0), thickness = 1.dp)
+                    Divider(color = GameColors.Border, thickness = 1.dp)
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = manual.description,
@@ -1828,7 +1851,7 @@ private fun ManualSelectionDialog(
                                 "hp" -> "生命"
                                 "mp" -> "灵力"
                                 "speed" -> "速度"
-                                "critChance" -> "暴击率"
+                                "critRate" -> "暴击率"
                                 else -> key
                             }
                             if (key.contains("Percent")) {
@@ -1842,6 +1865,9 @@ private fun ManualSelectionDialog(
 
                     manual.skill?.let { skill ->
                         Text("技能：${skill.name}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF3498DB))
+                        if (skill.description.isNotEmpty()) {
+                            Text("  ${skill.description}", fontSize = 11.sp, color = Color(0xFF333333))
+                        }
                         Spacer(modifier = Modifier.height(4.dp))
                         Text("  伤害类型：${if (skill.damageType == com.xianxia.sect.core.engine.DamageType.PHYSICAL) "物理" else "法术"}", fontSize = 11.sp, color = Color(0xFF666666))
                         Text("  伤害倍率：${GameUtils.formatPercent(skill.damageMultiplier)}", fontSize = 11.sp, color = Color(0xFF666666))
@@ -1883,7 +1909,7 @@ private fun ManualSelectionCard(
                 color = if (isSelected) Color(0xFFFFD700) else rarityColor,
                 shape = RoundedCornerShape(6.dp)
             )
-            .background(if (isSelected) Color(0xFFFFF8E1) else Color.White)
+            .background(if (isSelected) Color(0xFFFFF8E1) else GameColors.PageBackground)
             .clickable { onSelect() }
             .padding(8.dp)
     ) {
@@ -1949,7 +1975,7 @@ private fun ManualReplaceDialog(
     
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.White,
+        containerColor = GameColors.PageBackground,
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1967,7 +1993,7 @@ private fun ManualReplaceDialog(
                         .size(24.dp)
                         .clip(CircleShape)
                         .clickable { onDismiss() }
-                        .background(Color(0xFFF5F5F5)),
+                        .background(GameColors.CardBackground),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -1993,7 +2019,7 @@ private fun ManualReplaceDialog(
                     color = rarityColor
                 )
                 
-                Divider(color = Color(0xFFE0E0E0), thickness = 1.dp)
+                Divider(color = GameColors.Border, thickness = 1.dp)
                 
                 Text(
                     text = "选择新功法进行更换:",
@@ -2025,10 +2051,10 @@ private fun ManualReplaceDialog(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(6.dp))
-                                .background(if (isSelected) Color(0xFFE3F2FD) else Color.White)
+                                .background(if (isSelected) Color(0xFFE3F2FD) else GameColors.PageBackground)
                                 .border(
                                     width = if (isSelected) 2.dp else 1.dp,
-                                    color = if (isSelected) Color(0xFF2196F3) else Color(0xFFE0E0E0),
+                                    color = if (isSelected) Color(0xFF2196F3) else GameColors.Border,
                                     shape = RoundedCornerShape(6.dp)
                                 )
                                 .clickable { selectedManualId = manual.id }
@@ -2073,16 +2099,15 @@ private fun ManualReplaceDialog(
                 TextButton(onClick = onForget) {
                     Text("遗忘", color = Color(0xFFE74C3C))
                 }
-                Button(
+                GameButton(
+                    text = "更换",
                     onClick = { 
                         if (selectedManualId != null) {
                             onSelect(selectedManualId!!)
                         }
                     },
                     enabled = selectedManualId != null
-                ) {
-                    Text("更换")
-                }
+                )
             }
         }
     )
@@ -2110,7 +2135,7 @@ private fun RelationItem(relation: String, disciple: Disciple) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(4.dp))
-            .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(4.dp))
+            .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
             .padding(8.dp),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
@@ -2132,7 +2157,9 @@ private fun RelationItem(relation: String, disciple: Disciple) {
 private fun BasicInfoSection(
     disciple: Disciple,
     allManuals: List<Manual> = emptyList(),
-    manualProficiencies: Map<String, List<ManualProficiencyData>> = emptyMap()
+    manualProficiencies: Map<String, List<ManualProficiencyData>> = emptyMap(),
+    position: String? = null,
+    isWorkStatusPosition: Boolean = false
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
@@ -2152,6 +2179,14 @@ private fun BasicInfoSection(
                 fontWeight = FontWeight.Bold,
                 color = Color.Black
             )
+            if (position != null) {
+                Text(
+                    text = position,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isWorkStatusPosition) Color(0xFFFF9800) else Color(0xFF4CAF50)
+                )
+            }
             Text(
                 text = disciple.status.displayName,
                 fontSize = 12.sp,
@@ -2344,7 +2379,7 @@ private fun TalentDetailDialog(talent: Talent, onDismiss: () -> Unit) {
     
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.White,
+        containerColor = GameColors.PageBackground,
         title = {
             Text(
                 text = talent.name,
@@ -2620,7 +2655,7 @@ private fun EquipmentSlot(
             4 -> Color(0xFF9B59B6)
             5 -> Color(0xFFF39C12)
             6 -> Color(0xFFE74C3C)
-            else -> Color(0xFFE0E0E0)
+            else -> GameColors.Border
         }
     }
     
@@ -2639,7 +2674,7 @@ private fun EquipmentSlot(
                 .fillMaxWidth()
                 .aspectRatio(1f)
                 .clip(RoundedCornerShape(8.dp))
-                .background(Color.White)
+                .background(GameColors.PageBackground)
                 .border(1.dp, rarityColor, RoundedCornerShape(8.dp))
                 .clickable { 
                     if (equipment != null) {
@@ -2740,7 +2775,7 @@ private fun ManualSlot(
             4 -> Color(0xFF9B59B6)
             5 -> Color(0xFFF39C12)
             6 -> Color(0xFFE74C3C)
-            else -> Color(0xFFE0E0E0)
+            else -> GameColors.Border
         }
     }
     
@@ -2757,7 +2792,7 @@ private fun ManualSlot(
                 .fillMaxWidth()
                 .aspectRatio(1f)
                 .clip(RoundedCornerShape(8.dp))
-                .background(Color.White)
+                .background(GameColors.PageBackground)
                 .border(1.dp, rarityColor, RoundedCornerShape(8.dp))
                 .clickable {
                     if (manual != null) {
@@ -2880,7 +2915,7 @@ private fun StorageBagItemCard(
                 color = if (isSelected) Color(0xFFFFD700) else rarityColor,
                 shape = RoundedCornerShape(6.dp)
             )
-            .background(if (isSelected) Color(0xFFFFF8E1) else Color.White)
+            .background(if (isSelected) Color(0xFFFFF8E1) else GameColors.PageBackground)
             .clickable { onSelect() }
             .padding(4.dp)
     ) {
@@ -2944,7 +2979,7 @@ private fun StorageBagDialog(
     
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.White,
+        containerColor = GameColors.PageBackground,
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -2991,7 +3026,7 @@ private fun StorageBagDialog(
                             .size(24.dp)
                             .clip(CircleShape)
                             .clickable { onDismiss() }
-                            .background(Color(0xFFF5F5F5)),
+                            .background(GameColors.CardBackground),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
@@ -3088,8 +3123,8 @@ private fun StorageBagItemDetailDialog(
             if (effect.breakthroughChance > 0) add("  突破概率 +${GameUtils.formatPercent(effect.breakthroughChance)}")
             if (effect.heal > 0) add("  恢复生命 ${effect.heal}")
             if (effect.healPercent > 0) add("  恢复生命 ${GameUtils.formatPercent(effect.healPercent)}")
-            if (effect.hpPercent > 0) add("  生命上限 +${GameUtils.formatPercent(effect.hpPercent)}")
-            if (effect.mpPercent > 0) add("  灵力上限 +${GameUtils.formatPercent(effect.mpPercent)}")
+            if (effect.hpPercent > 0) add("  生命 +${GameUtils.formatPercent(effect.hpPercent)}")
+            if (effect.mpPercent > 0) add("  灵力 +${GameUtils.formatPercent(effect.mpPercent)}")
             if (effect.mpRecoverPercent > 0) add("  恢复灵力 ${GameUtils.formatPercent(effect.mpRecoverPercent)}")
             if (effect.extendLife > 0) add("  延寿 ${effect.extendLife} 年")
             if (effect.battleCount > 0) add("  持续 ${effect.battleCount} 场战斗")
@@ -3103,7 +3138,7 @@ private fun StorageBagItemDetailDialog(
     
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.White,
+        containerColor = GameColors.PageBackground,
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -3183,7 +3218,7 @@ private fun RewardItemsDialog(
                 .fillMaxWidth()
                 .fillMaxHeight(0.85f),
             shape = RoundedCornerShape(16.dp),
-            color = Color.White
+            color = GameColors.PageBackground
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
                 RewardHeader(
@@ -3194,7 +3229,7 @@ private fun RewardItemsDialog(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color.White)
+                        .background(GameColors.PageBackground)
                         .padding(horizontal = 12.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
@@ -3388,7 +3423,7 @@ private fun RewardHeader(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color.White)
+            .background(GameColors.PageBackground)
             .padding(12.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
@@ -3550,8 +3585,8 @@ private fun RewardFilterButton(
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(6.dp))
-            .background(if (selected) Color.Black else Color.White)
-            .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(6.dp))
+            .background(if (selected) Color.Black else GameColors.ButtonBackground)
+            .border(1.dp, if (selected) Color.Black else GameColors.ButtonBorder, RoundedCornerShape(6.dp))
             .clickable { onClick() }
             .padding(vertical = 10.dp),
         contentAlignment = Alignment.Center
@@ -3583,7 +3618,7 @@ private fun RewardItemCard(
             modifier = Modifier
                 .size(68.dp)
                 .clip(RoundedCornerShape(6.dp))
-                .background(Color.White)
+                .background(GameColors.PageBackground)
                 .border(
                     width = if (isSelected) 3.dp else 2.dp,
                     color = if (isSelected) Color(0xFFFFD700) else rarityColor,
@@ -3666,7 +3701,7 @@ private fun RewardBottomPanel(
                         modifier = Modifier
                             .size(32.dp)
                             .clip(RoundedCornerShape(4.dp))
-                            .background(if (rewardQuantity > 1 && !isRewarding) Color(0xFF4CAF50) else Color(0xFFE0E0E0))
+                            .background(if (rewardQuantity > 1 && !isRewarding) Color(0xFF4CAF50) else GameColors.Border)
                             .clickable(enabled = rewardQuantity > 1 && !isRewarding) { onQuantityChange(rewardQuantity - 1) },
                         contentAlignment = Alignment.Center
                     ) {
@@ -3688,7 +3723,7 @@ private fun RewardBottomPanel(
                         modifier = Modifier
                             .size(32.dp)
                             .clip(RoundedCornerShape(4.dp))
-                            .background(if (rewardQuantity < maxQuantity && !isRewarding) Color(0xFF4CAF50) else Color(0xFFE0E0E0))
+                            .background(if (rewardQuantity < maxQuantity && !isRewarding) Color(0xFF4CAF50) else GameColors.Border)
                             .clickable(enabled = rewardQuantity < maxQuantity && !isRewarding) { onQuantityChange(rewardQuantity + 1) },
                         contentAlignment = Alignment.Center
                     ) {
@@ -3713,18 +3748,12 @@ private fun RewardBottomPanel(
                 }
             }
             
-            Button(
+            GameButton(
+                text = if (isRewarding) "赏赐中..." else "赏赐",
                 onClick = onRewardClick,
                 modifier = Modifier.height(36.dp),
-                enabled = selectedItem != null && rewardQuantity > 0 && !isRewarding,
-                contentPadding = PaddingValues(horizontal = 20.dp)
-            ) {
-                if (isRewarding) {
-                    Text("赏赐中...", fontSize = 12.sp)
-                } else {
-                    Text("赏赐", fontSize = 12.sp)
-                }
-            }
+                enabled = selectedItem != null && rewardQuantity > 0 && !isRewarding
+            )
         }
     }
 }
@@ -3785,7 +3814,7 @@ private fun RewardItemDetailDialog(
                             "hp" -> "生命"
                             "mp" -> "灵力"
                             "speed" -> "速度"
-                            "critChance" -> "暴击率"
+                            "critRate" -> "暴击率"
                             else -> key
                         }
                         if (key.contains("Percent")) {
@@ -3798,6 +3827,9 @@ private fun RewardItemDetailDialog(
                 item.skill?.let { skill ->
                     add("")
                     add("技能：${skill.name}")
+                    if (skill.description.isNotEmpty()) {
+                        add("  ${skill.description}")
+                    }
                     add("  伤害类型：${if (skill.damageType == com.xianxia.sect.core.engine.DamageType.PHYSICAL) "物理" else "法术"}")
                     add("  伤害倍率：${GameUtils.formatPercent(skill.damageMultiplier)}")
                     add("  连击次数：${skill.hits}")
@@ -3846,8 +3878,8 @@ private fun RewardItemDetailDialog(
                         if (item.magicAttackPercent > 0) add("  法术攻击 +${GameUtils.formatPercent(item.magicAttackPercent)}")
                         if (item.physicalDefensePercent > 0) add("  物理防御 +${GameUtils.formatPercent(item.physicalDefensePercent)}")
                         if (item.magicDefensePercent > 0) add("  法术防御 +${GameUtils.formatPercent(item.magicDefensePercent)}")
-                        if (item.hpPercent > 0) add("  生命上限 +${GameUtils.formatPercent(item.hpPercent)}")
-                        if (item.mpPercent > 0) add("  灵力上限 +${GameUtils.formatPercent(item.mpPercent)}")
+                        if (item.hpPercent > 0) add("  生命 +${GameUtils.formatPercent(item.hpPercent)}")
+                        if (item.mpPercent > 0) add("  灵力 +${GameUtils.formatPercent(item.mpPercent)}")
                         if (item.speedPercent > 0) add("  速度 +${GameUtils.formatPercent(item.speedPercent)}")
                         if (item.battleCount > 0) add("  持续 ${item.battleCount} 场战斗")
                     }
@@ -3935,7 +3967,7 @@ private fun RewardItemDetailDialog(
     
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.White,
+        containerColor = GameColors.PageBackground,
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(

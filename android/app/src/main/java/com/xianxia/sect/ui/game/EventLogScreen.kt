@@ -70,7 +70,7 @@ private fun EventLogHeader(onDismiss: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color.White)
+            .background(GameColors.PageBackground)
             .padding(16.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
@@ -104,7 +104,7 @@ private fun EventCard(event: GameEvent) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = GameColors.PageBackground),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(

@@ -124,7 +124,8 @@ object WorldMapGenerator {
                 tradeLastRefreshYear = 0
             )
             
-            sects.add(sect)
+            val sectWithDisciples = AISectDiscipleManager.initializeSectDisciples(sect)
+            sects.add(sectWithDisciples)
             usedNames.add(name)
             usedPositions.add(Pair(sectX, sectY))
         }
@@ -285,50 +286,43 @@ object WorldMapGenerator {
         
         val result = sects.toMutableList()
         val connections = mutableMapOf<String, MutableList<String>>()
+        val CONNECTION_DISTANCE_LIMIT = 800.0
         
         sects.forEach { connections[it.id] = mutableListOf() }
         
-        // 为每个宗门计算到所有其他宗门的距离，并按距离排序（使用距离限制减少交叉）
-        val sectDistances = mutableMapOf<String, List<Pair<String, Double>>>()
-        val CONNECTION_DISTANCE_LIMIT = 800.0 // 距离限制，减少长距离交叉路线
+        val allEdges = mutableListOf<Triple<String, String, Double>>()
+        val sectDistances = mutableMapOf<String, MutableList<Pair<String, Double>>>()
+        sects.forEach { sectDistances[it.id] = mutableListOf() }
         
         for (i in sects.indices) {
-            val currentSect = sects[i]
-            val distances = mutableListOf<Pair<String, Double>>()
-            
-            for (j in sects.indices) {
-                if (i != j) {
-                    val otherSect = sects[j]
-                    val dist = calculateDistance(currentSect, otherSect)
-                    if (dist <= CONNECTION_DISTANCE_LIMIT) {
-                        distances.add(otherSect.id to dist)
-                    }
+            for (j in (i + 1) until sects.size) {
+                val dist = calculateDistance(sects[i], sects[j])
+                allEdges.add(Triple(sects[i].id, sects[j].id, dist))
+                if (dist <= CONNECTION_DISTANCE_LIMIT) {
+                    sectDistances[sects[i].id]?.add(sects[j].id to dist)
+                    sectDistances[sects[j].id]?.add(sects[i].id to dist)
                 }
             }
-            
-            // 按距离排序（最近的优先）
-            sectDistances[currentSect.id] = distances.sortedBy { it.second }
         }
         
-        // 为每个宗门生成连接，优先连接少于2条路线的宗门
+        sectDistances.forEach { (_, distances) -> distances.sortBy { it.second } }
+        allEdges.sortBy { it.third }
+        
         val targetConnectionsPerSect = 2
         val MAX_CONNECTIONS_PER_SECT = 3
         
         for (sect in sects) {
             val currentConnections = connections[sect.id] ?: mutableListOf()
             val availableNeighbors = sectDistances[sect.id] ?: emptyList()
-            
-            // 计算还需要多少条连接
             val neededConnections = (targetConnectionsPerSect - currentConnections.size).coerceAtLeast(0)
             
             if (neededConnections > 0) {
-                // 优先选择少于2条连接的邻居
                 val candidates = availableNeighbors
                     .filter { 
                         it.first !in currentConnections && 
                         (connections[it.first]?.size ?: 0) < MAX_CONNECTIONS_PER_SECT 
                     }
-                    .sortedBy { connections[it.first]?.size ?: 0 } // 按连接数排序，少的优先
+                    .sortedBy { connections[it.first]?.size ?: 0 }
                     .take(neededConnections)
                 
                 for ((neighborId, _) in candidates) {
@@ -338,7 +332,6 @@ object WorldMapGenerator {
             }
         }
         
-        // 确保地图连通性：使用并查集检查，如果不连通则添加必要连接
         val parent = mutableMapOf<String, String>()
         
         fun find(x: String): String {
@@ -358,104 +351,35 @@ object WorldMapGenerator {
         
         sects.forEach { parent[it.id] = it.id }
         
-        // 根据现有连接建立并查集
         for ((sectId, connectedIds) in connections) {
             for (connectedId in connectedIds) {
                 union(sectId, connectedId)
             }
         }
         
-        // 确保地图完全连通：使用并查集检查，必须使所有宗门连通
-        // 收集所有可能的连接（按距离排序，使用距离限制减少交叉）
-        val allPossibleEdges = mutableListOf<Triple<String, String, Double>>()
-        for (i in sects.indices) {
-            for (j in (i + 1) until sects.size) {
-                val dist = calculateDistance(sects[i], sects[j])
-                if (dist <= CONNECTION_DISTANCE_LIMIT) {
-                    allPossibleEdges.add(Triple(sects[i].id, sects[j].id, dist))
-                }
-            }
-        }
-        allPossibleEdges.sortBy { it.third }
-        
-        // 循环直到所有宗门都连通
         var rootIds = sects.map { find(it.id) }.toSet()
-        while (rootIds.size > 1) {
-            var connectedAny = false
-            
-            // 添加必要的连接使地图连通，优先使用距离限制内的连接
-            for ((from, to, _) in allPossibleEdges) {
-                if (find(from) != find(to)) {
-                    union(from, to)
+        var edgeIndex = 0
+        while (rootIds.size > 1 && edgeIndex < allEdges.size) {
+            val (from, to, _) = allEdges[edgeIndex]
+            if (find(from) != find(to)) {
+                union(from, to)
+                if (to !in (connections[from] ?: emptyList())) {
                     connections[from]?.add(to)
                     connections[to]?.add(from)
-                    connectedAny = true
-                    break // 每次只添加一条连接，然后重新检查连通性
                 }
             }
-            
-            // 更新连通状态
+            edgeIndex++
             rootIds = sects.map { find(it.id) }.toSet()
-            
-            // 如果没有添加任何连接但仍有多个连通分量，扩大距离限制
-            if (!connectedAny && rootIds.size > 1) {
-                // 收集更大距离范围内的连接
-                val extendedEdges = mutableListOf<Triple<String, String, Double>>()
-                for (i in sects.indices) {
-                    for (j in (i + 1) until sects.size) {
-                        val dist = calculateDistance(sects[i], sects[j])
-                        if (dist > CONNECTION_DISTANCE_LIMIT) {
-                            extendedEdges.add(Triple(sects[i].id, sects[j].id, dist))
-                        }
-                    }
-                }
-                extendedEdges.sortBy { it.third }
-                
-                // 使用扩大范围的连接
-                for ((from, to, _) in extendedEdges) {
-                    if (find(from) != find(to)) {
-                        union(from, to)
-                        connections[from]?.add(to)
-                        connections[to]?.add(from)
-                        connectedAny = true
-                        break
-                    }
-                }
-                
-                rootIds = sects.map { find(it.id) }.toSet()
-            }
-            
-            // 如果仍然无法连通，退出循环
-            if (!connectedAny && rootIds.size > 1) {
-                break
-            }
         }
         
-        // 确保每个宗门至少有2条连接（使用距离限制，但不超过最大限制）
         val MIN_CONNECTIONS_PER_SECT = 2
         for (sect in sects) {
             var currentConnections = connections[sect.id] ?: mutableListOf()
             var neededConnections = MIN_CONNECTIONS_PER_SECT - currentConnections.size
             
             while (neededConnections > 0) {
-                // 从最近的邻居中添加连接，直到达到最小要求
-                var availableNeighbors = sectDistances[sect.id] ?: emptyList()
+                val availableNeighbors = sectDistances[sect.id] ?: emptyList()
                 
-                // 如果距离限制内没有足够邻居，扩大搜索范围
-                if (availableNeighbors.size < neededConnections) {
-                    val extendedDistances = mutableListOf<Pair<String, Double>>()
-                    for (otherSect in sects) {
-                        if (otherSect.id != sect.id) {
-                            val dist = calculateDistance(sect, otherSect)
-                            if (dist > CONNECTION_DISTANCE_LIMIT) {
-                                extendedDistances.add(otherSect.id to dist)
-                            }
-                        }
-                    }
-                    availableNeighbors = availableNeighbors + extendedDistances.sortedBy { it.second }
-                }
-                
-                // 只选择未达到最大限制的邻居，且当前宗门也不能超过最大限制
                 val candidates = availableNeighbors
                     .filter { 
                         it.first !in currentConnections && 
@@ -467,7 +391,6 @@ object WorldMapGenerator {
                 if (candidates.isEmpty()) break
                 
                 for ((neighborId, _) in candidates) {
-                    // 双重检查：确保双方都不会超过最大限制
                     if (currentConnections.size < MAX_CONNECTIONS_PER_SECT &&
                         (connections[neighborId]?.size ?: 0) < MAX_CONNECTIONS_PER_SECT) {
                         connections[sect.id]?.add(neighborId)
@@ -550,10 +473,11 @@ object WorldMapGenerator {
     }
     
     /**
-     * 初始化 AI 宗门间关系
+     * 初始化 AI 宗门间关系（包括玩家宗门与AI宗门的关系）
      */
     fun initializeSectRelations(sects: List<WorldSect>): List<SectRelation> {
         val relations = mutableListOf<SectRelation>()
+        val playerSect = sects.find { it.isPlayerSect }
         val aiSects = sects.filter { !it.isPlayerSect }
         
         for (i in aiSects.indices) {
@@ -561,32 +485,30 @@ object WorldMapGenerator {
                 val sect1 = aiSects[i]
                 val sect2 = aiSects[j]
                 
-                // 计算初始好感度
                 var initialFavor = 30
                 
-                // 同阵营加成
-                if (sect1.isRighteous && sect2.isRighteous) {
+                if (sect1.isRighteous == sect2.isRighteous) {
                     initialFavor += 10
-                } else if (!sect1.isRighteous && !sect2.isRighteous) {
-                    initialFavor += 5
-                } else {
-                    initialFavor -= 10
                 }
-                
-                // 相邻宗门略低（竞争关系）
-                if (sect1.connectedSectIds.contains(sect2.id)) {
-                    initialFavor -= 5
-                }
-                
-                // 等级差距影响
-                val levelDiff = kotlin.math.abs(sect1.level - sect2.level)
-                initialFavor -= levelDiff * 3
                 
                 initialFavor = initialFavor.coerceIn(10, 90)
                 
                 relations.add(SectRelation(
                     sectId1 = minOf(sect1.id, sect2.id),
                     sectId2 = maxOf(sect1.id, sect2.id),
+                    favor = initialFavor,
+                    lastInteractionYear = 0
+                ))
+            }
+        }
+        
+        if (playerSect != null) {
+            for (aiSect in aiSects) {
+                val initialFavor = aiSect.relation.coerceIn(0, 100)
+                
+                relations.add(SectRelation(
+                    sectId1 = minOf(playerSect.id, aiSect.id),
+                    sectId2 = maxOf(playerSect.id, aiSect.id),
                     favor = initialFavor,
                     lastInteractionYear = 0
                 ))

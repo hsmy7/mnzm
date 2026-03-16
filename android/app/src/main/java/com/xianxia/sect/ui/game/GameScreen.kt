@@ -19,6 +19,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.util.GameUtils
+import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.theme.getRealmColor
 import com.xianxia.sect.ui.game.components.InventoryDialog
 
@@ -29,7 +31,6 @@ fun GameScreen(
 ) {
     val disciples by viewModel.disciples.collectAsState()
     val gameData by viewModel.gameData.collectAsState()
-    val warTeams by viewModel.warTeams.collectAsState()
     val plantSlots = gameData?.herbGardenPlantSlots ?: emptyList()
     val seeds by viewModel.seeds.collectAsState()
     val equipment by viewModel.equipment.collectAsState()
@@ -39,11 +40,8 @@ fun GameScreen(
     val herbs by viewModel.herbs.collectAsState()
     val events by viewModel.events.collectAsState()
 
-    // 对话框状态
-    val showWarHallDialog by viewModel.showWarHallDialog.collectAsState()
     val showRecruitDialog by viewModel.showRecruitDialog.collectAsState()
     val showInventoryDialog by viewModel.showInventoryDialog.collectAsState()
-    val showTournamentDialog by viewModel.showTournamentDialog.collectAsState()
     val showDiplomacyDialog by viewModel.showDiplomacyDialog.collectAsState()
     val showMerchantDialog by viewModel.showMerchantDialog.collectAsState()
     val showEventLogDialog by viewModel.showEventLogDialog.collectAsState()
@@ -82,7 +80,7 @@ fun GameScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.White)
+                .background(GameColors.PageBackground)
         ) {
             // 顶部标题栏
             GameTopBar(
@@ -109,15 +107,6 @@ fun GameScreen(
             )
         }
 
-        // 对话框
-        if (showWarHallDialog) {
-            WarHallDialog(
-                warTeams = warTeams,
-                viewModel = viewModel,
-                onDismiss = { viewModel.closeWarHallDialog() }
-            )
-        }
-
         if (showRecruitDialog) {
             RecruitDialog(
                 recruitList = gameData?.recruitList ?: emptyList(),
@@ -137,14 +126,6 @@ fun GameScreen(
                 seeds = seeds,
                 viewModel = viewModel,
                 onDismiss = { viewModel.closeInventoryDialog() }
-            )
-        }
-
-        if (showTournamentDialog) {
-            TournamentDialog(
-                gameData = gameData,
-                viewModel = viewModel,
-                onDismiss = { viewModel.closeTournamentDialog() }
             )
         }
 
@@ -190,16 +171,11 @@ private fun QuickActionBar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color.White)
+            .background(GameColors.PageBackground)
             .padding(horizontal = 8.dp, vertical = 8.dp)
             .horizontalScroll(scrollState),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        QuickActionButton(
-            text = "战堂",
-            color = Color.Black,
-            onClick = { viewModel.openWarHallDialog() }
-        )
         QuickActionButton(
             text = "招募",
             color = Color.Black,
@@ -209,11 +185,6 @@ private fun QuickActionBar(
             text = "背包",
             color = Color.Black,
             onClick = { viewModel.openInventoryDialog() }
-        )
-        QuickActionButton(
-            text = "大比",
-            color = Color.Black,
-            onClick = { viewModel.openTournamentDialog() }
         )
         QuickActionButton(
             text = "外交",
@@ -244,21 +215,11 @@ private fun QuickActionButton(
     color: Color,
     onClick: () -> Unit
 ) {
-    Button(
+    GameButton(
+        text = text,
         onClick = onClick,
-        modifier = Modifier.height(36.dp),
-        contentPadding = PaddingValues(horizontal = 12.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = Color.White
-        )
-    ) {
-        Text(
-            text = text,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Normal,
-            color = Color.Black
-        )
-    }
+        modifier = Modifier.height(36.dp)
+    )
 }
 
 @Composable
@@ -269,7 +230,7 @@ private fun GameTopBar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color.White)
+            .background(GameColors.PageBackground)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
@@ -302,7 +263,7 @@ private fun RealmFilterBar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color.White)
+            .background(GameColors.PageBackground)
             .padding(horizontal = 8.dp, vertical = 8.dp)
             .horizontalScroll(scrollState),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -394,7 +355,7 @@ private fun DiscipleCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color.White
+            containerColor = GameColors.PageBackground
         ),
         elevation = CardDefaults.cardElevation(
             defaultElevation = 2.dp
@@ -503,7 +464,7 @@ private fun DiscipleCard(
                         .fillMaxWidth()
                         .height(8.dp)
                         .clip(RoundedCornerShape(4.dp))
-                        .background(Color(0xFFE8E8E8))
+                        .background(GameColors.CardBackground)
                 ) {
                     Box(
                         modifier = Modifier

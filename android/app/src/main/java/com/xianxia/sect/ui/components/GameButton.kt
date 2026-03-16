@@ -29,9 +29,14 @@ fun GameButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    backgroundColor: Color? = null
 ) {
-    val backgroundColor = if (enabled) GameColors.ButtonBackground else Color(0xFFE0E0E0)
+    val actualBackgroundColor = when {
+        !enabled -> Color(0xFFE0E0E0)
+        backgroundColor != null -> backgroundColor
+        else -> GameColors.ButtonBackground
+    }
     val contentColor = if (enabled) Color.Black else Color(0xFF9E9E9E)
     val borderColor = if (enabled) GameColors.ButtonBorder else Color(0xFFBDBDBD)
 
@@ -41,7 +46,7 @@ fun GameButton(
         enabled = enabled,
         shape = RoundedCornerShape(4.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = backgroundColor,
+            containerColor = actualBackgroundColor,
             contentColor = contentColor,
             disabledContainerColor = Color(0xFFE0E0E0),
             disabledContentColor = Color(0xFF9E9E9E)

@@ -153,15 +153,6 @@ object ModelConverters {
     
     @TypeConverter
     @JvmStatic
-    fun fromTournamentRewardMap(value: Map<Int, TournamentReward>): String = gson.toJson(value)
-    
-    @TypeConverter
-    @JvmStatic
-    fun toTournamentRewardMap(value: String): Map<Int, TournamentReward> =
-        gson.fromJson(value, object : TypeToken<Map<Int, TournamentReward>>() {}.type) ?: emptyMap()
-    
-    @TypeConverter
-    @JvmStatic
     fun fromExploredSectInfoMap(value: Map<String, ExploredSectInfo>): String = gson.toJson(value)
     
     @TypeConverter
@@ -279,15 +270,6 @@ object ModelConverters {
 
     @TypeConverter
     @JvmStatic
-    fun fromWarTeamStatus(value: WarTeamStatus): String = value.name
-
-    @TypeConverter
-    @JvmStatic
-    fun toWarTeamStatus(value: String): WarTeamStatus =
-        WarTeamStatus.values().find { it.name == value } ?: WarTeamStatus.IDLE
-
-    @TypeConverter
-    @JvmStatic
     fun fromMineSlotList(value: List<MineSlot>): String = gson.toJson(value)
 
     @TypeConverter
@@ -297,30 +279,12 @@ object ModelConverters {
 
     @TypeConverter
     @JvmStatic
-    fun fromWarTeamList(value: List<WarTeam>): String = gson.toJson(value)
-
-    @TypeConverter
-    @JvmStatic
-    fun toWarTeamList(value: String): List<WarTeam> =
-        gson.fromJson(value, object : TypeToken<List<WarTeam>>() {}.type) ?: emptyList()
-
-    @TypeConverter
-    @JvmStatic
     fun fromDungeonRewards(value: DungeonRewards): String = gson.toJson(value)
 
     @TypeConverter
     @JvmStatic
     fun toDungeonRewards(value: String): DungeonRewards =
         gson.fromJson(value, DungeonRewards::class.java) ?: DungeonRewards()
-
-    @TypeConverter
-    @JvmStatic
-    fun fromWarTeamMemberList(value: List<WarTeamMember>): String = gson.toJson(value)
-
-    @TypeConverter
-    @JvmStatic
-    fun toWarTeamMemberList(value: String): List<WarTeamMember> =
-        gson.fromJson(value, object : TypeToken<List<WarTeamMember>>() {}.type) ?: emptyList()
 
     @TypeConverter
     @JvmStatic
@@ -456,4 +420,22 @@ object ModelConverters {
     @JvmStatic
     fun toSectRelationList(value: String): List<SectRelation> =
         gson.fromJson(value, object : TypeToken<List<SectRelation>>() {}.type) ?: emptyList()
+
+    @TypeConverter
+    @JvmStatic
+    fun fromBattleTeam(value: BattleTeam?): String = if (value != null) gson.toJson(value) else ""
+
+    @TypeConverter
+    @JvmStatic
+    fun toBattleTeam(value: String): BattleTeam? =
+        if (value.isEmpty()) null else gson.fromJson(value, BattleTeam::class.java)
+
+    @TypeConverter
+    @JvmStatic
+    fun fromAIBattleTeamList(value: List<AIBattleTeam>): String = gson.toJson(value)
+
+    @TypeConverter
+    @JvmStatic
+    fun toAIBattleTeamList(value: String): List<AIBattleTeam> =
+        gson.fromJson(value, object : TypeToken<List<AIBattleTeam>>() {}.type) ?: emptyList()
 }

@@ -1,4 +1,4 @@
-﻿package com.xianxia.sect.core.engine
+package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.data.EquipmentDatabase
@@ -15,7 +15,10 @@ object CaveExplorationSystem {
         cave: CultivatorCave,
         disciples: List<Disciple>,
         currentYear: Int,
-        currentMonth: Int
+        currentMonth: Int,
+        sectX: Float = 2000f,
+        sectY: Float = 1750f,
+        travelDuration: Int = TRAVEL_DURATION
     ): CaveExplorationTeam {
         return CaveExplorationTeam(
             id = "cave_exp_${cave.id}_${System.currentTimeMillis()}",
@@ -25,8 +28,15 @@ object CaveExplorationSystem {
             memberNames = disciples.map { it.name },
             startYear = currentYear,
             startMonth = currentMonth,
-            duration = TRAVEL_DURATION,
-            status = CaveExplorationStatus.TRAVELING
+            duration = travelDuration,
+            status = CaveExplorationStatus.TRAVELING,
+            startX = sectX,
+            startY = sectY,
+            targetX = cave.x.toFloat(),
+            targetY = cave.y.toFloat(),
+            currentX = sectX,
+            currentY = sectY,
+            moveProgress = 0f
         )
     }
     
@@ -114,7 +124,7 @@ object CaveExplorationSystem {
             )
         }
         
-        val guardianRealm = (cave.ownerRealm + 1).coerceIn(0, 9)
+        val guardianRealm = (cave.ownerRealm - 1).coerceIn(0, 9)
         val guardians = (1..3).map { index ->
             createGuardian(guardianRealm, index)
         }

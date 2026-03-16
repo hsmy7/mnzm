@@ -5,6 +5,8 @@ import androidx.room.PrimaryKey
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.CombatSkill
 import com.xianxia.sect.core.engine.DamageType
+import com.xianxia.sect.core.engine.SkillType
+import com.xianxia.sect.core.engine.HealType
 
 sealed class GameItem {
     abstract val id: String
@@ -36,6 +38,8 @@ data class Equipment(
     
     val nurtureLevel: Int = 0,
     val nurtureProgress: Int = 0,
+    
+    val minRealm: Int = 9,
     
     var ownerId: String? = null,
     var isEquipped: Boolean = false
@@ -155,11 +159,14 @@ data class Manual(
     
     val skillName: String? = null,
     val skillDescription: String? = null,
+    val skillType: String = "attack",
     val skillDamageType: String = "physical",
     val skillHits: Int = 1,
     val skillDamageMultiplier: Double = 1.0,
     val skillCooldown: Int = 3,
     val skillMpCost: Int = 10,
+    val skillHealPercent: Double = 0.0,
+    val skillHealType: String = "hp",
     
     val minRealm: Int = 9,
     
@@ -173,11 +180,14 @@ data class Manual(
         ManualSkill(
             name = it,
             description = skillDescription ?: "",
+            skillType = if (skillType == "support") SkillType.SUPPORT else SkillType.ATTACK,
             damageType = if (skillDamageType == "magic") DamageType.MAGIC else DamageType.PHYSICAL,
             hits = skillHits,
             damageMultiplier = skillDamageMultiplier,
             cooldown = skillCooldown,
-            mpCost = skillMpCost
+            mpCost = skillMpCost,
+            healPercent = skillHealPercent,
+            healType = if (skillHealType == "mp") HealType.MP else HealType.HP
         )
     }
     
@@ -201,19 +211,25 @@ enum class ManualType {
 data class ManualSkill(
     val name: String,
     val description: String,
+    val skillType: SkillType = SkillType.ATTACK,
     val damageType: DamageType = DamageType.PHYSICAL,
     val hits: Int = 1,
     val damageMultiplier: Double = 1.0,
     val cooldown: Int = 3,
-    val mpCost: Int = 10
+    val mpCost: Int = 10,
+    val healPercent: Double = 0.0,
+    val healType: HealType = HealType.HP
 ) {
     fun toCombatSkill(): CombatSkill = CombatSkill(
         name = name,
+        skillType = skillType,
         damageType = damageType,
         damageMultiplier = damageMultiplier,
         mpCost = mpCost,
         cooldown = cooldown,
-        hits = hits
+        hits = hits,
+        healPercent = healPercent,
+        healType = healType
     )
 }
 

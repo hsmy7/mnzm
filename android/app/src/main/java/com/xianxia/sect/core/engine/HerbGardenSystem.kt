@@ -2,9 +2,7 @@ package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.data.ForgeRecipeDatabase
 import com.xianxia.sect.core.data.HerbDatabase
-import com.xianxia.sect.core.data.TalentDatabase
 import com.xianxia.sect.core.model.Disciple
-import com.xianxia.sect.core.model.ManualType
 import kotlin.random.Random
 
 object HerbGardenSystem {
@@ -108,9 +106,7 @@ object HerbGardenSystem {
     }
     
     /**
-     * 计算种植速度加成（新系统 - 多弟子叠加）
-     * 包含：境界加成 + 天赋加成 + 功法加成
-     * 所有入驻弟子的加成直接叠加，上限300%
+     * 计算种植速度加成（内门弟子加成已移除）
      */
     fun calculatePlantingSpeedBonus(
         discipleSlots: List<DiscipleSlot>,
@@ -118,30 +114,11 @@ object HerbGardenSystem {
         manualProficiencies: Map<String, List<com.xianxia.sect.core.model.ManualProficiencyData>> = emptyMap(),
         manuals: List<com.xianxia.sect.core.model.Manual> = emptyList()
     ): Double {
-        var totalBonus = 0.0
-        
-        discipleSlots.forEach { slot ->
-            if (slot.discipleId != null) {
-                val disciple = disciples.find { it.id == slot.discipleId } ?: return@forEach
-                
-                // 1. 境界加成（新数值 - 适配多弟子叠加）
-                totalBonus += getRealmSpeedBonus(disciple.realm)
-                
-                // 2. 天赋加成
-                totalBonus += getPlantingTalentBonus(disciple)
-                
-                // 3. 功法加成
-                totalBonus += getPlantingManualBonus(disciple, manualProficiencies, manuals)
-            }
-        }
-        
-        // 所有弟子加成直接叠加，上限300%
-        return totalBonus.coerceAtMost(3.0)
+        return 0.0
     }
     
     /**
-     * 计算产量加成（新系统 - 多弟子叠加）
-     * 所有入驻弟子的加成直接叠加，上限300%
+     * 计算产量加成（内门弟子加成已移除）
      */
     fun calculateYieldBonus(
         discipleSlots: List<DiscipleSlot>,
@@ -149,129 +126,27 @@ object HerbGardenSystem {
         manualProficiencies: Map<String, List<com.xianxia.sect.core.model.ManualProficiencyData>> = emptyMap(),
         manuals: List<com.xianxia.sect.core.model.Manual> = emptyList()
     ): Double {
-        var totalBonus = 0.0
-
-        discipleSlots.forEach { slot ->
-            if (slot.discipleId != null) {
-                val disciple = disciples.find { it.id == slot.discipleId } ?: return@forEach
-
-                // 1. 境界加成（新数值 - 适配多弟子叠加）
-                totalBonus += getRealmYieldBonus(disciple.realm)
-
-                // 2. 天赋加成
-                totalBonus += getPlantingYieldTalentBonus(disciple)
-
-                // 3. 功法加成（新添加）
-                totalBonus += getPlantingYieldManualBonus(disciple, manualProficiencies, manuals)
-            }
-        }
-
-        // 所有弟子加成直接叠加，上限300%
-        return totalBonus.coerceAtMost(3.0)
-    }
-    
-    /**
-     * 根据境界获取速度加成（新数值 - 适配多弟子叠加）
-     */
-    private fun getRealmSpeedBonus(realm: Int): Double {
-        return when (realm) {
-            0 -> 0.50  // 仙人 +50%
-            1 -> 0.40  // 渡劫 +40%
-            2 -> 0.35  // 大乘 +35%
-            3 -> 0.30  // 合体 +30%
-            4 -> 0.25  // 炼虚 +25%
-            5 -> 0.20  // 化神 +20%
-            6 -> 0.15  // 元婴 +15%
-            7 -> 0.10  // 金丹 +10%
-            8 -> 0.05  // 筑基 +5%
-            else -> 0.0 // 炼气 0%
-        }
-    }
-
-    /**
-     * 根据境界获取产量加成（新数值 - 适配多弟子叠加）
-     */
-    private fun getRealmYieldBonus(realm: Int): Double {
-        return when (realm) {
-            0 -> 0.50  // 仙人 +50%
-            1 -> 0.40  // 渡劫 +40%
-            2 -> 0.35  // 大乘 +35%
-            3 -> 0.30  // 合体 +30%
-            4 -> 0.25  // 炼虚 +25%
-            5 -> 0.20  // 化神 +20%
-            6 -> 0.15  // 元婴 +15%
-            7 -> 0.10  // 金丹 +10%
-            8 -> 0.05  // 筑基 +5%
-            else -> 0.0 // 炼气 0%
-        }
-    }
-    
-    /**
-     * 获取种植相关天赋的速度加成（新数值 - 适配多弟子叠加）
-     */
-    private fun getPlantingTalentBonus(disciple: Disciple): Double {
-        val talentEffects = TalentDatabase.calculateTalentEffects(disciple.talentIds)
-        val cultivationSpeedBonus = (talentEffects["cultivationSpeed"] ?: 0.0) * 0.70
-        val plantingFlatBonus = (talentEffects["spiritPlantingFlat"] ?: 0.0) * 0.012
-        return cultivationSpeedBonus + plantingFlatBonus
-    }
-
-    /**
-     * 获取种植相关天赋的产量加成（新数值 - 适配多弟子叠加）
-     */
-    private fun getPlantingYieldTalentBonus(disciple: Disciple): Double {
-        val talentEffects = TalentDatabase.calculateTalentEffects(disciple.talentIds)
-        val cultivationSpeedBonus = (talentEffects["cultivationSpeed"] ?: 0.0) * 0.45
-        val plantingFlatBonus = (talentEffects["spiritPlantingFlat"] ?: 0.0) * 0.015
-        return cultivationSpeedBonus + plantingFlatBonus
-    }
-
-    /**
-     * 获取种植产量功法加成（新系统 - 使用实际存在的种植功法）
-     */
-    private fun getPlantingYieldManualBonus(
-        disciple: Disciple,
-        manualProficiencies: Map<String, List<com.xianxia.sect.core.model.ManualProficiencyData>>,
-        manuals: List<com.xianxia.sect.core.model.Manual>
-    ): Double {
         return 0.0
     }
     
     /**
-     * 获取种植相关功法加成（新系统 - 使用实际存在的种植功法）
-     * 使用plantingManuals中的种植功法，并加入熟练度加成
-     */
-    private fun getPlantingManualBonus(
-        disciple: Disciple,
-        manualProficiencies: Map<String, List<com.xianxia.sect.core.model.ManualProficiencyData>>,
-        manuals: List<com.xianxia.sect.core.model.Manual>
-    ): Double {
-        return 0.0
-    }
-    
-    /**
-     * 计算减少后的时间
-     * 使用新的计算公式确保高加成能明显减少月份
+     * 计算减少后的时间（无限制）
      */
     fun calculateReducedDuration(baseDuration: Int, speedBonus: Double): Int {
         if (speedBonus <= 0) return baseDuration
         
-        // 最大减少80%的时间
-        val effectiveBonus = speedBonus.coerceAtMost(2.0)
-        val reductionPercent = (effectiveBonus / 2.5).coerceAtMost(0.80)
-        
+        val reductionPercent = (speedBonus / 2.5).coerceAtMost(0.80)
         val reducedMonths = (baseDuration * reductionPercent).toInt()
         return (baseDuration - reducedMonths).coerceAtLeast(1)
     }
     
     /**
-     * 计算增加后的产量
+     * 计算增加后的产量（无限制）
      */
     fun calculateIncreasedYield(baseYield: Int, yieldBonus: Double): Int {
         if (yieldBonus <= 0) return baseYield
         
-        val effectiveBonus = yieldBonus.coerceAtMost(1.5)
-        val bonusYield = (baseYield * effectiveBonus).toInt()
+        val bonusYield = (baseYield * yieldBonus).toInt()
         return (baseYield + bonusYield).coerceAtLeast(1)
     }
     

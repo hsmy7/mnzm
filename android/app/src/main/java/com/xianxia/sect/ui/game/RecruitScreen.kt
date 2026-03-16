@@ -56,13 +56,16 @@ fun RecruitDialog(
                         )
                     }
                 } else {
+                    val sortedRecruitList = remember(recruitList) {
+                        recruitList.sortedBy { it.spiritRoot.types.size }
+                    }
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(recruitList, key = { it.id }) { disciple ->
+                        items(sortedRecruitList, key = { it.id }) { disciple ->
                             RecruitDiscipleCard(
                                 disciple = disciple,
                                 onAccept = { viewModel.recruitDisciple(disciple) },
@@ -84,7 +87,7 @@ private fun RecruitHeader(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color.White)
+            .background(GameColors.PageBackground)
             .padding(16.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
@@ -118,7 +121,7 @@ private fun RecruitDiscipleCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = GameColors.PageBackground),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {

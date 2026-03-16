@@ -29,11 +29,11 @@ object CaveGenerator {
     )
     
     private val caveSpawnProbabilities = mapOf(
-        5 to 0.30,  // 化神洞府 30%
-        4 to 0.25,  // 炼虚洞府 25%
-        3 to 0.20,  // 合体洞府 20%
-        2 to 0.15,  // 大乘洞府 15%
-        1 to 0.10   // 渡劫洞府 10%
+        5 to 0.506,  // 化神洞府 50.6%
+        4 to 0.25,   // 炼虚洞府 25%
+        3 to 0.20,   // 合体洞府 20%
+        2 to 0.028,  // 大乘洞府 2.8%
+        1 to 0.016   // 渡劫洞府 1.6%
     )
     
     fun generateCaves(
@@ -56,10 +56,6 @@ object CaveGenerator {
             usedPositions.add(Pair(cave.x.toInt(), cave.y.toInt()))
         }
         
-        connectionEdges.forEach { edge ->
-            addRoutePositions(edge, usedPositions)
-        }
-        
         val newCaveCount = Random.nextInt(0, maxNewCaves + 1)
         
         var attempts = 0
@@ -69,7 +65,7 @@ object CaveGenerator {
             val x = Random.nextInt(50, 1950)
             val y = Random.nextInt(50, 950)
             
-            if (!isValidPosition(x, y, usedPositions, existingSects, connectionEdges)) {
+            if (!isValidPosition(x, y, usedPositions, existingSects, connectionEdges, existingCaves)) {
                 continue
             }
             
@@ -116,34 +112,13 @@ object CaveGenerator {
         return "$prefix${realmName}$suffix"
     }
     
-    private fun addRoutePositions(edge: MSTEdge, usedPositions: MutableSet<Pair<Int, Int>>) {
-        val routeWidth = 50
-        val dx = edge.sect2.x - edge.sect1.x
-        val dy = edge.sect2.y - edge.sect1.y
-        val length = sqrt((dx * dx + dy * dy).toDouble()).toInt()
-        
-        if (length == 0) return
-        
-        val steps = length / 10
-        for (i in 0..steps) {
-            val t = i.toDouble() / steps
-            val x = (edge.sect1.x + dx * t).toInt()
-            val y = (edge.sect1.y + dy * t).toInt()
-            
-            for (ox in -routeWidth..routeWidth) {
-                for (oy in -routeWidth..routeWidth) {
-                    usedPositions.add(Pair(x + ox, y + oy))
-                }
-            }
-        }
-    }
-    
     private fun isValidPosition(
         x: Int,
         y: Int,
         usedPositions: Set<Pair<Int, Int>>,
         sects: List<WorldSect>,
-        edges: List<MSTEdge>
+        edges: List<MSTEdge>,
+        existingCaves: List<CultivatorCave>
     ): Boolean {
         if (Pair(x, y) in usedPositions) return false
         
@@ -157,6 +132,14 @@ object CaveGenerator {
         
         for (edge in edges) {
             if (isPointNearLine(x, y, edge, 60.0)) return false
+        }
+        
+        for (cave in existingCaves) {
+            val dist = sqrt(
+                (x - cave.x).toDouble() * (x - cave.x).toDouble() +
+                (y - cave.y).toDouble() * (y - cave.y).toDouble()
+            )
+            if (dist < 60) return false
         }
         
         return true

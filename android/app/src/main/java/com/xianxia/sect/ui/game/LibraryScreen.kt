@@ -21,6 +21,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.ui.theme.GameColors
 
 @Composable
 fun LibraryDialog(
@@ -74,7 +75,9 @@ fun LibraryDialog(
         val currentDiscipleId = slots.getOrNull(slotIndex)?.discipleId
         LibraryDiscipleSelectionDialog(
             disciples = disciples.filter { disciple -> 
-                disciple.isAlive && (disciple.status == DiscipleStatus.IDLE || disciple.id == currentDiscipleId)
+                disciple.isAlive && 
+                disciple.status != DiscipleStatus.REFLECTING &&
+                (disciple.status == DiscipleStatus.IDLE || disciple.id == currentDiscipleId)
             },
             currentDiscipleId = currentDiscipleId,
             onSelect = { disciple ->
@@ -107,16 +110,16 @@ private fun LibrarySlotItem(
             try {
                 Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))
             } catch (e: Exception) {
-                Color(0xFFE0E0E0)
+                GameColors.Border
             }
         } else {
-            Color(0xFFE0E0E0)
+            GameColors.Border
         }
         Box(
             modifier = Modifier
                 .size(60.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(Color.White)
+                .background(GameColors.PageBackground)
                 .border(
                     1.dp,
                     borderColor,
@@ -156,8 +159,8 @@ private fun LibrarySlotItem(
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(6.dp))
-                    .background(Color.White)
-                    .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(6.dp))
+                    .background(GameColors.PageBackground)
+                    .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
                     .clickable { onRemove() }
                     .padding(horizontal = 12.dp, vertical = 6.dp)
             ) {
@@ -214,7 +217,7 @@ private fun LibraryDiscipleSelectionDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.White,
+        containerColor = GameColors.PageBackground,
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -232,7 +235,7 @@ private fun LibraryDiscipleSelectionDialog(
                         .size(24.dp)
                         .clip(CircleShape)
                         .clickable { onDismiss() }
-                        .background(Color(0xFFF5F5F5)),
+                        .background(GameColors.CardBackground),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -278,8 +281,8 @@ private fun LibraryDiscipleSelectionDialog(
                                     modifier = Modifier
                                         .weight(1f)
                                         .clip(RoundedCornerShape(4.dp))
-                                        .background(if (isSelected) Color(0xFFE0E0E0) else Color.White)
-                                        .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(4.dp))
+                                        .background(if (isSelected) GameColors.Border else GameColors.PageBackground)
+                                        .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
                                         .clickable { selectedRealmFilter = if (isSelected) null else realm }
                                         .padding(vertical = 4.dp),
                                     contentAlignment = Alignment.Center
@@ -304,8 +307,8 @@ private fun LibraryDiscipleSelectionDialog(
                                     modifier = Modifier
                                         .weight(1f)
                                         .clip(RoundedCornerShape(4.dp))
-                                        .background(if (isSelected) Color(0xFFE0E0E0) else Color.White)
-                                        .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(4.dp))
+                                        .background(if (isSelected) GameColors.Border else GameColors.PageBackground)
+                                        .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
                                         .clickable { selectedRealmFilter = if (isSelected) null else realm }
                                         .padding(vertical = 4.dp),
                                     contentAlignment = Alignment.Center
@@ -333,8 +336,8 @@ private fun LibraryDiscipleSelectionDialog(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(6.dp))
-                                    .background(if (isCurrent) Color(0xFFE0E0E0) else Color.White)
-                                    .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(6.dp))
+                                    .background(if (isCurrent) GameColors.Border else GameColors.PageBackground)
+                                    .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
                                     .clickable { onSelect(disciple) }
                                     .padding(12.dp)
                             ) {
@@ -397,7 +400,7 @@ private fun CommonDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.White,
+        containerColor = GameColors.PageBackground,
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -415,7 +418,7 @@ private fun CommonDialog(
                         .size(24.dp)
                         .clip(CircleShape)
                         .clickable { onDismiss() }
-                        .background(Color(0xFFF5F5F5)),
+                        .background(GameColors.CardBackground),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(

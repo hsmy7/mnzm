@@ -24,6 +24,8 @@ import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.data.ForgeRecipeDatabase
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.ui.theme.GameColors
 
 @Composable
 fun ForgeDialog(
@@ -46,74 +48,129 @@ fun ForgeDialog(
     val forgeDisciples = elderSlots?.forgeDisciples ?: emptyList()
     val forgeInnerDisciples = elderSlots?.forgeInnerDisciples ?: emptyList()
     var showInnerDiscipleSelection by remember { mutableStateOf<Int?>(null) }
+    
+    var showReserveDiscipleDialog by remember { mutableStateOf(false) }
+    var showAddReserveDialog by remember { mutableStateOf(false) }
 
-    CommonDialog(
-        title = "天工峰",
-        onDismiss = onDismiss
-    ) {
-        Column(
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.verticalScroll(rememberScrollState())
-        ) {
-            ForgeElderSection(
-                elder = forgeElder,
-                onElderClick = { showElderSelection = true },
-                onElderRemove = { viewModel.removeElder("forge") }
-            )
-            
-            ForgeDirectDiscipleSection(
-                directDisciples = forgeDisciples,
-                onDirectDiscipleClick = { index -> showDirectDiscipleSelection = index },
-                onDirectDiscipleRemove = { index -> viewModel.removeDirectDisciple("forge", index) }
-            )
-            
-            ForgeInnerDiscipleSection(
-                innerDisciples = forgeInnerDisciples,
-                onInnerDiscipleClick = { index -> showInnerDiscipleSelection = index },
-                onInnerDiscipleRemove = { index -> viewModel.removeInnerDisciple("forge", index) }
-            )
-            
-            HorizontalDivider(
-                modifier = Modifier.padding(vertical = 4.dp),
-                color = Color(0xFFE0E0E0),
-                thickness = 1.dp
-            )
-            
-            Text(
-                text = "炼器槽位",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFF666666)
-            )
-            
-            (0 until 3).chunked(3).forEach { rowIndexes ->
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = GameColors.PageBackground,
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "天工峰",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    rowIndexes.forEach { index ->
-                        val slot = forgeSlots.getOrNull(index)
-                        ForgeSlotItem(
-                            slot = slot,
-                            index = index,
-                            gameData = gameData,
-                            onClick = {
-                                if (slot?.status == ForgeSlotStatus.IDLE || slot == null) {
-                                    selectedSlotIndex = index
-                                    viewModel.selectForgeSlot(slot ?: ForgeSlot(slotIndex = index))
-                                    showEquipmentSelection = true
-                                }
-                            },
-                            onRemove = {
-                                viewModel.clearForgeSlot(index)
-                            }
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(Color(0xFFFF9800))
+                            .clickable { showReserveDiscipleDialog = true }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "储备弟子",
+                            fontSize = 10.sp,
+                            color = Color.White
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .clickable { onDismiss() }
+                            .background(GameColors.CardBackground),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "×",
+                            fontSize = 16.sp,
+                            color = Color(0xFF666666)
                         )
                     }
                 }
             }
-        }
-    }
+        },
+        text = {
+            Column(
+                modifier = Modifier.heightIn(max = 400.dp)
+            ) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.verticalScroll(rememberScrollState())
+                ) {
+                    ForgeElderSection(
+                        elder = forgeElder,
+                        onElderClick = { showElderSelection = true },
+                        onElderRemove = { viewModel.removeElder("forge") }
+                    )
+                    
+                    ForgeDirectDiscipleSection(
+                        directDisciples = forgeDisciples,
+                        onDirectDiscipleClick = { index -> showDirectDiscipleSelection = index },
+                        onDirectDiscipleRemove = { index -> viewModel.removeDirectDisciple("forge", index) }
+                    )
+                    
+                    ForgeInnerDiscipleSection(
+                        innerDisciples = forgeInnerDisciples,
+                        onInnerDiscipleClick = { index -> showInnerDiscipleSelection = index },
+                        onInnerDiscipleRemove = { index -> viewModel.removeInnerDisciple("forge", index) }
+                    )
+                    
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 4.dp),
+                        color = GameColors.Border,
+                        thickness = 1.dp
+                    )
+                    
+                    Text(
+                        text = "炼器槽位",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF666666)
+                    )
+                    
+                    (0 until 3).chunked(3).forEach { rowIndexes ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
+                        ) {
+                            rowIndexes.forEach { index ->
+                                val slot = forgeSlots.getOrNull(index)
+                                ForgeSlotItem(
+                                    slot = slot,
+                                    index = index,
+                                    gameData = gameData,
+                                    onClick = {
+                                        if (slot?.status == ForgeSlotStatus.IDLE || slot == null) {
+                                            selectedSlotIndex = index
+                                            viewModel.selectForgeSlot(slot ?: ForgeSlot(slotIndex = index))
+                                            showEquipmentSelection = true
+                                        }
+                                    },
+                                    onRemove = {
+                                        viewModel.clearForgeSlot(index)
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {}
+    )
 
     if (showEquipmentSelection && selectedSlotIndex != null) {
         EquipmentSelectionDialog(
@@ -163,6 +220,25 @@ fun ForgeDialog(
             }
         )
     }
+    
+    if (showReserveDiscipleDialog) {
+        ForgeReserveDiscipleDialog(
+            viewModel = viewModel,
+            onDismiss = { showReserveDiscipleDialog = false },
+            onAddClick = { showAddReserveDialog = true }
+        )
+    }
+    
+    if (showAddReserveDialog) {
+        ForgeAddReserveDiscipleDialog(
+            viewModel = viewModel,
+            onDismiss = { showAddReserveDialog = false },
+            onConfirm = { selectedIds ->
+                viewModel.addForgeReserveDisciples(selectedIds)
+                showAddReserveDialog = false
+            }
+        )
+    }
 }
 
 @Composable
@@ -178,7 +254,7 @@ private fun ForgeElderSection(
             Color(0xFFFF9800)
         }
     } else {
-        Color(0xFFE0E0E0)
+        GameColors.Border
     }
 
     Column(
@@ -199,7 +275,7 @@ private fun ForgeElderSection(
                 modifier = Modifier
                     .size(70.dp)
                     .clip(RoundedCornerShape(8.dp))
-                    .background(Color.White)
+                    .background(GameColors.PageBackground)
                     .border(
                         2.dp,
                         elderBorderColor,
@@ -243,8 +319,8 @@ private fun ForgeElderSection(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(6.dp))
-                        .background(Color.White)
-                        .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(6.dp))
+                        .background(GameColors.PageBackground)
+                        .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
                         .clickable { onElderRemove() }
                         .padding(horizontal = 12.dp, vertical = 6.dp)
                 ) {
@@ -361,7 +437,7 @@ private fun ForgeDirectDiscipleSlotItem(
             Color(0xFFFF9800)
         }
     } else {
-        Color(0xFFE0E0E0)
+        GameColors.Border
     }
 
     Column(
@@ -371,7 +447,7 @@ private fun ForgeDirectDiscipleSlotItem(
             modifier = Modifier
                 .size(55.dp)
                 .clip(RoundedCornerShape(6.dp))
-                .background(Color.White)
+                .background(GameColors.PageBackground)
                 .border(
                     1.dp,
                     borderColor,
@@ -411,8 +487,8 @@ private fun ForgeDirectDiscipleSlotItem(
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(4.dp))
-                    .background(Color.White)
-                    .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(4.dp))
+                    .background(GameColors.PageBackground)
+                    .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
                     .clickable { onRemove() }
                     .padding(horizontal = 8.dp, vertical = 2.dp)
             ) {
@@ -440,7 +516,7 @@ private fun ForgeInnerDiscipleSlotItem(
             Color(0xFF4CAF50)
         }
     } else {
-        Color(0xFFE0E0E0)
+        GameColors.Border
     }
 
     Column(
@@ -450,7 +526,7 @@ private fun ForgeInnerDiscipleSlotItem(
             modifier = Modifier
                 .size(50.dp)
                 .clip(RoundedCornerShape(6.dp))
-                .background(Color.White)
+                .background(GameColors.PageBackground)
                 .border(
                     1.dp,
                     borderColor,
@@ -490,8 +566,8 @@ private fun ForgeInnerDiscipleSlotItem(
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(4.dp))
-                    .background(Color.White)
-                    .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(4.dp))
+                    .background(GameColors.PageBackground)
+                    .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
                     .clickable { onRemove() }
                     .padding(horizontal = 6.dp, vertical = 2.dp)
             ) {
@@ -560,7 +636,7 @@ private fun ForgeElderSelectionDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.White,
+        containerColor = GameColors.PageBackground,
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -578,7 +654,7 @@ private fun ForgeElderSelectionDialog(
                         .size(24.dp)
                         .clip(CircleShape)
                         .clickable { onDismiss() }
-                        .background(Color(0xFFF5F5F5)),
+                        .background(GameColors.CardBackground),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -617,8 +693,8 @@ private fun ForgeElderSelectionDialog(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clip(RoundedCornerShape(4.dp))
-                                    .background(if (isSelected) Color(0xFFE0E0E0) else Color.White)
-                                    .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(4.dp))
+                                    .background(if (isSelected) GameColors.Border else GameColors.PageBackground)
+                                    .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
                                     .clickable { selectedRealmFilter = if (isSelected) null else realmVal }
                                     .padding(vertical = 4.dp),
                                 contentAlignment = Alignment.Center
@@ -643,8 +719,8 @@ private fun ForgeElderSelectionDialog(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clip(RoundedCornerShape(4.dp))
-                                    .background(if (isSelected) Color(0xFFE0E0E0) else Color.White)
-                                    .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(4.dp))
+                                    .background(if (isSelected) GameColors.Border else GameColors.PageBackground)
+                                    .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
                                     .clickable { selectedRealmFilter = if (isSelected) null else realmVal }
                                     .padding(vertical = 4.dp),
                                 contentAlignment = Alignment.Center
@@ -714,8 +790,8 @@ private fun ForgeDiscipleSelectionCard(
         modifier = Modifier
             .size(60.dp)
             .clip(RoundedCornerShape(6.dp))
-            .background(Color.White)
-            .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(6.dp))
+            .background(GameColors.PageBackground)
+            .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
@@ -773,7 +849,6 @@ private fun ForgeDirectDiscipleSelectionDialog(
             elderSlots.alchemyDisciples,
             elderSlots.forgeDisciples,
             elderSlots.libraryDisciples,
-            elderSlots.spiritMineDisciples,
             elderSlots.recruitDisciples
         ).flatten().mapNotNull { it.discipleId }
     }
@@ -811,7 +886,7 @@ private fun ForgeDirectDiscipleSelectionDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.White,
+        containerColor = GameColors.PageBackground,
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -829,7 +904,7 @@ private fun ForgeDirectDiscipleSelectionDialog(
                         .size(24.dp)
                         .clip(CircleShape)
                         .clickable { onDismiss() }
-                        .background(Color(0xFFF5F5F5)),
+                        .background(GameColors.CardBackground),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -868,8 +943,8 @@ private fun ForgeDirectDiscipleSelectionDialog(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clip(RoundedCornerShape(4.dp))
-                                    .background(if (isSelected) Color(0xFFE0E0E0) else Color.White)
-                                    .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(4.dp))
+                                    .background(if (isSelected) GameColors.Border else GameColors.PageBackground)
+                                    .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
                                     .clickable { selectedRealmFilter = if (isSelected) null else realmVal }
                                     .padding(vertical = 4.dp),
                                 contentAlignment = Alignment.Center
@@ -894,8 +969,8 @@ private fun ForgeDirectDiscipleSelectionDialog(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clip(RoundedCornerShape(4.dp))
-                                    .background(if (isSelected) Color(0xFFE0E0E0) else Color.White)
-                                    .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(4.dp))
+                                    .background(if (isSelected) GameColors.Border else GameColors.PageBackground)
+                                    .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
                                     .clickable { selectedRealmFilter = if (isSelected) null else realmVal }
                                     .padding(vertical = 4.dp),
                                 contentAlignment = Alignment.Center
@@ -978,7 +1053,6 @@ private fun ForgeInnerDiscipleSelectionDialog(
             elderSlots.alchemyDisciples,
             elderSlots.forgeDisciples,
             elderSlots.libraryDisciples,
-            elderSlots.spiritMineDisciples,
             elderSlots.recruitDisciples
         ).flatten().mapNotNull { it.discipleId }
     }
@@ -1025,7 +1099,7 @@ private fun ForgeInnerDiscipleSelectionDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.White,
+        containerColor = GameColors.PageBackground,
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1043,7 +1117,7 @@ private fun ForgeInnerDiscipleSelectionDialog(
                         .size(24.dp)
                         .clip(CircleShape)
                         .clickable { onDismiss() }
-                        .background(Color(0xFFF5F5F5)),
+                        .background(GameColors.CardBackground),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -1082,8 +1156,8 @@ private fun ForgeInnerDiscipleSelectionDialog(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clip(RoundedCornerShape(4.dp))
-                                    .background(if (isSelected) Color(0xFFE0E0E0) else Color.White)
-                                    .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(4.dp))
+                                    .background(if (isSelected) GameColors.Border else GameColors.PageBackground)
+                                    .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
                                     .clickable { selectedRealmFilter = if (isSelected) null else realmVal }
                                     .padding(vertical = 4.dp),
                                 contentAlignment = Alignment.Center
@@ -1108,8 +1182,8 @@ private fun ForgeInnerDiscipleSelectionDialog(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clip(RoundedCornerShape(4.dp))
-                                    .background(if (isSelected) Color(0xFFE0E0E0) else Color.White)
-                                    .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(4.dp))
+                                    .background(if (isSelected) GameColors.Border else GameColors.PageBackground)
+                                    .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
                                     .clickable { selectedRealmFilter = if (isSelected) null else realmVal }
                                     .padding(vertical = 4.dp),
                                 contentAlignment = Alignment.Center
@@ -1174,8 +1248,12 @@ private fun isDiscipleInAnyPosition(discipleId: String, elderSlots: ElderSlots):
         elderSlots.alchemyElder,
         elderSlots.forgeElder,
         elderSlots.libraryElder,
-        elderSlots.spiritMineElder,
-        elderSlots.recruitElder
+        elderSlots.recruitElder,
+        elderSlots.outerElder,
+        elderSlots.preachingElder,
+        elderSlots.lawEnforcementElder,
+        elderSlots.innerElder,
+        elderSlots.qingyunPreachingElder
     )
     
     if (allElderIds.contains(discipleId)) {
@@ -1187,8 +1265,15 @@ private fun isDiscipleInAnyPosition(discipleId: String, elderSlots: ElderSlots):
         elderSlots.alchemyDisciples,
         elderSlots.forgeDisciples,
         elderSlots.libraryDisciples,
-        elderSlots.spiritMineDisciples,
-        elderSlots.recruitDisciples
+        elderSlots.recruitDisciples,
+        elderSlots.preachingMasters,
+        elderSlots.lawEnforcementDisciples,
+        elderSlots.lawEnforcementReserveDisciples,
+        elderSlots.qingyunPreachingMasters,
+        elderSlots.spiritMineDeaconDisciples,
+        elderSlots.alchemyReserveDisciples,
+        elderSlots.herbGardenReserveDisciples,
+        elderSlots.forgeReserveDisciples
     ).flatten().mapNotNull { it.discipleId }
     
     if (allDirectDiscipleIds.contains(discipleId)) {
@@ -1217,7 +1302,7 @@ private fun ForgeSlotItem(
 
     val statusColor = when {
         isWorking -> Color(0xFFFF9800)
-        else -> Color(0xFFE0E0E0)
+        else -> GameColors.Border
     }
 
     Column(
@@ -1234,7 +1319,7 @@ private fun ForgeSlotItem(
             modifier = Modifier
                 .size(60.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(Color.White)
+                .background(GameColors.PageBackground)
                 .border(1.dp, statusColor, RoundedCornerShape(8.dp))
                 .clickable { onClick() },
             contentAlignment = Alignment.Center
@@ -1274,8 +1359,8 @@ private fun ForgeSlotItem(
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(6.dp))
-                    .background(Color.White)
-                    .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(6.dp))
+                    .background(GameColors.PageBackground)
+                    .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
                     .clickable { onRemove() }
                     .padding(horizontal = 12.dp, vertical = 6.dp)
             ) {
@@ -1350,7 +1435,7 @@ private fun EquipmentSelectionDialog(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .clip(RoundedCornerShape(6.dp))
-                                .background(if (hasEnoughMaterials) Color.White else Color(0xFFF5F5F5))
+                                .background(if (hasEnoughMaterials) GameColors.PageBackground else GameColors.CardBackground)
                                 .border(
                                     2.dp,
                                     if (selectedRecipe?.id == recipe.id) Color(0xFFFF9800) else rarityColor,
@@ -1414,7 +1499,8 @@ private fun EquipmentSelectionDialog(
             val selectedRecipeStatus = sortedRecipes.find { it.recipe.id == selectedRecipe?.id }
             val hasEnoughMaterialsForSelected = selectedRecipeStatus?.canCraft ?: false
             
-            Button(
+            GameButton(
+                text = "开始炼制",
                 onClick = {
                     selectedRecipe?.let { recipe ->
                         viewModel.startForge(slotIndex, recipe)
@@ -1422,17 +1508,8 @@ private fun EquipmentSelectionDialog(
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = selectedRecipe != null && hasEnoughMaterialsForSelected,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (selectedRecipe != null && hasEnoughMaterialsForSelected) Color(0xFFFF9800) else Color(0xFFE0E0E0)
-                )
-            ) {
-                Text(
-                    text = "开始炼制",
-                    fontSize = 12.sp,
-                    color = if (selectedRecipe != null && hasEnoughMaterialsForSelected) Color.White else Color(0xFF999999)
-                )
-            }
+                enabled = selectedRecipe != null && hasEnoughMaterialsForSelected
+            )
         }
     }
 
@@ -1461,7 +1538,7 @@ private fun EquipmentDetailDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.White,
+        containerColor = GameColors.PageBackground,
         title = {
             Text(
                 text = recipe.name,
@@ -1625,7 +1702,7 @@ private fun CommonDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.White,
+        containerColor = GameColors.PageBackground,
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1643,7 +1720,7 @@ private fun CommonDialog(
                         .size(24.dp)
                         .clip(CircleShape)
                         .clickable { onDismiss() }
-                        .background(Color(0xFFF5F5F5)),
+                        .background(GameColors.CardBackground),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -1663,4 +1740,336 @@ private fun CommonDialog(
         },
         confirmButton = {}
     )
+}
+
+@Composable
+private fun ForgeReserveDiscipleDialog(
+    viewModel: GameViewModel,
+    onDismiss: () -> Unit,
+    onAddClick: () -> Unit
+) {
+    val reserveDisciples by remember { derivedStateOf { viewModel.getForgeReserveDisciplesWithInfo() } }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = GameColors.PageBackground,
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "储备弟子",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(Color(0xFFFF9800))
+                            .clickable { onAddClick() }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "添加",
+                            fontSize = 10.sp,
+                            color = Color.White
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .clickable { onDismiss() }
+                            .background(GameColors.CardBackground),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "×",
+                            fontSize = 16.sp,
+                            color = Color(0xFF666666)
+                        )
+                    }
+                }
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 400.dp)
+            ) {
+                if (reserveDisciples.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(200.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "暂无储备弟子",
+                            fontSize = 12.sp,
+                            color = Color(0xFF999999)
+                        )
+                    }
+                } else {
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(4),
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(reserveDisciples.size) { index ->
+                            val disciple = reserveDisciples[index]
+                            ForgeReserveDiscipleCard(
+                                disciple = disciple,
+                                onRemove = { viewModel.removeForgeReserveDisciple(disciple.id) }
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {}
+    )
+}
+
+@Composable
+private fun ForgeReserveDiscipleCard(
+    disciple: Disciple,
+    onRemove: () -> Unit
+) {
+    val spiritRootColor = try {
+        Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))
+    } catch (e: Exception) {
+        Color(0xFF666666)
+    }
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .size(60.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(GameColors.PageBackground)
+                .border(1.dp, spiritRootColor, RoundedCornerShape(6.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = disciple.name,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black,
+                    maxLines = 1
+                )
+                Text(
+                    text = disciple.spiritRoot.name,
+                    fontSize = 8.sp,
+                    color = spiritRootColor,
+                    maxLines = 1
+                )
+                Text(
+                    text = disciple.realmName,
+                    fontSize = 8.sp,
+                    color = Color(0xFF666666),
+                    maxLines = 1
+                )
+                Text(
+                    text = "炼器:${disciple.artifactRefining}",
+                    fontSize = 7.sp,
+                    color = Color(0xFF4CAF50),
+                    maxLines = 1
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(2.dp))
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(4.dp))
+                .background(GameColors.PageBackground)
+                .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
+                .clickable { onRemove() }
+                .padding(horizontal = 6.dp, vertical = 2.dp)
+        ) {
+            Text(
+                text = "移除",
+                fontSize = 8.sp,
+                color = Color.Black
+            )
+        }
+    }
+}
+
+@Composable
+private fun ForgeAddReserveDiscipleDialog(
+    viewModel: GameViewModel,
+    onDismiss: () -> Unit,
+    onConfirm: (List<String>) -> Unit
+) {
+    val availableDisciples by remember { derivedStateOf { viewModel.getAvailableDisciplesForForgeReserve() } }
+    var selectedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = GameColors.PageBackground,
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "选择内门弟子",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+                Box(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clip(CircleShape)
+                        .clickable { onDismiss() }
+                        .background(GameColors.CardBackground),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "×",
+                        fontSize = 16.sp,
+                        color = Color(0xFF666666)
+                    )
+                }
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 400.dp)
+            ) {
+                Text(
+                    text = "推荐属性: 炼器",
+                    fontSize = 10.sp,
+                    color = Color(0xFF999999),
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                
+                if (availableDisciples.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "暂无可用弟子",
+                            fontSize = 12.sp,
+                            color = Color(0xFF999999)
+                        )
+                    }
+                } else {
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(4),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(availableDisciples.size) { index ->
+                            val disciple = availableDisciples[index]
+                            val isSelected = selectedIds.contains(disciple.id)
+                            ForgeAddReserveDiscipleCard(
+                                disciple = disciple,
+                                isSelected = isSelected,
+                                onClick = {
+                                    selectedIds = if (isSelected) {
+                                        selectedIds - disciple.id
+                                    } else {
+                                        selectedIds + disciple.id
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                GameButton(
+                    text = "添加${if (selectedIds.isNotEmpty()) "(${selectedIds.size})" else ""}",
+                    onClick = { onConfirm(selectedIds.toList()) }
+                )
+            }
+        }
+    )
+}
+
+@Composable
+private fun ForgeAddReserveDiscipleCard(
+    disciple: Disciple,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    val spiritRootColor = try {
+        Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))
+    } catch (e: Exception) {
+        Color(0xFF666666)
+    }
+    
+    val borderColor = if (isSelected) Color(0xFFFFD700) else spiritRootColor
+    val borderWidth = if (isSelected) 2.dp else 1.dp
+
+    Box(
+        modifier = Modifier
+            .size(60.dp)
+            .clip(RoundedCornerShape(6.dp))
+            .background(GameColors.PageBackground)
+            .border(borderWidth, borderColor, RoundedCornerShape(6.dp))
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = disciple.name,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black,
+                maxLines = 1
+            )
+            Text(
+                text = disciple.spiritRoot.name,
+                fontSize = 8.sp,
+                color = spiritRootColor,
+                maxLines = 1
+            )
+            Text(
+                text = disciple.realmName,
+                fontSize = 8.sp,
+                color = Color(0xFF666666),
+                maxLines = 1
+            )
+            Text(
+                text = "炼器:${disciple.artifactRefining}",
+                fontSize = 7.sp,
+                color = Color(0xFF4CAF50),
+                maxLines = 1
+            )
+        }
+    }
 }

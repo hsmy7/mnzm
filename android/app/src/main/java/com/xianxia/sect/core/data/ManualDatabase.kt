@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.data
 
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.Manual
 import com.xianxia.sect.core.model.ManualType
 import kotlin.random.Random
@@ -15,13 +16,16 @@ object ManualDatabase {
         val stats: Map<String, Int> = emptyMap(),
         val skillName: String? = null,
         val skillDescription: String? = null,
+        val skillType: String = "attack",
         val skillDamageType: String = "physical",
         val skillHits: Int = 1,
         val skillDamageMultiplier: Double = 1.0,
         val skillCooldown: Int = 3,
         val skillMpCost: Int = 10,
-        val minRealm: Int = 9,
-        val price: Int = 0
+        val skillHealPercent: Double = 0.0,
+        val skillHealType: String = "hp",
+        val price: Int = 0,
+        val minRealm: Int = 9
     )
     
     val attackManuals: Map<String, ManualTemplate> = mapOf(
@@ -39,7 +43,6 @@ object ManualDatabase {
             skillDamageMultiplier = 1.2,
             skillCooldown = 3,
             skillMpCost = 10,
-            minRealm = 8,
             price = 3600
         ),
         "commonMagicAtk" to ManualTemplate(
@@ -56,7 +59,6 @@ object ManualDatabase {
             skillDamageMultiplier = 1.2,
             skillCooldown = 3,
             skillMpCost = 10,
-            minRealm = 8,
             price = 3600
         ),
         "commonCrit" to ManualTemplate(
@@ -73,7 +75,6 @@ object ManualDatabase {
             skillDamageMultiplier = 1.0,
             skillCooldown = 3,
             skillMpCost = 8,
-            minRealm = 8,
             price = 3600
         ),
         "uncommonPhysicalAtk" to ManualTemplate(
@@ -90,7 +91,6 @@ object ManualDatabase {
             skillDamageMultiplier = 1.8,
             skillCooldown = 3,
             skillMpCost = 25,
-            minRealm = 7,
             price = 16200
         ),
         "uncommonMagicAtk" to ManualTemplate(
@@ -107,7 +107,6 @@ object ManualDatabase {
             skillDamageMultiplier = 1.8,
             skillCooldown = 3,
             skillMpCost = 25,
-            minRealm = 7,
             price = 16200
         ),
         "uncommonCrit" to ManualTemplate(
@@ -124,7 +123,6 @@ object ManualDatabase {
             skillDamageMultiplier = 1.0,
             skillCooldown = 3,
             skillMpCost = 20,
-            minRealm = 7,
             price = 16200
         ),
         "rarePhysicalMagicAtk" to ManualTemplate(
@@ -141,7 +139,6 @@ object ManualDatabase {
             skillDamageMultiplier = 2.4,
             skillCooldown = 4,
             skillMpCost = 60,
-            minRealm = 6,
             price = 64800
         ),
         "rarePhysicalCrit" to ManualTemplate(
@@ -158,7 +155,6 @@ object ManualDatabase {
             skillDamageMultiplier = 1.2,
             skillCooldown = 4,
             skillMpCost = 70,
-            minRealm = 6,
             price = 64800
         ),
         "rareMagicCrit" to ManualTemplate(
@@ -175,7 +171,6 @@ object ManualDatabase {
             skillDamageMultiplier = 2.4,
             skillCooldown = 4,
             skillMpCost = 60,
-            minRealm = 6,
             price = 64800
         ),
         "epicPhysicalMagicAtk" to ManualTemplate(
@@ -192,7 +187,6 @@ object ManualDatabase {
             skillDamageMultiplier = 3.0,
             skillCooldown = 5,
             skillMpCost = 150,
-            minRealm = 5,
             price = 259200
         ),
         "epicPhysicalCrit" to ManualTemplate(
@@ -209,7 +203,6 @@ object ManualDatabase {
             skillDamageMultiplier = 1.5,
             skillCooldown = 5,
             skillMpCost = 170,
-            minRealm = 5,
             price = 259200
         ),
         "epicMagicCrit" to ManualTemplate(
@@ -226,7 +219,6 @@ object ManualDatabase {
             skillDamageMultiplier = 3.0,
             skillCooldown = 5,
             skillMpCost = 150,
-            minRealm = 5,
             price = 259200
         ),
         "legendaryFullAtk" to ManualTemplate(
@@ -243,7 +235,6 @@ object ManualDatabase {
             skillDamageMultiplier = 4.2,
             skillCooldown = 6,
             skillMpCost = 400,
-            minRealm = 3,
             price = 1036800
         ),
         "legendaryPhysicalFocus" to ManualTemplate(
@@ -260,7 +251,6 @@ object ManualDatabase {
             skillDamageMultiplier = 1.4,
             skillCooldown = 6,
             skillMpCost = 450,
-            minRealm = 3,
             price = 1036800
         ),
         "legendaryMagicFocus" to ManualTemplate(
@@ -277,7 +267,6 @@ object ManualDatabase {
             skillDamageMultiplier = 4.2,
             skillCooldown = 6,
             skillMpCost = 400,
-            minRealm = 3,
             price = 1036800
         ),
         "mythicFullAtk" to ManualTemplate(
@@ -294,7 +283,6 @@ object ManualDatabase {
             skillDamageMultiplier = 6.0,
             skillCooldown = 8,
             skillMpCost = 1000,
-            minRealm = 1,
             price = 4147200
         ),
         "mythicPhysicalFocus" to ManualTemplate(
@@ -311,7 +299,6 @@ object ManualDatabase {
             skillDamageMultiplier = 1.5,
             skillCooldown = 8,
             skillMpCost = 1100,
-            minRealm = 1,
             price = 4147200
         ),
         "mythicMagicFocus" to ManualTemplate(
@@ -328,7 +315,6 @@ object ManualDatabase {
             skillDamageMultiplier = 6.0,
             skillCooldown = 8,
             skillMpCost = 1000,
-            minRealm = 1,
             price = 4147200
         )
     )
@@ -341,7 +327,6 @@ object ManualDatabase {
             rarity = 1,
             description = "基础防御功法，提升物理防御",
             stats = mapOf("physicalDefense" to 10),
-            minRealm = 8,
             price = 3600
         ),
         "commonMagicDef" to ManualTemplate(
@@ -351,7 +336,6 @@ object ManualDatabase {
             rarity = 1,
             description = "基础防御功法，提升法术防御",
             stats = mapOf("magicDefense" to 10),
-            minRealm = 8,
             price = 3600
         ),
         "commonHp" to ManualTemplate(
@@ -361,7 +345,6 @@ object ManualDatabase {
             rarity = 1,
             description = "基础防御功法，提升生命上限",
             stats = mapOf("hp" to 30),
-            minRealm = 8,
             price = 3600
         ),
         "uncommonPhysicalDef" to ManualTemplate(
@@ -371,7 +354,6 @@ object ManualDatabase {
             rarity = 2,
             description = "进阶防御功法，大幅提升物理防御",
             stats = mapOf("physicalDefense" to 20),
-            minRealm = 7,
             price = 16200
         ),
         "uncommonMagicDef" to ManualTemplate(
@@ -381,7 +363,6 @@ object ManualDatabase {
             rarity = 2,
             description = "进阶防御功法，大幅提升法术防御",
             stats = mapOf("magicDefense" to 20),
-            minRealm = 7,
             price = 16200
         ),
         "uncommonHp" to ManualTemplate(
@@ -391,7 +372,6 @@ object ManualDatabase {
             rarity = 2,
             description = "进阶防御功法，大幅提升生命上限",
             stats = mapOf("hp" to 60),
-            minRealm = 7,
             price = 16200
         ),
         "rarePhysicalMagicDef" to ManualTemplate(
@@ -401,7 +381,6 @@ object ManualDatabase {
             rarity = 3,
             description = "高阶防御功法，同时提升物理和法术防御",
             stats = mapOf("physicalDefense" to 35, "magicDefense" to 25),
-            minRealm = 6,
             price = 64800
         ),
         "rarePhysicalHp" to ManualTemplate(
@@ -411,7 +390,6 @@ object ManualDatabase {
             rarity = 3,
             description = "高阶防御功法，提升物理防御和生命",
             stats = mapOf("physicalDefense" to 35, "hp" to 80),
-            minRealm = 6,
             price = 64800
         ),
         "rareMagicHp" to ManualTemplate(
@@ -421,7 +399,6 @@ object ManualDatabase {
             rarity = 3,
             description = "高阶防御功法，提升法术防御和生命",
             stats = mapOf("magicDefense" to 35, "hp" to 80),
-            minRealm = 6,
             price = 64800
         ),
         "epicPhysicalMagicDef" to ManualTemplate(
@@ -431,7 +408,6 @@ object ManualDatabase {
             rarity = 4,
             description = "玄阶防御功法，同时提升物理和法术防御",
             stats = mapOf("physicalDefense" to 55, "magicDefense" to 40),
-            minRealm = 5,
             price = 259200
         ),
         "epicPhysicalHp" to ManualTemplate(
@@ -441,7 +417,6 @@ object ManualDatabase {
             rarity = 4,
             description = "玄阶防御功法，提升物理防御和生命",
             stats = mapOf("physicalDefense" to 55, "hp" to 150),
-            minRealm = 5,
             price = 259200
         ),
         "epicMagicHp" to ManualTemplate(
@@ -451,7 +426,6 @@ object ManualDatabase {
             rarity = 4,
             description = "玄阶防御功法，提升法术防御和生命",
             stats = mapOf("magicDefense" to 55, "hp" to 150),
-            minRealm = 5,
             price = 259200
         ),
         "legendaryFullDef" to ManualTemplate(
@@ -461,7 +435,6 @@ object ManualDatabase {
             rarity = 5,
             description = "地阶防御功法，全面提升防御属性",
             stats = mapOf("physicalDefense" to 80, "magicDefense" to 60, "hp" to 200),
-            minRealm = 3,
             price = 1036800
         ),
         "legendaryPhysicalFocus" to ManualTemplate(
@@ -471,7 +444,6 @@ object ManualDatabase {
             rarity = 5,
             description = "地阶防御功法，专注物理防御",
             stats = mapOf("physicalDefense" to 100, "hp" to 300),
-            minRealm = 3,
             price = 1036800
         ),
         "legendaryMagicFocus" to ManualTemplate(
@@ -481,7 +453,6 @@ object ManualDatabase {
             rarity = 5,
             description = "地阶防御功法，专注法术防御",
             stats = mapOf("magicDefense" to 100, "hp" to 300),
-            minRealm = 3,
             price = 1036800
         ),
         "mythicFullDef" to ManualTemplate(
@@ -491,7 +462,6 @@ object ManualDatabase {
             rarity = 6,
             description = "天阶防御功法，鸿蒙不灭之身",
             stats = mapOf("physicalDefense" to 150, "magicDefense" to 120, "hp" to 500),
-            minRealm = 1,
             price = 4147200
         ),
         "mythicPhysicalFocus" to ManualTemplate(
@@ -501,7 +471,6 @@ object ManualDatabase {
             rarity = 6,
             description = "天阶防御功法，混沌不灭",
             stats = mapOf("physicalDefense" to 180, "hp" to 600),
-            minRealm = 1,
             price = 4147200
         ),
         "mythicMagicFocus" to ManualTemplate(
@@ -511,7 +480,6 @@ object ManualDatabase {
             rarity = 6,
             description = "天阶防御功法，仙体不坏",
             stats = mapOf("magicDefense" to 180, "hp" to 600),
-            minRealm = 1,
             price = 4147200
         )
     )
@@ -525,10 +493,11 @@ object ManualDatabase {
             description = "凡阶辅助功法，提升生命上限",
             stats = mapOf("hp" to 30),
             skillName = "生命祝福",
-            skillDescription = "释放技能后增加全队生命值8%，持续3回合",
+            skillDescription = "为全队恢复施法者最大生命值8%的生命",
+            skillType = "support",
+            skillHealPercent = 0.08,
             skillCooldown = 5,
             skillMpCost = 12,
-            minRealm = 8,
             price = 3600
         ),
         "commonManaSupport" to ManualTemplate(
@@ -539,10 +508,12 @@ object ManualDatabase {
             description = "凡阶辅助功法，提升灵力上限",
             stats = mapOf("mp" to 15),
             skillName = "灵力祝福",
-            skillDescription = "释放技能后增加全队灵力8%，持续3回合",
+            skillDescription = "为全队恢复施法者最大灵力8%的灵力",
+            skillType = "support",
+            skillHealPercent = 0.08,
+            skillHealType = "mp",
             skillCooldown = 5,
             skillMpCost = 12,
-            minRealm = 8,
             price = 3600
         ),
         "uncommonLifeSupport" to ManualTemplate(
@@ -553,10 +524,11 @@ object ManualDatabase {
             description = "灵阶辅助功法，大幅提升生命上限",
             stats = mapOf("hp" to 60),
             skillName = "玄龟祝福",
-            skillDescription = "释放技能后增加全队生命值15%，持续3回合",
+            skillDescription = "为全队恢复施法者最大生命值15%的生命",
+            skillType = "support",
+            skillHealPercent = 0.15,
             skillCooldown = 5,
             skillMpCost = 30,
-            minRealm = 7,
             price = 16200
         ),
         "uncommonManaSupport" to ManualTemplate(
@@ -567,10 +539,12 @@ object ManualDatabase {
             description = "灵阶辅助功法，大幅提升灵力上限",
             stats = mapOf("mp" to 30),
             skillName = "灵泉祝福",
-            skillDescription = "释放技能后增加全队灵力15%，持续3回合",
+            skillDescription = "为全队恢复施法者最大灵力15%的灵力",
+            skillType = "support",
+            skillHealPercent = 0.15,
+            skillHealType = "mp",
             skillCooldown = 5,
             skillMpCost = 30,
-            minRealm = 7,
             price = 16200
         ),
         "rareLifeSupport" to ManualTemplate(
@@ -581,10 +555,11 @@ object ManualDatabase {
             description = "宝阶辅助功法，大幅提升生命上限",
             stats = mapOf("hp" to 120),
             skillName = "长生祝福",
-            skillDescription = "释放技能后增加全队生命值25%，持续3回合",
+            skillDescription = "为全队恢复施法者最大生命值25%的生命",
+            skillType = "support",
+            skillHealPercent = 0.25,
             skillCooldown = 5,
             skillMpCost = 75,
-            minRealm = 6,
             price = 64800
         ),
         "rareManaSupport" to ManualTemplate(
@@ -595,10 +570,12 @@ object ManualDatabase {
             description = "宝阶辅助功法，大幅提升灵力上限",
             stats = mapOf("mp" to 60),
             skillName = "灵海祝福",
-            skillDescription = "释放技能后增加全队灵力25%，持续3回合",
+            skillDescription = "为全队恢复施法者最大灵力25%的灵力",
+            skillType = "support",
+            skillHealPercent = 0.25,
+            skillHealType = "mp",
             skillCooldown = 5,
             skillMpCost = 75,
-            minRealm = 6,
             price = 64800
         ),
         "epicLifeSupport" to ManualTemplate(
@@ -609,10 +586,11 @@ object ManualDatabase {
             description = "玄阶辅助功法，大幅提升生命上限",
             stats = mapOf("hp" to 250),
             skillName = "不死祝福",
-            skillDescription = "释放技能后增加全队生命值40%，持续3回合",
+            skillDescription = "为全队恢复施法者最大生命值40%的生命",
+            skillType = "support",
+            skillHealPercent = 0.40,
             skillCooldown = 5,
             skillMpCost = 180,
-            minRealm = 5,
             price = 259200
         ),
         "epicManaSupport" to ManualTemplate(
@@ -623,10 +601,12 @@ object ManualDatabase {
             description = "玄阶辅助功法，大幅提升灵力上限",
             stats = mapOf("mp" to 125),
             skillName = "灵渊祝福",
-            skillDescription = "释放技能后增加全队灵力40%，持续3回合",
+            skillDescription = "为全队恢复施法者最大灵力40%的灵力",
+            skillType = "support",
+            skillHealPercent = 0.40,
+            skillHealType = "mp",
             skillCooldown = 5,
             skillMpCost = 180,
-            minRealm = 5,
             price = 259200
         ),
         "legendaryLifeSupport" to ManualTemplate(
@@ -637,10 +617,11 @@ object ManualDatabase {
             description = "地阶辅助功法，大幅提升生命上限",
             stats = mapOf("hp" to 500),
             skillName = "不灭祝福",
-            skillDescription = "释放技能后增加全队生命值60%，持续3回合",
+            skillDescription = "为全队恢复施法者最大生命值60%的生命",
+            skillType = "support",
+            skillHealPercent = 0.60,
             skillCooldown = 5,
             skillMpCost = 500,
-            minRealm = 3,
             price = 1036800
         ),
         "legendaryManaSupport" to ManualTemplate(
@@ -651,10 +632,12 @@ object ManualDatabase {
             description = "地阶辅助功法，大幅提升灵力上限",
             stats = mapOf("mp" to 250),
             skillName = "灵源祝福",
-            skillDescription = "释放技能后增加全队灵力60%，持续3回合",
+            skillDescription = "为全队恢复施法者最大灵力60%的灵力",
+            skillType = "support",
+            skillHealPercent = 0.60,
+            skillHealType = "mp",
             skillCooldown = 5,
             skillMpCost = 500,
-            minRealm = 3,
             price = 1036800
         ),
         "mythicLifeSupport" to ManualTemplate(
@@ -665,10 +648,11 @@ object ManualDatabase {
             description = "天阶辅助功法，大幅提升生命上限",
             stats = mapOf("hp" to 1000),
             skillName = "混沌生命",
-            skillDescription = "释放技能后增加全队生命值100%，持续3回合",
+            skillDescription = "为全队恢复施法者最大生命值100%的生命",
+            skillType = "support",
+            skillHealPercent = 1.0,
             skillCooldown = 5,
             skillMpCost = 1200,
-            minRealm = 1,
             price = 4147200
         ),
         "mythicManaSupport" to ManualTemplate(
@@ -679,10 +663,12 @@ object ManualDatabase {
             description = "天阶辅助功法，大幅提升灵力上限",
             stats = mapOf("mp" to 500),
             skillName = "混沌灵源",
-            skillDescription = "释放技能后增加全队灵力100%，持续3回合",
+            skillDescription = "为全队恢复施法者最大灵力100%的灵力",
+            skillType = "support",
+            skillHealPercent = 1.0,
+            skillHealType = "mp",
             skillCooldown = 5,
             skillMpCost = 1200,
-            minRealm = 1,
             price = 4147200
         )
     )
@@ -695,7 +681,6 @@ object ManualDatabase {
             rarity = 1,
             description = "基础身法，提升速度",
             stats = mapOf("speed" to 5),
-            minRealm = 8,
             price = 3600
         ),
         "uncommonMovement" to ManualTemplate(
@@ -705,7 +690,6 @@ object ManualDatabase {
             rarity = 2,
             description = "进阶身法，大幅提升速度",
             stats = mapOf("speed" to 12),
-            minRealm = 7,
             price = 16200
         ),
         "rareMovement" to ManualTemplate(
@@ -715,7 +699,6 @@ object ManualDatabase {
             rarity = 3,
             description = "高阶身法，追逐风的速度",
             stats = mapOf("speed" to 25),
-            minRealm = 6,
             price = 64800
         ),
         "epicMovement" to ManualTemplate(
@@ -725,7 +708,6 @@ object ManualDatabase {
             rarity = 4,
             description = "玄阶身法，踏云而行",
             stats = mapOf("speed" to 40),
-            minRealm = 5,
             price = 259200
         ),
         "legendaryMovement" to ManualTemplate(
@@ -735,7 +717,6 @@ object ManualDatabase {
             rarity = 5,
             description = "地阶身法，穿梭虚空",
             stats = mapOf("speed" to 60),
-            minRealm = 3,
             price = 1036800
         ),
         "mythicMovement" to ManualTemplate(
@@ -745,7 +726,6 @@ object ManualDatabase {
             rarity = 6,
             description = "天阶身法，一步千里",
             stats = mapOf("speed" to 100),
-            minRealm = 1,
             price = 4147200
         )
     )
@@ -758,7 +738,6 @@ object ManualDatabase {
             rarity = 1,
             description = "凡阶心法，修炼速度+10%，物理攻击+6",
             stats = mapOf("cultivationSpeedPercent" to 10, "physicalAttack" to 6),
-            minRealm = 8,
             price = 3600
         ),
         "mindCommonMagicAttack" to ManualTemplate(
@@ -768,7 +747,6 @@ object ManualDatabase {
             rarity = 1,
             description = "凡阶心法，修炼速度+10%，法术攻击+6",
             stats = mapOf("cultivationSpeedPercent" to 10, "magicAttack" to 6),
-            minRealm = 8,
             price = 3600
         ),
         "mindCommonPhysicalDefense" to ManualTemplate(
@@ -778,7 +756,6 @@ object ManualDatabase {
             rarity = 1,
             description = "凡阶心法，修炼速度+10%，物理防御+6",
             stats = mapOf("cultivationSpeedPercent" to 10, "physicalDefense" to 6),
-            minRealm = 8,
             price = 3600
         ),
         "mindCommonMagicDefense" to ManualTemplate(
@@ -788,7 +765,6 @@ object ManualDatabase {
             rarity = 1,
             description = "凡阶心法，修炼速度+10%，法术防御+6",
             stats = mapOf("cultivationSpeedPercent" to 10, "magicDefense" to 6),
-            minRealm = 8,
             price = 3600
         ),
         "mindCommonHp" to ManualTemplate(
@@ -798,7 +774,6 @@ object ManualDatabase {
             rarity = 1,
             description = "凡阶心法，修炼速度+10%，生命+25",
             stats = mapOf("cultivationSpeedPercent" to 10, "hp" to 25),
-            minRealm = 8,
             price = 3600
         ),
         "mindCommonMp" to ManualTemplate(
@@ -808,7 +783,6 @@ object ManualDatabase {
             rarity = 1,
             description = "凡阶心法，修炼速度+10%，灵力+20",
             stats = mapOf("cultivationSpeedPercent" to 10, "mp" to 20),
-            minRealm = 8,
             price = 3600
         ),
         "mindUncommonDualAttack" to ManualTemplate(
@@ -818,7 +792,6 @@ object ManualDatabase {
             rarity = 2,
             description = "灵阶心法，修炼速度+20%，双攻+10",
             stats = mapOf("cultivationSpeedPercent" to 20, "physicalAttack" to 10, "magicAttack" to 10),
-            minRealm = 7,
             price = 16200
         ),
         "mindUncommonDualDefense" to ManualTemplate(
@@ -828,7 +801,6 @@ object ManualDatabase {
             rarity = 2,
             description = "灵阶心法，修炼速度+20%，双防+10",
             stats = mapOf("cultivationSpeedPercent" to 20, "physicalDefense" to 10, "magicDefense" to 10),
-            minRealm = 7,
             price = 16200
         ),
         "mindUncommonVitality" to ManualTemplate(
@@ -838,7 +810,6 @@ object ManualDatabase {
             rarity = 2,
             description = "灵阶心法，修炼速度+20%，生命+50，灵力+40",
             stats = mapOf("cultivationSpeedPercent" to 20, "hp" to 50, "mp" to 40),
-            minRealm = 7,
             price = 16200
         ),
         "mindUncommonAttackCrit" to ManualTemplate(
@@ -848,7 +819,6 @@ object ManualDatabase {
             rarity = 2,
             description = "灵阶心法，修炼速度+20%，物攻+10，暴击+6",
             stats = mapOf("cultivationSpeedPercent" to 20, "physicalAttack" to 10, "critRate" to 6),
-            minRealm = 7,
             price = 16200
         ),
         "mindUncommonDefenseHp" to ManualTemplate(
@@ -858,7 +828,6 @@ object ManualDatabase {
             rarity = 2,
             description = "灵阶心法，修炼速度+20%，物防+10，生命+40",
             stats = mapOf("cultivationSpeedPercent" to 20, "physicalDefense" to 10, "hp" to 40),
-            minRealm = 7,
             price = 16200
         ),
         "mindUncommonSpeedMp" to ManualTemplate(
@@ -868,7 +837,6 @@ object ManualDatabase {
             rarity = 2,
             description = "灵阶心法，修炼速度+20%，速度+3，灵力+40",
             stats = mapOf("cultivationSpeedPercent" to 20, "speed" to 3, "mp" to 40),
-            minRealm = 7,
             price = 16200
         ),
         "mindRareTripleAttack" to ManualTemplate(
@@ -878,7 +846,6 @@ object ManualDatabase {
             rarity = 3,
             description = "宝阶心法，修炼速度+35%，三攻属性提升",
             stats = mapOf("cultivationSpeedPercent" to 35, "physicalAttack" to 15, "magicAttack" to 15, "critRate" to 6),
-            minRealm = 6,
             price = 64800
         ),
         "mindRareTripleDefense" to ManualTemplate(
@@ -888,7 +855,6 @@ object ManualDatabase {
             rarity = 3,
             description = "宝阶心法，修炼速度+35%，三防属性提升",
             stats = mapOf("cultivationSpeedPercent" to 35, "physicalDefense" to 15, "magicDefense" to 15, "hp" to 80),
-            minRealm = 6,
             price = 64800
         ),
         "mindRareBalanced" to ManualTemplate(
@@ -898,7 +864,6 @@ object ManualDatabase {
             rarity = 3,
             description = "宝阶心法，修炼速度+35%，攻防平衡",
             stats = mapOf("cultivationSpeedPercent" to 35, "physicalAttack" to 10, "physicalDefense" to 10, "hp" to 60),
-            minRealm = 6,
             price = 64800
         ),
         "mindRareMagicCrit" to ManualTemplate(
@@ -908,7 +873,6 @@ object ManualDatabase {
             rarity = 3,
             description = "宝阶心法，修炼速度+35%，法攻暴击",
             stats = mapOf("cultivationSpeedPercent" to 35, "magicAttack" to 15, "critRate" to 6, "speed" to 4),
-            minRealm = 6,
             price = 64800
         ),
         "mindRareTank" to ManualTemplate(
@@ -918,7 +882,6 @@ object ManualDatabase {
             rarity = 3,
             description = "宝阶心法，修炼速度+35%，坦克属性",
             stats = mapOf("cultivationSpeedPercent" to 35, "hp" to 100, "mp" to 80, "magicDefense" to 12),
-            minRealm = 6,
             price = 64800
         ),
         "mindRareSpeed" to ManualTemplate(
@@ -928,7 +891,6 @@ object ManualDatabase {
             rarity = 3,
             description = "宝阶心法，修炼速度+35%，速度属性",
             stats = mapOf("cultivationSpeedPercent" to 35, "speed" to 5, "physicalAttack" to 12, "mp" to 50),
-            minRealm = 6,
             price = 64800
         ),
         "mindEpicFullAttack" to ManualTemplate(
@@ -938,7 +900,6 @@ object ManualDatabase {
             rarity = 4,
             description = "玄阶心法，修炼速度+55%，全攻属性",
             stats = mapOf("cultivationSpeedPercent" to 55, "physicalAttack" to 22, "magicAttack" to 22, "critRate" to 8, "speed" to 5),
-            minRealm = 5,
             price = 259200
         ),
         "mindEpicFullDefense" to ManualTemplate(
@@ -948,7 +909,6 @@ object ManualDatabase {
             rarity = 4,
             description = "玄阶心法，修炼速度+55%，全防属性",
             stats = mapOf("cultivationSpeedPercent" to 55, "physicalDefense" to 22, "magicDefense" to 22, "hp" to 120, "mp" to 100),
-            minRealm = 5,
             price = 259200
         ),
         "mindEpicWarrior" to ManualTemplate(
@@ -958,7 +918,6 @@ object ManualDatabase {
             rarity = 4,
             description = "玄阶心法，修炼速度+55%，战士属性",
             stats = mapOf("cultivationSpeedPercent" to 55, "physicalAttack" to 20, "physicalDefense" to 18, "hp" to 100, "critRate" to 6),
-            minRealm = 5,
             price = 259200
         ),
         "mindEpicMage" to ManualTemplate(
@@ -968,7 +927,6 @@ object ManualDatabase {
             rarity = 4,
             description = "玄阶心法，修炼速度+55%，法师属性",
             stats = mapOf("cultivationSpeedPercent" to 55, "magicAttack" to 20, "magicDefense" to 18, "mp" to 120, "critRate" to 6),
-            minRealm = 5,
             price = 259200
         ),
         "mindEpicAssassin" to ManualTemplate(
@@ -978,7 +936,6 @@ object ManualDatabase {
             rarity = 4,
             description = "玄阶心法，修炼速度+55%，刺客属性",
             stats = mapOf("cultivationSpeedPercent" to 55, "physicalAttack" to 18, "critRate" to 10, "speed" to 8, "mp" to 80),
-            minRealm = 5,
             price = 259200
         ),
         "mindEpicTank" to ManualTemplate(
@@ -988,7 +945,6 @@ object ManualDatabase {
             rarity = 4,
             description = "玄阶心法，修炼速度+55%，肉盾属性",
             stats = mapOf("cultivationSpeedPercent" to 55, "hp" to 180, "physicalDefense" to 18, "magicDefense" to 16, "speed" to 4),
-            minRealm = 5,
             price = 259200
         ),
         "mindLegendaryDestroyer" to ManualTemplate(
@@ -998,7 +954,6 @@ object ManualDatabase {
             rarity = 5,
             description = "地阶心法，修炼速度+80%，破灭属性",
             stats = mapOf("cultivationSpeedPercent" to 80, "physicalAttack" to 32, "magicAttack" to 28, "critRate" to 12, "speed" to 8, "hp" to 100),
-            minRealm = 3,
             price = 1036800
         ),
         "mindLegendaryFortress" to ManualTemplate(
@@ -1008,7 +963,6 @@ object ManualDatabase {
             rarity = 5,
             description = "地阶心法，修炼速度+80%，堡垒属性",
             stats = mapOf("cultivationSpeedPercent" to 80, "physicalDefense" to 32, "magicDefense" to 30, "hp" to 200, "mp" to 150, "critRate" to 4),
-            minRealm = 3,
             price = 1036800
         ),
         "mindLegendaryBerserker" to ManualTemplate(
@@ -1018,7 +972,6 @@ object ManualDatabase {
             rarity = 5,
             description = "地阶心法，修炼速度+80%，狂战属性",
             stats = mapOf("cultivationSpeedPercent" to 80, "physicalAttack" to 35, "hp" to 180, "critRate" to 14, "speed" to 7, "physicalDefense" to 12),
-            minRealm = 3,
             price = 1036800
         ),
         "mindLegendaryArchmage" to ManualTemplate(
@@ -1028,7 +981,6 @@ object ManualDatabase {
             rarity = 5,
             description = "地阶心法，修炼速度+80%，大法师属性",
             stats = mapOf("cultivationSpeedPercent" to 80, "magicAttack" to 35, "mp" to 200, "critRate" to 10, "magicDefense" to 15, "speed" to 6),
-            minRealm = 3,
             price = 1036800
         ),
         "mindLegendaryShadow" to ManualTemplate(
@@ -1038,7 +990,6 @@ object ManualDatabase {
             rarity = 5,
             description = "地阶心法，修炼速度+80%，暗影属性",
             stats = mapOf("cultivationSpeedPercent" to 80, "speed" to 12, "physicalAttack" to 25, "critRate" to 14, "mp" to 120, "magicDefense" to 10),
-            minRealm = 3,
             price = 1036800
         ),
         "mindLegendaryImmortal" to ManualTemplate(
@@ -1048,7 +999,6 @@ object ManualDatabase {
             rarity = 5,
             description = "地阶心法，修炼速度+80%，不朽属性",
             stats = mapOf("cultivationSpeedPercent" to 80, "hp" to 300, "mp" to 200, "physicalDefense" to 20, "magicDefense" to 18, "speed" to 5),
-            minRealm = 3,
             price = 1036800
         ),
         "mindMythicPhysicalFocus" to ManualTemplate(
@@ -1058,7 +1008,6 @@ object ManualDatabase {
             rarity = 6,
             description = "天阶心法，修炼速度+150%，极武属性",
             stats = mapOf("cultivationSpeedPercent" to 150, "physicalAttack" to 70, "magicAttack" to 30, "critRate" to 15, "speed" to 12, "hp" to 200, "mp" to 150),
-            minRealm = 1,
             price = 4147200
         ),
         "mindMythicMagicFocus" to ManualTemplate(
@@ -1068,7 +1017,6 @@ object ManualDatabase {
             rarity = 6,
             description = "天阶心法，修炼速度+150%，极法属性",
             stats = mapOf("cultivationSpeedPercent" to 150, "magicAttack" to 70, "physicalAttack" to 30, "critRate" to 15, "speed" to 12, "mp" to 250, "hp" to 150),
-            minRealm = 1,
             price = 4147200
         ),
         "mindMythicDefenseFocus" to ManualTemplate(
@@ -1078,7 +1026,6 @@ object ManualDatabase {
             rarity = 6,
             description = "天阶心法，修炼速度+150%，极盾属性",
             stats = mapOf("cultivationSpeedPercent" to 150, "physicalDefense" to 60, "magicDefense" to 60, "hp" to 400, "mp" to 250, "critRate" to 8, "speed" to 8),
-            minRealm = 1,
             price = 4147200
         ),
         "mindMythicHpFocus" to ManualTemplate(
@@ -1088,7 +1035,6 @@ object ManualDatabase {
             rarity = 6,
             description = "天阶心法，修炼速度+150%，极生属性",
             stats = mapOf("cultivationSpeedPercent" to 150, "hp" to 550, "mp" to 350, "physicalDefense" to 35, "magicDefense" to 35, "critRate" to 10, "speed" to 10),
-            minRealm = 1,
             price = 4147200
         ),
         "mindMythicCritFocus" to ManualTemplate(
@@ -1098,7 +1044,6 @@ object ManualDatabase {
             rarity = 6,
             description = "天阶心法，修炼速度+150%，极暴击属性",
             stats = mapOf("cultivationSpeedPercent" to 150, "critRate" to 25, "physicalAttack" to 45, "magicAttack" to 45, "speed" to 18, "hp" to 180, "mp" to 150),
-            minRealm = 1,
             price = 4147200
         ),
         "mindMythicSpeedFocus" to ManualTemplate(
@@ -1108,7 +1053,6 @@ object ManualDatabase {
             rarity = 6,
             description = "天阶心法，修炼速度+150%，极速属性",
             stats = mapOf("cultivationSpeedPercent" to 150, "speed" to 25, "physicalAttack" to 40, "magicAttack" to 40, "critRate" to 18, "hp" to 150, "mp" to 180),
-            minRealm = 1,
             price = 4147200
         )
     )
@@ -1137,11 +1081,15 @@ object ManualDatabase {
             stats = template.stats,
             skillName = template.skillName,
             skillDescription = template.skillDescription,
+            skillType = template.skillType,
             skillDamageType = template.skillDamageType,
             skillHits = template.skillHits,
             skillDamageMultiplier = template.skillDamageMultiplier,
             skillCooldown = template.skillCooldown,
-            skillMpCost = template.skillMpCost
+            skillMpCost = template.skillMpCost,
+            skillHealPercent = template.skillHealPercent,
+            skillHealType = template.skillHealType,
+            minRealm = template.minRealm
         )
     }
     

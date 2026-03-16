@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.data.ForgeRecipeDatabase
 import com.xianxia.sect.core.data.PillRecipeDatabase
+import com.xianxia.sect.core.engine.AISectAttackManager
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.data.GameRepository
@@ -26,6 +27,18 @@ class GameViewModel @Inject constructor(
 
     companion object {
         private const val TAG = "GameViewModel"
+        
+        // 加载进度常量
+        private const val PROGRESS_START = 0f
+        private const val PROGRESS_ENGINE_INIT = 0.2f
+        private const val PROGRESS_DATA_LOAD = 0.3f
+        private const val PROGRESS_SAVE_COMPLETE = 0.5f
+        private const val PROGRESS_RESTART_DATA_LOAD = 0.6f
+        private const val PROGRESS_GAME_LOOP_START = 0.8f
+        private const val PROGRESS_COMPLETE = 1f
+        
+        // 加载完成显示时间（毫秒）
+        private const val LOADING_COMPLETE_DISPLAY_DURATION = 300L
     }
 
     val gameData: StateFlow<GameData> = gameEngine.gameData
@@ -64,9 +77,6 @@ class GameViewModel @Inject constructor(
     val battleLogs: StateFlow<List<BattleLog>> = gameEngine.battleLogs
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    val warTeams: StateFlow<List<WarTeam>> = gameEngine.warTeams
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
-
     val alchemySlots: StateFlow<List<AlchemySlot>> = gameEngine.alchemySlots
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
@@ -80,11 +90,29 @@ class GameViewModel @Inject constructor(
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
+    // 保存状态
+    private val _isSaving = MutableStateFlow(false)
+    val isSaving: StateFlow<Boolean> = _isSaving.asStateFlow()
+
+    private val _loadingProgress = MutableStateFlow(0f)
+    val loadingProgress: StateFlow<Float> = _loadingProgress.asStateFlow()
+    
+    // 游戏已加载标志（用于Activity重建时判断是否需要重新加载）
+    private var _isGameLoaded = false
+    
+    // 重新开始状态（用于区分首次加载和重新开始，重新开始时不显示加载界面）
+    private val _isRestarting = MutableStateFlow(false)
+    val isRestarting: StateFlow<Boolean> = _isRestarting.asStateFlow()
+
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
 
     private val _successMessage = MutableStateFlow<String?>(null)
     val successMessage: StateFlow<String?> = _successMessage.asStateFlow()
+
+    fun clearSuccessMessage() {
+        _successMessage.value = null
+    }
 
     private val _timeScale = MutableStateFlow(1)
     val timeScale: StateFlow<Int> = _timeScale.asStateFlow()
@@ -158,14 +186,8 @@ class GameViewModel @Inject constructor(
     private val _showWenDaoPeakDialog = MutableStateFlow(false)
     val showWenDaoPeakDialog: StateFlow<Boolean> = _showWenDaoPeakDialog.asStateFlow()
 
-    private val _showWarHallDialog = MutableStateFlow(false)
-    val showWarHallDialog: StateFlow<Boolean> = _showWarHallDialog.asStateFlow()
-
     private val _showRecruitDialog = MutableStateFlow(false)
     val showRecruitDialog: StateFlow<Boolean> = _showRecruitDialog.asStateFlow()
-
-    private val _showTournamentDialog = MutableStateFlow(false)
-    val showTournamentDialog: StateFlow<Boolean> = _showTournamentDialog.asStateFlow()
 
     private val _showDiplomacyDialog = MutableStateFlow(false)
     val showDiplomacyDialog: StateFlow<Boolean> = _showDiplomacyDialog.asStateFlow()
@@ -204,6 +226,22 @@ class GameViewModel @Inject constructor(
     private val _showQingyunPeakDialog = MutableStateFlow(false)
     val showQingyunPeakDialog: StateFlow<Boolean> = _showQingyunPeakDialog.asStateFlow()
 
+    private val _showBattleTeamDialog = MutableStateFlow(false)
+    val showBattleTeamDialog: StateFlow<Boolean> = _showBattleTeamDialog.asStateFlow()
+
+    private val _battleTeamMoveMode = MutableStateFlow(false)
+    val battleTeamMoveMode: StateFlow<Boolean> = _battleTeamMoveMode.asStateFlow()
+
+    private val _battleTeamSlots = MutableStateFlow<List<BattleTeamSlot>>(buildList {
+        repeat(2) { index ->
+            add(BattleTeamSlot(index, slotType = BattleSlotType.ELDER))
+        }
+        repeat(8) { index ->
+            add(BattleTeamSlot(index + 2, slotType = BattleSlotType.DISCIPLE))
+        }
+    })
+    val battleTeamSlots: StateFlow<List<BattleTeamSlot>> = _battleTeamSlots.asStateFlow()
+
     private val _gameState = MutableStateFlow("LOADING")
     val gameState: StateFlow<String> = _gameState.asStateFlow()
 
@@ -221,6 +259,11 @@ class GameViewModel @Inject constructor(
     private var monthAccumulator = 0
     private var autoSaveMonthCounter = 0
 
+    // 游戏循环错误计数器
+    private var consecutiveErrorCount = 0
+    private var totalErrorCount = 0
+    private val maxConsecutiveErrors = 10 // 连续错误超过此数值时暂停游戏
+
     init {
         _saveSlots.value = saveManager.getSaveSlots()
     }
@@ -234,6 +277,8 @@ class GameViewModel @Inject constructor(
 
         monthAccumulator = 0
         autoSaveMonthCounter = 0
+        consecutiveErrorCount = 0
+        totalErrorCount = 0
 
         _isTimeRunning.value = true
         _isPaused.value = false
@@ -246,10 +291,20 @@ class GameViewModel @Inject constructor(
                     delay(GameConfig.Time.TICK_INTERVAL)
 
                     if (!_isPaused.value) {
+                        var tickErrorOccurred = false
+                        
+                        // 处理 processSecondTick
                         try {
                             gameEngine.processSecondTick()
+                            consecutiveErrorCount = 0 // 成功执行后重置连续错误计数
                         } catch (e: Exception) {
-                            Log.e(TAG, "Error in processSecondTick", e)
+                            tickErrorOccurred = true
+                            consecutiveErrorCount++
+                            totalErrorCount++
+                            val gameData = gameEngine.gameData.value
+                            Log.e(TAG, "Error in processSecondTick (consecutive: $consecutiveErrorCount, total: $totalErrorCount) - " +
+                                "Game: Year=${gameData.gameYear}, Month=${gameData.gameMonth}, Day=${gameData.gameDay}, " +
+                                "Sect=${gameData.sectName}", e)
                         }
 
                         monthAccumulator++
@@ -262,8 +317,15 @@ class GameViewModel @Inject constructor(
                             for (i in 0 until daysPerSecond) {
                                 try {
                                     gameEngine.advanceDay()
+                                    consecutiveErrorCount = 0 // 成功执行后重置连续错误计数
                                 } catch (e: Exception) {
-                                    Log.e(TAG, "Error in advanceDay", e)
+                                    tickErrorOccurred = true
+                                    consecutiveErrorCount++
+                                    totalErrorCount++
+                                    val gameData = gameEngine.gameData.value
+                                    Log.e(TAG, "Error in advanceDay iteration $i (consecutive: $consecutiveErrorCount, total: $totalErrorCount) - " +
+                                        "Game: Year=${gameData.gameYear}, Month=${gameData.gameMonth}, Day=${gameData.gameDay}, " +
+                                        "Sect=${gameData.sectName}", e)
                                 }
                             }
                             
@@ -278,18 +340,24 @@ class GameViewModel @Inject constructor(
                                 }
                             }
                         }
+                        
+                        // 检查连续错误次数，过多时暂停游戏
+                        if (consecutiveErrorCount >= maxConsecutiveErrors) {
+                            Log.e(TAG, "Game loop paused due to too many consecutive errors ($consecutiveErrorCount)")
+                            _isPaused.value = true
+                            _errorMessage.value = "游戏因连续错误已暂停，请检查日志或重新加载存档"
+                        }
                     }
                 } catch (e: Exception) {
-                    Log.e(TAG, "Error in game loop", e)
+                    Log.e(TAG, "Error in game loop outer try-catch", e)
                 }
             }
         }
     }
     
     fun performAutoSave() {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch {
             try {
-                // 使用带锁的状态快照获取方法，确保线程安全
                 val snapshot = gameEngine.getStateSnapshot()
                 val currentSlot = snapshot.gameData.currentSlot
                 val saveData = SaveData(
@@ -305,16 +373,14 @@ class GameViewModel @Inject constructor(
                     slots = snapshot.buildingSlots,
                     events = snapshot.events,
                     battleLogs = snapshot.battleLogs,
-                    warTeams = snapshot.warTeams,
                     alliances = snapshot.alliances,
-                    supportTeams = snapshot.supportTeams
+                    supportTeams = snapshot.supportTeams,
+                    alchemySlots = gameEngine.alchemySlots.value
                 )
 
-                val success = saveManager.save(currentSlot, saveData)
+                val success = saveManager.saveAsync(currentSlot, saveData)
                 if (success) {
-                    withContext(Dispatchers.Main) {
-                        _saveSlots.value = saveManager.getSaveSlots()
-                    }
+                    _saveSlots.value = saveManager.getSaveSlots()
                     Log.d(TAG, "Auto save completed for slot: $currentSlot")
                 } else {
                     Log.e(TAG, "Auto save failed for slot: $currentSlot")
@@ -325,52 +391,150 @@ class GameViewModel @Inject constructor(
         }
     }
 
+    /**
+     * 创建当前游戏状态的存档数据
+     * 用于紧急保存等场景
+     * @return 当前游戏状态的 SaveData 对象
+     */
+    suspend fun createSaveData(): SaveData {
+        val snapshot = gameEngine.getStateSnapshot()
+        return SaveData(
+            gameData = snapshot.gameData,
+            disciples = snapshot.disciples,
+            equipment = snapshot.equipment,
+            manuals = snapshot.manuals,
+            pills = snapshot.pills,
+            materials = snapshot.materials,
+            herbs = snapshot.herbs,
+            seeds = snapshot.seeds,
+            teams = snapshot.teams,
+            slots = snapshot.buildingSlots,
+            events = snapshot.events,
+            battleLogs = snapshot.battleLogs,
+            alliances = snapshot.alliances,
+            supportTeams = snapshot.supportTeams,
+            alchemySlots = gameEngine.alchemySlots.value
+        )
+    }
+    
+    /**
+     * 创建当前游戏状态的存档数据（同步版本）
+     * 用于崩溃处理等紧急场景，不使用协程锁，可能读取到不一致状态
+     * 仅在紧急保存时使用，正常保存应使用 createSaveData()
+     * @return 当前游戏状态的 SaveData 对象
+     */
+    fun createSaveDataSync(): SaveData {
+        val snapshot = gameEngine.getStateSnapshotSync()
+        return SaveData(
+            gameData = snapshot.gameData,
+            disciples = snapshot.disciples,
+            equipment = snapshot.equipment,
+            manuals = snapshot.manuals,
+            pills = snapshot.pills,
+            materials = snapshot.materials,
+            herbs = snapshot.herbs,
+            seeds = snapshot.seeds,
+            teams = snapshot.teams,
+            slots = snapshot.buildingSlots,
+            events = snapshot.events,
+            battleLogs = snapshot.battleLogs,
+            alliances = snapshot.alliances,
+            supportTeams = snapshot.supportTeams,
+            alchemySlots = gameEngine.alchemySlots.value
+        )
+    }
+
     private fun stopGameLoop() {
-        viewModelScope.launch {
-            try {
-                gameLoopJob?.cancelAndJoin()
-                secondTickJob?.cancelAndJoin()
-            } catch (e: Exception) {
-                Log.e(TAG, "Error stopping game loop", e)
-            } finally {
-                gameLoopJob = null
-                secondTickJob = null
-                _isTimeRunning.value = false
-                _isPaused.value = true
-            }
+        try {
+            gameLoopJob?.cancel()
+            secondTickJob?.cancel()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error stopping game loop", e)
+        } finally {
+            gameLoopJob = null
+            secondTickJob = null
+            _isTimeRunning.value = false
+            _isPaused.value = true
         }
     }
 
     // 开始新游戏
     fun startNewGame(sectName: String, slot: Int = 1) {
+        if (_isLoading.value && _loadingProgress.value < PROGRESS_COMPLETE) {
+            Log.w(TAG, "Already loading with progress ${_loadingProgress.value}, ignoring startNewGame request")
+            return
+        }
+        
+        if (_isGameLoaded) {
+            Log.w(TAG, "Game already loaded, ignoring startNewGame request")
+            return
+        }
+        
+        Log.i(TAG, "=== startNewGame BEGIN === sectName=$sectName, slot=$slot")
+        val startTime = System.currentTimeMillis()
+        
         viewModelScope.launch {
             try {
                 _isLoading.value = true
-                Log.d(TAG, "Starting new game: sectName=$sectName, slot=$slot")
+                _loadingProgress.value = PROGRESS_START
                 
+                _loadingProgress.value = PROGRESS_ENGINE_INIT
                 gameEngine.createNewGame(sectName)
                 gameEngine.updateGameData { it.copy(currentSlot = slot) }
-                Log.d(TAG, "Game engine created new game")
+                Log.d(TAG, "Game engine created new game, elapsed=${System.currentTimeMillis() - startTime}ms")
                 
+                _loadingProgress.value = PROGRESS_SAVE_COMPLETE
                 saveGame(slot.toString())
-                Log.d(TAG, "Game saved to slot $slot")
+                Log.d(TAG, "Game saved to slot $slot, elapsed=${System.currentTimeMillis() - startTime}ms")
                 
+                _loadingProgress.value = PROGRESS_GAME_LOOP_START
                 startGameLoop()
                 Log.d(TAG, "Game loop started, isPaused=${_isPaused.value}")
+                
+                _isGameLoaded = true
+                _loadingProgress.value = PROGRESS_COMPLETE
+                
+                // 记录游戏状态快照
+                val gd = gameEngine.gameData.value
+                Log.i(TAG, "=== startNewGame SUCCESS === " +
+                    "sectName=${gd.sectName}, year=${gd.gameYear}, month=${gd.gameMonth}, day=${gd.gameDay}, " +
+                    "spiritStones=${gd.spiritStones}, disciples=${gameEngine.disciples.value.size}, " +
+                    "totalElapsed=${System.currentTimeMillis() - startTime}ms")
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to start new game: ${e.message}", e)
+                Log.e(TAG, "=== startNewGame FAILED === error=${e.message}", e)
                 _errorMessage.value = e.message ?: "开始新游戏失败"
             } finally {
+                delay(LOADING_COMPLETE_DISPLAY_DURATION) // 确保用户能看到 100% 状态
                 _isLoading.value = false
+                _loadingProgress.value = PROGRESS_START
             }
         }
     }
 
+    fun isGameAlreadyLoaded(): Boolean {
+        return _isGameLoaded && gameEngine.gameData.value.sectName.isNotEmpty()
+    }
+
     fun loadGame(saveSlot: SaveSlot) {
+        if (_isLoading.value) {
+            Log.w(TAG, "Already loading, ignoring loadGame request")
+            return
+        }
+        
+        Log.i(TAG, "=== loadGame BEGIN === slot=${saveSlot.slot}, sectName=${saveSlot.sectName}, " +
+            "year=${saveSlot.gameYear}, month=${saveSlot.gameMonth}")
+        val startTime = System.currentTimeMillis()
+        
         viewModelScope.launch {
+            _isLoading.value = true
             try {
-                _isLoading.value = true
-                val saveData = saveManager.load(saveSlot.slot)
+                if (_isGameLoaded) {
+                    Log.i(TAG, "Game already loaded, will reload from slot ${saveSlot.slot}")
+                    stopGameLoop()
+                    _isGameLoaded = false
+                }
+                
+                val saveData = saveManager.loadAsync(saveSlot.slot)
                 if (saveData != null) {
                     gameEngine.loadData(
                         gameData = saveData.gameData.copy(currentSlot = saveSlot.slot),
@@ -385,16 +549,34 @@ class GameViewModel @Inject constructor(
                         slots = saveData.slots,
                         events = saveData.events,
                         battleLogs = saveData.battleLogs,
-                        warTeams = saveData.warTeams ?: emptyList(),
                         alliances = saveData.alliances ?: emptyList(),
-                        supportTeams = saveData.supportTeams ?: emptyList()
+                        supportTeams = saveData.supportTeams?.map { team ->
+                            if (team.duration == 0 && team.status == "moving") {
+                                team.copy(duration = 1, moveProgress = 1f, status = "stationed")
+                            } else {
+                                team
+                            }
+                        } ?: emptyList(),
+                        alchemySlots = saveData.alchemySlots
                     )
                     startGameLoop()
+                    _isGameLoaded = true
+                    _successMessage.value = "读档成功"
+                    
+                    // 记录游戏状态快照
+                    val gd = gameEngine.gameData.value
+                    Log.i(TAG, "=== loadGame SUCCESS === " +
+                        "sectName=${gd.sectName}, year=${gd.gameYear}, month=${gd.gameMonth}, day=${gd.gameDay}, " +
+                        "spiritStones=${gd.spiritStones}, disciples=${gameEngine.disciples.value.size}, " +
+                        "equipment=${gameEngine.equipment.value.size}, manuals=${gameEngine.manuals.value.size}, " +
+                        "elapsed=${System.currentTimeMillis() - startTime}ms")
                 } else {
+                    Log.e(TAG, "=== loadGame FAILED === saveData is null for slot ${saveSlot.slot}")
                     _errorMessage.value = "存档为空或不存在"
                 }
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "加载游戏失败"
+                Log.e(TAG, "=== loadGame FAILED === error=${e.message}", e)
+                _errorMessage.value = "加载游戏失败: ${e.message}"
             } finally {
                 _isLoading.value = false
             }
@@ -402,11 +584,28 @@ class GameViewModel @Inject constructor(
     }
 
     fun loadGameFromSlot(slot: Int) {
+        if (_isLoading.value) {
+            Log.w(TAG, "Already loading, ignoring loadGameFromSlot request")
+            return
+        }
+        
+        Log.i(TAG, "=== loadGameFromSlot BEGIN === slot=$slot")
+        val startTime = System.currentTimeMillis()
+        
         viewModelScope.launch {
             try {
                 _isLoading.value = true
-                val saveData = saveManager.load(slot)
+                _loadingProgress.value = PROGRESS_START
+                
+                if (_isGameLoaded) {
+                    Log.i(TAG, "Game already loaded, will reload from slot $slot")
+                    stopGameLoop()
+                    _isGameLoaded = false
+                }
+                
+                val saveData = saveManager.loadAsync(slot)
                 if (saveData != null) {
+                    _loadingProgress.value = PROGRESS_DATA_LOAD
                     gameEngine.loadData(
                         gameData = saveData.gameData.copy(currentSlot = slot),
                         disciples = saveData.disciples,
@@ -420,69 +619,159 @@ class GameViewModel @Inject constructor(
                         slots = saveData.slots,
                         events = saveData.events,
                         battleLogs = saveData.battleLogs,
-                        warTeams = saveData.warTeams ?: emptyList(),
                         alliances = saveData.alliances ?: emptyList(),
-                        supportTeams = saveData.supportTeams ?: emptyList()
+                        supportTeams = saveData.supportTeams?.map { team ->
+                            if (team.duration == 0 && team.status == "moving") {
+                                team.copy(duration = 1, moveProgress = 1f, status = "stationed")
+                            } else {
+                                team
+                            }
+                        } ?: emptyList(),
+                        alchemySlots = saveData.alchemySlots
                     )
+                    _loadingProgress.value = PROGRESS_GAME_LOOP_START
                     startGameLoop()
+                    _isGameLoaded = true
+                    _loadingProgress.value = PROGRESS_COMPLETE
+                    
+                    // 记录游戏状态快照
+                    val gd = gameEngine.gameData.value
+                    Log.i(TAG, "=== loadGameFromSlot SUCCESS === " +
+                        "sectName=${gd.sectName}, year=${gd.gameYear}, month=${gd.gameMonth}, day=${gd.gameDay}, " +
+                        "spiritStones=${gd.spiritStones}, disciples=${gameEngine.disciples.value.size}, " +
+                        "equipment=${gameEngine.equipment.value.size}, manuals=${gameEngine.manuals.value.size}, " +
+                        "elapsed=${System.currentTimeMillis() - startTime}ms")
                 } else {
+                    Log.e(TAG, "=== loadGameFromSlot FAILED === saveData is null for slot $slot")
                     _errorMessage.value = "存档为空或不存在"
                 }
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "加载游戏失败"
+                Log.e(TAG, "=== loadGameFromSlot FAILED === error=${e.message}", e)
+                _errorMessage.value = "加载游戏失败: ${e.message}"
             } finally {
+                delay(LOADING_COMPLETE_DISPLAY_DURATION)
                 _isLoading.value = false
+                _loadingProgress.value = PROGRESS_START
             }
         }
     }
 
-    fun saveGame(slotId: String? = null): Boolean {
-        return try {
-            val slot = slotId?.toIntOrNull() ?: gameEngine.gameData.value.currentSlot
-            val currentGameData = gameEngine.gameData.value
-            if (currentGameData.sectName.isBlank()) {
-                _errorMessage.value = "游戏数据未初始化"
-                return false
+    fun saveGame(slotId: String? = null) {
+        if (_isSaving.value) {
+            Log.w(TAG, "Already saving, ignoring saveGame request")
+            return
+        }
+        
+        val slot = slotId?.toIntOrNull() ?: gameEngine.gameData.value.currentSlot
+        Log.i(TAG, "=== saveGame BEGIN === slot=$slot, slotId=$slotId")
+        val startTime = System.currentTimeMillis()
+        
+        viewModelScope.launch {
+            _isSaving.value = true
+            try {
+                val currentGameData = gameEngine.gameData.value
+                if (currentGameData.sectName.isBlank()) {
+                    Log.e(TAG, "=== saveGame FAILED === gameData not initialized (sectName is blank)")
+                    _errorMessage.value = "游戏数据未初始化"
+                    return@launch
+                }
+                val updatedGameData = currentGameData.copy(currentSlot = slot)
+                val saveData = SaveData(
+                    gameData = updatedGameData,
+                    disciples = gameEngine.disciples.value,
+                    equipment = gameEngine.equipment.value,
+                    manuals = gameEngine.manuals.value,
+                    pills = gameEngine.pills.value,
+                    materials = gameEngine.materials.value,
+                    herbs = gameEngine.herbs.value,
+                    seeds = gameEngine.seeds.value,
+                    teams = gameEngine.teams.value,
+                    slots = gameEngine.buildingSlots.value,
+                    events = gameEngine.events.value,
+                    battleLogs = gameEngine.battleLogs.value,
+                    alliances = gameEngine.gameData.value.alliances,
+                    supportTeams = gameEngine.gameData.value.supportTeams,
+                    alchemySlots = gameEngine.alchemySlots.value
+                )
+                val success = saveManager.saveAsync(slot, saveData)
+                if (success) {
+                    gameEngine.updateGameData { updatedGameData }
+                    _saveSlots.value = saveManager.getSaveSlots()
+                    _successMessage.value = "游戏保存成功"
+                    
+                    // 记录游戏状态快照
+                    Log.i(TAG, "=== saveGame SUCCESS === " +
+                        "sectName=${updatedGameData.sectName}, year=${updatedGameData.gameYear}, " +
+                        "month=${updatedGameData.gameMonth}, day=${updatedGameData.gameDay}, " +
+                        "spiritStones=${updatedGameData.spiritStones}, " +
+                        "disciples=${saveData.disciples.size}, equipment=${saveData.equipment.size}, " +
+                        "manuals=${saveData.manuals.size}, elapsed=${System.currentTimeMillis() - startTime}ms")
+                } else {
+                    Log.e(TAG, "=== saveGame FAILED === saveManager.saveAsync returned false")
+                    _errorMessage.value = "保存失败，请重试"
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "=== saveGame FAILED === error=${e.message}", e)
+                _errorMessage.value = "保存失败: ${e.message}"
+            } finally {
+                _isSaving.value = false
             }
-            val updatedGameData = currentGameData.copy(currentSlot = slot)
-            val saveData = SaveData(
-                gameData = updatedGameData,
-                disciples = gameEngine.disciples.value,
-                equipment = gameEngine.equipment.value,
-                manuals = gameEngine.manuals.value,
-                pills = gameEngine.pills.value,
-                materials = gameEngine.materials.value,
-                herbs = gameEngine.herbs.value,
-                seeds = gameEngine.seeds.value,
-                teams = gameEngine.teams.value,
-                slots = gameEngine.buildingSlots.value,
-                events = gameEngine.events.value,
-                battleLogs = gameEngine.battleLogs.value,
-                warTeams = gameEngine.warTeams.value,
-                alliances = gameEngine.gameData.value.alliances,
-                supportTeams = gameEngine.gameData.value.supportTeams
-            )
-            val success = saveManager.save(slot, saveData)
-            if (success) {
-                gameEngine.updateGameData { updatedGameData }
-                _saveSlots.value = saveManager.getSaveSlots()
-            } else {
-                _errorMessage.value = "保存失败"
-            }
-            success
-        } catch (e: Exception) {
-            _errorMessage.value = e.message ?: "保存失败"
-            false
         }
     }
 
     fun saveToSlot(slotIndex: Int) {
+        Log.i(TAG, "=== saveToSlot BEGIN === slotIndex=$slotIndex")
+        val startTime = System.currentTimeMillis()
+        
         viewModelScope.launch {
             try {
-                saveGame(slotIndex.toString())
-                _showSaveDialog.value = false
+                _isSaving.value = true
+                val slot = slotIndex
+                val currentGameData = gameEngine.gameData.value
+                if (currentGameData.sectName.isBlank()) {
+                    Log.e(TAG, "=== saveToSlot FAILED === gameData not initialized (sectName is blank)")
+                    _errorMessage.value = "游戏数据未初始化"
+                    return@launch
+                }
+                val updatedGameData = currentGameData.copy(currentSlot = slot)
+                val saveData = SaveData(
+                    gameData = updatedGameData,
+                    disciples = gameEngine.disciples.value,
+                    equipment = gameEngine.equipment.value,
+                    manuals = gameEngine.manuals.value,
+                    pills = gameEngine.pills.value,
+                    materials = gameEngine.materials.value,
+                    herbs = gameEngine.herbs.value,
+                    seeds = gameEngine.seeds.value,
+                    teams = gameEngine.teams.value,
+                    slots = gameEngine.buildingSlots.value,
+                    events = gameEngine.events.value,
+                    battleLogs = gameEngine.battleLogs.value,
+                    alliances = gameEngine.gameData.value.alliances,
+                    supportTeams = gameEngine.gameData.value.supportTeams,
+                    alchemySlots = gameEngine.alchemySlots.value
+                )
+                val success = saveManager.saveAsync(slot, saveData)
+                if (success) {
+                    gameEngine.updateGameData { updatedGameData }
+                    _saveSlots.value = saveManager.getSaveSlots()
+                    _successMessage.value = "游戏保存成功"
+                    _showSaveDialog.value = false
+                    
+                    Log.i(TAG, "=== saveToSlot SUCCESS === " +
+                        "sectName=${updatedGameData.sectName}, year=${updatedGameData.gameYear}, " +
+                        "month=${updatedGameData.gameMonth}, day=${updatedGameData.gameDay}, " +
+                        "spiritStones=${updatedGameData.spiritStones}, " +
+                        "disciples=${saveData.disciples.size}, elapsed=${System.currentTimeMillis() - startTime}ms")
+                } else {
+                    Log.e(TAG, "=== saveToSlot FAILED === saveManager.saveAsync returned false")
+                    _errorMessage.value = "保存失败，请重试"
+                }
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "保存失败"
+                Log.e(TAG, "=== saveToSlot FAILED === error=${e.message}", e)
+                _errorMessage.value = "保存失败: ${e.message}"
+            } finally {
+                _isSaving.value = false
             }
         }
     }
@@ -527,6 +816,10 @@ class GameViewModel @Inject constructor(
         gameEngine.updateGameData { it.copy(autoSaveIntervalMonths = interval) }
     }
 
+    fun resetAllDisciplesStatus() {
+        gameEngine.resetAllDisciplesStatus()
+    }
+
     fun showSaveManagementDialog() {
         // ˢ�´浵��λ��Ϣ
         _saveSlots.value = saveManager.getSaveSlots()
@@ -538,23 +831,29 @@ class GameViewModel @Inject constructor(
     }
 
     fun restartGame() {
+        if (_isLoading.value || _isRestarting.value) {
+            Log.w(TAG, "Already loading or restarting, ignoring restartGame request")
+            return
+        }
+        
         viewModelScope.launch {
             try {
-                _isLoading.value = true
+                _isRestarting.value = true
 
                 val currentData = gameEngine.gameData.value
                 val sectName = currentData.sectName.ifBlank { "QingYunSect" }
                 val currentSlot = currentData.currentSlot.coerceAtLeast(1)
-
+                
                 gameEngine.restartGame()
                 gameEngine.updateGameData { it.copy(sectName = sectName, currentSlot = currentSlot) }
-
+                
                 saveGame(currentSlot.toString())
+                
                 startGameLoop()
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "Failed to restart game"
             } finally {
-                _isLoading.value = false
+                _isRestarting.value = false
             }
             return@launch
         }
@@ -631,28 +930,12 @@ class GameViewModel @Inject constructor(
         _showWenDaoPeakDialog.value = false
     }
 
-    fun openWarHallDialog() {
-        _showWarHallDialog.value = true
-    }
-
-    fun closeWarHallDialog() {
-        _showWarHallDialog.value = false
-    }
-
     fun openRecruitDialog() {
         _showRecruitDialog.value = true
     }
 
     fun closeRecruitDialog() {
         _showRecruitDialog.value = false
-    }
-
-    fun openTournamentDialog() {
-        _showTournamentDialog.value = true
-    }
-
-    fun closeTournamentDialog() {
-        _showTournamentDialog.value = false
     }
 
     fun openDiplomacyDialog() {
@@ -805,12 +1088,7 @@ class GameViewModel @Inject constructor(
     fun giftSpiritStones(sectId: String, tier: Int) {
         viewModelScope.launch {
             try {
-                val result = gameEngine.giftSpiritStones(sectId, tier)
-                if (result.success) {
-                    _successMessage.value = result.message
-                } else {
-                    _successMessage.value = result.message
-                }
+                gameEngine.giftSpiritStones(sectId, tier)
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "送礼失败"
             }
@@ -820,8 +1098,7 @@ class GameViewModel @Inject constructor(
     fun giftItem(sectId: String, itemId: String, itemType: String, quantity: Int) {
         viewModelScope.launch {
             try {
-                val result = gameEngine.giftItem(sectId, itemId, itemType, quantity)
-                _successMessage.value = result.message
+                gameEngine.giftItem(sectId, itemId, itemType, quantity)
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "送礼失败"
             }
@@ -873,7 +1150,6 @@ class GameViewModel @Inject constructor(
             try {
                 val (success, message) = gameEngine.requestAlliance(sectId, envoyDiscipleId)
                 if (success) {
-                    _successMessage.value = message
                     closeEnvoyDiscipleSelectDialog()
                     closeAllianceDialog()
                 } else {
@@ -890,7 +1166,6 @@ class GameViewModel @Inject constructor(
             try {
                 val (success, message) = gameEngine.dissolveAlliance(sectId)
                 if (success) {
-                    _successMessage.value = message
                     closeAllianceDialog()
                 } else {
                     _errorMessage.value = message
@@ -906,7 +1181,6 @@ class GameViewModel @Inject constructor(
             try {
                 val (success, message) = gameEngine.requestSupport(allySectId, envoyDiscipleId)
                 if (success) {
-                    _successMessage.value = message
                     closeRequestSupportDialog()
                 } else {
                     _errorMessage.value = message
@@ -956,7 +1230,6 @@ class GameViewModel @Inject constructor(
                 val sectId = _selectedTradeSectId.value ?: return@launch
                 gameEngine.buyFromSectTrade(sectId, itemId, quantity)
                 _sectTradeItems.value = gameEngine.getOrRefreshSectTradeItems(sectId)
-                _successMessage.value = "购买成功"
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "购买失败"
             }
@@ -993,6 +1266,49 @@ class GameViewModel @Inject constructor(
 
     fun closeSalaryConfigDialog() {
         _showSalaryConfigDialog.value = false
+    }
+
+    private val _showRedeemCodeDialog = MutableStateFlow(false)
+    val showRedeemCodeDialog: StateFlow<Boolean> = _showRedeemCodeDialog.asStateFlow()
+
+    private val _redeemResult = MutableStateFlow<RedeemResult?>(null)
+    val redeemResult: StateFlow<RedeemResult?> = _redeemResult.asStateFlow()
+
+    fun openRedeemCodeDialog() {
+        _showRedeemCodeDialog.value = true
+        _redeemResult.value = null
+    }
+
+    fun closeRedeemCodeDialog() {
+        _showRedeemCodeDialog.value = false
+        _redeemResult.value = null
+    }
+
+    fun redeemCode(code: String) {
+        viewModelScope.launch {
+            try {
+                val currentGameData = gameEngine.gameData.value
+                val result = gameEngine.redeemCode(
+                    code = code,
+                    usedCodes = currentGameData.usedRedeemCodes,
+                    currentYear = currentGameData.gameYear,
+                    currentMonth = currentGameData.gameMonth
+                )
+                _redeemResult.value = result
+                if (result.success) {
+                    _successMessage.value = result.message
+                } else {
+                    _errorMessage.value = result.message
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error redeeming code", e)
+                _errorMessage.value = "兑换失败：${e.message}"
+            }
+        }
+    }
+
+    fun clearRedeemResult() {
+        _redeemResult.value = null
     }
 
     // ������Ի��򷽷�?
@@ -1040,7 +1356,6 @@ class GameViewModel @Inject constructor(
                     elderSlots.alchemyElder,
                     elderSlots.forgeElder,
                     elderSlots.libraryElder,
-                    elderSlots.spiritMineElder,
                     elderSlots.recruitElder,
                     elderSlots.outerElder,
                     elderSlots.preachingElder,
@@ -1053,12 +1368,12 @@ class GameViewModel @Inject constructor(
                     elderSlots.alchemyDisciples,
                     elderSlots.forgeDisciples,
                     elderSlots.libraryDisciples,
-                    elderSlots.spiritMineDisciples,
                     elderSlots.recruitDisciples,
                     elderSlots.preachingMasters,
                     elderSlots.lawEnforcementDisciples,
                     elderSlots.lawEnforcementReserveDisciples,
-                    elderSlots.qingyunPreachingMasters
+                    elderSlots.qingyunPreachingMasters,
+                    elderSlots.spiritMineDeaconDisciples
                 ).flatten().mapNotNull { it.discipleId }
 
                 if (allElderIds.contains(discipleId)) {
@@ -1088,17 +1403,15 @@ class GameViewModel @Inject constructor(
                         libraryElder = discipleId,
                         libraryDisciples = emptyList()
                     )
-                    "spiritMine" -> elderSlots.copy(
-                        spiritMineElder = discipleId,
-                        spiritMineDisciples = emptyList()
-                    )
                     "recruit" -> elderSlots.copy(
                         recruitElder = discipleId,
                         recruitDisciples = emptyList()
                     )
-                    "viceSectMaster" -> elderSlots.copy(
-                        viceSectMaster = discipleId
-                    )
+                    "viceSectMaster" -> {
+                        // 更新副宗主状态为管理中
+                        gameEngine.updateDiscipleStatus(discipleId, DiscipleStatus.MANAGING)
+                        elderSlots.copy(viceSectMaster = discipleId)
+                    }
                     "outerElder" -> elderSlots.copy(
                         outerElder = discipleId
                     )
@@ -1148,35 +1461,37 @@ class GameViewModel @Inject constructor(
                         libraryElder = null,
                         libraryDisciples = emptyList()
                     )
-                    "spiritMine" -> elderSlots.copy(
-                        spiritMineElder = null,
-                        spiritMineDisciples = emptyList()
-                    )
                     "recruit" -> elderSlots.copy(
                         recruitElder = null,
                         recruitDisciples = emptyList()
                     )
-                    "viceSectMaster" -> elderSlots.copy(
-                        viceSectMaster = null
-                    )
+                    "viceSectMaster" -> {
+                        // 恢复副宗主状态为空闲
+                        val viceSectMasterId = elderSlots.viceSectMaster
+                        viceSectMasterId?.let { gameEngine.updateDiscipleStatus(it, DiscipleStatus.IDLE) }
+                        elderSlots.copy(viceSectMaster = null)
+                    }
                     "outerElder" -> elderSlots.copy(
                         outerElder = null
                     )
-                    "preachingElder" -> elderSlots.copy(
-                        preachingElder = null,
-                        preachingMasters = emptyList()
-                    )
-                    "lawEnforcementElder" -> elderSlots.copy(
-                        lawEnforcementElder = null,
-                        lawEnforcementDisciples = emptyList()
-                    )
+                    "preachingElder" -> {
+                        // 使用专门的方法来处理传道长老卸任，同时恢复所有传道师的状态
+                        gameEngine.removePreachingElderAndMasters()
+                        return@launch
+                    }
+                    "lawEnforcementElder" -> {
+                        // 使用专门的方法来处理执法长老卸任，同时恢复所有执法弟子的状态
+                        gameEngine.removeLawEnforcementElderAndDisciples()
+                        return@launch
+                    }
                     "innerElder" -> elderSlots.copy(
                         innerElder = null
                     )
-                    "qingyunPreachingElder" -> elderSlots.copy(
-                        qingyunPreachingElder = null,
-                        qingyunPreachingMasters = emptyList()
-                    )
+                    "qingyunPreachingElder" -> {
+                        // 使用专门的方法来处理青云传道长老卸任，同时恢复所有青云传道师的状态
+                        gameEngine.removeQingyunPreachingElderAndMasters()
+                        return@launch
+                    }
                     else -> elderSlots
                 }
                 gameEngine.updateElderSlots(newElderSlots)
@@ -1222,7 +1537,98 @@ class GameViewModel @Inject constructor(
     }
 
     fun getEnhancedSecurityBaseBonus(): Double {
-        return 0.30
+        return 0.20
+    }
+
+    fun toggleAlchemyIncentive(): Boolean {
+        val currentPolicies = gameEngine.gameData.value.sectPolicies
+        val currentStones = gameEngine.gameData.value.spiritStones
+        
+        if (!currentPolicies.alchemyIncentive && currentStones < 3000) {
+            _errorMessage.value = "灵石不足3000，无法开启丹道激励政策"
+            return false
+        }
+        
+        gameEngine.updateGameData { it.copy(sectPolicies = currentPolicies.copy(alchemyIncentive = !currentPolicies.alchemyIncentive)) }
+        return true
+    }
+
+    fun isAlchemyIncentiveEnabled(): Boolean {
+        return gameEngine.gameData.value.sectPolicies.alchemyIncentive
+    }
+
+    fun toggleForgeIncentive(): Boolean {
+        val currentPolicies = gameEngine.gameData.value.sectPolicies
+        val currentStones = gameEngine.gameData.value.spiritStones
+        
+        if (!currentPolicies.forgeIncentive && currentStones < 3000) {
+            _errorMessage.value = "灵石不足3000，无法开启锻造激励政策"
+            return false
+        }
+        
+        gameEngine.updateGameData { it.copy(sectPolicies = currentPolicies.copy(forgeIncentive = !currentPolicies.forgeIncentive)) }
+        return true
+    }
+
+    fun isForgeIncentiveEnabled(): Boolean {
+        return gameEngine.gameData.value.sectPolicies.forgeIncentive
+    }
+
+    fun toggleHerbCultivation(): Boolean {
+        val currentPolicies = gameEngine.gameData.value.sectPolicies
+        val currentStones = gameEngine.gameData.value.spiritStones
+        
+        if (!currentPolicies.herbCultivation && currentStones < 3000) {
+            _errorMessage.value = "灵石不足3000，无法开启灵药培育政策"
+            return false
+        }
+        
+        gameEngine.updateGameData { it.copy(sectPolicies = currentPolicies.copy(herbCultivation = !currentPolicies.herbCultivation)) }
+        return true
+    }
+
+    fun isHerbCultivationEnabled(): Boolean {
+        return gameEngine.gameData.value.sectPolicies.herbCultivation
+    }
+
+    fun toggleCultivationSubsidy(): Boolean {
+        val currentPolicies = gameEngine.gameData.value.sectPolicies
+        val currentStones = gameEngine.gameData.value.spiritStones
+        
+        if (!currentPolicies.cultivationSubsidy && currentStones < 4000) {
+            _errorMessage.value = "灵石不足4000，无法开启修行津贴政策"
+            return false
+        }
+        
+        gameEngine.updateGameData { it.copy(sectPolicies = currentPolicies.copy(cultivationSubsidy = !currentPolicies.cultivationSubsidy)) }
+        return true
+    }
+
+    fun isCultivationSubsidyEnabled(): Boolean {
+        return gameEngine.gameData.value.sectPolicies.cultivationSubsidy
+    }
+
+    fun toggleManualResearch(): Boolean {
+        val currentPolicies = gameEngine.gameData.value.sectPolicies
+        val currentStones = gameEngine.gameData.value.spiritStones
+        
+        if (!currentPolicies.manualResearch && currentStones < 4000) {
+            _errorMessage.value = "灵石不足4000，无法开启功法研习政策"
+            return false
+        }
+        
+        gameEngine.updateGameData { it.copy(sectPolicies = currentPolicies.copy(manualResearch = !currentPolicies.manualResearch)) }
+        return true
+    }
+
+    fun isManualResearchEnabled(): Boolean {
+        return gameEngine.gameData.value.sectPolicies.manualResearch
+    }
+
+    fun getViceSectMasterIntelligenceBonus(): Double {
+        val viceSectMaster = getViceSectMaster() ?: return 0.0
+        val intelligence = viceSectMaster.intelligence
+        return ((intelligence - 50) / 5.0 * 0.01).coerceAtLeast(0.0)
     }
 
     fun getElderDisciple(elderId: String?): Disciple? {
@@ -1247,7 +1653,6 @@ class GameViewModel @Inject constructor(
                     elderSlots.alchemyElder,
                     elderSlots.forgeElder,
                     elderSlots.libraryElder,
-                    elderSlots.spiritMineElder,
                     elderSlots.recruitElder
                 )
                 val allDirectDiscipleIds = listOf(
@@ -1255,8 +1660,8 @@ class GameViewModel @Inject constructor(
                     elderSlots.alchemyDisciples,
                     elderSlots.forgeDisciples,
                     elderSlots.libraryDisciples,
-                    elderSlots.spiritMineDisciples,
-                    elderSlots.recruitDisciples
+                    elderSlots.recruitDisciples,
+                    elderSlots.spiritMineDeaconDisciples
                 ).flatten().mapNotNull { it.discipleId }
                 
                 if (allElderIds.contains(discipleId)) {
@@ -1310,7 +1715,6 @@ class GameViewModel @Inject constructor(
                     elderSlots.alchemyElder,
                     elderSlots.forgeElder,
                     elderSlots.libraryElder,
-                    elderSlots.spiritMineElder,
                     elderSlots.recruitElder
                 )
                 val allDirectDiscipleIds = listOf(
@@ -1318,8 +1722,8 @@ class GameViewModel @Inject constructor(
                     elderSlots.alchemyDisciples,
                     elderSlots.forgeDisciples,
                     elderSlots.libraryDisciples,
-                    elderSlots.spiritMineDisciples,
-                    elderSlots.recruitDisciples
+                    elderSlots.recruitDisciples,
+                    elderSlots.spiritMineDeaconDisciples
                 ).flatten().mapNotNull { it.discipleId }
                 val allInnerDiscipleIds = listOf(
                     elderSlots.forgeInnerDisciples,
@@ -1410,6 +1814,17 @@ class GameViewModel @Inject constructor(
                     return@launch
                 }
                 
+                if (hasDisciplePosition(discipleId)) {
+                    val position = getDisciplePosition(discipleId)
+                    _errorMessage.value = "该弟子已担任${position}，不可同时担任多个职务"
+                    return@launch
+                }
+                
+                if (isReserveDisciple(discipleId)) {
+                    _errorMessage.value = "该弟子已是其他部门的储备弟子"
+                    return@launch
+                }
+                
                 val currentReserveDisciples = gameEngine.gameData.value.elderSlots.lawEnforcementReserveDisciples
                 if (currentReserveDisciples.any { it.discipleId == discipleId }) {
                     _errorMessage.value = "该弟子已是储备弟子"
@@ -1430,6 +1845,50 @@ class GameViewModel @Inject constructor(
                     lawEnforcementReserveDisciples = updatedReserveDisciples
                 )
                 gameEngine.updateGameData { it.copy(elderSlots = updatedElderSlots) }
+            } catch (e: Exception) {
+                _errorMessage.value = e.message ?: "添加失败"
+            }
+        }
+    }
+
+    fun addReserveDisciples(discipleIds: List<String>) {
+        viewModelScope.launch {
+            try {
+                val currentReserveDisciples = gameEngine.gameData.value.elderSlots.lawEnforcementReserveDisciples
+                val existingIds = currentReserveDisciples.mapNotNull { it.discipleId }.toSet()
+                
+                val newSlots = mutableListOf<DirectDiscipleSlot>()
+                var nextIndex = if (currentReserveDisciples.isEmpty()) 0 else currentReserveDisciples.maxOf { it.index } + 1
+                
+                for (discipleId in discipleIds) {
+                    if (discipleId in existingIds) continue
+                    
+                    val disciple = disciples.value.find { it.id == discipleId }
+                    if (disciple == null) continue
+                    
+                    if (hasDisciplePosition(discipleId)) continue
+                    
+                    if (isReserveDisciple(discipleId)) continue
+                    
+                    newSlots.add(
+                        DirectDiscipleSlot(
+                            index = nextIndex,
+                            discipleId = discipleId,
+                            discipleName = disciple.name,
+                            discipleRealm = disciple.realmName,
+                            discipleSpiritRootColor = disciple.spiritRoot.countColor
+                        )
+                    )
+                    nextIndex++
+                }
+                
+                if (newSlots.isNotEmpty()) {
+                    val updatedReserveDisciples = currentReserveDisciples + newSlots
+                    val updatedElderSlots = gameEngine.gameData.value.elderSlots.copy(
+                        lawEnforcementReserveDisciples = updatedReserveDisciples
+                    )
+                    gameEngine.updateGameData { it.copy(elderSlots = updatedElderSlots) }
+                }
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "添加失败"
             }
@@ -1459,6 +1918,14 @@ class GameViewModel @Inject constructor(
                disciple.status == DiscipleStatus.IDLE
     }
 
+    fun getAvailableDisciplesForSelection(): List<Disciple> {
+        return disciples.value.filter { disciple ->
+            disciple.isAlive &&
+            disciple.status == DiscipleStatus.IDLE &&
+            disciple.realmLayer > 0
+        }
+    }
+
     fun getAvailableDisciplesForLawEnforcementElder(): List<Disciple> {
         val elderSlots = gameEngine.gameData.value.elderSlots
         val allElderIds = listOf(
@@ -1467,7 +1934,6 @@ class GameViewModel @Inject constructor(
             elderSlots.alchemyElder,
             elderSlots.forgeElder,
             elderSlots.libraryElder,
-            elderSlots.spiritMineElder,
             elderSlots.recruitElder,
             elderSlots.outerElder,
             elderSlots.preachingElder,
@@ -1479,11 +1945,11 @@ class GameViewModel @Inject constructor(
             elderSlots.alchemyDisciples,
             elderSlots.forgeDisciples,
             elderSlots.libraryDisciples,
-            elderSlots.spiritMineDisciples,
             elderSlots.recruitDisciples,
             elderSlots.preachingMasters,
             elderSlots.lawEnforcementDisciples,
-            elderSlots.lawEnforcementReserveDisciples
+            elderSlots.lawEnforcementReserveDisciples,
+            elderSlots.spiritMineDeaconDisciples
         ).flatten().mapNotNull { it.discipleId }
 
         return disciples.value
@@ -1499,7 +1965,6 @@ class GameViewModel @Inject constructor(
             elderSlots.alchemyElder,
             elderSlots.forgeElder,
             elderSlots.libraryElder,
-            elderSlots.spiritMineElder,
             elderSlots.recruitElder,
             elderSlots.outerElder,
             elderSlots.preachingElder,
@@ -1511,16 +1976,16 @@ class GameViewModel @Inject constructor(
             elderSlots.alchemyDisciples,
             elderSlots.forgeDisciples,
             elderSlots.libraryDisciples,
-            elderSlots.spiritMineDisciples,
             elderSlots.recruitDisciples,
             elderSlots.preachingMasters,
             elderSlots.lawEnforcementDisciples,
-            elderSlots.lawEnforcementReserveDisciples
+            elderSlots.lawEnforcementReserveDisciples,
+            elderSlots.spiritMineDeaconDisciples
         ).flatten().mapNotNull { it.discipleId }
 
         return disciples.value
             .filter { isEligibleForPosition(it) && it.realm <= 7 && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
-            .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
+            .sortedByDescending { it.intelligence }
     }
 
     fun getAvailableDisciplesForLawEnforcementReserve(): List<Disciple> {
@@ -1531,7 +1996,6 @@ class GameViewModel @Inject constructor(
             elderSlots.alchemyElder,
             elderSlots.forgeElder,
             elderSlots.libraryElder,
-            elderSlots.spiritMineElder,
             elderSlots.recruitElder,
             elderSlots.outerElder,
             elderSlots.preachingElder,
@@ -1543,11 +2007,11 @@ class GameViewModel @Inject constructor(
             elderSlots.alchemyDisciples,
             elderSlots.forgeDisciples,
             elderSlots.libraryDisciples,
-            elderSlots.spiritMineDisciples,
             elderSlots.recruitDisciples,
             elderSlots.preachingMasters,
             elderSlots.lawEnforcementDisciples,
-            elderSlots.lawEnforcementReserveDisciples
+            elderSlots.lawEnforcementReserveDisciples,
+            elderSlots.spiritMineDeaconDisciples
         ).flatten().mapNotNull { it.discipleId }
 
         return disciples.value
@@ -1567,7 +2031,6 @@ class GameViewModel @Inject constructor(
             elderSlots.alchemyElder,
             elderSlots.forgeElder,
             elderSlots.libraryElder,
-            elderSlots.spiritMineElder,
             elderSlots.recruitElder,
             elderSlots.outerElder,
             elderSlots.preachingElder,
@@ -1579,10 +2042,10 @@ class GameViewModel @Inject constructor(
             elderSlots.alchemyDisciples,
             elderSlots.forgeDisciples,
             elderSlots.libraryDisciples,
-            elderSlots.spiritMineDisciples,
             elderSlots.recruitDisciples,
             elderSlots.preachingMasters,
-            elderSlots.lawEnforcementDisciples
+            elderSlots.lawEnforcementDisciples,
+            elderSlots.spiritMineDeaconDisciples
         ).flatten().mapNotNull { it.discipleId }
 
         return disciples.value
@@ -1598,7 +2061,6 @@ class GameViewModel @Inject constructor(
             elderSlots.alchemyElder,
             elderSlots.forgeElder,
             elderSlots.libraryElder,
-            elderSlots.spiritMineElder,
             elderSlots.recruitElder,
             elderSlots.outerElder,
             elderSlots.preachingElder,
@@ -1610,10 +2072,10 @@ class GameViewModel @Inject constructor(
             elderSlots.alchemyDisciples,
             elderSlots.forgeDisciples,
             elderSlots.libraryDisciples,
-            elderSlots.spiritMineDisciples,
             elderSlots.recruitDisciples,
             elderSlots.preachingMasters,
-            elderSlots.lawEnforcementDisciples
+            elderSlots.lawEnforcementDisciples,
+            elderSlots.spiritMineDeaconDisciples
         ).flatten().mapNotNull { it.discipleId }
 
         return disciples.value
@@ -1629,7 +2091,6 @@ class GameViewModel @Inject constructor(
             elderSlots.alchemyElder,
             elderSlots.forgeElder,
             elderSlots.libraryElder,
-            elderSlots.spiritMineElder,
             elderSlots.recruitElder,
             elderSlots.outerElder,
             elderSlots.preachingElder,
@@ -1643,12 +2104,12 @@ class GameViewModel @Inject constructor(
             elderSlots.alchemyDisciples,
             elderSlots.forgeDisciples,
             elderSlots.libraryDisciples,
-            elderSlots.spiritMineDisciples,
             elderSlots.recruitDisciples,
             elderSlots.preachingMasters,
             elderSlots.lawEnforcementDisciples,
             elderSlots.lawEnforcementReserveDisciples,
-            elderSlots.qingyunPreachingMasters
+            elderSlots.qingyunPreachingMasters,
+            elderSlots.spiritMineDeaconDisciples
         ).flatten().mapNotNull { it.discipleId }
 
         return disciples.value
@@ -1674,7 +2135,366 @@ class GameViewModel @Inject constructor(
         return disciples.value.filter { it.isAlive && it.discipleType == "inner" }
     }
 
-    fun getAvailableDisciplesForInnerElder(): List<Disciple> {
+    fun getAlchemyReserveDisciples(): List<DirectDiscipleSlot> {
+        return gameEngine.gameData.value.elderSlots.alchemyReserveDisciples
+    }
+
+    fun getAlchemyReserveDisciplesWithInfo(): List<Disciple> {
+        val reserveSlots = gameEngine.gameData.value.elderSlots.alchemyReserveDisciples
+        val reserveIds = reserveSlots.mapNotNull { it.discipleId }.toSet()
+        return disciples.value
+            .filter { it.id in reserveIds }
+            .sortedByDescending { it.pillRefining }
+    }
+
+    fun getHerbGardenReserveDisciples(): List<DirectDiscipleSlot> {
+        return gameEngine.gameData.value.elderSlots.herbGardenReserveDisciples
+    }
+
+    fun getHerbGardenReserveDisciplesWithInfo(): List<Disciple> {
+        val reserveSlots = gameEngine.gameData.value.elderSlots.herbGardenReserveDisciples
+        val reserveIds = reserveSlots.mapNotNull { it.discipleId }.toSet()
+        return disciples.value
+            .filter { it.id in reserveIds }
+            .sortedByDescending { it.spiritPlanting }
+    }
+
+    fun addAlchemyReserveDisciples(discipleIds: List<String>) {
+        viewModelScope.launch {
+            try {
+                val currentReserveDisciples = gameEngine.gameData.value.elderSlots.alchemyReserveDisciples.toMutableList()
+                val existingIds = currentReserveDisciples.mapNotNull { it.discipleId }.toSet()
+                val initialSize = currentReserveDisciples.size
+                
+                discipleIds.forEach { discipleId ->
+                    if (existingIds.contains(discipleId)) return@forEach
+                    
+                    val disciple = disciples.value.find { it.id == discipleId } ?: return@forEach
+                    
+                    if (hasDisciplePosition(discipleId)) return@forEach
+                    
+                    if (isReserveDisciple(discipleId)) return@forEach
+                    
+                    val newIndex = if (currentReserveDisciples.isEmpty()) 0 else currentReserveDisciples.maxOf { it.index } + 1
+                    val newSlot = DirectDiscipleSlot(
+                        index = newIndex,
+                        discipleId = discipleId,
+                        discipleName = disciple.name,
+                        discipleRealm = disciple.realmName,
+                        discipleSpiritRootColor = disciple.spiritRoot.countColor
+                    )
+                    currentReserveDisciples.add(newSlot)
+                }
+                
+                val addedCount = currentReserveDisciples.size - initialSize
+                if (addedCount > 0) {
+                    val updatedElderSlots = gameEngine.gameData.value.elderSlots.copy(
+                        alchemyReserveDisciples = currentReserveDisciples
+                    )
+                    gameEngine.updateGameData { it.copy(elderSlots = updatedElderSlots) }
+                } else {
+                    _errorMessage.value = "没有可添加的弟子"
+                }
+            } catch (e: Exception) {
+                _errorMessage.value = e.message ?: "添加失败"
+            }
+        }
+    }
+
+    fun removeAlchemyReserveDisciple(discipleId: String) {
+        viewModelScope.launch {
+            try {
+                val currentReserveDisciples = gameEngine.gameData.value.elderSlots.alchemyReserveDisciples
+                val updatedReserveDisciples = currentReserveDisciples.filter { it.discipleId != discipleId }
+                val updatedElderSlots = gameEngine.gameData.value.elderSlots.copy(
+                    alchemyReserveDisciples = updatedReserveDisciples
+                )
+                gameEngine.updateGameData { it.copy(elderSlots = updatedElderSlots) }
+            } catch (e: Exception) {
+                _errorMessage.value = e.message ?: "移除失败"
+            }
+        }
+    }
+
+    fun addHerbGardenReserveDisciples(discipleIds: List<String>) {
+        viewModelScope.launch {
+            try {
+                val currentReserveDisciples = gameEngine.gameData.value.elderSlots.herbGardenReserveDisciples.toMutableList()
+                val existingIds = currentReserveDisciples.mapNotNull { it.discipleId }.toSet()
+                var addedCount = 0
+                
+                discipleIds.forEach { discipleId ->
+                    if (existingIds.contains(discipleId)) return@forEach
+                    
+                    val disciple = disciples.value.find { it.id == discipleId } ?: return@forEach
+                    
+                    if (hasDisciplePosition(discipleId)) return@forEach
+                    
+                    if (isReserveDisciple(discipleId)) return@forEach
+                    
+                    val newIndex = if (currentReserveDisciples.isEmpty()) 0 else currentReserveDisciples.maxOf { it.index } + 1
+                    val newSlot = DirectDiscipleSlot(
+                        index = newIndex,
+                        discipleId = discipleId,
+                        discipleName = disciple.name,
+                        discipleRealm = disciple.realmName,
+                        discipleSpiritRootColor = disciple.spiritRoot.countColor
+                    )
+                    currentReserveDisciples.add(newSlot)
+                    addedCount++
+                }
+                
+                if (addedCount > 0) {
+                    val updatedElderSlots = gameEngine.gameData.value.elderSlots.copy(
+                        herbGardenReserveDisciples = currentReserveDisciples
+                    )
+                    gameEngine.updateGameData { it.copy(elderSlots = updatedElderSlots) }
+                }
+            } catch (e: Exception) {
+                _errorMessage.value = e.message ?: "添加失败"
+            }
+        }
+    }
+
+    fun removeHerbGardenReserveDisciple(discipleId: String) {
+        viewModelScope.launch {
+            try {
+                val currentReserveDisciples = gameEngine.gameData.value.elderSlots.herbGardenReserveDisciples
+                val updatedReserveDisciples = currentReserveDisciples.filter { it.discipleId != discipleId }
+                val updatedElderSlots = gameEngine.gameData.value.elderSlots.copy(
+                    herbGardenReserveDisciples = updatedReserveDisciples
+                )
+                gameEngine.updateGameData { it.copy(elderSlots = updatedElderSlots) }
+            } catch (e: Exception) {
+                _errorMessage.value = e.message ?: "移除失败"
+            }
+        }
+    }
+
+    fun getAvailableDisciplesForHerbGardenReserve(): List<Disciple> {
+        val elderSlots = gameEngine.gameData.value.elderSlots
+        val allElderIds = listOfNotNull(
+            elderSlots.viceSectMaster,
+            elderSlots.herbGardenElder,
+            elderSlots.alchemyElder,
+            elderSlots.forgeElder,
+            elderSlots.libraryElder,
+            elderSlots.recruitElder,
+            elderSlots.outerElder,
+            elderSlots.preachingElder,
+            elderSlots.lawEnforcementElder,
+            elderSlots.innerElder,
+            elderSlots.qingyunPreachingElder
+        )
+
+        val allDirectDiscipleIds = listOf(
+            elderSlots.herbGardenDisciples,
+            elderSlots.alchemyDisciples,
+            elderSlots.forgeDisciples,
+            elderSlots.libraryDisciples,
+            elderSlots.recruitDisciples,
+            elderSlots.preachingMasters,
+            elderSlots.lawEnforcementDisciples,
+            elderSlots.lawEnforcementReserveDisciples,
+            elderSlots.qingyunPreachingMasters,
+            elderSlots.spiritMineDeaconDisciples,
+            elderSlots.alchemyReserveDisciples,
+            elderSlots.herbGardenReserveDisciples
+        ).flatten().mapNotNull { it.discipleId }
+
+        val allInnerDiscipleIds = listOf(
+            elderSlots.forgeInnerDisciples,
+            elderSlots.alchemyInnerDisciples,
+            elderSlots.herbGardenInnerDisciples
+        ).flatten().mapNotNull { it.discipleId }
+
+        return disciples.value
+            .filter { 
+                it.isAlive && 
+                it.discipleType == "inner" && 
+                it.realmLayer > 0 && 
+                it.status == DiscipleStatus.IDLE && 
+                !allElderIds.contains(it.id) && 
+                !allDirectDiscipleIds.contains(it.id) &&
+                !allInnerDiscipleIds.contains(it.id)
+            }
+            .sortedByDescending { it.spiritPlanting }
+    }
+
+    fun getAvailableDisciplesForAlchemyReserve(): List<Disciple> {
+        val elderSlots = gameEngine.gameData.value.elderSlots
+        val allElderIds = listOfNotNull(
+            elderSlots.viceSectMaster,
+            elderSlots.herbGardenElder,
+            elderSlots.alchemyElder,
+            elderSlots.forgeElder,
+            elderSlots.libraryElder,
+            elderSlots.recruitElder,
+            elderSlots.outerElder,
+            elderSlots.preachingElder,
+            elderSlots.lawEnforcementElder,
+            elderSlots.innerElder,
+            elderSlots.qingyunPreachingElder
+        )
+
+        val allDirectDiscipleIds = listOf(
+            elderSlots.herbGardenDisciples,
+            elderSlots.alchemyDisciples,
+            elderSlots.forgeDisciples,
+            elderSlots.libraryDisciples,
+            elderSlots.recruitDisciples,
+            elderSlots.preachingMasters,
+            elderSlots.lawEnforcementDisciples,
+            elderSlots.lawEnforcementReserveDisciples,
+            elderSlots.qingyunPreachingMasters,
+            elderSlots.spiritMineDeaconDisciples,
+            elderSlots.alchemyReserveDisciples,
+            elderSlots.forgeReserveDisciples
+        ).flatten().mapNotNull { it.discipleId }
+
+        val allInnerDiscipleIds = listOf(
+            elderSlots.forgeInnerDisciples,
+            elderSlots.alchemyInnerDisciples,
+            elderSlots.herbGardenInnerDisciples
+        ).flatten().mapNotNull { it.discipleId }
+
+        return disciples.value
+            .filter { 
+                it.isAlive && 
+                it.discipleType == "inner" && 
+                it.realmLayer > 0 && 
+                it.status == DiscipleStatus.IDLE && 
+                !allElderIds.contains(it.id) && 
+                !allDirectDiscipleIds.contains(it.id) &&
+                !allInnerDiscipleIds.contains(it.id)
+            }
+            .sortedByDescending { it.pillRefining }
+    }
+
+    fun getForgeReserveDisciples(): List<DirectDiscipleSlot> {
+        return gameEngine.gameData.value.elderSlots.forgeReserveDisciples
+    }
+
+    fun getForgeReserveDisciplesWithInfo(): List<Disciple> {
+        val reserveSlots = gameEngine.gameData.value.elderSlots.forgeReserveDisciples
+        val reserveIds = reserveSlots.mapNotNull { it.discipleId }.toSet()
+        return disciples.value
+            .filter { it.id in reserveIds && it.status != DiscipleStatus.REFLECTING }
+            .sortedByDescending { it.artifactRefining }
+    }
+
+    fun addForgeReserveDisciples(discipleIds: List<String>) {
+        viewModelScope.launch {
+            try {
+                val currentReserveDisciples = gameEngine.gameData.value.elderSlots.forgeReserveDisciples.toMutableList()
+                val existingIds = currentReserveDisciples.mapNotNull { it.discipleId }.toSet()
+                var addedCount = 0
+                
+                discipleIds.forEach { discipleId ->
+                    if (existingIds.contains(discipleId)) return@forEach
+                    
+                    val disciple = disciples.value.find { it.id == discipleId } ?: return@forEach
+                    
+                    if (hasDisciplePosition(discipleId)) return@forEach
+                    
+                    if (isReserveDisciple(discipleId)) return@forEach
+                    
+                    val newIndex = if (currentReserveDisciples.isEmpty()) 0 else currentReserveDisciples.maxOf { it.index } + 1
+                    val newSlot = DirectDiscipleSlot(
+                        index = newIndex,
+                        discipleId = discipleId,
+                        discipleName = disciple.name,
+                        discipleRealm = disciple.realmName,
+                        discipleSpiritRootColor = disciple.spiritRoot.countColor
+                    )
+                    currentReserveDisciples.add(newSlot)
+                    addedCount++
+                }
+                
+                if (addedCount > 0) {
+                    val updatedElderSlots = gameEngine.gameData.value.elderSlots.copy(
+                        forgeReserveDisciples = currentReserveDisciples
+                    )
+                    gameEngine.updateGameData { it.copy(elderSlots = updatedElderSlots) }
+                }
+            } catch (e: Exception) {
+                _errorMessage.value = e.message ?: "添加失败"
+            }
+        }
+    }
+
+    fun removeForgeReserveDisciple(discipleId: String) {
+        viewModelScope.launch {
+            try {
+                val currentReserveDisciples = gameEngine.gameData.value.elderSlots.forgeReserveDisciples
+                val updatedReserveDisciples = currentReserveDisciples.filter { it.discipleId != discipleId }
+                val updatedElderSlots = gameEngine.gameData.value.elderSlots.copy(
+                    forgeReserveDisciples = updatedReserveDisciples
+                )
+                gameEngine.updateGameData { it.copy(elderSlots = updatedElderSlots) }
+            } catch (e: Exception) {
+                _errorMessage.value = e.message ?: "移除失败"
+            }
+        }
+    }
+
+    fun getAvailableDisciplesForForgeReserve(): List<Disciple> {
+        val elderSlots = gameEngine.gameData.value.elderSlots
+        val allElderIds = listOfNotNull(
+            elderSlots.viceSectMaster,
+            elderSlots.herbGardenElder,
+            elderSlots.alchemyElder,
+            elderSlots.forgeElder,
+            elderSlots.libraryElder,
+            elderSlots.recruitElder,
+            elderSlots.outerElder,
+            elderSlots.preachingElder,
+            elderSlots.lawEnforcementElder,
+            elderSlots.innerElder,
+            elderSlots.qingyunPreachingElder
+        )
+
+        val allDirectDiscipleIds = listOf(
+            elderSlots.herbGardenDisciples,
+            elderSlots.alchemyDisciples,
+            elderSlots.forgeDisciples,
+            elderSlots.libraryDisciples,
+            elderSlots.recruitDisciples,
+            elderSlots.preachingMasters,
+            elderSlots.lawEnforcementDisciples,
+            elderSlots.lawEnforcementReserveDisciples,
+            elderSlots.qingyunPreachingMasters,
+            elderSlots.spiritMineDeaconDisciples,
+            elderSlots.alchemyReserveDisciples,
+            elderSlots.forgeReserveDisciples
+        ).flatten().mapNotNull { it.discipleId }
+
+        val allInnerDiscipleIds = listOf(
+            elderSlots.forgeInnerDisciples,
+            elderSlots.alchemyInnerDisciples,
+            elderSlots.herbGardenInnerDisciples
+        ).flatten().mapNotNull { it.discipleId }
+
+        return disciples.value
+            .filter { 
+                it.isAlive && 
+                it.discipleType == "inner" && 
+                it.realmLayer > 0 && 
+                it.status == DiscipleStatus.IDLE && 
+                !allElderIds.contains(it.id) && 
+                !allDirectDiscipleIds.contains(it.id) &&
+                !allInnerDiscipleIds.contains(it.id)
+            }
+            .sortedByDescending { it.artifactRefining }
+    }
+
+    // ==================== 灵矿执事管理 ====================
+
+    fun getSpiritMineDeaconDisciples(): List<DirectDiscipleSlot> {
+        return gameEngine.gameData.value.elderSlots.spiritMineDeaconDisciples
+    }
+
+    fun getAvailableDisciplesForSpiritMineDeacon(): List<Disciple> {
         val elderSlots = gameEngine.gameData.value.elderSlots
         val allElderIds = listOf(
             elderSlots.viceSectMaster,
@@ -1682,7 +2502,6 @@ class GameViewModel @Inject constructor(
             elderSlots.alchemyElder,
             elderSlots.forgeElder,
             elderSlots.libraryElder,
-            elderSlots.spiritMineElder,
             elderSlots.recruitElder,
             elderSlots.outerElder,
             elderSlots.preachingElder,
@@ -1696,12 +2515,182 @@ class GameViewModel @Inject constructor(
             elderSlots.alchemyDisciples,
             elderSlots.forgeDisciples,
             elderSlots.libraryDisciples,
-            elderSlots.spiritMineDisciples,
             elderSlots.recruitDisciples,
             elderSlots.preachingMasters,
             elderSlots.lawEnforcementDisciples,
             elderSlots.lawEnforcementReserveDisciples,
-            elderSlots.qingyunPreachingMasters
+            elderSlots.qingyunPreachingMasters,
+            elderSlots.spiritMineDeaconDisciples
+        ).flatten().mapNotNull { it.discipleId }
+
+        val allInnerDiscipleIds = listOf(
+            elderSlots.forgeInnerDisciples,
+            elderSlots.alchemyInnerDisciples,
+            elderSlots.herbGardenInnerDisciples
+        ).flatten().mapNotNull { it.discipleId }
+
+        // 灵矿执事只能由内门弟子担任
+        return disciples.value
+            .filter { 
+                it.isAlive && 
+                it.discipleType == "inner" && 
+                it.realmLayer > 0 && 
+                it.status == DiscipleStatus.IDLE && 
+                !allElderIds.contains(it.id) && 
+                !allDirectDiscipleIds.contains(it.id) &&
+                !allInnerDiscipleIds.contains(it.id)
+            }
+            .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
+    }
+
+    fun assignSpiritMineDeacon(slotIndex: Int, discipleId: String) {
+        viewModelScope.launch {
+            try {
+                val disciple = disciples.value.find { it.id == discipleId }
+                if (disciple == null) {
+                    _errorMessage.value = "弟子不存在"
+                    return@launch
+                }
+
+                // 检查是否为内门弟子
+                if (disciple.discipleType != "inner") {
+                    _errorMessage.value = "执事只能由内门弟子担任"
+                    return@launch
+                }
+
+                val currentGameData = gameEngine.gameData.value
+                val elderSlots = currentGameData.elderSlots
+
+                // 检查是否已在其他职位
+                val allElderIds = listOf(
+                    elderSlots.viceSectMaster,
+                    elderSlots.herbGardenElder,
+                    elderSlots.alchemyElder,
+                    elderSlots.forgeElder,
+                    elderSlots.libraryElder,
+                    elderSlots.recruitElder,
+                    elderSlots.outerElder,
+                    elderSlots.preachingElder,
+                    elderSlots.lawEnforcementElder,
+                    elderSlots.innerElder,
+                    elderSlots.qingyunPreachingElder
+                ).filterNotNull()
+
+                val allDirectDiscipleIds = listOf(
+                    elderSlots.herbGardenDisciples,
+                    elderSlots.alchemyDisciples,
+                    elderSlots.forgeDisciples,
+                    elderSlots.libraryDisciples,
+                    elderSlots.recruitDisciples,
+                    elderSlots.preachingMasters,
+                    elderSlots.lawEnforcementDisciples,
+                    elderSlots.lawEnforcementReserveDisciples,
+                    elderSlots.qingyunPreachingMasters,
+                    elderSlots.spiritMineDeaconDisciples
+                ).flatten().mapNotNull { it.discipleId }
+
+                val allInnerDiscipleIds = listOf(
+                    elderSlots.forgeInnerDisciples,
+                    elderSlots.alchemyInnerDisciples,
+                    elderSlots.herbGardenInnerDisciples
+                ).flatten().mapNotNull { it.discipleId }
+
+                if (allElderIds.contains(discipleId)) {
+                    _errorMessage.value = "该弟子已担任长老职位"
+                    return@launch
+                }
+
+                if (allDirectDiscipleIds.contains(discipleId)) {
+                    _errorMessage.value = "该弟子已是其他长老的亲传弟子"
+                    return@launch
+                }
+
+                if (allInnerDiscipleIds.contains(discipleId)) {
+                    _errorMessage.value = "该弟子已是内门弟子"
+                    return@launch
+                }
+
+                // 添加执事
+                val currentDeacons = elderSlots.spiritMineDeaconDisciples.toMutableList()
+                val existingSlot = currentDeacons.find { it.index == slotIndex }
+                
+                val newSlot = DirectDiscipleSlot(
+                    index = slotIndex,
+                    discipleId = discipleId,
+                    discipleName = disciple.name,
+                    discipleRealm = disciple.realmName,
+                    discipleSpiritRootColor = disciple.spiritRoot.countColor
+                )
+
+                if (existingSlot != null) {
+                    currentDeacons[currentDeacons.indexOf(existingSlot)] = newSlot
+                } else {
+                    currentDeacons.add(newSlot)
+                }
+
+                val updatedElderSlots = elderSlots.copy(spiritMineDeaconDisciples = currentDeacons)
+                gameEngine.updateGameData { it.copy(elderSlots = updatedElderSlots) }
+                
+                // 更新弟子状态为采矿中
+                gameEngine.updateDiscipleStatus(discipleId, DiscipleStatus.MINING)
+            } catch (e: Exception) {
+                _errorMessage.value = e.message ?: "任命失败"
+            }
+        }
+    }
+
+    fun removeSpiritMineDeacon(slotIndex: Int) {
+        viewModelScope.launch {
+            try {
+                val currentGameData = gameEngine.gameData.value
+                val elderSlots = currentGameData.elderSlots
+                
+                // 获取被移除的执事ID
+                val removedDeaconId = elderSlots.spiritMineDeaconDisciples.find { it.index == slotIndex }?.discipleId
+                
+                val currentDeacons = elderSlots.spiritMineDeaconDisciples.filter { it.index != slotIndex }
+                val updatedElderSlots = elderSlots.copy(spiritMineDeaconDisciples = currentDeacons)
+                gameEngine.updateGameData { it.copy(elderSlots = updatedElderSlots) }
+                
+                // 恢复弟子状态为空闲
+                removedDeaconId?.let { gameEngine.updateDiscipleStatus(it, DiscipleStatus.IDLE) }
+            } catch (e: Exception) {
+                _errorMessage.value = e.message ?: "卸任失败"
+            }
+        }
+    }
+
+    fun validateSpiritMineData() {
+        gameEngine.validateAndFixSpiritMineData()
+    }
+
+    fun getAvailableDisciplesForInnerElder(): List<Disciple> {
+        val elderSlots = gameEngine.gameData.value.elderSlots
+        val allElderIds = listOf(
+            elderSlots.viceSectMaster,
+            elderSlots.herbGardenElder,
+            elderSlots.alchemyElder,
+            elderSlots.forgeElder,
+            elderSlots.libraryElder,
+            elderSlots.recruitElder,
+            elderSlots.outerElder,
+            elderSlots.preachingElder,
+            elderSlots.lawEnforcementElder,
+            elderSlots.innerElder,
+            elderSlots.qingyunPreachingElder
+        ).filterNotNull()
+
+        val allDirectDiscipleIds = listOf(
+            elderSlots.herbGardenDisciples,
+            elderSlots.alchemyDisciples,
+            elderSlots.forgeDisciples,
+            elderSlots.libraryDisciples,
+            elderSlots.recruitDisciples,
+            elderSlots.preachingMasters,
+            elderSlots.lawEnforcementDisciples,
+            elderSlots.lawEnforcementReserveDisciples,
+            elderSlots.qingyunPreachingMasters,
+            elderSlots.spiritMineDeaconDisciples
         ).flatten().mapNotNull { it.discipleId }
 
         return disciples.value
@@ -1717,7 +2706,6 @@ class GameViewModel @Inject constructor(
             elderSlots.alchemyElder,
             elderSlots.forgeElder,
             elderSlots.libraryElder,
-            elderSlots.spiritMineElder,
             elderSlots.recruitElder,
             elderSlots.outerElder,
             elderSlots.preachingElder,
@@ -1731,12 +2719,12 @@ class GameViewModel @Inject constructor(
             elderSlots.alchemyDisciples,
             elderSlots.forgeDisciples,
             elderSlots.libraryDisciples,
-            elderSlots.spiritMineDisciples,
             elderSlots.recruitDisciples,
             elderSlots.preachingMasters,
             elderSlots.lawEnforcementDisciples,
             elderSlots.lawEnforcementReserveDisciples,
-            elderSlots.qingyunPreachingMasters
+            elderSlots.qingyunPreachingMasters,
+            elderSlots.spiritMineDeaconDisciples
         ).flatten().mapNotNull { it.discipleId }
 
         return disciples.value
@@ -1752,7 +2740,6 @@ class GameViewModel @Inject constructor(
             elderSlots.alchemyElder,
             elderSlots.forgeElder,
             elderSlots.libraryElder,
-            elderSlots.spiritMineElder,
             elderSlots.recruitElder,
             elderSlots.outerElder,
             elderSlots.preachingElder,
@@ -1766,12 +2753,12 @@ class GameViewModel @Inject constructor(
             elderSlots.alchemyDisciples,
             elderSlots.forgeDisciples,
             elderSlots.libraryDisciples,
-            elderSlots.spiritMineDisciples,
             elderSlots.recruitDisciples,
             elderSlots.preachingMasters,
             elderSlots.lawEnforcementDisciples,
             elderSlots.lawEnforcementReserveDisciples,
-            elderSlots.qingyunPreachingMasters
+            elderSlots.qingyunPreachingMasters,
+            elderSlots.spiritMineDeaconDisciples
         ).flatten().mapNotNull { it.discipleId }
 
         return disciples.value
@@ -1793,6 +2780,17 @@ class GameViewModel @Inject constructor(
 
     fun closeSecretRealmDialog() {
         _showSecretRealmDialog.value = false
+    }
+
+    private val _showBattleLogDialog = MutableStateFlow(false)
+    val showBattleLogDialog: StateFlow<Boolean> = _showBattleLogDialog.asStateFlow()
+
+    fun openBattleLogDialog() {
+        _showBattleLogDialog.value = true
+    }
+
+    fun closeBattleLogDialog() {
+        _showBattleLogDialog.value = false
     }
 
     fun dispatchTeamToDungeon(dungeonId: String, discipleIds: List<String>) {
@@ -1823,7 +2821,6 @@ class GameViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 gameEngine.recruitDisciple()
-                _successMessage.value = "成功招募弟子"
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "招募弟子失败"
             }
@@ -1832,7 +2829,6 @@ class GameViewModel @Inject constructor(
 
     fun assignDiscipleToBuilding(discipleId: String?, buildingId: String) {
         viewModelScope.launch {
-            _successMessage.value = "弟子已分配"
         }
     }
 
@@ -1840,7 +2836,6 @@ class GameViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 gameEngine.assignDiscipleToBuilding(buildingId, slotIndex, discipleId)
-                _successMessage.value = "弟子已分配"
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "分配失败"
             }
@@ -1849,7 +2844,6 @@ class GameViewModel @Inject constructor(
 
     fun removeDiscipleFromSpiritMine(slotIndex: Int) {
         viewModelScope.launch {
-            _successMessage.value = "弟子已移除"
         }
     }
 
@@ -1883,7 +2877,6 @@ class GameViewModel @Inject constructor(
 
                 gameEngine.updateSpiritMineSlots(currentSlots)
                 gameEngine.updateDiscipleStatus(discipleId, DiscipleStatus.MINING)
-                _successMessage.value = "弟子已分配到灵矿"
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "分配失败"
             }
@@ -1908,7 +2901,6 @@ class GameViewModel @Inject constructor(
                         output = 100
                     )
                     gameEngine.updateSpiritMineSlots(currentSlots)
-                    _successMessage.value = "弟子已从灵矿卸任"
                 }
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "卸任失败"
@@ -1920,7 +2912,6 @@ class GameViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 gameEngine.assignDiscipleToLibrarySlot(slotIndex, discipleId, discipleName)
-                _successMessage.value = "弟子已分配到藏经阁"
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "分配失败"
             }
@@ -1931,7 +2922,6 @@ class GameViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 gameEngine.removeDiscipleFromLibrarySlot(slotIndex)
-                _successMessage.value = "弟子已从藏经阁卸任"
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "卸任失败"
             }
@@ -1940,7 +2930,6 @@ class GameViewModel @Inject constructor(
 
     fun assignDiscipleToSpiritMine(slotIndex: Int, discipleId: String) {
         viewModelScope.launch {
-            _successMessage.value = "弟子已分配"
         }
     }
 
@@ -2031,7 +3020,6 @@ class GameViewModel @Inject constructor(
 
     // 弟子招募相关
     fun recruitDiscipleFromList(discipleId: String) {
-        // 防止重复点击导致重复招募
         if (recruitingDiscipleIds.contains(discipleId)) {
             return
         }
@@ -2042,10 +3030,7 @@ class GameViewModel @Inject constructor(
                 val recruitList = gameEngine.gameData.value.recruitList
                 val disciple = recruitList.find { it.id == discipleId }
                 if (disciple != null) {
-                    val success = gameEngine.recruitDiscipleFromList(disciple)
-                    if (success) {
-                        _successMessage.value = "招募成功"
-                    }
+                    gameEngine.recruitDiscipleFromList(disciple)
                 }
             } finally {
                 recruitingDiscipleIds.remove(discipleId)
@@ -2056,23 +3041,19 @@ class GameViewModel @Inject constructor(
     fun expelDisciple(discipleId: String) {
         viewModelScope.launch {
             gameEngine.expelDisciple(discipleId)
-            _successMessage.value = "已逐出弟子"
         }
     }
 
     fun rewardItemsToDisciple(discipleId: String, items: List<RewardSelectedItem>) {
         viewModelScope.launch {
             gameEngine.rewardItemsToDisciple(discipleId, items)
-            _successMessage.value = "已赏赐${items.size}件道具"
         }
     }
 
     fun recruitAllDisciples() {
         viewModelScope.launch {
             val success = gameEngine.recruitAllFromList()
-            if (success) {
-                _successMessage.value = "所有弟子已招募"
-            } else {
+            if (!success) {
                 _errorMessage.value = "无弟子可招募"
             }
         }
@@ -2084,7 +3065,6 @@ class GameViewModel @Inject constructor(
             val disciple = recruitList.find { it.id == discipleId }
             if (disciple != null) {
                 gameEngine.removeFromRecruitList(disciple)
-                _successMessage.value = "弟子已拒绝"
             }
         }
     }
@@ -2093,12 +3073,10 @@ class GameViewModel @Inject constructor(
         return gameEngine.gameData.value.recruitList
     }
 
-    // 装备管理
     fun equipItem(discipleId: String, equipmentId: String) {
         viewModelScope.launch {
             try {
                 gameEngine.equipItem(discipleId, equipmentId)
-                _successMessage.value = "装备成功"
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "装备失败"
             }
@@ -2109,7 +3087,6 @@ class GameViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 gameEngine.unequipItem(discipleId, slot)
-                _successMessage.value = "装备已卸下"
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "卸下装备失败"
             }
@@ -2120,19 +3097,16 @@ class GameViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 gameEngine.unequipItemById(discipleId, equipmentId)
-                _successMessage.value = "装备已卸下"
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "卸下装备失败"
             }
         }
     }
 
-    // 功法管理
     fun forgetManual(discipleId: String, manualId: String) {
         viewModelScope.launch {
             try {
                 gameEngine.forgetManual(discipleId, manualId)
-                _successMessage.value = "功法已遗忘"
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "遗忘功法失败"
             }
@@ -2143,7 +3117,6 @@ class GameViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 gameEngine.replaceManual(discipleId, oldManualId, newManualId)
-                _successMessage.value = "功法替换成功"
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "功法替换失败"
             }
@@ -2154,24 +3127,19 @@ class GameViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 gameEngine.learnManual(discipleId, manualId)
-                _successMessage.value = "功法学习成功"
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "学习功法失败"
             }
         }
     }
 
-    // 仓库管理
     fun sortWarehouse(category: String) {
-        // TODO: 实现仓库排序
     }
 
-    // 召回探索队伍
     fun recallTeam(teamId: String) {
         viewModelScope.launch {
             try {
                 gameEngine.recallTeam(teamId)
-                _successMessage.value = "队伍已召回"
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "召回失败"
             }
@@ -2180,68 +3148,27 @@ class GameViewModel @Inject constructor(
 
     fun startExploration(name: String, memberIds: List<String>, location: String, duration: Int) {
         viewModelScope.launch {
-            _successMessage.value = "开始探索"
+        }
+    }
+
+    fun startCaveExploration(cave: CultivatorCave, selectedDisciples: List<Disciple>) {
+        viewModelScope.launch {
+            gameEngine.startCaveExploration(cave, selectedDisciples)
         }
     }
 
     fun exploreSect(sectId: String) {
         viewModelScope.launch {
-            _successMessage.value = "探索完成"
         }
     }
 
     fun interactWithSect(sectId: String, action: String) {
         viewModelScope.launch {
-            _successMessage.value = "外交行动: $action"
         }
     }
 
-    // 大比设置
-    fun setTournamentAutoHold(enabled: Boolean) {
-        viewModelScope.launch {
-            gameEngine.toggleTournamentAutoHold(enabled)
-            _successMessage.value = if (enabled) "已开启自动举办" else "已关闭自动举办"
-        }
-    }
-
-    fun setTournamentRealmEnabled(realm: Int, enabled: Boolean) {
-        viewModelScope.launch {
-            gameEngine.toggleTournamentRealm(realm, enabled)
-        }
-    }
-
-    fun updateTournamentReward(realm: Int, reward: com.xianxia.sect.core.model.TournamentReward) {
-        viewModelScope.launch {
-            gameEngine.updateTournamentRewards(realm, reward)
-        }
-    }
-
-    fun holdTournament() {
-        viewModelScope.launch {
-            gameEngine.startTournament(9)
-            _successMessage.value = "大比已举办"
-        }
-    }
-
-    // 战堂队伍管理
-    fun disbandWarTeam(teamId: String) {
-        viewModelScope.launch {
-            gameEngine.disbandWarTeam(teamId)
-            _successMessage.value = "队伍已解散"
-        }
-    }
-
-    fun createWarTeam(name: String, leaderId: String, memberIds: List<String>) {
-        viewModelScope.launch {
-            gameEngine.createWarTeam(name, memberIds)
-            _successMessage.value = "队伍 $name 已创建"
-        }
-    }
-
-    // 行商相关
     fun refreshMerchant() {
         viewModelScope.launch {
-            _successMessage.value = "行商已刷新"
         }
     }
 
@@ -2249,23 +3176,19 @@ class GameViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 gameEngine.buyMerchantItem(itemId, quantity)
-                _successMessage.value = "购买成功"
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "购买失败"
             }
         }
     }
 
-    // 交易行相关
     fun buyFromTradingHall(itemId: String) {
         viewModelScope.launch {
-            _successMessage.value = "购买成功"
         }
     }
 
     fun sellToTradingHall(itemId: String) {
         viewModelScope.launch {
-            _successMessage.value = "出售成功"
         }
     }
 
@@ -2273,7 +3196,6 @@ class GameViewModel @Inject constructor(
     private val recruitingDiscipleIds = mutableSetOf<String>()
 
     fun recruitDisciple(disciple: com.xianxia.sect.core.model.Disciple) {
-        // 防止重复点击导致重复招募
         if (recruitingDiscipleIds.contains(disciple.id)) {
             return
         }
@@ -2281,10 +3203,7 @@ class GameViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
-                val success = gameEngine.recruitDiscipleFromList(disciple)
-                if (success) {
-                    _successMessage.value = "成功招募 ${disciple.name}"
-                }
+                gameEngine.recruitDiscipleFromList(disciple)
             } finally {
                 recruitingDiscipleIds.remove(disciple.id)
             }
@@ -2305,7 +3224,6 @@ class GameViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 gameEngine.harvestHerb(slotIndex)
-                _successMessage.value = "收获成功"
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "收获失败"
             }
@@ -2327,12 +3245,10 @@ class GameViewModel @Inject constructor(
         }
     }
 
-    // 丹药使用
     fun usePill(discipleId: String, pillId: String) {
         viewModelScope.launch {
             try {
                 gameEngine.usePill(discipleId, pillId)
-                _successMessage.value = "丹药使用成功"
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "使用丹药失败"
             }
@@ -2343,33 +3259,17 @@ class GameViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 gameEngine.usePill(discipleId, pill.id)
-                _successMessage.value = "丹药使用成功"
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "使用丹药失败"
             }
         }
     }
 
-    // 错误处理
-    fun clearError() {
-        _errorMessage.value = null
-    }
-
-    fun clearSuccessMessage() {
-        _successMessage.value = null
-    }
-
     fun clearErrorMessage() {
         _errorMessage.value = null
     }
 
-    fun clearMessage() {
-        _successMessage.value = null
-        _errorMessage.value = null
-    }
-
     fun updateMonthlySalaryEnabled(realm: Int, enabled: Boolean) {
-        // TODO: 实现月俸功能状态更新
     }
 
     fun getDiscipleById(id: String): Disciple? {
@@ -2474,7 +3374,6 @@ class GameViewModel @Inject constructor(
                 // 增加灵石
                 if (totalValue > 0) {
                     gameEngine.addSpiritStones(totalValue)
-                    _successMessage.value = "一键出售成功，获得 ${totalValue} 灵石"
                 } else {
                     _errorMessage.value = "没有符合条件的物品可出售"
                 }
@@ -2519,14 +3418,356 @@ class GameViewModel @Inject constructor(
                 slots = gameEngine.buildingSlots.value,
                 events = gameEngine.events.value,
                 battleLogs = gameEngine.battleLogs.value,
-                warTeams = gameEngine.warTeams.value,
                 alliances = gameEngine.gameData.value.alliances,
-                supportTeams = gameEngine.gameData.value.supportTeams
+                supportTeams = gameEngine.gameData.value.supportTeams,
+                alchemySlots = gameEngine.alchemySlots.value
             )
             saveManager.save(currentSlot, saveData)
             Log.i(TAG, "Auto save on exit completed, slot: $currentSlot")
         } catch (e: Exception) {
             Log.e(TAG, "Auto save on exit failed: ${e.message}")
+        }
+    }
+
+    fun openBattleTeamDialog() {
+        val existingTeam = gameEngine.gameData.value.battleTeam
+        if (existingTeam != null) {
+            _battleTeamSlots.value = existingTeam.slots
+        } else {
+            _battleTeamSlots.value = buildList {
+                repeat(2) { index ->
+                    add(BattleTeamSlot(index, slotType = BattleSlotType.ELDER))
+                }
+                repeat(8) { index ->
+                    add(BattleTeamSlot(index + 2, slotType = BattleSlotType.DISCIPLE))
+                }
+            }
+        }
+        _showBattleTeamDialog.value = true
+    }
+
+    fun closeBattleTeamDialog() {
+        _showBattleTeamDialog.value = false
+    }
+
+    fun getAvailableEldersForBattleTeam(): List<Disciple> {
+        val currentSlotDiscipleIds = _battleTeamSlots.value.mapNotNull { it.discipleId }
+        val occupiedIds = getWorkStatusPositionIds() + currentSlotDiscipleIds
+        
+        return disciples.value
+            .filter { disciple ->
+                disciple.isAlive &&
+                disciple.realmLayer > 0 &&
+                disciple.status == DiscipleStatus.IDLE &&
+                disciple.realm <= 6 &&
+                !occupiedIds.contains(disciple.id)
+            }
+            .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
+    }
+
+    fun getAvailableDisciplesForBattleTeam(): List<Disciple> {
+        val currentSlotDiscipleIds = _battleTeamSlots.value.mapNotNull { it.discipleId }
+        val occupiedIds = getWorkStatusPositionIds() + currentSlotDiscipleIds
+        
+        return disciples.value
+            .filter { disciple ->
+                disciple.isAlive &&
+                disciple.realmLayer > 0 &&
+                disciple.status == DiscipleStatus.IDLE &&
+                !occupiedIds.contains(disciple.id)
+            }
+            .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
+    }
+
+    fun assignDiscipleToBattleTeamSlot(slotIndex: Int, disciple: Disciple) {
+        val currentSlots = _battleTeamSlots.value.toMutableList()
+        
+        if (slotIndex < 0 || slotIndex >= currentSlots.size) {
+            _errorMessage.value = "槽位索引无效"
+            return
+        }
+        
+        val slotType = currentSlots[slotIndex].slotType
+        
+        if (slotType == BattleSlotType.ELDER && disciple.realm > 6) {
+            _errorMessage.value = "战斗长老需要达到元婴境界"
+            return
+        }
+        
+        val existingSlot = currentSlots.find { it.discipleId == disciple.id }
+        if (existingSlot != null) {
+            currentSlots[existingSlot.index] = BattleTeamSlot(existingSlot.index, slotType = existingSlot.slotType)
+        }
+        currentSlots[slotIndex] = BattleTeamSlot(
+            index = slotIndex,
+            discipleId = disciple.id,
+            discipleName = disciple.name,
+            discipleRealm = disciple.realmName,
+            slotType = slotType
+        )
+        _battleTeamSlots.value = currentSlots
+    }
+
+    fun removeDiscipleFromBattleTeamSlot(slotIndex: Int) {
+        val currentSlots = _battleTeamSlots.value.toMutableList()
+        
+        if (slotIndex < 0 || slotIndex >= currentSlots.size) {
+            return
+        }
+        
+        val slotType = currentSlots[slotIndex].slotType
+        currentSlots[slotIndex] = BattleTeamSlot(slotIndex, slotType = slotType)
+        _battleTeamSlots.value = currentSlots
+    }
+
+    fun createBattleTeam(): Boolean {
+        val currentSlots = _battleTeamSlots.value
+        val filledSlots = currentSlots.count { it.discipleId != null }
+        
+        if (filledSlots < 10) {
+            _errorMessage.value = "必须满10名弟子才可组建队伍"
+            return false
+        }
+
+        val elderSlots = currentSlots.filter { it.slotType == BattleSlotType.ELDER }
+        if (elderSlots.any { it.discipleId == null }) {
+            _errorMessage.value = "必须填满长老槽位才可组建队伍"
+            return false
+        }
+
+        val existingTeam = gameEngine.gameData.value.battleTeam
+        if (existingTeam != null && existingTeam.isAtSect) {
+            _errorMessage.value = "宗门地址上已存在战斗队伍"
+            return false
+        }
+
+        viewModelScope.launch {
+            try {
+                val battleTeam = BattleTeam(
+                    id = java.util.UUID.randomUUID().toString(),
+                    name = "战斗队伍",
+                    slots = currentSlots,
+                    isAtSect = true,
+                    status = "idle"
+                )
+                
+                gameEngine.updateGameData { it.copy(battleTeam = battleTeam) }
+                
+                currentSlots.filter { it.discipleId != null }.forEach { slot ->
+                    gameEngine.updateDiscipleStatus(slot.discipleId!!, DiscipleStatus.BATTLE)
+                }
+                
+                _showBattleTeamDialog.value = false
+            } catch (e: Exception) {
+                _errorMessage.value = e.message ?: "组建队伍失败"
+            }
+        }
+        return true
+    }
+
+    fun disbandBattleTeam(): Boolean {
+        val team = gameEngine.gameData.value.battleTeam
+        if (team == null) {
+            _errorMessage.value = "没有可解散的战斗队伍"
+            return false
+        }
+        
+        if (!team.isIdle) {
+            _errorMessage.value = "队伍正在移动或战斗中，无法解散"
+            return false
+        }
+        
+        if (!team.isAtSect) {
+            _errorMessage.value = "队伍不在宗门，无法解散"
+            return false
+        }
+        
+        viewModelScope.launch {
+            try {
+                team.slots.filter { it.discipleId != null }.forEach { slot ->
+                    gameEngine.updateDiscipleStatus(slot.discipleId!!, DiscipleStatus.IDLE)
+                }
+                
+                gameEngine.updateGameData { it.copy(battleTeam = null) }
+                
+                _battleTeamSlots.value = buildList {
+                    repeat(2) { index ->
+                        add(BattleTeamSlot(index, slotType = BattleSlotType.ELDER))
+                    }
+                    repeat(8) { index ->
+                        add(BattleTeamSlot(index + 2, slotType = BattleSlotType.DISCIPLE))
+                    }
+                }
+                
+                _showBattleTeamDialog.value = false
+                _successMessage.value = "战斗队伍已解散"
+            } catch (e: Exception) {
+                _errorMessage.value = e.message ?: "解散队伍失败"
+            }
+        }
+        return true
+    }
+
+    fun hasBattleTeam(): Boolean {
+        return gameEngine.gameData.value.battleTeam != null
+    }
+
+    fun hasBattleTeamAtSect(): Boolean {
+        val team = gameEngine.gameData.value.battleTeam
+        return team != null && team.isAtSect
+    }
+
+    fun startBattleTeamMoveMode() {
+        val team = gameEngine.gameData.value.battleTeam
+        if (team == null || !team.isIdle || !team.isAtSect) {
+            _errorMessage.value = "战斗队伍无法移动"
+            return
+        }
+        _battleTeamMoveMode.value = true
+        _showBattleTeamDialog.value = false
+    }
+
+    fun cancelBattleTeamMoveMode() {
+        _battleTeamMoveMode.value = false
+    }
+
+    fun selectBattleTeamTarget(targetSectId: String) {
+        val data = gameEngine.gameData.value
+        val playerSect = data.worldMapSects.find { it.isPlayerSect }
+        val targetSect = data.worldMapSects.find { it.id == targetSectId }
+        
+        if (playerSect == null || targetSect == null) {
+            _errorMessage.value = "无效的目标宗门"
+            _battleTeamMoveMode.value = false
+            return
+        }
+        
+        if (targetSect.isPlayerSect) {
+            _errorMessage.value = "不能攻击自己的宗门"
+            _battleTeamMoveMode.value = false
+            return
+        }
+        
+        if (targetSect.isPlayerOccupied) {
+            _errorMessage.value = "该宗门已被占领"
+            _battleTeamMoveMode.value = false
+            return
+        }
+        
+        if (!playerSect.connectedSectIds.contains(targetSectId)) {
+            _errorMessage.value = "目标宗门不在可达路线上"
+            _battleTeamMoveMode.value = false
+            return
+        }
+        
+        viewModelScope.launch {
+            gameEngine.startBattleTeamMove(targetSectId)
+            _battleTeamMoveMode.value = false
+        }
+    }
+
+    fun getMovableTargetSectIds(): List<String> {
+        val data = gameEngine.gameData.value
+        val playerSect = data.worldMapSects.find { it.isPlayerSect } ?: return emptyList()
+        
+        return data.worldMapSects.filter { sect ->
+            !sect.isPlayerSect && !sect.isPlayerOccupied && 
+            AISectAttackManager.isRouteConnected(playerSect, sect, data)
+        }.map { it.id }
+    }
+
+    fun getDisciplePosition(discipleId: String): String? {
+        val elderSlots = gameEngine.gameData.value.elderSlots
+        
+        if (elderSlots.viceSectMaster == discipleId) return "副掌门"
+        if (elderSlots.herbGardenElder == discipleId) return "灵药宛长老"
+        if (elderSlots.alchemyElder == discipleId) return "丹鼎殿长老"
+        if (elderSlots.forgeElder == discipleId) return "天工峰长老"
+        if (elderSlots.libraryElder == discipleId) return "藏经阁长老"
+        if (elderSlots.recruitElder == discipleId) return "招贤堂长老"
+        if (elderSlots.outerElder == discipleId) return "外门执事"
+        if (elderSlots.preachingElder == discipleId) return "传道长老"
+        if (elderSlots.lawEnforcementElder == discipleId) return "执法长老"
+        if (elderSlots.innerElder == discipleId) return "内门执事"
+        if (elderSlots.qingyunPreachingElder == discipleId) return "青云传道长老"
+        
+        if (elderSlots.preachingMasters.any { it.discipleId == discipleId }) return "传道师"
+        if (elderSlots.qingyunPreachingMasters.any { it.discipleId == discipleId }) return "青云传道师"
+        
+        if (elderSlots.herbGardenDisciples.any { it.discipleId == discipleId }) return "灵药宛亲传弟子"
+        if (elderSlots.alchemyDisciples.any { it.discipleId == discipleId }) return "丹鼎殿亲传弟子"
+        if (elderSlots.forgeDisciples.any { it.discipleId == discipleId }) return "天工峰亲传弟子"
+        if (elderSlots.libraryDisciples.any { it.discipleId == discipleId }) return "藏经阁亲传弟子"
+        if (elderSlots.recruitDisciples.any { it.discipleId == discipleId }) return "招贤堂亲传弟子"
+        
+        if (elderSlots.lawEnforcementDisciples.any { it.discipleId == discipleId }) return "执法弟子"
+        if (elderSlots.forgeInnerDisciples.any { it.discipleId == discipleId }) return "天工峰内门弟子"
+        if (elderSlots.alchemyInnerDisciples.any { it.discipleId == discipleId }) return "丹鼎殿内门弟子"
+        if (elderSlots.herbGardenInnerDisciples.any { it.discipleId == discipleId }) return "灵药宛内门弟子"
+        
+        if (elderSlots.spiritMineDeaconDisciples.any { it.discipleId == discipleId }) return "灵矿执事"
+        
+        return null
+    }
+
+    fun hasDisciplePosition(discipleId: String): Boolean {
+        return getDisciplePosition(discipleId) != null
+    }
+
+    private fun getWorkStatusPositionIds(): List<String> {
+        val elderSlots = gameEngine.gameData.value.elderSlots
+        return listOfNotNull(elderSlots.viceSectMaster) +
+               elderSlots.preachingMasters.mapNotNull { it.discipleId } +
+               elderSlots.qingyunPreachingMasters.mapNotNull { it.discipleId } +
+               elderSlots.lawEnforcementDisciples.mapNotNull { it.discipleId } +
+               elderSlots.spiritMineDeaconDisciples.mapNotNull { it.discipleId }
+    }
+
+    fun isReserveDisciple(discipleId: String): Boolean {
+        val elderSlots = gameEngine.gameData.value.elderSlots
+        return elderSlots.lawEnforcementReserveDisciples.any { it.discipleId == discipleId } ||
+               elderSlots.herbGardenReserveDisciples.any { it.discipleId == discipleId } ||
+               elderSlots.alchemyReserveDisciples.any { it.discipleId == discipleId } ||
+               elderSlots.forgeReserveDisciples.any { it.discipleId == discipleId }
+    }
+
+    fun isPositionWorkStatus(discipleId: String): Boolean {
+        return getWorkStatusPositionIds().contains(discipleId)
+    }
+
+    fun getAvailableDisciplesForBattleTeamSlot(slotIndex: Int): List<Disciple> {
+        val battleTeam = gameEngine.gameData.value.battleTeam ?: return emptyList()
+        val currentSlotDiscipleIds = battleTeam.slots.mapNotNull { it.discipleId }
+        
+        return disciples.value.filter { disciple ->
+            disciple.isAlive &&
+            disciple.realmLayer > 0 &&
+            disciple.status == DiscipleStatus.IDLE &&
+            !currentSlotDiscipleIds.contains(disciple.id) &&
+            !isPositionWorkStatus(disciple.id)
+        }.sortedWith(compareBy({ -it.realm }, { -it.realmLayer }))
+    }
+
+    fun addDiscipleToBattleTeamSlot(slotIndex: Int, discipleId: String) {
+        val battleTeam = gameEngine.gameData.value.battleTeam ?: return
+        val disciple = disciples.value.find { it.id == discipleId } ?: return
+        
+        val updatedSlots = battleTeam.slots.map { slot ->
+            if (slot.index == slotIndex) {
+                slot.copy(
+                    discipleId = disciple.id,
+                    discipleName = disciple.name,
+                    discipleRealm = disciple.realmName,
+                    isAlive = true
+                )
+            } else {
+                slot
+            }
+        }
+        
+        viewModelScope.launch {
+            gameEngine.updateGameData { it.copy(battleTeam = battleTeam.copy(slots = updatedSlots)) }
+            gameEngine.updateDiscipleStatus(discipleId, DiscipleStatus.BATTLE)
         }
     }
 }

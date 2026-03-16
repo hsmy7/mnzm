@@ -1,0 +1,113 @@
+warning: in the working copy of 'android/app/src/main/java/com/xianxia/sect/core/model/Disciple.kt', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/android/app/src/main/java/com/xianxia/sect/core/model/Disciple.kt b/android/app/src/main/java/com/xianxia/sect/core/model/Disciple.kt[m
+[1mindex e6b7532..586554d 100644[m
+[1m--- a/android/app/src/main/java/com/xianxia/sect/core/model/Disciple.kt[m
+[1m+++ b/android/app/src/main/java/com/xianxia/sect/core/model/Disciple.kt[m
+[36m@@ -18,7 +18,7 @@[m [mdata class Disciple([m
+     val spiritRootType: String = "metal",[m
+     [m
+     var age: Int = 16,[m
+[31m-    var lifespan: Int = 100,[m
+[32m+[m[32m    var lifespan: Int = 80,[m
+     var isAlive: Boolean = true,[m
+     [m
+     var gender: String = if (kotlin.random.Random.nextBoolean()) "male" else "female",[m
+[36m@@ -274,17 +274,19 @@[m [mdata class Disciple([m
+                 val masteryLevel = proficiencyData?.masteryLevel ?: 0[m
+                 val masteryBonus = ManualProficiencySystem.MasteryLevel.fromLevel(masteryLevel).bonus[m
+                 [m
+[32m+[m[32m                val hpValue = manual.stats["hp"] ?: manual.stats["maxHp"] ?: 0[m
+[32m+[m[32m                val mpValue = manual.stats["mp"] ?: manual.stats["maxMp"] ?: 0[m
+                 val manualStats = DiscipleStats([m
+[31m-                    hp = ((manual.stats["maxHp"] ?: 0) * masteryBonus).toInt(),[m
+[31m-                    maxHp = ((manual.stats["maxHp"] ?: 0) * masteryBonus).toInt(),[m
+[31m-                    mp = ((manual.stats["maxMp"] ?: 0) * masteryBonus).toInt(),[m
+[31m-                    maxMp = ((manual.stats["maxMp"] ?: 0) * masteryBonus).toInt(),[m
+[32m+[m[32m                    hp = (hpValue * masteryBonus).toInt(),[m
+[32m+[m[32m                    maxHp = (hpValue * masteryBonus).toInt(),[m
+[32m+[m[32m                    mp = (mpValue * masteryBonus).toInt(),[m
+[32m+[m[32m                    maxMp = (mpValue * masteryBonus).toInt(),[m
+                     physicalAttack = ((manual.stats["physicalAttack"] ?: 0) * masteryBonus).toInt(),[m
+                     magicAttack = ((manual.stats["magicAttack"] ?: 0) * masteryBonus).toInt(),[m
+                     physicalDefense = ((manual.stats["physicalDefense"] ?: 0) * masteryBonus).toInt(),[m
+                     magicDefense = ((manual.stats["magicDefense"] ?: 0) * masteryBonus).toInt(),[m
+                     speed = ((manual.stats["speed"] ?: 0) * masteryBonus).toInt(),[m
+[31m-                    critRate = 0.0[m
+[32m+[m[32m                    critRate = 1.0[m
+                 )[m
+                 total = total + manualStats[m
+                 totalCritRate += ((manual.stats["critRate"] ?: 0) * masteryBonus) / 100.0[m
+[36m@@ -342,7 +344,7 @@[m [mdata class Disciple([m
+     [m
+     fun canBreakthrough(): Boolean = cultivation >= maxCultivation[m
+     [m
+[31m-    fun getBreakthroughChance(pillBonus: Double = 0.0): Double {[m
+[32m+[m[32m    fun getBreakthroughChance(pillBonus: Double = 0.0, innerElderComprehension: Int = 0, outerElderComprehensionBonus: Double = 0.0): Double {[m
+         // 仙人境界无法突破[m
+         if (realm <= 0) return 0.0[m
+         [m
+[36m@@ -356,22 +358,14 @@[m [mdata class Disciple([m
+         val spiritRootCount = spiritRoot.types.size[m
+         val targetRealm = realm - 1 // 要突破到的境界[m
+         [m
+[31m-        if (spiritRootCount >= 4 && targetRealm <= 5) {[m
+[31m-            // 四灵根及以下突破到化神境及以上：概率降低40%（仍有60%）[m
+[31m-            chance *= 0.6[m
+[31m-        } else if (spiritRootCount == 3 && targetRealm <= 2) {[m
+[31m-            // 三灵根突破到合体境及以上：概率降低25%（仍有75%）[m
+[31m-            chance *= 0.75[m
+[31m-        } else {[m
+[31m-            // 灵根加成：根据灵根数量和目标境界给予加成[m
+[31m-            // 化神及以下（targetRealm >= 5）保持原加成，化神以上（targetRealm < 5）降低加成[m
+[31m-            val multiplier = when (spiritRootCount) {[m
+[31m-                1 -> if (targetRealm >= 5) 1.5 else 1.2  // 单灵根：化神及以下+50%，化神以上+20%[m
+[31m-                2 -> if (targetRealm >= 5) 1.25 else 1.1 // 双灵根：化神及以下+25%，化神以上+10%[m
+[31m-                else -> 1.0 // 三灵根及以上无额外加成[m
+[31m-            }[m
+[31m-            chance *= multiplier[m
+[32m+[m[32m        // 灵根加成：根据灵根数量和目标境界给予加成[m
+[32m+[m[32m        // 化神及以下（targetRealm >= 5）保持原加成，化神以上（targetRealm < 5）降低加成[m
+[32m+[m[32m        val multiplier = when (spiritRootCount) {[m
+[32m+[m[32m            1 -> if (targetRealm >= 5) 1.5 else 1.2  // 单灵根：化神及以下+50%，化神以上+20%[m
+[32m+[m[32m            2 -> if (targetRealm >= 5) 1.25 else 1.1 // 双灵根：化神及以下+25%，化神以上+10%[m
+[32m+[m[32m            else -> 1.0 // 三灵根及以上无额外加成[m
+         }[m
+[32m+[m[32m        chance *= multiplier[m
+         [m
+         // 丹药加成[m
+         chance += pillBonus[m
+[36m@@ -385,6 +379,15 @@[m [mdata class Disciple([m
+         val comprehensionBonus = (comprehension - 50) / 5 * 0.005[m
+         chance += comprehensionBonus[m
+ [m
+[32m+[m[32m        // 内门长老悟性加成（50为基准，每高10点增加1%，每低10点减少1%）[m
+[32m+[m[32m        if (innerElderComprehension > 0) {[m
+[32m+[m[32m            val innerElderBonus = (innerElderComprehension - 50) * 0.001[m
+[32m+[m[32m            chance += innerElderBonus[m
+[32m+[m[32m        }[m
+[32m+[m
+[32m+[m[32m        // 外门长老悟性加成（50为基准，每高5点增加1%，每低5点减少1%）[m
+[32m+[m[32m        chance += outerElderComprehensionBonus[m
+[32m+[m
+         // 突破失败次数加成（每次失败增加3%）[m
+         chance += breakthroughFailCount * 0.03[m
+ [m
+[36m@@ -394,7 +397,7 @@[m [mdata class Disciple([m
+ }[m
+ [m
+ enum class DiscipleStatus {[m
+[31m-    IDLE, CULTIVATING, EXPLORING, ALCHEMY, FORGING, FARMING, STUDYING, BATTLE, WORKING, SCOUTING, MINING, REFLECTING;[m
+[32m+[m[32m    IDLE, CULTIVATING, EXPLORING, ALCHEMY, FORGING, FARMING, STUDYING, BATTLE, WORKING, SCOUTING, MINING, REFLECTING, LAW_ENFORCING, PREACHING, MANAGING;[m
+ [m
+     val displayName: String get() = when (this) {[m
+         IDLE -> "空闲"[m
+[36m@@ -409,6 +412,9 @@[m [menum class DiscipleStatus {[m
+         SCOUTING -> "探查中"[m
+         MINING -> "采矿中"[m
+         REFLECTING -> "思过中"[m
+[32m+[m[32m        LAW_ENFORCING -> "执法中"[m
+[32m+[m[32m        PREACHING -> "传道中"[m
+[32m+[m[32m        MANAGING -> "管理中"[m
+     }[m
+ }[m
+ [m

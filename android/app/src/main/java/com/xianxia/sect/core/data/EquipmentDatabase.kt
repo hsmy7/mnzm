@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.data
 
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.Equipment
 import com.xianxia.sect.core.model.EquipmentSlot
 import kotlin.random.Random
@@ -178,7 +179,8 @@ object EquipmentDatabase {
             speed = template.speed,
             hp = template.hp,
             mp = template.mp,
-            critChance = template.critChance
+            critChance = template.critChance,
+            minRealm = GameConfig.Realm.getMinRealmForRarity(template.rarity)
         )
     }
     

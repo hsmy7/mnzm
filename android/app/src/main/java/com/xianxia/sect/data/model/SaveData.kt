@@ -34,7 +34,7 @@ data class SaveData(
     val slots: List<BuildingSlot>,
     val events: List<GameEvent>,
     val battleLogs: List<BattleLog> = emptyList(),
-    val warTeams: List<WarTeam> = emptyList(),
     val alliances: List<Alliance> = emptyList(),
-    val supportTeams: List<SupportTeam> = emptyList()
+    val supportTeams: List<SupportTeam> = emptyList(),
+    val alchemySlots: List<AlchemySlot> = emptyList()
 )

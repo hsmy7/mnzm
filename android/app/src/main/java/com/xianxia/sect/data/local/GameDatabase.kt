@@ -22,10 +22,9 @@ import com.xianxia.sect.core.model.ModelConverters
         Dungeon::class,
         Recipe::class,
         BattleLog::class,
-        WarTeam::class,
         ForgeSlot::class
     ],
-    version = 41,
+    version = 46,
     exportSchema = false
 )
 @TypeConverters(ModelConverters::class)
@@ -44,6 +43,5 @@ abstract class GameDatabase : RoomDatabase() {
     abstract fun dungeonDao(): DungeonDao
     abstract fun recipeDao(): RecipeDao
     abstract fun battleLogDao(): BattleLogDao
-    abstract fun warTeamDao(): WarTeamDao
     abstract fun forgeSlotDao(): ForgeSlotDao
 }

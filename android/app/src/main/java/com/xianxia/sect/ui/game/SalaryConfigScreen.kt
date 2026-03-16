@@ -46,7 +46,7 @@ fun SalaryConfigDialog(
                 .fillMaxWidth()
                 .fillMaxHeight(0.9f),
             shape = RoundedCornerShape(16.dp),
-            color = Color.White
+            color = GameColors.PageBackground
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
                 SalaryConfigHeader(onDismiss = onDismiss)
@@ -79,7 +79,7 @@ private fun SalaryConfigHeader(onDismiss: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color.White)
+            .background(GameColors.PageBackground)
             .padding(16.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
@@ -107,7 +107,7 @@ private fun SalaryRealmCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = GameColors.PageBackground),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(

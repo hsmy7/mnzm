@@ -1015,7 +1015,12 @@ object DatabaseMigrations {
             MIGRATION_37_38,
             MIGRATION_38_39,
             MIGRATION_39_40,
-            MIGRATION_40_41
+            MIGRATION_40_41,
+            MIGRATION_41_42,
+            MIGRATION_42_43,
+            MIGRATION_43_44,
+            MIGRATION_44_45,
+            MIGRATION_45_46
         )
 
     private val MIGRATION_35_36 = object : Migration(35, 36) {
@@ -1134,6 +1139,282 @@ object DatabaseMigrations {
             val columns = getExistingColumns(db, "game_data")
             if (!columns.contains("outerTournamentLastYear")) {
                 db.execSQL("ALTER TABLE game_data ADD COLUMN outerTournamentLastYear INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        private fun getExistingColumns(db: SupportSQLiteDatabase, tableName: String): Set<String> {
+            val columns = mutableSetOf<String>()
+            val cursor = db.query("PRAGMA table_info($tableName)")
+            cursor.use {
+                val nameIndex = it.getColumnIndex("name")
+                while (it.moveToNext()) {
+                    columns.add(it.getString(nameIndex))
+                }
+            }
+            return columns
+        }
+    }
+
+    private val MIGRATION_41_42 = object : Migration(41, 42) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            val columns = getExistingColumns(db, "equipment")
+            if (!columns.contains("minRealm")) {
+                db.execSQL("ALTER TABLE equipment ADD COLUMN minRealm INTEGER NOT NULL DEFAULT 9")
+            }
+        }
+
+        private fun getExistingColumns(db: SupportSQLiteDatabase, tableName: String): Set<String> {
+            val columns = mutableSetOf<String>()
+            val cursor = db.query("PRAGMA table_info($tableName)")
+            cursor.use {
+                val nameIndex = it.getColumnIndex("name")
+                while (it.moveToNext()) {
+                    columns.add(it.getString(nameIndex))
+                }
+            }
+            return columns
+        }
+    }
+
+    private val MIGRATION_42_43 = object : Migration(42, 43) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("DROP TABLE IF EXISTS war_teams")
+            
+            val columns = getExistingColumns(db, "game_data")
+            if (columns.contains("warTeams")) {
+                db.execSQL("""
+                    CREATE TABLE game_data_new (
+                        id TEXT PRIMARY KEY NOT NULL,
+                        sectName TEXT NOT NULL,
+                        currentSlot INTEGER NOT NULL,
+                        gameYear INTEGER NOT NULL,
+                        gameMonth INTEGER NOT NULL,
+                        gameDay INTEGER NOT NULL DEFAULT 1,
+                        spiritStones INTEGER NOT NULL,
+                        spiritHerbs INTEGER NOT NULL,
+                        autoSaveIntervalMonths INTEGER NOT NULL,
+                        monthlySalary TEXT NOT NULL,
+                        monthlySalaryEnabled TEXT NOT NULL,
+                        worldMapSects TEXT NOT NULL,
+                        exploredSects TEXT NOT NULL,
+                        scoutInfo TEXT NOT NULL,
+                        herbGardenPlantSlots TEXT NOT NULL,
+                        manualProficiencies TEXT NOT NULL,
+                        travelingMerchantItems TEXT NOT NULL,
+                        merchantLastRefreshYear INTEGER NOT NULL,
+                        merchantRefreshCount INTEGER NOT NULL,
+                        playerListedItems TEXT NOT NULL,
+                        tradingSellList TEXT NOT NULL,
+                        tradingBuyList TEXT NOT NULL,
+                        recruitList TEXT NOT NULL,
+                        lastRecruitYear INTEGER NOT NULL,
+                        tournamentLastYear INTEGER NOT NULL,
+                        tournamentRewards TEXT NOT NULL,
+                        tournamentAutoHold INTEGER NOT NULL,
+                        tournamentRealmEnabled TEXT NOT NULL,
+                        outerTournamentLastYear INTEGER NOT NULL DEFAULT 0,
+                        cultivatorCaves TEXT NOT NULL,
+                        caveExplorationTeams TEXT NOT NULL,
+                        aiCaveTeams TEXT NOT NULL,
+                        unlockedDungeons TEXT NOT NULL,
+                        unlockedRecipes TEXT NOT NULL,
+                        unlockedManuals TEXT NOT NULL,
+                        lastSaveTime INTEGER NOT NULL,
+                        alliances TEXT NOT NULL,
+                        sectRelations TEXT NOT NULL,
+                        playerAllianceSlots INTEGER NOT NULL,
+                        supportTeams TEXT NOT NULL,
+                        elderSlots TEXT NOT NULL,
+                        spiritMineSlots TEXT NOT NULL,
+                        librarySlots TEXT NOT NULL,
+                        sectPolicies TEXT NOT NULL
+                    )
+                """)
+                
+                db.execSQL("""
+                    INSERT INTO game_data_new (
+                        id, sectName, currentSlot, gameYear, gameMonth, gameDay, spiritStones, spiritHerbs,
+                        autoSaveIntervalMonths, monthlySalary, monthlySalaryEnabled, worldMapSects, exploredSects,
+                        scoutInfo, herbGardenPlantSlots, manualProficiencies, travelingMerchantItems,
+                        merchantLastRefreshYear, merchantRefreshCount, playerListedItems, tradingSellList,
+                        tradingBuyList, recruitList, lastRecruitYear, tournamentLastYear, tournamentRewards,
+                        tournamentAutoHold, tournamentRealmEnabled, outerTournamentLastYear, cultivatorCaves, 
+                        caveExplorationTeams, aiCaveTeams, unlockedDungeons, unlockedRecipes, unlockedManuals, 
+                        lastSaveTime, alliances, sectRelations, playerAllianceSlots, supportTeams, elderSlots, 
+                        spiritMineSlots, librarySlots, sectPolicies
+                    )
+                    SELECT
+                        id, sectName, currentSlot, gameYear, gameMonth, 
+                        COALESCE(gameDay, 1), 
+                        spiritStones, spiritHerbs,
+                        autoSaveIntervalMonths, monthlySalary, monthlySalaryEnabled, worldMapSects, exploredSects,
+                        scoutInfo, herbGardenPlantSlots, manualProficiencies, travelingMerchantItems,
+                        merchantLastRefreshYear, merchantRefreshCount, playerListedItems, tradingSellList,
+                        tradingBuyList, recruitList, lastRecruitYear, tournamentLastYear, tournamentRewards,
+                        tournamentAutoHold, tournamentRealmEnabled, 
+                        COALESCE(outerTournamentLastYear, 0),
+                        cultivatorCaves, caveExplorationTeams, aiCaveTeams, unlockedDungeons, unlockedRecipes, 
+                        unlockedManuals, lastSaveTime, alliances, sectRelations, playerAllianceSlots, supportTeams, 
+                        elderSlots, spiritMineSlots, librarySlots, sectPolicies
+                    FROM game_data
+                """)
+                
+                db.execSQL("DROP TABLE game_data")
+                db.execSQL("ALTER TABLE game_data_new RENAME TO game_data")
+            }
+        }
+
+        private fun getExistingColumns(db: SupportSQLiteDatabase, tableName: String): Set<String> {
+            val columns = mutableSetOf<String>()
+            val cursor = db.query("PRAGMA table_info($tableName)")
+            cursor.use {
+                val nameIndex = it.getColumnIndex("name")
+                while (it.moveToNext()) {
+                    columns.add(it.getString(nameIndex))
+                }
+            }
+            return columns
+        }
+    }
+
+    private val MIGRATION_43_44 = object : Migration(43, 44) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            val columns = getExistingColumns(db, "game_data")
+            if (!columns.contains("aiBattleTeams")) {
+                db.execSQL("ALTER TABLE game_data ADD COLUMN aiBattleTeams TEXT NOT NULL DEFAULT '[]'")
+            }
+        }
+
+        private fun getExistingColumns(db: SupportSQLiteDatabase, tableName: String): Set<String> {
+            val columns = mutableSetOf<String>()
+            val cursor = db.query("PRAGMA table_info($tableName)")
+            cursor.use {
+                val nameIndex = it.getColumnIndex("name")
+                while (it.moveToNext()) {
+                    columns.add(it.getString(nameIndex))
+                }
+            }
+            return columns
+        }
+    }
+
+    private val MIGRATION_44_45 = object : Migration(44, 45) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            val columns = getExistingColumns(db, "game_data")
+            
+            val needsMigration = columns.contains("tournamentLastYear") ||
+                                columns.contains("tournamentRewards") ||
+                                columns.contains("tournamentAutoHold") ||
+                                columns.contains("tournamentRealmEnabled") ||
+                                columns.contains("outerTournamentLastYear") ||
+                                !columns.contains("battleTeam")
+            
+            if (needsMigration) {
+                db.execSQL("""
+                    CREATE TABLE game_data_new (
+                        id TEXT PRIMARY KEY NOT NULL,
+                        sectName TEXT NOT NULL,
+                        currentSlot INTEGER NOT NULL,
+                        gameYear INTEGER NOT NULL,
+                        gameMonth INTEGER NOT NULL,
+                        gameDay INTEGER NOT NULL DEFAULT 1,
+                        spiritStones INTEGER NOT NULL,
+                        spiritHerbs INTEGER NOT NULL,
+                        autoSaveIntervalMonths INTEGER NOT NULL,
+                        monthlySalary TEXT NOT NULL,
+                        monthlySalaryEnabled TEXT NOT NULL,
+                        worldMapSects TEXT NOT NULL,
+                        exploredSects TEXT NOT NULL,
+                        scoutInfo TEXT NOT NULL,
+                        herbGardenPlantSlots TEXT NOT NULL,
+                        manualProficiencies TEXT NOT NULL,
+                        travelingMerchantItems TEXT NOT NULL,
+                        merchantLastRefreshYear INTEGER NOT NULL,
+                        merchantRefreshCount INTEGER NOT NULL,
+                        playerListedItems TEXT NOT NULL,
+                        tradingSellList TEXT NOT NULL,
+                        tradingBuyList TEXT NOT NULL,
+                        recruitList TEXT NOT NULL,
+                        lastRecruitYear INTEGER NOT NULL,
+                        cultivatorCaves TEXT NOT NULL,
+                        caveExplorationTeams TEXT NOT NULL,
+                        aiCaveTeams TEXT NOT NULL,
+                        unlockedDungeons TEXT NOT NULL,
+                        unlockedRecipes TEXT NOT NULL,
+                        unlockedManuals TEXT NOT NULL,
+                        lastSaveTime INTEGER NOT NULL,
+                        alliances TEXT NOT NULL,
+                        sectRelations TEXT NOT NULL,
+                        playerAllianceSlots INTEGER NOT NULL,
+                        supportTeams TEXT NOT NULL,
+                        elderSlots TEXT NOT NULL,
+                        spiritMineSlots TEXT NOT NULL,
+                        librarySlots TEXT NOT NULL,
+                        sectPolicies TEXT NOT NULL,
+                        battleTeam TEXT,
+                        aiBattleTeams TEXT NOT NULL
+                    )
+                """)
+                
+                db.execSQL("""
+                    INSERT INTO game_data_new (
+                        id, sectName, currentSlot, gameYear, gameMonth, gameDay, spiritStones, spiritHerbs,
+                        autoSaveIntervalMonths, monthlySalary, monthlySalaryEnabled, worldMapSects, exploredSects,
+                        scoutInfo, herbGardenPlantSlots, manualProficiencies, travelingMerchantItems,
+                        merchantLastRefreshYear, merchantRefreshCount, playerListedItems, tradingSellList,
+                        tradingBuyList, recruitList, lastRecruitYear, cultivatorCaves, 
+                        caveExplorationTeams, aiCaveTeams, unlockedDungeons, unlockedRecipes, unlockedManuals, 
+                        lastSaveTime, alliances, sectRelations, playerAllianceSlots, supportTeams, elderSlots, 
+                        spiritMineSlots, librarySlots, sectPolicies, battleTeam, aiBattleTeams
+                    )
+                    SELECT
+                        id, sectName, currentSlot, gameYear, gameMonth, 
+                        COALESCE(gameDay, 1), 
+                        spiritStones, spiritHerbs,
+                        autoSaveIntervalMonths, monthlySalary, monthlySalaryEnabled, worldMapSects, exploredSects,
+                        scoutInfo, herbGardenPlantSlots, manualProficiencies, travelingMerchantItems,
+                        merchantLastRefreshYear, merchantRefreshCount, playerListedItems, tradingSellList,
+                        tradingBuyList, recruitList, lastRecruitYear, cultivatorCaves, 
+                        caveExplorationTeams, aiCaveTeams, unlockedDungeons, unlockedRecipes, 
+                        unlockedManuals, lastSaveTime, alliances, sectRelations, playerAllianceSlots, supportTeams, 
+                        elderSlots, spiritMineSlots, librarySlots, sectPolicies,
+                        NULL,
+                        COALESCE(aiBattleTeams, '[]')
+                    FROM game_data
+                """)
+                
+                db.execSQL("DROP TABLE game_data")
+                db.execSQL("ALTER TABLE game_data_new RENAME TO game_data")
+            }
+        }
+
+        private fun getExistingColumns(db: SupportSQLiteDatabase, tableName: String): Set<String> {
+            val columns = mutableSetOf<String>()
+            val cursor = db.query("PRAGMA table_info($tableName)")
+            cursor.use {
+                val nameIndex = it.getColumnIndex("name")
+                while (it.moveToNext()) {
+                    columns.add(it.getString(nameIndex))
+                }
+            }
+            return columns
+        }
+    }
+
+    private val MIGRATION_45_46 = object : Migration(45, 46) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            val columns = getExistingColumns(db, "game_data")
+            if (!columns.contains("playerProtectionEnabled")) {
+                db.execSQL("ALTER TABLE game_data ADD COLUMN playerProtectionEnabled INTEGER NOT NULL DEFAULT 1")
+            }
+            if (!columns.contains("playerProtectionStartYear")) {
+                db.execSQL("ALTER TABLE game_data ADD COLUMN playerProtectionStartYear INTEGER NOT NULL DEFAULT 1")
+            }
+            if (!columns.contains("playerHasAttackedAI")) {
+                db.execSQL("ALTER TABLE game_data ADD COLUMN playerHasAttackedAI INTEGER NOT NULL DEFAULT 0")
+            }
+            if (!columns.contains("usedRedeemCodes")) {
+                db.execSQL("ALTER TABLE game_data ADD COLUMN usedRedeemCodes TEXT NOT NULL DEFAULT '[]'")
             }
         }
 

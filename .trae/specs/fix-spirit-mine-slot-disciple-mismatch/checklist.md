@@ -1,0 +1,12 @@
+- [x] GameEngine.validateAndFixSpiritMineData方法正确校验灵矿槽位与弟子状态一致性
+- [x] 弟子状态为MINING但槽位无记录时，弟子状态被重置为IDLE
+- [x] 槽位有discipleId但弟子状态不是MINING时，弟子状态被设置为MINING
+- [x] 灵矿执事数据不一致时，弟子状态被正确设置
+- [x] 弟子已死亡但槽位仍有记录时，槽位被清空且弟子状态被重置
+- [x] 弟子ID不存在于列表时，槽位被清空
+- [x] 同一弟子重复分配时，保留第一个槽位，清空其余
+- [x] StateFlow竞态条件已修复（使用latestData）
+- [x] isDiscipleAssignedToSpiritMine方法已完善（检查矿工和执事）
+- [x] loadData方法正确调用数据一致性校验
+- [x] SpiritMineScreen打开时正确校验数据
+- [x] 修复后灵矿槽位能正确显示采矿中的弟子

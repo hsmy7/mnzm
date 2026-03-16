@@ -18,6 +18,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.data.model.SaveSlot
+import com.xianxia.sect.ui.theme.GameColors
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -37,7 +38,7 @@ fun SaveSelectScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.White)
+            .background(GameColors.PageBackground)
             .padding(16.dp)
     ) {
         Text(
@@ -75,7 +76,7 @@ fun SaveSelectScreen(
                 .fillMaxWidth()
                 .height(48.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(Color.White)
+                .background(GameColors.PageBackground)
                 .border(1.dp, Color(0xFFCCCCCC), RoundedCornerShape(8.dp))
                 .clickable { onLogout() },
             contentAlignment = Alignment.Center
@@ -164,7 +165,7 @@ fun SaveSlotCard(
     onDelete: () -> Unit
 ) {
     val borderColor = if (slot.isEmpty) Color(0xFFDDDDDD) else Color(0xFF4A90E2)
-    val bgColor = if (slot.isEmpty) Color(0xFFF5F5F5) else Color(0xFFF0F7FF)
+    val bgColor = if (slot.isEmpty) GameColors.CardBackground else Color(0xFFF0F7FF)
 
     Box(
         modifier = Modifier

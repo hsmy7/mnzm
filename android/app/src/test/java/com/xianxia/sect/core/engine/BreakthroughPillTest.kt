@@ -9,6 +9,79 @@ import org.junit.Assert.*
 class BreakthroughPillTest {
     
     @Test
+    fun `test no pill used for minor realm breakthrough`() {
+        // 创建一个炼气境弟子，realmLayer=5（小境界突破）
+        val disciple = Disciple(
+            id = "test",
+            name = "测试弟子",
+            realm = 9, // 炼气境
+            realmLayer = 5, // 小境界，未达到maxLayers(10)
+            cultivation = 1000.0
+        )
+        
+        // 创建筑基丹（targetRealm=9，对应炼气→筑基）
+        val foundationPillItem = StorageBagItem(
+            itemId = "foundationPill",
+            itemType = "pill",
+            name = "筑基丹",
+            rarity = 3,
+            quantity = 1,
+            effect = ItemEffect(
+                breakthroughChance = 0.20,
+                targetRealm = 9
+            )
+        )
+        
+        val discipleWithPill = disciple.copy(
+            storageBagItems = listOf(foundationPillItem)
+        )
+        
+        // 模拟自动使用突破丹药
+        val (updatedDisciple, pillBonus) = GameEngine().autoUseBreakthroughPills(discipleWithPill)
+        
+        // 验证小境界突破不使用丹药
+        assertEquals(0.0, pillBonus, 0.001)
+        assertEquals(1, updatedDisciple.storageBagItems.size)
+        assertEquals("筑基丹", updatedDisciple.storageBagItems[0].name)
+    }
+    
+    @Test
+    fun `test pill used for big realm breakthrough`() {
+        // 创建一个炼气境弟子，realmLayer=10（大境界突破）
+        val disciple = Disciple(
+            id = "test",
+            name = "测试弟子",
+            realm = 9, // 炼气境
+            realmLayer = 10, // 达到maxLayers，准备大境界突破
+            cultivation = 2000.0
+        )
+        
+        // 创建筑基丹（targetRealm=9，对应炼气→筑基）
+        val foundationPillItem = StorageBagItem(
+            itemId = "foundationPill",
+            itemType = "pill",
+            name = "筑基丹",
+            rarity = 3,
+            quantity = 1,
+            effect = ItemEffect(
+                breakthroughChance = 0.20,
+                targetRealm = 9
+            )
+        )
+        
+        val discipleWithPill = disciple.copy(
+            storageBagItems = listOf(foundationPillItem)
+        )
+        
+        // 模拟自动使用突破丹药
+        val (updatedDisciple, pillBonus) = GameEngine().autoUseBreakthroughPills(discipleWithPill)
+        
+        // 验证大境界突破使用丹药
+        assertEquals(0.20, pillBonus, 0.001)
+        assertTrue(updatedDisciple.storageBagItems.isEmpty())
+    }
+    
+    @Test
     fun `test ascension pill not used for mahayana breakthrough`() {
         // 创建一个大乘境弟子（realm=2）
         val disciple = Disciple(

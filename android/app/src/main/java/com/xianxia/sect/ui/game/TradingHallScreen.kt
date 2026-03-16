@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.TradingItem
+import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.theme.GameColors
 
 @Composable
@@ -81,7 +82,7 @@ private fun TradingHallHeader(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color.White)
+            .background(GameColors.PageBackground)
             .padding(16.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
@@ -187,7 +188,7 @@ private fun TradingItemCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = GameColors.PageBackground),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Row(
@@ -227,27 +228,20 @@ private fun TradingItemCard(
 
                 onBuy?.let {
                     Spacer(modifier = Modifier.height(4.dp))
-                    Button(
+                    GameButton(
+                        text = "购买",
                         onClick = it,
-                        modifier = Modifier.height(32.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp)
-                    ) {
-                        Text("购买", fontSize = 12.sp)
-                    }
+                        modifier = Modifier.height(32.dp)
+                    )
                 }
 
                 onSell?.let {
                     Spacer(modifier = Modifier.height(4.dp))
-                    Button(
+                    GameButton(
+                        text = "出售",
                         onClick = it,
-                        modifier = Modifier.height(32.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = GameColors.Secondary
-                        )
-                    ) {
-                        Text("出售", fontSize = 12.sp)
-                    }
+                        modifier = Modifier.height(32.dp)
+                    )
                 }
             }
         }

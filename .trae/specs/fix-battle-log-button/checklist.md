@@ -1,0 +1,5 @@
+- [x] MainGameScreen.kt 的 QuickActionPanel 中包含"战斗日志"按钮
+- [x] 点击"战斗日志"按钮能正确打开战斗日志对话框
+- [x] SecretRealmDialog 组件正常工作
+- [x] SectMainScreen.kt 文件已被删除
+- [x] 项目编译通过，无引用错误

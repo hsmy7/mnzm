@@ -226,7 +226,7 @@ private fun InventoryHeader(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color.White)
+            .background(GameColors.PageBackground)
             .padding(16.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
@@ -319,6 +319,9 @@ private fun ItemDetailDialog(
             effects = buildList {
                 add("部位: ${item.slot.displayName}")
                 add("稀有度: ${getRarityName(item.rarity)}")
+                if (item.minRealm < 9) {
+                    add("需求境界: ${GameConfig.Realm.getName(item.minRealm)}")
+                }
                 if (item.nurtureLevel > 0) {
                     add("孕养等级: Lv.${item.nurtureLevel}")
                     val nurtureBonus = (item.totalMultiplier / GameConfig.Rarity.get(item.rarity).multiplier - 1.0) * 100
@@ -391,7 +394,7 @@ private fun ItemDetailDialog(
                             "hp" -> "生命"
                             "mp" -> "灵力"
                             "speed" -> "速度"
-                            "critChance" -> "暴击率"
+                            "critRate" -> "暴击率"
                             else -> key
                         }
                         if (key.contains("Percent")) {
@@ -404,6 +407,9 @@ private fun ItemDetailDialog(
                 item.skill?.let { skill ->
                     add("")
                     add("技能: ${skill.name}")
+                    if (skill.description.isNotEmpty()) {
+                        add("  ${skill.description}")
+                    }
                     add("  伤害类型: ${if (skill.damageType == com.xianxia.sect.core.engine.DamageType.PHYSICAL) "物理" else "法术"}")
                     add("  伤害倍率: ${String.format("%.1f", skill.damageMultiplier * 100)}%")
                     add("  连击次数: ${skill.hits}")
@@ -452,8 +458,8 @@ private fun ItemDetailDialog(
                         if (item.magicAttackPercent > 0) add("  法术攻击 +${String.format("%.1f", item.magicAttackPercent * 100)}%")
                         if (item.physicalDefensePercent > 0) add("  物理防御 +${String.format("%.1f", item.physicalDefensePercent * 100)}%")
                         if (item.magicDefensePercent > 0) add("  法术防御 +${String.format("%.1f", item.magicDefensePercent * 100)}%")
-                        if (item.hpPercent > 0) add("  生命上限 +${String.format("%.1f", item.hpPercent * 100)}%")
-                        if (item.mpPercent > 0) add("  灵力上限 +${String.format("%.1f", item.mpPercent * 100)}%")
+                        if (item.hpPercent > 0) add("  生命 +${String.format("%.1f", item.hpPercent * 100)}%")
+                        if (item.mpPercent > 0) add("  灵力 +${String.format("%.1f", item.mpPercent * 100)}%")
                         if (item.speedPercent > 0) add("  速度 +${String.format("%.1f", item.speedPercent * 100)}%")
                         if (item.battleCount > 0) add("  持续 ${item.battleCount} 场战斗")
                     }
@@ -568,7 +574,7 @@ private fun ItemDetailDialog(
     
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color.White,
+        containerColor = GameColors.PageBackground,
         title = {
             Text(
                 text = name,
@@ -709,7 +715,7 @@ private fun SellableItemCard(item: Any) {
             .fillMaxWidth()
             .aspectRatio(1f)
             .clip(RoundedCornerShape(6.dp))
-            .background(Color.White)
+            .background(GameColors.PageBackground)
             .border(1.dp, rarityColor, RoundedCornerShape(6.dp))
             .padding(6.dp),
         contentAlignment = Alignment.Center
@@ -876,7 +882,7 @@ internal fun BulkSellDialog(
                 .fillMaxWidth()
                 .fillMaxHeight(0.8f),
             shape = RoundedCornerShape(16.dp),
-            color = Color.White
+            color = GameColors.PageBackground
         ) {
             Column(
                 modifier = Modifier
@@ -1052,7 +1058,7 @@ internal fun BulkSellDialog(
     if (showConfirmDialog) {
         AlertDialog(
             onDismissRequest = { showConfirmDialog = false },
-            containerColor = Color.White,
+            containerColor = GameColors.PageBackground,
             title = {
                 Text(
                     text = "确认出售",
@@ -1088,7 +1094,8 @@ internal fun BulkSellDialog(
                 }
             },
             confirmButton = {
-                Button(
+                GameButton(
+                    text = "确认出售",
                     onClick = {
                         viewModel.bulkSellItems(
                             selectedRarities = selectedRarities,
@@ -1096,11 +1103,8 @@ internal fun BulkSellDialog(
                         )
                         showConfirmDialog = false
                         onDismiss()
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = GameColors.Error)
-                ) {
-                    Text("确认出售", fontSize = 12.sp, color = Color.White)
-                }
+                    }
+                )
             },
             dismissButton = {
                 GameButton(

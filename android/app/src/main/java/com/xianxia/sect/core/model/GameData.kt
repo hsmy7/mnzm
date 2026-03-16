@@ -2,6 +2,7 @@ package com.xianxia.sect.core.model
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import com.xianxia.sect.core.GameConfig
 
 @Entity(tableName = "game_data")
 data class GameData(
@@ -50,9 +51,6 @@ data class GameData(
         0 to true
     ),
     
-    // 战堂队伍
-    var warTeams: List<WarTeam> = emptyList(),
-    
     // 世界地图宗门
     var worldMapSects: List<WorldSect> = emptyList(),
     
@@ -84,35 +82,6 @@ data class GameData(
     var recruitList: List<Disciple> = emptyList(),
     var lastRecruitYear: Int = 0,
     
-    // 大比
-    var tournamentLastYear: Int = 0,
-    // 外门弟子大比（每3年一次，前20名晋升内门弟子）
-    var outerTournamentLastYear: Int = 0,
-    var tournamentRewards: Map<Int, TournamentReward> = mapOf(
-        9 to TournamentReward(9, true, 0, 100, 50, 0, 0, emptyList(), emptyList(), "练气期奖励"),
-        8 to TournamentReward(8, true, 0, 200, 100, 0, 0, emptyList(), emptyList(), "筑基期奖励"),
-        7 to TournamentReward(7, true, 0, 500, 250, 0, 0, emptyList(), emptyList(), "金丹期奖励"),
-        6 to TournamentReward(6, true, 0, 1000, 500, 0, 0, emptyList(), emptyList(), "元婴期奖励"),
-        5 to TournamentReward(5, true, 0, 2000, 1000, 0, 0, emptyList(), emptyList(), "化神期奖励"),
-        4 to TournamentReward(4, true, 0, 5000, 2500, 0, 0, emptyList(), emptyList(), "炼虚期奖励"),
-        3 to TournamentReward(3, true, 0, 10000, 5000, 0, 0, emptyList(), emptyList(), "合体期奖励"),
-        2 to TournamentReward(2, true, 0, 20000, 10000, 0, 0, emptyList(), emptyList(), "大乘期奖励"),
-        1 to TournamentReward(1, true, 0, 50000, 25000, 0, 0, emptyList(), emptyList(), "渡劫期奖励")
-    ),
-    var tournamentAutoHold: Boolean = false,
-    var tournamentRealmEnabled: Map<Int, Boolean> = mapOf(
-        9 to true,
-        8 to true,
-        7 to true,
-        6 to false,
-        5 to false,
-        4 to false,
-        3 to false,
-        2 to false,
-        1 to false,
-        0 to false
-    ),
-
     // 修士洞府
     var cultivatorCaves: List<CultivatorCave> = emptyList(),
 
@@ -156,15 +125,47 @@ data class GameData(
     var supportTeams: List<SupportTeam> = emptyList(),
 
     // 宗门政策
-    var sectPolicies: SectPolicies = SectPolicies()
+    var sectPolicies: SectPolicies = SectPolicies(),
+
+    // 战斗队伍（宗门地址上只能存在一支）
+    var battleTeam: BattleTeam? = null,
+
+    // AI战斗队伍
+    var aiBattleTeams: List<AIBattleTeam> = emptyList(),
+
+    // 已使用的兑换码列表
+    var usedRedeemCodes: List<String> = emptyList(),
+
+    // 玩家保护机制：AI宗门100年内不会攻击玩家宗门（若玩家主动攻击则解除）
+    var playerProtectionEnabled: Boolean = true,
+    var playerProtectionStartYear: Int = 1,
+    var playerHasAttackedAI: Boolean = false
 ) {
     val displayTime: String get() = "第${gameYear}年${gameMonth}月"
+    
+    val isPlayerProtected: Boolean get() {
+        if (!playerProtectionEnabled) return false
+        if (playerHasAttackedAI) return false
+        val elapsedYears = (gameYear - playerProtectionStartYear).coerceAtLeast(0)
+        return elapsedYears < GameConfig.PlayerProtection.PROTECTION_YEARS
+    }
+    
+    val playerProtectionRemainingYears: Int get() {
+        if (!playerProtectionEnabled || playerHasAttackedAI) return 0
+        val elapsedYears = (gameYear - playerProtectionStartYear).coerceAtLeast(0)
+        return (GameConfig.PlayerProtection.PROTECTION_YEARS - elapsedYears).coerceAtLeast(0)
+    }
 }
 
 // 宗门政策数据
 data class SectPolicies(
     val spiritMineBoost: Boolean = false,
-    val enhancedSecurity: Boolean = false
+    val enhancedSecurity: Boolean = false,
+    val alchemyIncentive: Boolean = false,
+    val forgeIncentive: Boolean = false,
+    val herbCultivation: Boolean = false,
+    val cultivationSubsidy: Boolean = false,
+    val manualResearch: Boolean = false
 )
 
 // 长老槽位数据
@@ -174,7 +175,6 @@ data class ElderSlots(
     val alchemyElder: String? = null,
     val forgeElder: String? = null,
     val libraryElder: String? = null,
-    val spiritMineElder: String? = null,
     val recruitElder: String? = null,
     // 问道峰相关槽位
     val outerElder: String? = null,
@@ -193,14 +193,21 @@ data class ElderSlots(
     val alchemyDisciples: List<DirectDiscipleSlot> = emptyList(),
     val forgeDisciples: List<DirectDiscipleSlot> = emptyList(),
     val libraryDisciples: List<DirectDiscipleSlot> = emptyList(),
-    val spiritMineDisciples: List<DirectDiscipleSlot> = emptyList(),
     val recruitDisciples: List<DirectDiscipleSlot> = emptyList(),
     // 内门弟子槽位（天工峰8个）
     val forgeInnerDisciples: List<DirectDiscipleSlot> = emptyList(),
     // 内门弟子槽位（丹鼎殿8个）
     val alchemyInnerDisciples: List<DirectDiscipleSlot> = emptyList(),
     // 内门弟子槽位（灵药宛8个）
-    val herbGardenInnerDisciples: List<DirectDiscipleSlot> = emptyList()
+    val herbGardenInnerDisciples: List<DirectDiscipleSlot> = emptyList(),
+    // 灵药宛储备弟子
+    val herbGardenReserveDisciples: List<DirectDiscipleSlot> = emptyList(),
+    // 丹鼎殿储备弟子
+    val alchemyReserveDisciples: List<DirectDiscipleSlot> = emptyList(),
+    // 天工峰储备弟子
+    val forgeReserveDisciples: List<DirectDiscipleSlot> = emptyList(),
+    // 灵矿执事槽位（灵矿场2个）
+    val spiritMineDeaconDisciples: List<DirectDiscipleSlot> = emptyList()
 )
 
 // 亲传弟子槽位数据
@@ -268,27 +275,6 @@ data class TradingItem(
     val rarity: Int = 1,
     val price: Int = 0,
     val quantity: Int = 1
-)
-
-// 大比物品奖励
-data class TournamentItemReward(
-    val id: String = "",
-    val name: String = "",
-    val type: String = "" // equipment, manual, pill, material
-)
-
-// 大比奖励
-data class TournamentReward(
-    val realm: Int = 9,
-    val enabled: Boolean = true,
-    val spiritStones: Int = 0,
-    val championSpiritStones: Int = 0,
-    val runnerUpSpiritStones: Int = 0,
-    val semifinalSpiritStones: Int = 0,
-    val participantSpiritStones: Int = 0,
-    val championItems: List<TournamentItemReward> = emptyList(),
-    val runnerUpItems: List<TournamentItemReward> = emptyList(),
-    val description: String = ""
 )
 
 // 游戏设置数据
@@ -366,7 +352,40 @@ data class WorldSect(
     val lastGiftYear: Int = 0,
     val allianceId: String? = null,
     val allianceStartYear: Int = 0,
-    val isRighteous: Boolean = true
+    val isRighteous: Boolean = true,
+    val aiDisciples: List<AISectDisciple> = emptyList(),
+    val isPlayerOccupied: Boolean = false,
+    val occupierBattleTeamId: String? = null,
+    val isUnderAttack: Boolean = false,
+    val attackerSectId: String? = null,
+    val occupierSectId: String? = null,
+    val warehouse: SectWarehouse = SectWarehouse()
+) {
+    val discipleCountByRealm: Map<Int, Int> get() {
+        if (aiDisciples.isEmpty()) return disciples
+        val result = mutableMapOf<Int, Int>()
+        for (realm in 0..9) {
+            result[realm] = 0
+        }
+        aiDisciples.filter { it.isAlive }.forEach { disciple ->
+            result[disciple.realm] = (result[disciple.realm] ?: 0) + 1
+        }
+        return result
+    }
+}
+
+data class SectWarehouse(
+    val items: List<WarehouseItem> = emptyList(),
+    val spiritStones: Long = 0
+)
+
+data class WarehouseItem(
+    val itemId: String = "",
+    val itemName: String = "",
+    val itemType: String = "",
+    val rarity: Int = 1,
+    val quantity: Int = 1,
+    val itemData: Map<String, Any> = emptyMap()
 )
 
 // 已探索宗门信息
@@ -439,18 +458,100 @@ data class SupportTeam(
     val sourceSectName: String = "",
     val targetSectId: String = "player",
     val disciples: List<String> = emptyList(),
+    val aiDisciples: List<AISectDisciple> = emptyList(),
     val size: Int = 0,
     val currentX: Float = 0f,
     val currentY: Float = 0f,
     val targetX: Float = 0f,
     val targetY: Float = 0f,
-    val progress: Float = 0f,
+    val moveProgress: Float = 0f,
     val status: String = "moving",
     val startYear: Int = 0,
     val startMonth: Int = 0,
+    val startDay: Int = 0,
+    val duration: Int = 0,
     val arrivalYear: Int = 0,
-    val arrivalMonth: Int = 0
+    val arrivalMonth: Int = 0,
+    val arrivalDay: Int = 0,
+    val route: List<String> = emptyList(),
+    val currentRouteIndex: Int = 0,
+    val currentSegmentProgress: Float = 0f
 ) {
+    val progress: Float get() = moveProgress
     val isArrived: Boolean get() = status == "arrived"
     val isMoving: Boolean get() = status == "moving"
+    val isStationed: Boolean get() = status == "stationed"
 }
+
+data class BattleTeam(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val name: String = "战斗队伍",
+    val slots: List<BattleTeamSlot> = buildList {
+        repeat(2) { index ->
+            add(BattleTeamSlot(index, slotType = BattleSlotType.ELDER))
+        }
+        repeat(8) { index ->
+            add(BattleTeamSlot(index + 2, slotType = BattleSlotType.DISCIPLE))
+        }
+    },
+    val isAtSect: Boolean = true,
+    val currentX: Float = 0f,
+    val currentY: Float = 0f,
+    val targetX: Float = 0f,
+    val targetY: Float = 0f,
+    val status: String = "idle",
+    val targetSectId: String? = null,
+    val originSectId: String? = null,
+    val route: List<String> = emptyList(),
+    val currentRouteIndex: Int = 0,
+    val moveProgress: Float = 0f,
+    val isOccupying: Boolean = false,
+    val occupiedSectId: String? = null,
+    val isReturning: Boolean = false
+) {
+    val isFull: Boolean get() = slots.all { it.discipleId != null }
+    val memberCount: Int get() = slots.count { it.discipleId != null }
+    val isIdle: Boolean get() = status == "idle"
+    val isMoving: Boolean get() = status == "moving"
+    val isInBattle: Boolean get() = status == "battle"
+    val isStationed: Boolean get() = status == "stationed"
+    val aliveMemberCount: Int get() = slots.count { it.discipleId != null && it.isAlive }
+}
+
+enum class BattleSlotType {
+    ELDER,
+    DISCIPLE
+}
+
+data class BattleTeamSlot(
+    val index: Int = 0,
+    val discipleId: String? = null,
+    val discipleName: String = "",
+    val discipleRealm: String = "",
+    val slotType: BattleSlotType = BattleSlotType.DISCIPLE,
+    val isAlive: Boolean = true
+) {
+    val isActive: Boolean get() = discipleId != null
+}
+
+data class AIBattleTeam(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val attackerSectId: String = "",
+    val attackerSectName: String = "",
+    val defenderSectId: String = "",
+    val defenderSectName: String = "",
+    val disciples: List<AISectDisciple> = emptyList(),
+    val currentX: Float = 0f,
+    val currentY: Float = 0f,
+    val targetX: Float = 0f,
+    val targetY: Float = 0f,
+    val attackerStartX: Float = 0f,
+    val attackerStartY: Float = 0f,
+    val moveProgress: Float = 0f,
+    val status: String = "moving",
+    val route: List<String> = emptyList(),
+    val currentRouteIndex: Int = 0,
+    val startYear: Int = 0,
+    val startMonth: Int = 0,
+    val isPlayerDefender: Boolean = false
+)

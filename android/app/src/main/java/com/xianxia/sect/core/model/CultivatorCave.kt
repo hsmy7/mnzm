@@ -333,11 +333,14 @@ data class AICaveDisciple(
     val realmName: String = "",
     val hp: Int = 1000,
     val maxHp: Int = 1000,
+    val mp: Int = 500,
+    val maxMp: Int = 500,
     val physicalAttack: Int = 100,
     val magicAttack: Int = 50,
     val physicalDefense: Int = 50,
     val magicDefense: Int = 40,
     val speed: Int = 100,
+    val critRate: Double = 0.05,
     val equipments: List<AIRandomEquipment> = emptyList(),
     val manuals: List<AIRandomManual> = emptyList()
 ) {
@@ -375,11 +378,19 @@ data class CaveExplorationTeam(
     val startYear: Int = 1,
     val startMonth: Int = 1,
     val duration: Int = 1,
-    val status: CaveExplorationStatus = CaveExplorationStatus.TRAVELING
+    val status: CaveExplorationStatus = CaveExplorationStatus.TRAVELING,
+    val startX: Float = 2000f,
+    val startY: Float = 1750f,
+    val targetX: Float = 0f,
+    val targetY: Float = 0f,
+    val currentX: Float = 2000f,
+    val currentY: Float = 1750f,
+    val moveProgress: Float = 0f
 ) {
     val isTraveling: Boolean get() = status == CaveExplorationStatus.TRAVELING
     val isExploring: Boolean get() = status == CaveExplorationStatus.EXPLORING
     val isComplete: Boolean get() = status == CaveExplorationStatus.COMPLETED
+    val isMoving: Boolean get() = isTraveling && moveProgress < 1f
     
     fun getRemainingMonths(currentYear: Int, currentMonth: Int): Int {
         val totalMonths = (currentYear - startYear) * 12 + (currentMonth - startMonth)

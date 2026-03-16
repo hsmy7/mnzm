@@ -24,7 +24,6 @@ class GameRepository @Inject constructor(
     private val dungeonDao: DungeonDao,
     private val recipeDao: RecipeDao,
     private val battleLogDao: BattleLogDao,
-    private val warTeamDao: WarTeamDao,
     private val forgeSlotDao: ForgeSlotDao
 ) {
     fun getGameData(): Flow<GameData?> = gameDataDao.getGameData()
@@ -218,29 +217,7 @@ class GameRepository @Inject constructor(
 
     suspend fun deleteOldBattleLogs(before: Long) = battleLogDao.deleteOld(before)
 
-    fun getWarTeams(): Flow<List<WarTeam>> = warTeamDao.getAll()
-
-    suspend fun getWarTeamById(id: String): WarTeam? = warTeamDao.getById(id)
-
-    suspend fun getWarTeamsByStatus(status: WarTeamStatus): List<WarTeam> =
-        warTeamDao.getByStatus(status)
-
-    suspend fun getWarTeamsByStationedSect(sectId: String): List<WarTeam> =
-        warTeamDao.getByStationedSect(sectId)
-
-    suspend fun getWarTeamsByTargetSect(sectId: String): List<WarTeam> =
-        warTeamDao.getByTargetSect(sectId)
-
-    suspend fun addWarTeam(warTeam: WarTeam) = warTeamDao.insert(warTeam)
-
-    suspend fun addWarTeams(warTeams: List<WarTeam>) = warTeamDao.insertAll(warTeams)
-
-    suspend fun updateWarTeam(warTeam: WarTeam) = warTeamDao.update(warTeam)
-
-    suspend fun updateWarTeams(warTeams: List<WarTeam>) = warTeamDao.updateAll(warTeams)
-
-    suspend fun deleteWarTeam(warTeam: WarTeam) = warTeamDao.delete(warTeam)
-
+    
     suspend fun getForgeSlotBySlotIndex(slotIndex: Int): ForgeSlot? = 
         forgeSlotDao.getBySlotIndex(slotIndex)
     
@@ -272,7 +249,6 @@ class GameRepository @Inject constructor(
             dungeonDao.deleteAll()
             recipeDao.deleteAll()
             battleLogDao.deleteAll()
-            warTeamDao.deleteAll()
             forgeSlotDao.deleteAll()
         }
     }
@@ -289,8 +265,7 @@ class GameRepository @Inject constructor(
         teams: List<ExplorationTeam>,
         slots: List<BuildingSlot>,
         events: List<GameEvent>,
-        battleLogs: List<BattleLog> = emptyList(),
-        warTeams: List<WarTeam> = emptyList()
+        battleLogs: List<BattleLog> = emptyList()
     ) {
         database.withTransaction {
             gameDataDao.insert(gameData)
@@ -309,9 +284,6 @@ class GameRepository @Inject constructor(
 
             battleLogDao.deleteAll()
             battleLogDao.insertAll(battleLogs)
-
-            warTeamDao.deleteAll()
-            warTeamDao.insertAll(warTeams)
         }
     }
 }
