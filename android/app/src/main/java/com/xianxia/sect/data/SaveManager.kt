@@ -3,8 +3,6 @@ package com.xianxia.sect.data
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
-import com.google.gson.Gson
-import com.google.gson.GsonBuilder
 import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.model.SaveSlot
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -42,12 +40,7 @@ class SaveManager @Inject constructor(
     private val prefs: SharedPreferences =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-    private val gson: Gson = GsonBuilder()
-        .setDateFormat("yyyy-MM-dd HH:mm:ss")
-        .serializeNulls()
-        .disableHtmlEscaping()
-        .excludeFieldsWithModifiers(java.lang.reflect.Modifier.TRANSIENT)
-        .create()
+    private val gson = GsonConfig.createGson()
 
     private val saveMutex = Mutex()
     private val loadMutex = Mutex()
