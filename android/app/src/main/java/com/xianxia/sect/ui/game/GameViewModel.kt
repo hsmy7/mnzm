@@ -256,7 +256,7 @@ class GameViewModel @Inject constructor(
 
     private var gameLoopJob: Job? = null
     private var secondTickJob: Job? = null
-    private var monthAccumulator = 0
+    private var dayAccumulator = 0.0
     private var autoSaveMonthCounter = 0
 
     // 游戏循环错误计数器
@@ -275,7 +275,7 @@ class GameViewModel @Inject constructor(
         gameLoopJob?.cancel()
         secondTickJob?.cancel()
 
-        monthAccumulator = 0
+        dayAccumulator = 0.0
         autoSaveMonthCounter = 0
         consecutiveErrorCount = 0
         totalErrorCount = 0
@@ -307,37 +307,34 @@ class GameViewModel @Inject constructor(
                                 "Sect=${gameData.sectName}", e)
                         }
 
-                        monthAccumulator++
-                        val daysPerSecond = _timeScale.value
-                        val ticksPerDay = GameConfig.Time.TICKS_PER_SECOND
+                        val daysPerTick = GameConfig.Time.DAYS_PER_MONTH.toDouble() / 
+                            (GameConfig.Time.SECONDS_PER_REAL_MONTH * GameConfig.Time.TICKS_PER_SECOND)
+                        dayAccumulator += daysPerTick * _timeScale.value
                         
-                        if (monthAccumulator >= ticksPerDay) {
-                            monthAccumulator = 0
-                            
-                            for (i in 0 until daysPerSecond) {
-                                try {
-                                    gameEngine.advanceDay()
-                                    consecutiveErrorCount = 0 // 成功执行后重置连续错误计数
-                                } catch (e: Exception) {
-                                    tickErrorOccurred = true
-                                    consecutiveErrorCount++
-                                    totalErrorCount++
-                                    val gameData = gameEngine.gameData.value
-                                    Log.e(TAG, "Error in advanceDay iteration $i (consecutive: $consecutiveErrorCount, total: $totalErrorCount) - " +
-                                        "Game: Year=${gameData.gameYear}, Month=${gameData.gameMonth}, Day=${gameData.gameDay}, " +
-                                        "Sect=${gameData.sectName}", e)
-                                }
+                        while (dayAccumulator >= 1.0) {
+                            dayAccumulator -= 1.0
+                            try {
+                                gameEngine.advanceDay()
+                                consecutiveErrorCount = 0
+                            } catch (e: Exception) {
+                                tickErrorOccurred = true
+                                consecutiveErrorCount++
+                                totalErrorCount++
+                                val gameData = gameEngine.gameData.value
+                                Log.e(TAG, "Error in advanceDay (consecutive: $consecutiveErrorCount, total: $totalErrorCount) - " +
+                                    "Game: Year=${gameData.gameYear}, Month=${gameData.gameMonth}, Day=${gameData.gameDay}, " +
+                                    "Sect=${gameData.sectName}", e)
                             }
-                            
                             autoSaveMonthCounter++
-                            val autoSaveInterval = gameEngine.gameData.value.autoSaveIntervalMonths
-                            if (autoSaveInterval > 0 && autoSaveMonthCounter >= autoSaveInterval * 30) {
-                                autoSaveMonthCounter = 0
-                                try {
-                                    performAutoSave()
-                                } catch (e: Exception) {
-                                    Log.e(TAG, "Error in performAutoSave", e)
-                                }
+                        }
+                        
+                        val autoSaveInterval = gameEngine.gameData.value.autoSaveIntervalMonths
+                        if (autoSaveInterval > 0 && autoSaveMonthCounter >= autoSaveInterval * GameConfig.Time.DAYS_PER_MONTH) {
+                            autoSaveMonthCounter = 0
+                            try {
+                                performAutoSave()
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Error in performAutoSave", e)
                             }
                         }
                         

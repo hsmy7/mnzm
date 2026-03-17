@@ -9,8 +9,7 @@ import kotlin.random.Random
 
 object AISectDiscipleManager {
     
-    private const val TICKS_PER_SECOND = 5
-    private const val SECONDS_PER_MONTH = 30
+    private val SECONDS_PER_MONTH = GameConfig.Time.SECONDS_PER_REAL_MONTH
     
     private val spiritRootTypes = listOf("metal", "wood", "water", "fire", "earth")
     
@@ -169,7 +168,7 @@ object AISectDiscipleManager {
             if (!disciple.isAlive) return@map disciple
             
             val cultivationSpeed = disciple.calculateCultivationSpeed()
-            val monthlyGain = cultivationSpeed * TICKS_PER_SECOND * SECONDS_PER_MONTH
+            val monthlyGain = cultivationSpeed * SECONDS_PER_MONTH
             
             var newCultivation = disciple.cultivation + monthlyGain
             var newRealm = disciple.realm

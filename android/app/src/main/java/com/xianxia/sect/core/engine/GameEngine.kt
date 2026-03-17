@@ -83,7 +83,6 @@ class GameEngine {
     
     companion object {
         private const val TAG = "GameEngine"
-        private const val TICKS_PER_SECOND = 5
     }
     
     data class GameStateSnapshot(
@@ -1518,7 +1517,7 @@ class GameEngine {
         val startTime = System.currentTimeMillis()
         tickCounter++
         
-        val isSecondTick = tickCounter >= TICKS_PER_SECOND
+        val isSecondTick = tickCounter >= GameConfig.Time.TICKS_PER_SECOND
         if (isSecondTick) {
             tickCounter = 0
         }
@@ -3378,7 +3377,7 @@ class GameEngine {
                 speed *= (1 + qingyunTeachingBonus)
             }
 
-            val tickMultiplier = 1.0 / TICKS_PER_SECOND
+            val tickMultiplier = 1.0 / GameConfig.Time.TICKS_PER_SECOND
             val totalGain = speed * tickMultiplier
             val newCultivation = currentDisciple.cultivation + totalGain
 
@@ -3525,7 +3524,7 @@ class GameEngine {
 
         currentEquipments.forEach { equipment ->
             val autoExpGain = EquipmentNurtureSystem.calculateAutoExpGain(equipment.rarity)
-            val tickMultiplier = 1.0 / TICKS_PER_SECOND
+            val tickMultiplier = 1.0 / GameConfig.Time.TICKS_PER_SECOND
             val adjustedExpGain = autoExpGain * tickMultiplier
 
             val nurtureResult = EquipmentNurtureSystem.updateNurtureExp(equipment, adjustedExpGain)

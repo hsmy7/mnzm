@@ -4,7 +4,7 @@ object GameConfig {
     
     object Game {
         const val NAME = "模拟宗门"
-        const val VERSION = "1.4.36"
+        const val VERSION = "1.4.45"
         const val AUTO_SAVE_INTERVAL = 60
         const val MAX_SAVE_SLOTS = 5
     }
@@ -12,7 +12,8 @@ object GameConfig {
     object Time {
         const val TICK_INTERVAL = 200L
         const val TICKS_PER_SECOND = 5
-        const val SECONDS_PER_MONTH = 30
+        const val SECONDS_PER_REAL_MONTH = 10
+        const val DAYS_PER_MONTH = 30
         const val MONTHS_PER_YEAR = 12
         const val MAX_EXPLORE_TIME = 12
         const val HIGH_FREQUENCY_UPDATE_INTERVAL = 200L
