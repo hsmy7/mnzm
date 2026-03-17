@@ -46,6 +46,7 @@ class SaveManager @Inject constructor(
         .setDateFormat("yyyy-MM-dd HH:mm:ss")
         .serializeNulls()
         .disableHtmlEscaping()
+        .excludeFieldsWithModifiers(java.lang.reflect.Modifier.TRANSIENT)
         .create()
 
     private val saveMutex = Mutex()

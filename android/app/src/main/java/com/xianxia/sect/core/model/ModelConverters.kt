@@ -2,10 +2,13 @@ package com.xianxia.sect.core.model
 
 import androidx.room.TypeConverter
 import com.google.gson.Gson
+import com.google.gson.GsonBuilder
 import com.google.gson.reflect.TypeToken
 
 object ModelConverters {
-    private val gson = Gson()
+    private val gson: Gson = GsonBuilder()
+        .excludeFieldsWithModifiers(java.lang.reflect.Modifier.TRANSIENT)
+        .create()
     
     @TypeConverter
     @JvmStatic
