@@ -3394,6 +3394,7 @@ class GameViewModel @Inject constructor(
                 // 增加灵石
                 if (totalValue > 0) {
                     gameEngine.addSpiritStones(totalValue)
+                    gameEngine.syncListedItemsWithInventory()
                 } else {
                     _errorMessage.value = "没有符合条件的物品可出售"
                 }

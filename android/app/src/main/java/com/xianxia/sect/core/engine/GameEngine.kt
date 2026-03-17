@@ -8565,7 +8565,7 @@ class GameEngine {
         }
     }
     
-    private fun syncListedItemsWithInventory() {
+    internal fun syncListedItemsWithInventory() {
         val data = _gameData.value
         val currentListedItems = data.playerListedItems.toMutableList()
         val itemsToRemove = mutableListOf<String>()
@@ -8585,13 +8585,9 @@ class GameEngine {
             when {
                 inventoryQuantity == 0 -> {
                     itemsToRemove.add(item.id)
-                    addEvent("上架的${item.name}已无库存，自动下架", EventType.WARNING)
                 }
                 inventoryQuantity < item.quantity -> {
                     itemsToUpdate.add(item.id to inventoryQuantity)
-                    if (inventoryQuantity > 0) {
-                        addEvent("上架的${item.name}库存不足，已调整为${inventoryQuantity}个", EventType.WARNING)
-                    }
                 }
             }
         }
@@ -8609,6 +8605,13 @@ class GameEngine {
                 }
             
             _gameData.value = data.copy(playerListedItems = updatedList)
+            
+            if (itemsToRemove.isNotEmpty()) {
+                addEvent("${itemsToRemove.size}件上架物品因库存不足已自动下架", EventType.WARNING)
+            }
+            if (itemsToUpdate.isNotEmpty()) {
+                addEvent("${itemsToUpdate.size}件上架物品数量已根据库存调整", EventType.WARNING)
+            }
         }
     }
     
