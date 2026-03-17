@@ -8592,7 +8592,7 @@ class GameEngine {
                 inventoryQuantity == 0 -> {
                     itemsToRemove.add(item.id)
                 }
-                inventoryQuantity < item.quantity -> {
+                inventoryQuantity != item.quantity -> {
                     itemsToUpdate.add(item.id to inventoryQuantity)
                 }
             }
