@@ -76,8 +76,12 @@ object ModelConverters {
     
     @TypeConverter
     @JvmStatic
-    fun toPillCategory(value: String): PillCategory =
-        PillCategory.values().find { it.name == value } ?: PillCategory.CULTIVATION
+    fun toPillCategory(value: String): PillCategory {
+        return when (value) {
+            "BATTLE" -> PillCategory.BATTLE_PHYSICAL
+            else -> PillCategory.values().find { it.name == value } ?: PillCategory.CULTIVATION
+        }
+    }
     
     @TypeConverter
     @JvmStatic

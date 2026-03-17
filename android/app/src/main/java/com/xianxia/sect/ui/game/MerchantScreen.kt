@@ -1371,7 +1371,7 @@ private fun InventoryItemDetailDialog(
                             add("  延寿 ${item.extendLife} 年")
                         }
                     }
-                    com.xianxia.sect.core.model.PillCategory.BATTLE -> {
+                    com.xianxia.sect.core.model.PillCategory.BATTLE_PHYSICAL, com.xianxia.sect.core.model.PillCategory.BATTLE_MAGIC, com.xianxia.sect.core.model.PillCategory.BATTLE_STATUS -> {
                         if (item.physicalAttackPercent > 0) add("  物理攻击 +${String.format("%.1f", item.physicalAttackPercent * 100)}%")
                         if (item.magicAttackPercent > 0) add("  法术攻击 +${String.format("%.1f", item.magicAttackPercent * 100)}%")
                         if (item.physicalDefensePercent > 0) add("  物理防御 +${String.format("%.1f", item.physicalDefensePercent * 100)}%")
@@ -1390,7 +1390,7 @@ private fun InventoryItemDetailDialog(
                         if (item.clearAll) add("  清除所有负面状态")
                     }
                 }
-                if (item.duration > 0 && item.category != com.xianxia.sect.core.model.PillCategory.BATTLE) {
+                if (item.duration > 0 && !item.category.isBattlePill) {
                     add("  持续 ${item.duration} 月")
                 }
                 if (item.cannotStack) {

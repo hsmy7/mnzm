@@ -2712,7 +2712,8 @@ class GameEngine {
 
             if (effect.extendLife > 0) {
                 updatedDisciple = updatedDisciple.copy(
-                    lifespan = updatedDisciple.lifespan + effect.extendLife
+                    lifespan = updatedDisciple.lifespan + effect.extendLife,
+                    usedExtendLifePillIds = updatedDisciple.usedExtendLifePillIds + pillItem.itemId
                 )
                 effectDescription = "寿命延长${effect.extendLife}年"
                 used = true
@@ -4360,7 +4361,7 @@ class GameEngine {
                 name = item.name,
                 rarity = item.rarity,
                 description = item.description,
-                category = PillCategory.values().random()
+                category = PillCategory.CULTIVATION
             )
         }
     }
@@ -7665,7 +7666,7 @@ class GameEngine {
                 )
                 addEvent("${disciple.name} 服用${pill.name}，修为增加${cultivationGain}，修炼速度提升${GameUtils.formatPercent(pill.cultivationSpeed - 1)}", EventType.SUCCESS)
             }
-            PillCategory.BATTLE -> {
+            PillCategory.BATTLE_PHYSICAL, PillCategory.BATTLE_MAGIC, PillCategory.BATTLE_STATUS -> {
                 // 战斗丹：应用临时属性加成
                 updatedDisciple = disciple.copy(
                     pillPhysicalAttackBonus = pill.physicalAttackPercent,
@@ -8791,122 +8792,234 @@ class GameEngine {
         currentDisciples.forEachIndexed { index, disciple ->
             if (!disciple.isAlive || disciple.status == DiscipleStatus.REFLECTING) return@forEachIndexed
 
-            val affordableItems = updatedListedItems.filter { it.price <= disciple.spiritStones }
-            if (affordableItems.isEmpty()) return@forEachIndexed
+            val isOuterDisciple = disciple.discipleType == "outer"
+            val maxRarity = if (isOuterDisciple) 2 else 6
 
-            val equipmentItem = affordableItems.firstOrNull { it.type == "equipment" }
-            if (equipmentItem != null) {
-                val shouldBuy = shouldDiscipleBuyEquipment(disciple, equipmentItem)
-                if (shouldBuy) {
-                    val result = discipleBuyItem(disciple, equipmentItem, data.gameYear, data.gameMonth)
-                    currentDisciples[index] = result.first
-                    if (equipmentItem.quantity > 1) {
-                        val itemIndex = updatedListedItems.indexOfFirst { it.id == equipmentItem.id }
-                        if (itemIndex >= 0) {
-                            updatedListedItems[itemIndex] = equipmentItem.copy(quantity = equipmentItem.quantity - 1)
+            var currentDisciple = disciple
+            var purchased = false
+
+            val talentEffects = TalentDatabase.calculateTalentEffects(disciple.talentIds)
+            val manualSlotBonus = talentEffects["manualSlot"]?.toInt() ?: 0
+            val maxManualSlots = 5 + manualSlotBonus
+            val manualSlotEmpty = currentDisciple.manualIds.size < maxManualSlots
+
+            fun getAffordableItems() = updatedListedItems.filter { 
+                it.price <= currentDisciple.spiritStones && it.rarity <= maxRarity 
+            }
+
+            fun tryPurchase(item: MerchantItem): Boolean {
+                val result = discipleBuyItem(currentDisciple, item, data.gameYear, data.gameMonth) ?: return false
+                currentDisciple = result.first
+                updateListedItemsAfterPurchase(updatedListedItems, item)
+                itemsToRemoveFromInventory.add(item)
+                eventsToAdd.add(result.second to EventType.INFO)
+                totalSpiritStonesEarned += item.price
+                return true
+            }
+
+            if (getAffordableItems().isEmpty()) return@forEachIndexed
+
+            if (!purchased && manualSlotEmpty) {
+                val manualItem = getAffordableItems()
+                    .filter { it.type == "manual" && !currentDisciple.manualIds.contains(it.itemId) }
+                    .maxByOrNull { it.rarity }
+                if (manualItem != null) {
+                    purchased = tryPurchase(manualItem)
+                }
+            }
+
+            if (!purchased) {
+                val equipmentSlots = listOf(
+                    EquipmentSlot.WEAPON to currentDisciple.weaponId,
+                    EquipmentSlot.ARMOR to currentDisciple.armorId,
+                    EquipmentSlot.BOOTS to currentDisciple.bootsId,
+                    EquipmentSlot.ACCESSORY to currentDisciple.accessoryId
+                )
+                val emptySlot = equipmentSlots.firstOrNull { it.second == null }
+                if (emptySlot != null) {
+                    val slot = emptySlot.first
+                    val equipmentItem = getAffordableItems()
+                        .filter { it.type == "equipment" }
+                        .firstOrNull { item ->
+                            val equipment = _equipment.value.find { it.id == item.itemId }
+                            equipment?.slot == slot
                         }
-                    } else {
-                        updatedListedItems.removeAll { it.id == equipmentItem.id }
+                    if (equipmentItem != null) {
+                        purchased = tryPurchase(equipmentItem)
                     }
-                    itemsToRemoveFromInventory.add(equipmentItem)
-                    eventsToAdd.add(result.second to EventType.INFO)
-                    totalSpiritStonesEarned += equipmentItem.price
-                    return@forEachIndexed
                 }
             }
 
-            val manualItem = affordableItems.firstOrNull { it.type == "manual" }
-            if (manualItem != null) {
-                val shouldBuy = shouldDiscipleBuyManual(disciple, manualItem)
-                if (shouldBuy) {
-                    val result = discipleBuyItem(disciple, manualItem, data.gameYear, data.gameMonth)
-                    currentDisciples[index] = result.first
-                    if (manualItem.quantity > 1) {
-                        val itemIndex = updatedListedItems.indexOfFirst { it.id == manualItem.id }
-                        if (itemIndex >= 0) {
-                            updatedListedItems[itemIndex] = manualItem.copy(quantity = manualItem.quantity - 1)
+            if (!purchased) {
+                val breakthroughPillCount = currentDisciple.storageBagItems.count { item ->
+                    item.itemType == "pill" && item.effect?.targetRealm == disciple.realm && 
+                    item.effect?.breakthroughChance?.let { c -> c > 0 } == true
+                }
+                
+                if (breakthroughPillCount == 0) {
+                    val breakthroughPill = getAffordableItems()
+                        .filter { it.type == "pill" }
+                        .firstOrNull { item ->
+                            val pill = _pills.value.find { it.id == item.itemId }
+                            pill?.category == PillCategory.BREAKTHROUGH && pill.targetRealm == disciple.realm
                         }
-                    } else {
-                        updatedListedItems.removeAll { it.id == manualItem.id }
+                    if (breakthroughPill != null) {
+                        purchased = tryPurchase(breakthroughPill)
                     }
-                    itemsToRemoveFromInventory.add(manualItem)
-                    eventsToAdd.add(result.second to EventType.INFO)
-                    totalSpiritStonesEarned += manualItem.price
-                    return@forEachIndexed
                 }
             }
 
-            val pillItem = affordableItems.firstOrNull { it.type == "pill" }
-            if (pillItem != null) {
-                val result = discipleBuyItem(disciple, pillItem, data.gameYear, data.gameMonth)
-                currentDisciples[index] = result.first
-                if (pillItem.quantity > 1) {
-                    val itemIndex = updatedListedItems.indexOfFirst { it.id == pillItem.id }
-                    if (itemIndex >= 0) {
-                        updatedListedItems[itemIndex] = pillItem.copy(quantity = pillItem.quantity - 1)
-                    }
-                } else {
-                    updatedListedItems.removeAll { it.id == pillItem.id }
+            if (!purchased) {
+                val cultivationPillCount = currentDisciple.storageBagItems.count { item ->
+                    item.itemType == "pill" && (
+                        item.effect?.cultivationSpeed?.let { s -> s > 1.0 } == true ||
+                        item.effect?.cultivationPercent?.let { p -> p > 0 } == true
+                    )
                 }
-                itemsToRemoveFromInventory.add(pillItem)
-                eventsToAdd.add(result.second to EventType.INFO)
-                totalSpiritStonesEarned += pillItem.price
-                return@forEachIndexed
+                
+                if (cultivationPillCount == 0) {
+                    val cultivationPill = getAffordableItems()
+                        .filter { it.type == "pill" }
+                        .firstOrNull { item ->
+                            val pill = _pills.value.find { it.id == item.itemId }
+                            pill?.category == PillCategory.CULTIVATION
+                        }
+                    if (cultivationPill != null) {
+                        purchased = tryPurchase(cultivationPill)
+                    }
+                }
             }
 
-            val materialItem = affordableItems.firstOrNull { it.type == "material" }
-            if (materialItem != null) {
-                val result = discipleBuyItem(disciple, materialItem, data.gameYear, data.gameMonth)
-                currentDisciples[index] = result.first
-                if (materialItem.quantity > 1) {
-                    val itemIndex = updatedListedItems.indexOfFirst { it.id == materialItem.id }
-                    if (itemIndex >= 0) {
-                        updatedListedItems[itemIndex] = materialItem.copy(quantity = materialItem.quantity - 1)
-                    }
-                } else {
-                    updatedListedItems.removeAll { it.id == materialItem.id }
+            if (!purchased) {
+                val isPhysicalType = currentDisciple.physicalAttack >= currentDisciple.magicAttack
+                val battlePhysicalCount = currentDisciple.storageBagItems.count { 
+                    it.itemType == "pill" && it.effect?.physicalAttackPercent?.let { p -> p > 0 } == true
                 }
-                itemsToRemoveFromInventory.add(materialItem)
-                eventsToAdd.add(result.second to EventType.INFO)
-                totalSpiritStonesEarned += materialItem.price
-                return@forEachIndexed
+                val battleMagicCount = currentDisciple.storageBagItems.count { 
+                    it.itemType == "pill" && it.effect?.magicAttackPercent?.let { p -> p > 0 } == true
+                }
+                val battleStatusCount = currentDisciple.storageBagItems.count { 
+                    it.itemType == "pill" && it.effect?.speedPercent?.let { p -> p > 0 } == true
+                }
+
+                if (isPhysicalType && battlePhysicalCount == 0) {
+                    val battlePhysicalPill = getAffordableItems()
+                        .filter { it.type == "pill" }
+                        .firstOrNull { item ->
+                            val pill = _pills.value.find { it.id == item.itemId }
+                            pill?.category == PillCategory.BATTLE_PHYSICAL
+                        }
+                    if (battlePhysicalPill != null) {
+                        purchased = tryPurchase(battlePhysicalPill)
+                    }
+                } else if (!isPhysicalType && battleMagicCount == 0) {
+                    val battleMagicPill = getAffordableItems()
+                        .filter { it.type == "pill" }
+                        .firstOrNull { item ->
+                            val pill = _pills.value.find { it.id == item.itemId }
+                            pill?.category == PillCategory.BATTLE_MAGIC
+                        }
+                    if (battleMagicPill != null) {
+                        purchased = tryPurchase(battleMagicPill)
+                    }
+                }
+
+                if (!purchased && battleStatusCount == 0) {
+                    val battleStatusPill = getAffordableItems()
+                        .filter { it.type == "pill" }
+                        .firstOrNull { item ->
+                            val pill = _pills.value.find { it.id == item.itemId }
+                            pill?.category == PillCategory.BATTLE_STATUS
+                        }
+                    if (battleStatusPill != null) {
+                        purchased = tryPurchase(battleStatusPill)
+                    }
+                }
             }
 
-            val herbItem = affordableItems.firstOrNull { it.type == "herb" }
-            if (herbItem != null) {
-                val result = discipleBuyItem(disciple, herbItem, data.gameYear, data.gameMonth)
-                currentDisciples[index] = result.first
-                if (herbItem.quantity > 1) {
-                    val itemIndex = updatedListedItems.indexOfFirst { it.id == herbItem.id }
-                    if (itemIndex >= 0) {
-                        updatedListedItems[itemIndex] = herbItem.copy(quantity = herbItem.quantity - 1)
-                    }
-                } else {
-                    updatedListedItems.removeAll { it.id == herbItem.id }
+            if (!purchased) {
+                val healPillCount = currentDisciple.storageBagItems.count { 
+                    it.itemType == "pill" && it.effect?.heal?.let { h -> h > 0 } == true
                 }
-                itemsToRemoveFromInventory.add(herbItem)
-                eventsToAdd.add(result.second to EventType.INFO)
-                totalSpiritStonesEarned += herbItem.price
-                return@forEachIndexed
+                val healPercentPillCount = currentDisciple.storageBagItems.count { 
+                    it.itemType == "pill" && it.effect?.healPercent?.let { h -> h > 0 } == true
+                }
+
+                if (healPillCount == 0) {
+                    val healPill = getAffordableItems()
+                        .filter { it.type == "pill" }
+                        .firstOrNull { item ->
+                            val pill = _pills.value.find { it.id == item.itemId }
+                            pill?.category == PillCategory.HEALING && (pill.heal > 0)
+                        }
+                    if (healPill != null) {
+                        purchased = tryPurchase(healPill)
+                    }
+                }
+
+                if (!purchased && healPercentPillCount == 0) {
+                    val healPercentPill = getAffordableItems()
+                        .filter { it.type == "pill" }
+                        .firstOrNull { item ->
+                            val pill = _pills.value.find { it.id == item.itemId }
+                            pill?.category == PillCategory.HEALING && (pill.healPercent > 0)
+                        }
+                    if (healPercentPill != null) {
+                        purchased = tryPurchase(healPercentPill)
+                    }
+                }
             }
 
-            val seedItem = affordableItems.firstOrNull { it.type == "seed" }
-            if (seedItem != null) {
-                val result = discipleBuyItem(disciple, seedItem, data.gameYear, data.gameMonth)
-                currentDisciples[index] = result.first
-                if (seedItem.quantity > 1) {
-                    val itemIndex = updatedListedItems.indexOfFirst { it.id == seedItem.id }
-                    if (itemIndex >= 0) {
-                        updatedListedItems[itemIndex] = seedItem.copy(quantity = seedItem.quantity - 1)
-                    }
-                } else {
-                    updatedListedItems.removeAll { it.id == seedItem.id }
+            if (!purchased) {
+                val extendLifePillCount = currentDisciple.storageBagItems.count { 
+                    it.itemType == "pill" && it.effect?.extendLife?.let { e -> e > 0 } == true
                 }
-                itemsToRemoveFromInventory.add(seedItem)
-                eventsToAdd.add(result.second to EventType.INFO)
-                totalSpiritStonesEarned += seedItem.price
-                return@forEachIndexed
+                val revivePillCount = currentDisciple.storageBagItems.count { 
+                    it.itemType == "pill" && it.effect?.revive == true
+                }
+                val clearAllPillCount = currentDisciple.storageBagItems.count { 
+                    it.itemType == "pill" && it.effect?.clearAll == true
+                }
+
+                if (extendLifePillCount == 0) {
+                    val extendLifePill = getAffordableItems()
+                        .filter { it.type == "pill" }
+                        .firstOrNull { item ->
+                            val pill = _pills.value.find { it.id == item.itemId }
+                            pill?.extendLife?.let { e -> e > 0 } == true && 
+                            !currentDisciple.usedExtendLifePillIds.contains(item.itemId)
+                        }
+                    if (extendLifePill != null) {
+                        purchased = tryPurchase(extendLifePill)
+                    }
+                }
+
+                if (!purchased && revivePillCount == 0) {
+                    val revivePill = getAffordableItems()
+                        .filter { it.type == "pill" }
+                        .firstOrNull { item ->
+                            val pill = _pills.value.find { it.id == item.itemId }
+                            pill?.revive == true
+                        }
+                    if (revivePill != null) {
+                        purchased = tryPurchase(revivePill)
+                    }
+                }
+
+                if (!purchased && clearAllPillCount == 0) {
+                    val clearAllPill = getAffordableItems()
+                        .filter { it.type == "pill" }
+                        .firstOrNull { item ->
+                            val pill = _pills.value.find { it.id == item.itemId }
+                            pill?.clearAll == true
+                        }
+                    if (clearAllPill != null) {
+                        purchased = tryPurchase(clearAllPill)
+                    }
+                }
             }
+
+            currentDisciples[index] = currentDisciple
         }
 
         itemsToRemoveFromInventory.forEach { item ->
@@ -8925,6 +9038,20 @@ class GameEngine {
         
         if (totalSpiritStonesEarned > 0) {
             addEvent("弟子购买物品，获得${totalSpiritStonesEarned}灵石", EventType.SUCCESS)
+        }
+    }
+
+    private fun updateListedItemsAfterPurchase(
+        listedItems: MutableList<MerchantItem>,
+        item: MerchantItem
+    ) {
+        if (item.quantity > 1) {
+            val itemIndex = listedItems.indexOfFirst { it.id == item.id }
+            if (itemIndex >= 0) {
+                listedItems[itemIndex] = item.copy(quantity = item.quantity - 1)
+            }
+        } else {
+            listedItems.removeAll { it.id == item.id }
         }
     }
 
@@ -8958,10 +9085,40 @@ class GameEngine {
         item: MerchantItem,
         gameYear: Int,
         gameMonth: Int
-    ): Pair<Disciple, String> {
+    ): Pair<Disciple, String>? {
+        if (disciple.spiritStones < item.price) {
+            return null
+        }
+        
         val updatedDisciple = disciple.copy(
             spiritStones = disciple.spiritStones - item.price
         )
+
+        val effect = if (item.type == "pill") {
+            val pill = _pills.value.find { it.id == item.itemId }
+            pill?.let {
+                ItemEffect(
+                    cultivationSpeed = it.cultivationSpeed,
+                    cultivationPercent = it.cultivationPercent,
+                    breakthroughChance = it.breakthroughChance,
+                    targetRealm = it.targetRealm,
+                    heal = it.heal,
+                    healPercent = it.healPercent,
+                    hpPercent = it.hpPercent,
+                    mpPercent = it.mpPercent,
+                    extendLife = it.extendLife,
+                    battleCount = it.battleCount,
+                    physicalAttackPercent = it.physicalAttackPercent,
+                    magicAttackPercent = it.magicAttackPercent,
+                    physicalDefensePercent = it.physicalDefensePercent,
+                    magicDefensePercent = it.magicDefensePercent,
+                    speedPercent = it.speedPercent,
+                    revive = it.revive,
+                    clearAll = it.clearAll,
+                    duration = it.duration
+                )
+            }
+        } else null
 
         val storageItem = StorageBagItem(
             itemId = item.itemId,
@@ -8970,7 +9127,8 @@ class GameEngine {
             rarity = item.rarity,
             quantity = 1,
             obtainedYear = gameYear,
-            obtainedMonth = gameMonth
+            obtainedMonth = gameMonth,
+            effect = effect
         )
 
         val updatedBag = addStorageItemToBag(updatedDisciple.storageBagItems, storageItem)

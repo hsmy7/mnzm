@@ -299,14 +299,18 @@ data class Pill(
 }
 
 enum class PillCategory {
-    BREAKTHROUGH, CULTIVATION, BATTLE, HEALING;
+    BREAKTHROUGH, CULTIVATION, HEALING, BATTLE_PHYSICAL, BATTLE_MAGIC, BATTLE_STATUS;
     
     val displayName: String get() = when (this) {
         BREAKTHROUGH -> "突破丹"
         CULTIVATION -> "修炼丹"
-        BATTLE -> "战斗丹"
         HEALING -> "治疗丹"
+        BATTLE_PHYSICAL -> "物理丹"
+        BATTLE_MAGIC -> "法术丹"
+        BATTLE_STATUS -> "状态丹"
     }
+    
+    val isBattlePill: Boolean get() = this == BATTLE_PHYSICAL || this == BATTLE_MAGIC || this == BATTLE_STATUS
 }
 
 data class PillEffect(

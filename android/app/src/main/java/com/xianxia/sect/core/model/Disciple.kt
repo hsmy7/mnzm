@@ -91,6 +91,9 @@ data class Disciple(
     // 本月已使用的功能型丹药ID列表（每月重置）
     var monthlyUsedPillIds: List<String> = emptyList(),
 
+    // 已使用过的增寿丹药ID列表（永久记录，不会重置）
+    var usedExtendLifePillIds: List<String> = emptyList(),
+
     // 功能型丹药效果标记
     var hasReviveEffect: Boolean = false,
     var hasClearAllEffect: Boolean = false

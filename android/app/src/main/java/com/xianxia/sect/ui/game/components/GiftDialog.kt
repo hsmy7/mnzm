@@ -816,7 +816,7 @@ private fun GiftItemDetailDialog(
                             add("  延寿 ${item.extendLife} 年")
                         }
                     }
-                    PillCategory.BATTLE -> {
+                    PillCategory.BATTLE_PHYSICAL, PillCategory.BATTLE_MAGIC, PillCategory.BATTLE_STATUS -> {
                         if (item.physicalAttackPercent > 0) add("  物理攻击 +${GameUtils.formatPercent(item.physicalAttackPercent)}")
                         if (item.magicAttackPercent > 0) add("  法术攻击 +${GameUtils.formatPercent(item.magicAttackPercent)}")
                         if (item.physicalDefensePercent > 0) add("  物理防御 +${GameUtils.formatPercent(item.physicalDefensePercent)}")
@@ -835,7 +835,7 @@ private fun GiftItemDetailDialog(
                         if (item.clearAll) add("  清除所有负面状态")
                     }
                 }
-                if (item.duration > 0 && item.category != PillCategory.BATTLE) {
+                if (item.duration > 0 && !item.category.isBattlePill) {
                     add("  持续 ${item.duration} 月")
                 }
                 if (item.cannotStack) {
