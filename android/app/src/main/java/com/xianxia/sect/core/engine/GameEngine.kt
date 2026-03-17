@@ -8414,9 +8414,15 @@ class GameEngine {
         transactionMutex.withLock {
             val data = _gameData.value
             val newPlayerListedItems = data.playerListedItems.toMutableList()
+            val existingItemIds = data.playerListedItems.map { it.itemId }.toSet()
             var successCount = 0
             
             items.forEach { (itemId, quantity) ->
+                if (itemId in existingItemIds) {
+                    addEvent("物品已上架，跳过", EventType.WARNING)
+                    return@forEach
+                }
+                
                 val equipment = _equipment.value.find { it.id == itemId }
                 val manual = _manuals.value.find { it.id == itemId }
                 val pill = _pills.value.find { it.id == itemId }

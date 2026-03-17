@@ -32,6 +32,7 @@ import com.xianxia.sect.core.data.ManualDatabase
 import com.xianxia.sect.core.data.PillRecipeDatabase
 import com.xianxia.sect.core.model.Equipment
 import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.GameItem
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.Manual
 import com.xianxia.sect.core.model.Material
@@ -772,6 +773,15 @@ private fun ListedItemCard(
     }
 }
 
+private fun <T : GameItem> filterAndSortItems(
+    items: List<T>,
+    listedItemIds: Set<String>
+): List<T> {
+    return items
+        .filter { it.id !in listedItemIds }
+        .sortedWith(compareByDescending<T> { it.rarity }.thenBy { it.name })
+}
+
 private enum class ListingFilter(val displayName: String) {
     ALL("全部"),
     EQUIPMENT("装备"),
@@ -793,29 +803,34 @@ fun InventorySelectDialog(
     val materials by viewModel.materials.collectAsState()
     val herbs by viewModel.herbs.collectAsState()
     val seeds by viewModel.seeds.collectAsState()
+    val gameData by viewModel.gameData.collectAsState()
 
     var selectedFilter by remember { mutableStateOf(ListingFilter.ALL) }
     val selectedItems = remember { mutableStateMapOf<String, Int>() }
     var showConfirmDialog by remember { mutableStateOf(false) }
     var isSubmitting by remember { mutableStateOf(false) }
 
-    val sortedEquipment = remember(equipment) {
-        equipment.sortedWith(compareByDescending<Equipment> { it.rarity }.thenBy { it.name })
+    val listedItemIds = remember(gameData?.playerListedItems) {
+        gameData?.playerListedItems?.map { it.itemId }?.toSet() ?: emptySet()
     }
-    val sortedManuals = remember(manuals) {
-        manuals.sortedWith(compareByDescending<Manual> { it.rarity }.thenBy { it.name })
+
+    val sortedEquipment = remember(equipment, listedItemIds) {
+        filterAndSortItems(equipment, listedItemIds)
     }
-    val sortedPills = remember(pills) {
-        pills.sortedWith(compareByDescending<Pill> { it.rarity }.thenBy { it.name })
+    val sortedManuals = remember(manuals, listedItemIds) {
+        filterAndSortItems(manuals, listedItemIds)
     }
-    val sortedMaterials = remember(materials) {
-        materials.sortedWith(compareByDescending<Material> { it.rarity }.thenBy { it.name })
+    val sortedPills = remember(pills, listedItemIds) {
+        filterAndSortItems(pills, listedItemIds)
     }
-    val sortedHerbs = remember(herbs) {
-        herbs.sortedWith(compareByDescending<Herb> { it.rarity }.thenBy { it.name })
+    val sortedMaterials = remember(materials, listedItemIds) {
+        filterAndSortItems(materials, listedItemIds)
     }
-    val sortedSeeds = remember(seeds) {
-        seeds.sortedWith(compareByDescending<Seed> { it.rarity }.thenBy { it.name })
+    val sortedHerbs = remember(herbs, listedItemIds) {
+        filterAndSortItems(herbs, listedItemIds)
+    }
+    val sortedSeeds = remember(seeds, listedItemIds) {
+        filterAndSortItems(seeds, listedItemIds)
     }
 
     Dialog(onDismissRequest = onDismiss) {
