@@ -532,6 +532,7 @@ data class StorageBagItem(
 data class ItemEffect(
     val cultivationSpeed: Double = 1.0,
     val cultivationPercent: Double = 0.0,
+    val skillExpPercent: Double = 0.0,
     val breakthroughChance: Double = 0.0,
     val targetRealm: Int = 0,
     val heal: Int = 0,

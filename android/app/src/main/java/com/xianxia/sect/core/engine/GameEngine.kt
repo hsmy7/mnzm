@@ -1357,6 +1357,8 @@ class GameEngine {
                                     targetRealm = recipe.targetRealm,
                                     cultivationSpeed = recipe.cultivationSpeed,
                                     duration = recipe.effectDuration,
+                                    cultivationPercent = recipe.cultivationPercent,
+                                    skillExpPercent = recipe.skillExpPercent,
                                     extendLife = recipe.extendLife,
                                     physicalAttackPercent = recipe.physicalAttackPercent,
                                     magicAttackPercent = recipe.magicAttackPercent,
@@ -1368,7 +1370,8 @@ class GameEngine {
                                     healPercent = recipe.healPercent,
                                     healMaxHpPercent = recipe.healMaxHpPercent,
                                     heal = recipe.heal,
-                                    battleCount = recipe.battleCount
+                                    battleCount = recipe.battleCount,
+                                    mpRecoverMaxMpPercent = recipe.mpRecoverMaxMpPercent
                                 )
                                 addPillToWarehouse(pill)
                             }
@@ -2311,10 +2314,21 @@ class GameEngine {
                                     targetRealm = recipe.targetRealm,
                                     cultivationSpeed = recipe.cultivationSpeed,
                                     duration = recipe.effectDuration,
+                                    cultivationPercent = recipe.cultivationPercent,
+                                    skillExpPercent = recipe.skillExpPercent,
                                     physicalAttackPercent = recipe.physicalAttackPercent,
                                     physicalDefensePercent = recipe.physicalDefensePercent,
                                     magicAttackPercent = recipe.magicAttackPercent,
                                     magicDefensePercent = recipe.magicDefensePercent,
+                                    hpPercent = recipe.hpPercent,
+                                    mpPercent = recipe.mpPercent,
+                                    speedPercent = recipe.speedPercent,
+                                    healPercent = recipe.healPercent,
+                                    healMaxHpPercent = recipe.healMaxHpPercent,
+                                    heal = recipe.heal,
+                                    battleCount = recipe.battleCount,
+                                    extendLife = recipe.extendLife,
+                                    mpRecoverMaxMpPercent = recipe.mpRecoverMaxMpPercent,
                                     quantity = 1
                                 )
                                 addPillToWarehouse(pill)
@@ -2990,14 +3004,14 @@ class GameEngine {
     private fun autoUseCultivationPillsInstant(disciple: Disciple): Disciple {
         if (disciple.storageBagItems.isEmpty()) return disciple
         
-        if (disciple.cultivationSpeedDuration > 0) {
-            return disciple
-        }
-        
         val cultivationPill = disciple.storageBagItems
             .filter { item ->
                 item.itemType == "pill" && item.effect?.let { effect ->
-                    effect.cultivationSpeed > 1.0 || effect.cultivationPercent > 0
+                    val isSpeedPill = effect.cultivationSpeed > 1.0 && effect.duration > 0
+                    val isInstantPill = effect.cultivationPercent > 0 && effect.duration == 0
+                    val canUseSpeedPill = isSpeedPill && disciple.cultivationSpeedDuration <= 0
+                    val canUseInstantPill = isInstantPill
+                    canUseSpeedPill || canUseInstantPill
                 } == true
             }
             .maxByOrNull { item ->
@@ -3026,12 +3040,16 @@ class GameEngine {
                 }
             }
             
-            val message = if (actualGain > 0 && speedBonus > 1.0) {
+            val shouldUpdateSpeedEffect = speedBonus > 1.0 && duration > 0
+            
+            val message = if (actualGain > 0 && shouldUpdateSpeedEffect) {
                 "${disciple.name} 立即使用了 ${cultivationPill.name}，修为增加${actualGain}，修炼速度提升${GameUtils.formatPercent(speedBonus - 1)}"
             } else if (actualGain > 0) {
                 "${disciple.name} 立即使用了 ${cultivationPill.name}，修为增加${actualGain}"
-            } else {
+            } else if (shouldUpdateSpeedEffect) {
                 "${disciple.name} 立即使用了 ${cultivationPill.name}，修炼速度提升${GameUtils.formatPercent(speedBonus - 1)}"
+            } else {
+                "${disciple.name} 立即使用了 ${cultivationPill.name}"
             }
             addEvent(message, EventType.INFO)
             
@@ -3039,8 +3057,8 @@ class GameEngine {
                 storageBagItems = updatedItems,
                 cultivation = newCultivation,
                 totalCultivation = disciple.totalCultivation + actualGain,
-                cultivationSpeedBonus = speedBonus,
-                cultivationSpeedDuration = duration
+                cultivationSpeedBonus = if (shouldUpdateSpeedEffect) speedBonus else disciple.cultivationSpeedBonus,
+                cultivationSpeedDuration = if (shouldUpdateSpeedEffect) duration else disciple.cultivationSpeedDuration
             )
         }
         
@@ -3563,14 +3581,14 @@ class GameEngine {
     private fun autoUseCultivationPills(disciple: Disciple): Disciple {
         if (disciple.storageBagItems.isEmpty()) return disciple
         
-        if (disciple.cultivationSpeedDuration > 0) {
-            return disciple
-        }
-        
         val cultivationPill = disciple.storageBagItems
             .filter { item ->
                 item.itemType == "pill" && item.effect?.let { effect ->
-                    effect.cultivationSpeed > 1.0 || effect.cultivationPercent > 0
+                    val isSpeedPill = effect.cultivationSpeed > 1.0 && effect.duration > 0
+                    val isInstantPill = effect.cultivationPercent > 0 && effect.duration == 0
+                    val canUseSpeedPill = isSpeedPill && disciple.cultivationSpeedDuration <= 0
+                    val canUseInstantPill = isInstantPill
+                    canUseSpeedPill || canUseInstantPill
                 } == true
             }
             .maxByOrNull { item ->
@@ -3599,12 +3617,16 @@ class GameEngine {
                 }
             }
             
-            val message = if (actualGain > 0 && speedBonus > 1.0) {
+            val shouldUpdateSpeedEffect = speedBonus > 1.0 && duration > 0
+            
+            val message = if (actualGain > 0 && shouldUpdateSpeedEffect) {
                 "${disciple.name} 自动使用了 ${cultivationPill.name}，修为增加${actualGain}，修炼速度提升${GameUtils.formatPercent(speedBonus - 1)}"
             } else if (actualGain > 0) {
                 "${disciple.name} 自动使用了 ${cultivationPill.name}，修为增加${actualGain}"
-            } else {
+            } else if (shouldUpdateSpeedEffect) {
                 "${disciple.name} 自动使用了 ${cultivationPill.name}，修炼速度提升${GameUtils.formatPercent(speedBonus - 1)}"
+            } else {
+                "${disciple.name} 自动使用了 ${cultivationPill.name}"
             }
             addEvent(message, EventType.INFO)
             
@@ -3612,8 +3634,8 @@ class GameEngine {
                 storageBagItems = updatedItems,
                 cultivation = newCultivation,
                 totalCultivation = disciple.totalCultivation + actualGain,
-                cultivationSpeedBonus = speedBonus,
-                cultivationSpeedDuration = duration
+                cultivationSpeedBonus = if (shouldUpdateSpeedEffect) speedBonus else disciple.cultivationSpeedBonus,
+                cultivationSpeedDuration = if (shouldUpdateSpeedEffect) duration else disciple.cultivationSpeedDuration
             )
         }
         
@@ -4048,6 +4070,8 @@ class GameEngine {
                     targetRealm = recipe.targetRealm,
                     cultivationSpeed = recipe.cultivationSpeed,
                     duration = recipe.effectDuration,
+                    cultivationPercent = recipe.cultivationPercent,
+                    skillExpPercent = recipe.skillExpPercent,
                     physicalAttackPercent = recipe.physicalAttackPercent,
                     magicAttackPercent = recipe.magicAttackPercent,
                     physicalDefensePercent = recipe.physicalDefensePercent,
@@ -4057,7 +4081,10 @@ class GameEngine {
                     speedPercent = recipe.speedPercent,
                     healMaxHpPercent = recipe.healMaxHpPercent,
                     healPercent = recipe.healPercent,
-                    battleCount = recipe.battleCount
+                    heal = recipe.heal,
+                    battleCount = recipe.battleCount,
+                    extendLife = recipe.extendLife,
+                    mpRecoverMaxMpPercent = recipe.mpRecoverMaxMpPercent
                 )
                 addPillToWarehouse(pill)
             }
@@ -5919,6 +5946,7 @@ class GameEngine {
                 val itemEffect = ItemEffect(
                     cultivationSpeed = pillEffect.cultivationSpeed,
                     cultivationPercent = pillEffect.cultivationPercent,
+                    skillExpPercent = pillEffect.skillExpPercent,
                     breakthroughChance = pillEffect.breakthroughChance,
                     targetRealm = pillEffect.targetRealm,
                     heal = pillEffect.heal,
@@ -6589,6 +6617,7 @@ class GameEngine {
                 val itemEffect = ItemEffect(
                     cultivationSpeed = pillEffect.cultivationSpeed,
                     cultivationPercent = pillEffect.cultivationPercent,
+                    skillExpPercent = pillEffect.skillExpPercent,
                     breakthroughChance = pillEffect.breakthroughChance,
                     targetRealm = pillEffect.targetRealm,
                     heal = pillEffect.heal,
@@ -6751,6 +6780,7 @@ class GameEngine {
                         val itemEffect = ItemEffect(
                             cultivationSpeed = pillEffect.cultivationSpeed,
                             cultivationPercent = pillEffect.cultivationPercent,
+                            skillExpPercent = pillEffect.skillExpPercent,
                             breakthroughChance = pillEffect.breakthroughChance,
                             targetRealm = pillEffect.targetRealm,
                             heal = pillEffect.heal,
@@ -7482,13 +7512,18 @@ class GameEngine {
             PillCategory.CULTIVATION -> {
                 // 修炼丹：增加修为和修炼速度
                 val cultivationGain = (disciple.maxCultivation * pill.cultivationPercent).toInt()
+                val shouldUpdateSpeedEffect = pill.cultivationSpeed > 1.0 && pill.duration > 0
                 updatedDisciple = disciple.copy(
                     cultivation = disciple.cultivation + cultivationGain,
                     totalCultivation = disciple.totalCultivation + cultivationGain,
-                    cultivationSpeedBonus = pill.cultivationSpeed,
-                    cultivationSpeedDuration = pill.duration
+                    cultivationSpeedBonus = if (shouldUpdateSpeedEffect) pill.cultivationSpeed else disciple.cultivationSpeedBonus,
+                    cultivationSpeedDuration = if (shouldUpdateSpeedEffect) pill.duration else disciple.cultivationSpeedDuration
                 )
-                addEvent("${disciple.name} 服用${pill.name}，修为增加${cultivationGain}，修炼速度提升${GameUtils.formatPercent(pill.cultivationSpeed - 1)}", EventType.SUCCESS)
+                val msg = buildList {
+                    if (cultivationGain > 0) add("修为增加${cultivationGain}")
+                    if (shouldUpdateSpeedEffect) add("修炼速度提升${GameUtils.formatPercent(pill.cultivationSpeed - 1)}")
+                }.joinToString("，")
+                addEvent("${disciple.name} 服用${pill.name}，$msg", EventType.SUCCESS)
             }
             PillCategory.BATTLE_PHYSICAL, PillCategory.BATTLE_MAGIC, PillCategory.BATTLE_STATUS -> {
                 // 战斗丹：应用临时属性加成
@@ -8926,6 +8961,7 @@ class GameEngine {
                 ItemEffect(
                     cultivationSpeed = it.cultivationSpeed,
                     cultivationPercent = it.cultivationPercent,
+                    skillExpPercent = it.skillExpPercent,
                     breakthroughChance = it.breakthroughChance,
                     targetRealm = it.targetRealm,
                     heal = it.heal,
@@ -11548,6 +11584,8 @@ class GameEngine {
                                 targetRealm = recipe.targetRealm,
                                 cultivationSpeed = recipe.cultivationSpeed,
                                 duration = recipe.effectDuration,
+                                cultivationPercent = recipe.cultivationPercent,
+                                skillExpPercent = recipe.skillExpPercent,
                                 extendLife = recipe.extendLife,
                                 physicalAttackPercent = recipe.physicalAttackPercent,
                                 magicAttackPercent = recipe.magicAttackPercent,
@@ -11559,7 +11597,8 @@ class GameEngine {
                                 healPercent = recipe.healPercent,
                                 healMaxHpPercent = recipe.healMaxHpPercent,
                                 heal = recipe.heal,
-                                battleCount = recipe.battleCount
+                                battleCount = recipe.battleCount,
+                                mpRecoverMaxMpPercent = recipe.mpRecoverMaxMpPercent
                             )
                             addPillToWarehouse(pill)
                         }
