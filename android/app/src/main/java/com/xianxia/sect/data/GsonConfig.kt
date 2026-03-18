@@ -22,9 +22,17 @@ object GsonConfig {
 }
 
 private class KotlinInternalFieldExclusionStrategy : ExclusionStrategy {
+    private val computedPropertyNames = setOf(
+        "displayTime",
+        "isPlayerProtected",
+        "playerProtectionRemainingYears",
+        "saveTime"
+    )
+
     override fun shouldSkipField(f: FieldAttributes): Boolean {
-        return f.name.startsWith("$")
+        if (f.name.startsWith("$")) return true
+        return computedPropertyNames.contains(f.name)
     }
-    
+
     override fun shouldSkipClass(clazz: Class<*>): Boolean = false
 }

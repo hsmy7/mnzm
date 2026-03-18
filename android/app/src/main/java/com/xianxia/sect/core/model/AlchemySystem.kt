@@ -25,19 +25,25 @@ data class AlchemySlot(
 
     fun getRemainingMonths(currentYear: Int, currentMonth: Int): Int {
         if (status != AlchemySlotStatus.WORKING) return 0
-        val elapsedMonths = (currentYear - startYear) * 12 + (currentMonth - startMonth)
-        return (duration - elapsedMonths).coerceAtLeast(0)
+        val yearDiff = (currentYear - startYear).toLong()
+        val monthDiff = (currentMonth - startMonth).toLong()
+        val elapsedMonths = yearDiff * 12 + monthDiff
+        return (duration - elapsedMonths.toInt()).coerceAtLeast(0)
     }
 
     fun getProgressPercent(currentYear: Int, currentMonth: Int): Int {
         if (status != AlchemySlotStatus.WORKING || duration <= 0) return 0
-        val elapsed = (currentYear - startYear) * 12 + (currentMonth - startMonth)
+        val yearDiff = (currentYear - startYear).toLong()
+        val monthDiff = (currentMonth - startMonth).toLong()
+        val elapsed = yearDiff * 12 + monthDiff
         return ((elapsed.toDouble() / duration) * 100).toInt().coerceIn(0, 100)
     }
 
     fun isFinished(currentYear: Int, currentMonth: Int): Boolean {
         if (status != AlchemySlotStatus.WORKING) return status == AlchemySlotStatus.FINISHED
-        val elapsedMonths = (currentYear - startYear) * 12 + (currentMonth - startMonth)
+        val yearDiff = (currentYear - startYear).toLong()
+        val monthDiff = (currentMonth - startMonth).toLong()
+        val elapsedMonths = yearDiff * 12 + monthDiff
         return elapsedMonths >= duration
     }
 }
@@ -118,19 +124,25 @@ data class ForgeSlot(
 
     fun getRemainingMonths(currentYear: Int, currentMonth: Int): Int {
         if (status != ForgeSlotStatus.WORKING) return 0
-        val elapsedMonths = (currentYear - startYear) * 12 + (currentMonth - startMonth)
-        return (duration - elapsedMonths).coerceAtLeast(0)
+        val yearDiff = (currentYear - startYear).toLong()
+        val monthDiff = (currentMonth - startMonth).toLong()
+        val elapsedMonths = yearDiff * 12 + monthDiff
+        return (duration - elapsedMonths.toInt()).coerceAtLeast(0)
     }
 
     fun getProgressPercent(currentYear: Int, currentMonth: Int): Float {
         if (status != ForgeSlotStatus.WORKING || duration <= 0) return 0f
-        val elapsed = (currentYear - startYear) * 12 + (currentMonth - startMonth)
+        val yearDiff = (currentYear - startYear).toLong()
+        val monthDiff = (currentMonth - startMonth).toLong()
+        val elapsed = yearDiff * 12 + monthDiff
         return (elapsed.toDouble() / duration).toFloat().coerceIn(0f, 1f)
     }
 
     fun isFinished(currentYear: Int, currentMonth: Int): Boolean {
         if (status != ForgeSlotStatus.WORKING) return status == ForgeSlotStatus.FINISHED
-        val elapsedMonths = (currentYear - startYear) * 12 + (currentMonth - startMonth)
+        val yearDiff = (currentYear - startYear).toLong()
+        val monthDiff = (currentMonth - startMonth).toLong()
+        val elapsedMonths = yearDiff * 12 + monthDiff
         return elapsedMonths >= duration
     }
 }

@@ -27,12 +27,16 @@ object HerbGardenSystem {
         
         fun getProgress(currentYear: Int, currentMonth: Int): Double {
             if (growTime <= 0) return 0.0
-            val elapsed = (currentYear - startYear) * 12 + (currentMonth - startMonth)
+            val yearDiff = (currentYear - startYear).toLong()
+            val monthDiff = (currentMonth - startMonth).toLong()
+            val elapsed = yearDiff * 12 + monthDiff
             return (elapsed.toDouble() / growTime).coerceIn(0.0, 1.0)
         }
-        
+
         fun isFinished(currentYear: Int, currentMonth: Int): Boolean {
-            val elapsed = (currentYear - startYear) * 12 + (currentMonth - startMonth)
+            val yearDiff = (currentYear - startYear).toLong()
+            val monthDiff = (currentMonth - startMonth).toLong()
+            val elapsed = yearDiff * 12 + monthDiff
             return elapsed >= growTime
         }
     }
@@ -172,8 +176,10 @@ object HerbGardenSystem {
     ): String {
         if (slot.status != PlantStatus.GROWING) return "-"
         
-        val elapsed = (currentYear - slot.startYear) * 12 + (currentMonth - slot.startMonth)
-        val remaining = (slot.growTime - elapsed).coerceAtLeast(0)
+        val yearDiff = (currentYear - slot.startYear).toLong()
+        val monthDiff = (currentMonth - slot.startMonth).toLong()
+        val elapsed = yearDiff * 12 + monthDiff
+        val remaining = (slot.growTime - elapsed.toInt()).coerceAtLeast(0)
         
         val years = remaining / 12
         val months = remaining % 12

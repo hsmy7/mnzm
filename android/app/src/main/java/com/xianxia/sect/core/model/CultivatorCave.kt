@@ -41,13 +41,17 @@ data class ExplorationTeam(
     val isMoving: Boolean get() = isScouting && moveProgress < 1f
 
     fun getRemainingMonths(currentYear: Int, currentMonth: Int): Int {
-        val totalMonths = (currentYear - startYear) * 12 + (currentMonth - startMonth)
-        return (duration - totalMonths).coerceAtLeast(0)
+        val yearDiff = (currentYear - startYear).toLong()
+        val monthDiff = (currentMonth - startMonth).toLong()
+        val totalMonths = yearDiff * 12 + monthDiff
+        return (duration - totalMonths.toInt()).coerceAtLeast(0)
     }
 
     fun getProgressPercent(currentYear: Int, currentMonth: Int): Int {
         if (duration <= 0) return 0
-        val elapsed = (currentYear - startYear) * 12 + (currentMonth - startMonth)
+        val yearDiff = (currentYear - startYear).toLong()
+        val monthDiff = (currentMonth - startMonth).toLong()
+        val elapsed = yearDiff * 12 + monthDiff
         return ((elapsed.toDouble() / duration) * 100).toInt().coerceIn(0, 100)
     }
 }
@@ -86,13 +90,17 @@ data class BuildingSlot(
 ) {
     fun remainingTime(currentYear: Int, currentMonth: Int): Int {
         if (status != SlotStatus.WORKING) return 0
-        val elapsedMonths = (currentYear - startYear) * 12 + (currentMonth - startMonth)
-        return (duration - elapsedMonths).coerceAtLeast(0)
+        val yearDiff = (currentYear - startYear).toLong()
+        val monthDiff = (currentMonth - startMonth).toLong()
+        val elapsedMonths = yearDiff * 12 + monthDiff
+        return (duration - elapsedMonths.toInt()).coerceAtLeast(0)
     }
 
     fun isFinished(currentYear: Int, currentMonth: Int): Boolean {
         if (status != SlotStatus.WORKING) return false
-        val elapsedMonths = (currentYear - startYear) * 12 + (currentMonth - startMonth)
+        val yearDiff = (currentYear - startYear).toLong()
+        val monthDiff = (currentMonth - startMonth).toLong()
+        val elapsedMonths = yearDiff * 12 + monthDiff
         return elapsedMonths >= duration
     }
 }
@@ -297,8 +305,10 @@ data class CultivatorCave(
     }
 
     fun getRemainingMonths(currentYear: Int, currentMonth: Int): Int {
-        val totalMonths = (expiryYear - currentYear) * 12 + (expiryMonth - currentMonth)
-        return totalMonths.coerceAtLeast(0)
+        val yearDiff = (expiryYear - currentYear).toLong()
+        val monthDiff = (expiryMonth - currentMonth).toLong()
+        val totalMonths = yearDiff * 12 + monthDiff
+        return totalMonths.toInt().coerceAtLeast(0)
     }
 }
 
@@ -393,13 +403,17 @@ data class CaveExplorationTeam(
     val isMoving: Boolean get() = isTraveling && moveProgress < 1f
     
     fun getRemainingMonths(currentYear: Int, currentMonth: Int): Int {
-        val totalMonths = (currentYear - startYear) * 12 + (currentMonth - startMonth)
-        return (duration - totalMonths).coerceAtLeast(0)
+        val yearDiff = (currentYear - startYear).toLong()
+        val monthDiff = (currentMonth - startMonth).toLong()
+        val totalMonths = yearDiff * 12 + monthDiff
+        return (duration - totalMonths.toInt()).coerceAtLeast(0)
     }
-    
+
     fun getProgressPercent(currentYear: Int, currentMonth: Int): Int {
         if (duration <= 0) return 0
-        val elapsed = (currentYear - startYear) * 12 + (currentMonth - startMonth)
+        val yearDiff = (currentYear - startYear).toLong()
+        val monthDiff = (currentMonth - startMonth).toLong()
+        val elapsed = yearDiff * 12 + monthDiff
         return ((elapsed.toDouble() / duration) * 100).toInt().coerceIn(0, 100)
     }
 }

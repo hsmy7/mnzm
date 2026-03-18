@@ -2478,8 +2478,10 @@ class GameEngine {
      */
     fun getRemainingMonths(slot: PlantSlotData, currentYear: Int, currentMonth: Int): Int {
         if (!slot.isGrowing) return 0
-        val elapsed = (currentYear - slot.startYear) * 12 + (currentMonth - slot.startMonth)
-        return (slot.growTime - elapsed).coerceAtLeast(0)
+        val yearDiff = (currentYear - slot.startYear).toLong()
+        val monthDiff = (currentMonth - slot.startMonth).toLong()
+        val elapsed = yearDiff * 12 + monthDiff
+        return (slot.growTime - elapsed.toInt()).coerceAtLeast(0)
     }
 
     private fun processManualProficiency() {

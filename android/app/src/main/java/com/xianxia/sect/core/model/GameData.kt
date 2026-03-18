@@ -10,19 +10,19 @@ data class GameData(
     var id: String = "game_data",
     var sectName: String = "青云宗",
     var currentSlot: Int = 1,
-    
+
     // 游戏时间
     var gameYear: Int = 1,
     var gameMonth: Int = 1,
     var gameDay: Int = 1,
-    
+
     // 资源
     var spiritStones: Long = 1000,
     var spiritHerbs: Int = 0,
-    
+
     // 自动存档设置（月数：3, 6, 12）
     var autoSaveIntervalMonths: Int = 3,
-    
+
     // 月俸配置
     var monthlySalary: Map<Int, Int> = mapOf(
         9 to 20,   // 练气
@@ -36,7 +36,7 @@ data class GameData(
         1 to 720,  // 渡劫
         0 to 1000  // 仙人
     ),
-    
+
     // 月俸发放开关（按境界）
     var monthlySalaryEnabled: Map<Int, Boolean> = mapOf(
         9 to true,
@@ -50,38 +50,38 @@ data class GameData(
         1 to true,
         0 to true
     ),
-    
+
     // 世界地图宗门
     var worldMapSects: List<WorldSect> = emptyList(),
-    
+
     // 已探索宗门信息
     var exploredSects: Map<String, ExploredSectInfo> = emptyMap(),
-    
+
     // 宗门侦查信息
     var scoutInfo: Map<String, SectScoutInfo> = emptyMap(),
-    
+
     // 灵药园种植槽位
     var herbGardenPlantSlots: List<PlantSlotData> = emptyList(),
-    
+
     // 功法熟练度
     var manualProficiencies: Map<String, List<ManualProficiencyData>> = emptyMap(),
-    
+
     // 旅行商人
     var travelingMerchantItems: List<MerchantItem> = emptyList(),
     var merchantLastRefreshYear: Int = 0,
     var merchantRefreshCount: Int = 0,
-    
+
     // 玩家上架商品
     var playerListedItems: List<MerchantItem> = emptyList(),
-    
+
     // 交易堂
     var tradingSellList: List<TradingItem> = emptyList(),
     var tradingBuyList: List<TradingItem> = emptyList(),
-    
+
     // 弟子招募
     var recruitList: List<Disciple> = emptyList(),
     var lastRecruitYear: Int = 0,
-    
+
     // 修士洞府
     var cultivatorCaves: List<CultivatorCave> = emptyList(),
 
@@ -102,25 +102,25 @@ data class GameData(
 
     // 最后保存时间
     var lastSaveTime: Long = System.currentTimeMillis(),
-    
+
     // 长老槽位
     var elderSlots: ElderSlots = ElderSlots(),
-    
+
     // 灵矿槽位（独立3个）
     var spiritMineSlots: List<SpiritMineSlot> = emptyList(),
-    
+
     // 藏经阁弟子槽位（独立3个）
     var librarySlots: List<LibrarySlot> = emptyList(),
-    
+
     // 结盟关系
     var alliances: List<Alliance> = emptyList(),
-    
+
     // AI 宗门间关系
     var sectRelations: List<SectRelation> = emptyList(),
-    
+
     // 玩家最大结盟数量
     var playerAllianceSlots: Int = 3,
-    
+
     // 支援队伍
     var supportTeams: List<SupportTeam> = emptyList(),
 
@@ -142,14 +142,14 @@ data class GameData(
     var playerHasAttackedAI: Boolean = false
 ) {
     val displayTime: String get() = "第${gameYear}年${gameMonth}月"
-    
+
     val isPlayerProtected: Boolean get() {
         if (!playerProtectionEnabled) return false
         if (playerHasAttackedAI) return false
         val elapsedYears = (gameYear - playerProtectionStartYear).coerceAtLeast(0)
         return elapsedYears < GameConfig.PlayerProtection.PROTECTION_YEARS
     }
-    
+
     val playerProtectionRemainingYears: Int get() {
         if (!playerProtectionEnabled || playerHasAttackedAI) return 0
         val elapsedYears = (gameYear - playerProtectionStartYear).coerceAtLeast(0)
@@ -240,14 +240,18 @@ data class PlantSlotData(
 
     fun isFinished(currentYear: Int, currentMonth: Int): Boolean {
         if (status != "growing") return status == "mature"
-        val elapsedMonths = (currentYear - startYear) * 12 + (currentMonth - startMonth)
+        val yearDiff = (currentYear - startYear).toLong()
+        val monthDiff = (currentMonth - startMonth).toLong()
+        val elapsedMonths = yearDiff * 12 + monthDiff
         return elapsedMonths >= growTime
     }
 
     fun remainingTime(currentYear: Int, currentMonth: Int): Int {
         if (status != "growing") return 0
-        val elapsedMonths = (currentYear - startYear) * 12 + (currentMonth - startMonth)
-        return (growTime - elapsedMonths).coerceAtLeast(0)
+        val yearDiff = (currentYear - startYear).toLong()
+        val monthDiff = (currentMonth - startMonth).toLong()
+        val elapsedMonths = yearDiff * 12 + monthDiff
+        return (growTime - elapsedMonths.toInt()).coerceAtLeast(0)
     }
 }
 
