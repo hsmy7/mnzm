@@ -3633,10 +3633,10 @@ class GameEngine {
         }
         
         if (breakthroughPill != null) {
-            // 检查丹药是否适合当前境界
+            // 检查丹药是否适合当前境界突破（targetRealm是突破后的目标境界，应为当前境界-1）
             val targetRealm = breakthroughPill.effect?.targetRealm ?: 0
-            if (targetRealm != disciple.realm) {
-                // 丹药不适合当前境界，不使用
+            if (targetRealm != disciple.realm - 1) {
+                // 丹药不适合当前境界突破，不使用
                 return Pair(disciple, 0.0)
             }
             
@@ -8675,17 +8675,19 @@ class GameEngine {
             }
 
             if (!purchased) {
+                // 检查是否已有适合当前境界突破的丹药（targetRealm是突破后的目标境界，应为当前境界-1）
                 val breakthroughPillCount = currentDisciple.storageBagItems.count { item ->
-                    item.itemType == "pill" && item.effect?.targetRealm == disciple.realm && 
+                    item.itemType == "pill" && item.effect?.targetRealm == disciple.realm - 1 && 
                     item.effect?.breakthroughChance?.let { c -> c > 0 } == true
                 }
                 
                 if (breakthroughPillCount == 0) {
+                    // 自动购买适合当前境界突破的丹药（targetRealm是突破后的目标境界，应为当前境界-1）
                     val breakthroughPill = getAffordableItems()
                         .filter { it.type == "pill" }
                         .firstOrNull { item ->
                             val pill = _pills.value.find { it.id == item.itemId }
-                            pill?.category == PillCategory.BREAKTHROUGH && pill.targetRealm == disciple.realm
+                            pill?.category == PillCategory.BREAKTHROUGH && pill.targetRealm == disciple.realm - 1
                         }
                     if (breakthroughPill != null) {
                         purchased = tryPurchase(breakthroughPill)
