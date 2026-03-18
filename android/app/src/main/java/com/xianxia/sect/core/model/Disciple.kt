@@ -85,6 +85,15 @@ data class Disciple(
     // 战斗属性浮动百分比（±30%，精确到1%，如15表示+15%，-20表示-20%）
     var combatStatsVariance: Int = 0,
 
+    // 基础战斗属性（创建时根据浮动系数计算并存储，后续境界提升不再受浮动影响）
+    var baseHp: Int = 100,
+    var baseMp: Int = 50,
+    var basePhysicalAttack: Int = 10,
+    var baseMagicAttack: Int = 5,
+    var basePhysicalDefense: Int = 5,
+    var baseMagicDefense: Int = 3,
+    var baseSpeed: Int = 10,
+
     // 弟子类型：outer=外门弟子，inner=内门弟子
     var discipleType: String = "outer",
 
@@ -181,7 +190,6 @@ data class Disciple(
 
     fun getBaseStats(): DiscipleStats {
         val realmConfig = GameConfig.Realm.get(realm)
-        val spiritRootMultiplier = spiritRoot.cultivationBonus
         val realmMultiplier = realmConfig.multiplier
         val layerBonus = 1.0 + (realmLayer - 1) * 0.1
 
@@ -196,9 +204,6 @@ data class Disciple(
         val speedBonus = 1.0 + (talentEffects["speed"] ?: 0.0)
         val critBonus = talentEffects["critRate"] ?: 0.0
 
-        // 战斗属性浮动百分比（combatStatsVariance 存储 -30 到 +30，表示 -30% 到 +30%）
-        val varianceMultiplier = 1.0 + combatStatsVariance / 100.0
-
         // 胜场成长天赋通过 statusData 持久化战斗属性的固定成长值（无上限）
         val maxHpGrowth = statusData["winGrowth.maxHp"]?.toIntOrNull() ?: 0
         val maxMpGrowth = statusData["winGrowth.maxMp"]?.toIntOrNull() ?: 0
@@ -209,15 +214,15 @@ data class Disciple(
         val speedGrowth = statusData["winGrowth.speed"]?.toIntOrNull() ?: 0
 
         return DiscipleStats(
-            hp = ((100 * spiritRootMultiplier * realmMultiplier * layerBonus * hpBonus * varianceMultiplier).toInt() + maxHpGrowth),
-            maxHp = ((100 * spiritRootMultiplier * realmMultiplier * layerBonus * hpBonus * varianceMultiplier).toInt() + maxHpGrowth),
-            mp = ((50 * spiritRootMultiplier * realmMultiplier * layerBonus * mpBonus * varianceMultiplier).toInt() + maxMpGrowth),
-            maxMp = ((50 * spiritRootMultiplier * realmMultiplier * layerBonus * mpBonus * varianceMultiplier).toInt() + maxMpGrowth),
-            physicalAttack = ((10 * spiritRootMultiplier * realmMultiplier * layerBonus * attackBonus * varianceMultiplier).toInt() + physicalAttackGrowth),
-            magicAttack = ((5 * spiritRootMultiplier * realmMultiplier * layerBonus * magicAttackBonus * varianceMultiplier).toInt() + magicAttackGrowth),
-            physicalDefense = ((5 * spiritRootMultiplier * realmMultiplier * layerBonus * defenseBonus * varianceMultiplier).toInt() + physicalDefenseGrowth),
-            magicDefense = ((3 * spiritRootMultiplier * realmMultiplier * layerBonus * magicDefenseBonus * varianceMultiplier).toInt() + magicDefenseGrowth),
-            speed = ((10 * spiritRootMultiplier * realmMultiplier * layerBonus * speedBonus * varianceMultiplier).toInt() + speedGrowth),
+            hp = ((baseHp * realmMultiplier * layerBonus * hpBonus).toInt() + maxHpGrowth),
+            maxHp = ((baseHp * realmMultiplier * layerBonus * hpBonus).toInt() + maxHpGrowth),
+            mp = ((baseMp * realmMultiplier * layerBonus * mpBonus).toInt() + maxMpGrowth),
+            maxMp = ((baseMp * realmMultiplier * layerBonus * mpBonus).toInt() + maxMpGrowth),
+            physicalAttack = ((basePhysicalAttack * realmMultiplier * layerBonus * attackBonus).toInt() + physicalAttackGrowth),
+            magicAttack = ((baseMagicAttack * realmMultiplier * layerBonus * magicAttackBonus).toInt() + magicAttackGrowth),
+            physicalDefense = ((basePhysicalDefense * realmMultiplier * layerBonus * defenseBonus).toInt() + physicalDefenseGrowth),
+            magicDefense = ((baseMagicDefense * realmMultiplier * layerBonus * magicDefenseBonus).toInt() + magicDefenseGrowth),
+            speed = ((baseSpeed * realmMultiplier * layerBonus * speedBonus).toInt() + speedGrowth),
             critRate = 0.05 + critBonus,
             intelligence = intelligence,
             charm = charm,

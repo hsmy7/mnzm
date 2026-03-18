@@ -37,6 +37,7 @@ object AISectDiscipleManager {
         val spiritRoot = generateSpiritRoot()
         val comprehension = Random.nextInt(30, 81)
         val combatStatsVariance = Random.nextInt(-30, 31)
+        val varianceMultiplier = 1.0 + combatStatsVariance / 100.0
         val talents = generateTalents()
         val manuals = generateManuals(maxRealm)
         val equipments = generateEquipments(maxRealm)
@@ -65,7 +66,14 @@ object AISectDiscipleManager {
             armorId = equipments.firstOrNull { it.second == EquipmentSlot.ARMOR }?.first,
             bootsId = equipments.firstOrNull { it.second == EquipmentSlot.BOOTS }?.first,
             accessoryId = equipments.firstOrNull { it.second == EquipmentSlot.ACCESSORY }?.first,
-            comprehension = comprehension
+            comprehension = comprehension,
+            baseHp = (100 * varianceMultiplier).toInt(),
+            baseMp = (50 * varianceMultiplier).toInt(),
+            basePhysicalAttack = (10 * varianceMultiplier).toInt(),
+            baseMagicAttack = (5 * varianceMultiplier).toInt(),
+            basePhysicalDefense = (5 * varianceMultiplier).toInt(),
+            baseMagicDefense = (3 * varianceMultiplier).toInt(),
+            baseSpeed = (10 * varianceMultiplier).toInt()
         )
     }
     

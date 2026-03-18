@@ -377,6 +377,8 @@ object RedeemCodeManager {
 
         val talents = TalentDatabase.getTalentsByIds(talentIds)
         val lifespanBonus = talents.sumOf { it.effects["lifespan"] ?: 0.0 }
+        val combatStatsVariance = Random.nextInt(-30, 31)
+        val varianceMultiplier = 1.0 + combatStatsVariance / 100.0
 
         return Disciple(
             name = name,
@@ -396,7 +398,14 @@ object RedeemCodeManager {
             spiritPlanting = cfg.spiritPlanting ?: Random.nextInt(30, 81),
             teaching = cfg.teaching ?: Random.nextInt(30, 81),
             morality = cfg.morality ?: Random.nextInt(40, 81),
-            combatStatsVariance = Random.nextInt(-30, 31)
+            combatStatsVariance = combatStatsVariance,
+            baseHp = (100 * varianceMultiplier).toInt(),
+            baseMp = (50 * varianceMultiplier).toInt(),
+            basePhysicalAttack = (10 * varianceMultiplier).toInt(),
+            baseMagicAttack = (5 * varianceMultiplier).toInt(),
+            basePhysicalDefense = (5 * varianceMultiplier).toInt(),
+            baseMagicDefense = (3 * varianceMultiplier).toInt(),
+            baseSpeed = (10 * varianceMultiplier).toInt()
         )
     }
 

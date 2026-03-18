@@ -28,7 +28,14 @@ data class AISectDisciple(
     var bootsNurture: EquipmentNurtureData? = null,
     var accessoryNurture: EquipmentNurtureData? = null,
     var comprehension: Int = 50,
-    var breakthroughFailCount: Int = 0
+    var breakthroughFailCount: Int = 0,
+    var baseHp: Int = 100,
+    var baseMp: Int = 50,
+    var basePhysicalAttack: Int = 10,
+    var baseMagicAttack: Int = 5,
+    var basePhysicalDefense: Int = 5,
+    var baseMagicDefense: Int = 3,
+    var baseSpeed: Int = 10
 ) {
     val spiritRoot: SpiritRoot get() = SpiritRoot(spiritRootType)
     val spiritRootName: String get() = spiritRoot.name
@@ -125,7 +132,6 @@ data class AISectDisciple(
     
     fun getBaseStats(): DiscipleStats {
         val realmConfig = GameConfig.Realm.get(realm)
-        val spiritRootMultiplier = spiritRoot.cultivationBonus
         val realmMultiplier = realmConfig.multiplier
         val layerBonus = 1.0 + (realmLayer - 1) * 0.1
         
@@ -139,18 +145,16 @@ data class AISectDisciple(
         val speedBonus = 1.0 + (talentEffects["speed"] ?: 0.0)
         val critBonus = talentEffects["critRate"] ?: 0.0
         
-        val varianceMultiplier = 1.0 + combatStatsVariance / 100.0
-        
         return DiscipleStats(
-            hp = (100 * spiritRootMultiplier * realmMultiplier * layerBonus * hpBonus * varianceMultiplier).toInt(),
-            maxHp = (100 * spiritRootMultiplier * realmMultiplier * layerBonus * hpBonus * varianceMultiplier).toInt(),
-            mp = (50 * spiritRootMultiplier * realmMultiplier * layerBonus * mpBonus * varianceMultiplier).toInt(),
-            maxMp = (50 * spiritRootMultiplier * realmMultiplier * layerBonus * mpBonus * varianceMultiplier).toInt(),
-            physicalAttack = (10 * spiritRootMultiplier * realmMultiplier * layerBonus * attackBonus * varianceMultiplier).toInt(),
-            magicAttack = (5 * spiritRootMultiplier * realmMultiplier * layerBonus * magicAttackBonus * varianceMultiplier).toInt(),
-            physicalDefense = (5 * spiritRootMultiplier * realmMultiplier * layerBonus * defenseBonus * varianceMultiplier).toInt(),
-            magicDefense = (3 * spiritRootMultiplier * realmMultiplier * layerBonus * magicDefenseBonus * varianceMultiplier).toInt(),
-            speed = (10 * spiritRootMultiplier * realmMultiplier * layerBonus * speedBonus * varianceMultiplier).toInt(),
+            hp = (baseHp * realmMultiplier * layerBonus * hpBonus).toInt(),
+            maxHp = (baseHp * realmMultiplier * layerBonus * hpBonus).toInt(),
+            mp = (baseMp * realmMultiplier * layerBonus * mpBonus).toInt(),
+            maxMp = (baseMp * realmMultiplier * layerBonus * mpBonus).toInt(),
+            physicalAttack = (basePhysicalAttack * realmMultiplier * layerBonus * attackBonus).toInt(),
+            magicAttack = (baseMagicAttack * realmMultiplier * layerBonus * magicAttackBonus).toInt(),
+            physicalDefense = (basePhysicalDefense * realmMultiplier * layerBonus * defenseBonus).toInt(),
+            magicDefense = (baseMagicDefense * realmMultiplier * layerBonus * magicDefenseBonus).toInt(),
+            speed = (baseSpeed * realmMultiplier * layerBonus * speedBonus).toInt(),
             critRate = 0.05 + critBonus,
             intelligence = 0,
             charm = 0,

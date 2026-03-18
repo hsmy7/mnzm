@@ -357,13 +357,59 @@ class GameEngine {
     ) {
         val resolvedAlliances = alliances.ifEmpty { gameData.alliances }
         val resolvedSupportTeams = supportTeams.ifEmpty { gameData.supportTeams }
+        
+        val fixedRecruitList = gameData.recruitList.map { disciple ->
+            if (disciple.baseHp != 100) {
+                disciple
+            } else {
+                val variance = if (disciple.combatStatsVariance == 0) {
+                    Random.nextInt(-30, 31)
+                } else {
+                    disciple.combatStatsVariance
+                }
+                val varianceMultiplier = 1.0 + variance / 100.0
+                disciple.copy(
+                    combatStatsVariance = variance,
+                    baseHp = (100 * varianceMultiplier).toInt(),
+                    baseMp = (50 * varianceMultiplier).toInt(),
+                    basePhysicalAttack = (10 * varianceMultiplier).toInt(),
+                    baseMagicAttack = (5 * varianceMultiplier).toInt(),
+                    basePhysicalDefense = (5 * varianceMultiplier).toInt(),
+                    baseMagicDefense = (3 * varianceMultiplier).toInt(),
+                    baseSpeed = (10 * varianceMultiplier).toInt()
+                )
+            }
+        }
+        
         val finalGameData = gameData.copy(
             alliances = resolvedAlliances,
-            supportTeams = resolvedSupportTeams
+            supportTeams = resolvedSupportTeams,
+            recruitList = fixedRecruitList
         )
         
         _gameData.value = finalGameData
-        _disciples.value = disciples
+        _disciples.value = disciples.map { disciple ->
+            if (disciple.baseHp != 100) {
+                disciple
+            } else {
+                val variance = if (disciple.combatStatsVariance == 0) {
+                    Random.nextInt(-30, 31)
+                } else {
+                    disciple.combatStatsVariance
+                }
+                val varianceMultiplier = 1.0 + variance / 100.0
+                disciple.copy(
+                    combatStatsVariance = variance,
+                    baseHp = (100 * varianceMultiplier).toInt(),
+                    baseMp = (50 * varianceMultiplier).toInt(),
+                    basePhysicalAttack = (10 * varianceMultiplier).toInt(),
+                    baseMagicAttack = (5 * varianceMultiplier).toInt(),
+                    basePhysicalDefense = (5 * varianceMultiplier).toInt(),
+                    baseMagicDefense = (3 * varianceMultiplier).toInt(),
+                    baseSpeed = (10 * varianceMultiplier).toInt()
+                )
+            }
+        }
         _equipment.value = equipment
         _manuals.value = manuals
         _pills.value = pills
@@ -6385,7 +6431,18 @@ class GameEngine {
             recruitedMonth = currentMonth,
             combatStatsVariance = Random.nextInt(-30, 31)
         )
-        return applyTalentBaseFlatBonuses(baseChild, talents)
+        return applyTalentBaseFlatBonuses(baseChild, talents).let { disciple ->
+            val varianceMultiplier = 1.0 + disciple.combatStatsVariance / 100.0
+            disciple.copy(
+                baseHp = (100 * varianceMultiplier).toInt(),
+                baseMp = (50 * varianceMultiplier).toInt(),
+                basePhysicalAttack = (10 * varianceMultiplier).toInt(),
+                baseMagicAttack = (5 * varianceMultiplier).toInt(),
+                basePhysicalDefense = (5 * varianceMultiplier).toInt(),
+                baseMagicDefense = (3 * varianceMultiplier).toInt(),
+                baseSpeed = (10 * varianceMultiplier).toInt()
+            )
+        }
     }
     
     fun recruitDisciple() {
@@ -6964,7 +7021,18 @@ class GameEngine {
             morality = Random.nextInt(1, 101),
             combatStatsVariance = Random.nextInt(-30, 31)
         )
-        return applyTalentBaseFlatBonuses(baseDisciple, talents)
+        return applyTalentBaseFlatBonuses(baseDisciple, talents).let { disciple ->
+            val varianceMultiplier = 1.0 + disciple.combatStatsVariance / 100.0
+            disciple.copy(
+                baseHp = (100 * varianceMultiplier).toInt(),
+                baseMp = (50 * varianceMultiplier).toInt(),
+                basePhysicalAttack = (10 * varianceMultiplier).toInt(),
+                baseMagicAttack = (5 * varianceMultiplier).toInt(),
+                basePhysicalDefense = (5 * varianceMultiplier).toInt(),
+                baseMagicDefense = (3 * varianceMultiplier).toInt(),
+                baseSpeed = (10 * varianceMultiplier).toInt()
+            )
+        }
     }
 
     private fun applyTalentBaseFlatBonuses(disciple: Disciple, talents: List<Talent>): Disciple {
@@ -13213,7 +13281,14 @@ class GameEngine {
             status = DiscipleStatus.IDLE,
             loyalty = Random.nextInt(60, 80),
             combatStatsVariance = aiDisciple.combatStatsVariance,
-            recruitedMonth = year * 12
+            recruitedMonth = year * 12,
+            baseHp = aiDisciple.baseHp,
+            baseMp = aiDisciple.baseMp,
+            basePhysicalAttack = aiDisciple.basePhysicalAttack,
+            baseMagicAttack = aiDisciple.baseMagicAttack,
+            basePhysicalDefense = aiDisciple.basePhysicalDefense,
+            baseMagicDefense = aiDisciple.baseMagicDefense,
+            baseSpeed = aiDisciple.baseSpeed
         )
     }
 
@@ -13271,6 +13346,8 @@ class GameEngine {
         }
 
         val spiritRootType = listOf("metal", "wood", "water", "fire", "earth").random()
+        val combatStatsVariance = Random.nextInt(-30, 31)
+        val varianceMultiplier = 1.0 + combatStatsVariance / 100.0
 
         return Disciple(
             id = id,
@@ -13285,7 +13362,14 @@ class GameEngine {
             morality = Random.nextInt(30, 80),
             status = DiscipleStatus.IDLE,
             loyalty = Random.nextInt(60, 80),
-            combatStatsVariance = Random.nextInt(-30, 31)
+            combatStatsVariance = combatStatsVariance,
+            baseHp = (100 * varianceMultiplier).toInt(),
+            baseMp = (50 * varianceMultiplier).toInt(),
+            basePhysicalAttack = (10 * varianceMultiplier).toInt(),
+            baseMagicAttack = (5 * varianceMultiplier).toInt(),
+            basePhysicalDefense = (5 * varianceMultiplier).toInt(),
+            baseMagicDefense = (3 * varianceMultiplier).toInt(),
+            baseSpeed = (10 * varianceMultiplier).toInt()
         )
     }
 
@@ -13521,6 +13605,8 @@ class GameEngine {
         }
 
         val spiritRootType = listOf("metal", "wood", "water", "fire", "earth").random()
+        val combatStatsVariance = Random.nextInt(-30, 31)
+        val varianceMultiplier = 1.0 + combatStatsVariance / 100.0
 
         return Disciple(
             id = id,
@@ -13537,7 +13623,14 @@ class GameEngine {
             loyalty = Random.nextInt(70, 101),
             parentId1 = mother.id,
             parentId2 = mother.partnerId,
-            combatStatsVariance = Random.nextInt(-30, 31)
+            combatStatsVariance = combatStatsVariance,
+            baseHp = (100 * varianceMultiplier).toInt(),
+            baseMp = (50 * varianceMultiplier).toInt(),
+            basePhysicalAttack = (10 * varianceMultiplier).toInt(),
+            baseMagicAttack = (5 * varianceMultiplier).toInt(),
+            basePhysicalDefense = (5 * varianceMultiplier).toInt(),
+            baseMagicDefense = (3 * varianceMultiplier).toInt(),
+            baseSpeed = (10 * varianceMultiplier).toInt()
         )
     }
 

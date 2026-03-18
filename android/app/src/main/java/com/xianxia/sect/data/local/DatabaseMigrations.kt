@@ -1021,7 +1021,8 @@ object DatabaseMigrations {
             MIGRATION_43_44,
             MIGRATION_44_45,
             MIGRATION_45_46,
-            MIGRATION_46_47
+            MIGRATION_46_47,
+            MIGRATION_47_48
         )
 
     private val MIGRATION_35_36 = object : Migration(35, 36) {
@@ -1434,6 +1435,57 @@ object DatabaseMigrations {
 
     private val MIGRATION_46_47 = object : Migration(46, 47) {
         override fun migrate(db: SupportSQLiteDatabase) {
+        }
+
+        private fun getExistingColumns(db: SupportSQLiteDatabase, tableName: String): Set<String> {
+            val columns = mutableSetOf<String>()
+            val cursor = db.query("PRAGMA table_info($tableName)")
+            cursor.use {
+                val nameIndex = it.getColumnIndex("name")
+                while (it.moveToNext()) {
+                    columns.add(it.getString(nameIndex))
+                }
+            }
+            return columns
+        }
+    }
+
+    private val MIGRATION_47_48 = object : Migration(47, 48) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            val columns = getExistingColumns(db, "disciples")
+            if (!columns.contains("baseHp")) {
+                db.execSQL("ALTER TABLE disciples ADD COLUMN baseHp INTEGER NOT NULL DEFAULT 100")
+            }
+            if (!columns.contains("baseMp")) {
+                db.execSQL("ALTER TABLE disciples ADD COLUMN baseMp INTEGER NOT NULL DEFAULT 50")
+            }
+            if (!columns.contains("basePhysicalAttack")) {
+                db.execSQL("ALTER TABLE disciples ADD COLUMN basePhysicalAttack INTEGER NOT NULL DEFAULT 10")
+            }
+            if (!columns.contains("baseMagicAttack")) {
+                db.execSQL("ALTER TABLE disciples ADD COLUMN baseMagicAttack INTEGER NOT NULL DEFAULT 5")
+            }
+            if (!columns.contains("basePhysicalDefense")) {
+                db.execSQL("ALTER TABLE disciples ADD COLUMN basePhysicalDefense INTEGER NOT NULL DEFAULT 5")
+            }
+            if (!columns.contains("baseMagicDefense")) {
+                db.execSQL("ALTER TABLE disciples ADD COLUMN baseMagicDefense INTEGER NOT NULL DEFAULT 3")
+            }
+            if (!columns.contains("baseSpeed")) {
+                db.execSQL("ALTER TABLE disciples ADD COLUMN baseSpeed INTEGER NOT NULL DEFAULT 10")
+            }
+            
+            db.execSQL("""
+                UPDATE disciples SET 
+                    baseHp = CAST(100.0 * (1.0 + combatStatsVariance / 100.0) AS INTEGER),
+                    baseMp = CAST(50.0 * (1.0 + combatStatsVariance / 100.0) AS INTEGER),
+                    basePhysicalAttack = CAST(10.0 * (1.0 + combatStatsVariance / 100.0) AS INTEGER),
+                    baseMagicAttack = CAST(5.0 * (1.0 + combatStatsVariance / 100.0) AS INTEGER),
+                    basePhysicalDefense = CAST(5.0 * (1.0 + combatStatsVariance / 100.0) AS INTEGER),
+                    baseMagicDefense = CAST(3.0 * (1.0 + combatStatsVariance / 100.0) AS INTEGER),
+                    baseSpeed = CAST(10.0 * (1.0 + combatStatsVariance / 100.0) AS INTEGER)
+                WHERE baseHp = 100 AND combatStatsVariance != 0
+            """)
         }
 
         private fun getExistingColumns(db: SupportSQLiteDatabase, tableName: String): Set<String> {

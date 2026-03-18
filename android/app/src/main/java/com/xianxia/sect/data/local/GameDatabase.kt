@@ -24,7 +24,7 @@ import com.xianxia.sect.core.model.ModelConverters
         BattleLog::class,
         ForgeSlot::class
     ],
-    version = 47,
+    version = 48,
     exportSchema = false
 )
 @TypeConverters(ModelConverters::class)
