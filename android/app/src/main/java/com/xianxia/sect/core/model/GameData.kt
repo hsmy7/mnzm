@@ -175,7 +175,6 @@ data class ElderSlots(
     val alchemyElder: String? = null,
     val forgeElder: String? = null,
     val libraryElder: String? = null,
-    val recruitElder: String? = null,
     // 问道峰相关槽位
     val outerElder: String? = null,
     val preachingElder: String? = null,
@@ -193,7 +192,6 @@ data class ElderSlots(
     val alchemyDisciples: List<DirectDiscipleSlot> = emptyList(),
     val forgeDisciples: List<DirectDiscipleSlot> = emptyList(),
     val libraryDisciples: List<DirectDiscipleSlot> = emptyList(),
-    val recruitDisciples: List<DirectDiscipleSlot> = emptyList(),
     // 内门弟子槽位（天工峰8个）
     val forgeInnerDisciples: List<DirectDiscipleSlot> = emptyList(),
     // 内门弟子槽位（丹鼎殿8个）

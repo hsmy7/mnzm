@@ -1372,8 +1372,7 @@ private fun AlchemyDirectDiscipleSelectionDialog(
             elderSlots.herbGardenDisciples,
             elderSlots.alchemyDisciples,
             elderSlots.forgeDisciples,
-            elderSlots.libraryDisciples,
-            elderSlots.recruitDisciples
+            elderSlots.libraryDisciples
         ).flatten().mapNotNull { it.discipleId }
     }
 
@@ -1558,8 +1557,7 @@ private fun isDiscipleInAnyPosition(discipleId: String, elderSlots: ElderSlots):
         elderSlots.herbGardenElder,
         elderSlots.alchemyElder,
         elderSlots.forgeElder,
-        elderSlots.libraryElder,
-        elderSlots.recruitElder
+        elderSlots.libraryElder
     )
 
     if (allElderIds.contains(discipleId)) {
@@ -1570,8 +1568,7 @@ private fun isDiscipleInAnyPosition(discipleId: String, elderSlots: ElderSlots):
         elderSlots.herbGardenDisciples,
         elderSlots.alchemyDisciples,
         elderSlots.forgeDisciples,
-        elderSlots.libraryDisciples,
-        elderSlots.recruitDisciples
+        elderSlots.libraryDisciples
     ).flatten().mapNotNull { it.discipleId }
 
     if (allDirectDiscipleIds.contains(discipleId)) {
@@ -1614,8 +1611,7 @@ private fun AlchemyInnerDiscipleSelectionDialog(
             elderSlots.herbGardenDisciples,
             elderSlots.alchemyDisciples,
             elderSlots.forgeDisciples,
-            elderSlots.libraryDisciples,
-            elderSlots.recruitDisciples
+            elderSlots.libraryDisciples
         ).flatten().mapNotNull { it.discipleId }
     }
 

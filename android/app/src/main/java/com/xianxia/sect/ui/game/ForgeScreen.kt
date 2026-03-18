@@ -848,8 +848,7 @@ private fun ForgeDirectDiscipleSelectionDialog(
             elderSlots.herbGardenDisciples,
             elderSlots.alchemyDisciples,
             elderSlots.forgeDisciples,
-            elderSlots.libraryDisciples,
-            elderSlots.recruitDisciples
+            elderSlots.libraryDisciples
         ).flatten().mapNotNull { it.discipleId }
     }
 
@@ -1052,8 +1051,7 @@ private fun ForgeInnerDiscipleSelectionDialog(
             elderSlots.herbGardenDisciples,
             elderSlots.alchemyDisciples,
             elderSlots.forgeDisciples,
-            elderSlots.libraryDisciples,
-            elderSlots.recruitDisciples
+            elderSlots.libraryDisciples
         ).flatten().mapNotNull { it.discipleId }
     }
 
@@ -1248,24 +1246,22 @@ private fun isDiscipleInAnyPosition(discipleId: String, elderSlots: ElderSlots):
         elderSlots.alchemyElder,
         elderSlots.forgeElder,
         elderSlots.libraryElder,
-        elderSlots.recruitElder,
         elderSlots.outerElder,
         elderSlots.preachingElder,
         elderSlots.lawEnforcementElder,
         elderSlots.innerElder,
         elderSlots.qingyunPreachingElder
     )
-    
+
     if (allElderIds.contains(discipleId)) {
         return true
     }
-    
+
     val allDirectDiscipleIds = listOf(
         elderSlots.herbGardenDisciples,
         elderSlots.alchemyDisciples,
         elderSlots.forgeDisciples,
         elderSlots.libraryDisciples,
-        elderSlots.recruitDisciples,
         elderSlots.preachingMasters,
         elderSlots.lawEnforcementDisciples,
         elderSlots.lawEnforcementReserveDisciples,

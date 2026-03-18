@@ -1020,7 +1020,8 @@ object DatabaseMigrations {
             MIGRATION_42_43,
             MIGRATION_43_44,
             MIGRATION_44_45,
-            MIGRATION_45_46
+            MIGRATION_45_46,
+            MIGRATION_46_47
         )
 
     private val MIGRATION_35_36 = object : Migration(35, 36) {
@@ -1416,6 +1417,23 @@ object DatabaseMigrations {
             if (!columns.contains("usedRedeemCodes")) {
                 db.execSQL("ALTER TABLE game_data ADD COLUMN usedRedeemCodes TEXT NOT NULL DEFAULT '[]'")
             }
+        }
+
+        private fun getExistingColumns(db: SupportSQLiteDatabase, tableName: String): Set<String> {
+            val columns = mutableSetOf<String>()
+            val cursor = db.query("PRAGMA table_info($tableName)")
+            cursor.use {
+                val nameIndex = it.getColumnIndex("name")
+                while (it.moveToNext()) {
+                    columns.add(it.getString(nameIndex))
+                }
+            }
+            return columns
+        }
+    }
+
+    private val MIGRATION_46_47 = object : Migration(46, 47) {
+        override fun migrate(db: SupportSQLiteDatabase) {
         }
 
         private fun getExistingColumns(db: SupportSQLiteDatabase, tableName: String): Set<String> {

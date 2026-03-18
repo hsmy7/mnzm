@@ -6694,15 +6694,11 @@ class GameEngine {
             if (elders.libraryElder == discipleId) {
                 updated = updated.copy(libraryElder = null)
             }
-            if (elders.recruitElder == discipleId) {
-                updated = updated.copy(recruitElder = null)
-            }
             updated.copy(
                 herbGardenDisciples = elders.herbGardenDisciples.map { if (it.discipleId == discipleId) it.copy(discipleId = null, discipleName = "", discipleRealm = "") else it },
                 alchemyDisciples = elders.alchemyDisciples.map { if (it.discipleId == discipleId) it.copy(discipleId = null, discipleName = "", discipleRealm = "") else it },
                 forgeDisciples = elders.forgeDisciples.map { if (it.discipleId == discipleId) it.copy(discipleId = null, discipleName = "", discipleRealm = "") else it },
-                libraryDisciples = elders.libraryDisciples.map { if (it.discipleId == discipleId) it.copy(discipleId = null, discipleName = "", discipleRealm = "") else it },
-                recruitDisciples = elders.recruitDisciples.map { if (it.discipleId == discipleId) it.copy(discipleId = null, discipleName = "", discipleRealm = "") else it }
+                libraryDisciples = elders.libraryDisciples.map { if (it.discipleId == discipleId) it.copy(discipleId = null, discipleName = "", discipleRealm = "") else it }
             )
         }
         
@@ -7219,16 +7215,10 @@ class GameEngine {
             return
         }
         
-        // 计算纳徒长老及亲传弟子魅力加成
-        val charmBonus = calculateDiplomacyElderCharmBonus()
-        
-        // 生成新弟子：基础 10-30 名 + 魅力加成
-        // 魅力 50 为基准，超过增加，低于减少
-        // 确保最小值为 10，最大值为 30+ 加成
+        // 生成新弟子：基础 10-30 名
         val baseMin = 10
         val baseMax = 30
-        val adjustedMax = (baseMax + charmBonus).coerceAtLeast(baseMin)
-        val recruitCount = (baseMin..adjustedMax).random()
+        val recruitCount = (baseMin..baseMax).random()
         val newRecruitList = (1..recruitCount).map { generateRandomDisciple() }
         
         // 保存到 GameData
@@ -9370,7 +9360,6 @@ class GameEngine {
             "forge" -> data.elderSlots.forgeElder != null
             "library" -> data.elderSlots.libraryElder != null
             "spiritMine" -> false
-            "recruit" -> data.elderSlots.recruitElder != null
             "preachingMasters" -> data.elderSlots.preachingElder != null
             "lawEnforcementDisciples" -> data.elderSlots.lawEnforcementElder != null
             "lawEnforcementReserveDisciples" -> data.elderSlots.lawEnforcementElder != null
@@ -9388,7 +9377,6 @@ class GameEngine {
             "alchemy" -> data.elderSlots.alchemyDisciples
             "forge" -> data.elderSlots.forgeDisciples
             "library" -> data.elderSlots.libraryDisciples
-            "recruit" -> data.elderSlots.recruitDisciples
             "preachingMasters" -> data.elderSlots.preachingMasters
             "lawEnforcementDisciples" -> data.elderSlots.lawEnforcementDisciples
             "lawEnforcementReserveDisciples" -> data.elderSlots.lawEnforcementReserveDisciples
@@ -9401,7 +9389,6 @@ class GameEngine {
             data.elderSlots.alchemyDisciples,
             data.elderSlots.forgeDisciples,
             data.elderSlots.libraryDisciples,
-            data.elderSlots.recruitDisciples,
             data.elderSlots.preachingMasters,
             data.elderSlots.lawEnforcementDisciples,
             data.elderSlots.lawEnforcementReserveDisciples,
@@ -9418,7 +9405,6 @@ class GameEngine {
             data.elderSlots.alchemyElder,
             data.elderSlots.forgeElder,
             data.elderSlots.libraryElder,
-            data.elderSlots.recruitElder,
             data.elderSlots.outerElder,
             data.elderSlots.preachingElder,
             data.elderSlots.lawEnforcementElder,
@@ -9451,7 +9437,6 @@ class GameEngine {
             "alchemy" -> data.elderSlots.copy(alchemyDisciples = currentSlots)
             "forge" -> data.elderSlots.copy(forgeDisciples = currentSlots)
             "library" -> data.elderSlots.copy(libraryDisciples = currentSlots)
-            "recruit" -> data.elderSlots.copy(recruitDisciples = currentSlots)
             "preachingMasters" -> data.elderSlots.copy(preachingMasters = currentSlots)
             "lawEnforcementDisciples" -> data.elderSlots.copy(lawEnforcementDisciples = currentSlots)
             "lawEnforcementReserveDisciples" -> data.elderSlots.copy(lawEnforcementReserveDisciples = currentSlots)
@@ -9478,7 +9463,8 @@ class GameEngine {
         val positionName = when (elderSlotType) {
             "lawEnforcementDisciples" -> "执法弟子"
             "lawEnforcementReserveDisciples" -> "储备弟子"
-            "qingyunPreachingMasters" -> "传道师"
+            "preachingMasters" -> "问道峰传道师"
+            "qingyunPreachingMasters" -> "青云峰传道师"
             else -> "亲传弟子"
         }
         addEvent("$discipleName 已成为$positionName", EventType.SUCCESS)
@@ -9501,7 +9487,6 @@ class GameEngine {
             "alchemy" -> data.elderSlots.alchemyDisciples
             "forge" -> data.elderSlots.forgeDisciples
             "library" -> data.elderSlots.libraryDisciples
-            "recruit" -> data.elderSlots.recruitDisciples
             "preachingMasters" -> data.elderSlots.preachingMasters
             "lawEnforcementDisciples" -> data.elderSlots.lawEnforcementDisciples
             "lawEnforcementReserveDisciples" -> data.elderSlots.lawEnforcementReserveDisciples
@@ -9515,7 +9500,6 @@ class GameEngine {
             "alchemy" -> data.elderSlots.copy(alchemyDisciples = currentSlots)
             "forge" -> data.elderSlots.copy(forgeDisciples = currentSlots)
             "library" -> data.elderSlots.copy(libraryDisciples = currentSlots)
-            "recruit" -> data.elderSlots.copy(recruitDisciples = currentSlots)
             "preachingMasters" -> data.elderSlots.copy(preachingMasters = currentSlots)
             "lawEnforcementDisciples" -> data.elderSlots.copy(lawEnforcementDisciples = currentSlots)
             "lawEnforcementReserveDisciples" -> data.elderSlots.copy(lawEnforcementReserveDisciples = currentSlots)
@@ -9560,7 +9544,6 @@ class GameEngine {
             data.elderSlots.alchemyDisciples,
             data.elderSlots.forgeDisciples,
             data.elderSlots.libraryDisciples,
-            data.elderSlots.recruitDisciples,
             data.elderSlots.preachingMasters,
             data.elderSlots.lawEnforcementDisciples,
             data.elderSlots.lawEnforcementReserveDisciples
@@ -9576,7 +9559,6 @@ class GameEngine {
             data.elderSlots.alchemyElder,
             data.elderSlots.forgeElder,
             data.elderSlots.libraryElder,
-            data.elderSlots.recruitElder,
             data.elderSlots.outerElder,
             data.elderSlots.preachingElder,
             data.elderSlots.lawEnforcementElder
@@ -10141,44 +10123,6 @@ class GameEngine {
                 if (teachingDiff > 0) {
                     totalBonus += (teachingDiff / 5.0) * 0.01
                 }
-            }
-        }
-        
-        return totalBonus
-    }
-
-    /**
-     * 计算纳徒长老及其亲传弟子魅力对招募弟子人数上限的加成
-     * 50点为基准值，超过50点增加最大弟子数，低于50点减少最大弟子数
-     * 长老每偏离50点15点影响1名，亲传弟子每偏离50点25点影响1名
-     * 例如：长老魅力65 → (65-50)/15=+1人，长老魅力35 → (35-50)/15=-1人
-     * @return 魅力加成的人数（可为负数）
-     */
-    private fun calculateDiplomacyElderCharmBonus(): Int {
-        val data = _gameData.value
-        val elderSlots = data.elderSlots
-        
-        var totalBonus = 0
-        
-        // 获取纳徒长老
-        val elderId = elderSlots.recruitElder
-        if (elderId != null) {
-            val elderDisciple = _disciples.value.find { it.id == elderId }
-            if (elderDisciple != null) {
-                // 长老以50为基准，每偏离15点影响1名
-                val elderDiff = elderDisciple.charm - 50
-                totalBonus += elderDiff / 15
-            }
-        }
-        
-        // 获取纳徒亲传弟子的魅力加成
-        val directDisciples = elderSlots.recruitDisciples
-        directDisciples.filter { it.isActive }.forEach { slot ->
-            val disciple = _disciples.value.find { it.id == slot.discipleId }
-            if (disciple != null) {
-                // 亲传弟子以50为基准，每偏离25点影响1名
-                val discipleDiff = disciple.charm - 50
-                totalBonus += discipleDiff / 25
             }
         }
         
@@ -14227,7 +14171,6 @@ class GameEngine {
         elderSlots.alchemyElder?.let { discipleIdsToReset.add(it) }
         elderSlots.forgeElder?.let { discipleIdsToReset.add(it) }
         elderSlots.libraryElder?.let { discipleIdsToReset.add(it) }
-        elderSlots.recruitElder?.let { discipleIdsToReset.add(it) }
         elderSlots.outerElder?.let { discipleIdsToReset.add(it) }
         elderSlots.preachingElder?.let { discipleIdsToReset.add(it) }
         elderSlots.lawEnforcementElder?.let { discipleIdsToReset.add(it) }
@@ -14243,7 +14186,6 @@ class GameEngine {
         elderSlots.alchemyDisciples.forEach { slot -> slot.discipleId?.let { discipleIdsToReset.add(it) } }
         elderSlots.forgeDisciples.forEach { slot -> slot.discipleId?.let { discipleIdsToReset.add(it) } }
         elderSlots.libraryDisciples.forEach { slot -> slot.discipleId?.let { discipleIdsToReset.add(it) } }
-        elderSlots.recruitDisciples.forEach { slot -> slot.discipleId?.let { discipleIdsToReset.add(it) } }
         elderSlots.forgeInnerDisciples.forEach { slot -> slot.discipleId?.let { discipleIdsToReset.add(it) } }
         elderSlots.alchemyInnerDisciples.forEach { slot -> slot.discipleId?.let { discipleIdsToReset.add(it) } }
         elderSlots.herbGardenInnerDisciples.forEach { slot -> slot.discipleId?.let { discipleIdsToReset.add(it) } }

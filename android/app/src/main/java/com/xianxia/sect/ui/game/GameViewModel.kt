@@ -1355,7 +1355,6 @@ class GameViewModel @Inject constructor(
                     elderSlots.alchemyElder,
                     elderSlots.forgeElder,
                     elderSlots.libraryElder,
-                    elderSlots.recruitElder,
                     elderSlots.outerElder,
                     elderSlots.preachingElder,
                     elderSlots.lawEnforcementElder,
@@ -1367,7 +1366,6 @@ class GameViewModel @Inject constructor(
                     elderSlots.alchemyDisciples,
                     elderSlots.forgeDisciples,
                     elderSlots.libraryDisciples,
-                    elderSlots.recruitDisciples,
                     elderSlots.preachingMasters,
                     elderSlots.lawEnforcementDisciples,
                     elderSlots.lawEnforcementReserveDisciples,
@@ -1401,10 +1399,6 @@ class GameViewModel @Inject constructor(
                     "library" -> elderSlots.copy(
                         libraryElder = discipleId,
                         libraryDisciples = emptyList()
-                    )
-                    "recruit" -> elderSlots.copy(
-                        recruitElder = discipleId,
-                        recruitDisciples = emptyList()
                     )
                     "viceSectMaster" -> {
                         // 更新副宗主状态为管理中
@@ -1459,10 +1453,6 @@ class GameViewModel @Inject constructor(
                     "library" -> elderSlots.copy(
                         libraryElder = null,
                         libraryDisciples = emptyList()
-                    )
-                    "recruit" -> elderSlots.copy(
-                        recruitElder = null,
-                        recruitDisciples = emptyList()
                     )
                     "viceSectMaster" -> {
                         // 恢复副宗主状态为空闲
@@ -1651,28 +1641,26 @@ class GameViewModel @Inject constructor(
                     elderSlots.herbGardenElder,
                     elderSlots.alchemyElder,
                     elderSlots.forgeElder,
-                    elderSlots.libraryElder,
-                    elderSlots.recruitElder
+                    elderSlots.libraryElder
                 )
                 val allDirectDiscipleIds = listOf(
                     elderSlots.herbGardenDisciples,
                     elderSlots.alchemyDisciples,
                     elderSlots.forgeDisciples,
                     elderSlots.libraryDisciples,
-                    elderSlots.recruitDisciples,
                     elderSlots.spiritMineDeaconDisciples
                 ).flatten().mapNotNull { it.discipleId }
-                
+
                 if (allElderIds.contains(discipleId)) {
                     _errorMessage.value = "该弟子已担任长老职位"
                     return@launch
                 }
-                
+
                 if (allDirectDiscipleIds.contains(discipleId)) {
                     _errorMessage.value = "该弟子已是其他长老的亲传弟子"
                     return@launch
                 }
-                
+
                 gameEngine.assignDirectDisciple(
                     elderSlotType = elderSlotType,
                     slotIndex = slotIndex,
@@ -1713,15 +1701,13 @@ class GameViewModel @Inject constructor(
                     elderSlots.herbGardenElder,
                     elderSlots.alchemyElder,
                     elderSlots.forgeElder,
-                    elderSlots.libraryElder,
-                    elderSlots.recruitElder
+                    elderSlots.libraryElder
                 )
                 val allDirectDiscipleIds = listOf(
                     elderSlots.herbGardenDisciples,
                     elderSlots.alchemyDisciples,
                     elderSlots.forgeDisciples,
                     elderSlots.libraryDisciples,
-                    elderSlots.recruitDisciples,
                     elderSlots.spiritMineDeaconDisciples
                 ).flatten().mapNotNull { it.discipleId }
                 val allInnerDiscipleIds = listOf(
@@ -1933,7 +1919,6 @@ class GameViewModel @Inject constructor(
             elderSlots.alchemyElder,
             elderSlots.forgeElder,
             elderSlots.libraryElder,
-            elderSlots.recruitElder,
             elderSlots.outerElder,
             elderSlots.preachingElder,
             elderSlots.lawEnforcementElder
@@ -1944,7 +1929,6 @@ class GameViewModel @Inject constructor(
             elderSlots.alchemyDisciples,
             elderSlots.forgeDisciples,
             elderSlots.libraryDisciples,
-            elderSlots.recruitDisciples,
             elderSlots.preachingMasters,
             elderSlots.lawEnforcementDisciples,
             elderSlots.lawEnforcementReserveDisciples,
@@ -1964,7 +1948,6 @@ class GameViewModel @Inject constructor(
             elderSlots.alchemyElder,
             elderSlots.forgeElder,
             elderSlots.libraryElder,
-            elderSlots.recruitElder,
             elderSlots.outerElder,
             elderSlots.preachingElder,
             elderSlots.lawEnforcementElder
@@ -1975,7 +1958,6 @@ class GameViewModel @Inject constructor(
             elderSlots.alchemyDisciples,
             elderSlots.forgeDisciples,
             elderSlots.libraryDisciples,
-            elderSlots.recruitDisciples,
             elderSlots.preachingMasters,
             elderSlots.lawEnforcementDisciples,
             elderSlots.lawEnforcementReserveDisciples,
@@ -1995,7 +1977,6 @@ class GameViewModel @Inject constructor(
             elderSlots.alchemyElder,
             elderSlots.forgeElder,
             elderSlots.libraryElder,
-            elderSlots.recruitElder,
             elderSlots.outerElder,
             elderSlots.preachingElder,
             elderSlots.lawEnforcementElder
@@ -2006,7 +1987,6 @@ class GameViewModel @Inject constructor(
             elderSlots.alchemyDisciples,
             elderSlots.forgeDisciples,
             elderSlots.libraryDisciples,
-            elderSlots.recruitDisciples,
             elderSlots.preachingMasters,
             elderSlots.lawEnforcementDisciples,
             elderSlots.lawEnforcementReserveDisciples,
@@ -2030,7 +2010,6 @@ class GameViewModel @Inject constructor(
             elderSlots.alchemyElder,
             elderSlots.forgeElder,
             elderSlots.libraryElder,
-            elderSlots.recruitElder,
             elderSlots.outerElder,
             elderSlots.preachingElder,
             elderSlots.lawEnforcementElder
@@ -2041,7 +2020,6 @@ class GameViewModel @Inject constructor(
             elderSlots.alchemyDisciples,
             elderSlots.forgeDisciples,
             elderSlots.libraryDisciples,
-            elderSlots.recruitDisciples,
             elderSlots.preachingMasters,
             elderSlots.lawEnforcementDisciples,
             elderSlots.spiritMineDeaconDisciples
@@ -2060,7 +2038,6 @@ class GameViewModel @Inject constructor(
             elderSlots.alchemyElder,
             elderSlots.forgeElder,
             elderSlots.libraryElder,
-            elderSlots.recruitElder,
             elderSlots.outerElder,
             elderSlots.preachingElder,
             elderSlots.lawEnforcementElder
@@ -2071,7 +2048,6 @@ class GameViewModel @Inject constructor(
             elderSlots.alchemyDisciples,
             elderSlots.forgeDisciples,
             elderSlots.libraryDisciples,
-            elderSlots.recruitDisciples,
             elderSlots.preachingMasters,
             elderSlots.lawEnforcementDisciples,
             elderSlots.spiritMineDeaconDisciples
@@ -2090,7 +2066,6 @@ class GameViewModel @Inject constructor(
             elderSlots.alchemyElder,
             elderSlots.forgeElder,
             elderSlots.libraryElder,
-            elderSlots.recruitElder,
             elderSlots.outerElder,
             elderSlots.preachingElder,
             elderSlots.lawEnforcementElder,
@@ -2103,7 +2078,6 @@ class GameViewModel @Inject constructor(
             elderSlots.alchemyDisciples,
             elderSlots.forgeDisciples,
             elderSlots.libraryDisciples,
-            elderSlots.recruitDisciples,
             elderSlots.preachingMasters,
             elderSlots.lawEnforcementDisciples,
             elderSlots.lawEnforcementReserveDisciples,
@@ -2278,7 +2252,6 @@ class GameViewModel @Inject constructor(
             elderSlots.alchemyElder,
             elderSlots.forgeElder,
             elderSlots.libraryElder,
-            elderSlots.recruitElder,
             elderSlots.outerElder,
             elderSlots.preachingElder,
             elderSlots.lawEnforcementElder,
@@ -2291,7 +2264,6 @@ class GameViewModel @Inject constructor(
             elderSlots.alchemyDisciples,
             elderSlots.forgeDisciples,
             elderSlots.libraryDisciples,
-            elderSlots.recruitDisciples,
             elderSlots.preachingMasters,
             elderSlots.lawEnforcementDisciples,
             elderSlots.lawEnforcementReserveDisciples,
@@ -2328,7 +2300,6 @@ class GameViewModel @Inject constructor(
             elderSlots.alchemyElder,
             elderSlots.forgeElder,
             elderSlots.libraryElder,
-            elderSlots.recruitElder,
             elderSlots.outerElder,
             elderSlots.preachingElder,
             elderSlots.lawEnforcementElder,
@@ -2341,7 +2312,6 @@ class GameViewModel @Inject constructor(
             elderSlots.alchemyDisciples,
             elderSlots.forgeDisciples,
             elderSlots.libraryDisciples,
-            elderSlots.recruitDisciples,
             elderSlots.preachingMasters,
             elderSlots.lawEnforcementDisciples,
             elderSlots.lawEnforcementReserveDisciples,
@@ -2445,7 +2415,6 @@ class GameViewModel @Inject constructor(
             elderSlots.alchemyElder,
             elderSlots.forgeElder,
             elderSlots.libraryElder,
-            elderSlots.recruitElder,
             elderSlots.outerElder,
             elderSlots.preachingElder,
             elderSlots.lawEnforcementElder,
@@ -2458,7 +2427,6 @@ class GameViewModel @Inject constructor(
             elderSlots.alchemyDisciples,
             elderSlots.forgeDisciples,
             elderSlots.libraryDisciples,
-            elderSlots.recruitDisciples,
             elderSlots.preachingMasters,
             elderSlots.lawEnforcementDisciples,
             elderSlots.lawEnforcementReserveDisciples,
@@ -2501,7 +2469,6 @@ class GameViewModel @Inject constructor(
             elderSlots.alchemyElder,
             elderSlots.forgeElder,
             elderSlots.libraryElder,
-            elderSlots.recruitElder,
             elderSlots.outerElder,
             elderSlots.preachingElder,
             elderSlots.lawEnforcementElder,
@@ -2514,7 +2481,6 @@ class GameViewModel @Inject constructor(
             elderSlots.alchemyDisciples,
             elderSlots.forgeDisciples,
             elderSlots.libraryDisciples,
-            elderSlots.recruitDisciples,
             elderSlots.preachingMasters,
             elderSlots.lawEnforcementDisciples,
             elderSlots.lawEnforcementReserveDisciples,
@@ -2567,7 +2533,6 @@ class GameViewModel @Inject constructor(
                     elderSlots.alchemyElder,
                     elderSlots.forgeElder,
                     elderSlots.libraryElder,
-                    elderSlots.recruitElder,
                     elderSlots.outerElder,
                     elderSlots.preachingElder,
                     elderSlots.lawEnforcementElder,
@@ -2580,7 +2545,6 @@ class GameViewModel @Inject constructor(
                     elderSlots.alchemyDisciples,
                     elderSlots.forgeDisciples,
                     elderSlots.libraryDisciples,
-                    elderSlots.recruitDisciples,
                     elderSlots.preachingMasters,
                     elderSlots.lawEnforcementDisciples,
                     elderSlots.lawEnforcementReserveDisciples,
@@ -2671,7 +2635,6 @@ class GameViewModel @Inject constructor(
             elderSlots.alchemyElder,
             elderSlots.forgeElder,
             elderSlots.libraryElder,
-            elderSlots.recruitElder,
             elderSlots.outerElder,
             elderSlots.preachingElder,
             elderSlots.lawEnforcementElder,
@@ -2684,7 +2647,6 @@ class GameViewModel @Inject constructor(
             elderSlots.alchemyDisciples,
             elderSlots.forgeDisciples,
             elderSlots.libraryDisciples,
-            elderSlots.recruitDisciples,
             elderSlots.preachingMasters,
             elderSlots.lawEnforcementDisciples,
             elderSlots.lawEnforcementReserveDisciples,
@@ -2705,7 +2667,6 @@ class GameViewModel @Inject constructor(
             elderSlots.alchemyElder,
             elderSlots.forgeElder,
             elderSlots.libraryElder,
-            elderSlots.recruitElder,
             elderSlots.outerElder,
             elderSlots.preachingElder,
             elderSlots.lawEnforcementElder,
@@ -2718,7 +2679,6 @@ class GameViewModel @Inject constructor(
             elderSlots.alchemyDisciples,
             elderSlots.forgeDisciples,
             elderSlots.libraryDisciples,
-            elderSlots.recruitDisciples,
             elderSlots.preachingMasters,
             elderSlots.lawEnforcementDisciples,
             elderSlots.lawEnforcementReserveDisciples,
@@ -2739,7 +2699,6 @@ class GameViewModel @Inject constructor(
             elderSlots.alchemyElder,
             elderSlots.forgeElder,
             elderSlots.libraryElder,
-            elderSlots.recruitElder,
             elderSlots.outerElder,
             elderSlots.preachingElder,
             elderSlots.lawEnforcementElder,
@@ -2752,7 +2711,6 @@ class GameViewModel @Inject constructor(
             elderSlots.alchemyDisciples,
             elderSlots.forgeDisciples,
             elderSlots.libraryDisciples,
-            elderSlots.recruitDisciples,
             elderSlots.preachingMasters,
             elderSlots.lawEnforcementDisciples,
             elderSlots.lawEnforcementReserveDisciples,
@@ -3726,36 +3684,36 @@ class GameViewModel @Inject constructor(
     }
 
     fun getDisciplePosition(discipleId: String): String? {
-        val elderSlots = gameEngine.gameData.value.elderSlots
-        
+        val gameData = gameEngine.gameData.value
+        val elderSlots = gameData.elderSlots
+
         if (elderSlots.viceSectMaster == discipleId) return "副掌门"
         if (elderSlots.herbGardenElder == discipleId) return "灵药宛长老"
         if (elderSlots.alchemyElder == discipleId) return "丹鼎殿长老"
         if (elderSlots.forgeElder == discipleId) return "天工峰长老"
         if (elderSlots.libraryElder == discipleId) return "藏经阁长老"
-        if (elderSlots.recruitElder == discipleId) return "招贤堂长老"
         if (elderSlots.outerElder == discipleId) return "外门执事"
-        if (elderSlots.preachingElder == discipleId) return "传道长老"
+        if (elderSlots.preachingElder == discipleId) return "问道峰传道长老"
         if (elderSlots.lawEnforcementElder == discipleId) return "执法长老"
         if (elderSlots.innerElder == discipleId) return "内门执事"
-        if (elderSlots.qingyunPreachingElder == discipleId) return "青云传道长老"
-        
-        if (elderSlots.preachingMasters.any { it.discipleId == discipleId }) return "传道师"
-        if (elderSlots.qingyunPreachingMasters.any { it.discipleId == discipleId }) return "青云传道师"
-        
+        if (elderSlots.qingyunPreachingElder == discipleId) return "青云峰传道长老"
+
+        if (elderSlots.preachingMasters.any { it.discipleId == discipleId }) return "问道峰传道师"
+        if (elderSlots.qingyunPreachingMasters.any { it.discipleId == discipleId }) return "青云峰传道师"
+
         if (elderSlots.herbGardenDisciples.any { it.discipleId == discipleId }) return "灵药宛亲传弟子"
         if (elderSlots.alchemyDisciples.any { it.discipleId == discipleId }) return "丹鼎殿亲传弟子"
         if (elderSlots.forgeDisciples.any { it.discipleId == discipleId }) return "天工峰亲传弟子"
         if (elderSlots.libraryDisciples.any { it.discipleId == discipleId }) return "藏经阁亲传弟子"
-        if (elderSlots.recruitDisciples.any { it.discipleId == discipleId }) return "招贤堂亲传弟子"
-        
+
         if (elderSlots.lawEnforcementDisciples.any { it.discipleId == discipleId }) return "执法弟子"
         if (elderSlots.forgeInnerDisciples.any { it.discipleId == discipleId }) return "天工峰内门弟子"
         if (elderSlots.alchemyInnerDisciples.any { it.discipleId == discipleId }) return "丹鼎殿内门弟子"
         if (elderSlots.herbGardenInnerDisciples.any { it.discipleId == discipleId }) return "灵药宛内门弟子"
-        
+
+        if (gameData.spiritMineSlots.any { it.discipleId == discipleId }) return "采矿弟子"
         if (elderSlots.spiritMineDeaconDisciples.any { it.discipleId == discipleId }) return "灵矿执事"
-        
+
         return null
     }
 

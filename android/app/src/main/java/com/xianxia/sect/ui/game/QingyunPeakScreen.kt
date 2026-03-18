@@ -131,7 +131,7 @@ fun QingyunPeakDialog(
     if (showPreachingElderSelection) {
         val availableDisciples = viewModel.getAvailableDisciplesForQingyunPreachingElder()
         QingyunDiscipleSelectionDialog(
-            title = "选择传道长老",
+            title = "选择青云峰传道长老",
             disciples = availableDisciples,
             currentDiscipleId = preachingElder?.id,
             requirementText = "需要元婴及以上境界",
@@ -147,7 +147,7 @@ fun QingyunPeakDialog(
         val availableDisciples = viewModel.getAvailableDisciplesForQingyunPreachingMaster()
         val currentMaster = preachingMasters.find { it.index == slotIndex }
         QingyunDiscipleSelectionDialog(
-            title = "选择传道师",
+            title = "选择青云峰传道师",
             disciples = availableDisciples,
             currentDiscipleId = currentMaster?.discipleId,
             requirementText = "需要金丹及以上境界",
@@ -197,7 +197,7 @@ private fun ElderSection(
             )
 
             QingyunElderSlotItem(
-                title = "传道长老",
+                title = "青云峰传道长老",
                 elder = preachingElder,
                 onClick = onPreachingElderClick,
                 onRemove = onPreachingElderRemove
@@ -306,7 +306,7 @@ private fun PreachingMastersSection(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = "传道师",
+            text = "青云峰传道师",
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
             color = Color.Black
@@ -338,7 +338,7 @@ private fun QingyunPreachingMasterSlotItem(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = "传道师",
+            text = "青云峰传道师",
             fontSize = 9.sp,
             fontWeight = FontWeight.Bold,
             color = Color(0xFF666666)

@@ -256,16 +256,14 @@ private fun getOccupiedIds(elderSlots: ElderSlots): Triple<List<String>, List<St
         elderSlots.herbGardenElder,
         elderSlots.alchemyElder,
         elderSlots.forgeElder,
-        elderSlots.libraryElder,
-        elderSlots.recruitElder
+        elderSlots.libraryElder
     ).filterNotNull()
 
     val allDirectDiscipleIds = listOf(
         elderSlots.herbGardenDisciples,
         elderSlots.alchemyDisciples,
         elderSlots.forgeDisciples,
-        elderSlots.libraryDisciples,
-        elderSlots.recruitDisciples
+        elderSlots.libraryDisciples
     ).flatten().mapNotNull { it.discipleId }
 
     val allInnerDiscipleIds = listOf(
