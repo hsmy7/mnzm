@@ -63,37 +63,41 @@ data class AISectDisciple(
     fun getBreakthroughChance(): Double {
         if (realm <= 0) return 0.0
         
-        var chance = GameConfig.Realm.getBreakthroughChance(realm)
-        chance *= 0.99
+        val baseChance = GameConfig.Realm.getBreakthroughChance(realm)
+        
+        var totalBonus = 0.0
+        totalBonus += -0.01
         
         val spiritRootCount = spiritRoot.types.size
         val targetRealm = realm - 1
         
-        val multiplier = when (spiritRootCount) {
-            1 -> if (targetRealm >= 5) 1.5 else 1.2
-            2 -> if (targetRealm >= 5) 1.25 else 1.1
-            else -> 1.0
+        val spiritRootBonus = when (spiritRootCount) {
+            1 -> if (targetRealm >= 5) 0.5 else 0.2
+            2 -> if (targetRealm >= 5) 0.25 else 0.1
+            else -> 0.0
         }
-        chance *= multiplier
+        totalBonus += spiritRootBonus
         
         val talentEffects = getTalentEffects()
         val breakthroughBonus = talentEffects["breakthroughChance"] ?: 0.0
-        chance += breakthroughBonus
+        totalBonus += breakthroughBonus
         
         val comprehensionBonus = (comprehension - 50) / 5 * 0.005
-        chance += comprehensionBonus
+        totalBonus += comprehensionBonus
         
-        chance += breakthroughFailCount * 0.03
+        totalBonus += breakthroughFailCount * 0.03
         
-        return chance.coerceIn(0.01, 1.0)
+        val finalChance = baseChance * (1.0 + totalBonus)
+        return finalChance.coerceIn(0.01, 1.0)
     }
     
     fun calculateCultivationSpeed(): Double {
-        var speed = GameConfig.Cultivation.BASE_SPEED
+        val baseSpeed = GameConfig.Cultivation.BASE_SPEED
+        var totalBonus = 0.0
         
-        speed *= spiritRoot.cultivationBonus
+        totalBonus += (spiritRoot.cultivationBonus - 1.0)
         
-        speed *= comprehensionSpeedBonus
+        totalBonus += (comprehensionSpeedBonus - 1.0)
         
         manualIds.forEach { manualId ->
             val manual = ManualDatabase.getById(manualId)
@@ -108,15 +112,15 @@ data class AISectDisciple(
                     else -> 1.0
                 }
                 val cultivationSpeedPercent = manual.stats["cultivationSpeedPercent"] ?: 0
-                speed *= (1 + cultivationSpeedPercent * masteryBonus / 100.0)
+                totalBonus += cultivationSpeedPercent * masteryBonus / 100.0
             }
         }
         
         val talentEffects = getTalentEffects()
         val cultivationSpeedBonus = talentEffects["cultivationSpeed"] ?: 0.0
-        speed *= (1 + cultivationSpeedBonus)
+        totalBonus += cultivationSpeedBonus
         
-        return speed
+        return baseSpeed * (1.0 + totalBonus)
     }
     
     fun getTalentEffects(): Map<String, Double> {
@@ -136,25 +140,33 @@ data class AISectDisciple(
         val layerBonus = 1.0 + (realmLayer - 1) * 0.1
         
         val talentEffects = getTalentEffects()
-        val hpBonus = 1.0 + (talentEffects["maxHp"] ?: 0.0)
-        val mpBonus = 1.0 + (talentEffects["maxMp"] ?: 0.0)
-        val attackBonus = 1.0 + (talentEffects["physicalAttack"] ?: 0.0)
-        val magicAttackBonus = 1.0 + (talentEffects["magicAttack"] ?: 0.0)
-        val defenseBonus = 1.0 + (talentEffects["physicalDefense"] ?: 0.0)
-        val magicDefenseBonus = 1.0 + (talentEffects["magicDefense"] ?: 0.0)
-        val speedBonus = 1.0 + (talentEffects["speed"] ?: 0.0)
+        val hpBonus = talentEffects["maxHp"] ?: 0.0
+        val mpBonus = talentEffects["maxMp"] ?: 0.0
+        val attackBonus = talentEffects["physicalAttack"] ?: 0.0
+        val magicAttackBonus = talentEffects["magicAttack"] ?: 0.0
+        val defenseBonus = talentEffects["physicalDefense"] ?: 0.0
+        val magicDefenseBonus = talentEffects["magicDefense"] ?: 0.0
+        val speedBonus = talentEffects["speed"] ?: 0.0
         val critBonus = talentEffects["critRate"] ?: 0.0
+
+        val totalHpBonus = (realmMultiplier - 1.0) + (layerBonus - 1.0) + hpBonus
+        val totalMpBonus = (realmMultiplier - 1.0) + (layerBonus - 1.0) + mpBonus
+        val totalAttackBonus = (realmMultiplier - 1.0) + (layerBonus - 1.0) + attackBonus
+        val totalMagicAttackBonus = (realmMultiplier - 1.0) + (layerBonus - 1.0) + magicAttackBonus
+        val totalDefenseBonus = (realmMultiplier - 1.0) + (layerBonus - 1.0) + defenseBonus
+        val totalMagicDefenseBonus = (realmMultiplier - 1.0) + (layerBonus - 1.0) + magicDefenseBonus
+        val totalSpeedBonus = (realmMultiplier - 1.0) + (layerBonus - 1.0) + speedBonus
         
         return DiscipleStats(
-            hp = (baseHp * realmMultiplier * layerBonus * hpBonus).toInt(),
-            maxHp = (baseHp * realmMultiplier * layerBonus * hpBonus).toInt(),
-            mp = (baseMp * realmMultiplier * layerBonus * mpBonus).toInt(),
-            maxMp = (baseMp * realmMultiplier * layerBonus * mpBonus).toInt(),
-            physicalAttack = (basePhysicalAttack * realmMultiplier * layerBonus * attackBonus).toInt(),
-            magicAttack = (baseMagicAttack * realmMultiplier * layerBonus * magicAttackBonus).toInt(),
-            physicalDefense = (basePhysicalDefense * realmMultiplier * layerBonus * defenseBonus).toInt(),
-            magicDefense = (baseMagicDefense * realmMultiplier * layerBonus * magicDefenseBonus).toInt(),
-            speed = (baseSpeed * realmMultiplier * layerBonus * speedBonus).toInt(),
+            hp = (baseHp * (1.0 + totalHpBonus)).toInt(),
+            maxHp = (baseHp * (1.0 + totalHpBonus)).toInt(),
+            mp = (baseMp * (1.0 + totalMpBonus)).toInt(),
+            maxMp = (baseMp * (1.0 + totalMpBonus)).toInt(),
+            physicalAttack = (basePhysicalAttack * (1.0 + totalAttackBonus)).toInt(),
+            magicAttack = (baseMagicAttack * (1.0 + totalMagicAttackBonus)).toInt(),
+            physicalDefense = (basePhysicalDefense * (1.0 + totalDefenseBonus)).toInt(),
+            magicDefense = (baseMagicDefense * (1.0 + totalMagicDefenseBonus)).toInt(),
+            speed = (baseSpeed * (1.0 + totalSpeedBonus)).toInt(),
             critRate = 0.05 + critBonus,
             intelligence = 0,
             charm = 0,

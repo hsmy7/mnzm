@@ -3369,7 +3369,6 @@ class GameEngine {
     }
     
     private fun processDiscipleCultivation(isSecondTick: Boolean = true) {
-        val librarySlots = _gameData.value.librarySlots
         val wenDaoTeachingBonus = calculateWenDaoPeakTeachingBonus()
         val qingyunTeachingBonus = calculateQingyunPeakTeachingBonus()
         
@@ -3380,49 +3379,27 @@ class GameEngine {
 
             var currentDisciple = autoUseCultivationPills(disciple)
 
-            var speed = GameConfig.Cultivation.BASE_SPEED
-
-            speed *= currentDisciple.spiritRoot.cultivationBonus
-
-            speed *= currentDisciple.comprehensionSpeedBonus
-
-            speed *= currentDisciple.cultivationSpeedBonus
-
-            val manualBonus = calculateManualCultivationBonus(currentDisciple)
-            speed *= (1 + manualBonus)
-
-            val talentBonus = calculateTalentCultivationBonus(currentDisciple)
-            speed *= (1 + talentBonus)
+            var additionalBonus = 0.0
             
-            /**
-             * 修行津贴政策效果计算
-             * 
-             * 基础效果：化神境以下弟子修炼速度+15%
-             * 副宗主加成：智力50为基准，每多5点+1%
-             * 消耗：每月4000灵石
-             * 
-             * 计算公式：
-             * 实际修炼速度加成 = 15% × (1 + 副宗主加成)
-             * 
-             * 示例（副宗主智力60）：
-             * 副宗主加成 = (60-50)/5 × 1% = 2%
-             * 实际修炼速度加成 = 15% × 1.02 = 15.3%
-             */
             if (_gameData.value.sectPolicies.cultivationSubsidy && disciple.realm < 5) {
                 val basePolicyBonus = GameConfig.PolicyConfig.CULTIVATION_SUBSIDY_BASE_EFFECT
                 val viceSectMasterBonus = calculateViceSectMasterPolicyBonus()
-                speed *= (1 + basePolicyBonus * (1 + viceSectMasterBonus))
+                additionalBonus += basePolicyBonus * (1 + viceSectMasterBonus)
             }
 
-            // 外门弟子享受问道峰传道加成
             if (disciple.discipleType == "outer" && wenDaoTeachingBonus > 0) {
-                speed *= (1 + wenDaoTeachingBonus)
+                additionalBonus += wenDaoTeachingBonus
             }
 
-            // 内门弟子享受青云峰传道加成
             if (disciple.discipleType == "inner" && qingyunTeachingBonus > 0) {
-                speed *= (1 + qingyunTeachingBonus)
+                additionalBonus += qingyunTeachingBonus
             }
+
+            val speed = currentDisciple.calculateCultivationSpeedPerSecond(
+                manuals = _manuals.value.associateBy { it.id },
+                manualProficiencies = _gameData.value.manualProficiencies[disciple.id]?.associateBy { it.manualId } ?: emptyMap(),
+                additionalBonus = additionalBonus
+            )
 
             val tickMultiplier = 1.0 / GameConfig.Time.TICKS_PER_SECOND
             val totalGain = speed * tickMultiplier

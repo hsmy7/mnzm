@@ -193,18 +193,16 @@ data class Disciple(
         val realmMultiplier = realmConfig.multiplier
         val layerBonus = 1.0 + (realmLayer - 1) * 0.1
 
-        // 计算天赋加成
         val talentEffects = getTalentEffects()
-        val hpBonus = 1.0 + (talentEffects["maxHp"] ?: 0.0)
-        val mpBonus = 1.0 + (talentEffects["maxMp"] ?: 0.0)
-        val attackBonus = 1.0 + (talentEffects["physicalAttack"] ?: 0.0)
-        val magicAttackBonus = 1.0 + (talentEffects["magicAttack"] ?: 0.0)
-        val defenseBonus = 1.0 + (talentEffects["physicalDefense"] ?: 0.0)
-        val magicDefenseBonus = 1.0 + (talentEffects["magicDefense"] ?: 0.0)
-        val speedBonus = 1.0 + (talentEffects["speed"] ?: 0.0)
+        val hpBonus = talentEffects["maxHp"] ?: 0.0
+        val mpBonus = talentEffects["maxMp"] ?: 0.0
+        val attackBonus = talentEffects["physicalAttack"] ?: 0.0
+        val magicAttackBonus = talentEffects["magicAttack"] ?: 0.0
+        val defenseBonus = talentEffects["physicalDefense"] ?: 0.0
+        val magicDefenseBonus = talentEffects["magicDefense"] ?: 0.0
+        val speedBonus = talentEffects["speed"] ?: 0.0
         val critBonus = talentEffects["critRate"] ?: 0.0
 
-        // 胜场成长天赋通过 statusData 持久化战斗属性的固定成长值（无上限）
         val maxHpGrowth = statusData["winGrowth.maxHp"]?.toIntOrNull() ?: 0
         val maxMpGrowth = statusData["winGrowth.maxMp"]?.toIntOrNull() ?: 0
         val physicalAttackGrowth = statusData["winGrowth.physicalAttack"]?.toIntOrNull() ?: 0
@@ -213,16 +211,24 @@ data class Disciple(
         val magicDefenseGrowth = statusData["winGrowth.magicDefense"]?.toIntOrNull() ?: 0
         val speedGrowth = statusData["winGrowth.speed"]?.toIntOrNull() ?: 0
 
+        val totalHpBonus = (realmMultiplier - 1.0) + (layerBonus - 1.0) + hpBonus
+        val totalMpBonus = (realmMultiplier - 1.0) + (layerBonus - 1.0) + mpBonus
+        val totalAttackBonus = (realmMultiplier - 1.0) + (layerBonus - 1.0) + attackBonus
+        val totalMagicAttackBonus = (realmMultiplier - 1.0) + (layerBonus - 1.0) + magicAttackBonus
+        val totalDefenseBonus = (realmMultiplier - 1.0) + (layerBonus - 1.0) + defenseBonus
+        val totalMagicDefenseBonus = (realmMultiplier - 1.0) + (layerBonus - 1.0) + magicDefenseBonus
+        val totalSpeedBonus = (realmMultiplier - 1.0) + (layerBonus - 1.0) + speedBonus
+
         return DiscipleStats(
-            hp = ((baseHp * realmMultiplier * layerBonus * hpBonus).toInt() + maxHpGrowth),
-            maxHp = ((baseHp * realmMultiplier * layerBonus * hpBonus).toInt() + maxHpGrowth),
-            mp = ((baseMp * realmMultiplier * layerBonus * mpBonus).toInt() + maxMpGrowth),
-            maxMp = ((baseMp * realmMultiplier * layerBonus * mpBonus).toInt() + maxMpGrowth),
-            physicalAttack = ((basePhysicalAttack * realmMultiplier * layerBonus * attackBonus).toInt() + physicalAttackGrowth),
-            magicAttack = ((baseMagicAttack * realmMultiplier * layerBonus * magicAttackBonus).toInt() + magicAttackGrowth),
-            physicalDefense = ((basePhysicalDefense * realmMultiplier * layerBonus * defenseBonus).toInt() + physicalDefenseGrowth),
-            magicDefense = ((baseMagicDefense * realmMultiplier * layerBonus * magicDefenseBonus).toInt() + magicDefenseGrowth),
-            speed = ((baseSpeed * realmMultiplier * layerBonus * speedBonus).toInt() + speedGrowth),
+            hp = ((baseHp * (1.0 + totalHpBonus)).toInt() + maxHpGrowth),
+            maxHp = ((baseHp * (1.0 + totalHpBonus)).toInt() + maxHpGrowth),
+            mp = ((baseMp * (1.0 + totalMpBonus)).toInt() + maxMpGrowth),
+            maxMp = ((baseMp * (1.0 + totalMpBonus)).toInt() + maxMpGrowth),
+            physicalAttack = ((basePhysicalAttack * (1.0 + totalAttackBonus)).toInt() + physicalAttackGrowth),
+            magicAttack = ((baseMagicAttack * (1.0 + totalMagicAttackBonus)).toInt() + magicAttackGrowth),
+            physicalDefense = ((basePhysicalDefense * (1.0 + totalDefenseBonus)).toInt() + physicalDefenseGrowth),
+            magicDefense = ((baseMagicDefense * (1.0 + totalMagicDefenseBonus)).toInt() + magicDefenseGrowth),
+            speed = ((baseSpeed * (1.0 + totalSpeedBonus)).toInt() + speedGrowth),
             critRate = 0.05 + critBonus,
             intelligence = intelligence,
             charm = charm,
@@ -258,14 +264,22 @@ data class Disciple(
         return total.copy(critRate = total.critRate + totalCritChance)
     }
 
-    // 获取完整属性（包含装备、功法和丹药加成）
     fun getFinalStats(
         equipments: Map<String, Equipment>, 
         manuals: Map<String, Manual>,
         manualProficiencies: Map<String, ManualProficiencyData> = emptyMap()
     ): DiscipleStats {
-        var total = getStatsWithEquipment(equipments)
+        val baseStats = getBaseStats()
+        var total = baseStats
         var totalCritRate = total.critRate
+
+        listOfNotNull(weaponId, armorId, bootsId, accessoryId).forEach { equipId ->
+            val equipment = equipments[equipId]
+            if (equipment != null) {
+                equipment.getFinalStats().toDiscipleStats().let { total = total + it }
+                totalCritRate += equipment.critChance
+            }
+        }
 
         manualIds.forEach { manualId ->
             val manual = manuals[manualId]
@@ -295,15 +309,15 @@ data class Disciple(
 
         if (pillEffectDuration > 0) {
             val pillBonus = DiscipleStats(
-                hp = (total.maxHp * pillHpBonus).toInt(),
-                maxHp = (total.maxHp * pillHpBonus).toInt(),
-                mp = (total.maxMp * pillMpBonus).toInt(),
-                maxMp = (total.maxMp * pillMpBonus).toInt(),
-                physicalAttack = (total.physicalAttack * pillPhysicalAttackBonus).toInt(),
-                magicAttack = (total.magicAttack * pillMagicAttackBonus).toInt(),
-                physicalDefense = (total.physicalDefense * pillPhysicalDefenseBonus).toInt(),
-                magicDefense = (total.magicDefense * pillMagicDefenseBonus).toInt(),
-                speed = (total.speed * pillSpeedBonus).toInt(),
+                hp = (baseStats.maxHp * pillHpBonus).toInt(),
+                maxHp = (baseStats.maxHp * pillHpBonus).toInt(),
+                mp = (baseStats.maxMp * pillMpBonus).toInt(),
+                maxMp = (baseStats.maxMp * pillMpBonus).toInt(),
+                physicalAttack = (baseStats.physicalAttack * pillPhysicalAttackBonus).toInt(),
+                magicAttack = (baseStats.magicAttack * pillMagicAttackBonus).toInt(),
+                physicalDefense = (baseStats.physicalDefense * pillPhysicalDefenseBonus).toInt(),
+                magicDefense = (baseStats.magicDefense * pillMagicDefenseBonus).toInt(),
+                speed = (baseStats.speed * pillSpeedBonus).toInt(),
                 critRate = 0.0
             )
             total = total + pillBonus
@@ -314,15 +328,18 @@ data class Disciple(
 
     fun calculateCultivationSpeedPerSecond(
         manuals: Map<String, Manual> = emptyMap(),
-        manualProficiencies: Map<String, ManualProficiencyData> = emptyMap()
+        manualProficiencies: Map<String, ManualProficiencyData> = emptyMap(),
+        additionalBonus: Double = 0.0
     ): Double {
-        var speed = GameConfig.Cultivation.BASE_SPEED
+        val baseSpeed = GameConfig.Cultivation.BASE_SPEED
         
-        speed *= spiritRoot.cultivationBonus
+        var totalBonus = 0.0
         
-        speed *= comprehensionSpeedBonus
+        totalBonus += (spiritRoot.cultivationBonus - 1.0)
         
-        speed *= cultivationSpeedBonus
+        totalBonus += (comprehensionSpeedBonus - 1.0)
+        
+        totalBonus += (cultivationSpeedBonus - 1.0)
         
         manualIds.forEach { manualId ->
             val manual = manuals[manualId]
@@ -330,69 +347,61 @@ data class Disciple(
                 val proficiencyData = manualProficiencies[manualId]
                 val masteryLevel = proficiencyData?.masteryLevel ?: 0
                 val masteryBonus = ManualProficiencySystem.MasteryLevel.fromLevel(masteryLevel).bonus
-                speed *= (1 + manual.cultivationSpeedPercent * masteryBonus / 100.0)
+                totalBonus += manual.cultivationSpeedPercent * masteryBonus / 100.0
             }
         }
         
         val talents = TalentDatabase.getTalentsByIds(talentIds)
         talents.forEach { talent ->
-            speed *= (1 + (talent.effects["cultivationSpeed"] ?: 0.0))
+            totalBonus += (talent.effects["cultivationSpeed"] ?: 0.0)
         }
         
-        return speed
+        totalBonus += additionalBonus
+        
+        return baseSpeed * (1.0 + totalBonus)
     }
     
     fun canBreakthrough(): Boolean = cultivation >= maxCultivation
     
     fun getBreakthroughChance(pillBonus: Double = 0.0, innerElderComprehension: Int = 0, outerElderComprehensionBonus: Double = 0.0): Double {
-        // 仙人境界无法突破
         if (realm <= 0) return 0.0
         
-        // 基础突破率
-        var chance = GameConfig.Realm.getBreakthroughChance(realm)
+        val baseChance = GameConfig.Realm.getBreakthroughChance(realm)
         
-        // 所有小境界突破率降低1%
-        chance *= 0.99
+        var totalBonus = 0.0
         
-        // 灵根加成 - 根据灵根品质和目标境界调整
+        totalBonus += -0.01
+        
         val spiritRootCount = spiritRoot.types.size
-        val targetRealm = realm - 1 // 要突破到的境界
+        val targetRealm = realm - 1
         
-        // 灵根加成：根据灵根数量和目标境界给予加成
-        // 化神及以下（targetRealm >= 5）保持原加成，化神以上（targetRealm < 5）降低加成
-        val multiplier = when (spiritRootCount) {
-            1 -> if (targetRealm >= 5) 1.5 else 1.2  // 单灵根：化神及以下+50%，化神以上+20%
-            2 -> if (targetRealm >= 5) 1.25 else 1.1 // 双灵根：化神及以下+25%，化神以上+10%
-            else -> 1.0 // 三灵根及以上无额外加成
+        val spiritRootBonus = when (spiritRootCount) {
+            1 -> if (targetRealm >= 5) 0.5 else 0.2
+            2 -> if (targetRealm >= 5) 0.25 else 0.1
+            else -> 0.0
         }
-        chance *= multiplier
+        totalBonus += spiritRootBonus
         
-        // 丹药加成
-        chance += pillBonus
+        totalBonus += pillBonus
 
-        // 天赋加成
         val talentEffects = getTalentEffects()
         val breakthroughBonus = talentEffects["breakthroughChance"] ?: 0.0
-        chance += breakthroughBonus
+        totalBonus += breakthroughBonus
 
-        // 悟性加成（50为基准，每多5点增加0.5%突破率，每少5点减少0.5%突破率）
         val comprehensionBonus = (comprehension - 50) / 5 * 0.005
-        chance += comprehensionBonus
+        totalBonus += comprehensionBonus
 
-        // 内门长老悟性加成（50为基准，每高10点增加1%，每低10点减少1%）
         if (innerElderComprehension > 0) {
             val innerElderBonus = (innerElderComprehension - 50) * 0.001
-            chance += innerElderBonus
+            totalBonus += innerElderBonus
         }
 
-        // 外门长老悟性加成（50为基准，每高5点增加1%，每低5点减少1%）
-        chance += outerElderComprehensionBonus
+        totalBonus += outerElderComprehensionBonus
 
-        // 突破失败次数加成（每次失败增加3%）
-        chance += breakthroughFailCount * 0.03
+        totalBonus += breakthroughFailCount * 0.03
 
-        // 限制在1%-100%之间
-        return chance.coerceIn(0.01, 1.0)
+        val finalChance = baseChance * (1.0 + totalBonus)
+        return finalChance.coerceIn(0.01, 1.0)
     }
 }
 
