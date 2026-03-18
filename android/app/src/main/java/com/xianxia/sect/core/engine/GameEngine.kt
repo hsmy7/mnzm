@@ -14445,4 +14445,77 @@ class GameEngine {
 
         return result.copy(message = "兑换成功！获得：$rewardDescription")
     }
+
+    // ==================== 内存管理 ====================
+
+    /**
+     * 获取当前内存使用情况的字符串描述
+     * 返回各类数据对象的数量统计
+     */
+    fun getMemoryUsageInfo(): String {
+        val data = _gameData.value
+        val sb = StringBuilder()
+
+        sb.appendLine("=== 内存使用情况 ===")
+        sb.appendLine("弟子数量: ${_disciples.value.size}")
+        sb.appendLine("装备数量: ${_equipment.value.size}")
+        sb.appendLine("功法数量: ${_manuals.value.size}")
+        sb.appendLine("丹药数量: ${_pills.value.size}")
+        sb.appendLine("材料数量: ${_materials.value.size}")
+        sb.appendLine("灵草数量: ${_herbs.value.size}")
+        sb.appendLine("种子数量: ${_seeds.value.size}")
+        sb.appendLine("探索队伍: ${_teams.value.size}")
+        sb.appendLine("建筑槽位: ${_buildingSlots.value.size}")
+        sb.appendLine("炼丹槽位: ${_alchemySlots.value.size}")
+        sb.appendLine("事件记录: ${_events.value.size}/50")
+        sb.appendLine("战斗日志: ${_battleLogs.value.size}/50")
+        sb.appendLine("世界宗门: ${data.worldMapSects.size}")
+        sb.appendLine("宗门关系: ${data.sectRelations.size}")
+        sb.appendLine("洞府数量: ${data.cultivatorCaves.size}")
+        sb.appendLine("洞府探索队伍: ${data.caveExplorationTeams.size}")
+        sb.appendLine("AI洞府队伍: ${data.aiCaveTeams.size}")
+        sb.appendLine("结盟信息: ${data.alliances.size}")
+        sb.appendLine("支援队伍: ${data.supportTeams.size}")
+        sb.appendLine("探查信息: ${data.scoutInfo.size}")
+        sb.appendLine("商人商品: ${data.travelingMerchantItems.size}")
+        sb.appendLine("兑换码使用: ${data.usedRedeemCodes.size}")
+
+        return sb.toString()
+    }
+
+    /**
+     * 根据内存压力级别释放资源
+     * @param level 内存压力级别，支持 ComponentCallbacks2 常量或简化级别
+     *   - TRIM_MEMORY_MODERATE (60) 或 1: 中等压力，清理旧事件（保留最近20条）
+     *   - TRIM_MEMORY_RUNNING_CRITICAL (15) / TRIM_MEMORY_COMPLETE (80) 或 2: 严重压力，保留最近10条
+     */
+    fun releaseMemory(level: Int) {
+        val normalizedLevel = when (level) {
+            android.content.ComponentCallbacks2.TRIM_MEMORY_MODERATE,
+            android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW,
+            1 -> 1
+            android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL,
+            android.content.ComponentCallbacks2.TRIM_MEMORY_COMPLETE,
+            2 -> 2
+            else -> {
+                Log.w(TAG, "未知的内存压力级别: $level，忽略")
+                return
+            }
+        }
+        
+        val eventsToKeep = if (normalizedLevel == 1) 20 else 10
+        val logsToKeep = if (normalizedLevel == 1) 20 else 10
+        val levelName = if (normalizedLevel == 1) "MODERATE" else "CRITICAL"
+        
+        synchronized(this) {
+            if (_events.value.size > eventsToKeep) {
+                _events.value = _events.value.take(eventsToKeep)
+                Log.d(TAG, "内存释放($levelName): 事件列表已清理，保留最近$eventsToKeep 条")
+            }
+            if (_battleLogs.value.size > logsToKeep) {
+                _battleLogs.value = _battleLogs.value.take(logsToKeep)
+                Log.d(TAG, "内存释放($levelName): 战斗日志已清理，保留最近$logsToKeep 条")
+            }
+        }
+    }
 }

@@ -1,8 +1,10 @@
 package com.xianxia.sect.ui.game
 
+import android.content.ComponentCallbacks2
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.flow.SharingStarted
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.data.ForgeRecipeDatabase
 import com.xianxia.sect.core.data.PillRecipeDatabase
@@ -3413,12 +3415,41 @@ class GameViewModel @Inject constructor(
         return materials.value.find { it.id == id }
     }
 
+    /**
+     * 处理内存压力回调
+     * @param level 内存压力级别，来自 ComponentCallbacks2
+     * 注意：保存操作由 GameActivity 统一处理（带防抖），这里只负责释放内存
+     */
+    fun onMemoryPressure(level: Int) {
+        when (level) {
+            ComponentCallbacks2.TRIM_MEMORY_MODERATE -> {
+                Log.w(TAG, "内存压力: TRIM_MEMORY_MODERATE，系统内存紧张")
+                gameEngine.releaseMemory(level)
+            }
+            ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL,
+            ComponentCallbacks2.TRIM_MEMORY_COMPLETE -> {
+                Log.e(TAG, "内存压力: $level，释放内存资源")
+                gameEngine.releaseMemory(level)
+            }
+        }
+    }
+
+    /**
+     * 清理资源
+     * 用于释放内存和清理状态
+     */
+    fun clearResources() {
+        Log.i(TAG, "清理 GameViewModel 资源")
+        stopGameLoop()
+        _errorMessage.value = null
+        _successMessage.value = null
+    }
+
     override fun onCleared() {
         super.onCleared()
         Log.i(TAG, "GameViewModel cleared, stopping game loop and performing auto save")
         
-        // Stop game loop immediately to prevent further state updates
-        stopGameLoop()
+        clearResources()
         
         try {
             val currentGameData = gameEngine.gameData.value

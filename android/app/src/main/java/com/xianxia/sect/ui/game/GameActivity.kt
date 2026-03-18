@@ -1,6 +1,9 @@
 package com.xianxia.sect.ui.game
 
+import android.app.Application
+import android.content.ComponentCallbacks2
 import android.content.Intent
+import android.content.res.Configuration
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -17,6 +20,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import com.xianxia.sect.XianxiaApplication
 import com.xianxia.sect.core.CrashHandler
 import com.xianxia.sect.data.SaveManager
 import com.xianxia.sect.data.SessionManager
@@ -28,7 +32,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @AndroidEntryPoint
-class GameActivity : ComponentActivity() {
+class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListener {
 
     companion object {
         private const val TAG = "GameActivity"
@@ -49,6 +53,9 @@ class GameActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Log.d(TAG, "onCreate started, savedInstanceState=$savedInstanceState")
+
+        // 注册内存压力监听
+        (application as? XianxiaApplication)?.registerMemoryPressureListener(this)
 
         // 初始化并注册崩溃处理器
         setupCrashHandler()
@@ -190,10 +197,56 @@ class GameActivity : ComponentActivity() {
         }
     }
 
+    private var lastEmergencySaveTime = 0L
+    private val emergencySaveDebounceMs = 5000L
+
     override fun onDestroy() {
         super.onDestroy()
         Log.d(TAG, "onDestroy called")
-        // ViewModel's onCleared will be called automatically, which stops the game loop
+        // 取消注册内存压力监听
+        (application as? XianxiaApplication)?.unregisterMemoryPressureListener(this)
+    }
+
+    override fun onLowMemory() {
+        super.onLowMemory()
+        Log.e(TAG, "系统内存严重不足，执行紧急保存")
+        performEmergencySaveWithDebounce()
+    }
+
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        when (level) {
+            ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN -> {
+                Log.d(TAG, "UI已隐藏，可释放UI相关资源")
+            }
+            ComponentCallbacks2.TRIM_MEMORY_MODERATE -> {
+                Log.w(TAG, "内存适中压力，建议释放部分资源")
+            }
+            ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL,
+            ComponentCallbacks2.TRIM_MEMORY_COMPLETE -> {
+                Log.e(TAG, "内存严重不足(level=$level)，执行紧急保存")
+                performEmergencySaveWithDebounce()
+            }
+        }
+    }
+
+    override fun onMemoryPressure(level: Int) {
+        Log.w(TAG, "收到内存压力通知: level=$level")
+        viewModel.onMemoryPressure(level)
+    }
+
+    private fun performEmergencySaveWithDebounce() {
+        val now = System.currentTimeMillis()
+        if (now - lastEmergencySaveTime > emergencySaveDebounceMs) {
+            lastEmergencySaveTime = now
+            try {
+                viewModel.performAutoSave()
+            } catch (e: Exception) {
+                Log.e(TAG, "紧急保存失败", e)
+            }
+        } else {
+            Log.d(TAG, "跳过重复的紧急保存请求，距上次保存 ${now - lastEmergencySaveTime}ms")
+        }
     }
 
     /**
