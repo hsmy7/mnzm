@@ -178,7 +178,7 @@ fun ForgeDialog(
     
     if (showElderSelection) {
         ForgeElderSelectionDialog(
-            disciples = disciples.filter { it.isAlive && it.realm <= 6 },
+            disciples = disciples.filter { it.isAlive && it.realm <= 5 },
             currentElderId = elderSlots?.forgeElder,
             elderSlots = elderSlots ?: ElderSlots(),
             onDismiss = { showElderSelection = false },
@@ -457,6 +457,7 @@ private fun ForgeElderSelectionDialog(
             it.age >= 5 &&
             it.status == DiscipleStatus.IDLE &&
             it.discipleType == "inner" &&
+            it.realm <= 5 &&
             !isDiscipleInAnyPosition(it.id, elderSlots)
         }
     }

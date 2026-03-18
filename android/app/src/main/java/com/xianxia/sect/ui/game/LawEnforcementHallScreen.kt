@@ -124,7 +124,7 @@ fun LawEnforcementHallDialog(
             title = "选择执法长老",
             disciples = availableDisciples,
             currentDiscipleId = lawElder?.id,
-            requirementText = "需要元婴及以上境界",
+            requirementText = "需要化神及以上境界",
             onSelect = { disciple ->
                 viewModel.assignElder("lawEnforcementElder", disciple.id)
                 showElderSelection = false
@@ -140,7 +140,7 @@ fun LawEnforcementHallDialog(
             title = "选择执法弟子",
             disciples = availableDisciples,
             currentDiscipleId = currentDisciple?.discipleId,
-            requirementText = "需要金丹及以上境界",
+            requirementText = "需要内门弟子及以上",
             onSelect = { disciple ->
                 viewModel.assignDirectDisciple("lawEnforcementDisciples", slotIndex, disciple.id)
                 showDiscipleSelection = null
@@ -985,7 +985,7 @@ private fun InnerDiscipleSelectionDialog(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    text = "需要金丹及以上境界",
+                    text = "需要内门弟子及以上",
                     fontSize = 9.sp,
                     color = Color(0xFFE74C3C),
                     modifier = Modifier.fillMaxWidth(),

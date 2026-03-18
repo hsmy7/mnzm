@@ -1,5 +1,139 @@
 # 模拟宗门 - 更新日志
 
+## [1.4.52] - 2026-03-19
+
+### 重构
+- **弟子选择列表筛选条件重构**
+  - 亲传弟子/灵矿执事/执法弟子：仅显示空闲状态的内门弟子及以上
+  - 长老（执法长老/外门长老/传道长老/内门长老/青云峰传道长老）：化神及以上，内门弟子
+  - 传道师（问道峰/青云峰）：元婴及以上，内门弟子
+  - 副宗主：炼虚及以上，必须已担任长老职位
+  - 战斗队伍长老：化神及以上，与其他长老一致
+  - 矿工槽位：仅显示空闲状态的弟子
+
+### 修复
+- 修复副宗主筛选缺少内门弟子类型和年龄检查的问题
+- 修复战斗队伍长老筛选缺少内门弟子类型检查的问题
+- 修复灵矿执事筛选缺少年龄检查的问题
+- 修复执法堂 UI 提示文字与实际筛选条件不一致的问题
+- 修复 HerbGardenScreen/AlchemyScreen/ForgeScreen 长老筛选境界要求不一致的问题
+
+### 系统
+- 数据库版本：47
+- 版本号：1.4.52 (build 1452)
+
+---
+
+## [1.4.51] - 2026-03-19
+
+### 调整
+- **移除内门弟子槽位系统**
+  - 移除灵药宛内门弟子槽位（8个）
+  - 移除丹鼎殿内门弟子槽位（8个）
+  - 移除天工峰内门弟子槽位（8个）
+  - 移除相关的自动补位逻辑
+  - 移除相关的UI组件和对话框
+
+### 系统
+- 数据库版本：47
+- 版本号：1.4.51 (build 1451)
+
+---
+
+## [1.4.50] - 2026-03-19
+
+### 重构
+- **弟子状态系统重构**
+  - 新增 `calculateDiscipleStatus` 函数：根据弟子所在槽位统一计算状态
+  - 新增 `syncAllDiscipleStatuses` 函数：批量同步所有弟子状态
+  - 状态计算逻辑集中化，避免状态不一致问题
+
+### 新增
+- **新增弟子状态**
+  - `GROWING`（成长中）：无境界弟子的状态
+  - `IDLE` 显示名称改为"空闲中"，与其他状态格式统一
+
+### 调整
+- **状态优先级调整**（从高到低）
+  1. REFLECTING - 思过崖思过中
+  2. BATTLE - 战斗队伍中
+  3. EXPLORING - 探索队伍中
+  4. LAW_ENFORCING - 执法长老/执法弟子
+  5. PREACHING - 传道长老/传道师
+  6. MANAGING - 副宗主/外门长老/内门长老/藏经阁长老/灵矿执事
+  7. FORGING - 天工长老
+  8. ALCHEMY - 炼丹长老
+  9. FARMING - 灵植长老
+  10. STUDYING - 藏经阁弟子
+  11. MINING - 矿工
+  12. GROWING - 无境界弟子成长中
+  13. IDLE - 空闲中
+
+- **槽位状态调整**
+  - 藏经阁长老：STUDYING → MANAGING（管理中）
+  - 内门弟子（天工峰/丹鼎殿/灵药宛）：保持空闲中状态
+  - 储备弟子：保持空闲中状态
+
+### 系统
+- 数据库版本：47
+- 版本号：1.4.50 (build 1450)
+
+---
+
+## [1.4.49] - 2026-03-18
+
+### 优化
+- **弟子选择列表过滤逻辑统一**
+  - 新增 `isSelectableDisciple` 辅助函数，统一弟子选择过滤逻辑
+  - 修改所有选择弟子列表函数：仅显示外门/内门弟子且必须空闲状态
+  - 影响函数：
+    - `getAvailableDisciplesForLawEnforcementElder`
+    - `getAvailableDisciplesForLawEnforcementDisciple`
+    - `getAvailableDisciplesForLawEnforcementReserve`
+    - `getAvailableDisciplesForOuterElder`
+    - `getAvailableDisciplesForPreachingElder`
+    - `getAvailableDisciplesForPreachingMaster`
+    - `getAvailableDisciplesForInnerElder`
+    - `getAvailableDisciplesForQingyunPreachingElder`
+    - `getAvailableDisciplesForQingyunPreachingMaster`
+    - `getAvailableDisciplesForHerbGardenReserve`
+    - `getAvailableDisciplesForAlchemyReserve`
+    - `getAvailableDisciplesForForgeReserve`
+    - `getAvailableDisciplesForSpiritMineDeacon`
+
+### 系统
+- 数据库版本：47
+- 版本号：1.4.49 (build 1449)
+
+---
+
+## [1.4.48] - 2026-03-18
+
+### 调整
+- **移除招募长老系统**
+  - 移除招募长老 (recruitElder) 职务
+  - 移除招募长老的亲传弟子槽位 (recruitDisciples)
+  - 移除招募相关的魅力加成计算逻辑
+
+- **职务名称优化**
+  - 问道峰传道长老：区分山峰显示
+  - 青云峰传道长老：区分山峰显示
+  - 问道峰传道师：区分山峰显示
+  - 青云峰传道师：区分山峰显示
+  - 采矿弟子：灵矿槽位弟子
+  - 灵矿执事：灵矿执事槽位弟子
+
+### 修复
+- 修复多处遗漏的 recruitElder/recruitDisciples 引用
+- 修复 WenDaoPeakScreen/QingyunPeakScreen 槽位标题未区分山峰的问题
+- 修复 GameEngine.kt 中 positionName 映射不完整的问题
+
+### 系统
+- 数据库版本：47
+- 版本号：1.4.48 (build 1448)
+
+---
+
 ## [1.4.47] - 2026-03-18
 
 ### 修复

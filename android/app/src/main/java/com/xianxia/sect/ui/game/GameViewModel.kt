@@ -990,6 +990,23 @@ class GameViewModel @Inject constructor(
         }
         
         val currentSlots = gameEngine.gameData.value.elderSlots
+        val allElderIds = listOf(
+            currentSlots.herbGardenElder,
+            currentSlots.alchemyElder,
+            currentSlots.forgeElder,
+            currentSlots.libraryElder,
+            currentSlots.outerElder,
+            currentSlots.preachingElder,
+            currentSlots.lawEnforcementElder,
+            currentSlots.innerElder,
+            currentSlots.qingyunPreachingElder
+        ).filterNotNull()
+        
+        if (!allElderIds.contains(discipleId)) {
+            _errorMessage.value = "副宗主需要由长老担任"
+            return
+        }
+        
         gameEngine.updateGameData { 
             it.copy(elderSlots = currentSlots.copy(viceSectMaster = discipleId))
         }
@@ -1821,7 +1838,7 @@ class GameViewModel @Inject constructor(
 
     private fun isSelectableDisciple(disciple: Disciple): Boolean {
         return disciple.isAlive &&
-               (disciple.discipleType == "outer" || disciple.discipleType == "inner") &&
+               disciple.discipleType == "inner" &&
                disciple.age >= 5 &&
                disciple.realmLayer > 0 &&
                disciple.status == DiscipleStatus.IDLE
@@ -1860,7 +1877,7 @@ class GameViewModel @Inject constructor(
         ).flatten().mapNotNull { it.discipleId }
 
         return disciples.value
-            .filter { isSelectableDisciple(it) && it.realm <= 6 && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
+            .filter { isSelectableDisciple(it) && it.realm <= 5 && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 
@@ -1889,7 +1906,7 @@ class GameViewModel @Inject constructor(
         ).flatten().mapNotNull { it.discipleId }
 
         return disciples.value
-            .filter { isSelectableDisciple(it) && it.realm <= 7 && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
+            .filter { isSelectableDisciple(it) && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
             .sortedByDescending { it.intelligence }
     }
 
@@ -1918,7 +1935,7 @@ class GameViewModel @Inject constructor(
         ).flatten().mapNotNull { it.discipleId }
 
         return disciples.value
-            .filter { isSelectableDisciple(it) && it.realm <= 7 && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
+            .filter { isSelectableDisciple(it) && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 
@@ -1952,7 +1969,8 @@ class GameViewModel @Inject constructor(
         return disciples.value
             .filter {
                 it.isAlive &&
-                it.discipleType == "outer" &&
+                it.discipleType == "inner" &&
+                it.realm <= 5 &&
                 it.age >= 5 &&
                 it.realmLayer > 0 &&
                 it.status == DiscipleStatus.IDLE &&
@@ -1986,7 +2004,7 @@ class GameViewModel @Inject constructor(
         ).flatten().mapNotNull { it.discipleId }
 
         return disciples.value
-            .filter { isSelectableDisciple(it) && it.realm <= 6 && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
+            .filter { isSelectableDisciple(it) && it.realm <= 5 && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 
@@ -2018,7 +2036,7 @@ class GameViewModel @Inject constructor(
         ).flatten().mapNotNull { it.discipleId }
 
         return disciples.value
-            .filter { isSelectableDisciple(it) && it.realm <= 7 && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
+            .filter { isSelectableDisciple(it) && it.realm <= 6 && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 
@@ -2404,6 +2422,7 @@ class GameViewModel @Inject constructor(
             .filter {
                 it.isAlive &&
                 it.discipleType == "inner" &&
+                it.age >= 5 &&
                 it.realmLayer > 0 &&
                 it.status == DiscipleStatus.IDLE &&
                 !allElderIds.contains(it.id) &&
@@ -2548,7 +2567,7 @@ class GameViewModel @Inject constructor(
         ).flatten().mapNotNull { it.discipleId }
 
         return disciples.value
-            .filter { isSelectableDisciple(it) && it.realm <= 6 && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
+            .filter { isSelectableDisciple(it) && it.realm <= 5 && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 
@@ -2580,7 +2599,7 @@ class GameViewModel @Inject constructor(
         ).flatten().mapNotNull { it.discipleId }
 
         return disciples.value
-            .filter { isSelectableDisciple(it) && it.realm <= 6 && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
+            .filter { isSelectableDisciple(it) && it.realm <= 5 && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 
@@ -2612,7 +2631,7 @@ class GameViewModel @Inject constructor(
         ).flatten().mapNotNull { it.discipleId }
 
         return disciples.value
-            .filter { isSelectableDisciple(it) && it.realm <= 7 && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
+            .filter { isSelectableDisciple(it) && it.realm <= 6 && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 
@@ -3357,9 +3376,11 @@ class GameViewModel @Inject constructor(
         return disciples.value
             .filter { disciple ->
                 disciple.isAlive &&
+                disciple.discipleType == "inner" &&
                 disciple.realmLayer > 0 &&
+                disciple.age >= 5 &&
                 disciple.status == DiscipleStatus.IDLE &&
-                disciple.realm <= 6 &&
+                disciple.realm <= 5 &&
                 !occupiedIds.contains(disciple.id)
             }
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
@@ -3389,8 +3410,8 @@ class GameViewModel @Inject constructor(
         
         val slotType = currentSlots[slotIndex].slotType
         
-        if (slotType == BattleSlotType.ELDER && disciple.realm > 6) {
-            _errorMessage.value = "战斗长老需要达到元婴境界"
+        if (slotType == BattleSlotType.ELDER && disciple.realm > 5) {
+            _errorMessage.value = "战斗长老需要达到化神境界"
             return
         }
         

@@ -143,8 +143,7 @@ fun SpiritMineDialog(
             disciples = disciples.filter { disciple -> 
                 disciple.isAlive && 
                 disciple.realmLayer > 0 &&
-                disciple.status != DiscipleStatus.REFLECTING &&
-                (disciple.status == DiscipleStatus.IDLE || disciple.id == currentDiscipleId)
+                disciple.status == DiscipleStatus.IDLE
             },
             currentDiscipleId = currentDiscipleId,
             onSelect = { disciple ->

@@ -3122,6 +3122,22 @@ private fun isDiscipleInAnyPosition(discipleId: String, elderSlots: ElderSlots):
     return allDirectDiscipleIds.contains(discipleId)
 }
 
+private fun isDiscipleAnElder(discipleId: String, elderSlots: ElderSlots): Boolean {
+    val allElderIds = listOf(
+        elderSlots.herbGardenElder,
+        elderSlots.alchemyElder,
+        elderSlots.forgeElder,
+        elderSlots.libraryElder,
+        elderSlots.outerElder,
+        elderSlots.preachingElder,
+        elderSlots.lawEnforcementElder,
+        elderSlots.innerElder,
+        elderSlots.qingyunPreachingElder
+    ).filterNotNull()
+    
+    return allElderIds.contains(discipleId)
+}
+
 @Composable
 private fun ElderDiscipleSelectionDialog(
     disciples: List<Disciple>,
@@ -7640,8 +7656,9 @@ fun TianshuHallDialog(
             it.status == DiscipleStatus.IDLE && 
             it.realm <= 4 &&
             it.discipleType == "inner" &&
+            it.age >= 5 &&
             it.realmLayer > 0 &&
-            !isDiscipleInAnyPosition(it.id, elderSlots ?: ElderSlots())
+            isDiscipleAnElder(it.id, elderSlots ?: ElderSlots())
         }
         
         AlertDialog(

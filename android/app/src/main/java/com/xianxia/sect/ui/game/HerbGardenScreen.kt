@@ -148,7 +148,7 @@ fun HerbGardenDialog(
     if (showElderSelection) {
         val currentElderId = elderSlots.herbGardenElder
         HerbGardenElderSelectionDialog(
-            disciples = disciples.filter { it.isAlive && it.realm <= 6 },
+            disciples = disciples.filter { it.isAlive && it.realm <= 5 },
             currentElderId = currentElderId,
             elderSlots = elderSlots,
             onDismiss = { showElderSelection = false },
@@ -499,6 +499,7 @@ private fun HerbGardenElderSelectionDialog(
             it.age >= 5 &&
             it.status == DiscipleStatus.IDLE &&
             it.discipleType == "inner" &&
+            it.realm <= 5 &&
             it.id !in allElderIds &&
             it.id !in allDirectDiscipleIds
         }

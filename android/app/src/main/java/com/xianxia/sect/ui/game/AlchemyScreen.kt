@@ -141,7 +141,7 @@ fun AlchemyDialog(
 
     if (showElderSelection) {
         AlchemyElderSelectionDialog(
-            disciples = disciples.filter { it.isAlive && it.realm <= 6 },
+            disciples = disciples.filter { it.isAlive && it.realm <= 5 },
             currentElderId = elderSlots.alchemyElder,
             elderSlots = elderSlots,
             onDismiss = { showElderSelection = false },
@@ -981,6 +981,7 @@ private fun AlchemyElderSelectionDialog(
             it.age >= 5 &&
             it.status == DiscipleStatus.IDLE &&
             it.discipleType == "inner" &&
+            it.realm <= 5 &&
             !isDiscipleInAnyPosition(it.id, elderSlots)
         }
     }
