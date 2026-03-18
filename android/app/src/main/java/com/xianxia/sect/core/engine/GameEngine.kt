@@ -571,6 +571,7 @@ class GameEngine {
         }
         
         _gameData.value = data.copy(librarySlots = currentSlots)
+        syncAllDiscipleStatuses()
     }
     
     fun removeDiscipleFromLibrarySlot(slotIndex: Int) {
@@ -584,6 +585,7 @@ class GameEngine {
                 discipleName = ""
             )
             _gameData.value = data.copy(librarySlots = currentSlots)
+            syncAllDiscipleStatuses()
         }
     }
     
@@ -6162,21 +6164,7 @@ class GameEngine {
                 lawEnforcementReserveDisciples = updatedReserveDisciples
             )
             _gameData.value = data.copy(elderSlots = updatedElderSlots)
-            
-            // 更新从储备弟子补位过来的弟子状态为执法中
-            val originalLawDiscipleIds = lawDisciples.mapNotNull { it.discipleId }
-            val newLawDiscipleIds = updatedLawDisciples.mapNotNull { it.discipleId }
-            val promotedDiscipleIds = newLawDiscipleIds.filter { !originalLawDiscipleIds.contains(it) }
-            
-            if (promotedDiscipleIds.isNotEmpty()) {
-                _disciples.value = _disciples.value.map { disciple ->
-                    if (promotedDiscipleIds.contains(disciple.id)) {
-                        disciple.copy(status = DiscipleStatus.LAW_ENFORCING)
-                    } else {
-                        disciple
-                    }
-                }
-            }
+            syncAllDiscipleStatuses()
         }
     }
 
@@ -6235,16 +6223,7 @@ class GameEngine {
                 herbGardenReserveDisciples = updatedReserveDisciples
             )
             _gameData.value = data.copy(elderSlots = updatedElderSlots)
-            
-            // 更新补位弟子的状态为工作中
-            val promotedDiscipleIds = updatedInnerDisciples.mapNotNull { it.discipleId }
-            _disciples.value = _disciples.value.map { disciple ->
-                if (promotedDiscipleIds.contains(disciple.id)) {
-                    disciple.copy(status = DiscipleStatus.WORKING)
-                } else {
-                    disciple
-                }
-            }
+            syncAllDiscipleStatuses()
         }
     }
 
@@ -6303,6 +6282,7 @@ class GameEngine {
                 alchemyReserveDisciples = updatedReserveDisciples
             )
             _gameData.value = data.copy(elderSlots = updatedElderSlots)
+            syncAllDiscipleStatuses()
         }
     }
 
@@ -6361,6 +6341,7 @@ class GameEngine {
                 forgeReserveDisciples = updatedReserveDisciples
             )
             _gameData.value = data.copy(elderSlots = updatedElderSlots)
+            syncAllDiscipleStatuses()
         }
     }
 
@@ -6394,6 +6375,7 @@ class GameEngine {
         }
         
         _disciples.value = updatedDisciples
+        syncAllDiscipleStatuses()
     }
 
     private fun applyGriefToChildren(deadDisciple: Disciple, currentYear: Int) {
@@ -7344,14 +7326,7 @@ class GameEngine {
         )
         
         _teams.value = _teams.value + team
-        
-        memberIds.forEach { memberId ->
-            val disciple = _disciples.value.find { it.id == memberId }
-            if (disciple != null) {
-                val updated = disciple.copy(status = DiscipleStatus.EXPLORING)
-                _disciples.value = _disciples.value.map { if (it.id == memberId) updated else it }
-            }
-        }
+        syncAllDiscipleStatuses()
         
         addEvent("探索队伍【$teamName】出发前往$dungeonName", EventType.INFO)
     }
@@ -7359,15 +7334,8 @@ class GameEngine {
     fun recallTeam(teamId: String) {
         val team = _teams.value.find { it.id == teamId } ?: return
         
-        team.memberIds.forEach { memberId ->
-            val disciple = _disciples.value.find { it.id == memberId }
-            if (disciple != null) {
-                val updated = disciple.copy(status = DiscipleStatus.IDLE)
-                _disciples.value = _disciples.value.map { if (it.id == memberId) updated else it }
-            }
-        }
-        
         _teams.value = _teams.value.filter { it.id != teamId }
+        syncAllDiscipleStatuses()
         addEvent("探索队伍【${team.name}】已召回", EventType.INFO)
     }
     
@@ -9446,19 +9414,7 @@ class GameEngine {
         
         _gameData.value = data.copy(elderSlots = updatedElderSlots)
         
-        // 更新弟子状态
-        when (elderSlotType) {
-            "lawEnforcementDisciples" -> {
-                _disciples.value = _disciples.value.map {
-                    if (it.id == discipleId) it.copy(status = DiscipleStatus.LAW_ENFORCING) else it
-                }
-            }
-            "preachingMasters", "qingyunPreachingMasters" -> {
-                _disciples.value = _disciples.value.map {
-                    if (it.id == discipleId) it.copy(status = DiscipleStatus.PREACHING) else it
-                }
-            }
-        }
+        syncAllDiscipleStatuses()
 
         val positionName = when (elderSlotType) {
             "lawEnforcementDisciples" -> "执法弟子"
@@ -9472,15 +9428,6 @@ class GameEngine {
     
     fun removeDirectDisciple(elderSlotType: String, slotIndex: Int) {
         val data = _gameData.value
-        
-        // 获取被移除的弟子ID（用于状态恢复）
-        val removedDiscipleId = when (elderSlotType) {
-            "lawEnforcementDisciples" -> data.elderSlots.lawEnforcementDisciples.find { it.index == slotIndex }?.discipleId
-            "preachingMasters" -> data.elderSlots.preachingMasters.find { it.index == slotIndex }?.discipleId
-            "qingyunPreachingMasters" -> data.elderSlots.qingyunPreachingMasters.find { it.index == slotIndex }?.discipleId
-            "spiritMineDeacon" -> data.elderSlots.spiritMineDeaconDisciples.find { it.index == slotIndex }?.discipleId
-            else -> null
-        }
         
         val currentSlots = when (elderSlotType) {
             "herbGarden" -> data.elderSlots.herbGardenDisciples
@@ -9509,13 +9456,7 @@ class GameEngine {
         }
         
         _gameData.value = data.copy(elderSlots = updatedElderSlots)
-        
-        // 恢复弟子的空闲状态
-        removedDiscipleId?.let { discipleId ->
-            _disciples.value = _disciples.value.map {
-                if (it.id == discipleId) it.copy(status = DiscipleStatus.IDLE) else it
-            }
-        }
+        syncAllDiscipleStatuses()
     }
     
     fun assignInnerDisciple(elderSlotType: String, slotIndex: Int, discipleId: String, discipleName: String, discipleRealm: String, discipleSpiritRootColor: String = "#E0E0E0") {
@@ -9592,6 +9533,7 @@ class GameEngine {
         }
         
         _gameData.value = data.copy(elderSlots = updatedElderSlots)
+        syncAllDiscipleStatuses()
         addEvent("$discipleName 已成为内门弟子", EventType.SUCCESS)
     }
     
@@ -9612,16 +9554,214 @@ class GameEngine {
         }
         
         _gameData.value = data.copy(elderSlots = updatedElderSlots)
+        syncAllDiscipleStatuses()
     }
     
     fun updateSpiritMineSlots(slots: List<SpiritMineSlot>) {
         val data = _gameData.value
         _gameData.value = data.copy(spiritMineSlots = slots)
+        syncAllDiscipleStatuses()
     }
 
     fun updateDiscipleStatus(discipleId: String, status: DiscipleStatus) {
         _disciples.value = _disciples.value.map {
             if (it.id == discipleId) it.copy(status = status) else it
+        }
+    }
+
+    /**
+     * 根据弟子所在槽位计算其应有的状态
+     * 状态优先级（从高到低）：
+     * 1. REFLECTING - 思过崖思过中
+     * 2. BATTLE - 战斗队伍中
+     * 3. EXPLORING - 探索队伍中
+     * 4. LAW_ENFORCING - 执法长老/执法弟子
+     * 5. PREACHING - 传道长老/传道师
+     * 6. MANAGING - 副宗主/外门长老/内门长老/藏经阁长老/灵矿执事
+     * 7. FORGING - 天工长老
+     * 8. ALCHEMY - 炼丹长老
+     * 9. FARMING - 灵植长老
+     * 10. STUDYING - 藏经阁弟子
+     * 11. MINING - 矿工
+     * 12. GROWING - 无境界弟子成长中
+     * 13. IDLE - 空闲
+     */
+    fun calculateDiscipleStatus(discipleId: String): DiscipleStatus {
+        val data = _gameData.value
+        val elderSlots = data.elderSlots
+        val disciple = _disciples.value.find { it.id == discipleId } ?: return DiscipleStatus.IDLE
+
+        if (disciple.status == DiscipleStatus.REFLECTING) {
+            return DiscipleStatus.REFLECTING
+        }
+
+        val battleTeam = data.battleTeam
+        if (battleTeam != null && battleTeam.status != "idle") {
+            if (battleTeam.slots.any { it.discipleId == discipleId }) {
+                return DiscipleStatus.BATTLE
+            }
+        }
+
+        val exploringTeam = _teams.value.find { team ->
+            team.memberIds.contains(discipleId) &&
+            (team.status == ExplorationStatus.TRAVELING || team.status == ExplorationStatus.EXPLORING)
+        }
+        if (exploringTeam != null) {
+            return DiscipleStatus.EXPLORING
+        }
+
+        val caveExplorationTeam = data.caveExplorationTeams.find { team ->
+            team.memberIds.contains(discipleId) &&
+            (team.status == CaveExplorationStatus.TRAVELING || team.status == CaveExplorationStatus.EXPLORING)
+        }
+        if (caveExplorationTeam != null) {
+            return DiscipleStatus.EXPLORING
+        }
+
+        if (elderSlots.lawEnforcementElder == discipleId) {
+            return DiscipleStatus.LAW_ENFORCING
+        }
+        if (elderSlots.lawEnforcementDisciples.any { it.discipleId == discipleId }) {
+            return DiscipleStatus.LAW_ENFORCING
+        }
+
+        if (elderSlots.preachingElder == discipleId) {
+            return DiscipleStatus.PREACHING
+        }
+        if (elderSlots.qingyunPreachingElder == discipleId) {
+            return DiscipleStatus.PREACHING
+        }
+        if (elderSlots.preachingMasters.any { it.discipleId == discipleId }) {
+            return DiscipleStatus.PREACHING
+        }
+        if (elderSlots.qingyunPreachingMasters.any { it.discipleId == discipleId }) {
+            return DiscipleStatus.PREACHING
+        }
+
+        if (elderSlots.viceSectMaster == discipleId) {
+            return DiscipleStatus.MANAGING
+        }
+        if (elderSlots.outerElder == discipleId) {
+            return DiscipleStatus.MANAGING
+        }
+        if (elderSlots.innerElder == discipleId) {
+            return DiscipleStatus.MANAGING
+        }
+        if (elderSlots.libraryElder == discipleId) {
+            return DiscipleStatus.MANAGING
+        }
+        if (elderSlots.spiritMineDeaconDisciples.any { it.discipleId == discipleId }) {
+            return DiscipleStatus.MANAGING
+        }
+
+        if (elderSlots.forgeElder == discipleId) {
+            return DiscipleStatus.FORGING
+        }
+
+        if (elderSlots.alchemyElder == discipleId) {
+            return DiscipleStatus.ALCHEMY
+        }
+
+        if (elderSlots.herbGardenElder == discipleId) {
+            return DiscipleStatus.FARMING
+        }
+
+        if (data.librarySlots.any { it.discipleId == discipleId }) {
+            return DiscipleStatus.STUDYING
+        }
+
+        if (data.spiritMineSlots.any { it.discipleId == discipleId }) {
+            return DiscipleStatus.MINING
+        }
+
+        if (disciple.realmLayer == 0) {
+            return DiscipleStatus.GROWING
+        }
+
+        return DiscipleStatus.IDLE
+    }
+
+    /**
+     * 同步所有弟子的状态
+     * 根据槽位位置重新计算每个弟子的状态
+     */
+    fun syncAllDiscipleStatuses() {
+        val data = _gameData.value
+        val elderSlots = data.elderSlots
+
+        val lawEnforcerIds = mutableSetOf<String>()
+        elderSlots.lawEnforcementElder?.let { lawEnforcerIds.add(it) }
+        elderSlots.lawEnforcementDisciples.mapNotNull { it.discipleId }.forEach { lawEnforcerIds.add(it) }
+
+        val preachingIds = mutableSetOf<String>()
+        elderSlots.preachingElder?.let { preachingIds.add(it) }
+        elderSlots.qingyunPreachingElder?.let { preachingIds.add(it) }
+        elderSlots.preachingMasters.mapNotNull { it.discipleId }.forEach { preachingIds.add(it) }
+        elderSlots.qingyunPreachingMasters.mapNotNull { it.discipleId }.forEach { preachingIds.add(it) }
+
+        val managingIds = mutableSetOf<String>()
+        elderSlots.viceSectMaster?.let { managingIds.add(it) }
+        elderSlots.outerElder?.let { managingIds.add(it) }
+        elderSlots.innerElder?.let { managingIds.add(it) }
+        elderSlots.libraryElder?.let { managingIds.add(it) }
+        elderSlots.spiritMineDeaconDisciples.mapNotNull { it.discipleId }.forEach { managingIds.add(it) }
+
+        val forgingIds = mutableSetOf<String>()
+        elderSlots.forgeElder?.let { forgingIds.add(it) }
+
+        val alchemyIds = mutableSetOf<String>()
+        elderSlots.alchemyElder?.let { alchemyIds.add(it) }
+
+        val farmingIds = mutableSetOf<String>()
+        elderSlots.herbGardenElder?.let { farmingIds.add(it) }
+
+        val studyingIds = data.librarySlots.mapNotNull { it.discipleId }.toMutableSet()
+
+        val miningIds = data.spiritMineSlots.mapNotNull { it.discipleId }.toMutableSet()
+
+        val battleIds = mutableSetOf<String>()
+        val battleTeam = data.battleTeam
+        if (battleTeam != null && battleTeam.status != "idle") {
+            battleTeam.slots.mapNotNull { it.discipleId }.forEach { battleIds.add(it) }
+        }
+
+        val exploringIds = mutableSetOf<String>()
+        _teams.value.filter { 
+            it.status == ExplorationStatus.TRAVELING || it.status == ExplorationStatus.EXPLORING 
+        }.forEach { team ->
+            team.memberIds.forEach { exploringIds.add(it) }
+        }
+        data.caveExplorationTeams.filter {
+            it.status == CaveExplorationStatus.TRAVELING || it.status == CaveExplorationStatus.EXPLORING
+        }.forEach { team ->
+            team.memberIds.forEach { exploringIds.add(it) }
+        }
+
+        _disciples.value = _disciples.value.map { disciple ->
+            if (!disciple.isAlive) return@map disciple
+
+            if (disciple.status == DiscipleStatus.REFLECTING) return@map disciple
+
+            val newStatus = when {
+                battleIds.contains(disciple.id) -> DiscipleStatus.BATTLE
+                exploringIds.contains(disciple.id) -> DiscipleStatus.EXPLORING
+                lawEnforcerIds.contains(disciple.id) -> DiscipleStatus.LAW_ENFORCING
+                preachingIds.contains(disciple.id) -> DiscipleStatus.PREACHING
+                managingIds.contains(disciple.id) -> DiscipleStatus.MANAGING
+                forgingIds.contains(disciple.id) -> DiscipleStatus.FORGING
+                alchemyIds.contains(disciple.id) -> DiscipleStatus.ALCHEMY
+                farmingIds.contains(disciple.id) -> DiscipleStatus.FARMING
+                studyingIds.contains(disciple.id) -> DiscipleStatus.STUDYING
+                miningIds.contains(disciple.id) -> DiscipleStatus.MINING
+                disciple.realmLayer == 0 -> DiscipleStatus.GROWING
+                else -> DiscipleStatus.IDLE
+            }
+
+            if (disciple.status != newStatus) {
+                disciple.copy(status = newStatus)
+            } else {
+                disciple
+            }
         }
     }
 

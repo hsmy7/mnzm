@@ -1400,11 +1400,9 @@ class GameViewModel @Inject constructor(
                         libraryElder = discipleId,
                         libraryDisciples = emptyList()
                     )
-                    "viceSectMaster" -> {
-                        // 更新副宗主状态为管理中
-                        gameEngine.updateDiscipleStatus(discipleId, DiscipleStatus.MANAGING)
-                        elderSlots.copy(viceSectMaster = discipleId)
-                    }
+                    "viceSectMaster" -> elderSlots.copy(
+                        viceSectMaster = discipleId
+                    )
                     "outerElder" -> elderSlots.copy(
                         outerElder = discipleId
                     )
@@ -1426,6 +1424,7 @@ class GameViewModel @Inject constructor(
                     else -> elderSlots
                 }
                 gameEngine.updateElderSlots(newElderSlots)
+                gameEngine.syncAllDiscipleStatuses()
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "任命失败"
             }
@@ -1454,36 +1453,31 @@ class GameViewModel @Inject constructor(
                         libraryElder = null,
                         libraryDisciples = emptyList()
                     )
-                    "viceSectMaster" -> {
-                        // 恢复副宗主状态为空闲
-                        val viceSectMasterId = elderSlots.viceSectMaster
-                        viceSectMasterId?.let { gameEngine.updateDiscipleStatus(it, DiscipleStatus.IDLE) }
-                        elderSlots.copy(viceSectMaster = null)
-                    }
+                    "viceSectMaster" -> elderSlots.copy(
+                        viceSectMaster = null
+                    )
                     "outerElder" -> elderSlots.copy(
                         outerElder = null
                     )
-                    "preachingElder" -> {
-                        // 使用专门的方法来处理传道长老卸任，同时恢复所有传道师的状态
-                        gameEngine.removePreachingElderAndMasters()
-                        return@launch
-                    }
-                    "lawEnforcementElder" -> {
-                        // 使用专门的方法来处理执法长老卸任，同时恢复所有执法弟子的状态
-                        gameEngine.removeLawEnforcementElderAndDisciples()
-                        return@launch
-                    }
+                    "preachingElder" -> elderSlots.copy(
+                        preachingElder = null,
+                        preachingMasters = emptyList()
+                    )
+                    "lawEnforcementElder" -> elderSlots.copy(
+                        lawEnforcementElder = null,
+                        lawEnforcementDisciples = emptyList()
+                    )
                     "innerElder" -> elderSlots.copy(
                         innerElder = null
                     )
-                    "qingyunPreachingElder" -> {
-                        // 使用专门的方法来处理青云传道长老卸任，同时恢复所有青云传道师的状态
-                        gameEngine.removeQingyunPreachingElderAndMasters()
-                        return@launch
-                    }
+                    "qingyunPreachingElder" -> elderSlots.copy(
+                        qingyunPreachingElder = null,
+                        qingyunPreachingMasters = emptyList()
+                    )
                     else -> elderSlots
                 }
                 gameEngine.updateElderSlots(newElderSlots)
+                gameEngine.syncAllDiscipleStatuses()
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "卸任失败"
             }
@@ -3567,10 +3561,7 @@ class GameViewModel @Inject constructor(
                 )
                 
                 gameEngine.updateGameData { it.copy(battleTeam = battleTeam) }
-                
-                currentSlots.filter { it.discipleId != null }.forEach { slot ->
-                    gameEngine.updateDiscipleStatus(slot.discipleId!!, DiscipleStatus.BATTLE)
-                }
+                gameEngine.syncAllDiscipleStatuses()
                 
                 _showBattleTeamDialog.value = false
             } catch (e: Exception) {
@@ -3599,11 +3590,8 @@ class GameViewModel @Inject constructor(
         
         viewModelScope.launch {
             try {
-                team.slots.filter { it.discipleId != null }.forEach { slot ->
-                    gameEngine.updateDiscipleStatus(slot.discipleId!!, DiscipleStatus.IDLE)
-                }
-                
                 gameEngine.updateGameData { it.copy(battleTeam = null) }
+                gameEngine.syncAllDiscipleStatuses()
                 
                 _battleTeamSlots.value = buildList {
                     repeat(2) { index ->
