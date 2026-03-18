@@ -46,14 +46,12 @@ fun HerbGardenDialog(
     var showSeedSelection by remember { mutableStateOf<Int?>(null) }
     var showElderSelection by remember { mutableStateOf(false) }
     var showDirectDiscipleSelection by remember { mutableStateOf<Int?>(null) }
-    var showInnerDiscipleSelection by remember { mutableStateOf<Int?>(null) }
     var showElderRemoveConfirm by remember { mutableStateOf(false) }
     var showReserveDiscipleDialog by remember { mutableStateOf(false) }
 
     val elderSlots = gameData?.elderSlots ?: ElderSlots()
     val herbGardenElder = viewModel.getElderDisciple(elderSlots.herbGardenElder)
     val herbGardenDisciples = elderSlots.herbGardenDisciples
-    val herbGardenInnerDisciples = elderSlots.herbGardenInnerDisciples
     val hasDirectDisciples = herbGardenDisciples.any { it.isActive }
     val reserveDisciplesWithInfo = viewModel.getHerbGardenReserveDisciplesWithInfo()
 
@@ -97,12 +95,6 @@ fun HerbGardenDialog(
                 directDisciples = herbGardenDisciples,
                 onDirectDiscipleClick = { index -> showDirectDiscipleSelection = index },
                 onDirectDiscipleRemove = { index -> viewModel.removeDirectDisciple("herbGarden", index) }
-            )
-            
-            HerbGardenInnerDiscipleSection(
-                innerDisciples = herbGardenInnerDisciples,
-                onInnerDiscipleClick = { index -> showInnerDiscipleSelection = index },
-                onInnerDiscipleRemove = { index -> viewModel.removeInnerDisciple("herbGarden", index) }
             )
 
             HorizontalDivider(
@@ -251,7 +243,7 @@ private fun ElderRemoveConfirmDialog(
     )
 }
 
-private fun getOccupiedIds(elderSlots: ElderSlots): Triple<List<String>, List<String>, List<String>> {
+private fun getOccupiedIds(elderSlots: ElderSlots): Pair<List<String>, List<String>> {
     val allElderIds = listOf(
         elderSlots.herbGardenElder,
         elderSlots.alchemyElder,
@@ -266,13 +258,7 @@ private fun getOccupiedIds(elderSlots: ElderSlots): Triple<List<String>, List<St
         elderSlots.libraryDisciples
     ).flatten().mapNotNull { it.discipleId }
 
-    val allInnerDiscipleIds = listOf(
-        elderSlots.forgeInnerDisciples,
-        elderSlots.alchemyInnerDisciples,
-        elderSlots.herbGardenInnerDisciples
-    ).flatten().mapNotNull { it.discipleId }
-
-    return Triple(allElderIds, allDirectDiscipleIds, allInnerDiscipleIds)
+    return Pair(allElderIds, allDirectDiscipleIds)
 }
 
 @Composable
@@ -404,60 +390,6 @@ private fun HerbGardenDirectDiscipleSection(
 }
 
 @Composable
-private fun HerbGardenInnerDiscipleSection(
-    innerDisciples: List<DirectDiscipleSlot>,
-    onInnerDiscipleClick: (Int) -> Unit,
-    onInnerDiscipleRemove: (Int) -> Unit
-) {
-    Column(
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            text = "内门弟子",
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color(0xFF666666)
-        )
-        
-        Column(
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
-            ) {
-                (0 until 4).forEach { index ->
-                    val disciple = innerDisciples.getOrNull(index) ?: DirectDiscipleSlot(index = index)
-                    HerbGardenInnerDiscipleSlotItem(
-                        index = index,
-                        disciple = disciple,
-                        onClick = { onInnerDiscipleClick(index) },
-                        onRemove = { onInnerDiscipleRemove(index) }
-                    )
-                }
-            }
-            
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
-            ) {
-                (4 until 8).forEach { index ->
-                    val disciple = innerDisciples.getOrNull(index) ?: DirectDiscipleSlot(index = index)
-                    HerbGardenInnerDiscipleSlotItem(
-                        index = index,
-                        disciple = disciple,
-                        onClick = { onInnerDiscipleClick(index) },
-                        onRemove = { onInnerDiscipleRemove(index) }
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
 private fun HerbGardenDirectDiscipleSlotItem(
     index: Int,
     disciple: DirectDiscipleSlot,
@@ -537,85 +469,6 @@ private fun HerbGardenDirectDiscipleSlotItem(
 }
 
 @Composable
-private fun HerbGardenInnerDiscipleSlotItem(
-    index: Int,
-    disciple: DirectDiscipleSlot,
-    onClick: () -> Unit,
-    onRemove: () -> Unit
-) {
-    val borderColor = if (disciple.isActive) {
-        try {
-            Color(android.graphics.Color.parseColor(disciple.discipleSpiritRootColor))
-        } catch (e: Exception) {
-            Color(0xFF4CAF50)
-        }
-    } else {
-        GameColors.Border
-    }
-
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Box(
-            modifier = Modifier
-                .size(50.dp)
-                .clip(RoundedCornerShape(6.dp))
-                .background(GameColors.PageBackground)
-                .border(
-                    1.dp,
-                    borderColor,
-                    RoundedCornerShape(6.dp)
-                )
-                .clickable { onClick() },
-            contentAlignment = Alignment.Center
-        ) {
-            if (disciple.isActive) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = disciple.discipleName,
-                        fontSize = 8.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black,
-                        maxLines = 1,
-                        textAlign = TextAlign.Center
-                    )
-                    Text(
-                        text = disciple.discipleRealm,
-                        fontSize = 7.sp,
-                        color = Color(0xFF666666)
-                    )
-                }
-            } else {
-                Text(
-                    text = "+",
-                    fontSize = 16.sp,
-                    color = Color(0xFF999999)
-                )
-            }
-        }
-        if (disciple.isActive) {
-            Spacer(modifier = Modifier.height(2.dp))
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(GameColors.PageBackground)
-                    .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
-                    .clickable { onRemove() }
-                    .padding(horizontal = 6.dp, vertical = 2.dp)
-            ) {
-                Text(
-                    text = "卸任",
-                    fontSize = 8.sp,
-                    color = Color.Black
-                )
-            }
-        }
-    }
-}
-
-@Composable
 private fun HerbGardenElderSelectionDialog(
     disciples: List<Disciple>,
     currentElderId: String?,
@@ -638,17 +491,16 @@ private fun HerbGardenElderSelectionDialog(
         9 to "炼气"
     )
 
-    val (allElderIds, allDirectDiscipleIds, allInnerDiscipleIds) = remember(elderSlots) { getOccupiedIds(elderSlots) }
+    val (allElderIds, allDirectDiscipleIds) = remember(elderSlots) { getOccupiedIds(elderSlots) }
 
-    val filteredDisciplesBase = remember(disciples, allElderIds, allDirectDiscipleIds, allInnerDiscipleIds) {
+    val filteredDisciplesBase = remember(disciples, allElderIds, allDirectDiscipleIds) {
         disciples.filter {
             it.realmLayer > 0 &&
             it.age >= 5 &&
             it.status == DiscipleStatus.IDLE &&
             it.discipleType == "inner" &&
             it.id !in allElderIds &&
-            it.id !in allDirectDiscipleIds &&
-            it.id !in allInnerDiscipleIds
+            it.id !in allDirectDiscipleIds
         }
     }
 
@@ -1311,17 +1163,16 @@ private fun HerbGardenDirectDiscipleSelectionDialog(
         9 to "炼气"
     )
 
-    val (allElderIds, allDirectDiscipleIds, allInnerDiscipleIds) = remember(elderSlots) { getOccupiedIds(elderSlots) }
+    val (allElderIds, allDirectDiscipleIds) = remember(elderSlots) { getOccupiedIds(elderSlots) }
 
-    val filteredDisciplesBase = remember(disciples, allElderIds, allDirectDiscipleIds, allInnerDiscipleIds) {
+    val filteredDisciplesBase = remember(disciples, allElderIds, allDirectDiscipleIds) {
         disciples.filter {
             it.realmLayer > 0 &&
             it.age >= 5 &&
             it.status == DiscipleStatus.IDLE &&
             it.discipleType == "inner" &&
             it.id !in allElderIds &&
-            it.id !in allDirectDiscipleIds &&
-            it.id !in allInnerDiscipleIds
+            it.id !in allDirectDiscipleIds
         }
     }
 
@@ -1509,17 +1360,16 @@ private fun HerbGardenInnerDiscipleSelectionDialog(
         9 to "炼气"
     )
 
-    val (allElderIds, allDirectDiscipleIds, allInnerDiscipleIds) = remember(elderSlots) { getOccupiedIds(elderSlots) }
+    val (allElderIds, allDirectDiscipleIds) = remember(elderSlots) { getOccupiedIds(elderSlots) }
 
-    val filteredDisciplesBase = remember(disciples, allElderIds, allDirectDiscipleIds, allInnerDiscipleIds) {
+    val filteredDisciplesBase = remember(disciples, allElderIds, allDirectDiscipleIds) {
         disciples.filter {
             it.realmLayer > 0 &&
             it.age >= 5 &&
             it.status == DiscipleStatus.IDLE &&
             it.discipleType == "inner" &&
             it.id !in allElderIds &&
-            it.id !in allDirectDiscipleIds &&
-            it.id !in allInnerDiscipleIds
+            it.id !in allDirectDiscipleIds
         }
     }
 

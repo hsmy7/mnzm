@@ -192,12 +192,6 @@ data class ElderSlots(
     val alchemyDisciples: List<DirectDiscipleSlot> = emptyList(),
     val forgeDisciples: List<DirectDiscipleSlot> = emptyList(),
     val libraryDisciples: List<DirectDiscipleSlot> = emptyList(),
-    // 内门弟子槽位（天工峰8个）
-    val forgeInnerDisciples: List<DirectDiscipleSlot> = emptyList(),
-    // 内门弟子槽位（丹鼎殿8个）
-    val alchemyInnerDisciples: List<DirectDiscipleSlot> = emptyList(),
-    // 内门弟子槽位（灵药宛8个）
-    val herbGardenInnerDisciples: List<DirectDiscipleSlot> = emptyList(),
     // 灵药宛储备弟子
     val herbGardenReserveDisciples: List<DirectDiscipleSlot> = emptyList(),
     // 丹鼎殿储备弟子

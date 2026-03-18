@@ -46,8 +46,6 @@ fun ForgeDialog(
     val elderSlots = gameData?.elderSlots
     val forgeElder = elderSlots?.forgeElder?.let { viewModel.getElderDisciple(it) }
     val forgeDisciples = elderSlots?.forgeDisciples ?: emptyList()
-    val forgeInnerDisciples = elderSlots?.forgeInnerDisciples ?: emptyList()
-    var showInnerDiscipleSelection by remember { mutableStateOf<Int?>(null) }
     
     var showReserveDiscipleDialog by remember { mutableStateOf(false) }
     var showAddReserveDialog by remember { mutableStateOf(false) }
@@ -120,12 +118,6 @@ fun ForgeDialog(
                         directDisciples = forgeDisciples,
                         onDirectDiscipleClick = { index -> showDirectDiscipleSelection = index },
                         onDirectDiscipleRemove = { index -> viewModel.removeDirectDisciple("forge", index) }
-                    )
-                    
-                    ForgeInnerDiscipleSection(
-                        innerDisciples = forgeInnerDisciples,
-                        onInnerDiscipleClick = { index -> showInnerDiscipleSelection = index },
-                        onInnerDiscipleRemove = { index -> viewModel.removeInnerDisciple("forge", index) }
                     )
                     
                     HorizontalDivider(
@@ -205,18 +197,6 @@ fun ForgeDialog(
             onSelect = { discipleId ->
                 viewModel.assignDirectDisciple("forge", slotIndex, discipleId)
                 showDirectDiscipleSelection = null
-            }
-        )
-    }
-    
-    showInnerDiscipleSelection?.let { slotIndex ->
-        ForgeInnerDiscipleSelectionDialog(
-            disciples = disciples.filter { it.isAlive },
-            elderSlots = elderSlots ?: ElderSlots(),
-            onDismiss = { showInnerDiscipleSelection = null },
-            onSelect = { discipleId ->
-                viewModel.assignInnerDisciple("forge", slotIndex, discipleId)
-                showInnerDiscipleSelection = null
             }
         )
     }
@@ -370,60 +350,6 @@ private fun ForgeDirectDiscipleSection(
 }
 
 @Composable
-private fun ForgeInnerDiscipleSection(
-    innerDisciples: List<DirectDiscipleSlot>,
-    onInnerDiscipleClick: (Int) -> Unit,
-    onInnerDiscipleRemove: (Int) -> Unit
-) {
-    Column(
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            text = "内门弟子",
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color(0xFF666666)
-        )
-        
-        Column(
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
-            ) {
-                (0 until 4).forEach { index ->
-                    val disciple = innerDisciples.getOrNull(index) ?: DirectDiscipleSlot(index = index)
-                    ForgeInnerDiscipleSlotItem(
-                        index = index,
-                        disciple = disciple,
-                        onClick = { onInnerDiscipleClick(index) },
-                        onRemove = { onInnerDiscipleRemove(index) }
-                    )
-                }
-            }
-            
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
-            ) {
-                (4 until 8).forEach { index ->
-                    val disciple = innerDisciples.getOrNull(index) ?: DirectDiscipleSlot(index = index)
-                    ForgeInnerDiscipleSlotItem(
-                        index = index,
-                        disciple = disciple,
-                        onClick = { onInnerDiscipleClick(index) },
-                        onRemove = { onInnerDiscipleRemove(index) }
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
 private fun ForgeDirectDiscipleSlotItem(
     index: Int,
     disciple: DirectDiscipleSlot,
@@ -495,85 +421,6 @@ private fun ForgeDirectDiscipleSlotItem(
                 Text(
                     text = "卸任",
                     fontSize = 9.sp,
-                    color = Color.Black
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ForgeInnerDiscipleSlotItem(
-    index: Int,
-    disciple: DirectDiscipleSlot,
-    onClick: () -> Unit,
-    onRemove: () -> Unit
-) {
-    val borderColor = if (disciple.isActive) {
-        try {
-            Color(android.graphics.Color.parseColor(disciple.discipleSpiritRootColor))
-        } catch (e: Exception) {
-            Color(0xFF4CAF50)
-        }
-    } else {
-        GameColors.Border
-    }
-
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Box(
-            modifier = Modifier
-                .size(50.dp)
-                .clip(RoundedCornerShape(6.dp))
-                .background(GameColors.PageBackground)
-                .border(
-                    1.dp,
-                    borderColor,
-                    RoundedCornerShape(6.dp)
-                )
-                .clickable { onClick() },
-            contentAlignment = Alignment.Center
-        ) {
-            if (disciple.isActive) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = disciple.discipleName,
-                        fontSize = 8.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black,
-                        maxLines = 1,
-                        textAlign = TextAlign.Center
-                    )
-                    Text(
-                        text = disciple.discipleRealm,
-                        fontSize = 7.sp,
-                        color = Color(0xFF666666)
-                    )
-                }
-            } else {
-                Text(
-                    text = "+",
-                    fontSize = 16.sp,
-                    color = Color(0xFF999999)
-                )
-            }
-        }
-        if (disciple.isActive) {
-            Spacer(modifier = Modifier.height(2.dp))
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(GameColors.PageBackground)
-                    .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
-                    .clickable { onRemove() }
-                    .padding(horizontal = 6.dp, vertical = 2.dp)
-            ) {
-                Text(
-                    text = "卸任",
-                    fontSize = 8.sp,
                     color = Color.Black
                 )
             }
@@ -1024,218 +871,6 @@ private fun ForgeDirectDiscipleSelectionDialog(
     )
 }
 
-@Composable
-private fun ForgeInnerDiscipleSelectionDialog(
-    disciples: List<Disciple>,
-    elderSlots: ElderSlots,
-    onDismiss: () -> Unit,
-    onSelect: (String) -> Unit
-) {
-    var selectedRealmFilter by remember { mutableStateOf<Int?>(null) }
-
-    val realmFilters = listOf(
-        0 to "仙人",
-        1 to "渡劫",
-        2 to "大乘",
-        3 to "合体",
-        4 to "炼虚",
-        5 to "化神",
-        6 to "元婴",
-        7 to "金丹",
-        8 to "筑基",
-        9 to "炼气"
-    )
-
-    val allDirectDiscipleIds = remember(elderSlots) {
-        listOf(
-            elderSlots.herbGardenDisciples,
-            elderSlots.alchemyDisciples,
-            elderSlots.forgeDisciples,
-            elderSlots.libraryDisciples
-        ).flatten().mapNotNull { it.discipleId }
-    }
-
-    val allInnerDiscipleIds = remember(elderSlots) {
-        listOf(
-            elderSlots.forgeInnerDisciples,
-            elderSlots.alchemyInnerDisciples,
-            elderSlots.herbGardenInnerDisciples
-        ).flatten().mapNotNull { it.discipleId }
-    }
-
-    val filteredDisciplesBase = remember(disciples, elderSlots, allDirectDiscipleIds, allInnerDiscipleIds) {
-        disciples.filter {
-            it.realmLayer > 0 &&
-            it.age >= 5 &&
-            it.status == DiscipleStatus.IDLE &&
-            it.discipleType == "inner" &&
-            !isDiscipleInAnyPosition(it.id, elderSlots) &&
-            !allDirectDiscipleIds.contains(it.id) &&
-            !allInnerDiscipleIds.contains(it.id)
-        }
-    }
-
-    val realmCounts = remember(filteredDisciplesBase) {
-        filteredDisciplesBase.groupingBy { it.realm }.eachCount()
-    }
-
-    val sortedDisciples = remember(filteredDisciplesBase) {
-        filteredDisciplesBase.sortedWith(
-            compareBy<Disciple> { it.realm }
-                .thenByDescending { it.realmLayer }
-                .thenByDescending { it.artifactRefining }
-        )
-    }
-
-    val filteredDisciples = remember(sortedDisciples, selectedRealmFilter) {
-        if (selectedRealmFilter == null) {
-            sortedDisciples
-        } else {
-            sortedDisciples.filter { it.realm == selectedRealmFilter }
-        }
-    }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
-        title = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "选择内门弟子",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-                Box(
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clip(CircleShape)
-                        .clickable { onDismiss() }
-                        .background(GameColors.CardBackground),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "×",
-                        fontSize = 16.sp,
-                        color = Color(0xFF666666)
-                    )
-                }
-            }
-        },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 400.dp)
-            ) {
-                Text(
-                    text = "推荐属性: 炼器",
-                    fontSize = 10.sp,
-                    color = Color(0xFF999999),
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        realmFilters.take(5).forEach { (realmVal, name) ->
-                            val isSelected = selectedRealmFilter == realmVal
-                            val count = realmCounts[realmVal] ?: 0
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(if (isSelected) GameColors.Border else GameColors.PageBackground)
-                                    .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
-                                    .clickable { selectedRealmFilter = if (isSelected) null else realmVal }
-                                    .padding(vertical = 4.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "$name $count",
-                                    fontSize = 9.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    color = Color.Black
-                                )
-                            }
-                        }
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        realmFilters.drop(5).forEach { (realmVal, name) ->
-                            val isSelected = selectedRealmFilter == realmVal
-                            val count = realmCounts[realmVal] ?: 0
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(if (isSelected) GameColors.Border else GameColors.PageBackground)
-                                    .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
-                                    .clickable { selectedRealmFilter = if (isSelected) null else realmVal }
-                                    .padding(vertical = 4.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "$name $count",
-                                    fontSize = 9.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    color = Color.Black
-                                )
-                            }
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                if (filteredDisciples.isEmpty()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "暂无可用弟子",
-                            fontSize = 12.sp,
-                            color = Color(0xFF999999)
-                        )
-                    }
-                } else {
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(4),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(filteredDisciples.size) { index ->
-                            val disciple = filteredDisciples[index]
-                            ForgeDiscipleSelectionCard(
-                                disciple = disciple,
-                                onClick = { onSelect(disciple.id) }
-                            )
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {}
-    )
-}
-
 private fun isDiscipleInAnyPosition(discipleId: String, elderSlots: ElderSlots): Boolean {
     if (elderSlots.viceSectMaster == discipleId) {
         return true
@@ -1272,17 +907,7 @@ private fun isDiscipleInAnyPosition(discipleId: String, elderSlots: ElderSlots):
         elderSlots.forgeReserveDisciples
     ).flatten().mapNotNull { it.discipleId }
     
-    if (allDirectDiscipleIds.contains(discipleId)) {
-        return true
-    }
-    
-    val allInnerDiscipleIds = listOf(
-        elderSlots.forgeInnerDisciples,
-        elderSlots.alchemyInnerDisciples,
-        elderSlots.herbGardenInnerDisciples
-    ).flatten().mapNotNull { it.discipleId }
-    
-    return allInnerDiscipleIds.contains(discipleId)
+    return allDirectDiscipleIds.contains(discipleId)
 }
 
 @Composable

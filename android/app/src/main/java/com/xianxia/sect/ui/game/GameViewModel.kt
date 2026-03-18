@@ -1678,76 +1678,6 @@ class GameViewModel @Inject constructor(
             }
         }
     }
-    
-    fun assignInnerDisciple(elderSlotType: String, slotIndex: Int, discipleId: String) {
-        viewModelScope.launch {
-            try {
-                val disciple = disciples.value.find { it.id == discipleId }
-                if (disciple == null) {
-                    _errorMessage.value = "弟子不存在"
-                    return@launch
-                }
-                
-                val currentGameData = gameEngine.gameData.value
-                val elderSlots = currentGameData.elderSlots
-                
-                val allElderIds = listOf(
-                    elderSlots.herbGardenElder,
-                    elderSlots.alchemyElder,
-                    elderSlots.forgeElder,
-                    elderSlots.libraryElder
-                )
-                val allDirectDiscipleIds = listOf(
-                    elderSlots.herbGardenDisciples,
-                    elderSlots.alchemyDisciples,
-                    elderSlots.forgeDisciples,
-                    elderSlots.libraryDisciples,
-                    elderSlots.spiritMineDeaconDisciples
-                ).flatten().mapNotNull { it.discipleId }
-                val allInnerDiscipleIds = listOf(
-                    elderSlots.forgeInnerDisciples,
-                    elderSlots.alchemyInnerDisciples,
-                    elderSlots.herbGardenInnerDisciples
-                ).flatten().mapNotNull { it.discipleId }
-                
-                if (allElderIds.contains(discipleId)) {
-                    _errorMessage.value = "该弟子已担任长老职位"
-                    return@launch
-                }
-                
-                if (allDirectDiscipleIds.contains(discipleId)) {
-                    _errorMessage.value = "该弟子已是其他长老的亲传弟子"
-                    return@launch
-                }
-                
-                if (allInnerDiscipleIds.contains(discipleId)) {
-                    _errorMessage.value = "该弟子已是内门弟子"
-                    return@launch
-                }
-                
-                gameEngine.assignInnerDisciple(
-                    elderSlotType = elderSlotType,
-                    slotIndex = slotIndex,
-                    discipleId = discipleId,
-                    discipleName = disciple.name,
-                    discipleRealm = disciple.realmName,
-                    discipleSpiritRootColor = disciple.spiritRoot.countColor
-                )
-            } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "分配失败"
-            }
-        }
-    }
-    
-    fun removeInnerDisciple(elderSlotType: String, slotIndex: Int) {
-        viewModelScope.launch {
-            try {
-                gameEngine.removeInnerDisciple(elderSlotType, slotIndex)
-            } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "卸任失败"
-            }
-        }
-    }
 
     fun getOuterElder(): Disciple? {
         val outerElderId = gameEngine.gameData.value.elderSlots.outerElder
@@ -2275,12 +2205,6 @@ class GameViewModel @Inject constructor(
             elderSlots.herbGardenReserveDisciples
         ).flatten().mapNotNull { it.discipleId }
 
-        val allInnerDiscipleIds = listOf(
-            elderSlots.forgeInnerDisciples,
-            elderSlots.alchemyInnerDisciples,
-            elderSlots.herbGardenInnerDisciples
-        ).flatten().mapNotNull { it.discipleId }
-
         return disciples.value
             .filter {
                 it.isAlive &&
@@ -2288,8 +2212,7 @@ class GameViewModel @Inject constructor(
                 it.realmLayer > 0 &&
                 it.status == DiscipleStatus.IDLE &&
                 !allElderIds.contains(it.id) &&
-                !allDirectDiscipleIds.contains(it.id) &&
-                !allInnerDiscipleIds.contains(it.id)
+                !allDirectDiscipleIds.contains(it.id)
             }
             .sortedByDescending { it.spiritPlanting }
     }
@@ -2323,12 +2246,6 @@ class GameViewModel @Inject constructor(
             elderSlots.forgeReserveDisciples
         ).flatten().mapNotNull { it.discipleId }
 
-        val allInnerDiscipleIds = listOf(
-            elderSlots.forgeInnerDisciples,
-            elderSlots.alchemyInnerDisciples,
-            elderSlots.herbGardenInnerDisciples
-        ).flatten().mapNotNull { it.discipleId }
-
         return disciples.value
             .filter {
                 it.isAlive &&
@@ -2336,8 +2253,7 @@ class GameViewModel @Inject constructor(
                 it.realmLayer > 0 &&
                 it.status == DiscipleStatus.IDLE &&
                 !allElderIds.contains(it.id) &&
-                !allDirectDiscipleIds.contains(it.id) &&
-                !allInnerDiscipleIds.contains(it.id)
+                !allDirectDiscipleIds.contains(it.id)
             }
             .sortedByDescending { it.pillRefining }
     }
@@ -2438,12 +2354,6 @@ class GameViewModel @Inject constructor(
             elderSlots.forgeReserveDisciples
         ).flatten().mapNotNull { it.discipleId }
 
-        val allInnerDiscipleIds = listOf(
-            elderSlots.forgeInnerDisciples,
-            elderSlots.alchemyInnerDisciples,
-            elderSlots.herbGardenInnerDisciples
-        ).flatten().mapNotNull { it.discipleId }
-
         return disciples.value
             .filter {
                 it.isAlive &&
@@ -2451,8 +2361,7 @@ class GameViewModel @Inject constructor(
                 it.realmLayer > 0 &&
                 it.status == DiscipleStatus.IDLE &&
                 !allElderIds.contains(it.id) &&
-                !allDirectDiscipleIds.contains(it.id) &&
-                !allInnerDiscipleIds.contains(it.id)
+                !allDirectDiscipleIds.contains(it.id)
             }
             .sortedByDescending { it.artifactRefining }
     }
@@ -2490,12 +2399,6 @@ class GameViewModel @Inject constructor(
             elderSlots.spiritMineDeaconDisciples
         ).flatten().mapNotNull { it.discipleId }
 
-        val allInnerDiscipleIds = listOf(
-            elderSlots.forgeInnerDisciples,
-            elderSlots.alchemyInnerDisciples,
-            elderSlots.herbGardenInnerDisciples
-        ).flatten().mapNotNull { it.discipleId }
-
         // 灵矿执事只能由内门弟子担任
         return disciples.value
             .filter {
@@ -2504,8 +2407,7 @@ class GameViewModel @Inject constructor(
                 it.realmLayer > 0 &&
                 it.status == DiscipleStatus.IDLE &&
                 !allElderIds.contains(it.id) &&
-                !allDirectDiscipleIds.contains(it.id) &&
-                !allInnerDiscipleIds.contains(it.id)
+                !allDirectDiscipleIds.contains(it.id)
             }
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
@@ -2554,12 +2456,6 @@ class GameViewModel @Inject constructor(
                     elderSlots.spiritMineDeaconDisciples
                 ).flatten().mapNotNull { it.discipleId }
 
-                val allInnerDiscipleIds = listOf(
-                    elderSlots.forgeInnerDisciples,
-                    elderSlots.alchemyInnerDisciples,
-                    elderSlots.herbGardenInnerDisciples
-                ).flatten().mapNotNull { it.discipleId }
-
                 if (allElderIds.contains(discipleId)) {
                     _errorMessage.value = "该弟子已担任长老职位"
                     return@launch
@@ -2567,11 +2463,6 @@ class GameViewModel @Inject constructor(
 
                 if (allDirectDiscipleIds.contains(discipleId)) {
                     _errorMessage.value = "该弟子已是其他长老的亲传弟子"
-                    return@launch
-                }
-
-                if (allInnerDiscipleIds.contains(discipleId)) {
-                    _errorMessage.value = "该弟子已是内门弟子"
                     return@launch
                 }
 
@@ -3703,9 +3594,6 @@ class GameViewModel @Inject constructor(
         if (elderSlots.libraryDisciples.any { it.discipleId == discipleId }) return "藏经阁亲传弟子"
 
         if (elderSlots.lawEnforcementDisciples.any { it.discipleId == discipleId }) return "执法弟子"
-        if (elderSlots.forgeInnerDisciples.any { it.discipleId == discipleId }) return "天工峰内门弟子"
-        if (elderSlots.alchemyInnerDisciples.any { it.discipleId == discipleId }) return "丹鼎殿内门弟子"
-        if (elderSlots.herbGardenInnerDisciples.any { it.discipleId == discipleId }) return "灵药宛内门弟子"
 
         if (gameData.spiritMineSlots.any { it.discipleId == discipleId }) return "采矿弟子"
         if (elderSlots.spiritMineDeaconDisciples.any { it.discipleId == discipleId }) return "灵矿执事"
