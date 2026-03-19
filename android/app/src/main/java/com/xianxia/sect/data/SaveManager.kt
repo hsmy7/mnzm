@@ -387,13 +387,23 @@ class SaveManager @Inject constructor(
     }
 
     private fun saveToFileWithChecksum(file: File, data: SaveData): String {
-        val json = gson.toJson(data)
-        val jsonBytes = json.toByteArray(Charsets.UTF_8)
         val digest = MessageDigest.getInstance("MD5")
-
-        GZIPOutputStream(FileOutputStream(file)).use { output ->
-            output.write(jsonBytes)
-            digest.update(jsonBytes)
+        
+        GZIPOutputStream(FileOutputStream(file)).use { gzipOutput ->
+            val digestStream = object : OutputStream() {
+                override fun write(b: Int) {
+                    digest.update(b.toByte())
+                    gzipOutput.write(b)
+                }
+                override fun write(b: ByteArray, off: Int, len: Int) {
+                    digest.update(b, off, len)
+                    gzipOutput.write(b, off, len)
+                }
+            }
+            OutputStreamWriter(digestStream, Charsets.UTF_8).use { writer ->
+                gson.toJson(data, writer)
+                writer.flush()
+            }
         }
 
         val checksum = digest.digest().joinToString("") { "%02x".format(it) }
@@ -734,19 +744,16 @@ class SaveManager @Inject constructor(
             val startTime = System.currentTimeMillis()
             Log.i(TAG, "Starting emergency save...")
 
-            // 使用简化的保存逻辑，跳过一些非必要的处理
             val emergencyFile = getEmergencySaveFile()
             val tempFile = File(emergencyFile.parent, "${emergencyFile.name}.tmp")
 
-            // 直接保存，不做数据清理以节省时间
-            val json = gson.toJson(data.copy(timestamp = System.currentTimeMillis()))
-            val jsonBytes = json.toByteArray(Charsets.UTF_8)
-
-            GZIPOutputStream(FileOutputStream(tempFile)).use { output ->
-                output.write(jsonBytes)
+            GZIPOutputStream(FileOutputStream(tempFile)).use { gzipOutput ->
+                OutputStreamWriter(gzipOutput, Charsets.UTF_8).use { writer ->
+                    gson.toJson(data.copy(timestamp = System.currentTimeMillis()), writer)
+                    writer.flush()
+                }
             }
 
-            // 原子性替换
             if (emergencyFile.exists()) {
                 emergencyFile.delete()
             }

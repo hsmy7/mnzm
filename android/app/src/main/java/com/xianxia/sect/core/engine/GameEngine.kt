@@ -99,7 +99,8 @@ class GameEngine {
         val events: List<GameEvent>,
         val battleLogs: List<BattleLog>,
         val alliances: List<Alliance>,
-        val supportTeams: List<SupportTeam>
+        val supportTeams: List<SupportTeam>,
+        val alchemySlots: List<AlchemySlot>
     )
     
     /**
@@ -122,7 +123,8 @@ class GameEngine {
                 events = _events.value,
                 battleLogs = _battleLogs.value,
                 alliances = _gameData.value.alliances,
-                supportTeams = _gameData.value.supportTeams
+                supportTeams = _gameData.value.supportTeams,
+                alchemySlots = _alchemySlots.value
             )
         }
     }
@@ -147,7 +149,8 @@ class GameEngine {
             events = _events.value,
             battleLogs = _battleLogs.value,
             alliances = _gameData.value.alliances,
-            supportTeams = _gameData.value.supportTeams
+            supportTeams = _gameData.value.supportTeams,
+            alchemySlots = _alchemySlots.value
         )
     }
     

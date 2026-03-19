@@ -377,7 +377,7 @@ class GameViewModel @Inject constructor(
                     battleLogs = snapshot.battleLogs,
                     alliances = snapshot.alliances,
                     supportTeams = snapshot.supportTeams,
-                    alchemySlots = gameEngine.alchemySlots.value
+                    alchemySlots = snapshot.alchemySlots
                 )
 
                 val success = saveManager.saveAsync(currentSlot, saveData)
@@ -415,7 +415,7 @@ class GameViewModel @Inject constructor(
             battleLogs = snapshot.battleLogs,
             alliances = snapshot.alliances,
             supportTeams = snapshot.supportTeams,
-            alchemySlots = gameEngine.alchemySlots.value
+            alchemySlots = snapshot.alchemySlots
         )
     }
     
@@ -442,7 +442,7 @@ class GameViewModel @Inject constructor(
             battleLogs = snapshot.battleLogs,
             alliances = snapshot.alliances,
             supportTeams = snapshot.supportTeams,
-            alchemySlots = gameEngine.alchemySlots.value
+            alchemySlots = snapshot.alchemySlots
         )
     }
 
@@ -671,29 +671,29 @@ class GameViewModel @Inject constructor(
         viewModelScope.launch {
             _isSaving.value = true
             try {
-                val currentGameData = gameEngine.gameData.value
-                if (currentGameData.sectName.isBlank()) {
+                val snapshot = gameEngine.getStateSnapshot()
+                if (snapshot.gameData.sectName.isBlank()) {
                     Log.e(TAG, "=== saveGame FAILED === gameData not initialized (sectName is blank)")
                     _errorMessage.value = "游戏数据未初始化"
                     return@launch
                 }
-                val updatedGameData = currentGameData.copy(currentSlot = slot)
+                val updatedGameData = snapshot.gameData.copy(currentSlot = slot)
                 val saveData = SaveData(
                     gameData = updatedGameData,
-                    disciples = gameEngine.disciples.value,
-                    equipment = gameEngine.equipment.value,
-                    manuals = gameEngine.manuals.value,
-                    pills = gameEngine.pills.value,
-                    materials = gameEngine.materials.value,
-                    herbs = gameEngine.herbs.value,
-                    seeds = gameEngine.seeds.value,
-                    teams = gameEngine.teams.value,
-                    slots = gameEngine.buildingSlots.value,
-                    events = gameEngine.events.value,
-                    battleLogs = gameEngine.battleLogs.value,
-                    alliances = gameEngine.gameData.value.alliances,
-                    supportTeams = gameEngine.gameData.value.supportTeams,
-                    alchemySlots = gameEngine.alchemySlots.value
+                    disciples = snapshot.disciples,
+                    equipment = snapshot.equipment,
+                    manuals = snapshot.manuals,
+                    pills = snapshot.pills,
+                    materials = snapshot.materials,
+                    herbs = snapshot.herbs,
+                    seeds = snapshot.seeds,
+                    teams = snapshot.teams,
+                    slots = snapshot.buildingSlots,
+                    events = snapshot.events,
+                    battleLogs = snapshot.battleLogs,
+                    alliances = snapshot.alliances,
+                    supportTeams = snapshot.supportTeams,
+                    alchemySlots = snapshot.alchemySlots
                 )
                 val success = saveManager.saveAsync(slot, saveData)
                 if (success) {
@@ -701,7 +701,6 @@ class GameViewModel @Inject constructor(
                     _saveSlots.value = saveManager.getSaveSlots()
                     _successMessage.value = "游戏保存成功"
                     
-                    // 记录游戏状态快照
                     Log.i(TAG, "=== saveGame SUCCESS === " +
                         "sectName=${updatedGameData.sectName}, year=${updatedGameData.gameYear}, " +
                         "month=${updatedGameData.gameMonth}, day=${updatedGameData.gameDay}, " +
@@ -729,29 +728,29 @@ class GameViewModel @Inject constructor(
             try {
                 _isSaving.value = true
                 val slot = slotIndex
-                val currentGameData = gameEngine.gameData.value
-                if (currentGameData.sectName.isBlank()) {
+                val snapshot = gameEngine.getStateSnapshot()
+                if (snapshot.gameData.sectName.isBlank()) {
                     Log.e(TAG, "=== saveToSlot FAILED === gameData not initialized (sectName is blank)")
                     _errorMessage.value = "游戏数据未初始化"
                     return@launch
                 }
-                val updatedGameData = currentGameData.copy(currentSlot = slot)
+                val updatedGameData = snapshot.gameData.copy(currentSlot = slot)
                 val saveData = SaveData(
                     gameData = updatedGameData,
-                    disciples = gameEngine.disciples.value,
-                    equipment = gameEngine.equipment.value,
-                    manuals = gameEngine.manuals.value,
-                    pills = gameEngine.pills.value,
-                    materials = gameEngine.materials.value,
-                    herbs = gameEngine.herbs.value,
-                    seeds = gameEngine.seeds.value,
-                    teams = gameEngine.teams.value,
-                    slots = gameEngine.buildingSlots.value,
-                    events = gameEngine.events.value,
-                    battleLogs = gameEngine.battleLogs.value,
-                    alliances = gameEngine.gameData.value.alliances,
-                    supportTeams = gameEngine.gameData.value.supportTeams,
-                    alchemySlots = gameEngine.alchemySlots.value
+                    disciples = snapshot.disciples,
+                    equipment = snapshot.equipment,
+                    manuals = snapshot.manuals,
+                    pills = snapshot.pills,
+                    materials = snapshot.materials,
+                    herbs = snapshot.herbs,
+                    seeds = snapshot.seeds,
+                    teams = snapshot.teams,
+                    slots = snapshot.buildingSlots,
+                    events = snapshot.events,
+                    battleLogs = snapshot.battleLogs,
+                    alliances = snapshot.alliances,
+                    supportTeams = snapshot.supportTeams,
+                    alchemySlots = snapshot.alchemySlots
                 )
                 val success = saveManager.saveAsync(slot, saveData)
                 if (success) {
@@ -3343,24 +3342,24 @@ class GameViewModel @Inject constructor(
         clearResources()
         
         try {
-            val currentGameData = gameEngine.gameData.value
-            val currentSlot = currentGameData.currentSlot
+            val snapshot = gameEngine.getStateSnapshotSync()
+            val currentSlot = snapshot.gameData.currentSlot
             val saveData = SaveData(
-                gameData = currentGameData,
-                disciples = gameEngine.disciples.value,
-                equipment = gameEngine.equipment.value,
-                manuals = gameEngine.manuals.value,
-                pills = gameEngine.pills.value,
-                materials = gameEngine.materials.value,
-                herbs = gameEngine.herbs.value,
-                seeds = gameEngine.seeds.value,
-                teams = gameEngine.teams.value,
-                slots = gameEngine.buildingSlots.value,
-                events = gameEngine.events.value,
-                battleLogs = gameEngine.battleLogs.value,
-                alliances = gameEngine.gameData.value.alliances,
-                supportTeams = gameEngine.gameData.value.supportTeams,
-                alchemySlots = gameEngine.alchemySlots.value
+                gameData = snapshot.gameData,
+                disciples = snapshot.disciples,
+                equipment = snapshot.equipment,
+                manuals = snapshot.manuals,
+                pills = snapshot.pills,
+                materials = snapshot.materials,
+                herbs = snapshot.herbs,
+                seeds = snapshot.seeds,
+                teams = snapshot.teams,
+                slots = snapshot.buildingSlots,
+                events = snapshot.events,
+                battleLogs = snapshot.battleLogs,
+                alliances = snapshot.alliances,
+                supportTeams = snapshot.supportTeams,
+                alchemySlots = snapshot.alchemySlots
             )
             saveManager.save(currentSlot, saveData)
             Log.i(TAG, "Auto save on exit completed, slot: $currentSlot")
