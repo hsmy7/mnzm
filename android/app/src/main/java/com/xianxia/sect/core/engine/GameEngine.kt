@@ -1426,52 +1426,31 @@ class GameEngine {
                         }
                     }
                     "material" -> {
-                        val existingMaterial = _materials.value.find { it.name == item.itemName }
-                        if (existingMaterial != null) {
-                            _materials.value = _materials.value.map { 
-                                if (it.name == item.itemName) it.copy(quantity = it.quantity + item.quantity) else it 
-                            }
-                        } else {
-                            val material = Material(
-                                id = java.util.UUID.randomUUID().toString(),
-                                name = item.itemName,
-                                rarity = item.rarity,
-                                quantity = item.quantity
-                            )
-                            _materials.value = _materials.value + material
-                        }
+                        val material = Material(
+                            id = java.util.UUID.randomUUID().toString(),
+                            name = item.itemName,
+                            rarity = item.rarity,
+                            quantity = item.quantity
+                        )
+                        addMaterialToWarehouse(material)
                     }
                     "herb" -> {
-                        val existingHerb = _herbs.value.find { it.name == item.itemName }
-                        if (existingHerb != null) {
-                            _herbs.value = _herbs.value.map { 
-                                if (it.name == item.itemName) it.copy(quantity = it.quantity + item.quantity) else it 
-                            }
-                        } else {
-                            val herb = Herb(
-                                id = java.util.UUID.randomUUID().toString(),
-                                name = item.itemName,
-                                rarity = item.rarity,
-                                quantity = item.quantity
-                            )
-                            _herbs.value = _herbs.value + herb
-                        }
+                        val herb = Herb(
+                            id = java.util.UUID.randomUUID().toString(),
+                            name = item.itemName,
+                            rarity = item.rarity,
+                            quantity = item.quantity
+                        )
+                        addHerbToWarehouse(herb)
                     }
                     "seed" -> {
-                        val existingSeed = _seeds.value.find { it.name == item.itemName }
-                        if (existingSeed != null) {
-                            _seeds.value = _seeds.value.map { 
-                                if (it.name == item.itemName) it.copy(quantity = it.quantity + item.quantity) else it 
-                            }
-                        } else {
-                            val seed = Seed(
-                                id = java.util.UUID.randomUUID().toString(),
-                                name = item.itemName,
-                                rarity = item.rarity,
-                                quantity = item.quantity
-                            )
-                            _seeds.value = _seeds.value + seed
-                        }
+                        val seed = Seed(
+                            id = java.util.UUID.randomUUID().toString(),
+                            name = item.itemName,
+                            rarity = item.rarity,
+                            quantity = item.quantity
+                        )
+                        addSeedToWarehouse(seed)
                     }
                 }
             }
@@ -2025,22 +2004,22 @@ class GameEngine {
             }
             
             if (result.pills.isNotEmpty()) {
-                _pills.value = _pills.value + result.pills
+                result.pills.forEach { addPillToWarehouse(it) }
                 result.pills.forEach { addEvent("获得丹药：${it.name}", EventType.SUCCESS) }
             }
             
             if (result.materials.isNotEmpty()) {
-                _materials.value = _materials.value + result.materials
+                result.materials.forEach { addMaterialToWarehouse(it) }
                 result.materials.forEach { addEvent("获得材料：${it.name}", EventType.SUCCESS) }
             }
             
             if (result.herbs.isNotEmpty()) {
-                _herbs.value = _herbs.value + result.herbs
+                result.herbs.forEach { addHerbToWarehouse(it) }
                 result.herbs.forEach { addEvent("获得草药：${it.name}", EventType.SUCCESS) }
             }
             
             if (result.seeds.isNotEmpty()) {
-                _seeds.value = _seeds.value + result.seeds
+                result.seeds.forEach { addSeedToWarehouse(it) }
                 result.seeds.forEach { addEvent("获得种子：${it.name}", EventType.SUCCESS) }
             }
             
@@ -4674,11 +4653,6 @@ class GameEngine {
     }
 
     private fun addPillToWarehouse(pill: Pill) {
-        if (pill.cannotStack) {
-            _pills.value = _pills.value + pill
-            return
-        }
-        
         val existingPill = _pills.value.find { 
             it.name == pill.name && it.rarity == pill.rarity && it.category == pill.category 
         }
@@ -5055,49 +5029,29 @@ class GameEngine {
     }
 
     private fun generateExplorationHerbDropSilent(dungeonName: String, minRarity: Int, maxRarity: Int): String {
-        // 从HerbDatabase生成真正的草药，根据品阶范围
         val herbTemplate = HerbDatabase.generateRandomHerb(minRarity, maxRarity)
-        // 添加到仓库（_herbs）
-        val existingHerb = _herbs.value.find { it.name == herbTemplate.name && it.rarity == herbTemplate.rarity }
-        if (existingHerb != null) {
-            _herbs.value = _herbs.value.map {
-                if (it.name == herbTemplate.name && it.rarity == herbTemplate.rarity) it.copy(quantity = it.quantity + 1)
-                else it
-            }
-        } else {
-            val newHerb = Herb(
-                id = UUID.randomUUID().toString(),
-                name = herbTemplate.name,
-                rarity = herbTemplate.rarity,
-                quantity = 1,
-                category = herbTemplate.category
-            )
-            _herbs.value = _herbs.value + newHerb
-        }
+        val newHerb = Herb(
+            id = UUID.randomUUID().toString(),
+            name = herbTemplate.name,
+            rarity = herbTemplate.rarity,
+            quantity = 1,
+            category = herbTemplate.category
+        )
+        addHerbToWarehouse(newHerb)
         return herbTemplate.name
     }
 
     private fun generateExplorationSeedDropSilent(dungeonName: String, minRarity: Int, maxRarity: Int): String {
-        // 从数据库模板生成种子，根据品阶范围
         val seedTemplate = HerbDatabase.generateRandomSeed(minRarity, maxRarity)
-        // 添加到仓库（_seeds）
-        val existingSeed = _seeds.value.find { it.name == seedTemplate.name && it.rarity == seedTemplate.rarity }
-        if (existingSeed != null) {
-            _seeds.value = _seeds.value.map {
-                if (it.name == seedTemplate.name && it.rarity == seedTemplate.rarity) it.copy(quantity = it.quantity + 1)
-                else it
-            }
-        } else {
-            val newSeed = Seed(
-                id = UUID.randomUUID().toString(),
-                name = seedTemplate.name,
-                rarity = seedTemplate.rarity,
-                quantity = 1,
-                growTime = seedTemplate.growTime,
-                yield = seedTemplate.yield
-            )
-            _seeds.value = _seeds.value + newSeed
-        }
+        val newSeed = Seed(
+            id = UUID.randomUUID().toString(),
+            name = seedTemplate.name,
+            rarity = seedTemplate.rarity,
+            quantity = 1,
+            growTime = seedTemplate.growTime,
+            yield = seedTemplate.yield
+        )
+        addSeedToWarehouse(newSeed)
         return seedTemplate.name
     }
 
@@ -5737,11 +5691,6 @@ class GameEngine {
         maxRarity: Int
     ): Pair<MutableList<Pill>, Pill> {
         val newPill = ItemDatabase.generateRandomPill(minRarity, maxRarity)
-        
-        if (newPill.cannotStack) {
-            currentPills.add(newPill)
-            return currentPills to newPill
-        }
         
         val existingPill = currentPills.find { 
             it.name == newPill.name && 
@@ -8705,107 +8654,67 @@ class GameEngine {
                 }
             }
             "pill" -> {
-                val existingPill = _pills.value.find { it.id == item.itemId }
-                if (existingPill != null) {
-                    _pills.value = _pills.value.map {
-                        if (it.id == item.itemId) it.copy(quantity = it.quantity + item.quantity)
-                        else it
-                    }
-                } else if (savedData is Pill) {
-                    _pills.value = _pills.value + savedData.copy(quantity = item.quantity)
+                val recipe = PillRecipeDatabase.getRecipeByName(item.name)
+                if (recipe != null) {
+                    val pill = Pill(
+                        id = java.util.UUID.randomUUID().toString(),
+                        name = item.name,
+                        description = item.description,
+                        rarity = item.rarity,
+                        quantity = item.quantity,
+                        category = recipe.category
+                    )
+                    addPillToWarehouse(pill)
                 } else {
-                    val recipe = PillRecipeDatabase.getRecipeByName(item.name)
-                    if (recipe != null) {
-                        val pill = Pill(
-                            id = item.itemId,
-                            name = item.name,
-                            description = item.description,
-                            rarity = item.rarity,
-                            quantity = item.quantity,
-                            category = recipe.category
-                        )
-                        _pills.value = _pills.value + pill
-                    } else {
-                        addEvent("无法恢复丹药: ${item.name}", EventType.WARNING)
-                    }
+                    addEvent("无法恢复丹药: ${item.name}", EventType.WARNING)
                 }
             }
             "material" -> {
-                val existingMaterial = _materials.value.find { it.id == item.itemId }
-                if (existingMaterial != null) {
-                    _materials.value = _materials.value.map {
-                        if (it.id == item.itemId) it.copy(quantity = it.quantity + item.quantity)
-                        else it
-                    }
-                } else if (savedData is Material) {
-                    _materials.value = _materials.value + savedData.copy(quantity = item.quantity)
+                val materialTemplate = BeastMaterialDatabase.getMaterialByName(item.name)
+                if (materialTemplate != null) {
+                    val material = Material(
+                        id = java.util.UUID.randomUUID().toString(),
+                        name = item.name,
+                        description = item.description,
+                        rarity = item.rarity,
+                        quantity = item.quantity,
+                        category = materialTemplate.materialCategory
+                    )
+                    addMaterialToWarehouse(material)
                 } else {
-                    val materialTemplate = BeastMaterialDatabase.getMaterialByName(item.name)
-                    if (materialTemplate != null) {
-                        val material = Material(
-                            id = item.itemId,
-                            name = item.name,
-                            description = item.description,
-                            rarity = item.rarity,
-                            quantity = item.quantity,
-                            category = materialTemplate.materialCategory
-                        )
-                        _materials.value = _materials.value + material
-                    } else {
-                        addEvent("无法恢复材料: ${item.name}", EventType.WARNING)
-                    }
+                    addEvent("无法恢复材料: ${item.name}", EventType.WARNING)
                 }
             }
             "herb" -> {
-                val existingHerb = _herbs.value.find { it.id == item.itemId }
-                if (existingHerb != null) {
-                    _herbs.value = _herbs.value.map {
-                        if (it.id == item.itemId) it.copy(quantity = it.quantity + item.quantity)
-                        else it
-                    }
-                } else if (savedData is Herb) {
-                    _herbs.value = _herbs.value + savedData.copy(quantity = item.quantity)
+                val herbTemplate = HerbDatabase.getHerbByName(item.name)
+                if (herbTemplate != null) {
+                    val herb = Herb(
+                        id = java.util.UUID.randomUUID().toString(),
+                        name = item.name,
+                        description = item.description,
+                        rarity = item.rarity,
+                        quantity = item.quantity
+                    )
+                    addHerbToWarehouse(herb)
                 } else {
-                    val herbTemplate = HerbDatabase.getHerbByName(item.name)
-                    if (herbTemplate != null) {
-                        val herb = Herb(
-                            id = item.itemId,
-                            name = item.name,
-                            description = item.description,
-                            rarity = item.rarity,
-                            quantity = item.quantity
-                        )
-                        _herbs.value = _herbs.value + herb
-                    } else {
-                        addEvent("无法恢复灵药: ${item.name}", EventType.WARNING)
-                    }
+                    addEvent("无法恢复灵药: ${item.name}", EventType.WARNING)
                 }
             }
             "seed" -> {
-                val existingSeed = _seeds.value.find { it.id == item.itemId }
-                if (existingSeed != null) {
-                    _seeds.value = _seeds.value.map {
-                        if (it.id == item.itemId) it.copy(quantity = it.quantity + item.quantity)
-                        else it
-                    }
-                } else if (savedData is Seed) {
-                    _seeds.value = _seeds.value + savedData.copy(quantity = item.quantity)
+                val seedTemplate = HerbDatabase.getSeedByName(item.name)
+                if (seedTemplate != null) {
+                    val seed = Seed(
+                        id = java.util.UUID.randomUUID().toString(),
+                        name = item.name,
+                        description = item.description,
+                        rarity = item.rarity,
+                        quantity = item.quantity,
+                        growTime = seedTemplate.growTime,
+                        yield = seedTemplate.yield
+                    )
+                    addSeedToWarehouse(seed)
                 } else {
-                    val seedTemplate = HerbDatabase.getSeedByName(item.name)
-                    if (seedTemplate != null) {
-                        val seed = Seed(
-                            id = item.itemId,
-                            name = item.name,
-                            description = item.description,
-                            rarity = item.rarity,
-                            quantity = item.quantity,
-                            growTime = seedTemplate.growTime,
-                            yield = seedTemplate.yield
-                        )
-                        _seeds.value = _seeds.value + seed
-                    } else {
-                        addEvent("无法恢复种子: ${item.name}", EventType.WARNING)
-                    }
+                    addEvent("无法恢复种子: ${item.name}", EventType.WARNING)
                 }
             }
         }
@@ -14400,20 +14309,7 @@ class GameEngine {
                         minRarity = redeemCode.rarity,
                         maxRarity = redeemCode.rarity
                     )
-                    val existingMaterial = _materials.value.find {
-                        it.name == material.name && it.rarity == material.rarity
-                    }
-                    if (existingMaterial != null) {
-                        _materials.value = _materials.value.map {
-                            if (it.id == existingMaterial.id) {
-                                it.copy(quantity = it.quantity + 1)
-                            } else {
-                                it
-                            }
-                        }
-                    } else {
-                        _materials.value = _materials.value + material
-                    }
+                    addMaterialToWarehouse(material)
                 }
                 "herb" -> {
                     val herbTemplate = HerbDatabase.generateRandomHerb(
@@ -14428,20 +14324,7 @@ class GameEngine {
                         category = herbTemplate.category,
                         quantity = 1
                     )
-                    val existingHerb = _herbs.value.find {
-                        it.name == herb.name && it.rarity == herb.rarity
-                    }
-                    if (existingHerb != null) {
-                        _herbs.value = _herbs.value.map {
-                            if (it.id == existingHerb.id) {
-                                it.copy(quantity = it.quantity + 1)
-                            } else {
-                                it
-                            }
-                        }
-                    } else {
-                        _herbs.value = _herbs.value + herb
-                    }
+                    addHerbToWarehouse(herb)
                 }
                 "seed" -> {
                     val seedTemplate = HerbDatabase.generateRandomSeed(
@@ -14457,20 +14340,7 @@ class GameEngine {
                         yield = seedTemplate.yield,
                         quantity = 1
                     )
-                    val existingSeed = _seeds.value.find {
-                        it.name == seed.name && it.rarity == seed.rarity
-                    }
-                    if (existingSeed != null) {
-                        _seeds.value = _seeds.value.map {
-                            if (it.id == existingSeed.id) {
-                                it.copy(quantity = it.quantity + 1)
-                            } else {
-                                it
-                            }
-                        }
-                    } else {
-                        _seeds.value = _seeds.value + seed
-                    }
+                    addSeedToWarehouse(seed)
                 }
                 "disciple" -> {
                     result.disciple?.let { disciple ->

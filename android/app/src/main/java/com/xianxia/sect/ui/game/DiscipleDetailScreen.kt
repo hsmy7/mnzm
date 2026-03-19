@@ -3895,9 +3895,6 @@ private fun RewardItemDetailDialog(
                 if (item.duration > 0 && !item.category.isBattlePill) {
                     add("  持续 ${item.duration} 月")
                 }
-                if (item.cannotStack) {
-                    add("  不可叠加")
-                }
             }
         }
         is Material -> {
