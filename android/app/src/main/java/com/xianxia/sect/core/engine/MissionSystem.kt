@@ -44,10 +44,10 @@ object MissionSystem {
     )
 
     private val extraItemCountRanges = mapOf(
-        MissionDifficulty.YELLOW to (1..5),
-        MissionDifficulty.MYSTERIOUS to (1..2),
-        MissionDifficulty.EARTH to (1..1),
-        MissionDifficulty.HEAVEN to (1..1)
+        MissionDifficulty.YELLOW to Pair(1, 5),
+        MissionDifficulty.MYSTERIOUS to Pair(1, 2),
+        MissionDifficulty.EARTH to Pair(1, 1),
+        MissionDifficulty.HEAVEN to Pair(1, 1)
     )
 
     private val extraItemMaxRarities = mapOf(
@@ -58,10 +58,10 @@ object MissionSystem {
     )
 
     private val materialCountRanges = mapOf(
-        MissionDifficulty.YELLOW to (5..10),
-        MissionDifficulty.MYSTERIOUS to (5..10),
-        MissionDifficulty.EARTH to (1..5),
-        MissionDifficulty.HEAVEN to (1..5)
+        MissionDifficulty.YELLOW to Pair(5, 10),
+        MissionDifficulty.MYSTERIOUS to Pair(5, 10),
+        MissionDifficulty.EARTH to Pair(1, 5),
+        MissionDifficulty.HEAVEN to Pair(1, 5)
     )
 
     private val materialMaxRarities = mapOf(
@@ -155,14 +155,20 @@ object MissionSystem {
             MissionType.ESCORT -> MissionRewardConfig(
                 spiritStones = baseSpiritStones
             )
-            MissionType.HUNT -> MissionRewardConfig(
-                spiritStones = baseSpiritStones,
-                extraItemChance = extraItemChances[difficulty] ?: 0.0,
-                extraItemCountRange = extraItemCountRanges[difficulty] ?: (0..0),
-                extraItemMaxRarity = extraItemMaxRarities[difficulty] ?: 2,
-                materialCountRange = materialCountRanges[difficulty] ?: (0..0),
-                materialMaxRarity = materialMaxRarities[difficulty] ?: 2
-            )
+            MissionType.HUNT -> {
+                val extraCountRange = extraItemCountRanges[difficulty] ?: Pair(0, 0)
+                val materialCountRange = materialCountRanges[difficulty] ?: Pair(0, 0)
+                MissionRewardConfig(
+                    spiritStones = baseSpiritStones,
+                    extraItemChance = extraItemChances[difficulty] ?: 0.0,
+                    extraItemCountMin = extraCountRange.first,
+                    extraItemCountMax = extraCountRange.second,
+                    extraItemMaxRarity = extraItemMaxRarities[difficulty] ?: 2,
+                    materialCountMin = materialCountRange.first,
+                    materialCountMax = materialCountRange.second,
+                    materialMaxRarity = materialMaxRarities[difficulty] ?: 2
+                )
+            }
             MissionType.PATROL -> createPatrolRewardConfig(difficulty)
             MissionType.INVESTIGATE -> MissionRewardConfig(
                 spiritStones = baseSpiritStones
@@ -174,18 +180,22 @@ object MissionSystem {
     private fun createPatrolRewardConfig(difficulty: MissionDifficulty): MissionRewardConfig {
         return when (difficulty) {
             MissionDifficulty.YELLOW -> MissionRewardConfig(
-                herbCountRange = (5..20),
+                herbCountMin = 5,
+                herbCountMax = 20,
                 herbMinRarity = 1,
                 herbMaxRarity = 1,
-                seedCountRange = (5..20),
+                seedCountMin = 5,
+                seedCountMax = 20,
                 seedMinRarity = 1,
                 seedMaxRarity = 1
             )
             MissionDifficulty.MYSTERIOUS -> MissionRewardConfig(
-                herbCountRange = (5..15),
+                herbCountMin = 5,
+                herbCountMax = 15,
                 herbMinRarity = 1,
                 herbMaxRarity = 2,
-                seedCountRange = (5..15),
+                seedCountMin = 5,
+                seedCountMax = 15,
                 seedMinRarity = 1,
                 seedMaxRarity = 2
             )
@@ -197,13 +207,15 @@ object MissionSystem {
         return when (difficulty) {
             MissionDifficulty.EARTH -> MissionRewardConfig(
                 extraItemChance = 1.0,
-                extraItemCountRange = (2..5),
+                extraItemCountMin = 2,
+                extraItemCountMax = 5,
                 extraItemMinRarity = 3,
                 extraItemMaxRarity = 4
             )
             MissionDifficulty.HEAVEN -> MissionRewardConfig(
                 extraItemChance = 1.0,
-                extraItemCountRange = (1..2),
+                extraItemCountMin = 1,
+                extraItemCountMax = 2,
                 extraItemMinRarity = 4,
                 extraItemMaxRarity = 6
             )
@@ -404,9 +416,9 @@ object MissionSystem {
     }
 
     private fun generateMaterials(rewards: MissionRewardConfig): List<Material> {
-        if (rewards.materialCountRange.first == 0) return emptyList()
+        if (rewards.materialCountMin == 0) return emptyList()
         
-        val count = Random.nextInt(rewards.materialCountRange.first, rewards.materialCountRange.last + 1)
+        val count = Random.nextInt(rewards.materialCountMin, rewards.materialCountMax + 1)
         val materials = mutableListOf<Material>()
         
         repeat(count) {
@@ -431,9 +443,9 @@ object MissionSystem {
     }
 
     private fun generateHerbs(rewards: MissionRewardConfig): List<Herb> {
-        if (rewards.herbCountRange.first == 0) return emptyList()
+        if (rewards.herbCountMin == 0) return emptyList()
         
-        val count = Random.nextInt(rewards.herbCountRange.first, rewards.herbCountRange.last + 1)
+        val count = Random.nextInt(rewards.herbCountMin, rewards.herbCountMax + 1)
         val herbs = mutableListOf<Herb>()
         
         repeat(count) {
@@ -451,9 +463,9 @@ object MissionSystem {
     }
 
     private fun generateSeeds(rewards: MissionRewardConfig): List<Seed> {
-        if (rewards.seedCountRange.first == 0) return emptyList()
+        if (rewards.seedCountMin == 0) return emptyList()
         
-        val count = Random.nextInt(rewards.seedCountRange.first, rewards.seedCountRange.last + 1)
+        val count = Random.nextInt(rewards.seedCountMin, rewards.seedCountMax + 1)
         val seeds = mutableListOf<Seed>()
         
         repeat(count) {
@@ -482,7 +494,7 @@ object MissionSystem {
             return ExtraItems()
         }
 
-        val count = Random.nextInt(rewards.extraItemCountRange.first, rewards.extraItemCountRange.last + 1)
+        val count = Random.nextInt(rewards.extraItemCountMin, rewards.extraItemCountMax + 1)
         return generateItemsByRarity(rewards.extraItemMinRarity, rewards.extraItemMaxRarity, count)
     }
 

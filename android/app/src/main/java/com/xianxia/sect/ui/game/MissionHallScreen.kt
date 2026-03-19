@@ -502,11 +502,11 @@ private fun getRewardPreview(mission: Mission): String {
         rewards.add("${mission.rewards.spiritStones}灵石")
     }
     
-    if (mission.rewards.materialCountRange.first > 0) {
+    if (mission.rewards.materialCountMin > 0) {
         rewards.add("妖兽材料")
     }
     
-    if (mission.rewards.herbCountRange.first > 0 || mission.rewards.seedCountRange.first > 0) {
+    if (mission.rewards.herbCountMin > 0 || mission.rewards.seedCountMin > 0) {
         rewards.add("草药/种子")
     }
     
