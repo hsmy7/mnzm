@@ -100,21 +100,20 @@ object BattleSystem {
         val realmLayer = ((teamAvgRealm - realmIndex) * 10).toInt().coerceIn(1, 9)
         val layerBonus = 1.0 + (realmLayer - 1) * 0.1
 
-        val variance = 0.8 + Random.nextDouble() * 0.4
+        // 炼虚及以上（realmIndex <= 4）属性为弟子200%，浮动±30%
+        // 化神及以下（realmIndex >= 5）属性为弟子150%，浮动±30%
+        val realmMultiplier = if (realmIndex <= 4) 2.0 else 1.5
+        val variance = 0.7 + Random.nextDouble() * 0.6
         val isPhysicalAttacker = Random.nextDouble() < 0.5
-        val atkMultiplier = 0.8 + Random.nextDouble() * 0.4
-
-        // 化神及以上（realmIndex <= 4）属性+200%
-        val realmMultiplier = if (realmIndex <= 4) 3.0 else 1.0
 
         val physicalAttack: Int
         val magicAttack: Int
         if (isPhysicalAttacker) {
-            physicalAttack = (realm.baseAtk * type.atkMod * atkMultiplier * realmMultiplier * layerBonus).toInt()
-            magicAttack = (realm.baseAtk * type.atkMod * 0.3 * atkMultiplier * realmMultiplier * layerBonus).toInt()
+            physicalAttack = (realm.baseAtk * type.atkMod * variance * realmMultiplier * layerBonus).toInt()
+            magicAttack = (realm.baseAtk * type.atkMod * 0.3 * variance * realmMultiplier * layerBonus).toInt()
         } else {
-            physicalAttack = (realm.baseAtk * type.atkMod * 0.3 * atkMultiplier * realmMultiplier * layerBonus).toInt()
-            magicAttack = (realm.baseAtk * type.atkMod * atkMultiplier * realmMultiplier * layerBonus).toInt()
+            physicalAttack = (realm.baseAtk * type.atkMod * 0.3 * variance * realmMultiplier * layerBonus).toInt()
+            magicAttack = (realm.baseAtk * type.atkMod * variance * realmMultiplier * layerBonus).toInt()
         }
 
         val hp = (realm.baseHp * type.hpMod * variance * realmMultiplier * layerBonus).toInt()

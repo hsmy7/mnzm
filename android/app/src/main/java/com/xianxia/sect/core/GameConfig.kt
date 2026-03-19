@@ -4,7 +4,7 @@ object GameConfig {
     
     object Game {
         const val NAME = "模拟宗门"
-        const val VERSION = "1.4.55"
+        const val VERSION = "1.4.57"
         const val AUTO_SAVE_INTERVAL = 60
         const val MAX_SAVE_SLOTS = 5
     }
@@ -164,18 +164,18 @@ object GameConfig {
             BeastTypeConfig("龟妖", "玄甲", 1.8, 0.8, 1.5, 0.5, 1.4)
         )
         
-        // 妖兽属性参照三灵根弟子（cultivationBonus = 1.2）
+        // 妖兽属性参照弟子原始属性（无灵根加成）
         val REALMS = mapOf(
-            0 to BeastRealmConfig(0, "仙人", 1800, 180, 90, 500),
-            1 to BeastRealmConfig(1, "渡劫", 1200, 120, 60, 360),
-            2 to BeastRealmConfig(2, "大乘", 960, 96, 48, 280),
-            3 to BeastRealmConfig(3, "合体", 720, 72, 36, 220),
-            4 to BeastRealmConfig(4, "炼虚", 600, 60, 30, 180),
-            5 to BeastRealmConfig(5, "化神", 480, 48, 24, 110),
-            6 to BeastRealmConfig(6, "元婴", 360, 36, 18, 80),
-            7 to BeastRealmConfig(7, "金丹", 240, 24, 12, 50),
-            8 to BeastRealmConfig(8, "筑基", 180, 18, 9, 30),
-            9 to BeastRealmConfig(9, "炼气", 120, 12, 6, 10)
+            0 to BeastRealmConfig(0, "仙人", 1500, 150, 75, 150),
+            1 to BeastRealmConfig(1, "渡劫", 1000, 100, 50, 100),
+            2 to BeastRealmConfig(2, "大乘", 800, 80, 40, 80),
+            3 to BeastRealmConfig(3, "合体", 600, 60, 30, 60),
+            4 to BeastRealmConfig(4, "炼虚", 500, 50, 25, 50),
+            5 to BeastRealmConfig(5, "化神", 400, 40, 20, 40),
+            6 to BeastRealmConfig(6, "元婴", 300, 30, 15, 30),
+            7 to BeastRealmConfig(7, "金丹", 200, 20, 10, 20),
+            8 to BeastRealmConfig(8, "筑基", 150, 15, 8, 15),
+            9 to BeastRealmConfig(9, "炼气", 100, 10, 5, 10)
         )
         
         fun getType(index: Int): BeastTypeConfig = TYPES.getOrElse(index) { TYPES[0] }
