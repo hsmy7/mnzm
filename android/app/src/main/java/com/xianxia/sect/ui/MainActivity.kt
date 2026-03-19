@@ -126,34 +126,41 @@ class MainActivity : ComponentActivity() {
     
     private fun onLoadingComplete() {
         if (!sessionManager.hasAgreedPrivacy) {
-            // 新用户：显示隐私政策，同意后进入登录界面
             showPrivacyPolicyScreen()
             return
         }
         
-        // 检测崩溃恢复
         if (crashHandler.hasCrashed() && saveManager.hasEmergencySave()) {
             Log.i(TAG, "Detected crash with emergency save, showing recovery dialog")
             showCrashRecoveryDialog()
             return
         }
         
-        // 清理崩溃状态（如果存在但没有紧急存档）
         if (crashHandler.hasCrashed()) {
             Log.i(TAG, "Crash detected but no emergency save, clearing crash state")
             crashHandler.clearCrashState()
         }
         
-        // 用户已同意隐私政策，初始化 TapTap SDK
         initTapTapSDK()
         
         if (sessionManager.isLoggedIn) {
-            // 老用户：直接进入存档选择界面
-            showSaveSelectScreen()
+            if (sessionManager.complianceVerified) {
+                showSaveSelectScreen()
+            } else {
+                val savedUnionId = sessionManager.unionId
+                if (!savedUnionId.isNullOrEmpty()) {
+                    Log.d(TAG, "已登录但未通过防沉迷验证，重新验证")
+                    showComplianceVerificationScreen(savedUnionId)
+                } else {
+                    Log.w(TAG, "已登录但缺少unionId，需要重新登录")
+                    sessionManager.clearSession()
+                    TapTapAuthManager.logout()
+                    showMainScreen()
+                }
+            }
             return
         }
         
-        // 新用户（已同意隐私政策但未登录）：进入登录界面
         showMainScreen()
     }
     
@@ -350,6 +357,7 @@ class MainActivity : ComponentActivity() {
             ComplianceManager.registerCallback(object : ComplianceManager.ComplianceCallback {
                 override fun onLoginSuccess() {
                     runOnUiThread {
+                        sessionManager.markComplianceVerified()
                         showSaveSelectScreen()
                     }
                 }
@@ -357,6 +365,7 @@ class MainActivity : ComponentActivity() {
                 override fun onSwitchAccount() = handleUserExit()
                 override fun onPeriodRestrict() {
                     runOnUiThread {
+                        sessionManager.complianceVerified = false
                         complianceDialogState.value = ComplianceDialogState.Restrict(
                             "时间限制",
                             "根据防沉迷规定，未成年人仅可在周五、周六、周日及法定节假日的20:00-21:00进行游戏。"
@@ -365,6 +374,7 @@ class MainActivity : ComponentActivity() {
                 }
                 override fun onDurationLimit() {
                     runOnUiThread {
+                        sessionManager.complianceVerified = false
                         complianceDialogState.value = ComplianceDialogState.Restrict(
                             "时长限制",
                             "您今日的游戏时长已用尽，请合理安排游戏时间。"
@@ -373,6 +383,7 @@ class MainActivity : ComponentActivity() {
                 }
                 override fun onAgeLimit() {
                     runOnUiThread {
+                        sessionManager.complianceVerified = false
                         complianceDialogState.value = ComplianceDialogState.AgeLimit
                     }
                 }
@@ -402,6 +413,28 @@ class MainActivity : ComponentActivity() {
     internal fun startComplianceCheck(unionId: String) {
         Log.d(TAG, "开始合规认证检查，unionId: $unionId")
         ComplianceManager.startup(this, unionId)
+    }
+    
+    private fun showComplianceVerificationScreen(unionId: String) {
+        setContent {
+            XianxiaTheme {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = Color.White
+                ) {
+                    ComplianceVerificationScreen(
+                        onStartVerification = {
+                            startComplianceCheck(unionId)
+                        },
+                        onLogout = {
+                            sessionManager.clearSession()
+                            TapTapAuthManager.logout()
+                            showMainScreen()
+                        }
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -544,23 +577,25 @@ fun MainScreen(
                         override fun onSuccess(data: LoginData) {
                             Log.d("MainScreen", "登录成功: ${data.name}")
                             
+                            val unionId = data.unionid
+                            if (unionId.isNullOrEmpty()) {
+                                Log.e("MainScreen", "unionId为空，登录失败")
+                                isLoading = false
+                                Toast.makeText(context, "登录失败，请重试", Toast.LENGTH_SHORT).show()
+                                return
+                            }
+                            
                             sessionManager.saveLoginSession(
                                 userId = data.openid ?: "taptap_${System.currentTimeMillis()}",
                                 userName = data.name ?: "TapTap用户",
-                                loginType = "taptap"
+                                loginType = "taptap",
+                                unionId = unionId
                             )
                             
                             Toast.makeText(context, "欢迎, ${data.name}!", Toast.LENGTH_SHORT).show()
                             
-                            val unionId = data.unionid
-                            if (!unionId.isNullOrEmpty()) {
-                                isLoading = false
-                                (context as? MainActivity)?.startComplianceCheck(unionId)
-                            } else {
-                                Log.w("MainScreen", "unionId为空，跳过合规认证")
-                                isLoading = false
-                                onLoginSuccess()
-                            }
+                            isLoading = false
+                            (context as? MainActivity)?.startComplianceCheck(unionId)
                         }
 
                         override fun onFailure(error: Exception) {
@@ -984,5 +1019,56 @@ fun CrashRecoveryDialog(
                 }
             }
         )
+    }
+}
+
+@Composable
+fun ComplianceVerificationScreen(
+    onStartVerification: () -> Unit,
+    onLogout: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(modifier = Modifier.height(100.dp))
+        
+        Text(
+            text = "实名认证",
+            style = MaterialTheme.typography.headlineLarge,
+            color = Color.Black,
+            fontWeight = FontWeight.Bold,
+            fontSize = 32.sp
+        )
+        
+        Spacer(modifier = Modifier.height(24.dp))
+        
+        Text(
+            text = "根据国家防沉迷相关规定，\n需要进行实名认证后方可进入游戏。",
+            color = Color(0xFF666666),
+            fontSize = 16.sp,
+            textAlign = TextAlign.Center,
+            lineHeight = 24.sp
+        )
+        
+        Spacer(modifier = Modifier.weight(1f))
+        
+        GameButton(
+            text = "开始认证",
+            onClick = onStartVerification,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
+        )
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        TextButton(onClick = onLogout) {
+            Text("切换账号", color = Color(0xFF666666), fontSize = 14.sp)
+        }
+        
+        Spacer(modifier = Modifier.height(100.dp))
     }
 }

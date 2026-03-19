@@ -31,12 +31,35 @@ class SessionManager @Inject constructor(
         get() = prefs.getBoolean(KEY_PRIVACY_AGREED, false)
         set(value) = edit { putBoolean(KEY_PRIVACY_AGREED, value) }
     
-    fun saveLoginSession(userId: String, userName: String, loginType: String) {
+    var complianceVerified: Boolean
+        get() = prefs.getBoolean(KEY_COMPLIANCE_VERIFIED, false)
+        set(value) = edit { putBoolean(KEY_COMPLIANCE_VERIFIED, value) }
+    
+    var unionId: String?
+        get() = prefs.getString(KEY_UNION_ID, null)
+        set(value) = edit { putString(KEY_UNION_ID, value) }
+    
+    fun saveLoginSession(userId: String, userName: String, loginType: String, unionId: String? = null) {
         edit {
             putBoolean(KEY_LOGGED_IN, true)
             putString(KEY_USER_ID, userId)
             putString(KEY_USER_NAME, userName)
             putString(KEY_LOGIN_TYPE, loginType)
+            putString(KEY_UNION_ID, unionId)
+            putBoolean(KEY_COMPLIANCE_VERIFIED, false)
+        }
+    }
+    
+    fun saveComplianceVerified(unionId: String) {
+        edit {
+            putBoolean(KEY_COMPLIANCE_VERIFIED, true)
+            putString(KEY_UNION_ID, unionId)
+        }
+    }
+    
+    fun markComplianceVerified() {
+        edit {
+            putBoolean(KEY_COMPLIANCE_VERIFIED, true)
         }
     }
     
@@ -46,6 +69,8 @@ class SessionManager @Inject constructor(
             remove(KEY_USER_ID)
             remove(KEY_USER_NAME)
             remove(KEY_LOGIN_TYPE)
+            putBoolean(KEY_COMPLIANCE_VERIFIED, false)
+            remove(KEY_UNION_ID)
         }
     }
 
@@ -60,5 +85,7 @@ class SessionManager @Inject constructor(
         private const val KEY_USER_NAME = "user_name"
         private const val KEY_LOGIN_TYPE = "login_type"
         private const val KEY_PRIVACY_AGREED = "privacy_agreed"
+        private const val KEY_COMPLIANCE_VERIFIED = "compliance_verified"
+        private const val KEY_UNION_ID = "union_id"
     }
 }

@@ -4,7 +4,7 @@ object GameConfig {
     
     object Game {
         const val NAME = "模拟宗门"
-        const val VERSION = "1.4.58"
+        const val VERSION = "1.4.60"
         const val AUTO_SAVE_INTERVAL = 60
         const val MAX_SAVE_SLOTS = 5
     }
@@ -21,7 +21,7 @@ object GameConfig {
     }
     
     object Cultivation {
-        const val BASE_SPEED = 5.0
+        const val BASE_SPEED = 10.0
         const val REALM_SPEED_BONUS_THRESHOLD = 3
         const val REALM_SPEED_BONUS = 1.5
         const val BREAKTHROUGH_LAYER_PENALTY = 0.9
