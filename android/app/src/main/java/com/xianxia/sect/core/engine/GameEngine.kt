@@ -331,6 +331,8 @@ class GameEngine {
         
         checkAndInitMerchant(1)
         
+        refreshMissions(1, 1)
+        
         addEvent("欢迎来到 $sectName！宗门初立，请好好经营。", EventType.SUCCESS)
     }
     
@@ -2085,10 +2087,6 @@ class GameEngine {
         }
         
         val data = _gameData.value
-        if (data.activeMissions.size >= data.missionSlots) {
-            addEvent("任务槽位已满", EventType.WARNING)
-            return false
-        }
         
         val activeMission = MissionSystem.createActiveMission(
             mission,
@@ -2113,29 +2111,6 @@ class GameEngine {
         )
         
         addEvent("开始执行${mission.name}", EventType.INFO)
-        return true
-    }
-    
-    fun expandMissionSlots(): Boolean {
-        val data = _gameData.value
-        
-        if (!MissionSystem.canExpandSlots(data.missionSlots)) {
-            addEvent("任务槽位已达上限", EventType.WARNING)
-            return false
-        }
-        
-        val cost = MissionSystem.calculateExpandCost(data.missionSlots)
-        if (data.spiritStones < cost) {
-            addEvent("灵石不足，扩建需要${cost}灵石", EventType.WARNING)
-            return false
-        }
-        
-        _gameData.value = data.copy(
-            missionSlots = data.missionSlots + 1,
-            spiritStones = data.spiritStones - cost
-        )
-        
-        addEvent("任务阁扩建成功，当前槽位：${data.missionSlots + 1}", EventType.SUCCESS)
         return true
     }
     

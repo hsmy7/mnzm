@@ -142,10 +142,9 @@ data class GameData(
     var playerHasAttackedAI: Boolean = false,
 
     // 任务阁系统
-    var missionSlots: Int = 2,
     var activeMissions: List<ActiveMission> = emptyList(),
     var availableMissions: List<Mission> = emptyList(),
-    var lastMissionRefreshYear: Int = 1
+    var lastMissionRefreshYear: Int = 0
 ) {
     val displayTime: String get() = "第${gameYear}年${gameMonth}月"
 

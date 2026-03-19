@@ -3306,16 +3306,6 @@ class GameViewModel @Inject constructor(
         }
     }
 
-    fun expandMissionSlots() {
-        viewModelScope.launch {
-            try {
-                gameEngine.expandMissionSlots()
-            } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "扩建失败"
-            }
-        }
-    }
-
     /**
      * 处理内存压力回调
      * @param level 内存压力级别，来自 ComponentCallbacks2

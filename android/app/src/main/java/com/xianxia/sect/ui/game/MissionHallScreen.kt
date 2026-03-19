@@ -32,12 +32,9 @@ fun MissionHallDialog(
 ) {
     var selectedMission by remember { mutableStateOf<Mission?>(null) }
     var showDiscipleSelection by remember { mutableStateOf(false) }
-    var showExpandConfirm by remember { mutableStateOf(false) }
 
     val activeMissions = gameData?.activeMissions ?: emptyList()
     val availableMissions = gameData?.availableMissions ?: emptyList()
-    val missionSlots = gameData?.missionSlots ?: 2
-    val usedSlots = activeMissions.size
     val currentYear = gameData?.gameYear ?: 1
     val currentMonth = gameData?.gameMonth ?: 1
 
@@ -49,37 +46,6 @@ fun MissionHallDialog(
             verticalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "任务槽位：$usedSlots/$missionSlots",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-                
-                if (MissionSystem.canExpandSlots(missionSlots)) {
-                    val expandCost = MissionSystem.calculateExpandCost(missionSlots)
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(Color(0xFF4CAF50))
-                            .clickable { showExpandConfirm = true }
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = "扩建 $expandCost 灵石",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                    }
-                }
-            }
-
             if (activeMissions.isNotEmpty()) {
                 Text(
                     text = "进行中的任务",
@@ -127,12 +93,9 @@ fun MissionHallDialog(
                         AvailableMissionCard(
                             mission = mission,
                             onClick = {
-                                if (usedSlots < missionSlots) {
-                                    selectedMission = mission
-                                    showDiscipleSelection = true
-                                }
-                            },
-                            enabled = usedSlots < missionSlots
+                                selectedMission = mission
+                                showDiscipleSelection = true
+                            }
                         )
                     }
                 }
@@ -152,44 +115,6 @@ fun MissionHallDialog(
             onDismiss = {
                 showDiscipleSelection = false
                 selectedMission = null
-            }
-        )
-    }
-
-    if (showExpandConfirm) {
-        val expandCost = MissionSystem.calculateExpandCost(missionSlots)
-        AlertDialog(
-            onDismissRequest = { showExpandConfirm = false },
-            containerColor = GameColors.PageBackground,
-            title = {
-                Text(
-                    text = "扩建任务槽位",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-            },
-            text = {
-                Text(
-                    text = "确定花费 $expandCost 灵石扩建一个任务槽位吗？\n当前槽位：$missionSlots → ${missionSlots + 1}",
-                    fontSize = 12.sp,
-                    color = Color.Black
-                )
-            },
-            confirmButton = {
-                GameButton(
-                    text = "确认扩建",
-                    onClick = {
-                        viewModel.expandMissionSlots()
-                        showExpandConfirm = false
-                    }
-                )
-            },
-            dismissButton = {
-                GameButton(
-                    text = "取消",
-                    onClick = { showExpandConfirm = false }
-                )
             }
         )
     }
@@ -267,18 +192,15 @@ private fun ActiveMissionCard(
 @Composable
 private fun AvailableMissionCard(
     mission: Mission,
-    onClick: () -> Unit,
-    enabled: Boolean
+    onClick: () -> Unit
 ) {
-    val bgColor = if (enabled) Color(0xFFF5F5F5) else Color(0xFFE0E0E0)
-
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
-            .background(bgColor)
+            .background(Color(0xFFF5F5F5))
             .border(1.dp, GameColors.Border, RoundedCornerShape(8.dp))
-            .then(if (enabled) Modifier.clickable { onClick() } else Modifier)
+            .clickable { onClick() }
             .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
@@ -290,7 +212,7 @@ private fun AvailableMissionCard(
                 text = mission.name,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
-                color = if (enabled) Color.Black else Color(0xFF999999)
+                color = Color.Black
             )
             Text(
                 text = mission.difficulty.displayName,
@@ -331,25 +253,17 @@ private fun AvailableMissionCard(
                 color = Color(0xFF4CAF50)
             )
 
-            if (enabled) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(Color(0xFF4CAF50))
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        text = "选择弟子",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                }
-            } else {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(Color(0xFF4CAF50))
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
                 Text(
-                    text = "槽位已满",
+                    text = "选择弟子",
                     fontSize = 10.sp,
-                    color = Color(0xFF999999)
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
                 )
             }
         }

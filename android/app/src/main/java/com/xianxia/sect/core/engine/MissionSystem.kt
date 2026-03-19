@@ -25,9 +25,6 @@ import kotlin.random.Random
 
 object MissionSystem {
     const val TEAM_SIZE = 5
-    const val MIN_SLOTS = 2
-    const val MAX_SLOTS = 5
-    const val SLOT_EXPAND_COST = 5000
 
     private val spiritStoneRewards = mapOf(
         MissionDifficulty.YELLOW to 500,
@@ -522,18 +519,6 @@ object MissionSystem {
         }
 
         return ExtraItems(pills, equipment, manuals)
-    }
-
-    fun calculateExpandCost(currentSlots: Int): Int {
-        return SLOT_EXPAND_COST * currentSlots
-    }
-
-    fun canExpandSlots(currentSlots: Int): Boolean {
-        return currentSlots < MAX_SLOTS
-    }
-
-    fun getAvailableSlotsCount(activeMissions: Int, totalSlots: Int): Int {
-        return totalSlots - activeMissions
     }
 
     fun shouldRefreshMissions(lastRefreshYear: Int, currentYear: Int): Boolean {
