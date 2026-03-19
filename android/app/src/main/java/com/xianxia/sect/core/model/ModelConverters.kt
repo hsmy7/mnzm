@@ -442,4 +442,14 @@ object ModelConverters {
     @JvmStatic
     fun toAIBattleTeamList(value: String): List<AIBattleTeam> =
         gson.fromJson(value, object : TypeToken<List<AIBattleTeam>>() {}.type) ?: emptyList()
+
+    @TypeConverter
+    @JvmStatic
+    fun fromEquipmentNurtureData(value: EquipmentNurtureData?): String = 
+        if (value != null) gson.toJson(value) else ""
+
+    @TypeConverter
+    @JvmStatic
+    fun toEquipmentNurtureData(value: String): EquipmentNurtureData? =
+        if (value.isEmpty()) null else gson.fromJson(value, EquipmentNurtureData::class.java)
 }

@@ -1022,7 +1022,8 @@ object DatabaseMigrations {
             MIGRATION_44_45,
             MIGRATION_45_46,
             MIGRATION_46_47,
-            MIGRATION_47_48
+            MIGRATION_47_48,
+            MIGRATION_48_49
         )
 
     private val MIGRATION_35_36 = object : Migration(35, 36) {
@@ -1486,6 +1487,39 @@ object DatabaseMigrations {
                     baseSpeed = CAST(10.0 * (1.0 + combatStatsVariance / 100.0) AS INTEGER)
                 WHERE baseHp = 100 AND combatStatsVariance != 0
             """)
+        }
+
+        private fun getExistingColumns(db: SupportSQLiteDatabase, tableName: String): Set<String> {
+            val columns = mutableSetOf<String>()
+            val cursor = db.query("PRAGMA table_info($tableName)")
+            cursor.use {
+                val nameIndex = it.getColumnIndex("name")
+                while (it.moveToNext()) {
+                    columns.add(it.getString(nameIndex))
+                }
+            }
+            return columns
+        }
+    }
+
+    private val MIGRATION_48_49 = object : Migration(48, 49) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            val columns = getExistingColumns(db, "disciples")
+            if (!columns.contains("manualMasteries")) {
+                db.execSQL("ALTER TABLE disciples ADD COLUMN manualMasteries TEXT NOT NULL DEFAULT '{}'")
+            }
+            if (!columns.contains("weaponNurture")) {
+                db.execSQL("ALTER TABLE disciples ADD COLUMN weaponNurture TEXT")
+            }
+            if (!columns.contains("armorNurture")) {
+                db.execSQL("ALTER TABLE disciples ADD COLUMN armorNurture TEXT")
+            }
+            if (!columns.contains("bootsNurture")) {
+                db.execSQL("ALTER TABLE disciples ADD COLUMN bootsNurture TEXT")
+            }
+            if (!columns.contains("accessoryNurture")) {
+                db.execSQL("ALTER TABLE disciples ADD COLUMN accessoryNurture TEXT")
+            }
         }
 
         private fun getExistingColumns(db: SupportSQLiteDatabase, tableName: String): Set<String> {

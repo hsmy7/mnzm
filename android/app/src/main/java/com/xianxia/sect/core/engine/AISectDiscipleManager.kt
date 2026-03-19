@@ -31,7 +31,7 @@ object AISectDiscipleManager {
         "梁", "宋", "郑", "谢", "韩", "唐", "冯", "于", "董", "萧"
     )
     
-    fun generateRandomDisciple(sectName: String, maxRealm: Int = 9): AISectDisciple {
+    fun generateRandomDisciple(sectName: String, maxRealm: Int = 9): Disciple {
         val gender = if (Random.nextBoolean()) "male" else "female"
         val name = generateName(gender)
         val spiritRoot = generateSpiritRoot()
@@ -48,7 +48,7 @@ object AISectDiscipleManager {
         val baseLifespan = GameConfig.Realm.get(9).maxAge
         val lifespan = (baseLifespan * (1 + lifespanBonus)).toInt().coerceAtLeast(1)
         
-        return AISectDisciple(
+        return Disciple(
             id = java.util.UUID.randomUUID().toString(),
             name = name,
             realm = 9,
@@ -158,7 +158,7 @@ object AISectDiscipleManager {
         if (sect.isPlayerSect) return sect
         
         val recruitCount = Random.nextInt(1, 11)
-        val newDisciples = mutableListOf<AISectDisciple>()
+        val newDisciples = mutableListOf<Disciple>()
         
         repeat(recruitCount) {
             val disciple = generateRandomDisciple(sect.name, sect.maxRealm)
@@ -293,11 +293,11 @@ object AISectDiscipleManager {
     }
     
     private fun updateEquipmentNurture(
-        disciple: AISectDisciple,
+        disciple: Disciple,
         equipmentId: String?,
         currentNurture: EquipmentNurtureData?,
-        nurtureSetter: (AISectDisciple, EquipmentNurtureData?) -> AISectDisciple
-    ): AISectDisciple {
+        nurtureSetter: (Disciple, EquipmentNurtureData?) -> Disciple
+    ): Disciple {
         if (equipmentId == null) return disciple
         
         val template = EquipmentDatabase.getById(equipmentId) ?: return disciple
@@ -362,7 +362,7 @@ object AISectDiscipleManager {
             else -> Random.nextInt(15, 26)
         }
         
-        val disciples = mutableListOf<AISectDisciple>()
+        val disciples = mutableListOf<Disciple>()
         
         val maxRealm = when (sect.level) {
             0 -> 5
@@ -430,7 +430,7 @@ object AISectDiscipleManager {
         return distribution
     }
     
-    private fun adjustDiscipleRealm(disciple: AISectDisciple, targetRealm: Int): AISectDisciple {
+    private fun adjustDiscipleRealm(disciple: Disciple, targetRealm: Int): Disciple {
         if (targetRealm == 9) return disciple
         
         val newLifespan = GameConfig.Realm.get(targetRealm).maxAge

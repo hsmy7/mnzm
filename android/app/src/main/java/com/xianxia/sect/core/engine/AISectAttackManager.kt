@@ -1,7 +1,6 @@
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.model.AIBattleTeam
-import com.xianxia.sect.core.model.AISectDisciple
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.GameData
@@ -156,7 +155,7 @@ object AISectAttackManager {
         )
     }
     
-    fun createDefenseTeam(defender: WorldSect): List<AISectDisciple> {
+    fun createDefenseTeam(defender: WorldSect): List<Disciple> {
         return defender.aiDisciples
             .filter { it.isAlive }
             .sortedByDescending { it.realm }
@@ -352,7 +351,7 @@ object AISectAttackManager {
         )
     }
     
-    private fun convertToCombatant(disciple: AISectDisciple, isAttacker: Boolean): AICombatant {
+    private fun convertToCombatant(disciple: Disciple, isAttacker: Boolean): AICombatant {
         val stats = disciple.getBaseStats()
         val talents = disciple.getTalentEffects()
         

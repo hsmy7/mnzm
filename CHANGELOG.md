@@ -1,5 +1,44 @@
 # 模拟宗门 - 更新日志
 
+## [1.4.58] - 2026-03-19
+
+### 重构
+- **玩家弟子与AI弟子代码合并**
+  - 删除 `AISectDisciple` 类，统一使用 `Disciple` 类
+  - AI弟子现在共享玩家弟子的完整属性和方法
+  - 新增 `manualMasteries` 功法熟练度属性
+  - 新增装备培养数据属性（`weaponNurture`、`armorNurture`、`bootsNurture`、`accessoryNurture`）
+  - 新增 `calculateCultivationSpeed()` 简化版方法
+  - 新增 `EquipmentNurtureData` 数据类及 TypeConverter
+
+### 优化
+- **方法命名规范化**
+  - `generateAISectDisciples` → `generateSectDisciples`
+  - `processAISectDisciplesCultivation` → `processSectDisciplesCultivation`
+  - `processAISectDisciplesRecruitment` → `processSectDisciplesRecruitment`
+  - `processAISectDisciplesAging` → `processSectDisciplesAging`
+
+### 系统
+- 数据库版本：48 → 49
+- 版本号：1.4.58 (build 1458)
+
+---
+
+## [1.4.57] - 2026-03-19
+
+### 调整
+- **妖兽属性计算调整**
+  - 妖兽基础属性改为参照弟子原始属性（无灵根加成）
+  - 化神及以下妖兽属性为弟子属性的150%，浮动±30%
+  - 炼虚及以上妖兽属性为弟子属性的200%，浮动±30%
+  - 统一所有属性（HP/攻击/防御/速度）浮动范围为±30%
+
+### 系统
+- 数据库版本：48
+- 版本号：1.4.57 (build 1457)
+
+---
+
 ## [1.4.56] - 2026-03-19
 
 ### 修复

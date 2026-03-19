@@ -3,6 +3,7 @@ package com.xianxia.sect.core.model
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.data.ManualDatabase
 import com.xianxia.sect.core.data.TalentDatabase
 import com.xianxia.sect.core.engine.ManualProficiencySystem
 
@@ -36,6 +37,12 @@ data class Disciple(
     
     var manualIds: List<String> = emptyList(),
     var talentIds: List<String> = emptyList(),
+    var manualMasteries: Map<String, Int> = emptyMap(),
+    
+    var weaponNurture: EquipmentNurtureData? = null,
+    var armorNurture: EquipmentNurtureData? = null,
+    var bootsNurture: EquipmentNurtureData? = null,
+    var accessoryNurture: EquipmentNurtureData? = null,
     
     var spiritStones: Int = 0,
     var soulPower: Int = 10,
@@ -237,7 +244,7 @@ data class Disciple(
     }
 
     // 获取天赋效果汇总
-    private fun getTalentEffects(): Map<String, Double> {
+    fun getTalentEffects(): Map<String, Double> {
         val effects = mutableMapOf<String, Double>()
         val talents = TalentDatabase.getTalentsByIds(talentIds)
         talents.forEach { talent ->
@@ -357,6 +364,38 @@ data class Disciple(
         }
         
         totalBonus += additionalBonus
+        
+        return baseSpeed * (1.0 + totalBonus)
+    }
+    
+    fun calculateCultivationSpeed(): Double {
+        val baseSpeed = GameConfig.Cultivation.BASE_SPEED
+        var totalBonus = 0.0
+        
+        totalBonus += (spiritRoot.cultivationBonus - 1.0)
+        totalBonus += (comprehensionSpeedBonus - 1.0)
+        totalBonus += (cultivationSpeedBonus - 1.0)
+        
+        manualIds.forEach { manualId ->
+            val manual = ManualDatabase.getById(manualId)
+            if (manual != null) {
+                val mastery = manualMasteries[manualId] ?: 0
+                val masteryBonus = when {
+                    mastery >= 100 -> 1.5
+                    mastery >= 80 -> 1.3
+                    mastery >= 60 -> 1.2
+                    mastery >= 40 -> 1.1
+                    mastery >= 20 -> 1.05
+                    else -> 1.0
+                }
+                val cultivationSpeedPercent = manual.stats["cultivationSpeedPercent"] ?: 0
+                totalBonus += cultivationSpeedPercent * masteryBonus / 100.0
+            }
+        }
+        
+        val talentEffects = getTalentEffects()
+        val cultivationSpeedBonus = talentEffects["cultivationSpeed"] ?: 0.0
+        totalBonus += cultivationSpeedBonus
         
         return baseSpeed * (1.0 + totalBonus)
     }
@@ -558,4 +597,11 @@ data class RewardSelectedItem(
     val name: String,
     val rarity: Int,
     val quantity: Int
+)
+
+data class EquipmentNurtureData(
+    val equipmentId: String,
+    val rarity: Int,
+    val nurtureLevel: Int = 0,
+    val nurtureProgress: Int = 0
 )

@@ -1138,7 +1138,7 @@ class GameEngine {
         removeDeadDisciplesFromBattleTeam()
     }
     
-    private fun generateAISectDefenseTeam(targetSect: WorldSect): List<AISectDisciple> {
+    private fun generateAISectDefenseTeam(targetSect: WorldSect): List<Disciple> {
         val sortedDisciples = targetSect.aiDisciples
             .filter { it.isAlive }
             .sortedBy { it.realm }
@@ -1148,7 +1148,7 @@ class GameEngine {
     
     private fun executeBattleTeamCombat(
         teamMembers: List<Disciple>,
-        defenseTeam: List<AISectDisciple>,
+        defenseTeam: List<Disciple>,
         targetSect: WorldSect
     ): BattleTeamCombatResult {
         val teamCombatants = teamMembers.map { disciple ->
@@ -1696,8 +1696,8 @@ class GameEngine {
                 "refreshRecruitList" to { refreshRecruitList(year) },
                 "resetSectGiftYear" to { resetSectGiftYear() },
                 "processSectRelationNaturalChange" to { processSectRelationNaturalChange(year) },
-                "processAISectDisciplesRecruitment" to { processAISectDisciplesRecruitment(year) },
-                "processAISectDisciplesAging" to { processAISectDisciplesAging(year) },
+                "processSectDisciplesRecruitment" to { processSectDisciplesRecruitment(year) },
+                "processSectDisciplesAging" to { processSectDisciplesAging(year) },
                 "generateYearlyItemsForAISects" to { generateYearlyItemsForAISects() },
                 "processOuterTournament" to { processOuterTournament(year) }
             )
@@ -1713,9 +1713,9 @@ class GameEngine {
         }
         
         try {
-            processAISectDisciplesCultivation()
+            processSectDisciplesCultivation()
         } catch (e: Exception) {
-            Log.e(TAG, "Error in processAISectDisciplesCultivation - " +
+            Log.e(TAG, "Error in processSectDisciplesCultivation - " +
                 "Game: Year=$year, Month=$month, Sect=${data.sectName}", e)
         }
     }
@@ -10923,7 +10923,7 @@ class GameEngine {
      * 从AI宗门真实弟子生成探查敌人
      * 使用AI弟子的真实属性
      */
-    private fun generateScoutEnemiesFromAIDisciples(aiDisciples: List<AISectDisciple>): List<BattleEnemy> {
+    private fun generateScoutEnemiesFromAIDisciples(aiDisciples: List<Disciple>): List<BattleEnemy> {
         return aiDisciples.map { disciple ->
             val stats = disciple.getBaseStats()
             BattleEnemy(
@@ -11093,7 +11093,7 @@ class GameEngine {
      * 大型宗门(2): 最高大乘(2)，1-5名大乘弟子，以下各境界10-30名
      * 顶级宗门(3): 最高渡劫(1)，1-5名渡劫弟子，以下各境界10-30名
      */
-    private fun generateAISectDisciples(sectLevel: Int): Map<Int, Int> {
+    private fun generateSectDisciples(sectLevel: Int): Map<Int, Int> {
         val disciples = mutableMapOf<Int, Int>()
 
         when (sectLevel) {
@@ -13243,13 +13243,13 @@ class GameEngine {
 
     /**
      * 从AI宗门的真实弟子中选择支援弟子
-     * @return Pair<选中的AISectDisciple列表, 更新后的WorldSect>
+     * @return Pair<选中的Disciple列表, 更新后的WorldSect>
      */
     private fun selectRealSupportDisciples(
         sect: WorldSect,
         supportSize: Int,
         maxRealm: Int
-    ): Pair<List<AISectDisciple>, WorldSect> {
+    ): Pair<List<Disciple>, WorldSect> {
         val eligibleDisciples = sect.aiDisciples
             .filter { it.isAlive && it.realm <= maxRealm }
             .sortedByDescending { it.realm }
@@ -13272,42 +13272,6 @@ class GameEngine {
         val updatedSect = sect.copy(aiDisciples = updatedAiDisciples)
         
         return Pair(selectedAiDisciples, updatedSect)
-    }
-    
-    /**
-     * 将AISectDisciple转换为Disciple
-     */
-    private fun convertAISectDiscipleToDisciple(aiDisciple: AISectDisciple, year: Int): Disciple {
-        return Disciple(
-            id = aiDisciple.id,
-            name = aiDisciple.name,
-            realm = aiDisciple.realm,
-            realmLayer = aiDisciple.realmLayer,
-            cultivation = aiDisciple.cultivation,
-            spiritRootType = aiDisciple.spiritRootType,
-            age = aiDisciple.age,
-            lifespan = aiDisciple.lifespan,
-            isAlive = true,
-            gender = if (Random.nextBoolean()) "male" else "female",
-            weaponId = aiDisciple.weaponId,
-            armorId = aiDisciple.armorId,
-            bootsId = aiDisciple.bootsId,
-            accessoryId = aiDisciple.accessoryId,
-            manualIds = aiDisciple.manualIds,
-            talentIds = aiDisciple.talentIds,
-            comprehension = aiDisciple.comprehension,
-            status = DiscipleStatus.IDLE,
-            loyalty = Random.nextInt(60, 80),
-            combatStatsVariance = aiDisciple.combatStatsVariance,
-            recruitedMonth = year * 12,
-            baseHp = aiDisciple.baseHp,
-            baseMp = aiDisciple.baseMp,
-            basePhysicalAttack = aiDisciple.basePhysicalAttack,
-            baseMagicAttack = aiDisciple.baseMagicAttack,
-            basePhysicalDefense = aiDisciple.basePhysicalDefense,
-            baseMagicDefense = aiDisciple.baseMagicDefense,
-            baseSpeed = aiDisciple.baseSpeed
-        )
     }
 
     /**
@@ -13986,7 +13950,7 @@ class GameEngine {
         }
     }
     
-    private fun processAISectDisciplesCultivation() {
+    private fun processSectDisciplesCultivation() {
         val data = _gameData.value
         var updatedSects = data.worldMapSects.map { sect ->
             AISectDiscipleManager.processMonthlyCultivation(sect)
@@ -14000,7 +13964,7 @@ class GameEngine {
         _gameData.value = data.copy(worldMapSects = updatedSects)
     }
     
-    private fun processAISectDisciplesRecruitment(year: Int) {
+    private fun processSectDisciplesRecruitment(year: Int) {
         val data = _gameData.value
         val updatedSects = data.worldMapSects.map { sect ->
             AISectDiscipleManager.recruitDisciplesForSect(sect, year)
@@ -14008,7 +13972,7 @@ class GameEngine {
         _gameData.value = data.copy(worldMapSects = updatedSects)
     }
     
-    private fun processAISectDisciplesAging(year: Int) {
+    private fun processSectDisciplesAging(year: Int) {
         val data = _gameData.value
         val updatedSects = data.worldMapSects.map { sect ->
             AISectDiscipleManager.processAging(sect)

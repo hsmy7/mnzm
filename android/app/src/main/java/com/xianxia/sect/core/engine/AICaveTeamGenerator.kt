@@ -62,7 +62,7 @@ object AICaveTeamGenerator {
     }
     
     private fun convertToAICaveDisciple(
-        disciple: AISectDisciple,
+        disciple: Disciple,
         index: Int
     ): AICaveDisciple {
         val baseStats = disciple.getBaseStats()
