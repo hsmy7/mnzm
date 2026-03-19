@@ -46,6 +46,10 @@ object TribulationSystem {
         }
     }
     
+    fun needsHeartDemon(disciple: Disciple): Boolean {
+        return disciple.realm <= 6
+    }
+    
     fun trialThunderTribulation(disciple: Disciple): TribulationResult {
         val newRealmIndex = disciple.realm - 1
         val thunderTribulation = createThunderTribulation(newRealmIndex)
@@ -84,14 +88,21 @@ object TribulationSystem {
         val realmConfig = GameConfig.Realm.get(realmIndex)
         val multiplier = realmConfig.multiplier
         
+        val basePhysicalAttack = (10 * multiplier).toInt()
+        val baseMagicAttack = (5 * multiplier).toInt()
+        val basePhysicalDefense = (5 * multiplier).toInt()
+        val baseMagicDefense = (3 * multiplier).toInt()
+        val baseMaxHp = (100 * multiplier).toInt()
+        val baseMaxMp = (50 * multiplier).toInt()
+        
         return ThunderTribulation(
             name = "${GameConfig.Realm.getName(realmIndex)}雷劫",
-            physicalAttack = (50 * multiplier * 0.6).toInt(),
-            magicAttack = (50 * multiplier * 0.6).toInt(),
-            physicalDefense = (30 * multiplier).toInt(),
-            magicDefense = (30 * multiplier).toInt(),
-            maxHp = (1000 * multiplier).toInt(),
-            maxMp = (500 * multiplier).toInt()
+            physicalAttack = basePhysicalAttack,
+            magicAttack = baseMagicAttack,
+            physicalDefense = basePhysicalDefense,
+            magicDefense = baseMagicDefense,
+            maxHp = baseMaxHp,
+            maxMp = baseMaxMp
         )
     }
     

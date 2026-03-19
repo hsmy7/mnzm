@@ -3813,12 +3813,12 @@ class GameEngine {
             }
 
             if (disciple.realm > 0) {
-                val needsHeartDemon = disciple.realm <= 5
+                val needsHeartDemon = TribulationSystem.needsHeartDemon(disciple)
                 
                 if (needsHeartDemon) {
                     val heartResult = TribulationSystem.trialHeartDemon(disciple)
                     if (!heartResult.success) {
-                        addEvent("${disciple.name} 突破失败，未能战胜心魔", EventType.INFO)
+                        addEvent("${disciple.name} 突破失败，未能战胜心魔（${heartResult.message}）", EventType.INFO)
                         return disciple.copy(
                             cultivation = 0.0,
                             breakthroughFailCount = disciple.breakthroughFailCount + 1
