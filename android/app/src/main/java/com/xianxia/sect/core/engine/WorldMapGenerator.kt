@@ -485,7 +485,7 @@ object WorldMapGenerator {
                 val sect1 = aiSects[i]
                 val sect2 = aiSects[j]
                 
-                var initialFavor = 30
+                var initialFavor = 50
                 
                 if (sect1.isRighteous == sect2.isRighteous) {
                     initialFavor += 10

@@ -444,7 +444,8 @@ data class SectRelation(
     val sectId1: String,
     val sectId2: String,
     var favor: Int = 30,
-    var lastInteractionYear: Int = 0
+    var lastInteractionYear: Int = 0,
+    var noGiftYears: Int = 0
 )
 
 data class SupportTeam(

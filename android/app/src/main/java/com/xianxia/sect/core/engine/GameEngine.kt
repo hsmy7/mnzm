@@ -1730,14 +1730,6 @@ class GameEngine {
         val previousYear = data.gameYear - 1
         val playerSect = data.worldMapSects.find { it.isPlayerSect }
         
-        val updatedSects = data.worldMapSects.map { sect ->
-            if (sect.id != "player") {
-                sect.copy(lastGiftYear = 0)
-            } else {
-                sect.copy(lastGiftYear = 0)
-            }
-        }
-
         var updatedRelations = data.sectRelations.toMutableList()
         if (playerSect != null) {
             for (i in updatedRelations.indices) {
@@ -1745,12 +1737,26 @@ class GameEngine {
                 if (relation.sectId1 == playerSect.id || relation.sectId2 == playerSect.id) {
                     val otherSectId = if (relation.sectId1 == playerSect.id) relation.sectId2 else relation.sectId1
                     val targetSect = data.worldMapSects.find { it.id == otherSectId }
-                    if (targetSect != null && targetSect.lastGiftYear != previousYear) {
-                        val newFavor = (relation.favor - 1).coerceAtLeast(0)
-                        updatedRelations[i] = relation.copy(favor = newFavor, lastInteractionYear = data.gameYear)
+                    if (targetSect != null) {
+                        val giftedLastYear = targetSect.lastGiftYear == previousYear
+                        if (giftedLastYear) {
+                            updatedRelations[i] = relation.copy(noGiftYears = 0)
+                        } else {
+                            val newNoGiftYears = relation.noGiftYears + 1
+                            if (newNoGiftYears >= 3) {
+                                val newFavor = (relation.favor - 1).coerceAtLeast(0)
+                                updatedRelations[i] = relation.copy(favor = newFavor, noGiftYears = 0, lastInteractionYear = data.gameYear)
+                            } else {
+                                updatedRelations[i] = relation.copy(noGiftYears = newNoGiftYears)
+                            }
+                        }
                     }
                 }
             }
+        }
+
+        val updatedSects = data.worldMapSects.map { sect ->
+            sect.copy(lastGiftYear = 0)
         }
 
         _gameData.value = data.copy(worldMapSects = updatedSects, sectRelations = updatedRelations)
@@ -12831,7 +12837,11 @@ class GameEngine {
                 
                 if (existingAllies2.contains(sect1.id)) return@forEach
 
-                // 计算结盟评分
+                val relation = getSectRelation(sect1.id, sect2.id, data.sectRelations)
+                val favor = relation?.favor ?: 30
+                
+                if (favor < 90) return@forEach
+
                 val baseScore = calculateAllianceScore(sect1, sect2, data.sectRelations)
                 
                 // 添加随机波动 (-2 到 +3)
@@ -12983,7 +12993,8 @@ class GameEngine {
             val relation = relations[index]
             relations[index] = relation.copy(
                 favor = (relation.favor + favorDelta).coerceIn(0, 100),
-                lastInteractionYear = if (year > 0) year else relation.lastInteractionYear
+                lastInteractionYear = if (year > 0) year else relation.lastInteractionYear,
+                noGiftYears = if (favorDelta > 0) 0 else relation.noGiftYears
             )
         } else {
             relations.add(SectRelation(
@@ -13014,7 +13025,7 @@ class GameEngine {
         return if (index >= 0) {
             relations.mapIndexed { i, relation ->
                 if (i == index) {
-                    relation.copy(favor = newFavor.coerceIn(0, 100), lastInteractionYear = year)
+                    relation.copy(favor = newFavor.coerceIn(0, 100), lastInteractionYear = year, noGiftYears = 0)
                 } else {
                     relation
                 }
@@ -13024,7 +13035,8 @@ class GameEngine {
                 sectId1 = id1,
                 sectId2 = id2,
                 favor = newFavor.coerceIn(0, 100),
-                lastInteractionYear = year
+                lastInteractionYear = year,
+                noGiftYears = 0
             )
         }
     }
