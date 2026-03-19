@@ -445,7 +445,7 @@ data class Disciple(
 }
 
 enum class DiscipleStatus {
-    IDLE, CULTIVATING, EXPLORING, ALCHEMY, FORGING, FARMING, STUDYING, BATTLE, WORKING, SCOUTING, MINING, REFLECTING, LAW_ENFORCING, PREACHING, MANAGING, GROWING;
+    IDLE, CULTIVATING, EXPLORING, ALCHEMY, FORGING, FARMING, STUDYING, BATTLE, WORKING, SCOUTING, MINING, REFLECTING, LAW_ENFORCING, PREACHING, MANAGING, GROWING, ON_MISSION;
 
     val displayName: String get() = when (this) {
         IDLE -> "空闲中"
@@ -464,6 +464,7 @@ enum class DiscipleStatus {
         PREACHING -> "传道中"
         MANAGING -> "管理中"
         GROWING -> "成长中"
+        ON_MISSION -> "执行任务中"
     }
 }
 

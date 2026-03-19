@@ -452,4 +452,22 @@ object ModelConverters {
     @JvmStatic
     fun toEquipmentNurtureData(value: String): EquipmentNurtureData? =
         if (value.isEmpty()) null else gson.fromJson(value, EquipmentNurtureData::class.java)
+
+    @TypeConverter
+    @JvmStatic
+    fun fromActiveMissionList(value: List<ActiveMission>): String = gson.toJson(value)
+
+    @TypeConverter
+    @JvmStatic
+    fun toActiveMissionList(value: String): List<ActiveMission> =
+        gson.fromJson(value, object : TypeToken<List<ActiveMission>>() {}.type) ?: emptyList()
+
+    @TypeConverter
+    @JvmStatic
+    fun fromMissionList(value: List<Mission>): String = gson.toJson(value)
+
+    @TypeConverter
+    @JvmStatic
+    fun toMissionList(value: String): List<Mission> =
+        gson.fromJson(value, object : TypeToken<List<Mission>>() {}.type) ?: emptyList()
 }

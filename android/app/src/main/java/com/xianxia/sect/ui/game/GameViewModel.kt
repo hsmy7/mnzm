@@ -222,6 +222,9 @@ class GameViewModel @Inject constructor(
     private val _showLawEnforcementHallDialog = MutableStateFlow(false)
     val showLawEnforcementHallDialog: StateFlow<Boolean> = _showLawEnforcementHallDialog.asStateFlow()
 
+    private val _showMissionHallDialog = MutableStateFlow(false)
+    val showMissionHallDialog: StateFlow<Boolean> = _showMissionHallDialog.asStateFlow()
+
     private val _showReflectionCliffDialog = MutableStateFlow(false)
     val showReflectionCliffDialog: StateFlow<Boolean> = _showReflectionCliffDialog.asStateFlow()
 
@@ -959,6 +962,14 @@ class GameViewModel @Inject constructor(
 
     fun closeLawEnforcementHallDialog() {
         _showLawEnforcementHallDialog.value = false
+    }
+
+    fun openMissionHallDialog() {
+        _showMissionHallDialog.value = true
+    }
+
+    fun closeMissionHallDialog() {
+        _showMissionHallDialog.value = false
     }
 
     fun openReflectionCliffDialog() {
@@ -3283,6 +3294,26 @@ class GameViewModel @Inject constructor(
 
     fun getMaterialById(id: String): Material? {
         return materials.value.find { it.id == id }
+    }
+
+    fun startMission(mission: com.xianxia.sect.core.model.Mission, selectedDisciples: List<Disciple>) {
+        viewModelScope.launch {
+            try {
+                gameEngine.startMission(mission, selectedDisciples)
+            } catch (e: Exception) {
+                _errorMessage.value = e.message ?: "开始任务失败"
+            }
+        }
+    }
+
+    fun expandMissionSlots() {
+        viewModelScope.launch {
+            try {
+                gameEngine.expandMissionSlots()
+            } catch (e: Exception) {
+                _errorMessage.value = e.message ?: "扩建失败"
+            }
+        }
     }
 
     /**

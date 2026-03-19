@@ -3394,6 +3394,7 @@ private fun BuildingsTab(viewModel: GameViewModel) {
     val showQingyunPeakDialog by viewModel.showQingyunPeakDialog.collectAsState()
     val showTianshuHallDialog by viewModel.showTianshuHallDialog.collectAsState()
     val showLawEnforcementHallDialog by viewModel.showLawEnforcementHallDialog.collectAsState()
+    val showMissionHallDialog by viewModel.showMissionHallDialog.collectAsState()
 
     val buildings = listOf(
         Triple("灵矿场", "开采灵石资源") { viewModel.openSpiritMineDialog() },
@@ -3405,6 +3406,7 @@ private fun BuildingsTab(viewModel: GameViewModel) {
         Triple("青云峰", "管理内门弟子") { viewModel.openQingyunPeakDialog() },
         Triple("天枢殿", "处理宗门事务") { viewModel.openTianshuHallDialog() },
         Triple("执法堂", "维护宗门纪律") { viewModel.openLawEnforcementHallDialog() },
+        Triple("任务阁", "派遣弟子执行任务") { viewModel.openMissionHallDialog() },
         Triple("思过崖", "悔过自新之地") { viewModel.openReflectionCliffDialog() }
     )
 
@@ -3549,6 +3551,15 @@ private fun BuildingsTab(viewModel: GameViewModel) {
             gameData = gameData,
             viewModel = viewModel,
             onDismiss = { viewModel.closeLawEnforcementHallDialog() }
+        )
+    }
+
+    if (showMissionHallDialog) {
+        MissionHallDialog(
+            gameData = gameData,
+            disciples = disciples.filter { it.isAlive },
+            viewModel = viewModel,
+            onDismiss = { viewModel.closeMissionHallDialog() }
         )
     }
 

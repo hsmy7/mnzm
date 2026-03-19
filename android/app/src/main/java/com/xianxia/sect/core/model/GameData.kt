@@ -139,7 +139,13 @@ data class GameData(
     // 玩家保护机制：AI宗门100年内不会攻击玩家宗门（若玩家主动攻击则解除）
     var playerProtectionEnabled: Boolean = true,
     var playerProtectionStartYear: Int = 1,
-    var playerHasAttackedAI: Boolean = false
+    var playerHasAttackedAI: Boolean = false,
+
+    // 任务阁系统
+    var missionSlots: Int = 2,
+    var activeMissions: List<ActiveMission> = emptyList(),
+    var availableMissions: List<Mission> = emptyList(),
+    var lastMissionRefreshYear: Int = 1
 ) {
     val displayTime: String get() = "第${gameYear}年${gameMonth}月"
 

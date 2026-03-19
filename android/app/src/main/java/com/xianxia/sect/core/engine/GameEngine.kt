@@ -1674,7 +1674,8 @@ class GameEngine {
             "processScoutInfoExpiry" to { processScoutInfoExpiry(year, month) },
             "processAISectAttackDecisions" to { processAISectAttackDecisions() },
             "resetMonthlyUsedPills" to { resetMonthlyUsedPills() },
-            "processDiscipleAutoBuyFromListing" to { processDiscipleAutoBuyFromListing() }
+            "processDiscipleAutoBuyFromListing" to { processDiscipleAutoBuyFromListing() },
+            "processMissions" to { processMissions(year, month) }
         )
 
         operations.forEach { (name, operation) ->
@@ -1710,6 +1711,8 @@ class GameEngine {
                         "Game: Year=$year, Sect=${data.sectName}", e)
                 }
             }
+            
+            refreshMissions(year, month)
         }
         
         try {
@@ -1990,6 +1993,171 @@ class GameEngine {
         _disciples.value = _disciples.value.map { disciple ->
             disciple.copy(monthlyUsedPillIds = emptyList())
         }
+    }
+    
+    private fun processMissions(year: Int, month: Int) {
+        val data = _gameData.value
+        val activeMissions = data.activeMissions
+        
+        if (activeMissions.isEmpty()) return
+        
+        val completedMissions = activeMissions.filter { it.isComplete(year, month) }
+        
+        completedMissions.forEach { activeMission ->
+            val missionDisciples = _disciples.value.filter { it.id in activeMission.discipleIds && it.isAlive }
+            val result = MissionSystem.processMissionCompletion(activeMission, missionDisciples)
+            
+            missionDisciples.filter { it.isAlive }.forEach { disciple ->
+                _disciples.value = _disciples.value.map {
+                    if (it.id == disciple.id) {
+                        it.copy(status = DiscipleStatus.IDLE)
+                    } else it
+                }
+            }
+            
+            addEvent("${activeMission.missionName}完成！", EventType.SUCCESS)
+            
+            if (result.spiritStones > 0) {
+                _gameData.value = _gameData.value.copy(
+                    spiritStones = _gameData.value.spiritStones + result.spiritStones
+                )
+                addEvent("获得${result.spiritStones}灵石", EventType.SUCCESS)
+            }
+            
+            if (result.pills.isNotEmpty()) {
+                _pills.value = _pills.value + result.pills
+                result.pills.forEach { addEvent("获得丹药：${it.name}", EventType.SUCCESS) }
+            }
+            
+            if (result.materials.isNotEmpty()) {
+                _materials.value = _materials.value + result.materials
+                result.materials.forEach { addEvent("获得材料：${it.name}", EventType.SUCCESS) }
+            }
+            
+            if (result.herbs.isNotEmpty()) {
+                _herbs.value = _herbs.value + result.herbs
+                result.herbs.forEach { addEvent("获得草药：${it.name}", EventType.SUCCESS) }
+            }
+            
+            if (result.seeds.isNotEmpty()) {
+                _seeds.value = _seeds.value + result.seeds
+                result.seeds.forEach { addEvent("获得种子：${it.name}", EventType.SUCCESS) }
+            }
+            
+            if (result.equipment.isNotEmpty()) {
+                _equipment.value = _equipment.value + result.equipment
+                result.equipment.forEach { addEvent("获得装备：${it.name}", EventType.SUCCESS) }
+            }
+            
+            if (result.manuals.isNotEmpty()) {
+                _manuals.value = _manuals.value + result.manuals
+                result.manuals.forEach { addEvent("获得功法：${it.name}", EventType.SUCCESS) }
+            }
+            
+            result.investigateOutcome?.let { outcome ->
+                when (outcome) {
+                    InvestigateOutcome.BEAST_RIOT -> addEvent("调查发现：妖兽作乱", EventType.WARNING)
+                    InvestigateOutcome.SECT_CONFLICT -> addEvent("调查发现：门派争斗", EventType.WARNING)
+                    InvestigateOutcome.DESTINED_CHILD -> {
+                        addEvent("调查发现：天命之子！", EventType.SUCCESS)
+                        val destinedChild = generateRandomDisciple().copy(
+                            discipleType = "outer"
+                        )
+                        _gameData.value = _gameData.value.copy(
+                            recruitList = _gameData.value.recruitList + destinedChild
+                        )
+                        addEvent("发现天命之子：${destinedChild.name}，灵根：${destinedChild.spiritRootName}，已加入招募列表", EventType.SUCCESS)
+                    }
+                    InvestigateOutcome.NOTHING_FOUND -> addEvent("调查结果：一无所获", EventType.INFO)
+                }
+            }
+        }
+        
+        val remainingMissions = activeMissions.filter { !it.isComplete(year, month) }
+        _gameData.value = _gameData.value.copy(activeMissions = remainingMissions)
+    }
+    
+    private fun refreshMissions(year: Int, month: Int) {
+        val data = _gameData.value
+        
+        if (!MissionSystem.shouldRefreshMissions(data.lastMissionRefreshYear, year)) return
+        
+        val currentMissions = MissionSystem.cleanExpiredMissions(
+            data.availableMissions,
+            year,
+            month
+        )
+        
+        val newMissions = MissionSystem.generateMissions(year, month)
+        
+        _gameData.value = data.copy(
+            availableMissions = currentMissions + newMissions,
+            lastMissionRefreshYear = year
+        )
+        
+        addEvent("任务阁刷新了新的任务", EventType.INFO)
+    }
+    
+    fun startMission(mission: Mission, selectedDisciples: List<Disciple>): Boolean {
+        val validation = MissionSystem.validateDisciplesForMission(mission, selectedDisciples)
+        if (!validation.valid) {
+            addEvent(validation.errorMessage ?: "无法开始任务", EventType.WARNING)
+            return false
+        }
+        
+        val data = _gameData.value
+        if (data.activeMissions.size >= data.missionSlots) {
+            addEvent("任务槽位已满", EventType.WARNING)
+            return false
+        }
+        
+        val activeMission = MissionSystem.createActiveMission(
+            mission,
+            selectedDisciples,
+            data.gameYear,
+            data.gameMonth
+        )
+        
+        selectedDisciples.forEach { disciple ->
+            _disciples.value = _disciples.value.map {
+                if (it.id == disciple.id) {
+                    it.copy(status = DiscipleStatus.ON_MISSION)
+                } else it
+            }
+        }
+        
+        val updatedAvailableMissions = data.availableMissions.filter { it.id != mission.id }
+        
+        _gameData.value = data.copy(
+            activeMissions = data.activeMissions + activeMission,
+            availableMissions = updatedAvailableMissions
+        )
+        
+        addEvent("开始执行${mission.name}", EventType.INFO)
+        return true
+    }
+    
+    fun expandMissionSlots(): Boolean {
+        val data = _gameData.value
+        
+        if (!MissionSystem.canExpandSlots(data.missionSlots)) {
+            addEvent("任务槽位已达上限", EventType.WARNING)
+            return false
+        }
+        
+        val cost = MissionSystem.calculateExpandCost(data.missionSlots)
+        if (data.spiritStones < cost) {
+            addEvent("灵石不足，扩建需要${cost}灵石", EventType.WARNING)
+            return false
+        }
+        
+        _gameData.value = data.copy(
+            missionSlots = data.missionSlots + 1,
+            spiritStones = data.spiritStones - cost
+        )
+        
+        addEvent("任务阁扩建成功，当前槽位：${data.missionSlots + 1}", EventType.SUCCESS)
+        return true
     }
     
     private fun clearBattlePillEffects(disciples: List<Disciple>) {
@@ -9404,6 +9572,10 @@ class GameEngine {
 
         if (disciple.status == DiscipleStatus.REFLECTING) {
             return DiscipleStatus.REFLECTING
+        }
+
+        if (data.activeMissions.any { discipleId in it.discipleIds }) {
+            return DiscipleStatus.ON_MISSION
         }
 
         val battleTeam = data.battleTeam
