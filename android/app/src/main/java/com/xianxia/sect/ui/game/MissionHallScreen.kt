@@ -264,12 +264,6 @@ private fun AvailableMissionCard(
                     color = Color(0xFF666666)
                 )
             }
-
-            Text(
-                text = getRewardPreview(mission),
-                fontSize = 10.sp,
-                color = Color(0xFF4CAF50)
-            )
         }
     }
 }
@@ -557,28 +551,6 @@ private fun getDifficultyColor(difficulty: MissionDifficulty): Color {
         MissionDifficulty.EARTH -> Color(0xFF8B4513)
         MissionDifficulty.HEAVEN -> Color(0xFF1E90FF)
     }
-}
-
-private fun getRewardPreview(mission: Mission): String {
-    val rewards = mutableListOf<String>()
-    
-    if (mission.rewards.spiritStones > 0) {
-        rewards.add("${mission.rewards.spiritStones}灵石")
-    }
-    
-    if (mission.rewards.materialCountMin > 0) {
-        rewards.add("妖兽材料")
-    }
-    
-    if (mission.rewards.herbCountMin > 0 || mission.rewards.seedCountMin > 0) {
-        rewards.add("草药/种子")
-    }
-    
-    if (mission.rewards.extraItemChance > 0) {
-        rewards.add("道具")
-    }
-    
-    return if (rewards.isEmpty()) "无奖励" else "奖励：${rewards.joinToString("、")}"
 }
 
 @Composable

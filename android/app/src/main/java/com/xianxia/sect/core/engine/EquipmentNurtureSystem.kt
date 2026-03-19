@@ -101,21 +101,19 @@ object EquipmentNurtureSystem {
             return NurtureResult(equipment, false)
         }
 
-        val newProgress = equipment.nurtureProgress + expGain.toInt()
+        val newProgress = equipment.nurtureProgress + expGain
         val expRequired = getExpRequiredForLevelUp(equipment.nurtureLevel, equipment.rarity)
 
         return if (newProgress >= expRequired) {
-            // 升级
             val newLevel = (equipment.nurtureLevel + 1).coerceAtMost(maxLevel)
-            val remainingExp = (newProgress - expRequired).toInt()
+            val remainingExp = newProgress - expRequired
 
             val updatedEquipment = equipment.copy(
                 nurtureLevel = newLevel,
-                nurtureProgress = if (newLevel >= maxLevel) 0 else remainingExp
+                nurtureProgress = if (newLevel >= maxLevel) 0.0 else remainingExp
             )
             NurtureResult(updatedEquipment, true)
         } else {
-            // 未升级，只增加进度
             val updatedEquipment = equipment.copy(
                 nurtureProgress = newProgress
             )

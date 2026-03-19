@@ -604,5 +604,5 @@ data class EquipmentNurtureData(
     val equipmentId: String,
     val rarity: Int,
     val nurtureLevel: Int = 0,
-    val nurtureProgress: Int = 0
+    val nurtureProgress: Double = 0.0
 )

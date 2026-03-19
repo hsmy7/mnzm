@@ -1225,7 +1225,7 @@ private fun EquipmentDetailDialog(
                         }
 
                         Text(
-                            text = "孕养进度：${equipment.nurtureProgress}/${expRequired.toInt()}",
+                            text = "孕养进度：${equipment.nurtureProgress.toInt()}/${expRequired.toInt()}",
                             fontSize = 10.sp,
                             color = Color(0xFF999999)
                         )

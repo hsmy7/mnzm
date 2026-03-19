@@ -1023,7 +1023,8 @@ object DatabaseMigrations {
             MIGRATION_45_46,
             MIGRATION_46_47,
             MIGRATION_47_48,
-            MIGRATION_48_49
+            MIGRATION_48_49,
+            MIGRATION_49_50
         )
 
     private val MIGRATION_35_36 = object : Migration(35, 36) {
@@ -1532,6 +1533,49 @@ object DatabaseMigrations {
                 }
             }
             return columns
+        }
+    }
+
+    private val MIGRATION_49_50 = object : Migration(49, 50) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("""
+                CREATE TABLE IF NOT EXISTS equipment_new (
+                    id TEXT NOT NULL PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    rarity INTEGER NOT NULL,
+                    description TEXT NOT NULL,
+                    slot TEXT NOT NULL,
+                    physicalAttack INTEGER NOT NULL,
+                    magicAttack INTEGER NOT NULL,
+                    physicalDefense INTEGER NOT NULL,
+                    magicDefense INTEGER NOT NULL,
+                    speed INTEGER NOT NULL,
+                    hp INTEGER NOT NULL,
+                    mp INTEGER NOT NULL,
+                    critChance REAL NOT NULL,
+                    nurtureLevel INTEGER NOT NULL,
+                    nurtureProgress REAL NOT NULL,
+                    minRealm INTEGER NOT NULL DEFAULT 9,
+                    ownerId TEXT,
+                    isEquipped INTEGER NOT NULL
+                )
+            """)
+
+            db.execSQL("""
+                INSERT INTO equipment_new (
+                    id, name, rarity, description, slot, physicalAttack, magicAttack,
+                    physicalDefense, magicDefense, speed, hp, mp, critChance,
+                    nurtureLevel, nurtureProgress, minRealm, ownerId, isEquipped
+                )
+                SELECT
+                    id, name, rarity, description, slot, physicalAttack, magicAttack,
+                    physicalDefense, magicDefense, speed, hp, mp, critChance,
+                    nurtureLevel, nurtureProgress, minRealm, ownerId, isEquipped
+                FROM equipment
+            """)
+
+            db.execSQL("DROP TABLE equipment")
+            db.execSQL("ALTER TABLE equipment_new RENAME TO equipment")
         }
     }
 }

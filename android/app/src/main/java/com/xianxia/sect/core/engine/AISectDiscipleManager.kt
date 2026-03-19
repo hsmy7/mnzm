@@ -308,7 +308,7 @@ object AISectDiscipleManager {
                 equipmentId = equipmentId,
                 rarity = rarity,
                 nurtureLevel = 0,
-                nurtureProgress = 0
+                nurtureProgress = 0.0
             )
         } else {
             currentNurture
@@ -321,14 +321,14 @@ object AISectDiscipleManager {
         val monthlyGain = autoExpGain * SECONDS_PER_MONTH
         val expRequired = EquipmentNurtureSystem.getExpRequiredForLevelUp(nurture.nurtureLevel, rarity)
         
-        val newProgress = nurture.nurtureProgress + monthlyGain.toInt()
+        val newProgress = nurture.nurtureProgress + monthlyGain
         
         return if (newProgress >= expRequired) {
             val newLevel = (nurture.nurtureLevel + 1).coerceAtMost(maxLevel)
-            val remainingExp = (newProgress - expRequired).toInt()
+            val remainingExp = newProgress - expRequired
             nurtureSetter(disciple, nurture.copy(
                 nurtureLevel = newLevel,
-                nurtureProgress = if (newLevel >= maxLevel) 0 else remainingExp
+                nurtureProgress = if (newLevel >= maxLevel) 0.0 else remainingExp
             ))
         } else {
             nurtureSetter(disciple, nurture.copy(nurtureProgress = newProgress))

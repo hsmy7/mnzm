@@ -1608,7 +1608,7 @@ class GameEngine {
         }
         
         _equipment.value.forEach { equipment ->
-            equipmentNurtureUpdates[equipment.id] = equipment.nurtureProgress.toDouble()
+            equipmentNurtureUpdates[equipment.id] = equipment.nurtureProgress
         }
         
         val data = _gameData.value
@@ -1897,7 +1897,6 @@ class GameEngine {
         }
         
         _gameData.value = data.copy(sectRelations = updatedRelations)
-        addEvent(eventText, EventType.INFO)
     }
     
     /**
@@ -11355,7 +11354,6 @@ class GameEngine {
                         rewards.items.filter { it.type == "spiritStones" }.sumOf { it.quantity.toLong() }
                     )
                     updatedSectsForAI[sectIndex] = sect.copy(warehouse = warehouseWithStones)
-                    addEvent("${aiTeam.sectName}成功探索了${cave.name}，获得丰厚奖励", EventType.INFO)
                 }
                 
                 aiTeamsToRemove.add(aiTeam.id)
@@ -11420,10 +11418,6 @@ class GameEngine {
             caveExplorationTeams = finalExplorationTeams,
             worldMapSects = updatedSectsForAI
         )
-
-        newCaves.forEach { cave ->
-            addEvent("发现${cave.ownerRealmName}洞府：${cave.name}", EventType.SUCCESS)
-        }
     }
 
     /**

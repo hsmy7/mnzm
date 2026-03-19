@@ -4,7 +4,7 @@ object GameConfig {
     
     object Game {
         const val NAME = "模拟宗门"
-        const val VERSION = "1.4.64"
+        const val VERSION = "1.4.67"
         const val AUTO_SAVE_INTERVAL = 60
         const val MAX_SAVE_SLOTS = 5
     }

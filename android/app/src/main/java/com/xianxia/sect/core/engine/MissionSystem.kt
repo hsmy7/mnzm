@@ -85,7 +85,7 @@ object MissionSystem {
     )
 
     fun generateMissions(currentYear: Int, currentMonth: Int): List<Mission> {
-        val missionCount = Random.nextInt(1, 8)
+        val missionCount = Random.nextInt(1, 6)
         val missions = mutableListOf<Mission>()
         
         val availableTypes = listOf(

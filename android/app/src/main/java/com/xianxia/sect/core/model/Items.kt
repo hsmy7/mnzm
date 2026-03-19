@@ -37,7 +37,7 @@ data class Equipment(
     val critChance: Double = 0.0,
     
     val nurtureLevel: Int = 0,
-    val nurtureProgress: Int = 0,
+    val nurtureProgress: Double = 0.0,
     
     val minRealm: Int = 9,
     
