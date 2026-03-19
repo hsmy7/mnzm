@@ -56,9 +56,9 @@ enum class MissionDifficulty {
 
     val minRealm: Int get() = when (this) {
         YELLOW -> 9
-        MYSTERIOUS -> 5
-        EARTH -> 3
-        HEAVEN -> 1
+        MYSTERIOUS -> 7
+        EARTH -> 4
+        HEAVEN -> 2
     }
 
     val allowedPositions: List<String> get() = when (this) {

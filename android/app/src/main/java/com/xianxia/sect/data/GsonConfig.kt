@@ -26,7 +26,8 @@ private class KotlinInternalFieldExclusionStrategy : ExclusionStrategy {
         "displayTime",
         "isPlayerProtected",
         "playerProtectionRemainingYears",
-        "saveTime"
+        "saveTime",
+        "Companion"
     )
 
     override fun shouldSkipField(f: FieldAttributes): Boolean {
