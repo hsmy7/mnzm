@@ -30,6 +30,8 @@ class GameViewModel @Inject constructor(
     companion object {
         private const val TAG = "GameViewModel"
         
+        private const val MB = 1024 * 1024L
+        
         // 加载进度常量
         private const val PROGRESS_START = 0f
         private const val PROGRESS_ENGINE_INIT = 0.2f
@@ -271,6 +273,36 @@ class GameViewModel @Inject constructor(
 
     init {
         _saveSlots.value = saveManager.getSaveSlots()
+    }
+
+    private fun canPerformSaveOperation(): Boolean {
+        val runtime = Runtime.getRuntime()
+        val maxMemory = runtime.maxMemory()
+        val totalMemory = runtime.totalMemory()
+        val freeMemory = runtime.freeMemory()
+        
+        val usedMemory = totalMemory - freeMemory
+        val availableMemory = maxMemory - usedMemory
+        
+        val threshold = maxOf(
+            (maxMemory * 0.1).toLong(),
+            100 * 1024 * 1024L
+        )
+
+        Log.d(TAG, "Memory status: max=${maxMemory / MB}MB, " +
+                "total=${totalMemory / MB}MB, free=${freeMemory / MB}MB, " +
+                "used=${usedMemory / MB}MB, available=${availableMemory / MB}MB, " +
+                "threshold=${threshold / MB}MB")
+
+        return availableMemory > threshold
+    }
+
+    private suspend fun performGarbageCollection() {
+        Log.d(TAG, "Performing garbage collection before save/load")
+        withContext(Dispatchers.IO) {
+            System.gc()
+            delay(100)
+        }
     }
 
     private val _isTimeRunning = MutableStateFlow(false)
@@ -523,6 +555,12 @@ class GameViewModel @Inject constructor(
             return
         }
         
+        if (!canPerformSaveOperation()) {
+            Log.e(TAG, "=== loadGame FAILED === insufficient memory")
+            _errorMessage.value = "内存不足，无法读档。请关闭其他应用后重试。"
+            return
+        }
+        
         Log.i(TAG, "=== loadGame BEGIN === slot=${saveSlot.slot}, sectName=${saveSlot.sectName}, " +
             "year=${saveSlot.gameYear}, month=${saveSlot.gameMonth}")
         val startTime = System.currentTimeMillis()
@@ -536,7 +574,16 @@ class GameViewModel @Inject constructor(
                     _isGameLoaded = false
                 }
                 
-                val saveData = saveManager.loadAsync(saveSlot.slot)
+                performGarbageCollection()
+                
+                val saveData = withTimeoutOrNull(30_000L) {
+                    saveManager.loadAsync(saveSlot.slot)
+                }
+                if (saveData == null) {
+                    Log.e(TAG, "=== loadGame FAILED === timeout or null for slot ${saveSlot.slot}")
+                    _errorMessage.value = "读档超时或存档为空，请重试"
+                    return@launch
+                }
                 if (saveData != null) {
                     gameEngine.loadData(
                         gameData = saveData.gameData.copy(currentSlot = saveSlot.slot),
@@ -565,7 +612,6 @@ class GameViewModel @Inject constructor(
                     _isGameLoaded = true
                     _successMessage.value = "读档成功"
                     
-                    // 记录游戏状态快照
                     val gd = gameEngine.gameData.value
                     Log.i(TAG, "=== loadGame SUCCESS === " +
                         "sectName=${gd.sectName}, year=${gd.gameYear}, month=${gd.gameMonth}, day=${gd.gameDay}, " +
@@ -591,6 +637,12 @@ class GameViewModel @Inject constructor(
             return
         }
         
+        if (!canPerformSaveOperation()) {
+            Log.e(TAG, "=== loadGameFromSlot FAILED === insufficient memory")
+            _errorMessage.value = "内存不足，无法读档。请关闭其他应用后重试。"
+            return
+        }
+        
         Log.i(TAG, "=== loadGameFromSlot BEGIN === slot=$slot")
         val startTime = System.currentTimeMillis()
         
@@ -605,7 +657,11 @@ class GameViewModel @Inject constructor(
                     _isGameLoaded = false
                 }
                 
-                val saveData = saveManager.loadAsync(slot)
+                performGarbageCollection()
+                
+                val saveData = withTimeoutOrNull(30_000L) {
+                    saveManager.loadAsync(slot)
+                }
                 if (saveData != null) {
                     _loadingProgress.value = PROGRESS_DATA_LOAD
                     gameEngine.loadData(
@@ -636,13 +692,15 @@ class GameViewModel @Inject constructor(
                     _isGameLoaded = true
                     _loadingProgress.value = PROGRESS_COMPLETE
                     
-                    // 记录游戏状态快照
                     val gd = gameEngine.gameData.value
                     Log.i(TAG, "=== loadGameFromSlot SUCCESS === " +
                         "sectName=${gd.sectName}, year=${gd.gameYear}, month=${gd.gameMonth}, day=${gd.gameDay}, " +
                         "spiritStones=${gd.spiritStones}, disciples=${gameEngine.disciples.value.size}, " +
                         "equipment=${gameEngine.equipment.value.size}, manuals=${gameEngine.manuals.value.size}, " +
                         "elapsed=${System.currentTimeMillis() - startTime}ms")
+                } else if (saveData == null) {
+                    Log.e(TAG, "=== loadGameFromSlot FAILED === timeout after 30 seconds")
+                    _errorMessage.value = "读档超时，请重试"
                 } else {
                     Log.e(TAG, "=== loadGameFromSlot FAILED === saveData is null for slot $slot")
                     _errorMessage.value = "存档为空或不存在"
@@ -664,6 +722,12 @@ class GameViewModel @Inject constructor(
             return
         }
         
+        if (!canPerformSaveOperation()) {
+            Log.e(TAG, "=== saveGame FAILED === insufficient memory")
+            _errorMessage.value = "内存不足，无法保存。请关闭其他应用后重试。"
+            return
+        }
+        
         val slot = slotId?.toIntOrNull() ?: gameEngine.gameData.value.currentSlot
         Log.i(TAG, "=== saveGame BEGIN === slot=$slot, slotId=$slotId")
         val startTime = System.currentTimeMillis()
@@ -671,6 +735,7 @@ class GameViewModel @Inject constructor(
         viewModelScope.launch {
             _isSaving.value = true
             try {
+                performGarbageCollection()
                 val snapshot = gameEngine.getStateSnapshot()
                 if (snapshot.gameData.sectName.isBlank()) {
                     Log.e(TAG, "=== saveGame FAILED === gameData not initialized (sectName is blank)")
@@ -695,8 +760,10 @@ class GameViewModel @Inject constructor(
                     supportTeams = snapshot.supportTeams,
                     alchemySlots = snapshot.alchemySlots
                 )
-                val success = saveManager.saveAsync(slot, saveData)
-                if (success) {
+                val success = withTimeoutOrNull(30_000L) {
+                    saveManager.saveAsync(slot, saveData)
+                }
+                if (success == true) {
                     gameEngine.updateGameData { updatedGameData }
                     _saveSlots.value = saveManager.getSaveSlots()
                     _successMessage.value = "游戏保存成功"
@@ -707,6 +774,13 @@ class GameViewModel @Inject constructor(
                         "spiritStones=${updatedGameData.spiritStones}, " +
                         "disciples=${saveData.disciples.size}, equipment=${saveData.equipment.size}, " +
                         "manuals=${saveData.manuals.size}, elapsed=${System.currentTimeMillis() - startTime}ms")
+                } else if (success == null) {
+                    Log.e(TAG, "=== saveGame FAILED === timeout after 30 seconds")
+                    if (saveManager.isSaveCorrupted(slot)) {
+                        saveManager.restoreFromBackup(slot)
+                        Log.w(TAG, "Save may be corrupted, attempted to restore from backup")
+                    }
+                    _errorMessage.value = "保存超时，请重试"
                 } else {
                     Log.e(TAG, "=== saveGame FAILED === saveManager.saveAsync returned false")
                     _errorMessage.value = "保存失败，请重试"
@@ -721,12 +795,24 @@ class GameViewModel @Inject constructor(
     }
 
     fun saveToSlot(slotIndex: Int) {
+        if (_isSaving.value) {
+            Log.w(TAG, "Already saving, ignoring saveToSlot request")
+            return
+        }
+        
+        if (!canPerformSaveOperation()) {
+            Log.e(TAG, "=== saveToSlot FAILED === insufficient memory")
+            _errorMessage.value = "内存不足，无法保存。请关闭其他应用后重试。"
+            return
+        }
+        
         Log.i(TAG, "=== saveToSlot BEGIN === slotIndex=$slotIndex")
         val startTime = System.currentTimeMillis()
         
         viewModelScope.launch {
             try {
                 _isSaving.value = true
+                performGarbageCollection()
                 val slot = slotIndex
                 val snapshot = gameEngine.getStateSnapshot()
                 if (snapshot.gameData.sectName.isBlank()) {
@@ -752,8 +838,10 @@ class GameViewModel @Inject constructor(
                     supportTeams = snapshot.supportTeams,
                     alchemySlots = snapshot.alchemySlots
                 )
-                val success = saveManager.saveAsync(slot, saveData)
-                if (success) {
+                val success = withTimeoutOrNull(30_000L) {
+                    saveManager.saveAsync(slot, saveData)
+                }
+                if (success == true) {
                     gameEngine.updateGameData { updatedGameData }
                     _saveSlots.value = saveManager.getSaveSlots()
                     _successMessage.value = "游戏保存成功"
@@ -764,6 +852,9 @@ class GameViewModel @Inject constructor(
                         "month=${updatedGameData.gameMonth}, day=${updatedGameData.gameDay}, " +
                         "spiritStones=${updatedGameData.spiritStones}, " +
                         "disciples=${saveData.disciples.size}, elapsed=${System.currentTimeMillis() - startTime}ms")
+                } else if (success == null) {
+                    Log.e(TAG, "=== saveToSlot FAILED === timeout after 30 seconds")
+                    _errorMessage.value = "保存超时，请重试"
                 } else {
                     Log.e(TAG, "=== saveToSlot FAILED === saveManager.saveAsync returned false")
                     _errorMessage.value = "保存失败，请重试"
