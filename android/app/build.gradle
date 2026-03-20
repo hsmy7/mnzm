@@ -25,8 +25,8 @@ android {
         applicationId "com.xianxia.sect"
         minSdk 24
         targetSdk 35
-        versionCode 1469
-        versionName "1.4.69"
+        versionCode 1470
+        versionName "1.4.70"
 
         buildConfigField "String", "API_BASE_URL", '"' + apiProperties.getProperty('API_BASE_URL', 'https://api.xianxia.com/api/') + '"'
         buildConfigField "String", "TAPTAP_CLIENT_ID", '"' + apiProperties.getProperty('TAPTAP_CLIENT_ID', '') + '"'
@@ -150,10 +150,10 @@ dependencies {
     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.8.7'
 
     // TapTap SDK
-    implementation 'com.taptap.sdk:tap-login:4.9.6'
-    implementation 'com.taptap.sdk:tap-core:4.9.6'
-    implementation 'com.taptap.sdk:tap-common:4.9.6'
-    implementation 'com.taptap.sdk:tap-compliance:4.9.6'
+    implementation 'com.taptap.sdk:tap-login:4.10.0'
+    implementation 'com.taptap.sdk:tap-core:4.10.0'
+    implementation 'com.taptap.sdk:tap-common:4.10.0'
+    implementation 'com.taptap.sdk:tap-compliance:4.10.0'
 
     // Network
     implementation 'com.squareup.retrofit2:retrofit:2.11.0'
