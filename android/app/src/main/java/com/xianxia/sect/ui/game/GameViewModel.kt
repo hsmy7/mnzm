@@ -285,23 +285,35 @@ class GameViewModel @Inject constructor(
         val availableMemory = maxMemory - usedMemory
         
         val threshold = maxOf(
-            (maxMemory * 0.1).toLong(),
-            100 * 1024 * 1024L
+            (maxMemory * 0.05).toLong(),
+            50 * 1024 * 1024L
         )
+
+        val memoryUsagePercent = (usedMemory * 100 / maxMemory)
+        
+        if (memoryUsagePercent > 85) {
+            Log.w(TAG, "High memory usage: ${memoryUsagePercent}%, suggesting GC")
+            System.gc()
+        }
 
         Log.d(TAG, "Memory status: max=${maxMemory / MB}MB, " +
                 "total=${totalMemory / MB}MB, free=${freeMemory / MB}MB, " +
-                "used=${usedMemory / MB}MB, available=${availableMemory / MB}MB, " +
+                "used=${usedMemory / MB}MB (${memoryUsagePercent}%), available=${availableMemory / MB}MB, " +
                 "threshold=${threshold / MB}MB")
 
         return availableMemory > threshold
     }
 
-    private suspend fun performGarbageCollection() {
-        Log.d(TAG, "Performing garbage collection before save/load")
-        withContext(Dispatchers.IO) {
+    private fun performGarbageCollection() {
+        val runtime = Runtime.getRuntime()
+        val usedMemory = runtime.totalMemory() - runtime.freeMemory()
+        val memoryUsagePercent = (usedMemory * 100 / runtime.maxMemory())
+        
+        if (memoryUsagePercent > 80) {
+            Log.d(TAG, "High memory usage before save: ${memoryUsagePercent}%, suggesting GC")
             System.gc()
-            delay(100)
+        } else {
+            Log.d(TAG, "Memory usage acceptable: ${memoryUsagePercent}%, skipping GC")
         }
     }
 
@@ -3427,10 +3439,32 @@ class GameViewModel @Inject constructor(
     }
 
     override fun onCleared() {
-        super.onCleared()
         Log.i(TAG, "GameViewModel cleared, stopping game loop and performing auto save")
         
         clearResources()
+        
+        try {
+            val queueSize = saveManager.saveQueueSize.value
+            if (queueSize > 0) {
+                Log.i(TAG, "Waiting for $queueSize queued save operations to complete")
+                val waitStartTime = System.currentTimeMillis()
+                val maxWaitTime = 5000L
+                
+                while (saveManager.saveQueueSize.value > 0 && 
+                       System.currentTimeMillis() - waitStartTime < maxWaitTime) {
+                    Thread.sleep(100)
+                }
+                
+                val remainingQueue = saveManager.saveQueueSize.value
+                if (remainingQueue > 0) {
+                    Log.w(TAG, "Queue processing timeout, $remainingQueue items remaining")
+                } else {
+                    Log.i(TAG, "Queue processing completed")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error waiting for save queue: ${e.message}")
+        }
         
         try {
             val snapshot = gameEngine.getStateSnapshotSync()
@@ -3457,6 +3491,8 @@ class GameViewModel @Inject constructor(
         } catch (e: Exception) {
             Log.e(TAG, "Auto save on exit failed: ${e.message}")
         }
+        
+        super.onCleared()
     }
 
     fun openBattleTeamDialog() {

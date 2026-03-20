@@ -6,12 +6,24 @@ import android.util.Log
 import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.model.SaveSlot
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.trySendBlocking
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.*
 import java.security.MessageDigest
+import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicReference
+import java.util.zip.Deflater
 import java.util.zip.GZIPInputStream
 import java.util.zip.GZIPOutputStream
 import javax.inject.Inject
@@ -35,6 +47,10 @@ class SaveManager @Inject constructor(
         private const val MAX_BATTLE_LOGS = 100
         private const val MAX_GAME_EVENTS = 50
         const val EMERGENCY_SAVE = "emergency"
+        
+        private const val COMPRESSION_LEVEL = Deflater.BEST_SPEED
+        private const val SAVE_QUEUE_CAPACITY = 32
+        private const val MIN_VALID_SAVE_SIZE = 100L
     }
 
     private val prefs: SharedPreferences =
@@ -45,14 +61,87 @@ class SaveManager @Inject constructor(
     private val saveMutex = Mutex()
     private val loadMutex = Mutex()
     
-    // 同步锁，用于同步方法
-    private val syncSaveLock = Any()
+    private val saveQueue = Channel<SaveRequest>(capacity = SAVE_QUEUE_CAPACITY)
+    private val _saveQueueSize = MutableStateFlow(0)
+    val saveQueueSize: StateFlow<Int> = _saveQueueSize.asStateFlow()
+    
+    private val saveScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    
+    private val lastAutoSaveTime = AtomicLong(0L)
+    private val lastSaveHash = AtomicReference<String?>(null)
+    private val autoSaveDebounceMs = 30_000L
+    
+    private data class SaveRequest(
+        val slot: Int,
+        val data: SaveData,
+        val isAutoSave: Boolean = false
+    )
 
     private val saveDir: File
         get() = File(context.filesDir, SAVE_DIR).apply { if (!exists()) mkdirs() }
 
     init {
         migrateFromSharedPreferences()
+        startSaveQueueProcessor()
+    }
+    
+    fun shutdown() {
+        saveScope.cancel()
+        Log.i(TAG, "SaveManager shutdown completed")
+    }
+    
+    private fun startSaveQueueProcessor() {
+        saveScope.launch {
+            for (request in saveQueue) {
+                _saveQueueSize.value = _saveQueueSize.value - 1
+                processSaveRequest(request)
+            }
+        }
+    }
+    
+    private suspend fun processSaveRequest(request: SaveRequest) {
+        saveMutex.withLock {
+            if (request.isAutoSave) {
+                val dataHash = computeDataHash(request.data)
+                val currentHash = lastSaveHash.get()
+                if (dataHash == currentHash) {
+                    Log.d(TAG, "Skipping auto-save: data unchanged")
+                    return@withLock
+                }
+                lastSaveHash.set(dataHash)
+            }
+            saveInternal(request.slot, request.data)
+        }
+    }
+    
+    private fun computeDataHash(data: SaveData): String {
+        return try {
+            val digest = MessageDigest.getInstance("MD5")
+            
+            digest.update(data.gameData.gameYear.toString().toByteArray())
+            digest.update(data.gameData.gameMonth.toByte())
+            digest.update(data.gameData.gameDay.toByte())
+            digest.update(data.gameData.spiritStones.toString().toByteArray())
+            digest.update(data.gameData.sectName.toByteArray())
+            
+            digest.update(data.disciples.size.toString().toByteArray())
+            data.disciples.take(10).forEach { disciple ->
+                digest.update(disciple.id.toString().toByteArray())
+                digest.update(disciple.status.name.toByteArray())
+            }
+            
+            digest.update(data.equipment.size.toString().toByteArray())
+            digest.update(data.manuals.size.toString().toByteArray())
+            digest.update(data.pills.size.toString().toByteArray())
+            digest.update(data.materials.size.toString().toByteArray())
+            digest.update(data.teams.size.toString().toByteArray())
+            digest.update(data.slots.size.toString().toByteArray())
+            
+            digest.digest().take(8).joinToString("") { "%02x".format(it) }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to compute data hash", e)
+            System.currentTimeMillis().toString()
+        }
     }
 
     fun getSaveSlots(): List<SaveSlot> = (1..MAX_SLOTS).map(::getSlotInfo)
@@ -113,89 +202,74 @@ class SaveManager @Inject constructor(
             Log.e(TAG, "Invalid save slot: $slot")
             return false
         }
-
+        return saveInternal(slot, data)
+    }
+    
+    private fun saveInternal(slot: Int, data: SaveData): Boolean {
         Log.i(TAG, "=== save BEGIN === slot=$slot, sectName=${data.gameData.sectName}, " +
             "year=${data.gameData.gameYear}, month=${data.gameData.gameMonth}, day=${data.gameData.gameDay}, " +
             "spiritStones=${data.gameData.spiritStones}, disciples=${data.disciples.count { it.isAlive }}")
 
-        // 使用同步锁确保没有并发写入
-        return synchronized(syncSaveLock) {
-            val startTime = System.currentTimeMillis()
-            val cleanedData = cleanSaveData(data)
-            val saveFile = getSaveFile(slot)
-            val tempFile = File(saveFile.parent, "${saveFile.name}.tmp")
-            val backupFile = File(saveFile.parent, "${saveFile.name}.bak")
+        val startTime = System.currentTimeMillis()
+        val cleanedData = cleanSaveData(data)
+        val saveFile = getSaveFile(slot)
+        val tempFile = File(saveFile.parent, "${saveFile.name}.tmp")
+        val backupFile = File(saveFile.parent, "${saveFile.name}.bak")
+        
+        var saveCompleted = false
+        var backupCreated = false
+        var result = false
+
+        try {
+            val checksum = saveToFileWithChecksum(tempFile, cleanedData)
             
-            // 标记是否成功完成，用于决定是否清理备份
-            var saveCompleted = false
-            var backupCreated = false
-
-            try {
-                // 步骤1: 写入临时文件
-                val checksum = saveToFileWithChecksum(tempFile, cleanedData)
-                
-                // 步骤2: 创建备份（如果原存档存在）
-                if (saveFile.exists()) {
-                    // 先删除旧备份（如果存在）
-                    if (backupFile.exists()) {
-                        if (!backupFile.delete()) {
-                            Log.w(TAG, "Failed to delete old backup file for slot $slot")
-                        }
-                    }
-                    // 将当前存档重命名为备份
-                    if (saveFile.renameTo(backupFile)) {
-                        backupCreated = true
-                        Log.d(TAG, "Created backup for slot $slot")
-                    } else {
-                        Log.w(TAG, "Failed to create backup for slot $slot, continuing anyway")
+            if (saveFile.exists()) {
+                if (backupFile.exists()) {
+                    if (!backupFile.delete()) {
+                        Log.w(TAG, "Failed to delete old backup file for slot $slot")
                     }
                 }
-
-                // 步骤3: 原子重命名临时文件为正式存档
-                if (!tempFile.renameTo(saveFile)) {
-                    Log.e(TAG, "Failed to rename temp file to save file for slot $slot")
-                    // 尝试恢复备份
-                    if (backupCreated && backupFile.exists()) {
-                        backupFile.renameTo(saveFile)
-                        Log.i(TAG, "Restored backup after rename failure for slot $slot")
-                    }
-                    return false
-                }
-
-                // 步骤4: 保存元数据
-                saveMetaWithChecksum(slot, cleanedData, checksum)
-
-                saveCompleted = true
-                val elapsed = System.currentTimeMillis() - startTime
-                Log.i(TAG, "=== save SUCCESS === slot=$slot, elapsed=${elapsed}ms, " +
-                    "compressedSize=${saveFile.length()} bytes, " +
-                    "disciples=${cleanedData.disciples.size}, equipment=${cleanedData.equipment.size}, " +
-                    "manuals=${cleanedData.manuals.size}, pills=${cleanedData.pills.size}")
-                true
-            } catch (e: FileNotFoundException) {
-                Log.e(TAG, "=== save FAILED === slot=$slot, error=FileNotFoundException", e)
-                // 写入失败，不删除备份文件
-                false
-            } catch (e: IOException) {
-                Log.e(TAG, "=== save FAILED === slot=$slot, error=IOException", e)
-                // 写入失败，不删除备份文件
-                false
-            } catch (e: Exception) {
-                Log.e(TAG, "=== save FAILED === slot=$slot, error=${e.javaClass.simpleName}", e)
-                // 写入失败，不删除备份文件
-                false
-            } finally {
-                // 清理临时文件（如果存在）
-                if (tempFile.exists()) {
-                    tempFile.delete()
-                }
-                // 注意：成功写入后也不删除备份文件，保留最近一次的备份
-                // 备份文件会在下次成功保存时被覆盖
-                if (saveCompleted) {
-                    Log.d(TAG, "Save completed, backup preserved for slot $slot")
+                if (saveFile.renameTo(backupFile)) {
+                    backupCreated = true
+                    Log.d(TAG, "Created backup for slot $slot")
+                } else {
+                    Log.w(TAG, "Failed to create backup for slot $slot, continuing anyway")
                 }
             }
+
+            if (!tempFile.renameTo(saveFile)) {
+                Log.e(TAG, "Failed to rename temp file to save file for slot $slot")
+                if (backupCreated && backupFile.exists()) {
+                    backupFile.renameTo(saveFile)
+                    Log.i(TAG, "Restored backup after rename failure for slot $slot")
+                }
+                return false
+            }
+
+            saveMetaWithChecksum(slot, cleanedData, checksum)
+
+            saveCompleted = true
+            result = true
+            val elapsed = System.currentTimeMillis() - startTime
+            Log.i(TAG, "=== save SUCCESS === slot=$slot, elapsed=${elapsed}ms, " +
+                "compressedSize=${saveFile.length()} bytes, " +
+                "disciples=${cleanedData.disciples.size}, equipment=${cleanedData.equipment.size}, " +
+                "manuals=${cleanedData.manuals.size}, pills=${cleanedData.pills.size}")
+        } catch (e: FileNotFoundException) {
+            Log.e(TAG, "=== save FAILED === slot=$slot, error=FileNotFoundException", e)
+        } catch (e: IOException) {
+            Log.e(TAG, "=== save FAILED === slot=$slot, error=IOException", e)
+        } catch (e: Exception) {
+            Log.e(TAG, "=== save FAILED === slot=$slot, error=${e.javaClass.simpleName}", e)
+        } finally {
+            if (tempFile.exists()) {
+                tempFile.delete()
+            }
+            if (saveCompleted) {
+                Log.d(TAG, "Save completed, backup preserved for slot $slot")
+            }
         }
+        return result
     }
 
     suspend fun saveAsync(slot: Int, data: SaveData): Boolean {
@@ -308,6 +382,14 @@ class SaveManager @Inject constructor(
     }
 
     fun autoSave(data: SaveData) {
+        val now = System.currentTimeMillis()
+        val lastSave = lastAutoSaveTime.get()
+        if (now - lastSave < autoSaveDebounceMs) {
+            Log.d(TAG, "Auto-save debounced, last save was ${now - lastSave}ms ago")
+            return
+        }
+        lastAutoSaveTime.set(now)
+        
         try {
             Log.i(TAG, "=== autoSave BEGIN === sectName=${data.gameData.sectName}, " +
                 "year=${data.gameData.gameYear}, month=${data.gameData.gameMonth}, day=${data.gameData.gameDay}")
@@ -328,6 +410,27 @@ class SaveManager @Inject constructor(
                 autoSave(data)
             }
         }
+    }
+    
+    fun queueAutoSave(slot: Int, data: SaveData) {
+        val now = System.currentTimeMillis()
+        val lastSave = lastAutoSaveTime.get()
+        if (now - lastSave < autoSaveDebounceMs) {
+            Log.d(TAG, "Auto-save queued but debounced")
+            return
+        }
+        lastAutoSaveTime.set(now)
+        
+        val dataHash = computeDataHash(data)
+        val currentHash = lastSaveHash.get()
+        if (dataHash == currentHash) {
+            Log.d(TAG, "Skipping queued auto-save: data unchanged")
+            return
+        }
+        
+        _saveQueueSize.value = _saveQueueSize.value + 1
+        saveQueue.trySendBlocking(SaveRequest(slot, data, isAutoSave = true))
+        Log.d(TAG, "Auto-save queued for slot $slot, queue size: ${_saveQueueSize.value}")
     }
 
     fun loadAutoSave(): SaveData? {
@@ -389,7 +492,7 @@ class SaveManager @Inject constructor(
     private fun saveToFileWithChecksum(file: File, data: SaveData): String {
         val digest = MessageDigest.getInstance("MD5")
         
-        GZIPOutputStream(FileOutputStream(file)).use { gzipOutput ->
+        OptimizedGZIPOutputStream(FileOutputStream(file), COMPRESSION_LEVEL).use { gzipOutput ->
             val digestStream = object : OutputStream() {
                 override fun write(b: Int) {
                     digest.update(b.toByte())
@@ -409,6 +512,15 @@ class SaveManager @Inject constructor(
         val checksum = digest.digest().joinToString("") { "%02x".format(it) }
         Log.d(TAG, "Saved to ${file.name}, compressed size: ${file.length()} bytes, checksum: ${checksum.take(8)}...")
         return checksum
+    }
+    
+    private class OptimizedGZIPOutputStream(
+        out: OutputStream,
+        level: Int = Deflater.BEST_SPEED
+    ) : GZIPOutputStream(out) {
+        init {
+            def.setLevel(level)
+        }
     }
 
     private fun loadFromFile(slot: Int): SaveData? {
@@ -750,7 +862,7 @@ class SaveManager @Inject constructor(
             val emergencyFile = getEmergencySaveFile()
             val tempFile = File(emergencyFile.parent, "${emergencyFile.name}.tmp")
 
-            GZIPOutputStream(FileOutputStream(tempFile)).use { gzipOutput ->
+            OptimizedGZIPOutputStream(FileOutputStream(tempFile), COMPRESSION_LEVEL).use { gzipOutput ->
                 OutputStreamWriter(gzipOutput, Charsets.UTF_8).use { writer ->
                     gson.toJson(data.copy(timestamp = System.currentTimeMillis()), writer)
                     writer.flush()
@@ -838,6 +950,226 @@ class SaveManager @Inject constructor(
             false
         }
     }
+    
+    fun performHealthCheck(): SaveHealthReport{
+        val startTime = System.currentTimeMillis()
+        val slotReports = mutableMapOf<Int, SlotHealthReport>()
+        var totalIssues = 0
+        
+        for (slot in 1..MAX_SLOTS) {
+            val report = quickCheckSlotHealth(slot)
+            slotReports[slot] = report
+            if (report.hasIssues) totalIssues++
+        }
+        
+        val autoSaveHealthy = quickCheckFileHealth(getAutoSaveFile())
+        val emergencySaveHealthy = quickCheckFileHealth(getEmergencySaveFile())
+        
+        val elapsed = System.currentTimeMillis() - startTime
+        Log.i(TAG, "Health check completed in ${elapsed}ms, found $totalIssues issues")
+        
+        return SaveHealthReport(
+            slotReports = slotReports,
+            autoSaveHealthy = autoSaveHealthy,
+            emergencySaveHealthy = emergencySaveHealthy,
+            totalIssues = totalIssues,
+            checkDurationMs = elapsed
+        )
+    }
+    
+    private fun quickCheckSlotHealth(slot: Int): SlotHealthReport{
+        val saveFile = getSaveFile(slot)
+        val metaFile = getMetaFile(slot)
+        val backupFile = File(saveFile.parent, "${saveFile.name}.bak")
+        
+        val issues = mutableListOf<String>()
+        var canRecover = false
+        
+        if (!saveFile.exists()) {
+            return SlotHealthReport(
+                slot = slot,
+                exists = false,
+                hasIssues = false,
+                issues = emptyList(),
+                canRecover = false,
+                fileSize = 0
+            )
+        }
+        
+        val fileSize = saveFile.length()
+        if (fileSize < MIN_VALID_SAVE_SIZE) {
+            issues.add("Save file too small: $fileSize bytes")
+        }
+        
+        if (!metaFile.exists()) {
+            issues.add("Meta file missing")
+        } else {
+            try {
+                val metaJson = metaFile.readText()
+                val meta = gson.fromJson(metaJson, SaveSlotMeta::class.java)
+                if (meta.timestamp <= 0) {
+                    issues.add("Invalid meta timestamp")
+                }
+            } catch (e: Exception) {
+                issues.add("Meta file corrupted: ${e.message}")
+            }
+        }
+        
+        if (backupFile.exists() && backupFile.length() >= MIN_VALID_SAVE_SIZE) {
+            canRecover = true
+        }
+        
+        return SlotHealthReport(
+            slot = slot,
+            exists = true,
+            hasIssues = issues.isNotEmpty(),
+            issues = issues,
+            canRecover = canRecover,
+            fileSize = fileSize
+        )
+    }
+    
+    private fun quickCheckFileHealth(file: File): Boolean {
+        if (!file.exists()) return true
+        if (file.length() < MIN_VALID_SAVE_SIZE) return false
+        
+        return try {
+            GZIPInputStream(FileInputStream(file)).use { input ->
+                val buffer = ByteArray(1024)
+                input.read(buffer) > 0
+            }
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "Quick health check failed for ${file.name}", e)
+            false
+        }
+    }
+    
+    fun performDeepHealthCheck(): SaveHealthReport{
+        val startTime = System.currentTimeMillis()
+        val slotReports = mutableMapOf<Int, SlotHealthReport>()
+        var totalIssues = 0
+        
+        for (slot in 1..MAX_SLOTS) {
+            val report = checkSlotHealth(slot)
+            slotReports[slot] = report
+            if (report.hasIssues) totalIssues++
+        }
+        
+        val autoSaveHealthy = checkAutoSaveHealth()
+        val emergencySaveHealthy = checkEmergencySaveHealth()
+        
+        val elapsed = System.currentTimeMillis() - startTime
+        Log.i(TAG, "Deep health check completed in ${elapsed}ms, found $totalIssues issues")
+        
+        return SaveHealthReport(
+            slotReports = slotReports,
+            autoSaveHealthy = autoSaveHealthy,
+            emergencySaveHealthy = emergencySaveHealthy,
+            totalIssues = totalIssues,
+            checkDurationMs = elapsed
+        )
+    }
+    
+    private fun checkSlotHealth(slot: Int): SlotHealthReport{
+        val saveFile = getSaveFile(slot)
+        val metaFile = getMetaFile(slot)
+        val backupFile = File(saveFile.parent, "${saveFile.name}.bak")
+        
+        val issues = mutableListOf<String>()
+        var canRecover = false
+        
+        if (!saveFile.exists()) {
+            return SlotHealthReport(
+                slot = slot,
+                exists = false,
+                hasIssues = false,
+                issues = emptyList(),
+                canRecover = false,
+                fileSize = 0
+            )
+        }
+        
+        val verification = verifySave(slot)
+        if (verification != SaveVerificationResult.VALID) {
+            issues.add("Save verification failed: $verification")
+            if (backupFile.exists()) {
+                canRecover = true
+            }
+        }
+        
+        if (!metaFile.exists()) {
+            issues.add("Meta file missing")
+        }
+        
+        return SlotHealthReport(
+            slot = slot,
+            exists = true,
+            hasIssues = issues.isNotEmpty(),
+            issues = issues,
+            canRecover = canRecover,
+            fileSize = saveFile.length()
+        )
+    }
+    
+    private fun checkAutoSaveHealth(): Boolean {
+        val autoSaveFile = getAutoSaveFile()
+        if (!autoSaveFile.exists()) return true
+        
+        return try {
+            val data = loadFromFile(autoSaveFile)
+            data != null
+        } catch (e: Exception) {
+            Log.w(TAG, "Auto-save health check failed", e)
+            false
+        }
+    }
+    
+    private fun checkEmergencySaveHealth(): Boolean {
+        val emergencyFile = getEmergencySaveFile()
+        if (!emergencyFile.exists()) return true
+        
+        return try {
+            val data = loadFromFile(emergencyFile)
+            data != null
+        } catch (e: Exception) {
+            Log.w(TAG, "Emergency save health check failed", e)
+            false
+        }
+    }
+    
+    fun repairAllSaves(): Int {
+        var repairedCount = 0
+        
+        for (slot in 1..MAX_SLOTS) {
+            val report = checkSlotHealth(slot)
+            if (report.hasIssues && report.canRecover) {
+                if (restoreFromBackup(slot)) {
+                    Log.i(TAG, "Repaired slot $slot from backup")
+                    repairedCount++
+                }
+            }
+        }
+        
+        return repairedCount
+    }
+    
+    data class SaveHealthReport(
+        val slotReports: Map<Int, SlotHealthReport>,
+        val autoSaveHealthy: Boolean,
+        val emergencySaveHealthy: Boolean,
+        val totalIssues: Int,
+        val checkDurationMs: Long
+    )
+    
+    data class SlotHealthReport(
+        val slot: Int,
+        val exists: Boolean,
+        val hasIssues: Boolean,
+        val issues: List<String>,
+        val canRecover: Boolean,
+        val fileSize: Long
+    )
 
     data class SaveSlotMeta(
         val timestamp: Long = 0,
