@@ -435,13 +435,16 @@ class SaveManager @Inject constructor(
             Log.e(TAG, "GZIP decompression failed for ${file.name}, file may be corrupted", e)
             null
         } catch (e: com.google.gson.JsonSyntaxException) {
-            Log.e(TAG, "JSON parsing failed for ${file.name}, data may be corrupted", e)
+            Log.e(TAG, "JSON parsing failed for ${file.name}, data may be corrupted: ${e.message}", e)
+            null
+        } catch (e: IllegalArgumentException) {
+            Log.e(TAG, "Enum deserialization failed for ${file.name}, unknown enum value: ${e.message}", e)
             null
         } catch (e: IOException) {
             Log.e(TAG, "IO error while loading ${file.name}", e)
             null
         } catch (e: Exception) {
-            Log.e(TAG, "Unexpected error while loading ${file.name}", e)
+            Log.e(TAG, "Unexpected error while loading ${file.name}: ${e.javaClass.simpleName} - ${e.message}", e)
             null
         }
     }

@@ -13,11 +13,13 @@ object GsonConfig {
         .disableHtmlEscaping()
         .excludeFieldsWithModifiers(java.lang.reflect.Modifier.TRANSIENT)
         .setExclusionStrategies(KotlinInternalFieldExclusionStrategy())
+        .registerTypeAdapterFactory(EnumFallbackTypeAdapterFactory())
         .create()
     
     fun createGsonForRoom(): Gson = GsonBuilder()
         .excludeFieldsWithModifiers(java.lang.reflect.Modifier.TRANSIENT)
         .setExclusionStrategies(KotlinInternalFieldExclusionStrategy())
+        .registerTypeAdapterFactory(EnumFallbackTypeAdapterFactory())
         .create()
 }
 

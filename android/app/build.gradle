@@ -25,8 +25,8 @@ android {
         applicationId "com.xianxia.sect"
         minSdk 24
         targetSdk 35
-        versionCode 1468
-        versionName "1.4.68"
+        versionCode 1469
+        versionName "1.4.69"
 
         buildConfigField "String", "API_BASE_URL", '"' + apiProperties.getProperty('API_BASE_URL', 'https://api.xianxia.com/api/') + '"'
         buildConfigField "String", "TAPTAP_CLIENT_ID", '"' + apiProperties.getProperty('TAPTAP_CLIENT_ID', '') + '"'

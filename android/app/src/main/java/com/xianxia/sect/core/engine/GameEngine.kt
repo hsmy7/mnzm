@@ -463,6 +463,19 @@ class GameEngine {
         checkAndInitMerchant(gameData.gameYear)
 
         validateAndFixSpiritMineData()
+        
+        initializeMissions(gameData.gameYear, gameData.gameMonth)
+    }
+    
+    private fun initializeMissions(year: Int, month: Int) {
+        val data = _gameData.value
+        if (data.availableMissions.isEmpty() && data.lastMissionRefreshYear == 0) {
+            val newMissions = MissionSystem.generateMissions(year, month)
+            _gameData.value = data.copy(
+                availableMissions = newMissions,
+                lastMissionRefreshYear = year
+            )
+        }
     }
     
     private fun checkAndInitMerchant(currentYear: Int) {
