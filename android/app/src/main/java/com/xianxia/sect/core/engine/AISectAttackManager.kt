@@ -1,10 +1,13 @@
 package com.xianxia.sect.core.engine
 
+import com.xianxia.sect.core.data.EquipmentDatabase
+import com.xianxia.sect.core.data.ManualDatabase
 import com.xianxia.sect.core.model.AIBattleTeam
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.Herb
+import com.xianxia.sect.core.model.ManualProficiencyData
 import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.SectRelation
@@ -352,8 +355,52 @@ object AISectAttackManager {
     }
     
     private fun convertToCombatant(disciple: Disciple, isAttacker: Boolean): AICombatant {
-        val stats = disciple.getBaseStats()
-        val talents = disciple.getTalentEffects()
+        val equipmentMap = buildMap {
+            disciple.weaponId?.let { weaponId ->
+                EquipmentDatabase.getById(weaponId)?.let { template ->
+                    put(weaponId, EquipmentDatabase.createFromTemplate(template))
+                }
+            }
+            disciple.armorId?.let { armorId ->
+                EquipmentDatabase.getById(armorId)?.let { template ->
+                    put(armorId, EquipmentDatabase.createFromTemplate(template))
+                }
+            }
+            disciple.bootsId?.let { bootsId ->
+                EquipmentDatabase.getById(bootsId)?.let { template ->
+                    put(bootsId, EquipmentDatabase.createFromTemplate(template))
+                }
+            }
+            disciple.accessoryId?.let { accessoryId ->
+                EquipmentDatabase.getById(accessoryId)?.let { template ->
+                    put(accessoryId, EquipmentDatabase.createFromTemplate(template))
+                }
+            }
+        }
+        
+        val manualMap = disciple.manualIds.mapNotNull { manualId ->
+            ManualDatabase.getById(manualId)?.let { template ->
+                manualId to ManualDatabase.createFromTemplate(template)
+            }
+        }.toMap()
+        
+        val manualProficiencies = disciple.manualIds.associateWith { manualId ->
+            val mastery = disciple.manualMasteries[manualId] ?: 0
+            ManualProficiencyData(
+                manualId = manualId,
+                proficiency = mastery.toDouble(),
+                masteryLevel = when {
+                    mastery >= 100 -> 3
+                    mastery >= 80 -> 2
+                    mastery >= 60 -> 1
+                    mastery >= 40 -> 1
+                    mastery >= 20 -> 0
+                    else -> 0
+                }
+            )
+        }
+        
+        val stats = disciple.getFinalStats(equipmentMap, manualMap, manualProficiencies)
         
         return AICombatant(
             id = disciple.id,
@@ -438,13 +485,26 @@ object AISectAttackManager {
         return "【宗门灭亡】${defenderName}被${attackerName}吞并！"
     }
     
-    fun createPlayerDefenseTeam(disciples: List<Disciple>): List<AICombatant> {
+    fun createPlayerDefenseTeam(
+        disciples: List<Disciple>,
+        equipmentMap: Map<String, com.xianxia.sect.core.model.Equipment>,
+        manualMap: Map<String, com.xianxia.sect.core.model.Manual>,
+        manualProficiencies: Map<String, Map<String, ManualProficiencyData>>
+    ): List<AICombatant> {
         return disciples
             .filter { it.status == DiscipleStatus.IDLE }
             .sortedByDescending { it.realm }
             .take(TEAM_SIZE)
             .map { disciple ->
-                val stats = disciple.getBaseStats()
+                val discipleEquipment = buildMap {
+                    disciple.weaponId?.let { id -> equipmentMap[id]?.let { put(id, it) } }
+                    disciple.armorId?.let { id -> equipmentMap[id]?.let { put(id, it) } }
+                    disciple.bootsId?.let { id -> equipmentMap[id]?.let { put(id, it) } }
+                    disciple.accessoryId?.let { id -> equipmentMap[id]?.let { put(id, it) } }
+                }
+                val discipleManuals = disciple.manualIds.mapNotNull { id -> manualMap[id]?.let { id to it } }.toMap()
+                val discipleProficiencies = manualProficiencies[disciple.id] ?: emptyMap()
+                val stats = disciple.getFinalStats(discipleEquipment, discipleManuals, discipleProficiencies)
                 AICombatant(
                     id = disciple.id,
                     name = disciple.name,

@@ -43,10 +43,20 @@ object CaveExplorationSystem {
     fun createAIBattle(
         playerDisciples: List<Disciple>,
         playerEquipmentMap: Map<String, Equipment>,
+        playerManualMap: Map<String, Manual>,
+        playerManualProficiencies: Map<String, Map<String, ManualProficiencyData>>,
         aiTeam: AICaveTeam
     ): Battle {
         val playerCombatants = playerDisciples.map { disciple ->
-            val stats = disciple.getStatsWithEquipment(playerEquipmentMap)
+            val discipleEquipment = buildMap {
+                disciple.weaponId?.let { id -> playerEquipmentMap[id]?.let { put(id, it) } }
+                disciple.armorId?.let { id -> playerEquipmentMap[id]?.let { put(id, it) } }
+                disciple.bootsId?.let { id -> playerEquipmentMap[id]?.let { put(id, it) } }
+                disciple.accessoryId?.let { id -> playerEquipmentMap[id]?.let { put(id, it) } }
+            }
+            val discipleManuals = disciple.manualIds.mapNotNull { id -> playerManualMap[id]?.let { id to it } }.toMap()
+            val discipleProficiencies = playerManualProficiencies[disciple.id] ?: emptyMap()
+            val stats = disciple.getFinalStats(discipleEquipment, discipleManuals, discipleProficiencies)
             Combatant(
                 id = disciple.id,
                 name = disciple.name,
@@ -100,10 +110,20 @@ object CaveExplorationSystem {
     fun createGuardianBattle(
         playerDisciples: List<Disciple>,
         playerEquipmentMap: Map<String, Equipment>,
+        playerManualMap: Map<String, Manual>,
+        playerManualProficiencies: Map<String, Map<String, ManualProficiencyData>>,
         cave: CultivatorCave
     ): Battle {
         val playerCombatants = playerDisciples.map { disciple ->
-            val stats = disciple.getStatsWithEquipment(playerEquipmentMap)
+            val discipleEquipment = buildMap {
+                disciple.weaponId?.let { id -> playerEquipmentMap[id]?.let { put(id, it) } }
+                disciple.armorId?.let { id -> playerEquipmentMap[id]?.let { put(id, it) } }
+                disciple.bootsId?.let { id -> playerEquipmentMap[id]?.let { put(id, it) } }
+                disciple.accessoryId?.let { id -> playerEquipmentMap[id]?.let { put(id, it) } }
+            }
+            val discipleManuals = disciple.manualIds.mapNotNull { id -> playerManualMap[id]?.let { id to it } }.toMap()
+            val discipleProficiencies = playerManualProficiencies[disciple.id] ?: emptyMap()
+            val stats = disciple.getFinalStats(discipleEquipment, discipleManuals, discipleProficiencies)
             Combatant(
                 id = disciple.id,
                 name = disciple.name,

@@ -183,7 +183,15 @@ fun DiscipleDetailDialog(
                 Divider(color = GameColors.Border, thickness = 1.dp)
                 AttributesSection(disciple)
                 Divider(color = GameColors.Border, thickness = 1.dp)
-                CombatStatsSection(disciple)
+                CombatStatsSection(
+                    disciple = disciple,
+                    weapon = weapon,
+                    armor = armor,
+                    boots = boots,
+                    accessory = accessory,
+                    learnedManuals = learnedManuals,
+                    manualProficiencies = manualProficiencies
+                )
                 Divider(color = GameColors.Border, thickness = 1.dp)
                 EquipmentSection(
                     weapon = weapon,
@@ -2566,7 +2574,40 @@ private fun AttributeItem(name: String, value: Int, modifier: Modifier = Modifie
 }
 
 @Composable
-private fun CombatStatsSection(disciple: Disciple) {
+private fun CombatStatsSection(
+    disciple: Disciple,
+    weapon: Equipment?,
+    armor: Equipment?,
+    boots: Equipment?,
+    accessory: Equipment?,
+    learnedManuals: List<Manual>,
+    manualProficiencies: Map<String, List<ManualProficiencyData>>
+) {
+    val equipmentMap = remember(weapon, armor, boots, accessory) {
+        mutableMapOf<String, Equipment>().apply {
+            weapon?.let { put(it.id, it) }
+            armor?.let { put(it.id, it) }
+            boots?.let { put(it.id, it) }
+            accessory?.let { put(it.id, it) }
+        }
+    }
+    
+    val manualMap = remember(learnedManuals) {
+        learnedManuals.associateBy { it.id }
+    }
+    
+    val discipleProficiencies = remember(disciple.id, manualProficiencies) {
+        manualProficiencies[disciple.id]?.associateBy { it.manualId } ?: emptyMap()
+    }
+    
+    val finalStats = remember(disciple, equipmentMap, manualMap, discipleProficiencies) {
+        disciple.getFinalStats(equipmentMap, manualMap, discipleProficiencies)
+    }
+    
+    val baseStats = remember(disciple) {
+        disciple.getBaseStats()
+    }
+    
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             text = "战斗属性",
@@ -2579,31 +2620,31 @@ private fun CombatStatsSection(disciple: Disciple) {
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            StatItem("气血", disciple.maxHp, Modifier.weight(1f))
-            StatItem("灵力", disciple.maxMp, Modifier.weight(1f))
+            StatItemWithBonus("气血", baseStats.maxHp, finalStats.maxHp, Modifier.weight(1f))
+            StatItemWithBonus("灵力", baseStats.maxMp, finalStats.maxMp, Modifier.weight(1f))
         }
         
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            StatItem("物攻", disciple.physicalAttack, Modifier.weight(1f))
-            StatItem("法攻", disciple.magicAttack, Modifier.weight(1f))
+            StatItemWithBonus("物攻", baseStats.physicalAttack, finalStats.physicalAttack, Modifier.weight(1f))
+            StatItemWithBonus("法攻", baseStats.magicAttack, finalStats.magicAttack, Modifier.weight(1f))
         }
         
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            StatItem("物防", disciple.physicalDefense, Modifier.weight(1f))
-            StatItem("法防", disciple.magicDefense, Modifier.weight(1f))
+            StatItemWithBonus("物防", baseStats.physicalDefense, finalStats.physicalDefense, Modifier.weight(1f))
+            StatItemWithBonus("法防", baseStats.magicDefense, finalStats.magicDefense, Modifier.weight(1f))
         }
         
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            StatItem("速度", disciple.speed, Modifier.weight(1f))
+            StatItemWithBonus("速度", baseStats.speed, finalStats.speed, Modifier.weight(1f))
             StatItem("神魂", disciple.soulPower, Modifier.weight(1f))
         }
     }
@@ -2854,6 +2895,36 @@ private fun StatItem(name: String, value: Int, modifier: Modifier = Modifier) {
             fontWeight = FontWeight.Bold,
             color = Color.Black
         )
+    }
+}
+
+@Composable
+private fun StatItemWithBonus(name: String, baseValue: Int, finalValue: Int, modifier: Modifier = Modifier) {
+    val bonus = finalValue - baseValue
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = name,
+            fontSize = 11.sp,
+            color = Color(0xFF666666)
+        )
+        Text(
+            text = finalValue.toString(),
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.Black
+        )
+        if (bonus > 0) {
+            Text(
+                text = "(+$bonus)",
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF27AE60)
+            )
+        }
     }
 }
 

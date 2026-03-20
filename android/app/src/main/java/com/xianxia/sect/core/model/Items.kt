@@ -59,9 +59,8 @@ data class Equipment(
     
     val totalMultiplier: Double
         get() {
-            val rarityMult = GameConfig.Rarity.get(rarity).multiplier
             val nurtureMult = getNurtureMultiplier(nurtureLevel)
-            return rarityMult * nurtureMult
+            return nurtureMult
         }
     
     private fun getNurtureMultiplier(level: Int): Double {

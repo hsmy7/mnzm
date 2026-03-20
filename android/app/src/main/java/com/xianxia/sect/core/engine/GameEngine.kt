@@ -3963,7 +3963,13 @@ class GameEngine {
                     }
                 }
 
-                val thunderResult = TribulationSystem.trialThunderTribulation(disciple)
+                val discipleProficiencies = _gameData.value.manualProficiencies[disciple.id]?.associateBy { it.manualId } ?: emptyMap()
+                val thunderResult = TribulationSystem.trialThunderTribulation(
+                    disciple = disciple,
+                    equipmentMap = _equipment.value.associateBy { it.id },
+                    manualMap = _manuals.value.associateBy { it.id },
+                    manualProficiencies = discipleProficiencies
+                )
                 if (!thunderResult.success) {
                     addEvent("${disciple.name} 突破失败，未能渡过雷劫", EventType.INFO)
                     return disciple.copy(
@@ -10882,8 +10888,22 @@ class GameEngine {
         val enemies = generateScoutEnemiesFromAIDisciples(eligibleDisciples)
 
         // 简化战斗：计算双方总战力
+        val equipmentMap = _equipment.value.associateBy { it.id }
+        val manualMap = _manuals.value.associateBy { it.id }
+        val allProficiencies = _gameData.value.manualProficiencies.mapValues { (_, list) -> 
+            list.associateBy { it.manualId } 
+        }
+        
         val teamPower = teamMembers.sumOf { member ->
-            val stats = member.getBaseStats()
+            val memberEquipment = buildMap {
+                member.weaponId?.let { id -> equipmentMap[id]?.let { put(id, it) } }
+                member.armorId?.let { id -> equipmentMap[id]?.let { put(id, it) } }
+                member.bootsId?.let { id -> equipmentMap[id]?.let { put(id, it) } }
+                member.accessoryId?.let { id -> equipmentMap[id]?.let { put(id, it) } }
+            }
+            val memberManuals = member.manualIds.mapNotNull { id -> manualMap[id]?.let { id to it } }.toMap()
+            val memberProficiencies = allProficiencies[member.id] ?: emptyMap()
+            val stats = member.getFinalStats(memberEquipment, memberManuals, memberProficiencies)
             stats.physicalAttack + stats.physicalDefense + stats.maxHp / 10
         }.toDouble()
 
@@ -10926,7 +10946,16 @@ class GameEngine {
         }
 
         // 生成战斗回合记录
-        val rounds = generateScoutBattleRounds(teamMembers, enemies, teamWins, teamCasualties, enemiesDefeated)
+        val rounds = generateScoutBattleRounds(
+            teamMembers = teamMembers,
+            enemies = enemies,
+            teamWins = teamWins,
+            teamCasualties = teamCasualties,
+            enemiesDefeated = enemiesDefeated,
+            equipmentMap = equipmentMap,
+            manualMap = manualMap,
+            allProficiencies = allProficiencies
+        )
 
         // 记录战斗日志
         val battleLog = BattleLog(
@@ -11002,7 +11031,52 @@ class GameEngine {
      */
     private fun generateScoutEnemiesFromAIDisciples(aiDisciples: List<Disciple>): List<BattleEnemy> {
         return aiDisciples.map { disciple ->
-            val stats = disciple.getBaseStats()
+            val equipmentMap = buildMap {
+                disciple.weaponId?.let { weaponId ->
+                    EquipmentDatabase.getById(weaponId)?.let { template ->
+                        put(weaponId, EquipmentDatabase.createFromTemplate(template))
+                    }
+                }
+                disciple.armorId?.let { armorId ->
+                    EquipmentDatabase.getById(armorId)?.let { template ->
+                        put(armorId, EquipmentDatabase.createFromTemplate(template))
+                    }
+                }
+                disciple.bootsId?.let { bootsId ->
+                    EquipmentDatabase.getById(bootsId)?.let { template ->
+                        put(bootsId, EquipmentDatabase.createFromTemplate(template))
+                    }
+                }
+                disciple.accessoryId?.let { accessoryId ->
+                    EquipmentDatabase.getById(accessoryId)?.let { template ->
+                        put(accessoryId, EquipmentDatabase.createFromTemplate(template))
+                    }
+                }
+            }
+            
+            val manualMap = disciple.manualIds.mapNotNull { manualId ->
+                ManualDatabase.getById(manualId)?.let { template ->
+                    manualId to ManualDatabase.createFromTemplate(template)
+                }
+            }.toMap()
+            
+            val manualProficiencies = disciple.manualIds.associateWith { manualId ->
+                val mastery = disciple.manualMasteries[manualId] ?: 0
+                ManualProficiencyData(
+                    manualId = manualId,
+                    proficiency = mastery.toDouble(),
+                    masteryLevel = when {
+                        mastery >= 100 -> 3
+                        mastery >= 80 -> 2
+                        mastery >= 60 -> 1
+                        mastery >= 40 -> 1
+                        mastery >= 20 -> 0
+                        else -> 0
+                    }
+                )
+            }
+            
+            val stats = disciple.getFinalStats(equipmentMap, manualMap, manualProficiencies)
             BattleEnemy(
                 id = disciple.id,
                 name = disciple.name,
@@ -11027,23 +11101,33 @@ class GameEngine {
         enemies: List<BattleEnemy>,
         teamWins: Boolean,
         teamCasualties: Int,
-        enemiesDefeated: Int
+        enemiesDefeated: Int,
+        equipmentMap: Map<String, Equipment>,
+        manualMap: Map<String, Manual>,
+        allProficiencies: Map<String, Map<String, ManualProficiencyData>>
     ): List<BattleLogRound> {
         val rounds = mutableListOf<BattleLogRound>()
-        val maxRounds = Random.nextInt(3, 8) // 3-7回合
+        val maxRounds = Random.nextInt(3, 8)
 
-        // 创建可变的战斗单位列表
         val aliveTeamMembers = teamMembers.toMutableList()
         val aliveEnemies = enemies.toMutableList()
 
         for (roundNum in 1..maxRounds) {
             val actions = mutableListOf<BattleLogAction>()
 
-            // 队伍成员行动
             aliveTeamMembers.shuffled().take(3).forEach { member ->
                 if (aliveEnemies.isNotEmpty()) {
                     val target = aliveEnemies.random()
-                    val damage = member.getBaseStats().physicalAttack
+                    val memberEquipment = buildMap {
+                        member.weaponId?.let { id -> equipmentMap[id]?.let { put(id, it) } }
+                        member.armorId?.let { id -> equipmentMap[id]?.let { put(id, it) } }
+                        member.bootsId?.let { id -> equipmentMap[id]?.let { put(id, it) } }
+                        member.accessoryId?.let { id -> equipmentMap[id]?.let { put(id, it) } }
+                    }
+                    val memberManuals = member.manualIds.mapNotNull { id -> manualMap[id]?.let { id to it } }.toMap()
+                    val memberProficiencies = allProficiencies[member.id] ?: emptyMap()
+                    val stats = member.getFinalStats(memberEquipment, memberManuals, memberProficiencies)
+                    val damage = stats.physicalAttack
                     actions.add(BattleLogAction(
                         type = "attack",
                         attacker = member.name,
@@ -11056,7 +11140,6 @@ class GameEngine {
                 }
             }
 
-            // 敌人行动
             aliveEnemies.shuffled().take(3).forEach { enemy ->
                 if (aliveTeamMembers.isNotEmpty()) {
                     val target = aliveTeamMembers.random()
@@ -11072,14 +11155,10 @@ class GameEngine {
                 }
             }
 
-            // 模拟伤亡
             if (roundNum == maxRounds) {
-                // 最后一回合，根据战斗结果处理
                 if (teamWins) {
-                    // 敌人全部阵亡
                     aliveEnemies.clear()
                 } else {
-                    // 队伍全部阵亡
                     aliveTeamMembers.clear()
                 }
             } else {
@@ -11515,6 +11594,8 @@ class GameEngine {
         
         try {
             val equipmentMap = _equipment.value.associateBy { it.id }
+            val manualMap = _manuals.value.associateBy { it.id }
+            val allProficiencies = _gameData.value.manualProficiencies
             
             var aiTeams = currentAITeams.toMutableList()
             var allVictories = true
@@ -11526,7 +11607,15 @@ class GameEngine {
             var currentAliveDisciples = _disciples.value.filter { it.id in team.memberIds && it.isAlive }
             
             for (aiTeam in caveAITeams) {
-                val battle = CaveExplorationSystem.createAIBattle(currentAliveDisciples, equipmentMap, aiTeam)
+                val battle = CaveExplorationSystem.createAIBattle(
+                    playerDisciples = currentAliveDisciples,
+                    playerEquipmentMap = equipmentMap,
+                    playerManualMap = manualMap,
+                    playerManualProficiencies = allProficiencies.mapValues { (_, list) -> 
+                        list.associateBy { it.manualId } 
+                    },
+                    aiTeam = aiTeam
+                )
                 val battleResult = BattleSystem.executeBattle(battle)
                 
                 clearBattlePillEffects(currentAliveDisciples)
@@ -11580,7 +11669,15 @@ class GameEngine {
                 return Triple(updatedCaves, aiTeams.toList(), true)
             }
 
-            val guardianBattle = CaveExplorationSystem.createGuardianBattle(currentAliveDisciples, equipmentMap, cave)
+            val guardianBattle = CaveExplorationSystem.createGuardianBattle(
+                playerDisciples = currentAliveDisciples,
+                playerEquipmentMap = equipmentMap,
+                playerManualMap = manualMap,
+                playerManualProficiencies = allProficiencies.mapValues { (_, list) -> 
+                    list.associateBy { it.manualId } 
+                },
+                cave = cave
+            )
             val guardianResult = BattleSystem.executeBattle(guardianBattle)
             
             clearBattlePillEffects(currentAliveDisciples)
@@ -13865,7 +13962,14 @@ class GameEngine {
     
     private fun triggerPlayerSectBattle(team: AIBattleTeam, playerSect: WorldSect, attackerSect: WorldSect?) {
         val data = _gameData.value
-        val playerDefenseTeam = AISectAttackManager.createPlayerDefenseTeam(_disciples.value)
+        val playerDefenseTeam = AISectAttackManager.createPlayerDefenseTeam(
+            disciples = _disciples.value,
+            equipmentMap = _equipment.value.associateBy { it.id },
+            manualMap = _manuals.value.associateBy { it.id },
+            manualProficiencies = data.manualProficiencies.mapValues { (_, list) -> 
+                list.associateBy { it.manualId } 
+            }
+        )
         
         if (playerDefenseTeam.isEmpty()) {
             addEvent("${team.attackerSectName}进攻我宗，但我宗无可用弟子防守！", EventType.DANGER)

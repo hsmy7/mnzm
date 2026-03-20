@@ -1,6 +1,9 @@
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.Equipment
+import com.xianxia.sect.core.model.Manual
+import com.xianxia.sect.core.model.ManualProficiencyData
 import com.xianxia.sect.core.GameConfig
 import kotlin.random.Random
 
@@ -50,17 +53,24 @@ object TribulationSystem {
         return disciple.realm <= 6
     }
     
-    fun trialThunderTribulation(disciple: Disciple): TribulationResult {
+    fun trialThunderTribulation(
+        disciple: Disciple,
+        equipmentMap: Map<String, Equipment> = emptyMap(),
+        manualMap: Map<String, Manual> = emptyMap(),
+        manualProficiencies: Map<String, ManualProficiencyData> = emptyMap()
+    ): TribulationResult {
         val newRealmIndex = disciple.realm - 1
         val thunderTribulation = createThunderTribulation(newRealmIndex)
         val newRealmName = GameConfig.Realm.getName(newRealmIndex)
         
-        var discipleHp = disciple.maxHp
+        val finalStats = disciple.getFinalStats(equipmentMap, manualMap, manualProficiencies)
+        
+        var discipleHp = finalStats.maxHp
         var totalDamage = 0
         
         for (i in 1..3) {
-            val physicalDamage = maxOf(1, thunderTribulation.physicalAttack - disciple.physicalDefense)
-            val magicDamage = maxOf(1, thunderTribulation.magicAttack - disciple.magicDefense)
+            val physicalDamage = maxOf(1, thunderTribulation.physicalAttack - finalStats.physicalDefense)
+            val magicDamage = maxOf(1, thunderTribulation.magicAttack - finalStats.magicDefense)
             val roundDamage = physicalDamage + magicDamage
             
             discipleHp -= roundDamage
