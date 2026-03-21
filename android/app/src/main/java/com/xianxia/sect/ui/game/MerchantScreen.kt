@@ -521,7 +521,44 @@ private fun getItemEffectText(item: MerchantItem): String {
         if (stats.containsKey("mp")) effects.add("灵力+${stats["mp"]}")
         if (stats.containsKey("speed")) effects.add("速度+${stats["speed"]}")
         if (stats.containsKey("critRate")) effects.add("暴击率+${stats["critRate"]}%")
-        return if (effects.isNotEmpty()) effects.joinToString("，") else manualTemplate.description
+        
+        val skillInfo = buildString {
+            manualTemplate.skillName?.let { skillName ->
+                append("\n技能: $skillName")
+                manualTemplate.skillDescription?.let { desc ->
+                    if (desc.isNotEmpty()) append("\n  $desc")
+                }
+                if (manualTemplate.skillType == "attack") {
+                    append("\n  伤害类型: ${if (manualTemplate.skillDamageType == "physical") "物理" else "法术"}")
+                    if (manualTemplate.skillDamageMultiplier > 0) {
+                        append("\n  伤害倍率: ${(manualTemplate.skillDamageMultiplier * 100).toInt()}%")
+                    }
+                    append("\n  连击次数: ${manualTemplate.skillHits}")
+                }
+                if (manualTemplate.skillCooldown > 0) {
+                    append("\n  冷却回合: ${manualTemplate.skillCooldown}")
+                }
+                if (manualTemplate.skillMpCost > 0) {
+                    append("\n  灵力消耗: ${manualTemplate.skillMpCost}")
+                }
+                if (manualTemplate.skillHealPercent > 0) {
+                    val healType = if (manualTemplate.skillHealType == "mp") "灵力" else "生命"
+                    append("\n  治疗: ${(manualTemplate.skillHealPercent * 100).toInt()}% $healType")
+                }
+                manualTemplate.skillBuffs.forEach { (buffType, value, duration) ->
+                    val buffName = getBuffTypeNameFromString(buffType)
+                    append("\n  $buffName +${(value * 100).toInt()}% (${duration}回合)")
+                }
+                if (manualTemplate.skillBuffs.isEmpty() && manualTemplate.skillBuffType != null && manualTemplate.skillBuffValue > 0) {
+                    val buffName = getBuffTypeNameFromString(manualTemplate.skillBuffType)
+                    val durationText = if (manualTemplate.skillBuffDuration > 0) " (${manualTemplate.skillBuffDuration}回合)" else ""
+                    append("\n  $buffName +${(manualTemplate.skillBuffValue * 100).toInt()}%$durationText")
+                }
+            }
+        }
+        
+        val baseEffects = if (effects.isNotEmpty()) effects.joinToString("，") else manualTemplate.description
+        return baseEffects + skillInfo.toString()
     }
 
     val pillRecipe = PillRecipeDatabase.getRecipeByName(item.name)
@@ -569,6 +606,18 @@ private fun getItemEffectText(item: MerchantItem): String {
     }
 
     return "神秘的物品，用途未知"
+}
+
+private fun getBuffTypeNameFromString(buffType: String): String = when (buffType) {
+    "hp" -> "生命加成"
+    "mp" -> "灵力加成"
+    "speed" -> "速度加成"
+    "physical_attack" -> "物攻加成"
+    "magic_attack" -> "法攻加成"
+    "physical_defense" -> "物防加成"
+    "magic_defense" -> "法防加成"
+    "crit_rate" -> "暴击率加成"
+    else -> buffType
 }
 
 data class PlayerListItem(
@@ -1074,7 +1123,7 @@ private fun <T> InventorySelectGrid(
     }
 
     if (showDetailDialog && selectedItem != null) {
-        InventoryItemDetailDialog(
+        com.xianxia.sect.ui.game.components.ItemDetailDialog(
             item = selectedItem!!,
             onDismiss = { showDetailDialog = false }
         )
@@ -1212,332 +1261,11 @@ private fun AllItemsSelectGrid(
     }
 
     if (showDetailDialog && selectedItem != null) {
-        InventoryItemDetailDialog(
+        com.xianxia.sect.ui.game.components.ItemDetailDialog(
             item = selectedItem!!,
             onDismiss = { showDetailDialog = false }
         )
     }
-}
-
-@Composable
-private fun InventoryItemDetailDialog(
-    item: Any,
-    onDismiss: () -> Unit
-) {
-    val name: String
-    val rarity: Int
-    val description: String
-    val effects: List<String>
-
-    when (item) {
-        is Equipment -> {
-            name = item.name
-            rarity = item.rarity
-            description = item.description
-            effects = buildList {
-                add("部位: ${item.slot.displayName}")
-                add("稀有度: ${getRarityName(item.rarity)}")
-                if (item.minRealm < 9) {
-                    add("需求境界: ${com.xianxia.sect.core.GameConfig.Realm.getName(item.minRealm)}")
-                }
-                if (item.nurtureLevel > 0) {
-                    add("孕养等级: Lv.${item.nurtureLevel}")
-                    val nurtureBonus = (item.totalMultiplier / com.xianxia.sect.core.GameConfig.Rarity.get(item.rarity).multiplier - 1.0) * 100
-                    if (nurtureBonus > 0) {
-                        add("  孕养加成: +${String.format("%.1f", nurtureBonus)}%")
-                    }
-                }
-                add("")
-                add("属性:")
-                val finalStats = item.getFinalStats()
-                val baseStats = item.stats
-                if (finalStats.physicalAttack > 0) {
-                    val bonus = finalStats.physicalAttack - baseStats.physicalAttack
-                    val bonusText = if (bonus > 0) " (↑$bonus)" else ""
-                    add("  物理攻击 +${finalStats.physicalAttack}$bonusText")
-                }
-                if (finalStats.magicAttack > 0) {
-                    val bonus = finalStats.magicAttack - baseStats.magicAttack
-                    val bonusText = if (bonus > 0) " (↑$bonus)" else ""
-                    add("  法术攻击 +${finalStats.magicAttack}$bonusText")
-                }
-                if (finalStats.physicalDefense > 0) {
-                    val bonus = finalStats.physicalDefense - baseStats.physicalDefense
-                    val bonusText = if (bonus > 0) " (↑$bonus)" else ""
-                    add("  物理防御 +${finalStats.physicalDefense}$bonusText")
-                }
-                if (finalStats.magicDefense > 0) {
-                    val bonus = finalStats.magicDefense - baseStats.magicDefense
-                    val bonusText = if (bonus > 0) " (↑$bonus)" else ""
-                    add("  法术防御 +${finalStats.magicDefense}$bonusText")
-                }
-                if (finalStats.speed > 0) {
-                    val bonus = finalStats.speed - baseStats.speed
-                    val bonusText = if (bonus > 0) " (↑$bonus)" else ""
-                    add("  速度 +${finalStats.speed}$bonusText")
-                }
-                if (finalStats.hp > 0) {
-                    val bonus = finalStats.hp - baseStats.hp
-                    val bonusText = if (bonus > 0) " (↑$bonus)" else ""
-                    add("  生命 +${finalStats.hp}$bonusText")
-                }
-                if (finalStats.mp > 0) {
-                    val bonus = finalStats.mp - baseStats.mp
-                    val bonusText = if (bonus > 0) " (↑$bonus)" else ""
-                    add("  灵力 +${finalStats.mp}$bonusText")
-                }
-                if (item.critChance > 0) add("  暴击率 +${String.format("%.1f", item.critChance * 100)}%")
-            }
-        }
-        is Manual -> {
-            name = item.name
-            rarity = item.rarity
-            description = item.description
-            effects = buildList {
-                add("类型: ${item.type.displayName}")
-                if (item.minRealm < 9) {
-                    add("需求境界: ${com.xianxia.sect.core.GameConfig.Realm.getName(item.minRealm)}")
-                }
-                add("")
-                val stats = item.stats
-                if (stats.isNotEmpty()) {
-                    add("属性加成:")
-                    stats.forEach { (key, value) ->
-                        val statName = when (key) {
-                            "cultivationSpeedPercent" -> "修炼速度"
-                            "physicalAttack" -> "物理攻击"
-                            "magicAttack" -> "法术攻击"
-                            "physicalDefense" -> "物理防御"
-                            "magicDefense" -> "法术防御"
-                            "hp" -> "生命"
-                            "mp" -> "灵力"
-                            "speed" -> "速度"
-                            "critRate" -> "暴击率"
-                            else -> key
-                        }
-                        if (key.contains("Percent")) {
-                            add("  $statName +$value%")
-                        } else {
-                            add("  $statName +$value")
-                        }
-                    }
-                }
-                item.skill?.let { skill ->
-                    add("")
-                    add("技能: ${skill.name}")
-                    if (skill.description.isNotEmpty()) {
-                        add("  ${skill.description}")
-                    }
-                    add("  伤害类型: ${if (skill.damageType == com.xianxia.sect.core.engine.DamageType.PHYSICAL) "物理" else "法术"}")
-                    add("  伤害倍率: ${String.format("%.1f", skill.damageMultiplier * 100)}%")
-                    add("  连击次数: ${skill.hits}")
-                    add("  冷却回合: ${skill.cooldown}")
-                    add("  灵力消耗: ${skill.mpCost}")
-                }
-            }
-        }
-        is Pill -> {
-            name = item.name
-            rarity = item.rarity
-            description = item.description
-            effects = buildList {
-                add("类型: ${item.category.displayName}")
-                add("数量: ${item.quantity}")
-                add("")
-                add("效果:")
-                when (item.category) {
-                    com.xianxia.sect.core.model.PillCategory.BREAKTHROUGH -> {
-                        if (item.breakthroughChance > 0) {
-                            add("  突破概率 +${String.format("%.1f", item.breakthroughChance * 100)}%")
-                        }
-                        if (item.targetRealm > 0) {
-                            add("  目标境界: ${com.xianxia.sect.core.GameConfig.Realm.getName(item.targetRealm)}")
-                        }
-                        if (item.isAscension) {
-                            add("  可用于渡劫")
-                        }
-                    }
-                    com.xianxia.sect.core.model.PillCategory.CULTIVATION -> {
-                        if (item.cultivationPercent > 0) {
-                            add("  修为 +${String.format("%.1f", item.cultivationPercent * 100)}%")
-                        }
-                        if (item.cultivationSpeed > 1.0) {
-                            add("  修炼速度 x${item.cultivationSpeed}")
-                        }
-                        if (item.skillExpPercent > 0) {
-                            add("  功法熟练度 +${String.format("%.1f", item.skillExpPercent * 100)}%")
-                        }
-                        if (item.extendLife > 0) {
-                            add("  延寿 ${item.extendLife} 年")
-                        }
-                    }
-                    com.xianxia.sect.core.model.PillCategory.BATTLE_PHYSICAL, com.xianxia.sect.core.model.PillCategory.BATTLE_MAGIC, com.xianxia.sect.core.model.PillCategory.BATTLE_STATUS -> {
-                        if (item.physicalAttackPercent > 0) add("  物理攻击 +${String.format("%.1f", item.physicalAttackPercent * 100)}%")
-                        if (item.magicAttackPercent > 0) add("  法术攻击 +${String.format("%.1f", item.magicAttackPercent * 100)}%")
-                        if (item.physicalDefensePercent > 0) add("  物理防御 +${String.format("%.1f", item.physicalDefensePercent * 100)}%")
-                        if (item.magicDefensePercent > 0) add("  法术防御 +${String.format("%.1f", item.magicDefensePercent * 100)}%")
-                        if (item.hpPercent > 0) add("  生命 +${String.format("%.1f", item.hpPercent * 100)}%")
-                        if (item.mpPercent > 0) add("  灵力 +${String.format("%.1f", item.mpPercent * 100)}%")
-                        if (item.speedPercent > 0) add("  速度 +${String.format("%.1f", item.speedPercent * 100)}%")
-                        if (item.battleCount > 0) add("  持续 ${item.battleCount} 场战斗")
-                    }
-                    com.xianxia.sect.core.model.PillCategory.HEALING -> {
-                        if (item.heal > 0) add("  恢复生命 ${item.heal}")
-                        if (item.healPercent > 0) add("  恢复生命 ${String.format("%.1f", item.healPercent * 100)}%")
-                        if (item.healMaxHpPercent > 0) add("  恢复生命 ${String.format("%.1f", item.healMaxHpPercent * 100)}% 最大生命")
-                        if (item.mpRecoverMaxMpPercent > 0) add("  恢复灵力 ${String.format("%.1f", item.mpRecoverMaxMpPercent * 100)}% 最大灵力")
-                        if (item.revive) add("  可复活弟子")
-                        if (item.clearAll) add("  清除所有负面状态")
-                    }
-                }
-                if (item.duration > 0 && !item.category.isBattlePill) {
-                    add("  持续 ${item.duration} 月")
-                }
-            }
-        }
-        is Material -> {
-            name = item.name
-            rarity = item.rarity
-            description = item.description
-            effects = buildList {
-                add("类型: ${item.category.displayName}")
-                add("数量: ${item.quantity}")
-                val forgeRecipes = com.xianxia.sect.core.data.ForgeRecipeDatabase.getRecipesByMaterial(item.id)
-                if (forgeRecipes.isNotEmpty()) {
-                    add("")
-                    add("可用于炼器:")
-                    forgeRecipes.take(5).forEach { recipe ->
-                        add("  · ${recipe.name}")
-                    }
-                    if (forgeRecipes.size > 5) {
-                        add("  · 等${forgeRecipes.size}种装备")
-                    }
-                }
-            }
-        }
-        is Herb -> {
-            name = item.name
-            rarity = item.rarity
-            description = item.description
-            effects = buildList {
-                if (item.category.isNotEmpty()) {
-                    add("类型: ${item.category}")
-                }
-                add("数量: ${item.quantity}")
-                val pillRecipes = com.xianxia.sect.core.data.PillRecipeDatabase.getRecipesByHerb(item.id)
-                if (pillRecipes.isNotEmpty()) {
-                    add("")
-                    add("可用于炼丹:")
-                    pillRecipes.take(5).forEach { recipe ->
-                        add("  · ${recipe.name}")
-                    }
-                    if (pillRecipes.size > 5) {
-                        add("  · 等${pillRecipes.size}种丹药")
-                    }
-                }
-            }
-        }
-        is Seed -> {
-            name = item.name
-            rarity = item.rarity
-            description = item.description
-            effects = buildList {
-                add("类型: 种子")
-                add("生长时间: ${item.growTime}个月")
-                add("收获数量: ${item.yield}")
-                add("数量: ${item.quantity}")
-                val herb = com.xianxia.sect.core.data.HerbDatabase.getHerbFromSeed(item.id)
-                if (herb != null) {
-                    add("")
-                    add("长成后:")
-                    add("  · ${herb.name}")
-                    add("  · ${herb.description}")
-                    val pillRecipes = com.xianxia.sect.core.data.PillRecipeDatabase.getRecipesByHerb(herb.id)
-                    if (pillRecipes.isNotEmpty()) {
-                        add("")
-                        add("可用于炼丹:")
-                        pillRecipes.take(3).forEach { recipe ->
-                            add("  · ${recipe.name}")
-                        }
-                        if (pillRecipes.size > 3) {
-                            add("  · 等${pillRecipes.size}种丹药")
-                        }
-                    }
-                } else {
-                    val herbName = com.xianxia.sect.core.data.HerbDatabase.getHerbNameFromSeedName(item.name)
-                    add("")
-                    add("长成后: $herbName")
-                }
-            }
-        }
-        else -> {
-            name = "未知物品"
-            rarity = 1
-            description = ""
-            effects = emptyList()
-        }
-    }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
-        title = {
-            Text(
-                text = name,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = getRarityColor(rarity)
-            )
-        },
-        text = {
-            Column(
-                modifier = Modifier.verticalScroll(rememberScrollState())
-            ) {
-                Text(
-                    text = getRarityName(rarity),
-                    fontSize = 11.sp,
-                    color = GameColors.TextSecondary
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Divider(color = GameColors.Background, thickness = 1.dp)
-                Spacer(modifier = Modifier.height(8.dp))
-
-                effects.forEach { effect ->
-                    if (effect.isEmpty()) {
-                        Spacer(modifier = Modifier.height(4.dp))
-                    } else {
-                        Text(
-                            text = effect,
-                            fontSize = 12.sp,
-                            color = if (effect.startsWith("属性") || effect.startsWith("效果") || effect.startsWith("技能")) {
-                                GameColors.Primary
-                            } else {
-                                GameColors.TextPrimary
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                }
-
-                if (description.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Divider(color = GameColors.Background, thickness = 1.dp)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = description,
-                        fontSize = 11.sp,
-                        color = GameColors.TextSecondary
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            GameButton(
-                text = "关闭",
-                onClick = onDismiss
-            )
-        }
-    )
 }
 
 @Composable

@@ -28,6 +28,7 @@ import com.xianxia.sect.core.data.TalentDatabase
 import com.xianxia.sect.core.engine.EquipmentNurtureSystem
 import com.xianxia.sect.core.engine.ManualProficiencySystem
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.ui.game.components.getBuffTypeName
 import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.ui.components.EmptyListMessage
 import com.xianxia.sect.ui.components.GameButton
@@ -544,7 +545,12 @@ private fun ManualDetailDialog(
     val progressInCurrentLevel = if (mastery == ManualProficiencySystem.MasteryLevel.PERFECTION) {
         1.0
     } else {
-        ((proficiency - currentThreshold) / (nextThreshold - currentThreshold)).coerceIn(0.0, 1.0)
+        val denominator = nextThreshold - currentThreshold
+        if (denominator > 0) {
+            ((proficiency - currentThreshold) / denominator).coerceIn(0.0, 1.0)
+        } else {
+            0.0
+        }
     }
 
     if (showReplaceSelection) {
@@ -854,31 +860,72 @@ private fun ManualDetailDialog(
                                 color = Color(0xFF333333)
                             )
                         }
-                        Text(
-                            text = "伤害类型：${if (skill.damageType == com.xianxia.sect.core.engine.DamageType.PHYSICAL) "物理" else "法术"}",
-                            fontSize = 10.sp,
-                            color = Color(0xFF666666)
-                        )
-                        Text(
-                            text = "伤害倍率：${GameUtils.formatPercent(skill.damageMultiplier)}",
-                            fontSize = 10.sp,
-                            color = Color(0xFF666666)
-                        )
+                        if (skill.skillType == com.xianxia.sect.core.engine.SkillType.SUPPORT) {
+                            Text(
+                                text = "类型：辅助",
+                                fontSize = 10.sp,
+                                color = Color(0xFF666666)
+                            )
+                        }
+                        if (skill.healPercent > 0) {
+                            val healTypeName = when (skill.healType) {
+                                com.xianxia.sect.core.engine.HealType.HP -> "生命"
+                                com.xianxia.sect.core.engine.HealType.MP -> "灵力"
+                            }
+                            Text(
+                                text = "治疗：${(skill.healPercent * 100).toInt()}% $healTypeName",
+                                fontSize = 10.sp,
+                                color = Color(0xFF666666)
+                            )
+                        }
+                        if (skill.damageMultiplier > 0 && skill.skillType == com.xianxia.sect.core.engine.SkillType.ATTACK) {
+                            Text(
+                                text = "伤害类型：${if (skill.damageType == com.xianxia.sect.core.engine.DamageType.PHYSICAL) "物理" else "法术"}",
+                                fontSize = 10.sp,
+                                color = Color(0xFF666666)
+                            )
+                            Text(
+                                text = "伤害倍率：${(skill.damageMultiplier * 100).toInt()}%",
+                                fontSize = 10.sp,
+                                color = Color(0xFF666666)
+                            )
+                        }
                         Text(
                             text = "连击次数：${skill.hits}",
                             fontSize = 10.sp,
                             color = Color(0xFF666666)
                         )
-                        Text(
-                            text = "冷却回合：${skill.cooldown}",
-                            fontSize = 10.sp,
-                            color = Color(0xFF666666)
-                        )
-                        Text(
-                            text = "灵力消耗：${skill.mpCost}",
-                            fontSize = 10.sp,
-                            color = Color(0xFF666666)
-                        )
+                        if (skill.cooldown > 0) {
+                            Text(
+                                text = "冷却回合：${skill.cooldown}",
+                                fontSize = 10.sp,
+                                color = Color(0xFF666666)
+                            )
+                        }
+                        if (skill.mpCost > 0) {
+                            Text(
+                                text = "灵力消耗：${skill.mpCost}",
+                                fontSize = 10.sp,
+                                color = Color(0xFF666666)
+                            )
+                        }
+                        skill.buffs.forEach { (buffType, value, duration) ->
+                            val buffName = getBuffTypeName(buffType)
+                            Text(
+                                text = "$buffName：+${(value * 100).toInt()}% (${duration}回合)",
+                                fontSize = 10.sp,
+                                color = Color(0xFF666666)
+                            )
+                        }
+                        if (skill.buffs.isEmpty() && skill.buffType != null && skill.buffValue > 0) {
+                            val buffName = getBuffTypeName(skill.buffType)
+                            val durationText = if (skill.buffDuration > 0) " (${skill.buffDuration}回合)" else ""
+                            Text(
+                                text = "$buffName：+${(skill.buffValue * 100).toInt()}%$durationText",
+                                fontSize = 10.sp,
+                                color = Color(0xFF666666)
+                            )
+                        }
                     }
 
                     if (manual.minRealm < 9) {

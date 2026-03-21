@@ -7,6 +7,7 @@ import com.xianxia.sect.core.engine.CombatSkill
 import com.xianxia.sect.core.engine.DamageType
 import com.xianxia.sect.core.engine.SkillType
 import com.xianxia.sect.core.engine.HealType
+import com.xianxia.sect.core.engine.BuffType
 
 sealed class GameItem {
     abstract val id: String
@@ -166,6 +167,10 @@ data class Manual(
     val skillMpCost: Int = 10,
     val skillHealPercent: Double = 0.0,
     val skillHealType: String = "hp",
+    val skillBuffType: String? = null,
+    val skillBuffValue: Double = 0.0,
+    val skillBuffDuration: Int = 0,
+    val skillBuffsJson: String = "",
     
     val minRealm: Int = 9,
     
@@ -175,7 +180,33 @@ data class Manual(
     
     val basePrice: Int get() = GameConfig.Rarity.get(rarity).basePrice
     
+    private fun parseBuffType(bt: String): BuffType? = when (bt) {
+        "physical_attack" -> BuffType.PHYSICAL_ATTACK_BOOST
+        "magic_attack" -> BuffType.MAGIC_ATTACK_BOOST
+        "physical_defense" -> BuffType.PHYSICAL_DEFENSE_BOOST
+        "magic_defense" -> BuffType.MAGIC_DEFENSE_BOOST
+        "hp" -> BuffType.HP_BOOST
+        "mp" -> BuffType.MP_BOOST
+        "speed" -> BuffType.SPEED_BOOST
+        "crit_rate" -> BuffType.CRIT_RATE_BOOST
+        else -> null
+    }
+    
+    private fun parseBuffsJson(json: String): List<Triple<BuffType, Double, Int>> {
+        if (json.isBlank()) return emptyList()
+        return json.split("|").mapNotNull { buffStr ->
+            val parts = buffStr.split(",")
+            if (parts.size == 3) {
+                val type = parseBuffType(parts[0]) ?: return@mapNotNull null
+                val value = parts[1].toDoubleOrNull() ?: return@mapNotNull null
+                val duration = parts[2].toIntOrNull() ?: return@mapNotNull null
+                Triple(type, value, duration)
+            } else null
+        }
+    }
+    
     val skill: ManualSkill? get() = skillName?.let {
+        val buffs = parseBuffsJson(skillBuffsJson)
         ManualSkill(
             name = it,
             description = skillDescription ?: "",
@@ -186,7 +217,11 @@ data class Manual(
             cooldown = skillCooldown,
             mpCost = skillMpCost,
             healPercent = skillHealPercent,
-            healType = if (skillHealType == "mp") HealType.MP else HealType.HP
+            healType = if (skillHealType == "mp") HealType.MP else HealType.HP,
+            buffType = skillBuffType?.let { bt -> parseBuffType(bt) },
+            buffValue = skillBuffValue,
+            buffDuration = skillBuffDuration,
+            buffs = buffs
         )
     }
     
@@ -195,13 +230,12 @@ data class Manual(
 }
 
 enum class ManualType {
-    ATTACK, DEFENSE, SUPPORT, MOVEMENT, MIND, PRODUCTION;
+    ATTACK, DEFENSE, SUPPORT, MIND, PRODUCTION;
     
     val displayName: String get() = when (this) {
         ATTACK -> "攻击型"
         DEFENSE -> "防御型"
         SUPPORT -> "辅助型"
-        MOVEMENT -> "身法型"
         MIND -> "心法型"
         PRODUCTION -> "功能型"
     }
@@ -217,9 +251,13 @@ data class ManualSkill(
     val cooldown: Int = 3,
     val mpCost: Int = 10,
     val healPercent: Double = 0.0,
-    val healType: HealType = HealType.HP
+    val healType: HealType = HealType.HP,
+    val buffType: BuffType? = null,
+    val buffValue: Double = 0.0,
+    val buffDuration: Int = 0,
+    val buffs: List<Triple<BuffType, Double, Int>> = emptyList()
 ) {
-    fun toCombatSkill(): CombatSkill = CombatSkill(
+    fun toCombatSkill(manualName: String = ""): CombatSkill = CombatSkill(
         name = name,
         skillType = skillType,
         damageType = damageType,
@@ -228,7 +266,13 @@ data class ManualSkill(
         cooldown = cooldown,
         hits = hits,
         healPercent = healPercent,
-        healType = healType
+        healType = healType,
+        buffType = buffType,
+        buffValue = buffValue,
+        buffDuration = buffDuration,
+        buffs = buffs,
+        skillDescription = description,
+        manualName = manualName
     )
 }
 

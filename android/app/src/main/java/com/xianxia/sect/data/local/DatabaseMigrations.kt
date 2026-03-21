@@ -1024,7 +1024,8 @@ object DatabaseMigrations {
             MIGRATION_46_47,
             MIGRATION_47_48,
             MIGRATION_48_49,
-            MIGRATION_49_50
+            MIGRATION_49_50,
+            MIGRATION_50_51
         )
 
     private val MIGRATION_35_36 = object : Migration(35, 36) {
@@ -1576,6 +1577,27 @@ object DatabaseMigrations {
 
             db.execSQL("DROP TABLE equipment")
             db.execSQL("ALTER TABLE equipment_new RENAME TO equipment")
+        }
+    }
+
+    private val MIGRATION_50_51 = object : Migration(50, 51) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            val columns = getExistingColumns(db, "manuals")
+            if (!columns.contains("skillBuffsJson")) {
+                db.execSQL("ALTER TABLE manuals ADD COLUMN skillBuffsJson TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
+        private fun getExistingColumns(db: SupportSQLiteDatabase, tableName: String): Set<String> {
+            val columns = mutableSetOf<String>()
+            val cursor = db.query("PRAGMA table_info($tableName)")
+            cursor.use {
+                val nameIndex = it.getColumnIndex("name")
+                while (it.moveToNext()) {
+                    columns.add(it.getString(nameIndex))
+                }
+            }
+            return columns
         }
     }
 }

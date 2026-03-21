@@ -46,49 +46,49 @@ class GameViewModel @Inject constructor(
     }
 
     val gameData: StateFlow<GameData> = gameEngine.gameData
-        .stateIn(viewModelScope, SharingStarted.Eagerly, gameEngine.gameData.value)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), gameEngine.gameData.value)
 
     val disciples: StateFlow<List<Disciple>> = gameEngine.disciples
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val equipment: StateFlow<List<Equipment>> = gameEngine.equipment
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val manuals: StateFlow<List<Manual>> = gameEngine.manuals
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val pills: StateFlow<List<Pill>> = gameEngine.pills
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val materials: StateFlow<List<Material>> = gameEngine.materials
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val herbs: StateFlow<List<Herb>> = gameEngine.herbs
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val seeds: StateFlow<List<Seed>> = gameEngine.seeds
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val teams: StateFlow<List<ExplorationTeam>> = gameEngine.teams
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val buildingSlots: StateFlow<List<BuildingSlot>> = gameEngine.buildingSlots
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val events: StateFlow<List<GameEvent>> = gameEngine.events
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val battleLogs: StateFlow<List<BattleLog>> = gameEngine.battleLogs
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val alchemySlots: StateFlow<List<AlchemySlot>> = gameEngine.alchemySlots
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val highFrequencyData: StateFlow<GameEngine.HighFrequencyData> = gameEngine.highFrequencyData
-        .stateIn(viewModelScope, SharingStarted.Eagerly, GameEngine.HighFrequencyData())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), GameEngine.HighFrequencyData())
 
     val realtimeCultivation: StateFlow<Map<String, Double>> = gameEngine.realtimeCultivation
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     // 加载状态
     private val _isLoading = MutableStateFlow(false)
@@ -170,7 +170,7 @@ class GameViewModel @Inject constructor(
                 )
             }
         }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _showAlchemyDialog = MutableStateFlow(false)
     val showAlchemyDialog: StateFlow<Boolean> = _showAlchemyDialog.asStateFlow()
@@ -744,8 +744,8 @@ class GameViewModel @Inject constructor(
         Log.i(TAG, "=== saveGame BEGIN === slot=$slot, slotId=$slotId")
         val startTime = System.currentTimeMillis()
         
+        _isSaving.value = true
         viewModelScope.launch {
-            _isSaving.value = true
             try {
                 performGarbageCollection()
                 val snapshot = gameEngine.getStateSnapshot()
@@ -821,9 +821,9 @@ class GameViewModel @Inject constructor(
         Log.i(TAG, "=== saveToSlot BEGIN === slotIndex=$slotIndex")
         val startTime = System.currentTimeMillis()
         
+        _isSaving.value = true
         viewModelScope.launch {
             try {
-                _isSaving.value = true
                 performGarbageCollection()
                 val slot = slotIndex
                 val snapshot = gameEngine.getStateSnapshot()
@@ -898,18 +898,13 @@ class GameViewModel @Inject constructor(
         // }
     }
 
-    fun setGameSpeed(speed: String) {
-        // TODO: ʵ����Ϸ�ٶ�����
-    }
-
-    fun setTimeScale(scale: Int) {
-        _timeScale.value = scale
-    }
-
     val timeSpeed: StateFlow<Int> = _timeScale
 
     fun setTimeSpeed(speed: Int) {
         _timeScale.value = speed
+        if (_isPaused.value) {
+            _isPaused.value = false
+        }
     }
 
     fun setAutoSaveInterval(interval: Int) {

@@ -131,27 +131,48 @@ class GameEngine {
     
     /**
      * 获取游戏状态快照（同步版本，用于崩溃处理等紧急场景）
-     * 注意：此方法直接读取 StateFlow 当前值，不使用锁，可能在数据更新过程中读取到不一致的状态
-     * 仅在紧急保存时使用，正常保存应使用 getStateSnapshot()
+     * 紧急保存场景：直接读取当前值
+     * 在崩溃场景中，数据一致性不是首要目标，快速保存才是
      */
     fun getStateSnapshotSync(): GameStateSnapshot {
-        return GameStateSnapshot(
-            gameData = _gameData.value,
-            disciples = _disciples.value,
-            equipment = _equipment.value,
-            manuals = _manuals.value,
-            pills = _pills.value,
-            materials = _materials.value,
-            herbs = _herbs.value,
-            seeds = _seeds.value,
-            teams = _teams.value,
-            buildingSlots = _buildingSlots.value,
-            events = _events.value,
-            battleLogs = _battleLogs.value,
-            alliances = _gameData.value.alliances,
-            supportTeams = _gameData.value.supportTeams,
-            alchemySlots = _alchemySlots.value
-        )
+        return try {
+            GameStateSnapshot(
+                gameData = _gameData.value,
+                disciples = _disciples.value,
+                equipment = _equipment.value,
+                manuals = _manuals.value,
+                pills = _pills.value,
+                materials = _materials.value,
+                herbs = _herbs.value,
+                seeds = _seeds.value,
+                teams = _teams.value,
+                buildingSlots = _buildingSlots.value,
+                events = _events.value,
+                battleLogs = _battleLogs.value,
+                alliances = _gameData.value.alliances,
+                supportTeams = _gameData.value.supportTeams,
+                alchemySlots = _alchemySlots.value
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Emergency save snapshot failed", e)
+            GameStateSnapshot(
+                gameData = _gameData.value,
+                disciples = _disciples.value,
+                equipment = _equipment.value,
+                manuals = _manuals.value,
+                pills = _pills.value,
+                materials = _materials.value,
+                herbs = _herbs.value,
+                seeds = _seeds.value,
+                teams = _teams.value,
+                buildingSlots = _buildingSlots.value,
+                events = _events.value,
+                battleLogs = _battleLogs.value,
+                alliances = _gameData.value.alliances,
+                supportTeams = _gameData.value.supportTeams,
+                alchemySlots = _alchemySlots.value
+            )
+        }
     }
     
     private inner class GameTransaction {

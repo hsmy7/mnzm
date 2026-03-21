@@ -142,17 +142,7 @@ object AISectDiscipleManager {
         }
     }
     
-    fun getMaxRarityByRealm(realm: Int): Int {
-        return when (realm) {
-            9, 8 -> 1
-            7 -> 2
-            6 -> 3
-            5 -> 4
-            4, 3 -> 5
-            2, 1, 0 -> 6
-            else -> 1
-        }
-    }
+    fun getMaxRarityByRealm(realm: Int): Int = GameConfig.Realm.getMaxRarity(realm)
     
     fun recruitDisciplesForSect(sect: WorldSect, year: Int): WorldSect {
         if (sect.isPlayerSect) return sect

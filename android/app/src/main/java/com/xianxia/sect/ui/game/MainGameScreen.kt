@@ -5159,6 +5159,14 @@ private fun SettingsTab(
                         color = Color.Black
                     )
                 }
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "版本 1.4.86 (build 1486)",
+                    fontSize = 10.sp,
+                    color = Color(0xFF999999),
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center
+                )
             }
         }
     }

@@ -67,8 +67,10 @@ object ModelConverters {
     
     @TypeConverter
     @JvmStatic
-    fun toManualType(value: String): ManualType =
-        ManualType.values().find { it.name == value } ?: ManualType.MIND
+    fun toManualType(value: String): ManualType = when (value) {
+        "MOVEMENT" -> ManualType.SUPPORT
+        else -> ManualType.values().find { it.name == value } ?: ManualType.MIND
+    }
     
     @TypeConverter
     @JvmStatic

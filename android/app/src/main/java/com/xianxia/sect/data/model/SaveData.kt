@@ -1,5 +1,6 @@
 package com.xianxia.sect.data.model
 
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.*
 
 data class SaveSlot(
@@ -11,16 +12,18 @@ data class SaveSlot(
     val sectName: String,
     val discipleCount: Int,
     val spiritStones: Long,
-    val isEmpty: Boolean = false
+    val isEmpty: Boolean = false,
+    val customName: String = ""
 ) {
     val displayTime: String get() = "第${gameYear}年${gameMonth}月"
     val saveTime: String 
         get() = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault())
             .format(java.util.Date(timestamp))
+    val displayName: String get() = if (customName.isNotBlank()) customName else name
 }
 
 data class SaveData(
-    val version: String = "1.0",
+    val version: String = GameConfig.Game.VERSION,
     val timestamp: Long = System.currentTimeMillis(),
     val gameData: GameData,
     val disciples: List<Disciple>,

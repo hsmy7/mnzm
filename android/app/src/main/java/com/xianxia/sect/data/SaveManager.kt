@@ -3,18 +3,22 @@ package com.xianxia.sect.data
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.model.SaveSlot
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.trySendBlocking
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -44,6 +48,7 @@ class SaveManager @Inject constructor(
         private const val SAVE_DIR = "saves"
         private const val FILE_EXTENSION = ".sav"
         private const val META_EXTENSION = ".meta"
+        private const val BACKUP_EXTENSION = ".bak"
         private const val MAX_BATTLE_LOGS = 100
         private const val MAX_GAME_EVENTS = 50
         const val EMERGENCY_SAVE = "emergency"
@@ -51,6 +56,12 @@ class SaveManager @Inject constructor(
         private const val COMPRESSION_LEVEL = Deflater.BEST_SPEED
         private const val SAVE_QUEUE_CAPACITY = 32
         private const val MIN_VALID_SAVE_SIZE = 100L
+        
+        // 多版本备份配置
+        private const val MAX_BACKUP_VERSIONS = 5
+        
+        // 定期健康检查配置
+        private const val HEALTH_CHECK_INTERVAL_MS = 60_000L // 1分钟
     }
 
     private val prefs: SharedPreferences =
@@ -69,7 +80,12 @@ class SaveManager @Inject constructor(
     
     private val lastAutoSaveTime = AtomicLong(0L)
     private val lastSaveHash = AtomicReference<String?>(null)
-    private val autoSaveDebounceMs = 30_000L
+    private val autoSaveDebounceMs = GameConfig.Game.AUTO_SAVE_DEBOUNCE_MS
+    
+    // 定期健康检查相关
+    private var healthCheckJob: Job? = null
+    private val _lastHealthCheckResult = MutableStateFlow<SaveHealthReport?>(null)
+    val lastHealthCheckResult: StateFlow<SaveHealthReport?> = _lastHealthCheckResult.asStateFlow()
     
     private data class SaveRequest(
         val slot: Int,
@@ -83,9 +99,11 @@ class SaveManager @Inject constructor(
     init {
         migrateFromSharedPreferences()
         startSaveQueueProcessor()
+        startPeriodicHealthCheck()
     }
     
     fun shutdown() {
+        healthCheckJob?.cancel()
         saveScope.cancel()
         Log.i(TAG, "SaveManager shutdown completed")
     }
@@ -116,27 +134,74 @@ class SaveManager @Inject constructor(
     
     private fun computeDataHash(data: SaveData): String {
         return try {
-            val digest = MessageDigest.getInstance("MD5")
+            val digest = MessageDigest.getInstance("SHA-256")
             
+            // 游戏基础数据
+            digest.update(data.version.toByteArray())
+            digest.update(data.timestamp.toString().toByteArray())
             digest.update(data.gameData.gameYear.toString().toByteArray())
             digest.update(data.gameData.gameMonth.toByte())
             digest.update(data.gameData.gameDay.toByte())
             digest.update(data.gameData.spiritStones.toString().toByteArray())
             digest.update(data.gameData.sectName.toByteArray())
+            digest.update(data.gameData.reputation.toString().toByteArray())
             
+            // 弟子数据
             digest.update(data.disciples.size.toString().toByteArray())
-            data.disciples.take(10).forEach { disciple ->
+            data.disciples.forEach { disciple ->
                 digest.update(disciple.id.toString().toByteArray())
+                digest.update(disciple.name.toByteArray())
+                digest.update(disciple.realm.toString().toByteArray())
                 digest.update(disciple.status.name.toByteArray())
+                digest.update(disciple.cultivation.toString().toByteArray())
             }
             
+            // 装备数据
             digest.update(data.equipment.size.toString().toByteArray())
+            data.equipment.forEach { equip ->
+                digest.update(equip.id.toString().toByteArray())
+                digest.update(equip.rarity.toString().toByteArray())
+            }
+            
+            // 功法数据
             digest.update(data.manuals.size.toString().toByteArray())
+            data.manuals.forEach { manual ->
+                digest.update(manual.id.toString().toByteArray())
+                digest.update(manual.rarity.toString().toByteArray())
+            }
+            
+            // 丹药数据
             digest.update(data.pills.size.toString().toByteArray())
+            
+            // 材料数据
             digest.update(data.materials.size.toString().toByteArray())
+            
+            // 灵草数据
+            digest.update(data.herbs.size.toString().toByteArray())
+            
+            // 种子数据
+            digest.update(data.seeds.size.toString().toByteArray())
+            
+            // 队伍数据
             digest.update(data.teams.size.toString().toByteArray())
+            data.teams.forEach { team ->
+                digest.update(team.id.toString().toByteArray())
+                digest.update(team.memberIds.joinToString(",").toByteArray())
+            }
+            
+            // 建筑槽位数据
             digest.update(data.slots.size.toString().toByteArray())
             
+            // 联盟数据
+            digest.update(data.alliances.size.toString().toByteArray())
+            
+            // 支援队伍数据
+            digest.update(data.supportTeams.size.toString().toByteArray())
+            
+            // 炼丹槽位数据
+            digest.update(data.alchemySlots.size.toString().toByteArray())
+            
+            // 取前16个字符作为短哈希
             digest.digest().take(8).joinToString("") { "%02x".format(it) }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to compute data hash", e)
@@ -166,7 +231,8 @@ class SaveManager @Inject constructor(
                 sectName = meta.sectName,
                 discipleCount = meta.discipleCount,
                 spiritStones = meta.spiritStones,
-                isEmpty = false
+                isEmpty = false,
+                customName = meta.customName ?: ""
             )
         } catch (e: Exception) {
             Log.e(TAG, "Failed to read meta for slot $slot", e)
@@ -189,7 +255,8 @@ class SaveManager @Inject constructor(
                 sectName = data.gameData.sectName,
                 discipleCount = data.disciples.count { it.isAlive },
                 spiritStones = data.gameData.spiritStones,
-                isEmpty = false
+                isEmpty = false,
+                customName = ""
             )
         } catch (e: Exception) {
             Log.e(TAG, "Failed to load meta from save file for slot $slot", e)
@@ -214,24 +281,19 @@ class SaveManager @Inject constructor(
         val cleanedData = cleanSaveData(data)
         val saveFile = getSaveFile(slot)
         val tempFile = File(saveFile.parent, "${saveFile.name}.tmp")
-        val backupFile = File(saveFile.parent, "${saveFile.name}.bak")
         
         var saveCompleted = false
-        var backupCreated = false
         var result = false
 
         try {
             val checksum = saveToFileWithChecksum(tempFile, cleanedData)
             
+            // 使用多版本备份机制
             if (saveFile.exists()) {
-                if (backupFile.exists()) {
-                    if (!backupFile.delete()) {
-                        Log.w(TAG, "Failed to delete old backup file for slot $slot")
-                    }
-                }
+                rotateBackupVersions(slot)
+                val backupFile = getBackupFile(slot, 1)
                 if (saveFile.renameTo(backupFile)) {
-                    backupCreated = true
-                    Log.d(TAG, "Created backup for slot $slot")
+                    Log.d(TAG, "Created backup version 1 for slot $slot")
                 } else {
                     Log.w(TAG, "Failed to create backup for slot $slot, continuing anyway")
                 }
@@ -239,7 +301,9 @@ class SaveManager @Inject constructor(
 
             if (!tempFile.renameTo(saveFile)) {
                 Log.e(TAG, "Failed to rename temp file to save file for slot $slot")
-                if (backupCreated && backupFile.exists()) {
+                // 尝试从备份版本1恢复
+                val backupFile = getBackupFile(slot, 1)
+                if (backupFile.exists()) {
                     backupFile.renameTo(saveFile)
                     Log.i(TAG, "Restored backup after rename failure for slot $slot")
                 }
@@ -539,7 +603,9 @@ class SaveManager @Inject constructor(
             val data = gson.fromJson(json, SaveData::class.java)
             val elapsed = System.currentTimeMillis() - startTime
             Log.d(TAG, "Loaded from ${file.name} in ${elapsed}ms, uncompressed size: ${jsonBytes.size} bytes")
-            data
+            
+            // 执行版本迁移
+            migrateSaveData(data)
         } catch (e: FileNotFoundException) {
             Log.e(TAG, "File not found: ${file.name}", e)
             null
@@ -561,7 +627,7 @@ class SaveManager @Inject constructor(
         }
     }
 
-    private fun saveMetaWithChecksum(slot: Int, data: SaveData, checksum: String) {
+    private fun saveMetaWithChecksum(slot: Int, data: SaveData, checksum: String, customName: String = "") {
         try {
             val meta = SaveSlotMeta(
                 timestamp = data.timestamp,
@@ -570,13 +636,122 @@ class SaveManager @Inject constructor(
                 sectName = data.gameData.sectName,
                 discipleCount = data.disciples.count { it.isAlive },
                 spiritStones = data.gameData.spiritStones,
-                checksum = checksum
+                checksum = checksum,
+                customName = customName
             )
             val metaFile = getMetaFile(slot)
             metaFile.writeText(gson.toJson(meta))
         } catch (e: Exception) {
             Log.e(TAG, "Failed to save meta for slot $slot", e)
         }
+    }
+    
+    /**
+     * 重命名存档槽位
+     * @param slot 存档槽位
+     * @param customName 自定义名称
+     * @return 是否重命名成功
+     */
+    fun renameSlot(slot: Int, customName: String): Boolean {
+        if (!isValidSlot(slot)) {
+            Log.e(TAG, "Invalid slot for rename: $slot")
+            return false
+        }
+        
+        val metaFile = getMetaFile(slot)
+        if (!metaFile.exists()) {
+            Log.w(TAG, "No meta file found for slot $slot, cannot rename")
+            return false
+        }
+        
+        return try {
+            val metaJson = metaFile.readText()
+            val meta = gson.fromJson(metaJson, SaveSlotMeta::class.java)
+            val updatedMeta = meta.copy(customName = customName)
+            metaFile.writeText(gson.toJson(updatedMeta))
+            Log.i(TAG, "Renamed slot $slot to '$customName'")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to rename slot $slot", e)
+            false
+        }
+    }
+    
+    // ==================== 版本迁移相关方法 ====================
+    
+    /**
+     * 执行存档数据版本迁移
+     * @param data 原始存档数据
+     * @return 迁移后的存档数据
+     */
+    private fun migrateSaveData(data: SaveData): SaveData {
+        val currentVersion = GameConfig.Game.VERSION
+        val saveVersion = data.version
+        
+        // 如果版本相同或存档版本更新，无需迁移
+        if (compareVersions(saveVersion, currentVersion) >= 0) {
+            return data
+        }
+        
+        Log.i(TAG, "Migrating save data from version $saveVersion to $currentVersion")
+        
+        var migratedData = data
+        
+        // 按版本号执行迁移
+        if (compareVersions(saveVersion, "1.4.85") < 0) {
+            migratedData = migrateTo_1_4_85(migratedData)
+        }
+        
+        // 更新版本号
+        if (migratedData.version != currentVersion) {
+            migratedData = migratedData.copy(version = currentVersion)
+            Log.i(TAG, "Save data version updated to $currentVersion")
+        }
+        
+        return migratedData
+    }
+    
+    /**
+     * 迁移到版本 1.4.85
+     * 添加新字段的默认值
+     */
+    private fun migrateTo_1_4_85(data: SaveData): SaveData {
+        Log.d(TAG, "Migrating to version 1.4.85")
+        
+        // 确保 alliances 字段不为 null（如果之前不存在）
+        val alliances = data.alliances ?: emptyList()
+        
+        // 确保 supportTeams 字段不为 null（如果之前不存在）
+        val supportTeams = data.supportTeams ?: emptyList()
+        
+        // 确保 alchemySlots 字段不为 null（如果之前不存在）
+        val alchemySlots = data.alchemySlots ?: emptyList()
+        
+        return data.copy(
+            version = "1.4.85",
+            alliances = alliances,
+            supportTeams = supportTeams,
+            alchemySlots = alchemySlots
+        )
+    }
+    
+    /**
+     * 比较版本号
+     * @return 负数表示 v1 < v2，0 表示相等，正数表示 v1 > v2
+     */
+    private fun compareVersions(v1: String, v2: String): Int {
+        val parts1 = v1.split(".").map { it.toIntOrNull() ?: 0 }
+        val parts2 = v2.split(".").map { it.toIntOrNull() ?: 0 }
+        
+        val maxLen = maxOf(parts1.size, parts2.size)
+        for (i in 0 until maxLen) {
+            val p1 = parts1.getOrElse(i) { 0 }
+            val p2 = parts2.getOrElse(i) { 0 }
+            if (p1 != p2) {
+                return p1.compareTo(p2)
+            }
+        }
+        return 0
     }
 
     private fun cleanSaveData(data: SaveData): SaveData {
@@ -831,6 +1006,128 @@ class SaveManager @Inject constructor(
             Log.e(TAG, "Migration failed", e)
         }
     }
+    
+    // ==================== 多版本备份相关方法 ====================
+    
+    /**
+     * 获取备份文件路径
+     * @param slot 存档槽位
+     * @param version 备份版本号 (1 = 最新备份)
+     */
+    private fun getBackupFile(slot: Int, version: Int): File {
+        return File(saveDir, "slot_$slot$BACKUP_EXTENSION.$version")
+    }
+    
+    /**
+     * 轮转备份版本
+     * 将旧备份向后移动，删除最老的备份
+     */
+    private fun rotateBackupVersions(slot: Int) {
+        // 从最老的版本开始删除
+        val oldestBackup = getBackupFile(slot, MAX_BACKUP_VERSIONS)
+        if (oldestBackup.exists()) {
+            if (!oldestBackup.delete()) {
+                Log.w(TAG, "Failed to delete oldest backup for slot $slot")
+            }
+        }
+        
+        // 将现有备份向后移动
+        for (version in MAX_BACKUP_VERSIONS - 1 downTo 1) {
+            val currentBackup = getBackupFile(slot, version)
+            if (currentBackup.exists()) {
+                val nextBackup = getBackupFile(slot, version + 1)
+                if (currentBackup.renameTo(nextBackup)) {
+                    Log.d(TAG, "Rotated backup version $version to ${version + 1} for slot $slot")
+                } else {
+                    Log.w(TAG, "Failed to rotate backup version $version for slot $slot")
+                }
+            }
+        }
+    }
+    
+    /**
+     * 获取所有可用的备份版本
+     * @param slot 存档槽位
+     * @return 备份版本列表，按时间倒序排列
+     */
+    fun getBackupVersions(slot: Int): List<BackupVersion> {
+        if (!isValidSlot(slot)) return emptyList()
+        
+        val versions = mutableListOf<BackupVersion>()
+        for (version in 1..MAX_BACKUP_VERSIONS) {
+            val backupFile = getBackupFile(slot, version)
+            if (backupFile.exists() && backupFile.length() >= MIN_VALID_SAVE_SIZE) {
+                versions.add(BackupVersion(
+                    slot = slot,
+                    version = version,
+                    timestamp = backupFile.lastModified(),
+                    fileSize = backupFile.length()
+                ))
+            }
+        }
+        return versions.sortedByDescending { it.timestamp }
+    }
+    
+    /**
+     * 从指定备份版本恢复
+     * @param slot 存档槽位
+     * @param version 备份版本号
+     * @return 恢复后的存档数据，如果恢复失败返回 null
+     */
+    fun restoreFromBackupVersion(slot: Int, version: Int): SaveData? {
+        if (!isValidSlot(slot)) {
+            Log.e(TAG, "Invalid slot for backup restore: $slot")
+            return null
+        }
+        
+        val backupFile = getBackupFile(slot, version)
+        if (!backupFile.exists()) {
+            Log.w(TAG, "Backup version $version not found for slot $slot")
+            return null
+        }
+        
+        return try {
+            Log.i(TAG, "Attempting to restore slot $slot from backup version $version")
+            
+            val data = loadFromFile(backupFile)
+            if (data != null) {
+                // 验证备份数据有效性
+                val saveFile = getSaveFile(slot)
+                
+                // 保存当前存档为新备份（如果存在）
+                if (saveFile.exists()) {
+                    rotateBackupVersions(slot)
+                    saveFile.renameTo(getBackupFile(slot, 1))
+                }
+                
+                // 复制备份文件到存档位置
+                backupFile.copyTo(saveFile, overwrite = true)
+                
+                // 重新生成元数据
+                val checksum = calculateDataChecksum(slot)
+                saveMetaWithChecksum(slot, data, checksum)
+                
+                Log.i(TAG, "Successfully restored slot $slot from backup version $version")
+                data
+            } else {
+                Log.e(TAG, "Failed to load backup version $version for slot $slot")
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to restore slot $slot from backup version $version", e)
+            null
+        }
+    }
+    
+    /**
+     * 备份版本信息
+     */
+    data class BackupVersion(
+        val slot: Int,
+        val version: Int,
+        val timestamp: Long,
+        val fileSize: Long
+    )
 
     private fun isValidSlot(slot: Int): Boolean = slot in 1..MAX_SLOTS
 
@@ -1154,6 +1451,26 @@ class SaveManager @Inject constructor(
         return repairedCount
     }
     
+    /**
+     * 启动定期健康检查
+     */
+    private fun startPeriodicHealthCheck() {
+        healthCheckJob = saveScope.launch {
+            while (isActive) {
+                delay(HEALTH_CHECK_INTERVAL_MS)
+                try {
+                    val report = performHealthCheck()
+                    _lastHealthCheckResult.value = report
+                    if (report.totalIssues > 0) {
+                        Log.w(TAG, "Periodic health check found ${report.totalIssues} issues")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Periodic health check failed", e)
+                }
+            }
+        }
+    }
+    
     data class SaveHealthReport(
         val slotReports: Map<Int, SlotHealthReport>,
         val autoSaveHealthy: Boolean,
@@ -1178,7 +1495,8 @@ class SaveManager @Inject constructor(
         val sectName: String = "",
         val discipleCount: Int = 0,
         val spiritStones: Long = 0,
-        val checksum: String = ""
+        val checksum: String = "",
+        val customName: String = ""
     )
 
     enum class SaveVerificationResult {

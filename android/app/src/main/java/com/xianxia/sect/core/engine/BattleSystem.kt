@@ -30,17 +30,9 @@ object BattleSystem {
                     baseSkill.damageMultiplier,
                     masteryLevel
                 )
-                CombatSkill(
-                    name = baseSkill.name,
-                    skillType = baseSkill.skillType,
-                    damageType = baseSkill.damageType,
-                    damageMultiplier = adjustedMultiplier,
-                    mpCost = baseSkill.mpCost,
-                    cooldown = baseSkill.cooldown,
-                    hits = baseSkill.hits,
-                    healPercent = baseSkill.healPercent,
-                    healType = baseSkill.healType
-                )
+                baseSkill.copy(
+                    damageMultiplier = adjustedMultiplier
+                ).toCombatSkill(manualName = manual.name)
             }
             
             Combatant(
@@ -215,7 +207,7 @@ object BattleSystem {
     private fun executeTurnWithLog(battle: Battle): Pair<Battle, BattleRoundData> {
         val allCombatants = (battle.team + battle.beasts)
             .filter { !it.isDead }
-            .sortedByDescending { it.speed }
+            .sortedByDescending { it.effectiveSpeed }
         
         var team = battle.team.toMutableList()
         var beasts = battle.beasts.toMutableList()
@@ -262,18 +254,31 @@ object BattleSystem {
             var isKill = false
             
             if (result.isSupport) {
-                message = result.message
-            } else if (result.isDodged) {
-                message = "${target.name} 闪避了 ${currentCombatant.name} 的攻击！"
-            } else {
-                val damageType = if (result.isPhysical) "物理" else "法术"
-                val skillPrefix = result.skillName?.let { "使用[$it] " } ?: ""
-                message = "${currentCombatant.name} ${skillPrefix}对 ${target.name} 造成 ${result.damage} 点${damageType}伤害"
-                if (result.isCrit) message += "（暴击！）"
-                if (result.hits > 1) message += "（${result.hits}连击）"
-                
+                val buffs = availableSkill?.buffs ?: emptyList()
+                message = BattleDescriptionGenerator.generateSupportSkillDescription(
+                    caster = currentCombatant,
+                    skill = availableSkill!!,
+                    healAmount = result.healAmount,
+                    healType = result.healType,
+                    buffs = buffs
+                )
+            } else if (availableSkill != null) {
                 isKill = target.hp - result.damage <= 0
-                if (isKill) message += "，${target.name} 被击败！"
+                message = BattleDescriptionGenerator.generateSkillDescription(
+                    attacker = currentCombatant,
+                    target = target,
+                    skill = availableSkill,
+                    result = result,
+                    isKill = isKill
+                )
+            } else {
+                isKill = target.hp - result.damage <= 0
+                message = BattleDescriptionGenerator.generateAttackDescription(
+                    attacker = currentCombatant,
+                    target = target,
+                    result = result,
+                    isKill = isKill
+                )
             }
             
             actions.add(BattleActionData(
@@ -330,9 +335,9 @@ object BattleSystem {
                     }
                     
                     val newBuffs = if (isSupportSkill && result.newBuffs.isNotEmpty()) {
-                        currentCombatant.buffs.filter { it.remainingDuration > 0 } + result.newBuffs
+                        currentCombatant.buffs.map { it.copy(remainingDuration = maxOf(0, it.remainingDuration - 1)) }.filter { it.remainingDuration > 0 } + result.newBuffs
                     } else {
-                        currentCombatant.buffs.map { it.copy(remainingDuration = maxOf(0, it.remainingDuration - 1)) }
+                        currentCombatant.buffs.map { it.copy(remainingDuration = maxOf(0, it.remainingDuration - 1)) }.filter { it.remainingDuration > 0 }
                     }
                     
                     val updatedCombatant = currentCombatant.copy(
@@ -348,18 +353,33 @@ object BattleSystem {
                     }
                 }
                 
-                if (isSupportSkill && result.healedIds.isNotEmpty()) {
-                    result.healedIds.forEach { healedId ->
-                        val healedIndex = team.indexOfFirst { it.id == healedId }
-                        if (healedIndex >= 0) {
-                            val healed = team[healedIndex]
-                            if (result.healType == HealType.MP) {
-                                team[healedIndex] = healed.copy(
-                                    mp = minOf(healed.mp + result.healAmount, healed.maxMp)
-                                )
-                            } else {
-                                team[healedIndex] = healed.copy(
-                                    hp = minOf(healed.hp + result.healAmount, healed.maxHp)
+                if (isSupportSkill) {
+                    if (result.healedIds.isNotEmpty()) {
+                        result.healedIds.forEach { healedId ->
+                            val healedIndex = team.indexOfFirst { it.id == healedId }
+                            if (healedIndex >= 0) {
+                                val healed = team[healedIndex]
+                                if (result.healType == HealType.MP) {
+                                    team[healedIndex] = healed.copy(
+                                        mp = minOf(healed.mp + result.healAmount, healed.maxMp)
+                                    )
+                                } else {
+                                    team[healedIndex] = healed.copy(
+                                        hp = minOf(healed.hp + result.healAmount, healed.maxHp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    
+                    if (result.teamBuffs.isNotEmpty()) {
+                        result.teamBuffs.forEach { (memberId, buffs) ->
+                            val memberIndex = team.indexOfFirst { it.id == memberId }
+                            if (memberIndex >= 0) {
+                                val member = team[memberIndex]
+                                val existingBuffs = member.buffs.filter { it.remainingDuration > 0 }
+                                team[memberIndex] = member.copy(
+                                    buffs = existingBuffs + buffs
                                 )
                             }
                         }
@@ -373,7 +393,7 @@ object BattleSystem {
                 }
                 
                 if (combatantIndex >= 0) {
-                    val newBuffs = currentCombatant.buffs.map { it.copy(remainingDuration = maxOf(0, it.remainingDuration - 1)) }
+                    val newBuffs = currentCombatant.buffs.map { it.copy(remainingDuration = maxOf(0, it.remainingDuration - 1)) }.filter { it.remainingDuration > 0 }
                     val updatedCombatant = currentCombatant.copy(buffs = newBuffs)
                     
                     if (currentCombatant.type == CombatantType.DISCIPLE) {
@@ -396,8 +416,8 @@ object BattleSystem {
     }
     
     private fun executeAttack(attacker: Combatant, defender: Combatant): AttackResult {
-        val speedDiff = attacker.speed - defender.speed
-        val dodgeChance = (speedDiff.toDouble() / (attacker.speed + defender.speed).coerceAtLeast(1) * 0.5).coerceIn(0.0, 0.5)
+        val speedDiff = attacker.effectiveSpeed - defender.effectiveSpeed
+        val dodgeChance = (speedDiff.toDouble() / (attacker.effectiveSpeed + defender.effectiveSpeed).coerceAtLeast(1) * 0.5).coerceIn(0.0, 0.5)
         
         if (Random.nextDouble() < dodgeChance) {
             return AttackResult(
@@ -412,10 +432,10 @@ object BattleSystem {
         
         val isPhysical = attacker.physicalAttack >= attacker.magicAttack
         
-        val attack = if (isPhysical) attacker.physicalAttack else attacker.magicAttack
-        val defense = if (isPhysical) defender.physicalDefense else defender.magicDefense
+        val attack = if (isPhysical) attacker.effectivePhysicalAttack else attacker.effectiveMagicAttack
+        val defense = if (isPhysical) defender.effectivePhysicalDefense else defender.effectiveMagicDefense
         
-        val isCrit = Random.nextDouble() < attacker.critRate
+        val isCrit = Random.nextDouble() < attacker.effectiveCritRate
         val critMultiplier: Double = if (isCrit) GameConfig.Battle.CRIT_MULTIPLIER else 1.0
         
         val baseDamage = (attack * critMultiplier - defense).coerceAtLeast(1.0)
@@ -433,8 +453,8 @@ object BattleSystem {
     }
     
     private fun executeSkill(attacker: Combatant, defender: Combatant, skill: CombatSkill): AttackResult {
-        val speedDiff = attacker.speed - defender.speed
-        val dodgeChance = (speedDiff.toDouble() / (attacker.speed + defender.speed).coerceAtLeast(1) * 0.3).coerceIn(0.0, 0.3)
+        val speedDiff = attacker.effectiveSpeed - defender.effectiveSpeed
+        val dodgeChance = (speedDiff.toDouble() / (attacker.effectiveSpeed + defender.effectiveSpeed).coerceAtLeast(1) * 0.3).coerceIn(0.0, 0.3)
         
         if (Random.nextDouble() < dodgeChance) {
             return AttackResult(
@@ -451,10 +471,10 @@ object BattleSystem {
         
         val isPhysical = skill.damageType == DamageType.PHYSICAL
         
-        val baseAttack = if (isPhysical) attacker.physicalAttack else attacker.magicAttack
-        val defense = if (isPhysical) defender.physicalDefense else defender.magicDefense
+        val baseAttack = if (isPhysical) attacker.effectivePhysicalAttack else attacker.effectiveMagicAttack
+        val defense = if (isPhysical) defender.effectivePhysicalDefense else defender.effectiveMagicDefense
         
-        val isCrit = Random.nextDouble() < attacker.critRate
+        val isCrit = Random.nextDouble() < attacker.effectiveCritRate
         val critMultiplier: Double = if (isCrit) GameConfig.Battle.CRIT_MULTIPLIER else 1.0
         
         val totalDamage = (baseAttack * skill.damageMultiplier * critMultiplier - defense).coerceAtLeast(1.0)
@@ -482,13 +502,39 @@ object BattleSystem {
         val healPercent = skill.healPercent
         val healType = skill.healType
         
-        val healAmount = if (healType == HealType.MP) {
-            (caster.maxMp * healPercent).toInt()
-        } else {
-            (caster.maxHp * healPercent).toInt()
+        var healAmount = 0
+        val teamBuffs = mutableMapOf<String, List<CombatBuff>>()
+        
+        if (healPercent > 0) {
+            healAmount = if (healType == HealType.MP) {
+                (caster.maxMp * healPercent).toInt()
+            } else {
+                (caster.maxHp * healPercent).toInt()
+            }
         }
         
-        val message = "${caster.name} 使用[${skill.name}] 为全队恢复${healType.displayName}${healAmount}点"
+        if (skill.buffType != null && skill.buffDuration > 0) {
+            val buff = CombatBuff(
+                type = skill.buffType,
+                value = skill.buffValue,
+                remainingDuration = skill.buffDuration
+            )
+            for (member in aliveTeamMembers) {
+                teamBuffs[member.id] = listOf(buff)
+            }
+        }
+        
+        for ((buffType, buffValue, buffDuration) in skill.buffs) {
+            val buff = CombatBuff(
+                type = buffType,
+                value = buffValue,
+                remainingDuration = buffDuration
+            )
+            for (member in aliveTeamMembers) {
+                val existing = teamBuffs[member.id] ?: emptyList()
+                teamBuffs[member.id] = existing + buff
+            }
+        }
         
         return AttackResult(
             attacker = caster,
@@ -500,12 +546,13 @@ object BattleSystem {
             skillName = skill.name,
             hits = 1,
             isSupport = true,
-            message = message,
+            message = "",
             healPercent = healPercent,
             healType = healType,
             healAmount = healAmount,
-            healedIds = aliveTeamMembers.map { it.id },
-            newBuffs = emptyList()
+            healedIds = if (healAmount > 0) aliveTeamMembers.map { it.id } else emptyList(),
+            newBuffs = emptyList(),
+            teamBuffs = teamBuffs
         )
     }
     
@@ -531,14 +578,19 @@ data class CombatBuff(
 )
 
 enum class BuffType {
-    HP_BOOST, MP_BOOST, ATTACK_BOOST, DEFENSE_BOOST, SPEED_BOOST;
+    HP_BOOST, MP_BOOST, SPEED_BOOST,
+    PHYSICAL_ATTACK_BOOST, MAGIC_ATTACK_BOOST, PHYSICAL_DEFENSE_BOOST, MAGIC_DEFENSE_BOOST,
+    CRIT_RATE_BOOST;
     
     val displayName: String get() = when (this) {
         HP_BOOST -> "生命加成"
         MP_BOOST -> "灵力加成"
-        ATTACK_BOOST -> "攻击加成"
-        DEFENSE_BOOST -> "防御加成"
         SPEED_BOOST -> "速度加成"
+        PHYSICAL_ATTACK_BOOST -> "物攻加成"
+        MAGIC_ATTACK_BOOST -> "法攻加成"
+        PHYSICAL_DEFENSE_BOOST -> "物防加成"
+        MAGIC_DEFENSE_BOOST -> "法防加成"
+        CRIT_RATE_BOOST -> "暴击加成"
     }
 }
 
@@ -574,6 +626,36 @@ data class Combatant(
     val effectiveMaxMp: Int get() {
         val mpBoost = buffs.filter { it.type == BuffType.MP_BOOST }.sumOf { it.value }
         return (maxMp * (1 + mpBoost)).toInt()
+    }
+    
+    val effectivePhysicalAttack: Int get() {
+        val attackBoost = buffs.filter { it.type == BuffType.PHYSICAL_ATTACK_BOOST }.sumOf { it.value }
+        return (physicalAttack * (1 + attackBoost)).toInt()
+    }
+    
+    val effectiveMagicAttack: Int get() {
+        val attackBoost = buffs.filter { it.type == BuffType.MAGIC_ATTACK_BOOST }.sumOf { it.value }
+        return (magicAttack * (1 + attackBoost)).toInt()
+    }
+    
+    val effectivePhysicalDefense: Int get() {
+        val defenseBoost = buffs.filter { it.type == BuffType.PHYSICAL_DEFENSE_BOOST }.sumOf { it.value }
+        return (physicalDefense * (1 + defenseBoost)).toInt()
+    }
+    
+    val effectiveMagicDefense: Int get() {
+        val defenseBoost = buffs.filter { it.type == BuffType.MAGIC_DEFENSE_BOOST }.sumOf { it.value }
+        return (magicDefense * (1 + defenseBoost)).toInt()
+    }
+    
+    val effectiveCritRate: Double get() {
+        val critBoost = buffs.filter { it.type == BuffType.CRIT_RATE_BOOST }.sumOf { it.value }
+        return critRate + critBoost
+    }
+    
+    val effectiveSpeed: Int get() {
+        val speedBoost = buffs.filter { it.type == BuffType.SPEED_BOOST }.sumOf { it.value }
+        return (speed * (1 + speedBoost)).toInt()
     }
 }
 
@@ -613,7 +695,13 @@ data class CombatSkill(
     val hits: Int = 1,
     val healPercent: Double = 0.0,
     val healType: HealType = HealType.HP,
-    var currentCooldown: Int = 0
+    val buffType: BuffType? = null,
+    val buffValue: Double = 0.0,
+    val buffDuration: Int = 0,
+    val buffs: List<Triple<BuffType, Double, Int>> = emptyList(),
+    var currentCooldown: Int = 0,
+    val skillDescription: String = "",
+    val manualName: String = ""
 )
 
 enum class BattleWinner {
@@ -635,7 +723,8 @@ data class AttackResult(
     val healType: HealType = HealType.HP,
     val healAmount: Int = 0,
     val healedIds: List<String> = emptyList(),
-    val newBuffs: List<CombatBuff> = emptyList()
+    val newBuffs: List<CombatBuff> = emptyList(),
+    val teamBuffs: Map<String, List<CombatBuff>> = emptyMap()
 )
 
 data class BattleSystemResult(
@@ -702,6 +791,179 @@ data class BattleEnemy(
 ) {
     init {
         remainingHp = hp
+    }
+}
+
+object BattleDescriptionGenerator {
+    
+    private val physicalAttackVerbs = listOf(
+        "挥剑斩向", "猛力攻击", "一剑刺向", "奋力劈向", "凌厉攻击",
+        "剑光闪烁，攻向", "剑气纵横，斩向", "一记重击砸向", "凌空一击攻向", "蓄力一击轰向"
+    )
+    
+    private val magicAttackVerbs = listOf(
+        "凝聚灵力攻向", "施法轰向", "灵力涌动，攻向", "法力凝聚，轰向", "一记法术攻向",
+        "灵光闪烁，攻向", "法力流转，轰向", "凝聚真元攻向", "施放法术轰向", "灵力爆发攻向"
+    )
+    
+    private val beastPhysicalAttackVerbs = listOf(
+        "猛扑向", "利爪抓向", "獠牙咬向", "尾巴横扫", "猛烈撞击",
+        "咆哮着扑向", "凶狠攻击", "利爪撕裂", "獠牙撕咬", "野蛮冲撞"
+    )
+    
+    private val beastMagicAttackVerbs = listOf(
+        "凝聚妖力攻向", "喷吐妖气轰向", "妖力涌动，攻向", "释放妖术轰向", "一记妖法攻向",
+        "妖光闪烁，攻向", "妖气弥漫，轰向", "凝聚妖元攻向", "施放妖术轰向", "妖力爆发攻向"
+    )
+    
+    private val skillCastPhrases = listOf(
+        "运转", "施展", "催动", "发动", "运转"
+    )
+    
+    private val critDescriptions = listOf(
+        "致命一击！", "击中要害！", "暴击命中！", "一击破防！", "势大力沉！"
+    )
+    
+    private val dodgeDescriptions = listOf(
+        "身形一闪，躲过了攻击", "侧身闪避，堪堪躲过", "身法灵动，避开了攻击",
+        "脚下生风，闪身躲过", "反应敏捷，躲开了攻击"
+    )
+    
+    private val killDescriptions = listOf(
+        "轰杀", "击杀", "斩杀", "击溃", "击倒"
+    )
+    
+    fun generateAttackDescription(
+        attacker: Combatant,
+        target: Combatant,
+        result: AttackResult,
+        isKill: Boolean
+    ): String {
+        val sb = StringBuilder()
+        
+        if (result.isDodged) {
+            val dodgeDesc = dodgeDescriptions.random()
+            return "${target.name}${dodgeDesc}${attacker.name}的攻击！"
+        }
+        
+        val isPhysical = result.isPhysical
+        val isBeast = attacker.type == CombatantType.BEAST
+        
+        val attackVerb = if (isBeast) {
+            if (isPhysical) beastPhysicalAttackVerbs.random() else beastMagicAttackVerbs.random()
+        } else {
+            if (isPhysical) physicalAttackVerbs.random() else magicAttackVerbs.random()
+        }
+        
+        val damageType = if (isPhysical) "物理" else "法术"
+        
+        sb.append("${attacker.name}${attackVerb}${target.name}")
+        
+        if (result.isCrit) {
+            sb.append("，${critDescriptions.random()}")
+        }
+        
+        sb.append("，造成${result.damage}点${damageType}伤害")
+        
+        if (result.hits > 1) {
+            sb.append("（${result.hits}连击）")
+        }
+        
+        if (isKill) {
+            val killDesc = killDescriptions.random()
+            sb.append("，${killDesc}了${target.name}！")
+        }
+        
+        return sb.toString()
+    }
+    
+    fun generateSkillDescription(
+        attacker: Combatant,
+        target: Combatant,
+        skill: CombatSkill,
+        result: AttackResult,
+        isKill: Boolean
+    ): String {
+        val sb = StringBuilder()
+        
+        if (result.isDodged) {
+            val dodgeDesc = dodgeDescriptions.random()
+            return "${target.name}${dodgeDesc}${attacker.name}的[${skill.name}]！"
+        }
+        
+        val castPhrase = skillCastPhrases.random()
+        if (skill.manualName.isNotEmpty()) {
+            sb.append("${attacker.name}${castPhrase}【${skill.manualName}】，使出[${skill.name}]")
+        } else {
+            sb.append("${attacker.name}使出[${skill.name}]")
+        }
+        
+        if (skill.skillDescription.isNotEmpty()) {
+            sb.append("（${skill.skillDescription}）")
+        }
+        
+        sb.append("攻向${target.name}")
+        
+        if (result.isCrit) {
+            sb.append("，${critDescriptions.random()}")
+        }
+        
+        val damageType = if (result.isPhysical) "物理" else "法术"
+        sb.append("，造成${result.damage}点${damageType}伤害")
+        
+        if (skill.damageMultiplier > 1.0) {
+            sb.append("（威力${(skill.damageMultiplier * 100).toInt()}%）")
+        }
+        
+        if (result.hits > 1) {
+            sb.append("（${result.hits}连击）")
+        }
+        
+        if (isKill) {
+            val killDesc = killDescriptions.random()
+            sb.append("，${killDesc}了${target.name}！")
+        }
+        
+        return sb.toString()
+    }
+    
+    fun generateSupportSkillDescription(
+        caster: Combatant,
+        skill: CombatSkill,
+        healAmount: Int,
+        healType: HealType,
+        buffs: List<Triple<BuffType, Double, Int>>
+    ): String {
+        val sb = StringBuilder()
+        
+        val castPhrase = skillCastPhrases.random()
+        if (skill.manualName.isNotEmpty()) {
+            sb.append("${caster.name}${castPhrase}【${skill.manualName}】，使出[${skill.name}]")
+        } else {
+            sb.append("${caster.name}使出[${skill.name}]")
+        }
+        
+        if (skill.skillDescription.isNotEmpty()) {
+            sb.append("（${skill.skillDescription}）")
+        }
+        
+        val effects = mutableListOf<String>()
+        
+        if (healAmount > 0) {
+            val healTypeName = if (healType == HealType.HP) "生命值" else "灵力"
+            effects.add("为全队恢复${healTypeName}${healAmount}点")
+        }
+        
+        buffs.forEach { (buffType, buffValue, duration) ->
+            val percentValue = (buffValue * 100).toInt()
+            effects.add("全队获得${buffType.displayName}${percentValue}%持续${duration}回合")
+        }
+        
+        if (effects.isNotEmpty()) {
+            sb.append("，${effects.joinToString("，")}")
+        }
+        
+        return sb.toString()
     }
 }
 
