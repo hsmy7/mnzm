@@ -3,6 +3,7 @@ package com.xianxia.sect.core.model
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.engine.WorldMapGenerator.INITIAL_SECT_FAVOR
 
 @Entity(tableName = "game_data")
 data class GameData(
@@ -101,7 +102,7 @@ data class GameData(
     var unlockedManuals: List<String> = emptyList(),
 
     // 最后保存时间
-    var lastSaveTime: Long = System.currentTimeMillis(),
+    var lastSaveTime: Long = 0L,
 
     // 长老槽位
     var elderSlots: ElderSlots = ElderSlots(),
@@ -262,7 +263,7 @@ data class MerchantItem(
     val price: Int = 0,
     val quantity: Int = 1,
     val description: String = "",
-    val data: Any? = null,
+    @Transient val data: Any? = null,
     val obtainedYear: Int = 0,
     val obtainedMonth: Int = 0
 )
@@ -386,7 +387,7 @@ data class WarehouseItem(
     val itemType: String = "",
     val rarity: Int = 1,
     val quantity: Int = 1,
-    val itemData: Map<String, Any> = emptyMap()
+    @Transient val itemData: Map<String, Any> = emptyMap()
 )
 
 // 已探索宗门信息
@@ -448,7 +449,7 @@ data class Alliance(
 data class SectRelation(
     val sectId1: String,
     val sectId2: String,
-    var favor: Int = 30,
+    var favor: Int = INITIAL_SECT_FAVOR,
     var lastInteractionYear: Int = 0,
     var noGiftYears: Int = 0
 )

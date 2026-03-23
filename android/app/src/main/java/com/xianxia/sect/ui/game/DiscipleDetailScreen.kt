@@ -292,8 +292,8 @@ fun DiscipleDetailDialog(
                 selectedEquipmentId = if (selectedEquipmentId == id) null else id
             },
             onConfirm = {
-                if (selectedEquipmentId != null && viewModel != null) {
-                    viewModel.equipItem(disciple.id, selectedEquipmentId!!)
+                selectedEquipmentId?.let { id ->
+                    viewModel?.equipItem(disciple.id, id)
                 }
                 showEquipmentSelection = null
                 selectedEquipmentId = null
@@ -314,8 +314,8 @@ fun DiscipleDetailDialog(
                 selectedManualId = if (selectedManualId == id) null else id
             },
             onConfirm = {
-                if (selectedManualId != null && viewModel != null) {
-                    viewModel.learnManual(disciple.id, selectedManualId!!)
+                selectedManualId?.let { id ->
+                    viewModel?.learnManual(disciple.id, id)
                 }
                 showManualSelection = false
                 selectedManualId = null
@@ -327,8 +327,7 @@ fun DiscipleDetailDialog(
         )
     }
 
-    if (showManualDetailDialog != null) {
-        val manual = showManualDetailDialog!!
+    showManualDetailDialog?.let { manual ->
         val proficiencyData = manualProficiencies[disciple.id]?.find { it.manualId == manual.id }
         ManualDetailDialog(
             manual = manual,
@@ -336,15 +335,11 @@ fun DiscipleDetailDialog(
             allManuals = allManuals,
             currentManualIds = disciple.manualIds,
             onReplace = { newManualId ->
-                if (viewModel != null) {
-                    viewModel.replaceManual(disciple.id, manual.id, newManualId)
-                }
+                viewModel?.replaceManual(disciple.id, manual.id, newManualId)
                 showManualDetailDialog = null
             },
             onForget = {
-                if (viewModel != null) {
-                    viewModel.forgetManual(disciple.id, manual.id)
-                }
+                viewModel?.forgetManual(disciple.id, manual.id)
                 showManualDetailDialog = null
             },
             onDismiss = {
@@ -353,22 +348,17 @@ fun DiscipleDetailDialog(
         )
     }
 
-    if (showEquipmentDetailDialog != null) {
-        val equipment = showEquipmentDetailDialog!!
+    showEquipmentDetailDialog?.let { equipment ->
         EquipmentDetailDialog(
             equipment = equipment,
             allEquipment = allEquipment,
             disciple = disciple,
             onUnequip = {
-                if (viewModel != null) {
-                    viewModel.unequipItem(disciple.id, equipment.id)
-                }
+                viewModel?.unequipItem(disciple.id, equipment.id)
                 showEquipmentDetailDialog = null
             },
             onReplace = { newEquipmentId ->
-                if (viewModel != null) {
-                    viewModel.equipItem(disciple.id, newEquipmentId)
-                }
+                viewModel?.equipItem(disciple.id, newEquipmentId)
                 showEquipmentDetailDialog = null
             },
             onDismiss = {
@@ -665,9 +655,7 @@ private fun ManualDetailDialog(
                     GameButton(
                         text = "确认更换",
                         onClick = {
-                            if (selectedManualId != null) {
-                                onReplace(selectedManualId!!)
-                            }
+                            selectedManualId?.let { onReplace(it) }
                         },
                         enabled = selectedManualId != null
                     )
@@ -1165,9 +1153,7 @@ private fun EquipmentDetailDialog(
                     GameButton(
                         text = "确认更换",
                         onClick = {
-                            if (selectedEquipmentId != null) {
-                                onReplace(selectedEquipmentId!!)
-                            }
+                            selectedEquipmentId?.let { onReplace(it) }
                         },
                         enabled = selectedEquipmentId != null
                     )
@@ -1617,8 +1603,7 @@ private fun EquipmentSelectionDialog(
         }
     )
 
-    if (showDetailEquipment != null) {
-        val equipment = showDetailEquipment!!
+    showDetailEquipment?.let { equipment ->
         val rarityColor = when (equipment.rarity) {
             1 -> Color(0xFF95A5A6)
             2 -> Color(0xFF27AE60)
@@ -1847,8 +1832,7 @@ private fun ManualSelectionDialog(
         }
     )
 
-    if (showDetailManual != null) {
-        val manual = showDetailManual!!
+    showDetailManual?.let { manual ->
         val rarityColor = when (manual.rarity) {
             1 -> Color(0xFF95A5A6)
             2 -> Color(0xFF27AE60)
@@ -2157,9 +2141,7 @@ private fun ManualReplaceDialog(
                 GameButton(
                     text = "更换",
                     onClick = { 
-                        if (selectedManualId != null) {
-                            onSelect(selectedManualId!!)
-                        }
+                        selectedManualId?.let { onSelect(it) }
                     },
                     enabled = selectedManualId != null
                 )
@@ -3204,11 +3186,13 @@ private fun StorageBagDialog(
         confirmButton = {}
     )
 
-    if (showDetailDialog && selectedItem != null) {
-        StorageBagItemDetailDialog(
-            item = selectedItem!!,
-            onDismiss = { showDetailDialog = false }
-        )
+    if (showDetailDialog) {
+        selectedItem?.let { item ->
+            StorageBagItemDetailDialog(
+                item = item,
+                onDismiss = { showDetailDialog = false }
+            )
+        }
     }
 
     if (showRewardDialog && viewModel != null && gameData != null) {
@@ -3512,9 +3496,10 @@ private fun RewardItemsDialog(
                     isRewarding = isRewarding,
                     onQuantityChange = { rewardQuantity = it },
                     onRewardClick = {
-                        if (selectedItem != null && rewardQuantity > 0 && !isRewarding) {
+                        val item = selectedItem
+                        if (item != null && rewardQuantity > 0 && !isRewarding) {
                             isRewarding = true
-                            viewModel.rewardItemsToDisciple(disciple.id, listOf(selectedItem!!.copy(quantity = rewardQuantity)))
+                            viewModel.rewardItemsToDisciple(disciple.id, listOf(item.copy(quantity = rewardQuantity)))
                             selectedItem = null
                             rewardQuantity = 1
                             isRewarding = false
@@ -3525,11 +3510,13 @@ private fun RewardItemsDialog(
         }
     }
 
-    if (showDetailDialog && detailItem != null) {
-        RewardItemDetailDialog(
-            item = detailItem!!,
-            onDismiss = { showDetailDialog = false }
-        )
+    if (showDetailDialog) {
+        detailItem?.let { item ->
+            RewardItemDetailDialog(
+                item = item,
+                onDismiss = { showDetailDialog = false }
+            )
+        }
     }
 }
 

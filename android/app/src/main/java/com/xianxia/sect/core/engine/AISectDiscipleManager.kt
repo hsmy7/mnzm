@@ -36,8 +36,13 @@ object AISectDiscipleManager {
         val name = generateName(gender)
         val spiritRoot = generateSpiritRoot()
         val comprehension = Random.nextInt(30, 81)
-        val combatStatsVariance = Random.nextInt(-30, 31)
-        val varianceMultiplier = 1.0 + combatStatsVariance / 100.0
+        val hpVariance = Random.nextInt(-50, 51)
+        val mpVariance = Random.nextInt(-50, 51)
+        val physicalAttackVariance = Random.nextInt(-50, 51)
+        val magicAttackVariance = Random.nextInt(-50, 51)
+        val physicalDefenseVariance = Random.nextInt(-50, 51)
+        val magicDefenseVariance = Random.nextInt(-50, 51)
+        val speedVariance = Random.nextInt(-50, 51)
         val talents = generateTalents()
         val manuals = generateManuals(maxRealm)
         val equipments = generateEquipments(maxRealm)
@@ -58,7 +63,13 @@ object AISectDiscipleManager {
             age = Random.nextInt(16, 26),
             lifespan = lifespan,
             isAlive = true,
-            combatStatsVariance = combatStatsVariance,
+            hpVariance = hpVariance,
+            mpVariance = mpVariance,
+            physicalAttackVariance = physicalAttackVariance,
+            magicAttackVariance = magicAttackVariance,
+            physicalDefenseVariance = physicalDefenseVariance,
+            magicDefenseVariance = magicDefenseVariance,
+            speedVariance = speedVariance,
             talentIds = talents,
             manualIds = manuals.map { it.first },
             manualMasteries = manuals.associate { it.first to it.second },
@@ -66,15 +77,20 @@ object AISectDiscipleManager {
             armorId = equipments.firstOrNull { it.second == EquipmentSlot.ARMOR }?.first,
             bootsId = equipments.firstOrNull { it.second == EquipmentSlot.BOOTS }?.first,
             accessoryId = equipments.firstOrNull { it.second == EquipmentSlot.ACCESSORY }?.first,
-            comprehension = comprehension,
-            baseHp = (100 * varianceMultiplier).toInt(),
-            baseMp = (50 * varianceMultiplier).toInt(),
-            basePhysicalAttack = (10 * varianceMultiplier).toInt(),
-            baseMagicAttack = (5 * varianceMultiplier).toInt(),
-            basePhysicalDefense = (5 * varianceMultiplier).toInt(),
-            baseMagicDefense = (3 * varianceMultiplier).toInt(),
-            baseSpeed = (10 * varianceMultiplier).toInt()
-        )
+            comprehension = comprehension
+        ).apply {
+            val baseStats = Disciple.calculateBaseStatsWithVariance(
+                hpVariance, mpVariance, physicalAttackVariance, magicAttackVariance,
+                physicalDefenseVariance, magicDefenseVariance, speedVariance
+            )
+            baseHp = baseStats.baseHp
+            baseMp = baseStats.baseMp
+            basePhysicalAttack = baseStats.basePhysicalAttack
+            baseMagicAttack = baseStats.baseMagicAttack
+            basePhysicalDefense = baseStats.basePhysicalDefense
+            baseMagicDefense = baseStats.baseMagicDefense
+            baseSpeed = baseStats.baseSpeed
+        }
     }
     
     private fun generateName(gender: String): String {
@@ -112,9 +128,9 @@ object AISectDiscipleManager {
         val count = Random.nextInt(1, 6)
         val maxRarity = getMaxRarityByRealm(maxRealm)
         
-        val allManuals = ManualDatabase.attackManuals.values +
-                         ManualDatabase.defenseManuals.values +
-                         ManualDatabase.mindManuals.values
+        val allManuals = ManualDatabase.getByType(ManualType.ATTACK) +
+                         ManualDatabase.getByType(ManualType.DEFENSE) +
+                         ManualDatabase.getByType(ManualType.MIND)
         
         val availableManuals = allManuals.filter { it.rarity <= maxRarity }
         if (availableManuals.isEmpty()) return emptyList()
@@ -355,11 +371,11 @@ object AISectDiscipleManager {
         val disciples = mutableListOf<Disciple>()
         
         val maxRealm = when (sect.level) {
-            0 -> 5
-            1 -> 3
-            2 -> 1
-            3 -> 0
-            else -> 5
+            0 -> 6
+            1 -> 4
+            2 -> 3
+            3 -> 1
+            else -> 6
         }
         
         val realmDistribution = generateRealmDistribution(totalDisciples, maxRealm)
@@ -382,39 +398,15 @@ object AISectDiscipleManager {
         val distribution = mutableMapOf<Int, Int>()
         var remaining = total
         
-        for (realm in 0..maxRealm) {
+        val topCount = if (maxRealm == 1) Random.nextInt(1, 4) else Random.nextInt(1, 6)
+        distribution[maxRealm] = topCount.coerceAtMost(remaining)
+        remaining -= topCount
+        
+        for (realm in (maxRealm + 1)..9) {
             if (remaining <= 0) break
-            
-            val count = when (realm) {
-                0 -> if (maxRealm == 0) Random.nextInt(1, 4) else 0
-                1 -> if (maxRealm <= 1) Random.nextInt(1, 4) else 0
-                2 -> if (maxRealm <= 2) Random.nextInt(2, 6) else 0
-                3 -> if (maxRealm <= 3) Random.nextInt(3, 8) else 0
-                4 -> Random.nextInt(5, 11)
-                5 -> Random.nextInt(8, 16)
-                else -> 0
-            }
-            
-            if (count > 0) {
-                distribution[realm] = count.coerceAtMost(remaining)
-                remaining -= count
-            }
-        }
-        
-        val midRealmCount = (remaining * 0.4).toInt()
-        if (midRealmCount > 0) {
-            distribution[6] = midRealmCount
-            remaining -= midRealmCount
-        }
-        
-        val lowMidCount = (remaining * 0.5).toInt()
-        if (lowMidCount > 0) {
-            distribution[7] = lowMidCount
-            remaining -= lowMidCount
-        }
-        
-        if (remaining > 0) {
-            distribution[9] = remaining
+            val count = Random.nextInt(5, 21).coerceAtMost(remaining)
+            distribution[realm] = count
+            remaining -= count
         }
         
         return distribution

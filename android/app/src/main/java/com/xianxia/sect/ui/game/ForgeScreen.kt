@@ -164,16 +164,18 @@ fun ForgeDialog(
         confirmButton = {}
     )
 
-    if (showEquipmentSelection && selectedSlotIndex != null) {
-        EquipmentSelectionDialog(
-            materials = materials,
-            slotIndex = selectedSlotIndex!!,
-            viewModel = viewModel,
-            onDismiss = {
-                showEquipmentSelection = false
-                selectedSlotIndex = null
-            }
-        )
+    if (showEquipmentSelection) {
+        selectedSlotIndex?.let { slotIdx ->
+            EquipmentSelectionDialog(
+                materials = materials,
+                slotIndex = slotIdx,
+                viewModel = viewModel,
+                onDismiss = {
+                    showEquipmentSelection = false
+                    selectedSlotIndex = null
+                }
+            )
+        }
     }
     
     if (showElderSelection) {
@@ -1135,12 +1137,14 @@ private fun EquipmentSelectionDialog(
         }
     }
 
-    if (showDetail && clickedRecipe != null) {
-        EquipmentDetailDialog(
-            recipe = clickedRecipe!!,
-            materials = materials,
-            onDismiss = { showDetail = false }
-        )
+    if (showDetail) {
+        clickedRecipe?.let { recipe ->
+            EquipmentDetailDialog(
+                recipe = recipe,
+                materials = materials,
+                onDismiss = { showDetail = false }
+            )
+        }
     }
 }
 

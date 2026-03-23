@@ -98,8 +98,8 @@ object TribulationSystem {
         val realmConfig = GameConfig.Realm.get(realmIndex)
         val multiplier = realmConfig.multiplier
         
-        val basePhysicalAttack = (10 * multiplier).toInt()
-        val baseMagicAttack = (5 * multiplier).toInt()
+        val basePhysicalAttack = (7 * multiplier).toInt()
+        val baseMagicAttack = (7 * multiplier).toInt()
         val basePhysicalDefense = (5 * multiplier).toInt()
         val baseMagicDefense = (3 * multiplier).toInt()
         val baseMaxHp = (100 * multiplier).toInt()

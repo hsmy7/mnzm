@@ -141,11 +141,13 @@ fun MerchantDialog(
         }
     }
 
-    if (showDetailDialog && selectedItem != null) {
-        ItemDetailDialog(
-            item = selectedItem!!,
-            onDismiss = { showDetailDialog = false }
-        )
+    if (showDetailDialog) {
+        selectedItem?.let { item ->
+            ItemDetailDialog(
+                item = item,
+                onDismiss = { showDetailDialog = false }
+            )
+        }
     }
 
     if (showListingDialog) {
@@ -1122,11 +1124,13 @@ private fun <T> InventorySelectGrid(
         }
     }
 
-    if (showDetailDialog && selectedItem != null) {
-        com.xianxia.sect.ui.game.components.ItemDetailDialog(
-            item = selectedItem!!,
-            onDismiss = { showDetailDialog = false }
-        )
+    if (showDetailDialog) {
+        selectedItem?.let { item ->
+            com.xianxia.sect.ui.game.components.ItemDetailDialog(
+                item = item,
+                onDismiss = { showDetailDialog = false }
+            )
+        }
     }
 }
 
@@ -1260,11 +1264,13 @@ private fun AllItemsSelectGrid(
         }
     }
 
-    if (showDetailDialog && selectedItem != null) {
-        com.xianxia.sect.ui.game.components.ItemDetailDialog(
-            item = selectedItem!!,
-            onDismiss = { showDetailDialog = false }
-        )
+    if (showDetailDialog) {
+        selectedItem?.let { item ->
+            com.xianxia.sect.ui.game.components.ItemDetailDialog(
+                item = item,
+                onDismiss = { showDetailDialog = false }
+            )
+        }
     }
 }
 

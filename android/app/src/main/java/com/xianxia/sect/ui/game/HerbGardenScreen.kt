@@ -1636,11 +1636,13 @@ private fun SeedSelectionDialog(
     var selectedSeed by remember { mutableStateOf<Seed?>(null) }
     var showDetail by remember { mutableStateOf(false) }
 
-    if (showDetail && selectedSeed != null) {
-        SeedDetailDialog(
-            seed = selectedSeed!!,
-            onDismiss = { showDetail = false }
-        )
+    if (showDetail) {
+        selectedSeed?.let { seed ->
+            SeedDetailDialog(
+                seed = seed,
+                onDismiss = { showDetail = false }
+            )
+        }
     }
 
     AlertDialog(

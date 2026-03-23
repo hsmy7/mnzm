@@ -60,8 +60,42 @@ class SaveManager @Inject constructor(
         // 多版本备份配置
         private const val MAX_BACKUP_VERSIONS = 5
         
-        // 定期健康检查配置
-        private const val HEALTH_CHECK_INTERVAL_MS = 60_000L // 1分钟
+        private const val STREAMED_SAVE_DATA_FIELD_COUNT = 17
+        
+        private const val HEALTH_CHECK_INTERVAL_MS = 60_000L
+        private const val MIN_MEMORY_RATIO = 0.3
+        private const val MAX_RETRY_COUNT = 2
+        private const val RETRY_DELAY_MS = 200L
+    }
+
+    private fun logMemoryStatus(tag: String) {
+        val runtime = Runtime.getRuntime()
+        val maxMemory = runtime.maxMemory() / 1024 / 1024
+        val totalMemory = runtime.totalMemory() / 1024 / 1024
+        val freeMemory = runtime.freeMemory() / 1024 / 1024
+        val usedMemory = totalMemory - freeMemory
+        val availableMemory = maxMemory - usedMemory
+        Log.d(TAG, "[$tag] Memory: max=${maxMemory}MB, used=${usedMemory}MB, available=${availableMemory}MB")
+    }
+
+    private fun checkAvailableMemory(): Boolean {
+        val runtime = Runtime.getRuntime()
+        val maxMemory = runtime.maxMemory()
+        val usedMemory = runtime.totalMemory() - runtime.freeMemory()
+        val availableMemory = maxMemory - usedMemory
+        val ratio = availableMemory.toDouble() / maxMemory.toDouble()
+        Log.d(TAG, "Memory check: available=${availableMemory/1024/1024}MB, ratio=${(ratio*100).toInt()}%")
+        return ratio >= MIN_MEMORY_RATIO
+    }
+
+    private fun forceGcAndWait() {
+        Log.d(TAG, "Forcing GC before save retry...")
+        System.gc()
+        try {
+            Thread.sleep(RETRY_DELAY_MS)
+        } catch (e: InterruptedException) {
+            Thread.currentThread().interrupt()
+        }
     }
 
     private val prefs: SharedPreferences =
@@ -97,9 +131,22 @@ class SaveManager @Inject constructor(
         get() = File(context.filesDir, SAVE_DIR).apply { if (!exists()) mkdirs() }
 
     init {
+        verifyStreamSaveDataFields()
         migrateFromSharedPreferences()
         startSaveQueueProcessor()
         startPeriodicHealthCheck()
+    }
+    
+    private fun verifyStreamSaveDataFields() {
+        val expectedFields = SaveData::class.java.declaredFields.count { 
+            !it.name.startsWith("$") && !java.lang.reflect.Modifier.isTransient(it.modifiers)
+        }
+        val streamedFields = STREAMED_SAVE_DATA_FIELD_COUNT
+        if (expectedFields != streamedFields) {
+            Log.e(TAG, "CRITICAL: streamSaveData field count mismatch! SaveData has $expectedFields fields, but streamSaveData writes $streamedFields fields. Data loss may occur!")
+        } else {
+            Log.d(TAG, "streamSaveData field count verified: $streamedFields fields")
+        }
     }
     
     fun shutdown() {
@@ -144,7 +191,6 @@ class SaveManager @Inject constructor(
             digest.update(data.gameData.gameDay.toByte())
             digest.update(data.gameData.spiritStones.toString().toByteArray())
             digest.update(data.gameData.sectName.toByteArray())
-            digest.update(data.gameData.reputation.toString().toByteArray())
             
             // 弟子数据
             digest.update(data.disciples.size.toString().toByteArray())
@@ -269,77 +315,115 @@ class SaveManager @Inject constructor(
             Log.e(TAG, "Invalid save slot: $slot")
             return false
         }
-        return saveInternal(slot, data)
+        return saveMutex.tryLock().let { locked ->
+            if (locked) {
+                try {
+                    saveInternal(slot, data)
+                } finally {
+                    saveMutex.unlock()
+                }
+            } else {
+                Log.w(TAG, "Save mutex is locked, another save operation is in progress for slot $slot")
+                false
+            }
+        }
     }
     
     private fun saveInternal(slot: Int, data: SaveData): Boolean {
         Log.i(TAG, "=== save BEGIN === slot=$slot, sectName=${data.gameData.sectName}, " +
             "year=${data.gameData.gameYear}, month=${data.gameData.gameMonth}, day=${data.gameData.gameDay}, " +
             "spiritStones=${data.gameData.spiritStones}, disciples=${data.disciples.count { it.isAlive }}")
+        
+        logMemoryStatus("save BEGIN")
 
         val startTime = System.currentTimeMillis()
         val cleanedData = cleanSaveData(data)
         val saveFile = getSaveFile(slot)
         val tempFile = File(saveFile.parent, "${saveFile.name}.tmp")
         
-        var saveCompleted = false
-        var result = false
-
-        try {
-            val checksum = saveToFileWithChecksum(tempFile, cleanedData)
-            
-            // 使用多版本备份机制
-            if (saveFile.exists()) {
-                rotateBackupVersions(slot)
-                val backupFile = getBackupFile(slot, 1)
-                if (saveFile.renameTo(backupFile)) {
-                    Log.d(TAG, "Created backup version 1 for slot $slot")
-                } else {
-                    Log.w(TAG, "Failed to create backup for slot $slot, continuing anyway")
-                }
-            }
-
-            if (!tempFile.renameTo(saveFile)) {
-                Log.e(TAG, "Failed to rename temp file to save file for slot $slot")
-                // 尝试从备份版本1恢复
-                val backupFile = getBackupFile(slot, 1)
-                if (backupFile.exists()) {
-                    backupFile.renameTo(saveFile)
-                    Log.i(TAG, "Restored backup after rename failure for slot $slot")
-                }
+        if (!checkAvailableMemory()) {
+            Log.w(TAG, "Low memory before save, attempting GC")
+            forceGcAndWait()
+            if (!checkAvailableMemory()) {
+                Log.e(TAG, "Insufficient memory for save operation after GC")
                 return false
             }
+        }
+        
+        var retryCount = 0
+        var lastError: Throwable? = null
+        
+        while (retryCount <= MAX_RETRY_COUNT) {
+            var saveCompleted = false
+            
+            try {
+                val checksum = saveToFileWithChecksum(tempFile, cleanedData)
+                
+                if (saveFile.exists()) {
+                    rotateBackupVersions(slot)
+                    val backupFile = getBackupFile(slot, 1)
+                    if (saveFile.renameTo(backupFile)) {
+                        Log.d(TAG, "Created backup version 1 for slot $slot")
+                    } else {
+                        Log.w(TAG, "Failed to create backup for slot $slot, continuing anyway")
+                    }
+                }
 
-            saveMetaWithChecksum(slot, cleanedData, checksum)
+                if (!tempFile.renameTo(saveFile)) {
+                    Log.e(TAG, "Failed to rename temp file to save file for slot $slot")
+                    val backupFile = getBackupFile(slot, 1)
+                    if (backupFile.exists()) {
+                        backupFile.renameTo(saveFile)
+                        Log.i(TAG, "Restored backup after rename failure for slot $slot")
+                    }
+                    return false
+                }
 
-            saveCompleted = true
-            result = true
-            val elapsed = System.currentTimeMillis() - startTime
-            Log.i(TAG, "=== save SUCCESS === slot=$slot, elapsed=${elapsed}ms, " +
-                "compressedSize=${saveFile.length()} bytes, " +
-                "disciples=${cleanedData.disciples.size}, equipment=${cleanedData.equipment.size}, " +
-                "manuals=${cleanedData.manuals.size}, pills=${cleanedData.pills.size}")
-        } catch (e: FileNotFoundException) {
-            Log.e(TAG, "=== save FAILED === slot=$slot, error=FileNotFoundException", e)
-        } catch (e: IOException) {
-            Log.e(TAG, "=== save FAILED === slot=$slot, error=IOException", e)
-        } catch (e: Exception) {
-            Log.e(TAG, "=== save FAILED === slot=$slot, error=${e.javaClass.simpleName}", e)
-        } finally {
-            if (tempFile.exists()) {
-                tempFile.delete()
-            }
-            if (saveCompleted) {
-                Log.d(TAG, "Save completed, backup preserved for slot $slot")
+                saveMetaWithChecksum(slot, cleanedData, checksum)
+
+                saveCompleted = true
+                val elapsed = System.currentTimeMillis() - startTime
+                Log.i(TAG, "=== save SUCCESS === slot=$slot, elapsed=${elapsed}ms, " +
+                    "compressedSize=${saveFile.length()} bytes, " +
+                    "disciples=${cleanedData.disciples.size}, equipment=${cleanedData.equipment.size}, " +
+                    "manuals=${cleanedData.manuals.size}, pills=${cleanedData.pills.size}")
+                logMemoryStatus("save SUCCESS")
+                return true
+            } catch (e: OutOfMemoryError) {
+                lastError = e
+                retryCount++
+                Log.w(TAG, "OOM during save (attempt $retryCount/$MAX_RETRY_COUNT), slot=$slot")
+                logMemoryStatus("save OOM")
+                if (tempFile.exists()) tempFile.delete()
+                forceGcAndWait()
+            } catch (e: FileNotFoundException) {
+                Log.e(TAG, "=== save FAILED === slot=$slot, error=FileNotFoundException", e)
+                return false
+            } catch (e: IOException) {
+                Log.e(TAG, "=== save FAILED === slot=$slot, error=IOException", e)
+                return false
+            } catch (e: Exception) {
+                Log.e(TAG, "=== save FAILED === slot=$slot, error=${e.javaClass.simpleName}", e)
+                return false
+            } finally {
+                if (!saveCompleted && tempFile.exists()) {
+                    tempFile.delete()
+                }
             }
         }
-        return result
+        
+        Log.e(TAG, "=== save FAILED === slot=$slot, error=OutOfMemoryError after $MAX_RETRY_COUNT retries", lastError)
+        return false
     }
 
     suspend fun saveAsync(slot: Int, data: SaveData): Boolean {
+        if (!isValidSlot(slot)) {
+            Log.e(TAG, "Invalid save slot: $slot")
+            return false
+        }
         return saveMutex.withLock {
             withContext(Dispatchers.IO) {
-                save(slot, data)
+                saveInternal(slot, data)
             }
         }
     }
@@ -359,24 +443,18 @@ class SaveManager @Inject constructor(
             return null
         }
 
-        // 先校验存档完整性
-        val verificationResult = verifySave(slot)
-        if (verificationResult == SaveVerificationResult.VALID) {
-            val data = loadFromFile(slot)
+        val verification = verifySaveWithData(slot)
+        if (verification.status == SaveVerificationResult.VALID && verification.data != null) {
+            val data = verification.data
             val elapsed = System.currentTimeMillis() - startTime
-            if (data != null) {
-                Log.i(TAG, "=== load SUCCESS === slot=$slot, elapsed=${elapsed}ms, " +
-                    "sectName=${data.gameData.sectName}, year=${data.gameData.gameYear}, " +
-                    "month=${data.gameData.gameMonth}, day=${data.gameData.gameDay}, " +
-                    "spiritStones=${data.gameData.spiritStones}, disciples=${data.disciples.count { it.isAlive }}")
-            } else {
-                Log.e(TAG, "=== load FAILED === slot=$slot, reason=loadFromFile returned null")
-            }
+            Log.i(TAG, "=== load SUCCESS === slot=$slot, elapsed=${elapsed}ms, " +
+                "sectName=${data.gameData.sectName}, year=${data.gameData.gameYear}, " +
+                "month=${data.gameData.gameMonth}, day=${data.gameData.gameDay}, " +
+                "spiritStones=${data.gameData.spiritStones}, disciples=${data.disciples.count { it.isAlive }}")
             return data
         }
 
-        // 存档可能损坏，尝试从备份恢复
-        Log.w(TAG, "=== load RETRY === slot=$slot, verification=$verificationResult, attempting backup recovery")
+        Log.w(TAG, "=== load RETRY === slot=$slot, verification=${verification.status}, attempting backup recovery")
         val restoredData = restoreFromBackupIfCorrupted(slot)
         val elapsed = System.currentTimeMillis() - startTime
         if (restoredData != null) {
@@ -556,26 +634,66 @@ class SaveManager @Inject constructor(
     private fun saveToFileWithChecksum(file: File, data: SaveData): String {
         val digest = MessageDigest.getInstance("MD5")
         
-        OptimizedGZIPOutputStream(FileOutputStream(file), COMPRESSION_LEVEL).use { gzipOutput ->
-            val digestStream = object : OutputStream() {
-                override fun write(b: Int) {
-                    digest.update(b.toByte())
-                    gzipOutput.write(b)
+        BufferedOutputStream(FileOutputStream(file), 64 * 1024).use { buffer ->
+            OptimizedGZIPOutputStream(buffer, COMPRESSION_LEVEL).use { gzipOutput ->
+                val digestStream = object : OutputStream() {
+                    override fun write(b: Int) {
+                        digest.update(b.toByte())
+                        gzipOutput.write(b)
+                    }
+                    override fun write(b: ByteArray, off: Int, len: Int) {
+                        digest.update(b, off, len)
+                        gzipOutput.write(b, off, len)
+                    }
                 }
-                override fun write(b: ByteArray, off: Int, len: Int) {
-                    digest.update(b, off, len)
-                    gzipOutput.write(b, off, len)
+                OutputStreamWriter(digestStream, Charsets.UTF_8).use { writer ->
+                    streamSaveData(data, writer)
                 }
-            }
-            OutputStreamWriter(digestStream, Charsets.UTF_8).use { writer ->
-                gson.toJson(data, writer)
-                writer.flush()
             }
         }
 
         val checksum = digest.digest().joinToString("") { "%02x".format(it) }
         Log.d(TAG, "Saved to ${file.name}, compressed size: ${file.length()} bytes, checksum: ${checksum.take(8)}...")
         return checksum
+    }
+    
+    private fun streamSaveData(data: SaveData, writer: OutputStreamWriter) {
+        val gson = this.gson
+        writer.write("{\"version\":")
+        writer.write(gson.toJson(data.version))
+        writer.write(",\"timestamp\":")
+        writer.write(data.timestamp.toString())
+        writer.write(",\"gameData\":")
+        gson.toJson(data.gameData, writer)
+        writer.write(",\"disciples\":")
+        gson.toJson(data.disciples, writer)
+        writer.write(",\"equipment\":")
+        gson.toJson(data.equipment, writer)
+        writer.write(",\"manuals\":")
+        gson.toJson(data.manuals, writer)
+        writer.write(",\"pills\":")
+        gson.toJson(data.pills, writer)
+        writer.write(",\"materials\":")
+        gson.toJson(data.materials, writer)
+        writer.write(",\"herbs\":")
+        gson.toJson(data.herbs, writer)
+        writer.write(",\"seeds\":")
+        gson.toJson(data.seeds, writer)
+        writer.write(",\"teams\":")
+        gson.toJson(data.teams, writer)
+        writer.write(",\"slots\":")
+        gson.toJson(data.slots, writer)
+        writer.write(",\"events\":")
+        gson.toJson(data.events, writer)
+        writer.write(",\"battleLogs\":")
+        gson.toJson(data.battleLogs, writer)
+        writer.write(",\"alliances\":")
+        gson.toJson(data.alliances, writer)
+        writer.write(",\"supportTeams\":")
+        gson.toJson(data.supportTeams, writer)
+        writer.write(",\"alchemySlots\":")
+        gson.toJson(data.alchemySlots, writer)
+        writer.write("}")
     }
     
     private class OptimizedGZIPOutputStream(
@@ -596,15 +714,17 @@ class SaveManager @Inject constructor(
     private fun loadFromFile(file: File): SaveData? {
         return try {
             val startTime = System.currentTimeMillis()
-            val jsonBytes = GZIPInputStream(FileInputStream(file)).use { input ->
-                input.readBytes()
+            val data = BufferedInputStream(FileInputStream(file), 64 * 1024).use { input ->
+                GZIPInputStream(input).use { gzipInput ->
+                    InputStreamReader(gzipInput, Charsets.UTF_8).use { reader ->
+                        gson.fromJson(reader, SaveData::class.java)
+                    }
+                }
             }
-            val json = String(jsonBytes, Charsets.UTF_8)
-            val data = gson.fromJson(json, SaveData::class.java)
             val elapsed = System.currentTimeMillis() - startTime
-            Log.d(TAG, "Loaded from ${file.name} in ${elapsed}ms, uncompressed size: ${jsonBytes.size} bytes")
+            val fileSize = file.length()
+            Log.d(TAG, "Loaded from ${file.name} in ${elapsed}ms, compressed size: ${fileSize} bytes")
             
-            // 执行版本迁移
             migrateSaveData(data)
         } catch (e: FileNotFoundException) {
             Log.e(TAG, "File not found: ${file.name}", e)
@@ -771,53 +891,57 @@ class SaveManager @Inject constructor(
             data.events
         }
 
+        val cleanedWorldMapSects = data.gameData.worldMapSects.map { sect ->
+            val aliveAiDisciples = sect.aiDisciples.filter { it.isAlive }
+            if (aliveAiDisciples.size != sect.aiDisciples.size) {
+                Log.d(TAG, "Cleaning dead AI disciples from sect ${sect.name}: ${sect.aiDisciples.size - aliveAiDisciples.size} removed")
+            }
+            sect.copy(aiDisciples = aliveAiDisciples)
+        }
+
+        val cleanedSupportTeams = data.supportTeams.map { team ->
+            val aliveAiDisciples = team.aiDisciples.filter { it.isAlive }
+            team.copy(aiDisciples = aliveAiDisciples)
+        }
+
+        val cleanedGameData = data.gameData.copy(worldMapSects = cleanedWorldMapSects)
+
         return data.copy(
             battleLogs = cleanedBattleLogs,
-            events = cleanedEvents
+            events = cleanedEvents,
+            gameData = cleanedGameData,
+            supportTeams = cleanedSupportTeams
         )
     }
 
-    fun verifySave(slot: Int): SaveVerificationResult {
+    private data class VerificationResult(
+        val status: SaveVerificationResult,
+        val data: SaveData? = null
+    )
+
+    private fun verifySaveWithData(slot: Int): VerificationResult {
         val saveFile = getSaveFile(slot)
         if (!saveFile.exists()) {
-            return SaveVerificationResult.NOT_FOUND
+            return VerificationResult(SaveVerificationResult.NOT_FOUND)
         }
 
         return try {
-            // 首先尝试加载存档数据，验证文件是否可以正确解析
             val data = loadFromFile(slot)
             if (data == null) {
                 Log.w(TAG, "Save file cannot be parsed for slot $slot")
-                return SaveVerificationResult.CORRUPTED
-            }
-
-            // 验证元数据中的 checksum
-            val metaFile = getMetaFile(slot)
-            if (metaFile.exists()) {
-                try {
-                    val metaJson = metaFile.readText()
-                    val meta = gson.fromJson(metaJson, SaveSlotMeta::class.java)
-                    
-                    if (meta.checksum.isNotEmpty()) {
-                        // 重新计算存档数据的 checksum
-                        val currentChecksum = calculateDataChecksum(slot)
-                        if (currentChecksum.isNotEmpty() && meta.checksum != currentChecksum) {
-                            Log.w(TAG, "Checksum mismatch for slot $slot: expected ${meta.checksum.take(8)}..., got ${currentChecksum.take(8)}...")
-                            return SaveVerificationResult.CHECKSUM_MISMATCH
-                        }
-                    }
-                } catch (e: Exception) {
-                    Log.w(TAG, "Failed to read meta for checksum verification for slot $slot", e)
-                    // 元数据读取失败，但存档数据有效，仍然返回 VALID
-                }
+                return VerificationResult(SaveVerificationResult.CORRUPTED)
             }
             
             Log.d(TAG, "Save verification passed for slot $slot")
-            SaveVerificationResult.VALID
+            VerificationResult(SaveVerificationResult.VALID, data)
         } catch (e: Exception) {
             Log.e(TAG, "Save verification failed for slot $slot", e)
-            SaveVerificationResult.CORRUPTED
+            VerificationResult(SaveVerificationResult.CORRUPTED)
         }
+    }
+
+    fun verifySave(slot: Int): SaveVerificationResult {
+        return verifySaveWithData(slot).status
     }
 
     /**
@@ -829,11 +953,16 @@ class SaveManager @Inject constructor(
         if (!saveFile.exists()) return ""
 
         return try {
-            val jsonBytes = GZIPInputStream(FileInputStream(saveFile)).use { input ->
-                input.readBytes()
-            }
             val digest = MessageDigest.getInstance("MD5")
-            digest.update(jsonBytes)
+            BufferedInputStream(FileInputStream(saveFile), 64 * 1024).use { input ->
+                GZIPInputStream(input).use { gzipInput ->
+                    val buffer = ByteArray(8192)
+                    var read: Int
+                    while (gzipInput.read(buffer).also { read = it } > 0) {
+                        digest.update(buffer, 0, read)
+                    }
+                }
+            }
             digest.digest().joinToString("") { "%02x".format(it) }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to calculate data checksum for slot $slot", e)
@@ -1159,10 +1288,12 @@ class SaveManager @Inject constructor(
             val emergencyFile = getEmergencySaveFile()
             val tempFile = File(emergencyFile.parent, "${emergencyFile.name}.tmp")
 
-            OptimizedGZIPOutputStream(FileOutputStream(tempFile), COMPRESSION_LEVEL).use { gzipOutput ->
-                OutputStreamWriter(gzipOutput, Charsets.UTF_8).use { writer ->
-                    gson.toJson(data.copy(timestamp = System.currentTimeMillis()), writer)
-                    writer.flush()
+            BufferedOutputStream(FileOutputStream(tempFile), 64 * 1024).use { buffer ->
+                OptimizedGZIPOutputStream(buffer, COMPRESSION_LEVEL).use { gzipOutput ->
+                    OutputStreamWriter(gzipOutput, Charsets.UTF_8).use { writer ->
+                        streamSaveData(data.copy(timestamp = System.currentTimeMillis()), writer)
+                        writer.flush()
+                    }
                 }
             }
 
@@ -1208,11 +1339,13 @@ class SaveManager @Inject constructor(
 
         return try {
             val startTime = System.currentTimeMillis()
-            val jsonBytes = GZIPInputStream(FileInputStream(emergencyFile)).use { input ->
-                input.readBytes()
+            val data = BufferedInputStream(FileInputStream(emergencyFile), 64 * 1024).use { input ->
+                GZIPInputStream(input).use { gzipInput ->
+                    InputStreamReader(gzipInput, Charsets.UTF_8).use { reader ->
+                        gson.fromJson(reader, SaveData::class.java)
+                    }
+                }
             }
-            val json = String(jsonBytes, Charsets.UTF_8)
-            val data = gson.fromJson(json, SaveData::class.java)
             val elapsed = System.currentTimeMillis() - startTime
             Log.i(TAG, "Emergency save loaded in ${elapsed}ms")
             data

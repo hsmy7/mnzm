@@ -9,6 +9,9 @@ import kotlin.random.Random
 
 object BattleSystem {
     
+    private const val MAX_BATTLE_DURATION_MS = 5000L
+    private const val BATTLE_TIMEOUT_WARNING_MS = 3000L
+    
     fun createBattle(
         disciples: List<Disciple>,
         equipmentMap: Map<String, Equipment>,
@@ -80,7 +83,8 @@ object BattleSystem {
     private fun createBeast(teamAvgRealm: Double, index: Int, beastType: String? = null): Combatant {
         val realmIndex = ceil(teamAvgRealm).toInt().coerceIn(0, 9)
 
-        val realm = GameConfig.Beast.getRealm(realmIndex)
+        val realmConfig = GameConfig.Realm.get(realmIndex)
+        val realmMultiplier = realmConfig.multiplier
 
         val type = if (beastType != null) {
             GameConfig.Beast.TYPES.find { it.name == beastType } ?: GameConfig.Beast.getType(0)
@@ -88,29 +92,28 @@ object BattleSystem {
             GameConfig.Beast.getType(Random.nextInt(GameConfig.Beast.TYPES.size))
         }
 
-        // 计算层数加成（参照弟子：layerBonus = 1.0 + (realmLayer - 1) * 0.1）
         val realmLayer = ((teamAvgRealm - realmIndex) * 10).toInt().coerceIn(1, 9)
         val layerBonus = 1.0 + (realmLayer - 1) * 0.1
 
-        // 炼虚及以上（realmIndex <= 4）属性为弟子200%，浮动±30%
-        // 化神及以下（realmIndex >= 5）属性为弟子150%，浮动±30%
-        val realmMultiplier = if (realmIndex <= 4) 2.0 else 1.5
-        val variance = 0.7 + Random.nextDouble() * 0.6
-        val isPhysicalAttacker = Random.nextDouble() < 0.5
+        val baseHp = (100 * realmMultiplier * layerBonus).toInt()
+        val baseAtk = (7 * realmMultiplier * layerBonus).toInt()
+        val baseDef = (5 * realmMultiplier * layerBonus).toInt()
+        val baseSpeed = (10 * realmMultiplier * layerBonus).toInt()
 
-        val physicalAttack: Int
-        val magicAttack: Int
-        if (isPhysicalAttacker) {
-            physicalAttack = (realm.baseAtk * type.atkMod * variance * realmMultiplier * layerBonus).toInt()
-            magicAttack = (realm.baseAtk * type.atkMod * 0.3 * variance * realmMultiplier * layerBonus).toInt()
-        } else {
-            physicalAttack = (realm.baseAtk * type.atkMod * 0.3 * variance * realmMultiplier * layerBonus).toInt()
-            magicAttack = (realm.baseAtk * type.atkMod * variance * realmMultiplier * layerBonus).toInt()
-        }
+        val beastBonus = 0.2
+        val hpVariance = -0.5 + Random.nextDouble() * 1.0
+        val physicalAttackVariance = -0.5 + Random.nextDouble() * 1.0
+        val magicAttackVariance = -0.5 + Random.nextDouble() * 1.0
+        val physicalDefenseVariance = -0.5 + Random.nextDouble() * 1.0
+        val magicDefenseVariance = -0.5 + Random.nextDouble() * 1.0
+        val speedVariance = -0.5 + Random.nextDouble() * 1.0
 
-        val hp = (realm.baseHp * type.hpMod * variance * realmMultiplier * layerBonus).toInt()
-        val defense = (realm.baseDef * type.defMod * variance * realmMultiplier * layerBonus).toInt()
-        val speed = (realm.baseSpeed * type.speedMod * variance * realmMultiplier * layerBonus).toInt()
+        val hp = (baseHp * (1.0 + (type.hpMod - 1.0) + hpVariance + beastBonus)).toInt()
+        val physicalAttack = (baseAtk * (1.0 + (type.atkMod - 1.0) + physicalAttackVariance + beastBonus)).toInt()
+        val magicAttack = (baseAtk * (1.0 + (type.atkMod - 1.0) + magicAttackVariance + beastBonus)).toInt()
+        val physicalDefense = (baseDef * (1.0 + (type.defMod - 1.0) + physicalDefenseVariance + beastBonus)).toInt()
+        val magicDefense = (baseDef * (1.0 + (type.defMod - 1.0) + magicDefenseVariance + beastBonus)).toInt()
+        val speed = (baseSpeed * (1.0 + (type.speedMod - 1.0) + speedVariance + beastBonus)).toInt()
         
         return Combatant(
             id = "beast_$index",
@@ -118,12 +121,12 @@ object BattleSystem {
             type = CombatantType.BEAST,
             hp = hp,
             maxHp = hp,
-            mp = (realm.baseHp * 0.2).toInt(),
-            maxMp = (realm.baseHp * 0.2).toInt(),
+            mp = (baseHp * 0.5).toInt(),
+            maxMp = (baseHp * 0.5).toInt(),
             physicalAttack = physicalAttack,
             magicAttack = magicAttack,
-            physicalDefense = defense,
-            magicDefense = (defense * 0.8).toInt(),
+            physicalDefense = physicalDefense,
+            magicDefense = magicDefense,
             speed = speed,
             critRate = 0.05 + realmIndex * 0.01,
             skills = emptyList(),
@@ -134,6 +137,11 @@ object BattleSystem {
     }
     
     fun executeBattle(battle: Battle): BattleSystemResult {
+        return executeBattleWithTimeout(battle, MAX_BATTLE_DURATION_MS)
+    }
+    
+    fun executeBattleWithTimeout(battle: Battle, timeoutMs: Long = MAX_BATTLE_DURATION_MS): BattleSystemResult {
+        val startTime = System.currentTimeMillis()
         var currentBattle = battle
         val rounds = mutableListOf<BattleRoundData>()
         val teamMembers = battle.team.map { combatant ->
@@ -156,7 +164,20 @@ object BattleSystem {
             )
         }
         
+        var timedOut = false
+        
         while (!currentBattle.isFinished && currentBattle.turn < GameConfig.Battle.MAX_TURNS) {
+            val elapsed = System.currentTimeMillis() - startTime
+            
+            if (elapsed > timeoutMs) {
+                timedOut = true
+                break
+            }
+            
+            if (elapsed > BATTLE_TIMEOUT_WARNING_MS && currentBattle.turn % 5 == 0) {
+                android.util.Log.w("BattleSystem", "Battle taking long: ${elapsed}ms, turn ${currentBattle.turn}/${GameConfig.Battle.MAX_TURNS}")
+            }
+            
             val turnResult = executeTurnWithLog(currentBattle)
             currentBattle = turnResult.first
             if (turnResult.second.actions.isNotEmpty()) {
@@ -178,6 +199,10 @@ object BattleSystem {
         val aliveBeasts = currentBattle.beasts.count { !it.isDead }
         
         val winner = when {
+            timedOut -> {
+                android.util.Log.w("BattleSystem", "Battle timed out after ${System.currentTimeMillis() - startTime}ms")
+                if (aliveTeam > aliveBeasts) BattleWinner.TEAM else if (aliveBeasts > aliveTeam) BattleWinner.BEASTS else BattleWinner.DRAW
+            }
             aliveTeam == 0 -> BattleWinner.BEASTS
             aliveBeasts == 0 -> BattleWinner.TEAM
             else -> BattleWinner.DRAW
@@ -196,7 +221,10 @@ object BattleSystem {
                 rounds = rounds,
                 teamMembers = teamMembers,
                 enemies = enemies
-            )
+            ),
+            timedOut = timedOut,
+            durationMs = System.currentTimeMillis() - startTime,
+            turnCount = currentBattle.turn
         )
     }
     
@@ -253,11 +281,11 @@ object BattleSystem {
             var message: String
             var isKill = false
             
-            if (result.isSupport) {
-                val buffs = availableSkill?.buffs ?: emptyList()
+            if (result.isSupport && availableSkill != null) {
+                val buffs = availableSkill.buffs ?: emptyList()
                 message = BattleDescriptionGenerator.generateSupportSkillDescription(
                     caster = currentCombatant,
-                    skill = availableSkill!!,
+                    skill = availableSkill,
                     healAmount = result.healAmount,
                     healType = result.healType,
                     buffs = buffs
@@ -731,7 +759,10 @@ data class BattleSystemResult(
     val battle: Battle,
     val victory: Boolean,
     val rewards: Map<String, Int>,
-    val log: BattleLogData = BattleLogData()
+    val log: BattleLogData = BattleLogData(),
+    val timedOut: Boolean = false,
+    val durationMs: Long = 0,
+    val turnCount: Int = 0
 )
 
 data class BattleLogData(

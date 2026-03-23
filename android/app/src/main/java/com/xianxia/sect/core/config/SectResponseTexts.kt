@@ -99,7 +99,7 @@ object SectResponseTexts {
      * @return 反馈文本
      */
     fun getAcceptResponse(sectLevel: Int, itemType: String, itemName: String, favorChange: Int): String {
-        val responses = ACCEPT_RESPONSES[sectLevel] ?: ACCEPT_RESPONSES[0]!!
+        val responses = ACCEPT_RESPONSES[sectLevel] ?: ACCEPT_RESPONSES[0] ?: listOf("多谢道友厚礼！")
         val template = responses.random()
 
         val selfTitle = SECT_SELF_TITLES[sectLevel] ?: "本门"
@@ -118,7 +118,7 @@ object SectResponseTexts {
      * @return 反馈文本
      */
     fun getRejectResponse(sectLevel: Int, itemType: String, itemName: String): String {
-        val responses = REJECT_RESPONSES[sectLevel] ?: REJECT_RESPONSES[0]!!
+        val responses = REJECT_RESPONSES[sectLevel] ?: REJECT_RESPONSES[0] ?: listOf("本门不能接受此礼。")
         val template = responses.random()
 
         val selfTitle = SECT_SELF_TITLES[sectLevel] ?: "本门"

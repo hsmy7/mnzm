@@ -1,0 +1,167 @@
+package com.xianxia.sect.core.util
+
+import android.content.Context
+import android.util.Log
+import com.xianxia.sect.XianxiaApplication
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+import javax.inject.Singleton
+
+@Singleton
+class GameMonitorManager @Inject constructor(
+    private val memoryMonitor: MemoryMonitor,
+    private val performanceMonitor: PerformanceMonitor,
+    private val gcOptimizer: GCOptimizer
+) {
+    
+    companion object {
+        private const val TAG = "GameMonitorManager"
+        private const val STATUS_REPORT_INTERVAL_MS = 300_000L
+    }
+    
+    private var reportJob: Job? = null
+    private var isInitialized = false
+    private var application: XianxiaApplication? = null
+    
+    private val memoryPressureListener = object : XianxiaApplication.MemoryPressureListener {
+        override fun onMemoryPressure(level: Int) {
+            handleMemoryPressure(level)
+        }
+        
+        override fun onLowMemory() {
+            handleLowMemory()
+        }
+    }
+    
+    fun initialize(context: Context) {
+        if (isInitialized) {
+            Log.w(TAG, "GameMonitorManager already initialized")
+            return
+        }
+        
+        memoryMonitor.initialize(context)
+        performanceMonitor.initialize()
+        
+        if (context.applicationContext is XianxiaApplication) {
+            application = context.applicationContext as XianxiaApplication
+            application?.registerMemoryPressureListener(memoryPressureListener)
+        }
+        
+        isInitialized = true
+        Log.i(TAG, "GameMonitorManager initialized successfully")
+    }
+    
+    fun startMonitoring() {
+        if (!isInitialized) {
+            Log.e(TAG, "GameMonitorManager not initialized")
+            return
+        }
+        
+        Log.i(TAG, "Starting all monitoring systems")
+        
+        memoryMonitor.startMonitoring()
+        performanceMonitor.startMonitoring()
+        gcOptimizer.startOptimization()
+        
+        startPeriodicReport()
+    }
+    
+    fun stopMonitoring() {
+        Log.i(TAG, "Stopping all monitoring systems")
+        
+        memoryMonitor.stopMonitoring()
+        performanceMonitor.stopMonitoring()
+        gcOptimizer.stopOptimization()
+        
+        reportJob?.cancel()
+        reportJob = null
+    }
+    
+    private fun startPeriodicReport() {
+        reportJob = CoroutineScope(Dispatchers.Default).launch {
+            while (isActive) {
+                delay(STATUS_REPORT_INTERVAL_MS)
+                logFullStatus()
+            }
+        }
+    }
+    
+    fun logFullStatus() {
+        Log.i(TAG, "=== Game Monitor Status Report ===")
+        memoryMonitor.logMemoryStatus(TAG)
+        performanceMonitor.logPerformanceStatus(TAG)
+        gcOptimizer.logGCStatus(TAG)
+        Log.i(TAG, "==================================")
+    }
+    
+    private fun handleMemoryPressure(level: Int) {
+        Log.w(TAG, "Memory pressure received: level=$level")
+        
+        when (level) {
+            android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL,
+            android.content.ComponentCallbacks2.TRIM_MEMORY_COMPLETE -> {
+                gcOptimizer.optimizeForLowMemory()
+            }
+            android.content.ComponentCallbacks2.TRIM_MEMORY_MODERATE,
+            android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW -> {
+                if (gcOptimizer.shouldPerformGC()) {
+                    gcOptimizer.performManualGC("memory_pressure_$level")
+                }
+            }
+        }
+    }
+    
+    private fun handleLowMemory() {
+        Log.e(TAG, "Low memory situation detected")
+        gcOptimizer.optimizeForLowMemory()
+    }
+    
+    fun getMemoryMonitor(): MemoryMonitor = memoryMonitor
+    
+    fun getPerformanceMonitor(): PerformanceMonitor = performanceMonitor
+    
+    fun getGCOptimizer(): GCOptimizer = gcOptimizer
+    
+    fun isPerformanceHealthy(): Boolean {
+        val memoryInfo = memoryMonitor.getCurrentMemoryInfo()
+        val isPerformanceOk = performanceMonitor.isPerformanceAcceptable()
+        
+        return isPerformanceOk && (memoryInfo == null || !memoryInfo.isCritical)
+    }
+    
+    fun getOptimizationRecommendation(): OptimizationRecommendation {
+        val memoryInfo = memoryMonitor.getCurrentMemoryInfo()
+        val perfLevel = performanceMonitor.getRecommendedOptimizationLevel()
+        val gcType = gcOptimizer.getRecommendedGCType()
+        
+        return OptimizationRecommendation(
+            performanceLevel = perfLevel,
+            recommendedGCType = gcType,
+            memoryUsedPercent = memoryInfo?.usedPercent ?: 0.0,
+            isLowMemory = memoryInfo?.isLowMemory ?: false,
+            shouldReduceQuality = perfLevel != PerformanceMonitor.OptimizationLevel.NORMAL
+        )
+    }
+    
+    data class OptimizationRecommendation(
+        val performanceLevel: PerformanceMonitor.OptimizationLevel,
+        val recommendedGCType: GCOptimizer.GCType,
+        val memoryUsedPercent: Double,
+        val isLowMemory: Boolean,
+        val shouldReduceQuality: Boolean
+    )
+    
+    fun cleanup() {
+        application?.unregisterMemoryPressureListener(memoryPressureListener)
+        stopMonitoring()
+        memoryMonitor.cleanup()
+        performanceMonitor.cleanup()
+        gcOptimizer.cleanup()
+        isInitialized = false
+    }
+}

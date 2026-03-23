@@ -4,7 +4,7 @@ object GameConfig {
     
     object Game {
         const val NAME = "模拟宗门"
-        const val VERSION = "1.4.88"
+        const val VERSION = "1.5.30"
         const val AUTO_SAVE_INTERVAL_SECONDS = 60L
         const val AUTO_SAVE_DEBOUNCE_MS = 30_000L
         const val MAX_SAVE_SLOTS = 5
@@ -22,7 +22,7 @@ object GameConfig {
     }
     
     object Cultivation {
-        const val BASE_SPEED = 10.0
+        const val BASE_SPEED = 8.0
         const val REALM_SPEED_BONUS_THRESHOLD = 3
         const val REALM_SPEED_BONUS = 1.5
         const val BREAKTHROUGH_LAYER_PENALTY = 0.9
@@ -144,16 +144,6 @@ object GameConfig {
         fun getAll(): List<BuildingConfig> = CONFIGS.values.toList()
     }
     
-    object Battle {
-        const val MAX_TEAM_SIZE = 7
-        const val MIN_BEAST_COUNT = 1
-        const val MAX_BEAST_COUNT = 10
-        const val MAX_TURNS = 25
-        const val CRIT_MULTIPLIER: Double = 2.0
-        const val MAX_DODGE_CHANCE: Double = 0.5
-        const val DODGE_PER_SPEED_DIFF: Double = 0.005
-    }
-    
     object Beast {
         val TYPES = listOf(
             BeastTypeConfig("虎妖", "狂暴", 1.3, 1.2, 0.9, 1.0, 1.1),
@@ -165,23 +155,8 @@ object GameConfig {
             BeastTypeConfig("龙妖", "远古", 1.4, 1.4, 1.2, 1.1, 2.0),
             BeastTypeConfig("龟妖", "玄甲", 1.8, 0.8, 1.5, 0.5, 1.4)
         )
-        
-        // 妖兽属性参照弟子原始属性（无灵根加成）
-        val REALMS = mapOf(
-            0 to BeastRealmConfig(0, "仙人", 1500, 150, 75, 150),
-            1 to BeastRealmConfig(1, "渡劫", 1000, 100, 50, 100),
-            2 to BeastRealmConfig(2, "大乘", 800, 80, 40, 80),
-            3 to BeastRealmConfig(3, "合体", 600, 60, 30, 60),
-            4 to BeastRealmConfig(4, "炼虚", 500, 50, 25, 50),
-            5 to BeastRealmConfig(5, "化神", 400, 40, 20, 40),
-            6 to BeastRealmConfig(6, "元婴", 300, 30, 15, 30),
-            7 to BeastRealmConfig(7, "金丹", 200, 20, 10, 20),
-            8 to BeastRealmConfig(8, "筑基", 150, 15, 8, 15),
-            9 to BeastRealmConfig(9, "炼气", 100, 10, 5, 10)
-        )
-        
+
         fun getType(index: Int): BeastTypeConfig = TYPES.getOrElse(index) { TYPES[0] }
-        fun getRealm(realm: Int): BeastRealmConfig = REALMS[realm] ?: REALMS.getValue(9)
     }
     
     object Dungeons {
@@ -301,6 +276,34 @@ object GameConfig {
         const val PROTECTION_YEARS = 100
     }
     
+    object Performance {
+        const val MAX_TICK_SAMPLES = 100
+        const val MAX_BATCH_SAMPLES = 100
+        const val BATCH_THRESHOLD = 50
+        const val UPDATE_INTERVAL_MS = 200L
+        const val HIGH_FREQUENCY_INTERVAL_MS = 200L
+        const val LOW_FREQUENCY_INTERVAL_MS = 1000L
+    }
+    
+    object Logs {
+        const val MAX_BATTLE_LOGS = 100
+        const val MAX_EVENT_LOGS = 200
+        const val MAX_MONTHLY_EVENT_LOGS = 50
+        const val MAX_EXPLORATION_LOGS = 100
+    }
+    
+    object Battle {
+        const val MAX_TEAM_SIZE = 7
+        const val MIN_BEAST_COUNT = 1
+        const val MAX_BEAST_COUNT = 10
+        const val MAX_TURNS = 25
+        const val CRIT_MULTIPLIER: Double = 2.0
+        const val MAX_DODGE_CHANCE: Double = 0.5
+        const val DODGE_PER_SPEED_DIFF: Double = 0.005
+        const val MAX_BATTLE_DURATION_MS = 5000L
+        const val BATTLE_TIMEOUT_WARNING_MS = 3000L
+    }
+    
     /**
      * 宗门政策配置
      * 包含所有政策的消耗金额、基础效果和名称
@@ -402,14 +405,5 @@ object GameConfig {
         val defMod: Double,
         val speedMod: Double,
         val lootBonus: Double
-    )
-    
-    data class BeastRealmConfig(
-        val level: Int,
-        val name: String,
-        val baseHp: Int,
-        val baseAtk: Int,
-        val baseDef: Int,
-        val baseSpeed: Int
     )
 }

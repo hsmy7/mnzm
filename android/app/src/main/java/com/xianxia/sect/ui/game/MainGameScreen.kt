@@ -317,11 +317,12 @@ fun MainGameScreen(
             } else {
                 viewModel.getAvailableDisciplesForBattleTeam()
             }
+            val slotIndex = selectedBattleTeamSlotIndex
             BattleTeamDiscipleSelectionDialog(
                 disciples = availableDisciples,
                 isElderSlot = isElderSlot,
                 onSelect = { disciple ->
-                    viewModel.assignDiscipleToBattleTeamSlot(selectedBattleTeamSlotIndex!!, disciple)
+                    slotIndex?.let { viewModel.assignDiscipleToBattleTeamSlot(it, disciple) }
                     selectedBattleTeamSlotIndex = null
                 },
                 onDismiss = { selectedBattleTeamSlotIndex = null }
@@ -1865,27 +1866,31 @@ fun SecretRealmDialog(
         }
     }
 
-    if (showDispatchDialog && selectedRealm != null) {
-        DispatchTeamDialog(
-            realm = selectedRealm!!,
-            disciples = disciples,
-            viewModel = viewModel,
-            onDismiss = {
-                showDispatchDialog = false
-                selectedRealm = null
-            }
-        )
+    if (showDispatchDialog) {
+        selectedRealm?.let { realm ->
+            DispatchTeamDialog(
+                realm = realm,
+                disciples = disciples,
+                viewModel = viewModel,
+                onDismiss = {
+                    showDispatchDialog = false
+                    selectedRealm = null
+                }
+            )
+        }
     }
 
-    if (showTeamDialog && selectedRealm != null) {
-        ExplorationTeamDialog(
-            realm = selectedRealm!!,
-            viewModel = viewModel,
-            onDismiss = {
-                showTeamDialog = false
-                selectedRealm = null
-            }
-        )
+    if (showTeamDialog) {
+        selectedRealm?.let { realm ->
+            ExplorationTeamDialog(
+                realm = realm,
+                viewModel = viewModel,
+                onDismiss = {
+                    showTeamDialog = false
+                    selectedRealm = null
+                }
+            )
+        }
     }
 }
 
@@ -2911,19 +2916,39 @@ private fun BattleActionItem(
         else -> Color(0xFF666666)
     }
     
-    val critText = if (action.isCrit) " [暴击]" else ""
-    val killText = if (action.isKill) " [击杀]" else ""
+    val typeIcon = when (action.type) {
+        "skill" -> "✦"
+        "support" -> "♡"
+        else -> "⚔"
+    }
+    
+    val typeColor = when (action.type) {
+        "skill" -> Color(0xFF9C27B0)
+        "support" -> Color(0xFF4CAF50)
+        else -> Color(0xFF666666)
+    }
     
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(start = 8.dp, top = 2.dp)
     ) {
-        Text(
-            text = "${action.attacker} → ${action.target}: ${action.damage}${critText}${killText}",
-            fontSize = 10.sp,
-            color = actionColor
-        )
+        if (action.message.isNotEmpty()) {
+            Text(
+                text = "$typeIcon ${action.message}",
+                fontSize = 10.sp,
+                color = actionColor
+            )
+        } else {
+            val critText = if (action.isCrit) " [暴击]" else ""
+            val killText = if (action.isKill) " [击杀]" else ""
+            val skillText = action.skillName?.let { " [$it]" } ?: ""
+            Text(
+                text = "$typeIcon ${action.attacker} → ${action.target}: ${action.damage}${skillText}${critText}${killText}",
+                fontSize = 10.sp,
+                color = actionColor
+            )
+        }
     }
 }
 
@@ -3892,14 +3917,16 @@ private fun WarehouseTab(viewModel: GameViewModel) {
         }
     }
     
-    if (showDetailDialog && selectedItem != null) {
-        WarehouseItemDetailDialog(
-            item = selectedItem!!,
-            onDismiss = {
-                showDetailDialog = false
-                selectedItemId = null
-            }
-        )
+    if (showDetailDialog) {
+        selectedItem?.let { item ->
+            WarehouseItemDetailDialog(
+                item = item,
+                onDismiss = {
+                    showDetailDialog = false
+                    selectedItemId = null
+                }
+            )
+        }
     }
     
     if (showBulkSellDialog) {
@@ -4581,6 +4608,17 @@ private fun WarehouseManualCard(
                 .padding(horizontal = 2.dp)
         )
 
+        if (manual.quantity > 1) {
+            Text(
+                text = "x${manual.quantity}",
+                fontSize = 8.sp,
+                color = Color(0xFF666666),
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(2.dp)
+            )
+        }
+
         if (isSelected) {
             Box(
                 modifier = Modifier
@@ -5161,7 +5199,7 @@ private fun SettingsTab(
                 }
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    text = "版本 1.4.86 (build 1486)",
+                    text = "版本 ${com.xianxia.sect.core.GameConfig.Game.VERSION} (build ${com.xianxia.sect.BuildConfig.VERSION_CODE})",
                     fontSize = 10.sp,
                     color = Color(0xFF999999),
                     modifier = Modifier.fillMaxWidth(),
@@ -5268,7 +5306,18 @@ private fun SaveSlotDialog(
     onDismiss: () -> Unit
 ) {
     val saveSlots by viewModel.saveSlots.collectAsState()
+    val isSaving by viewModel.isSaving.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+    val isBusy = isSaving || isLoading
     var selectedSlot by remember { mutableStateOf<Int?>(null) }
+    var pendingAction by remember { mutableStateOf<String?>(null) }
+    
+    LaunchedEffect(isBusy, pendingAction) {
+        if (!isBusy && pendingAction != null) {
+            onDismiss()
+            pendingAction = null
+        }
+    }
     
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -5296,6 +5345,7 @@ private fun SaveSlotDialog(
 
                     GameButton(
                         text = "关闭",
+                        enabled = !isBusy,
                         onClick = onDismiss
                     )
                 }
@@ -5310,7 +5360,7 @@ private fun SaveSlotDialog(
                         SaveSlotCard(
                             slot = slot,
                             isSelected = selectedSlot == slot.slot,
-                            onClick = { selectedSlot = slot.slot }
+                            onClick = { if (!isBusy) selectedSlot = slot.slot }
                         )
                     }
                 }
@@ -5325,12 +5375,12 @@ private fun SaveSlotDialog(
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(6.dp))
-                            .background(if (selectedSlot != null) Color.Black else Color(0xFFCCCCCC))
+                            .background(if (selectedSlot != null && !isBusy) Color.Black else Color(0xFFCCCCCC))
                             .then(
-                                if (selectedSlot != null) {
+                                if (selectedSlot != null && !isBusy) {
                                     Modifier.clickable {
+                                        pendingAction = "save"
                                         viewModel.saveGame(selectedSlot.toString())
-                                        onDismiss()
                                     }
                                 } else {
                                     Modifier
@@ -5339,28 +5389,38 @@ private fun SaveSlotDialog(
                             .padding(vertical = 12.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = "保存",
-                            fontSize = 12.sp,
-                            color = Color.White
-                        )
+                        if (isSaving && pendingAction == "save") {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                                color = Color.White
+                            )
+                        } else {
+                            Text(
+                                text = "保存",
+                                fontSize = 12.sp,
+                                color = Color.White
+                            )
+                        }
                     }
                     Box(
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(6.dp))
                             .background(
-                                if (selectedSlot != null && saveSlots.find { it.slot == selectedSlot }?.isEmpty == false) {
+                                if (selectedSlot != null && saveSlots.find { it.slot == selectedSlot }?.isEmpty == false && !isBusy) {
                                     Color.Black
                                 } else {
                                     Color(0xFFCCCCCC)
                                 }
                             )
                             .then(
-                                if (selectedSlot != null && saveSlots.find { it.slot == selectedSlot }?.isEmpty == false) {
+                                if (selectedSlot != null && saveSlots.find { it.slot == selectedSlot }?.isEmpty == false && !isBusy) {
                                     Modifier.clickable {
-                                        viewModel.loadGame(saveSlots.find { it.slot == selectedSlot }!!)
-                                        onDismiss()
+                                        saveSlots.find { it.slot == selectedSlot }?.let { slot ->
+                                            viewModel.loadGame(slot)
+                                            pendingAction = "load"
+                                        }
                                     }
                                 } else {
                                     Modifier
@@ -5369,11 +5429,19 @@ private fun SaveSlotDialog(
                             .padding(vertical = 12.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = "读取",
-                            fontSize = 12.sp,
-                            color = Color.White
-                        )
+                        if (isLoading && pendingAction == "load") {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                                color = Color.White
+                            )
+                        } else {
+                            Text(
+                                text = "读取",
+                                fontSize = 12.sp,
+                                color = Color.White
+                            )
+                        }
                     }
                 }
             }
@@ -5911,29 +5979,33 @@ private fun WorldMapDialog(
         }
     }
     
-    if (showSectDetail && selectedSect != null) {
-        WorldMapSectDetailDialog(
-            sect = selectedSect!!,
-            gameData = gameData,
-            viewModel = viewModel,
-            onDismiss = { 
-                showSectDetail = false
-                selectedSect = null
-            }
-        )
+    if (showSectDetail) {
+        selectedSect?.let { sect ->
+            WorldMapSectDetailDialog(
+                sect = sect,
+                gameData = gameData,
+                viewModel = viewModel,
+                onDismiss = { 
+                    showSectDetail = false
+                    selectedSect = null
+                }
+            )
+        }
     }
     
-    if (showCaveDetail && selectedCave != null) {
-        CaveDetailDialog(
-            cave = selectedCave!!,
-            gameData = gameData,
-            disciples = disciples,
-            viewModel = viewModel,
-            onDismiss = {
-                showCaveDetail = false
-                selectedCave = null
-            }
-        )
+    if (showCaveDetail) {
+        selectedCave?.let { cave ->
+            CaveDetailDialog(
+                cave = cave,
+                gameData = gameData,
+                disciples = disciples,
+                viewModel = viewModel,
+                onDismiss = {
+                    showCaveDetail = false
+                    selectedCave = null
+                }
+            )
+        }
     }
 }
 
@@ -6253,16 +6325,20 @@ fun DiplomacyDialog(
     val playerSect = gameData?.worldMapSects?.find { it.isPlayerSect }
     val worldSects = gameData?.worldMapSects?.filter { !it.isPlayerSect } ?: emptyList()
     val currentYear = gameData?.gameYear ?: 1
+    val sectRelations = gameData?.sectRelations
     
-    val sectFavors = remember(playerSect, gameData?.sectRelations) {
-        if (playerSect != null) {
+    val sectFavors = remember(playerSect, worldSects, sectRelations) {
+        if (playerSect == null) {
+            emptyMap()
+        } else {
+            val relations = sectRelations ?: emptyList()
             worldSects.associateWith { sect ->
-                gameData?.sectRelations?.find { 
-                    (it.sectId1 == playerSect.id && it.sectId2 == sect.id) ||
-                    (it.sectId1 == sect.id && it.sectId2 == playerSect.id)
+                relations.find { relation ->
+                    (relation.sectId1 == playerSect.id && relation.sectId2 == sect.id) ||
+                    (relation.sectId1 == sect.id && relation.sectId2 == playerSect.id)
                 }?.favor ?: 0
             }
-        } else emptyMap()
+        }
     }
     
     val sortedSects = worldSects.sortedByDescending { sectFavors[it] ?: 0 }
@@ -7248,8 +7324,7 @@ fun SectTradeDialog(
                             modifier = Modifier.padding(12.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            if (selectedItem != null) {
-                                val item = selectedItem!!
+                            selectedItem?.let { item ->
                                 val adjustedPrice = (item.price * priceMultiplier).toInt()
                                 val totalPrice = adjustedPrice * buyQuantity
                                 val canAfford = (gameData?.spiritStones ?: 0) >= totalPrice
@@ -7352,7 +7427,7 @@ fun SectTradeDialog(
                                         )
                                     }
                                 }
-                            } else {
+                            } ?: run {
                                 Text(
                                     text = "请选择要购买的商品",
                                     fontSize = 12.sp,
@@ -7391,83 +7466,84 @@ fun SectTradeDialog(
         }
     }
 
-    if (showDetailDialog && selectedItem != null) {
-        val item = selectedItem!!
-        val rarityColor = when (item.rarity) {
-            1 -> GameColors.RarityCommon
-            2 -> GameColors.RaritySpirit
-            3 -> GameColors.RarityTreasure
-            4 -> GameColors.RarityMystic
-            5 -> GameColors.RarityEarth
-            6 -> GameColors.RarityHeaven
-            else -> GameColors.RarityCommon
-        }
-        val rarityName = when (item.rarity) {
-            1 -> "凡品"
-            2 -> "灵品"
-            3 -> "宝品"
-            4 -> "玄品"
-            5 -> "地品"
-            6 -> "天品"
-            else -> "凡品"
-        }
-        val typeName = when (item.type) {
-            "equipment" -> "装备"
-            "manual" -> "功法"
-            "pill" -> "丹药"
-            "material" -> "材料"
-            "herb" -> "灵草"
-            "seed" -> "种子"
-            else -> "物品"
-        }
-
-        AlertDialog(
-            onDismissRequest = { showDetailDialog = false },
-            containerColor = GameColors.PageBackground,
-            title = {
-                Column {
-                    Text(
-                        text = item.name,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = rarityColor
-                    )
-                    Text(
-                        text = "$typeName · $rarityName",
-                        fontSize = 11.sp,
-                        color = GameColors.TextSecondary
-                    )
-                }
-            },
-            text = {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Divider(color = GameColors.Background, thickness = 1.dp)
-                    
-                    Text(
-                        text = "道具效果",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-                    
-                    Text(
-                        text = getItemEffectTextForSectTrade(item),
-                        fontSize = 11.sp,
-                        color = GameColors.TextSecondary,
-                        lineHeight = 16.sp
-                    )
-                }
-            },
-            confirmButton = {
-                GameButton(
-                    text = "关闭",
-                    onClick = { showDetailDialog = false }
-                )
+    if (showDetailDialog) {
+        selectedItem?.let { item ->
+            val rarityColor = when (item.rarity) {
+                1 -> GameColors.RarityCommon
+                2 -> GameColors.RaritySpirit
+                3 -> GameColors.RarityTreasure
+                4 -> GameColors.RarityMystic
+                5 -> GameColors.RarityEarth
+                6 -> GameColors.RarityHeaven
+                else -> GameColors.RarityCommon
             }
-        )
+            val rarityName = when (item.rarity) {
+                1 -> "凡品"
+                2 -> "灵品"
+                3 -> "宝品"
+                4 -> "玄品"
+                5 -> "地品"
+                6 -> "天品"
+                else -> "凡品"
+            }
+            val typeName = when (item.type) {
+                "equipment" -> "装备"
+                "manual" -> "功法"
+                "pill" -> "丹药"
+                "material" -> "材料"
+                "herb" -> "灵草"
+                "seed" -> "种子"
+                else -> "物品"
+            }
+
+            AlertDialog(
+                onDismissRequest = { showDetailDialog = false },
+                containerColor = GameColors.PageBackground,
+                title = {
+                    Column {
+                        Text(
+                            text = item.name,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = rarityColor
+                        )
+                        Text(
+                            text = "$typeName · $rarityName",
+                            fontSize = 11.sp,
+                            color = GameColors.TextSecondary
+                        )
+                    }
+                },
+                text = {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Divider(color = GameColors.Background, thickness = 1.dp)
+                        
+                        Text(
+                            text = "道具效果",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Black
+                        )
+                        
+                        Text(
+                            text = getItemEffectTextForSectTrade(item),
+                            fontSize = 11.sp,
+                            color = GameColors.TextSecondary,
+                            lineHeight = 16.sp
+                        )
+                    }
+                },
+                confirmButton = {
+                    GameButton(
+                        text = "关闭",
+                        onClick = { showDetailDialog = false }
+                    )
+                }
+            )
+        }
     }
 }
 

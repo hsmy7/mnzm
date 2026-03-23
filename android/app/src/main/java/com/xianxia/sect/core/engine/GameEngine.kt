@@ -13,8 +13,12 @@ import com.xianxia.sect.core.data.ManualDatabase
 import com.xianxia.sect.core.data.PillRecipeDatabase
 import com.xianxia.sect.core.data.TalentDatabase
 import com.xianxia.sect.core.engine.RedeemCodeManager
+import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.util.GameUtils
+import com.xianxia.sect.core.util.StackableItemUtils
+import com.xianxia.sect.core.util.StateFlowListUtils
+import kotlin.concurrent.withLock
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -22,8 +26,13 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.UUID
 import kotlin.random.Random
+import javax.inject.Inject
+import javax.inject.Singleton
 
-class GameEngine {
+@Singleton
+class GameEngine @Inject constructor(
+    private val inventorySystem: InventorySystem
+) {
     
     private val _gameData = MutableStateFlow(GameData())
     val gameData: StateFlow<GameData> = _gameData.asStateFlow()
@@ -34,20 +43,16 @@ class GameEngine {
     private val _equipment = MutableStateFlow<List<Equipment>>(emptyList())
     val equipment: StateFlow<List<Equipment>> = _equipment.asStateFlow()
     
-    private val _manuals = MutableStateFlow<List<Manual>>(emptyList())
-    val manuals: StateFlow<List<Manual>> = _manuals.asStateFlow()
-    
-    private val _pills = MutableStateFlow<List<Pill>>(emptyList())
-    val pills: StateFlow<List<Pill>> = _pills.asStateFlow()
-
-    private val _materials = MutableStateFlow<List<Material>>(emptyList())
-    val materials: StateFlow<List<Material>> = _materials.asStateFlow()
-
-    private val _herbs = MutableStateFlow<List<Herb>>(emptyList())
-    val herbs: StateFlow<List<Herb>> = _herbs.asStateFlow()
-
-    private val _seeds = MutableStateFlow<List<Seed>>(emptyList())
-    val seeds: StateFlow<List<Seed>> = _seeds.asStateFlow()
+    private val _manuals get() = inventorySystem.mutableManuals
+    val manuals: StateFlow<List<Manual>> get() = inventorySystem.manuals
+    private val _pills get() = inventorySystem.mutablePills
+    val pills: StateFlow<List<Pill>> get() = inventorySystem.pills
+    private val _materials get() = inventorySystem.mutableMaterials
+    val materials: StateFlow<List<Material>> get() = inventorySystem.materials
+    private val _herbs get() = inventorySystem.mutableHerbs
+    val herbs: StateFlow<List<Herb>> get() = inventorySystem.herbs
+    private val _seeds get() = inventorySystem.mutableSeeds
+    val seeds: StateFlow<List<Seed>> get() = inventorySystem.seeds
 
     private val _teams = MutableStateFlow<List<ExplorationTeam>>(emptyList())
     val teams: StateFlow<List<ExplorationTeam>> = _teams.asStateFlow()
@@ -385,26 +390,7 @@ class GameEngine {
         val resolvedSupportTeams = supportTeams.ifEmpty { gameData.supportTeams }
         
         val fixedRecruitList = gameData.recruitList.map { disciple ->
-            if (disciple.baseHp != 100) {
-                disciple
-            } else {
-                val variance = if (disciple.combatStatsVariance == 0) {
-                    Random.nextInt(-30, 31)
-                } else {
-                    disciple.combatStatsVariance
-                }
-                val varianceMultiplier = 1.0 + variance / 100.0
-                disciple.copy(
-                    combatStatsVariance = variance,
-                    baseHp = (100 * varianceMultiplier).toInt(),
-                    baseMp = (50 * varianceMultiplier).toInt(),
-                    basePhysicalAttack = (10 * varianceMultiplier).toInt(),
-                    baseMagicAttack = (5 * varianceMultiplier).toInt(),
-                    basePhysicalDefense = (5 * varianceMultiplier).toInt(),
-                    baseMagicDefense = (3 * varianceMultiplier).toInt(),
-                    baseSpeed = (10 * varianceMultiplier).toInt()
-                )
-            }
+            Disciple.fixBaseStats(disciple)
         }
         
         val finalGameData = gameData.copy(
@@ -415,26 +401,7 @@ class GameEngine {
         
         _gameData.value = finalGameData
         _disciples.value = disciples.map { disciple ->
-            if (disciple.baseHp != 100) {
-                disciple
-            } else {
-                val variance = if (disciple.combatStatsVariance == 0) {
-                    Random.nextInt(-30, 31)
-                } else {
-                    disciple.combatStatsVariance
-                }
-                val varianceMultiplier = 1.0 + variance / 100.0
-                disciple.copy(
-                    combatStatsVariance = variance,
-                    baseHp = (100 * varianceMultiplier).toInt(),
-                    baseMp = (50 * varianceMultiplier).toInt(),
-                    basePhysicalAttack = (10 * varianceMultiplier).toInt(),
-                    baseMagicAttack = (5 * varianceMultiplier).toInt(),
-                    basePhysicalDefense = (5 * varianceMultiplier).toInt(),
-                    baseMagicDefense = (3 * varianceMultiplier).toInt(),
-                    baseSpeed = (10 * varianceMultiplier).toInt()
-                )
-            }
+            Disciple.fixBaseStats(disciple)
         }
         _equipment.value = equipment
         _manuals.value = manuals
@@ -453,12 +420,14 @@ class GameEngine {
         initializeWorldMap()
 
         val playerSect = _gameData.value.worldMapSects.find { it.isPlayerSect }
+        val aiSects = _gameData.value.worldMapSects.filter { !it.isPlayerSect }
+        
         if (playerSect != null) {
             val existingPlayerRelations = _gameData.value.sectRelations.filter {
                 it.sectId1 == playerSect.id || it.sectId2 == playerSect.id
             }
-            val missingSects = _gameData.value.worldMapSects.filter { sect ->
-                !sect.isPlayerSect && existingPlayerRelations.none { r ->
+            val missingSects = aiSects.filter { sect ->
+                existingPlayerRelations.none { r ->
                     r.sectId1 == sect.id || r.sectId2 == sect.id
                 }
             }
@@ -467,7 +436,7 @@ class GameEngine {
                     SectRelation(
                         sectId1 = minOf(playerSect.id, sect.id),
                         sectId2 = maxOf(playerSect.id, sect.id),
-                        favor = sect.relation.coerceIn(0, 100),
+                        favor = WorldMapGenerator.INITIAL_SECT_FAVOR,
                         lastInteractionYear = 0
                     )
                 }
@@ -475,6 +444,31 @@ class GameEngine {
                     sectRelations = _gameData.value.sectRelations + newRelations
                 )
             }
+        }
+        
+        val missingAiRelations = mutableListOf<SectRelation>()
+        for (i in aiSects.indices) {
+            for (j in i + 1 until aiSects.size) {
+                val sect1 = aiSects[i]
+                val sect2 = aiSects[j]
+                val id1 = minOf(sect1.id, sect2.id)
+                val id2 = maxOf(sect1.id, sect2.id)
+                val exists = _gameData.value.sectRelations.any { it.sectId1 == id1 && it.sectId2 == id2 }
+                if (!exists) {
+                    val favor = WorldMapGenerator.calculateInitialFavorForSects(sect1, sect2)
+                    missingAiRelations.add(SectRelation(
+                        sectId1 = id1,
+                        sectId2 = id2,
+                        favor = favor,
+                        lastInteractionYear = 0
+                    ))
+                }
+            }
+        }
+        if (missingAiRelations.isNotEmpty()) {
+            _gameData.value = _gameData.value.copy(
+                sectRelations = _gameData.value.sectRelations + missingAiRelations
+            )
         }
 
         initializeHerbGardenSlots()
@@ -1043,7 +1037,7 @@ class GameEngine {
         val targetSect = data.worldMapSects.find { it.id == targetSectId } ?: return
         
         val startSectId = if (battleTeam.isOccupying && battleTeam.occupiedSectId != null) {
-            val occupiedSectId = battleTeam.occupiedSectId!!
+            val occupiedSectId = battleTeam.occupiedSectId
             val updatedSects = data.worldMapSects.map { sect ->
                 if (sect.id == occupiedSectId) {
                     sect.copy(occupierBattleTeamId = null)
@@ -1300,7 +1294,7 @@ class GameEngine {
         
         val currentPositionId = when {
             battleTeam.status == "battle" && battleTeam.targetSectId != null -> {
-                battleTeam.targetSectId!!
+                battleTeam.targetSectId
             }
             battleTeam.status == "moving" && battleTeam.route.isNotEmpty() -> {
                 battleTeam.route.getOrNull(battleTeam.currentRouteIndex) ?: originSectId
@@ -1355,15 +1349,8 @@ class GameEngine {
         val aliveAiDisciples = currentTargetSect.aiDisciples.filter { it.isAlive }
         
         val newPlayerDisciples = aliveAiDisciples.map { aiDisciple ->
-            Disciple(
+            aiDisciple.copy(
                 id = java.util.UUID.randomUUID().toString(),
-                name = aiDisciple.name,
-                realm = aiDisciple.realm,
-                realmLayer = aiDisciple.realmLayer,
-                cultivation = aiDisciple.cultivation,
-                spiritRootType = aiDisciple.spiritRootType,
-                age = aiDisciple.age,
-                lifespan = aiDisciple.lifespan,
                 status = DiscipleStatus.IDLE,
                 discipleType = "outer",
                 recruitedMonth = data.gameYear * 12 + data.gameMonth
@@ -1444,24 +1431,34 @@ class GameEngine {
                         }
                     }
                     "manual" -> {
-                        val template = ManualDatabase.getById(item.itemId)
+                        val template = ManualDatabase.getByNameAndRarity(item.itemName, item.rarity)
                         if (template != null) {
-                            repeat(item.quantity) {
-                                val manual = Manual(
-                                    id = java.util.UUID.randomUUID().toString(),
-                                    name = template.name,
-                                    rarity = item.rarity,
-                                    description = template.description,
-                                    type = template.type,
-                                    stats = template.stats,
-                                    minRealm = GameConfig.Realm.getMinRealmForRarity(item.rarity)
-                                )
-                                if (_manuals.value.none { it.name == manual.name }) {
-                                    _manuals.value = _manuals.value + manual
-                                }
-                            }
+                            val manual = Manual(
+                                id = java.util.UUID.randomUUID().toString(),
+                                name = template.name,
+                                rarity = item.rarity,
+                                description = template.description,
+                                type = template.type,
+                                stats = template.stats,
+                                skillName = template.skillName,
+                                skillDescription = template.skillDescription,
+                                skillType = template.skillType,
+                                skillDamageType = template.skillDamageType,
+                                skillHits = template.skillHits,
+                                skillDamageMultiplier = template.skillDamageMultiplier,
+                                skillCooldown = template.skillCooldown,
+                                skillMpCost = template.skillMpCost,
+                                skillHealPercent = template.skillHealPercent,
+                                skillHealType = template.skillHealType,
+                                skillBuffType = template.skillBuffType,
+                                skillBuffValue = template.skillBuffValue,
+                                skillBuffDuration = template.skillBuffDuration,
+                                minRealm = GameConfig.Realm.getMinRealmForRarity(item.rarity),
+                                quantity = item.quantity
+                            )
+                            addManualToWarehouse(manual)
                         } else {
-                            Log.w(TAG, "无法找到功法模板: ${item.itemId}, 物品: ${item.itemName}")
+                            Log.w(TAG, "无法找到功法模板: ${item.itemName}, rarity: ${item.rarity}")
                         }
                     }
                     "material" -> {
@@ -1803,7 +1800,7 @@ class GameEngine {
                 processedPairs.add(pairKey)
                 
                 val index = updatedRelations.indexOfFirst { it.sectId1 == id1 && it.sectId2 == id2 }
-                val currentFavor = if (index >= 0) updatedRelations[index].favor else 30
+                val currentFavor = if (index >= 0) updatedRelations[index].favor else WorldMapGenerator.INITIAL_SECT_FAVOR
                 
                 val naturalChange = if (Random.nextBoolean()) Random.nextInt(1, 6) else -Random.nextInt(1, 6)
                 
@@ -1814,7 +1811,7 @@ class GameEngine {
                         favor = newFavor,
                         lastInteractionYear = year
                     )
-                } else if (newFavor != 30) {
+                } else if (newFavor != WorldMapGenerator.INITIAL_SECT_FAVOR) {
                     updatedRelations.add(SectRelation(
                         sectId1 = id1,
                         sectId2 = id2,
@@ -1848,7 +1845,7 @@ class GameEngine {
         
         val updatedRelations = data.sectRelations.toMutableList()
         val index = updatedRelations.indexOfFirst { it.sectId1 == id1 && it.sectId2 == id2 }
-        val currentFavor = if (index >= 0) updatedRelations[index].favor else 30
+        val currentFavor = if (index >= 0) updatedRelations[index].favor else WorldMapGenerator.INITIAL_SECT_FAVOR
         
         val eventRoll = Random.nextDouble()
         val (favorDelta, eventText) = when {
@@ -1957,7 +1954,7 @@ class GameEngine {
             val id2 = maxOf(attackedSectId, allyId)
             
             val index = updatedRelations.indexOfFirst { it.sectId1 == id1 && it.sectId2 == id2 }
-            val currentFavor = if (index >= 0) updatedRelations[index].favor else 30
+            val currentFavor = if (index >= 0) updatedRelations[index].favor else WorldMapGenerator.INITIAL_SECT_FAVOR
             val favorIncrease = if (attackerIsPlayer) Random.nextInt(8, 16) else Random.nextInt(5, 12)
             val newFavor = (currentFavor + favorIncrease).coerceIn(0, 100)
             
@@ -2067,7 +2064,7 @@ class GameEngine {
             }
             
             if (result.manuals.isNotEmpty()) {
-                _manuals.value = _manuals.value + result.manuals
+                result.manuals.forEach { addManualToWarehouse(it) }
                 result.manuals.forEach { addEvent("获得功法：${it.name}", EventType.SUCCESS) }
             }
             
@@ -2770,11 +2767,12 @@ class GameEngine {
         val currentEquipment = _equipment.value.toMutableList()
         val eventsToAdd = mutableListOf<Pair<String, EventType>>()
         val data = _gameData.value
+        val allProficiencyUpdates = mutableMapOf<String, List<ManualProficiencyData>>()
         
         currentDisciples.forEachIndexed { index, disciple ->
             if (!disciple.isAlive || disciple.status == DiscipleStatus.REFLECTING) return@forEachIndexed
             
-            val (updatedDisciple, equipmentUpdates, events) = processDiscipleEquipmentAndManuals(
+            val (updatedDisciple, equipmentUpdates, events, proficiencyUpdates) = processDiscipleEquipmentAndManuals(
                 disciple, 
                 currentEquipment, 
                 data.gameYear, 
@@ -2793,10 +2791,20 @@ class GameEngine {
             }
             
             eventsToAdd.addAll(events)
+            allProficiencyUpdates.putAll(proficiencyUpdates)
         }
         
         _disciples.value = currentDisciples
         _equipment.value = currentEquipment
+        
+        if (allProficiencyUpdates.isNotEmpty()) {
+            val currentData = _gameData.value
+            val updatedProficiencies = currentData.manualProficiencies.toMutableMap()
+            allProficiencyUpdates.forEach { (discipleId, proficiencies) ->
+                updatedProficiencies[discipleId] = proficiencies
+            }
+            _gameData.value = currentData.copy(manualProficiencies = updatedProficiencies)
+        }
         
         eventsToAdd.forEach { (message, type) ->
             addEvent(message, type)
@@ -2806,7 +2814,8 @@ class GameEngine {
     private data class DiscipleEquipResult(
         val disciple: Disciple,
         val equipmentUpdates: List<Equipment>,
-        val events: List<Pair<String, EventType>>
+        val events: List<Pair<String, EventType>>,
+        val proficiencyUpdates: Map<String, List<ManualProficiencyData>> = emptyMap()
     )
 
     private fun processDiscipleEquipmentAndManuals(
@@ -2897,12 +2906,13 @@ class GameEngine {
         updatedDisciple = functionalPillResult.disciple
         events.addAll(functionalPillResult.events)
 
-        return DiscipleEquipResult(updatedDisciple, equipmentUpdates, events)
+        return DiscipleEquipResult(updatedDisciple, equipmentUpdates, events, functionalPillResult.proficiencyUpdates)
     }
 
     private data class FunctionalPillResult(
         val disciple: Disciple,
-        val events: List<Pair<String, EventType>>
+        val events: List<Pair<String, EventType>>,
+        val proficiencyUpdates: Map<String, List<ManualProficiencyData>> = emptyMap()
     )
 
     private fun processAutoUseFunctionalPills(
@@ -2911,9 +2921,10 @@ class GameEngine {
         gameMonth: Int
     ): FunctionalPillResult {
         val events = mutableListOf<Pair<String, EventType>>()
+        val proficiencyUpdates = mutableMapOf<String, List<ManualProficiencyData>>()
         
         if (disciple.storageBagItems.isEmpty()) {
-            return FunctionalPillResult(disciple, events)
+            return FunctionalPillResult(disciple, events, proficiencyUpdates)
         }
 
         var updatedDisciple = disciple
@@ -2921,7 +2932,7 @@ class GameEngine {
 
         val functionalPills = disciple.storageBagItems.filter { item ->
             item.itemType == "pill" && item.effect?.let { effect ->
-                effect.extendLife > 0 || effect.revive || effect.clearAll
+                effect.extendLife > 0 || effect.revive || effect.clearAll || effect.skillExpPercent > 0
             } == true
         }.filter { item ->
             !usedPillIds.contains(item.itemId)
@@ -2955,6 +2966,70 @@ class GameEngine {
                 used = true
             }
 
+            if (effect.skillExpPercent > 0 && updatedDisciple.manualIds.isNotEmpty()) {
+                val currentProficiencies = _gameData.value.manualProficiencies[updatedDisciple.id] ?: emptyList()
+                val updatedProficiencies = currentProficiencies.toMutableList()
+                var totalGain = 0.0
+                
+                disciple.manualIds.forEach { manualId ->
+                    val manual = _manuals.value.find { it.id == manualId } ?: return@forEach
+                    val existingIndex = updatedProficiencies.indexOfFirst { it.manualId == manualId }
+                    
+                    val currentProficiency = if (existingIndex >= 0) {
+                        updatedProficiencies[existingIndex].proficiency
+                    } else {
+                        0.0
+                    }
+                    
+                    val maxProficiency = ManualProficiencySystem.getMaxProficiency(manual.rarity)
+                    val thresholds = ManualProficiencySystem.getProficiencyThresholds(manual.rarity)
+                    val currentMastery = ManualProficiencySystem.MasteryLevel.fromProficiency(currentProficiency, manual.rarity)
+                    
+                    val nextThreshold = when (currentMastery) {
+                        ManualProficiencySystem.MasteryLevel.NOVICE -> thresholds[ManualProficiencySystem.MasteryLevel.SMALL_SUCCESS] ?: 100.0
+                        ManualProficiencySystem.MasteryLevel.SMALL_SUCCESS -> thresholds[ManualProficiencySystem.MasteryLevel.GREAT_SUCCESS] ?: 200.0
+                        ManualProficiencySystem.MasteryLevel.GREAT_SUCCESS -> thresholds[ManualProficiencySystem.MasteryLevel.PERFECTION] ?: 300.0
+                        ManualProficiencySystem.MasteryLevel.PERFECTION -> maxProficiency
+                    }
+                    
+                    val currentThreshold = when (currentMastery) {
+                        ManualProficiencySystem.MasteryLevel.NOVICE -> 0.0
+                        ManualProficiencySystem.MasteryLevel.SMALL_SUCCESS -> thresholds[ManualProficiencySystem.MasteryLevel.SMALL_SUCCESS] ?: 100.0
+                        ManualProficiencySystem.MasteryLevel.GREAT_SUCCESS -> thresholds[ManualProficiencySystem.MasteryLevel.GREAT_SUCCESS] ?: 200.0
+                        ManualProficiencySystem.MasteryLevel.PERFECTION -> thresholds[ManualProficiencySystem.MasteryLevel.PERFECTION] ?: 300.0
+                    }
+                    
+                    val levelRange = nextThreshold - currentThreshold
+                    val gain = levelRange * effect.skillExpPercent
+                    val newProficiency = (currentProficiency + gain).coerceAtMost(maxProficiency)
+                    val newMasteryLevel = ManualProficiencySystem.MasteryLevel.fromProficiency(newProficiency, manual.rarity).level
+                    
+                    totalGain += gain
+                    
+                    if (existingIndex >= 0) {
+                        updatedProficiencies[existingIndex] = ManualProficiencyData(
+                            manualId = manualId,
+                            manualName = manual.name,
+                            proficiency = newProficiency,
+                            masteryLevel = newMasteryLevel
+                        )
+                    } else {
+                        updatedProficiencies.add(ManualProficiencyData(
+                            manualId = manualId,
+                            manualName = manual.name,
+                            proficiency = newProficiency,
+                            masteryLevel = newMasteryLevel
+                        ))
+                    }
+                }
+                
+                if (totalGain > 0) {
+                    proficiencyUpdates[disciple.id] = updatedProficiencies
+                    effectDescription = if (effectDescription.isNotEmpty()) "$effectDescription, 功法熟练度提升" else "功法熟练度提升"
+                    used = true
+                }
+            }
+
             if (used) {
                 val updatedItems = updatedDisciple.storageBagItems.toMutableList()
                 val index = updatedItems.indexOfFirst { it.itemId == pillItem.itemId }
@@ -2975,7 +3050,7 @@ class GameEngine {
 
         updatedDisciple = updatedDisciple.copy(monthlyUsedPillIds = usedPillIds)
 
-        return FunctionalPillResult(updatedDisciple, events)
+        return FunctionalPillResult(updatedDisciple, events, proficiencyUpdates)
     }
 
     private data class ManualLearnResult(
@@ -3367,13 +3442,26 @@ class GameEngine {
             val bestManual = bagManuals.maxByOrNull { it.rarity }
 
             if (bestManual != null) {
-                // 功法被学习后加回仓库，标记为已学习
-                val learnedManual = bestManual.copy(isLearned = true, ownerId = disciple.id)
-                // 先移除可能存在的旧功法，再添加新的
-                _manuals.value = _manuals.value.filter { it.id != bestManual.id } + learnedManual
+                val learnedManual: Manual
+                if (bestManual.quantity > 1) {
+                    learnedManual = bestManual.copy(
+                        id = java.util.UUID.randomUUID().toString(),
+                        isLearned = true,
+                        ownerId = disciple.id,
+                        quantity = 1
+                    )
+                    _manuals.value = _manuals.value.map {
+                        if (it.id == bestManual.id) it.copy(quantity = it.quantity - 1) else it
+                    }.filter { it.quantity > 0 } + learnedManual
+                } else {
+                    learnedManual = bestManual.copy(isLearned = true, ownerId = disciple.id)
+                    _manuals.value = _manuals.value.map {
+                        if (it.id == bestManual.id) learnedManual else it
+                    }
+                }
 
                 updatedDisciple = updatedDisciple.copy(
-                    manualIds = updatedDisciple.manualIds + bestManual.id
+                    manualIds = updatedDisciple.manualIds + learnedManual.id
                 )
 
                 val updatedItems = updatedDisciple.storageBagItems.toMutableList()
@@ -3400,16 +3488,29 @@ class GameEngine {
                     return InstantManualResult(updatedDisciple, events)
                 }
 
-                // 新功法被学习后加回仓库，标记为已学习
-                val learnedManual = highestBag.copy(isLearned = true, ownerId = disciple.id)
-                // 旧功法标记为未学习
+                val learnedManual: Manual
+                if (highestBag.quantity > 1) {
+                    learnedManual = highestBag.copy(
+                        id = java.util.UUID.randomUUID().toString(),
+                        isLearned = true,
+                        ownerId = disciple.id,
+                        quantity = 1
+                    )
+                    _manuals.value = _manuals.value.map {
+                        if (it.id == highestBag.id) it.copy(quantity = it.quantity - 1) else it
+                    }.filter { it.quantity > 0 }
+                } else {
+                    learnedManual = highestBag.copy(isLearned = true, ownerId = disciple.id)
+                    _manuals.value = _manuals.value.filter { it.id != highestBag.id }
+                }
                 val unlearnedManual = lowestLearned.copy(isLearned = false, ownerId = null)
-
-                _manuals.value = _manuals.value.filter { it.id != lowestLearned.id && it.id != highestBag.id } + learnedManual + unlearnedManual
+                _manuals.value = _manuals.value.map {
+                    if (it.id == lowestLearned.id) unlearnedManual else it
+                }
 
                 val updatedManualIds = disciple.manualIds.toMutableList()
                 updatedManualIds.remove(lowestLearned.id)
-                updatedManualIds.add(highestBag.id)
+                updatedManualIds.add(learnedManual.id)
 
                 updatedDisciple = updatedDisciple.copy(manualIds = updatedManualIds)
 
@@ -3886,13 +3987,13 @@ class GameEngine {
     }
 
     // 状态不佳时自动使用恢复类丹药（有就直接用）
-    // 恢复丹药：具有 heal、healPercent、hpPercent、mpPercent 等恢复属性
+    // 恢复丹药：具有 heal、healPercent、healMaxHpPercent、hpPercent、mpPercent、mpRecoverPercent 等恢复属性
     private fun autoUseHealingPills(disciple: Disciple): Disciple {
         if (disciple.storageBagItems.isEmpty()) return disciple
 
         val healingPill = disciple.storageBagItems.find { item ->
             item.itemType == "pill" && item.effect?.let { effect ->
-                effect.heal > 0 || effect.healPercent > 0 || 
+                effect.heal > 0 || effect.healPercent > 0 || effect.healMaxHpPercent > 0 ||
                 effect.hpPercent > 0 || effect.mpPercent > 0 || effect.mpRecoverPercent > 0
             } == true
         }
@@ -4640,65 +4741,23 @@ class GameEngine {
     }
 
     private fun addMaterialToWarehouse(material: Material) {
-        val existingMaterial = _materials.value.find { it.name == material.name && it.rarity == material.rarity }
-        if (existingMaterial != null) {
-            _materials.value = _materials.value.map {
-                if (it.name == material.name && it.rarity == material.rarity) {
-                    it.copy(quantity = it.quantity + material.quantity)
-                } else {
-                    it
-                }
-            }
-        } else {
-            _materials.value = _materials.value + material
-        }
+        inventorySystem.addMaterial(material)
     }
 
     private fun addHerbToWarehouse(herb: Herb) {
-        val existingHerb = _herbs.value.find { it.name == herb.name && it.rarity == herb.rarity }
-        if (existingHerb != null) {
-            _herbs.value = _herbs.value.map {
-                if (it.name == herb.name && it.rarity == herb.rarity) {
-                    it.copy(quantity = it.quantity + herb.quantity)
-                } else {
-                    it
-                }
-            }
-        } else {
-            _herbs.value = _herbs.value + herb
-        }
+        inventorySystem.addHerb(herb)
+    }
+
+    private fun addManualToWarehouse(manual: Manual) {
+        inventorySystem.addManual(manual)
     }
 
     private fun addPillToWarehouse(pill: Pill) {
-        val existingPill = _pills.value.find { 
-            it.name == pill.name && it.rarity == pill.rarity && it.category == pill.category 
-        }
-        if (existingPill != null) {
-            _pills.value = _pills.value.map {
-                if (it.id == existingPill.id) {
-                    it.copy(quantity = it.quantity + pill.quantity)
-                } else {
-                    it
-                }
-            }
-        } else {
-            _pills.value = _pills.value + pill
-        }
+        inventorySystem.addPill(pill)
     }
 
     private fun addSeedToWarehouse(seed: Seed) {
-        val existingSeed = _seeds.value.find { it.name == seed.name && it.rarity == seed.rarity }
-        if (existingSeed != null) {
-            _seeds.value = _seeds.value.map {
-                if (it.name == seed.name && it.rarity == seed.rarity) {
-                    it.copy(quantity = it.quantity + seed.quantity)
-                } else {
-                    it
-                }
-            }
-        } else {
-            _seeds.value = _seeds.value + seed
-        }
+        inventorySystem.addSeed(seed)
     }
 
     private fun createPillFromStorageItem(item: StorageBagItem, quantity: Int = 1): Pill {
@@ -5036,12 +5095,8 @@ class GameEngine {
     }
 
     private fun generateExplorationManualDropSilent(dungeonName: String, minRarity: Int, maxRarity: Int): Manual {
-        // 从数据库模板生成功法，根据品阶范围
         val manual = ManualDatabase.generateRandom(minRarity, maxRarity)
-        // 检查是否已存在相同 id 的功法，避免重复
-        if (_manuals.value.none { it.id == manual.id }) {
-            _manuals.value = _manuals.value + manual
-        }
+        addManualToWarehouse(manual)
         return manual
     }
 
@@ -5163,7 +5218,8 @@ class GameEngine {
                             damageType = action.damageType,
                             isCrit = action.isCrit,
                             isKill = action.isKill,
-                            message = action.message
+                            message = action.message,
+                            skillName = action.skillName
                         )
                     }
                 )
@@ -5362,7 +5418,7 @@ class GameEngine {
         // 从储物袋中查找恢复类丹药
         val healingPillItem = disciple.storageBagItems.find { item ->
             item.itemType == "pill" && item.effect?.let { effect ->
-                effect.heal > 0 || effect.healPercent > 0 || 
+                effect.heal > 0 || effect.healPercent > 0 || effect.healMaxHpPercent > 0 ||
                 effect.hpPercent > 0 || effect.mpPercent > 0 || effect.mpRecoverPercent > 0
             } == true
         }
@@ -6091,6 +6147,7 @@ class GameEngine {
                     targetRealm = pillEffect.targetRealm,
                     heal = pillEffect.heal,
                     healPercent = pillEffect.healPercent,
+                    healMaxHpPercent = pillEffect.healMaxHpPercent,
                     hpPercent = pillEffect.hpPercent,
                     mpPercent = pillEffect.mpPercent,
                     mpRecoverPercent = pillEffect.mpRecoverMaxMpPercent,
@@ -6168,7 +6225,13 @@ class GameEngine {
                         _equipment.value = _equipment.value.filter { it.id != item.id }
                     }
                     "manual" -> {
-                        _manuals.value = _manuals.value.filter { it.id != item.id }
+                        _manuals.value = _manuals.value.map { manual ->
+                            if (manual.id == item.id) {
+                                manual.copy(quantity = manual.quantity - quantityToSteal)
+                            } else {
+                                manual
+                            }
+                        }.filter { it.quantity > 0 }
                     }
                     "pill" -> {
                         _pills.value = _pills.value.map { pill ->
@@ -6574,18 +6637,28 @@ class GameEngine {
             teaching = Random.nextInt(1, 101),
             morality = Random.nextInt(1, 101),
             recruitedMonth = currentMonth,
-            combatStatsVariance = Random.nextInt(-30, 31)
+            hpVariance = Random.nextInt(-50, 51),
+            mpVariance = Random.nextInt(-50, 51),
+            physicalAttackVariance = Random.nextInt(-50, 51),
+            magicAttackVariance = Random.nextInt(-50, 51),
+            physicalDefenseVariance = Random.nextInt(-50, 51),
+            magicDefenseVariance = Random.nextInt(-50, 51),
+            speedVariance = Random.nextInt(-50, 51)
         )
         return applyTalentBaseFlatBonuses(baseChild, talents).let { disciple ->
-            val varianceMultiplier = 1.0 + disciple.combatStatsVariance / 100.0
+            val baseStats = Disciple.calculateBaseStatsWithVariance(
+                disciple.hpVariance, disciple.mpVariance, disciple.physicalAttackVariance,
+                disciple.magicAttackVariance, disciple.physicalDefenseVariance,
+                disciple.magicDefenseVariance, disciple.speedVariance
+            )
             disciple.copy(
-                baseHp = (100 * varianceMultiplier).toInt(),
-                baseMp = (50 * varianceMultiplier).toInt(),
-                basePhysicalAttack = (10 * varianceMultiplier).toInt(),
-                baseMagicAttack = (5 * varianceMultiplier).toInt(),
-                basePhysicalDefense = (5 * varianceMultiplier).toInt(),
-                baseMagicDefense = (3 * varianceMultiplier).toInt(),
-                baseSpeed = (10 * varianceMultiplier).toInt()
+                baseHp = baseStats.baseHp,
+                baseMp = baseStats.baseMp,
+                basePhysicalAttack = baseStats.basePhysicalAttack,
+                baseMagicAttack = baseStats.baseMagicAttack,
+                basePhysicalDefense = baseStats.basePhysicalDefense,
+                baseMagicDefense = baseStats.baseMagicDefense,
+                baseSpeed = baseStats.baseSpeed
             )
         }
     }
@@ -6762,6 +6835,7 @@ class GameEngine {
                     targetRealm = pillEffect.targetRealm,
                     heal = pillEffect.heal,
                     healPercent = pillEffect.healPercent,
+                    healMaxHpPercent = pillEffect.healMaxHpPercent,
                     hpPercent = pillEffect.hpPercent,
                     mpPercent = pillEffect.mpPercent,
                     mpRecoverPercent = pillEffect.mpRecoverMaxMpPercent,
@@ -6836,7 +6910,13 @@ class GameEngine {
                 _disciples.value = _disciples.value.map { 
                     if (it.id == discipleId) it.copy(storageBagItems = updatedBag) else it 
                 }
-                _manuals.value = _manuals.value.filter { it.id != itemId }
+                if (manual.quantity > 1) {
+                    _manuals.value = _manuals.value.map {
+                        if (it.id == itemId) it.copy(quantity = it.quantity - 1) else it
+                    }
+                } else {
+                    _manuals.value = _manuals.value.filter { it.id != itemId }
+                }
                 addEvent("赏赐 ${manual.name} 给 ${disciple.name}", EventType.SUCCESS)
                 try {
                     processDiscipleItemInstantly(discipleId, "manual")
@@ -6876,7 +6956,7 @@ class GameEngine {
             
             // 收集所有变更，最后批量更新
             val equipmentToRemove = mutableListOf<String>()
-            val manualsToRemove = mutableListOf<String>()
+            val manualsToUpdate = mutableListOf<Pair<String, Int>>() // id to new quantity (0 means remove)
             val pillsToUpdate = mutableListOf<Pair<String, Int>>() // id to new quantity (0 means remove)
             val materialsToUpdate = mutableListOf<Pair<String, Int>>()
             val herbsToUpdate = mutableListOf<Pair<String, Int>>()
@@ -6911,7 +6991,8 @@ class GameEngine {
                             obtainedMonth = data.gameMonth
                         )
                         newStorageItems.add(storageItem)
-                        manualsToRemove.add(item.id)
+                        val newQty = manual.quantity - 1
+                        manualsToUpdate.add(item.id to newQty)
                     }
                     "pill" -> {
                         val pill = _pills.value.find { it.id == item.id } ?: return@forEach
@@ -6925,6 +7006,7 @@ class GameEngine {
                             targetRealm = pillEffect.targetRealm,
                             heal = pillEffect.heal,
                             healPercent = pillEffect.healPercent,
+                            healMaxHpPercent = pillEffect.healMaxHpPercent,
                             hpPercent = pillEffect.hpPercent,
                             mpPercent = pillEffect.mpPercent,
                             mpRecoverPercent = pillEffect.mpRecoverMaxMpPercent,
@@ -7022,8 +7104,16 @@ class GameEngine {
             }
             
             // 批量更新功法
-            if (manualsToRemove.isNotEmpty()) {
-                _manuals.value = _manuals.value.filter { it.id !in manualsToRemove }
+            if (manualsToUpdate.isNotEmpty()) {
+                val manualsMap = manualsToUpdate.toMap()
+                _manuals.value = _manuals.value.mapNotNull { manual ->
+                    val newQty = manualsMap[manual.id]
+                    when {
+                        newQty == null -> manual
+                        newQty <= 0 -> null
+                        else -> manual.copy(quantity = newQty)
+                    }
+                }
             }
             
             // 批量更新丹药
@@ -7166,18 +7256,28 @@ class GameEngine {
             spiritPlanting = Random.nextInt(1, 101),
             teaching = Random.nextInt(1, 101),
             morality = Random.nextInt(1, 101),
-            combatStatsVariance = Random.nextInt(-30, 31)
+            hpVariance = Random.nextInt(-50, 51),
+            mpVariance = Random.nextInt(-50, 51),
+            physicalAttackVariance = Random.nextInt(-50, 51),
+            magicAttackVariance = Random.nextInt(-50, 51),
+            physicalDefenseVariance = Random.nextInt(-50, 51),
+            magicDefenseVariance = Random.nextInt(-50, 51),
+            speedVariance = Random.nextInt(-50, 51)
         )
         return applyTalentBaseFlatBonuses(baseDisciple, talents).let { disciple ->
-            val varianceMultiplier = 1.0 + disciple.combatStatsVariance / 100.0
+            val baseStats = Disciple.calculateBaseStatsWithVariance(
+                disciple.hpVariance, disciple.mpVariance, disciple.physicalAttackVariance,
+                disciple.magicAttackVariance, disciple.physicalDefenseVariance,
+                disciple.magicDefenseVariance, disciple.speedVariance
+            )
             disciple.copy(
-                baseHp = (100 * varianceMultiplier).toInt(),
-                baseMp = (50 * varianceMultiplier).toInt(),
-                basePhysicalAttack = (10 * varianceMultiplier).toInt(),
-                baseMagicAttack = (5 * varianceMultiplier).toInt(),
-                basePhysicalDefense = (5 * varianceMultiplier).toInt(),
-                baseMagicDefense = (3 * varianceMultiplier).toInt(),
-                baseSpeed = (10 * varianceMultiplier).toInt()
+                baseHp = baseStats.baseHp,
+                baseMp = baseStats.baseMp,
+                basePhysicalAttack = baseStats.basePhysicalAttack,
+                baseMagicAttack = baseStats.baseMagicAttack,
+                basePhysicalDefense = baseStats.basePhysicalDefense,
+                baseMagicDefense = baseStats.baseMagicDefense,
+                baseSpeed = baseStats.baseSpeed
             )
         }
     }
@@ -7455,65 +7555,83 @@ class GameEngine {
     }
     
     fun learnManual(discipleId: String, manualId: String) {
-        val manual = _manuals.value.find { it.id == manualId } ?: return
-        val disciple = _disciples.value.find { it.id == discipleId } ?: return
-        
-        if (disciple.manualIds.contains(manualId)) {
-            addEvent("弟子不能学习相同的功法", EventType.WARNING)
-            return
-        }
-        
-        if (disciple.realm > manual.minRealm) {
-            val realmName = GameConfig.Realm.getName(manual.minRealm)
-            addEvent("${disciple.name} 境界不足，需要达到${realmName}才能学习${manual.name}", EventType.WARNING)
-            return
-        }
-        
-        val talentEffects = TalentDatabase.calculateTalentEffects(disciple.talentIds)
-        val manualSlotBonus = talentEffects["manualSlot"]?.toInt() ?: 0
-        val maxManualSlots = 5 + manualSlotBonus
-        
-        if (disciple.manualIds.size >= maxManualSlots) {
-            addEvent("${disciple.name} 功法槽位已满，无法学习更多功法", EventType.WARNING)
-            return
-        }
-        
-        if (manual.type == ManualType.MIND) {
-            val hasMindManual = _manuals.value.any { 
-                it.id in disciple.manualIds && it.type == ManualType.MIND 
-            }
-            if (hasMindManual) {
-                addEvent("${disciple.name} 已有心法，无法再学习心法", EventType.WARNING)
+        StateFlowListUtils.globalLock.withLock {
+            val manual = _manuals.value.find { it.id == manualId } ?: return
+            val disciple = _disciples.value.find { it.id == discipleId } ?: return
+            
+            if (disciple.manualIds.contains(manualId)) {
+                addEvent("弟子不能学习相同的功法", EventType.WARNING)
                 return
             }
+            
+            if (disciple.realm > manual.minRealm) {
+                val realmName = GameConfig.Realm.getName(manual.minRealm)
+                addEvent("${disciple.name} 境界不足，需要达到${realmName}才能学习${manual.name}", EventType.WARNING)
+                return
+            }
+            
+            val talentEffects = TalentDatabase.calculateTalentEffects(disciple.talentIds)
+            val manualSlotBonus = talentEffects["manualSlot"]?.toInt() ?: 0
+            val maxManualSlots = 5 + manualSlotBonus
+            
+            if (disciple.manualIds.size >= maxManualSlots) {
+                addEvent("${disciple.name} 功法槽位已满，无法学习更多功法", EventType.WARNING)
+                return
+            }
+            
+            if (manual.type == ManualType.MIND) {
+                val hasMindManual = _manuals.value.any { 
+                    it.id in disciple.manualIds && it.type == ManualType.MIND 
+                }
+                if (hasMindManual) {
+                    addEvent("${disciple.name} 已有心法，无法再学习心法", EventType.WARNING)
+                    return
+                }
+            }
+            
+            val learnedManualId: String
+            if (manual.quantity > 1) {
+                val learnedManual = manual.copy(
+                    id = java.util.UUID.randomUUID().toString(),
+                    ownerId = discipleId,
+                    isLearned = true,
+                    quantity = 1
+                )
+                _manuals.value = _manuals.value.map { 
+                    if (it.id == manualId) it.copy(quantity = it.quantity - 1) else it 
+                }.filter { it.quantity > 0 }
+                _manuals.value = _manuals.value + learnedManual
+                learnedManualId = learnedManual.id
+            } else {
+                val updatedManual = manual.copy(ownerId = discipleId, isLearned = true)
+                _manuals.value = _manuals.value.map { if (it.id == manualId) updatedManual else it }
+                learnedManualId = manualId
+            }
+            
+            val updatedDisciple = disciple.copy(manualIds = disciple.manualIds + learnedManualId)
+            _disciples.value = _disciples.value.map { if (it.id == discipleId) updatedDisciple else it }
+            
+            val data = _gameData.value
+            val updatedProficiencies = data.manualProficiencies.toMutableMap()
+            val discipleProficiencies = updatedProficiencies[discipleId]?.toMutableList() ?: mutableListOf()
+            
+            val existingProficiency = discipleProficiencies.find { it.manualId == learnedManualId }
+            if (existingProficiency == null) {
+                val maxProficiency = ManualProficiencySystem.getMaxProficiency(manual.rarity).toInt()
+                discipleProficiencies.add(ManualProficiencyData(
+                    manualId = learnedManualId,
+                    manualName = manual.name,
+                    proficiency = 0.0,
+                    maxProficiency = maxProficiency,
+                    level = 1,
+                    masteryLevel = 0
+                ))
+                updatedProficiencies[discipleId] = discipleProficiencies
+                _gameData.value = data.copy(manualProficiencies = updatedProficiencies)
+            }
+            
+            addEvent("${disciple.name} 学习了 ${manual.name}", EventType.SUCCESS)
         }
-        
-        val updatedDisciple = disciple.copy(manualIds = disciple.manualIds + manualId)
-        _disciples.value = _disciples.value.map { if (it.id == discipleId) updatedDisciple else it }
-        
-        val updatedManual = manual.copy(ownerId = discipleId, isLearned = true)
-        _manuals.value = _manuals.value.map { if (it.id == manualId) updatedManual else it }
-        
-        val data = _gameData.value
-        val updatedProficiencies = data.manualProficiencies.toMutableMap()
-        val discipleProficiencies = updatedProficiencies[discipleId]?.toMutableList() ?: mutableListOf()
-        
-        val existingProficiency = discipleProficiencies.find { it.manualId == manualId }
-        if (existingProficiency == null) {
-            val maxProficiency = ManualProficiencySystem.getMaxProficiency(manual.rarity).toInt()
-            discipleProficiencies.add(ManualProficiencyData(
-                manualId = manualId,
-                manualName = manual.name,
-                proficiency = 0.0,
-                maxProficiency = maxProficiency,
-                level = 1,
-                masteryLevel = 0
-            ))
-            updatedProficiencies[discipleId] = discipleProficiencies
-            _gameData.value = data.copy(manualProficiencies = updatedProficiencies)
-        }
-        
-        addEvent("${disciple.name} 学习了 ${manual.name}", EventType.SUCCESS)
     }
     
     fun replaceManual(discipleId: String, oldManualId: String, newManualId: String) {
@@ -7757,7 +7875,7 @@ class GameEngine {
             ))
         )
         
-        addEvent("探索${sect.name}成功！${sect.levelName}，最高境界弟子${sect.disciples.filter { it.key <= (listOf(5, 3, 1, 0)[sect.level]) }.values.sum()}人", EventType.SUCCESS)
+        addEvent("探索${sect.name}成功！${sect.levelName}，最高境界弟子${sect.disciples.filter { it.key <= (listOf(6, 4, 3, 1)[sect.level]) }.values.sum()}人", EventType.SUCCESS)
     }
     
     fun interactWithSect(sectId: String, action: String) {
@@ -8114,10 +8232,7 @@ class GameEngine {
                 }
                 "manual" -> {
                     val manual = createManualFromMerchantItem(item)
-                    // 检查是否已存在相同 id 的功法，避免重复
-                    if (_manuals.value.none { it.id == manual.id }) {
-                        _manuals.value = _manuals.value + manual
-                    }
+                    addManualToWarehouse(manual)
                 }
                 "pill" -> {
                     val pill = createPillFromMerchantItem(item)
@@ -8158,7 +8273,13 @@ class GameEngine {
                 val manual = _manuals.value.find { it.id == itemId } ?: return
                 itemName = manual.name
                 rarity = manual.rarity
-                _manuals.value = _manuals.value.filter { it.id != itemId }
+                if (manual.quantity > 1) {
+                    _manuals.value = _manuals.value.map {
+                        if (it.id == itemId) it.copy(quantity = it.quantity - 1) else it
+                    }
+                } else {
+                    _manuals.value = _manuals.value.filter { it.id != itemId }
+                }
             }
             "pill" -> {
                 val pill = _pills.value.find { it.id == itemId } ?: return
@@ -8223,8 +8344,17 @@ class GameEngine {
     }
 
     // 出售功法
-    fun sellManual(manualId: String) {
-        _manuals.value = _manuals.value.filter { it.id != manualId }
+    fun sellManual(manualId: String, quantity: Int = 1) {
+        StateFlowListUtils.globalLock.withLock {
+            val manual = _manuals.value.find { it.id == manualId } ?: return
+            if (manual.quantity <= quantity) {
+                _manuals.value = _manuals.value.filter { it.id != manualId }
+            } else {
+                _manuals.value = _manuals.value.map {
+                    if (it.id == manualId) it.copy(quantity = it.quantity - quantity) else it
+                }
+            }
+        }
     }
 
     // 出售丹药
@@ -8297,10 +8427,7 @@ class GameEngine {
             }
             "manual" -> {
                 val manual = createManualFromTradingItem(item)
-                // 检查是否已存在相同 id 的功法，避免重复
-                if (_manuals.value.none { it.id == manual.id }) {
-                    _manuals.value = _manuals.value + manual
-                }
+                addManualToWarehouse(manual)
             }
             "pill" -> {
                 val pill = createPillFromTradingItem(item)
@@ -8392,10 +8519,7 @@ class GameEngine {
                             }
                             "manual" -> {
                                 val manual = createManualFromStorageItem(storageItem)
-                                // 检查是否已存在相同 id 的功法，避免重复
-                                if (_manuals.value.none { it.id == manual.id }) {
-                                    _manuals.value = _manuals.value + manual
-                                }
+                                addManualToWarehouse(manual)
                             }
                             "pill" -> {
                                 val pill = createPillFromStorageItem(storageItem, quantity)
@@ -8514,7 +8638,17 @@ class GameEngine {
                 _equipment.value = _equipment.value.filter { it.id != item.itemId }
             }
             "manual" -> {
-                _manuals.value = _manuals.value.filter { it.id != item.itemId }
+                val existingManual = _manuals.value.find { it.id == item.itemId }
+                if (existingManual != null) {
+                    if (existingManual.quantity <= 1) {
+                        _manuals.value = _manuals.value.filter { it.id != item.itemId }
+                    } else {
+                        _manuals.value = _manuals.value.map {
+                            if (it.id == item.itemId) it.copy(quantity = it.quantity - 1)
+                            else it
+                        }
+                    }
+                }
             }
             "pill" -> {
                 val existingPill = _pills.value.find { it.id == item.itemId }
@@ -8655,7 +8789,7 @@ class GameEngine {
                         else it
                     }
                 } else if (savedData is Manual) {
-                    _manuals.value = _manuals.value + savedData.copy(ownerId = null, isLearned = false)
+                    addManualToWarehouse(savedData.copy(ownerId = null, isLearned = false))
                 } else {
                     val template = ManualDatabase.getByName(item.name)
                     if (template != null) {
@@ -8664,7 +8798,7 @@ class GameEngine {
                             ownerId = null,
                             isLearned = false
                         )
-                        _manuals.value = _manuals.value + manual
+                        addManualToWarehouse(manual)
                     } else {
                         addEvent("无法恢复功法: ${item.name}", EventType.WARNING)
                     }
@@ -9066,8 +9200,10 @@ class GameEngine {
                     targetRealm = it.targetRealm,
                     heal = it.heal,
                     healPercent = it.healPercent,
+                    healMaxHpPercent = it.healMaxHpPercent,
                     hpPercent = it.hpPercent,
                     mpPercent = it.mpPercent,
+                    mpRecoverPercent = it.mpRecoverMaxMpPercent,
                     extendLife = it.extendLife,
                     battleCount = it.battleCount,
                     physicalAttackPercent = it.physicalAttackPercent,
@@ -11149,6 +11285,54 @@ class GameEngine {
                     val memberProficiencies = allProficiencies[member.id] ?: emptyMap()
                     val stats = member.getFinalStats(memberEquipment, memberManuals, memberProficiencies)
                     val damage = stats.physicalAttack
+                    val isCrit = Random.nextDouble() < 0.1
+                    
+                    val attackerCombatant = Combatant(
+                        id = member.id,
+                        name = member.name,
+                        type = CombatantType.DISCIPLE,
+                        hp = stats.maxHp,
+                        maxHp = stats.maxHp,
+                        mp = stats.maxMp,
+                        maxMp = stats.maxMp,
+                        physicalAttack = stats.physicalAttack,
+                        magicAttack = stats.magicAttack,
+                        physicalDefense = stats.physicalDefense,
+                        magicDefense = stats.magicDefense,
+                        speed = stats.speed,
+                        critRate = stats.critRate,
+                        skills = emptyList()
+                    )
+                    val targetCombatant = Combatant(
+                        id = target.id,
+                        name = target.name,
+                        type = CombatantType.BEAST,
+                        hp = target.hp,
+                        maxHp = target.maxHp,
+                        mp = 0,
+                        maxMp = 0,
+                        physicalAttack = target.attack,
+                        magicAttack = 0,
+                        physicalDefense = target.defense,
+                        magicDefense = target.defense,
+                        speed = target.speed,
+                        critRate = 0.0,
+                        skills = emptyList()
+                    )
+                    val attackResult = AttackResult(
+                        attacker = attackerCombatant,
+                        target = targetCombatant,
+                        damage = damage,
+                        isCrit = isCrit,
+                        isPhysical = true,
+                        isDodged = false
+                    )
+                    val message = BattleDescriptionGenerator.generateAttackDescription(
+                        attacker = attackerCombatant,
+                        target = targetCombatant,
+                        result = attackResult,
+                        isKill = false
+                    )
                     actions.add(BattleLogAction(
                         type = "attack",
                         attacker = member.name,
@@ -11156,7 +11340,8 @@ class GameEngine {
                         target = target.name,
                         damage = damage,
                         damageType = "physical",
-                        isCrit = Random.nextDouble() < 0.1
+                        isCrit = isCrit,
+                        message = message
                     ))
                 }
             }
@@ -11164,6 +11349,54 @@ class GameEngine {
             aliveEnemies.shuffled().take(3).forEach { enemy ->
                 if (aliveTeamMembers.isNotEmpty()) {
                     val target = aliveTeamMembers.random()
+                    val isCrit = Random.nextDouble() < 0.1
+                    
+                    val attackerCombatant = Combatant(
+                        id = enemy.id,
+                        name = enemy.name,
+                        type = CombatantType.BEAST,
+                        hp = enemy.hp,
+                        maxHp = enemy.maxHp,
+                        mp = 0,
+                        maxMp = 0,
+                        physicalAttack = enemy.attack,
+                        magicAttack = 0,
+                        physicalDefense = enemy.defense,
+                        magicDefense = enemy.defense,
+                        speed = enemy.speed,
+                        critRate = 0.0,
+                        skills = emptyList()
+                    )
+                    val targetCombatant = Combatant(
+                        id = target.id,
+                        name = target.name,
+                        type = CombatantType.DISCIPLE,
+                        hp = 100,
+                        maxHp = 100,
+                        mp = 100,
+                        maxMp = 100,
+                        physicalAttack = 100,
+                        magicAttack = 100,
+                        physicalDefense = 50,
+                        magicDefense = 50,
+                        speed = 50,
+                        critRate = 0.0,
+                        skills = emptyList()
+                    )
+                    val attackResult = AttackResult(
+                        attacker = attackerCombatant,
+                        target = targetCombatant,
+                        damage = enemy.attack,
+                        isCrit = isCrit,
+                        isPhysical = true,
+                        isDodged = false
+                    )
+                    val message = BattleDescriptionGenerator.generateAttackDescription(
+                        attacker = attackerCombatant,
+                        target = targetCombatant,
+                        result = attackResult,
+                        isKill = false
+                    )
                     actions.add(BattleLogAction(
                         type = "attack",
                         attacker = enemy.name,
@@ -11171,7 +11404,8 @@ class GameEngine {
                         target = target.name,
                         damage = enemy.attack,
                         damageType = "physical",
-                        isCrit = Random.nextDouble() < 0.1
+                        isCrit = isCrit,
+                        message = message
                     ))
                 }
             }
@@ -11265,62 +11499,59 @@ class GameEngine {
 
     /**
      * 生成AI宗门弟子分布
-     * 小型宗门(0): 最高化神(5)，1-5名化神弟子，以下各境界10-30名
-     * 中型宗门(1): 最高炼虚(4)，1-5名炼虚弟子，以下各境界10-30名
-     * 大型宗门(2): 最高大乘(2)，1-5名大乘弟子，以下各境界10-30名
-     * 顶级宗门(3): 最高渡劫(1)，1-5名渡劫弟子，以下各境界10-30名
+     * 小型宗门(0): 最高元婴(6)，1-5名元婴弟子，以下各境界5-20名
+     * 中型宗门(1): 最高炼虚(4)，1-5名炼虚弟子，以下各境界5-20名
+     * 大型宗门(2): 最高合体(3)，1-5名合体弟子，以下各境界5-20名
+     * 顶级宗门(3): 最高渡劫(1)，1-3名渡劫弟子，以下各境界5-20名
      */
     private fun generateSectDisciples(sectLevel: Int): Map<Int, Int> {
         val disciples = mutableMapOf<Int, Int>()
 
         when (sectLevel) {
             0 -> {
-                // 小型宗门：最高化神(5)，1-5名化神弟子，以下各境界10-30名
-                disciples[5] = Random.nextInt(1, 6) // 化神 1-5名
-                disciples[6] = Random.nextInt(10, 31) // 元婴 10-30名
-                disciples[7] = Random.nextInt(10, 31) // 金丹 10-30名
-                disciples[8] = Random.nextInt(10, 31) // 筑基 10-30名
-                disciples[9] = Random.nextInt(10, 31) // 炼气 10-30名
+                // 小型宗门：最高元婴(6)，1-5名元婴弟子，以下各境界5-20名
+                disciples[6] = Random.nextInt(1, 6) // 元婴 1-5名
+                disciples[7] = Random.nextInt(5, 21) // 金丹 5-20名
+                disciples[8] = Random.nextInt(5, 21) // 筑基 5-20名
+                disciples[9] = Random.nextInt(5, 21) // 炼气 5-20名
             }
             1 -> {
-                // 中型宗门：最高炼虚(4)，1-5名炼虚弟子，以下各境界10-30名
+                // 中型宗门：最高炼虚(4)，1-5名炼虚弟子，以下各境界5-20名
                 disciples[4] = Random.nextInt(1, 6) // 炼虚 1-5名
-                disciples[5] = Random.nextInt(10, 31) // 化神 10-30名
-                disciples[6] = Random.nextInt(10, 31) // 元婴 10-30名
-                disciples[7] = Random.nextInt(10, 31) // 金丹 10-30名
-                disciples[8] = Random.nextInt(10, 31) // 筑基 10-30名
-                disciples[9] = Random.nextInt(10, 31) // 炼气 10-30名
+                disciples[5] = Random.nextInt(5, 21) // 化神 5-20名
+                disciples[6] = Random.nextInt(5, 21) // 元婴 5-20名
+                disciples[7] = Random.nextInt(5, 21) // 金丹 5-20名
+                disciples[8] = Random.nextInt(5, 21) // 筑基 5-20名
+                disciples[9] = Random.nextInt(5, 21) // 炼气 5-20名
             }
             2 -> {
-                // 大型宗门：最高大乘(2)，1-5名大乘弟子，以下各境界10-30名
-                disciples[2] = Random.nextInt(1, 6) // 大乘 1-5名
-                disciples[3] = Random.nextInt(10, 31) // 合体 10-30名
-                disciples[4] = Random.nextInt(10, 31) // 炼虚 10-30名
-                disciples[5] = Random.nextInt(10, 31) // 化神 10-30名
-                disciples[6] = Random.nextInt(10, 31) // 元婴 10-30名
-                disciples[7] = Random.nextInt(10, 31) // 金丹 10-30名
-                disciples[8] = Random.nextInt(10, 31) // 筑基 10-30名
-                disciples[9] = Random.nextInt(10, 31) // 炼气 10-30名
+                // 大型宗门：最高合体(3)，1-5名合体弟子，以下各境界5-20名
+                disciples[3] = Random.nextInt(1, 6) // 合体 1-5名
+                disciples[4] = Random.nextInt(5, 21) // 炼虚 5-20名
+                disciples[5] = Random.nextInt(5, 21) // 化神 5-20名
+                disciples[6] = Random.nextInt(5, 21) // 元婴 5-20名
+                disciples[7] = Random.nextInt(5, 21) // 金丹 5-20名
+                disciples[8] = Random.nextInt(5, 21) // 筑基 5-20名
+                disciples[9] = Random.nextInt(5, 21) // 炼气 5-20名
             }
             3 -> {
-                // 顶级宗门：最高渡劫(1)，1-5名渡劫弟子，以下各境界10-30名
-                disciples[1] = Random.nextInt(1, 6) // 渡劫 1-5名
-                disciples[2] = Random.nextInt(10, 31) // 大乘 10-30名
-                disciples[3] = Random.nextInt(10, 31) // 合体 10-30名
-                disciples[4] = Random.nextInt(10, 31) // 炼虚 10-30名
-                disciples[5] = Random.nextInt(10, 31) // 化神 10-30名
-                disciples[6] = Random.nextInt(10, 31) // 元婴 10-30名
-                disciples[7] = Random.nextInt(10, 31) // 金丹 10-30名
-                disciples[8] = Random.nextInt(10, 31) // 筑基 10-30名
-                disciples[9] = Random.nextInt(10, 31) // 炼气 10-30名
+                // 顶级宗门：最高渡劫(1)，1-3名渡劫弟子，以下各境界5-20名
+                disciples[1] = Random.nextInt(1, 4) // 渡劫 1-3名
+                disciples[2] = Random.nextInt(5, 21) // 大乘 5-20名
+                disciples[3] = Random.nextInt(5, 21) // 合体 5-20名
+                disciples[4] = Random.nextInt(5, 21) // 炼虚 5-20名
+                disciples[5] = Random.nextInt(5, 21) // 化神 5-20名
+                disciples[6] = Random.nextInt(5, 21) // 元婴 5-20名
+                disciples[7] = Random.nextInt(5, 21) // 金丹 5-20名
+                disciples[8] = Random.nextInt(5, 21) // 筑基 5-20名
+                disciples[9] = Random.nextInt(5, 21) // 炼气 5-20名
             }
             else -> {
                 // 默认按小型宗门处理
-                disciples[5] = Random.nextInt(1, 6) // 化神 1-5名
-                disciples[6] = Random.nextInt(10, 31) // 元婴 10-30名
-                disciples[7] = Random.nextInt(10, 31) // 金丹 10-30名
-                disciples[8] = Random.nextInt(10, 31) // 筑基 10-30名
-                disciples[9] = Random.nextInt(10, 31) // 炼气 10-30名
+                disciples[6] = Random.nextInt(1, 6) // 元婴 1-5名
+                disciples[7] = Random.nextInt(5, 21) // 金丹 5-20名
+                disciples[8] = Random.nextInt(5, 21) // 筑基 5-20名
+                disciples[9] = Random.nextInt(5, 21) // 炼气 5-20名
             }
         }
 
@@ -11805,9 +12036,7 @@ class GameEngine {
                                 stats = template.stats,
                                 minRealm = GameConfig.Realm.getMinRealmForRarity(item.rarity)
                             )
-                            if (_manuals.value.none { it.id == manual.id }) {
-                                _manuals.value = _manuals.value + manual
-                            }
+                            addManualToWarehouse(manual)
                         }
                     }
                 }
@@ -12281,10 +12510,7 @@ class GameEngine {
                 }
                 "manual" -> {
                     val manual = createManualFromMerchantItem(item)
-                    // 检查是否已存在相同 id 的功法，避免重复
-                    if (_manuals.value.none { it.id == manual.id }) {
-                        _manuals.value = _manuals.value + manual
-                    }
+                    addManualToWarehouse(manual)
                 }
                 "pill" -> {
                     val pill = createPillFromMerchantItem(item)
@@ -12632,7 +12858,11 @@ class GameEngine {
     private fun removeGiftItem(itemType: String, itemId: String, quantity: Int) {
         when (itemType) {
             GiftConfig.ItemType.MANUAL -> {
-                _manuals.value = _manuals.value.filter { it.id != itemId }
+                _manuals.value = _manuals.value.map { manual ->
+                    if (manual.id == itemId) {
+                        manual.copy(quantity = (manual.quantity - quantity).coerceAtLeast(0))
+                    } else manual
+                }.filter { it.quantity > 0 }
             }
             GiftConfig.ItemType.EQUIPMENT -> {
                 _equipment.value = _equipment.value.filter { it.id != itemId }
@@ -12832,8 +13062,10 @@ class GameEngine {
         }
 
         val data = _gameData.value
-        val sect = data.worldMapSects.find { it.id == sectId }!!
-        val envoy = _disciples.value.find { it.id == envoyDiscipleId }!!
+        val sect = data.worldMapSects.find { it.id == sectId }
+            ?: return Pair(false, "未找到目标宗门")
+        val envoy = _disciples.value.find { it.id == envoyDiscipleId }
+            ?: return Pair(false, "未找到使者弟子")
 
         val playerSect = data.worldMapSects.find { it.isPlayerSect }
         val favor = if (playerSect != null) {
@@ -13022,7 +13254,7 @@ class GameEngine {
                 if (existingAllies2.contains(sect1.id)) return@forEach
 
                 val relation = getSectRelation(sect1.id, sect2.id, data.sectRelations)
-                val favor = relation?.favor ?: 30
+                val favor = relation?.favor ?: WorldMapGenerator.INITIAL_SECT_FAVOR
                 
                 if (favor < 90) return@forEach
 
@@ -13113,7 +13345,7 @@ class GameEngine {
         
         // 5. 好感度 (30%)
         val relation = getSectRelation(sect1.id, sect2.id, relations)
-        val favorScore = relation?.favor ?: 30
+        val favorScore = relation?.favor ?: WorldMapGenerator.INITIAL_SECT_FAVOR
         score += favorScore * 30 / 100
         
         return score.coerceIn(0, 100)
@@ -13333,8 +13565,10 @@ class GameEngine {
         }
 
         val data = _gameData.value
-        val sect = data.worldMapSects.find { it.id == allySectId }!!
-        val envoy = _disciples.value.find { it.id == envoyDiscipleId }!!
+        val sect = data.worldMapSects.find { it.id == allySectId }
+            ?: return Pair(false, "未找到盟友宗门")
+        val envoy = _disciples.value.find { it.id == envoyDiscipleId }
+            ?: return Pair(false, "未找到使者弟子")
 
         val playerSectForFavor = data.worldMapSects.find { it.isPlayerSect }
         val favor = if (playerSectForFavor != null) {
@@ -13524,8 +13758,13 @@ class GameEngine {
         }
 
         val spiritRootType = listOf("metal", "wood", "water", "fire", "earth").random()
-        val combatStatsVariance = Random.nextInt(-30, 31)
-        val varianceMultiplier = 1.0 + combatStatsVariance / 100.0
+        val hpVariance = Random.nextInt(-50, 51)
+        val mpVariance = Random.nextInt(-50, 51)
+        val physicalAttackVariance = Random.nextInt(-50, 51)
+        val magicAttackVariance = Random.nextInt(-50, 51)
+        val physicalDefenseVariance = Random.nextInt(-50, 51)
+        val magicDefenseVariance = Random.nextInt(-50, 51)
+        val speedVariance = Random.nextInt(-50, 51)
 
         return Disciple(
             id = id,
@@ -13540,15 +13779,26 @@ class GameEngine {
             morality = Random.nextInt(30, 80),
             status = DiscipleStatus.IDLE,
             loyalty = Random.nextInt(60, 80),
-            combatStatsVariance = combatStatsVariance,
-            baseHp = (100 * varianceMultiplier).toInt(),
-            baseMp = (50 * varianceMultiplier).toInt(),
-            basePhysicalAttack = (10 * varianceMultiplier).toInt(),
-            baseMagicAttack = (5 * varianceMultiplier).toInt(),
-            basePhysicalDefense = (5 * varianceMultiplier).toInt(),
-            baseMagicDefense = (3 * varianceMultiplier).toInt(),
-            baseSpeed = (10 * varianceMultiplier).toInt()
-        )
+            hpVariance = hpVariance,
+            mpVariance = mpVariance,
+            physicalAttackVariance = physicalAttackVariance,
+            magicAttackVariance = magicAttackVariance,
+            physicalDefenseVariance = physicalDefenseVariance,
+            magicDefenseVariance = magicDefenseVariance,
+            speedVariance = speedVariance
+        ).apply {
+            val baseStats = Disciple.calculateBaseStatsWithVariance(
+                hpVariance, mpVariance, physicalAttackVariance, magicAttackVariance,
+                physicalDefenseVariance, magicDefenseVariance, speedVariance
+            )
+            baseHp = baseStats.baseHp
+            baseMp = baseStats.baseMp
+            basePhysicalAttack = baseStats.basePhysicalAttack
+            baseMagicAttack = baseStats.baseMagicAttack
+            basePhysicalDefense = baseStats.basePhysicalDefense
+            baseMagicDefense = baseStats.baseMagicDefense
+            baseSpeed = baseStats.baseSpeed
+        }
     }
 
     /**
@@ -13750,7 +14000,7 @@ class GameEngine {
             it.isAlive && it.partnerId != null && it.age >= 18 && it.gender == "female" && it.partnerSectId != null && it.status != DiscipleStatus.REFLECTING
         }.forEach { disciple ->
             // 跨宗门伴侣，检查partnerId是否是跨宗门生成的ID
-            if (!disciple.partnerId?.startsWith("cross_sect_")!!) return@forEach
+            if (disciple.partnerId?.startsWith("cross_sect_") != true) return@forEach
 
             if (year - disciple.lastChildYear >= 1 && Random.nextDouble() < 0.006) {
                 val discipleIndex = updatedDisciples.indexOfFirst { it.id == disciple.id }
@@ -13783,8 +14033,13 @@ class GameEngine {
         }
 
         val spiritRootType = listOf("metal", "wood", "water", "fire", "earth").random()
-        val combatStatsVariance = Random.nextInt(-30, 31)
-        val varianceMultiplier = 1.0 + combatStatsVariance / 100.0
+        val hpVariance = Random.nextInt(-50, 51)
+        val mpVariance = Random.nextInt(-50, 51)
+        val physicalAttackVariance = Random.nextInt(-50, 51)
+        val magicAttackVariance = Random.nextInt(-50, 51)
+        val physicalDefenseVariance = Random.nextInt(-50, 51)
+        val magicDefenseVariance = Random.nextInt(-50, 51)
+        val speedVariance = Random.nextInt(-50, 51)
 
         return Disciple(
             id = id,
@@ -13801,15 +14056,26 @@ class GameEngine {
             loyalty = Random.nextInt(70, 101),
             parentId1 = mother.id,
             parentId2 = mother.partnerId,
-            combatStatsVariance = combatStatsVariance,
-            baseHp = (100 * varianceMultiplier).toInt(),
-            baseMp = (50 * varianceMultiplier).toInt(),
-            basePhysicalAttack = (10 * varianceMultiplier).toInt(),
-            baseMagicAttack = (5 * varianceMultiplier).toInt(),
-            basePhysicalDefense = (5 * varianceMultiplier).toInt(),
-            baseMagicDefense = (3 * varianceMultiplier).toInt(),
-            baseSpeed = (10 * varianceMultiplier).toInt()
-        )
+            hpVariance = hpVariance,
+            mpVariance = mpVariance,
+            physicalAttackVariance = physicalAttackVariance,
+            magicAttackVariance = magicAttackVariance,
+            physicalDefenseVariance = physicalDefenseVariance,
+            magicDefenseVariance = magicDefenseVariance,
+            speedVariance = speedVariance
+        ).apply {
+            val baseStats = Disciple.calculateBaseStatsWithVariance(
+                hpVariance, mpVariance, physicalAttackVariance, magicAttackVariance,
+                physicalDefenseVariance, magicDefenseVariance, speedVariance
+            )
+            baseHp = baseStats.baseHp
+            baseMp = baseStats.baseMp
+            basePhysicalAttack = baseStats.basePhysicalAttack
+            baseMagicAttack = baseStats.baseMagicAttack
+            basePhysicalDefense = baseStats.basePhysicalDefense
+            baseMagicDefense = baseStats.baseMagicDefense
+            baseSpeed = baseStats.baseSpeed
+        }
     }
 
     /**
@@ -14141,10 +14407,9 @@ class GameEngine {
         val data = _gameData.value
         
         val newBattles = AISectAttackManager.decideAttacks(data)
-        val supportBattles = AISectAttackManager.checkAllianceSupport(data)
         val playerAttack = AISectAttackManager.decidePlayerAttack(data)
         
-        val allNewBattles = newBattles + supportBattles + listOfNotNull(playerAttack)
+        val allNewBattles = newBattles + listOfNotNull(playerAttack)
         
         if (allNewBattles.isNotEmpty()) {
             _gameData.value = data.copy(
@@ -14399,12 +14664,34 @@ class GameEngine {
                     }
                 }
                 "manual" -> {
-                    val manual = ManualDatabase.generateRandom(
-                        minRarity = redeemCode.rarity,
-                        maxRarity = redeemCode.rarity
-                    )
-                    if (_manuals.value.none { it.id == manual.id }) {
-                        _manuals.value = _manuals.value + manual
+                    val template = ManualDatabase.getByNameAndRarity(reward.name, reward.rarity)
+                    if (template != null) {
+                        val manual = Manual(
+                            id = java.util.UUID.randomUUID().toString(),
+                            name = template.name,
+                            rarity = reward.rarity,
+                            description = template.description,
+                            type = template.type,
+                            stats = template.stats,
+                            skillName = template.skillName,
+                            skillDescription = template.skillDescription,
+                            skillType = template.skillType,
+                            skillDamageType = template.skillDamageType,
+                            skillHits = template.skillHits,
+                            skillDamageMultiplier = template.skillDamageMultiplier,
+                            skillCooldown = template.skillCooldown,
+                            skillMpCost = template.skillMpCost,
+                            skillHealPercent = template.skillHealPercent,
+                            skillHealType = template.skillHealType,
+                            skillBuffType = template.skillBuffType,
+                            skillBuffValue = template.skillBuffValue,
+                            skillBuffDuration = template.skillBuffDuration,
+                            minRealm = GameConfig.Realm.getMinRealmForRarity(reward.rarity),
+                            quantity = reward.quantity
+                        )
+                        addManualToWarehouse(manual)
+                    } else {
+                        Log.w(TAG, "无法找到功法模板: ${reward.name}, rarity: ${reward.rarity}")
                     }
                 }
                 "pill" -> {

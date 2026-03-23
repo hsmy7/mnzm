@@ -91,33 +91,37 @@ fun MissionHallDialog(
         }
     }
 
-    if (showDiscipleSelection && selectedMission != null) {
-        DiscipleSelectionDialog(
-            mission = selectedMission!!,
-            disciples = disciples,
-            busyDiscipleIds = busyDiscipleIds,
-            onConfirm = { selectedDisciples ->
-                viewModel.startMission(selectedMission!!, selectedDisciples)
-                showDiscipleSelection = false
-                selectedMission = null
-            },
-            onDismiss = {
-                showDiscipleSelection = false
-                selectedMission = null
-            }
-        )
+    if (showDiscipleSelection) {
+        selectedMission?.let { mission ->
+            DiscipleSelectionDialog(
+                mission = mission,
+                disciples = disciples,
+                busyDiscipleIds = busyDiscipleIds,
+                onConfirm = { selectedDisciples ->
+                    viewModel.startMission(mission, selectedDisciples)
+                    showDiscipleSelection = false
+                    selectedMission = null
+                },
+                onDismiss = {
+                    showDiscipleSelection = false
+                    selectedMission = null
+                }
+            )
+        }
     }
 
-    if (showActiveMissionDetail && selectedActiveMission != null) {
-        ActiveMissionDetailDialog(
-            mission = selectedActiveMission!!,
-            currentYear = currentYear,
-            currentMonth = currentMonth,
-            onDismiss = {
-                showActiveMissionDetail = false
-                selectedActiveMission = null
-            }
-        )
+    if (showActiveMissionDetail) {
+        selectedActiveMission?.let { mission ->
+            ActiveMissionDetailDialog(
+                mission = mission,
+                currentYear = currentYear,
+                currentMonth = currentMonth,
+                onDismiss = {
+                    showActiveMissionDetail = false
+                    selectedActiveMission = null
+                }
+            )
+        }
     }
 }
 

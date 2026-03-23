@@ -7,6 +7,9 @@ import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.data.local.*
 import com.xianxia.sect.data.GameRepository
 import com.xianxia.sect.data.SessionManager
+import com.xianxia.sect.data.SaveManager
+import com.xianxia.sect.domain.usecase.*
+import com.xianxia.sect.ui.state.DialogStateManager
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -83,10 +86,6 @@ object AppModule {
 
     @Provides
     fun provideForgeSlotDao(database: GameDatabase): ForgeSlotDao = database.forgeSlotDao()
-    
-    @Provides
-    @Singleton
-    fun provideGameEngine(): GameEngine = GameEngine()
     
     @Provides
     @Singleton

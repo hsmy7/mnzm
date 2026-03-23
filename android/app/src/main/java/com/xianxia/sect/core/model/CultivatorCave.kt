@@ -469,7 +469,8 @@ data class BattleLogAction(
     val damageType: String = "",
     val isCrit: Boolean = false,
     val isKill: Boolean = false,
-    val message: String = ""
+    val message: String = "",
+    val skillName: String? = null
 )
 
 // 战斗日志结果

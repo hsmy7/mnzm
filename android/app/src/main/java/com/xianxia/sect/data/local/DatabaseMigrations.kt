@@ -1025,7 +1025,9 @@ object DatabaseMigrations {
             MIGRATION_47_48,
             MIGRATION_48_49,
             MIGRATION_49_50,
-            MIGRATION_50_51
+            MIGRATION_50_51,
+            MIGRATION_51_52,
+            MIGRATION_52_53
         )
 
     private val MIGRATION_35_36 = object : Migration(35, 36) {
@@ -1463,10 +1465,10 @@ object DatabaseMigrations {
                 db.execSQL("ALTER TABLE disciples ADD COLUMN baseMp INTEGER NOT NULL DEFAULT 50")
             }
             if (!columns.contains("basePhysicalAttack")) {
-                db.execSQL("ALTER TABLE disciples ADD COLUMN basePhysicalAttack INTEGER NOT NULL DEFAULT 10")
+                db.execSQL("ALTER TABLE disciples ADD COLUMN basePhysicalAttack INTEGER NOT NULL DEFAULT 7")
             }
             if (!columns.contains("baseMagicAttack")) {
-                db.execSQL("ALTER TABLE disciples ADD COLUMN baseMagicAttack INTEGER NOT NULL DEFAULT 5")
+                db.execSQL("ALTER TABLE disciples ADD COLUMN baseMagicAttack INTEGER NOT NULL DEFAULT 7")
             }
             if (!columns.contains("basePhysicalDefense")) {
                 db.execSQL("ALTER TABLE disciples ADD COLUMN basePhysicalDefense INTEGER NOT NULL DEFAULT 5")
@@ -1482,8 +1484,8 @@ object DatabaseMigrations {
                 UPDATE disciples SET 
                     baseHp = CAST(100.0 * (1.0 + combatStatsVariance / 100.0) AS INTEGER),
                     baseMp = CAST(50.0 * (1.0 + combatStatsVariance / 100.0) AS INTEGER),
-                    basePhysicalAttack = CAST(10.0 * (1.0 + combatStatsVariance / 100.0) AS INTEGER),
-                    baseMagicAttack = CAST(5.0 * (1.0 + combatStatsVariance / 100.0) AS INTEGER),
+                    basePhysicalAttack = CAST(7.0 * (1.0 + combatStatsVariance / 100.0) AS INTEGER),
+                    baseMagicAttack = CAST(7.0 * (1.0 + combatStatsVariance / 100.0) AS INTEGER),
                     basePhysicalDefense = CAST(5.0 * (1.0 + combatStatsVariance / 100.0) AS INTEGER),
                     baseMagicDefense = CAST(3.0 * (1.0 + combatStatsVariance / 100.0) AS INTEGER),
                     baseSpeed = CAST(10.0 * (1.0 + combatStatsVariance / 100.0) AS INTEGER)
@@ -1585,6 +1587,66 @@ object DatabaseMigrations {
             val columns = getExistingColumns(db, "manuals")
             if (!columns.contains("skillBuffsJson")) {
                 db.execSQL("ALTER TABLE manuals ADD COLUMN skillBuffsJson TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
+        private fun getExistingColumns(db: SupportSQLiteDatabase, tableName: String): Set<String> {
+            val columns = mutableSetOf<String>()
+            val cursor = db.query("PRAGMA table_info($tableName)")
+            cursor.use {
+                val nameIndex = it.getColumnIndex("name")
+                while (it.moveToNext()) {
+                    columns.add(it.getString(nameIndex))
+                }
+            }
+            return columns
+        }
+    }
+
+    private val MIGRATION_51_52 = object : Migration(51, 52) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            val columns = getExistingColumns(db, "manuals")
+            if (!columns.contains("quantity")) {
+                db.execSQL("ALTER TABLE manuals ADD COLUMN quantity INTEGER NOT NULL DEFAULT 1")
+            }
+        }
+
+        private fun getExistingColumns(db: SupportSQLiteDatabase, tableName: String): Set<String> {
+            val columns = mutableSetOf<String>()
+            val cursor = db.query("PRAGMA table_info($tableName)")
+            cursor.use {
+                val nameIndex = it.getColumnIndex("name")
+                while (it.moveToNext()) {
+                    columns.add(it.getString(nameIndex))
+                }
+            }
+            return columns
+        }
+    }
+
+    private val MIGRATION_52_53 = object : Migration(52, 53) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            val columns = getExistingColumns(db, "disciples")
+            if (!columns.contains("hpVariance")) {
+                db.execSQL("ALTER TABLE disciples ADD COLUMN hpVariance INTEGER NOT NULL DEFAULT 0")
+            }
+            if (!columns.contains("mpVariance")) {
+                db.execSQL("ALTER TABLE disciples ADD COLUMN mpVariance INTEGER NOT NULL DEFAULT 0")
+            }
+            if (!columns.contains("physicalAttackVariance")) {
+                db.execSQL("ALTER TABLE disciples ADD COLUMN physicalAttackVariance INTEGER NOT NULL DEFAULT 0")
+            }
+            if (!columns.contains("magicAttackVariance")) {
+                db.execSQL("ALTER TABLE disciples ADD COLUMN magicAttackVariance INTEGER NOT NULL DEFAULT 0")
+            }
+            if (!columns.contains("physicalDefenseVariance")) {
+                db.execSQL("ALTER TABLE disciples ADD COLUMN physicalDefenseVariance INTEGER NOT NULL DEFAULT 0")
+            }
+            if (!columns.contains("magicDefenseVariance")) {
+                db.execSQL("ALTER TABLE disciples ADD COLUMN magicDefenseVariance INTEGER NOT NULL DEFAULT 0")
+            }
+            if (!columns.contains("speedVariance")) {
+                db.execSQL("ALTER TABLE disciples ADD COLUMN speedVariance INTEGER NOT NULL DEFAULT 0")
             }
         }
 

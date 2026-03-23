@@ -13,6 +13,9 @@ object WorldMapGenerator {
     private const val TARGET_SECT_COUNT = 55
     private const val MAX_ATTEMPTS = 50000
     
+    const val INITIAL_SECT_FAVOR = 50
+    private const val SAME_ALIGNMENT_BONUS = 10
+    
     // 区块数据类
     private data class MapRegion(
         val index: Int,
@@ -335,8 +338,9 @@ object WorldMapGenerator {
         val parent = mutableMapOf<String, String>()
         
         fun find(x: String): String {
-            if (parent[x] != x) {
-                parent[x] = find(parent[x]!!)
+            val parentX = parent[x]
+            if (parentX != null && parentX != x) {
+                parent[x] = find(parentX)
             }
             return parent[x] ?: x
         }
@@ -433,7 +437,7 @@ object WorldMapGenerator {
         }
         
         val levelNames = listOf("小型宗门", "中型宗门", "大型宗门", "顶级宗门")
-        val maxRealmByLevel = listOf(5, 3, 1, 0)
+        val maxRealmByLevel = listOf(6, 4, 3, 1)
         val maxRealm = maxRealmByLevel[level]
         
         val disciples = mutableMapOf<Int, Int>()
@@ -448,7 +452,7 @@ object WorldMapGenerator {
         }
         
         for (realm in (maxRealm + 1)..9) {
-            disciples[realm] = Random.nextInt(10, 41)
+            disciples[realm] = Random.nextInt(5, 21)
         }
         
         return SectLevelInfo(level, levelNames[level], disciples)
@@ -456,7 +460,7 @@ object WorldMapGenerator {
     
     private fun generateDisciplesForLevel(level: Int): Map<Int, Int> {
         val disciples = mutableMapOf<Int, Int>()
-        val maxRealmByLevel = listOf(5, 3, 1, 0)
+        val maxRealmByLevel = listOf(6, 4, 3, 1)
         val maxRealm = maxRealmByLevel.getOrElse(level) { 9 }
         
         for (realm in 0..9) {
@@ -466,7 +470,7 @@ object WorldMapGenerator {
         disciples[maxRealm] = Random.nextInt(1, 6)
         
         for (realm in (maxRealm + 1)..9) {
-            disciples[realm] = Random.nextInt(10, 41)
+            disciples[realm] = Random.nextInt(5, 21)
         }
         
         return disciples
@@ -485,13 +489,7 @@ object WorldMapGenerator {
                 val sect1 = aiSects[i]
                 val sect2 = aiSects[j]
                 
-                var initialFavor = 50
-                
-                if (sect1.isRighteous == sect2.isRighteous) {
-                    initialFavor += 10
-                }
-                
-                initialFavor = initialFavor.coerceIn(10, 90)
+                val initialFavor = calculateInitialFavor(sect1.isRighteous == sect2.isRighteous)
                 
                 relations.add(SectRelation(
                     sectId1 = minOf(sect1.id, sect2.id),
@@ -504,18 +502,28 @@ object WorldMapGenerator {
         
         if (playerSect != null) {
             for (aiSect in aiSects) {
-                val initialFavor = aiSect.relation.coerceIn(0, 100)
-                
                 relations.add(SectRelation(
                     sectId1 = minOf(playerSect.id, aiSect.id),
                     sectId2 = maxOf(playerSect.id, aiSect.id),
-                    favor = initialFavor,
+                    favor = INITIAL_SECT_FAVOR,
                     lastInteractionYear = 0
                 ))
             }
         }
         
         return relations
+    }
+    
+    fun calculateInitialFavorForSects(sect1: WorldSect, sect2: WorldSect): Int {
+        return calculateInitialFavor(sect1.isRighteous == sect2.isRighteous)
+    }
+    
+    private fun calculateInitialFavor(sameAlignment: Boolean): Int {
+        var favor = INITIAL_SECT_FAVOR
+        if (sameAlignment) {
+            favor += SAME_ALIGNMENT_BONUS
+        }
+        return favor.coerceIn(10, 90)
     }
     
     data class SectLevelInfo(

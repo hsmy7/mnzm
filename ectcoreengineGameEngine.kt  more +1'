@@ -1,0 +1,50 @@
+[1mdiff --git a/android/app/src/main/java/com/xianxia/sect/core/GameConfig.kt b/android/app/src/main/java/com/xianxia/sect/core/GameConfig.kt[m
+[1mindex 48124bd..9ea67af 100644[m
+[1m--- a/android/app/src/main/java/com/xianxia/sect/core/GameConfig.kt[m
+[1m+++ b/android/app/src/main/java/com/xianxia/sect/core/GameConfig.kt[m
+[36m@@ -4,21 +4,41 @@[m [mobject GameConfig {[m
+     [m
+     object Game {[m
+         const val NAME = "模拟宗门"[m
+[31m-        const val VERSION = "1.4.88"[m
+[32m+[m[32m        const val VERSION = "1.5.01"[m
+         const val AUTO_SAVE_INTERVAL_SECONDS = 60L[m
+         const val AUTO_SAVE_DEBOUNCE_MS = 30_000L[m
+         const val MAX_SAVE_SLOTS = 5[m
+     }[m
+     [m
+     object Time {[m
+[31m-        const val TICK_INTERVAL = 200L[m
+[31m-        const val TICKS_PER_SECOND = 5[m
+[32m+[m[32m        const val TICK_INTERVAL = 100L[m
+[32m+[m[32m        const val TICKS_PER_SECOND = 10[m
+         const val SECONDS_PER_REAL_MONTH = 10[m
+         const val DAYS_PER_MONTH = 30[m
+         const val MONTHS_PER_YEAR = 12[m
+         const val MAX_EXPLORE_TIME = 12[m
+[31m-        const val HIGH_FREQUENCY_UPDATE_INTERVAL = 200L[m
+[32m+[m[32m        const val HIGH_FREQUENCY_UPDATE_INTERVAL = 100L[m
+         const val LOW_FREQUENCY_UPDATE_INTERVAL = 1000L[m
+[32m+[m[41m        [m
+[32m+[m[32m        const val BASE_TPS = 10[m
+[32m+[m[32m        const val HIGH_PERF_TPS = 20[m
+[32m+[m[32m        const val LOW_PERF_TPS = 5[m
+[32m+[m[41m        [m
+[32m+[m[32m        fun getTickIntervalForPerformance(performanceLevel: PerformanceLevel): Long {[m
+[32m+[m[32m            return when (performanceLevel) {[m
+[32m+[m[32m                PerformanceLevel.HIGH -> 1000L / HIGH_PERF_TPS[m
+[32m+[m[32m                PerformanceLevel.MEDIUM -> 1000L / BASE_TPS[m
+[32m+[m[32m                PerformanceLevel.LOW -> 1000L / LOW_PERF_TPS[m
+[32m+[m[32m                PerformanceLevel.CRITICAL -> 1000L / LOW_PERF_TPS[m
+[32m+[m[32m            }[m
+[32m+[m[32m        }[m
+[32m+[m[32m    }[m
+[32m+[m[41m    [m
+[32m+[m[32m    enum class PerformanceLevel {[m
+[32m+[m[32m        LOW,[m
+[32m+[m[32m        MEDIUM,[m
+[32m+[m[32m        HIGH,[m
+[32m+[m[32m        CRITICAL[m
+     }[m
+     [m
+     object Cultivation {[m

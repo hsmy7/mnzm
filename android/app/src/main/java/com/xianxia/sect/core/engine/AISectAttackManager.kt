@@ -18,11 +18,7 @@ import kotlin.random.Random
 
 object AISectAttackManager {
     
-    private const val MIN_FAVOR_FOR_ATTACK = 20
     private const val MIN_DISCIPLES_FOR_ATTACK = 10
-    private const val BASE_ATTACK_PROBABILITY = 0.03
-    private const val MAX_ATTACK_PROBABILITY = 0.20
-    private const val RIGHTEOUS_EVIL_BONUS = 0.10
     private const val POWER_RATIO_THRESHOLD = 0.8
     const val TEAM_SIZE = 10
     
@@ -46,13 +42,10 @@ object AISectAttackManager {
                 
                 if (!checkAttackConditions(attacker, defender, gameData)) continue
                 
-                val probability = calculateAttackProbability(attacker, defender, gameData)
-                if (Random.nextDouble() < probability) {
-                    val battleTeam = createAttackTeam(attacker, defender, gameData)
-                    if (battleTeam != null) {
-                        newBattles.add(battleTeam)
-                        break
-                    }
+                val battleTeam = createAttackTeam(attacker, defender, gameData)
+                if (battleTeam != null) {
+                    newBattles.add(battleTeam)
+                    break
                 }
             }
         }
@@ -71,7 +64,7 @@ object AISectAttackManager {
             (it.sectId1 == defender.id && it.sectId2 == attacker.id)
         }
         val favor = relation?.favor ?: 0
-        if (favor >= MIN_FAVOR_FOR_ATTACK) return false
+        if (favor > 0) return false
         
         if (attacker.allianceId != null && attacker.allianceId == defender.allianceId) return false
         
@@ -106,24 +99,6 @@ object AISectAttackManager {
         val powerScore = disciples.size * (10.0 - avgRealm)
         
         return powerScore
-    }
-    
-    fun calculateAttackProbability(attacker: WorldSect, defender: WorldSect, gameData: GameData): Double {
-        var probability = BASE_ATTACK_PROBABILITY
-        
-        val relation = gameData.sectRelations.find { 
-            (it.sectId1 == attacker.id && it.sectId2 == defender.id) ||
-            (it.sectId1 == defender.id && it.sectId2 == attacker.id)
-        }
-        val favor = relation?.favor ?: 0
-        val favorPenalty = (MIN_FAVOR_FOR_ATTACK - favor) * 0.005
-        probability += favorPenalty
-        
-        if (attacker.isRighteous != defender.isRighteous) {
-            probability += RIGHTEOUS_EVIL_BONUS
-        }
-        
-        return minOf(probability, MAX_ATTACK_PROBABILITY)
     }
     
     fun createAttackTeam(attacker: WorldSect, defender: WorldSect, gameData: GameData): AIBattleTeam? {
@@ -188,42 +163,6 @@ object AISectAttackManager {
         return targets.toList()
     }
     
-    fun checkAllianceSupport(gameData: GameData): List<AIBattleTeam> {
-        val supportBattles = mutableListOf<AIBattleTeam>()
-        val existingAttacks = gameData.aiBattleTeams.filter { it.status == "moving" || it.status == "battling" }
-        
-        for (attack in existingAttacks) {
-            val defender = gameData.worldMapSects.find { it.id == attack.defenderSectId } ?: continue
-            val attacker = gameData.worldMapSects.find { it.id == attack.attackerSectId } ?: continue
-            
-            if (defender.allianceId == null) continue
-            
-            val allies = gameData.worldMapSects.filter { sect ->
-                sect.allianceId == defender.allianceId && sect.id != defender.id
-            }
-            
-            for (ally in allies) {
-                val relationToDefender = gameData.sectRelations.find {
-                    (it.sectId1 == ally.id && it.sectId2 == defender.id) ||
-                    (it.sectId1 == defender.id && it.sectId2 == ally.id)
-                }
-                
-                if ((relationToDefender?.favor ?: 0) <= 90) continue
-                
-                if (!isRouteConnected(ally, attacker, gameData)) continue
-                
-                if (Random.nextDouble() < 0.032) {
-                    val battleTeam = createAttackTeam(ally, attacker, gameData)
-                    if (battleTeam != null) {
-                        supportBattles.add(battleTeam)
-                    }
-                }
-            }
-        }
-        
-        return supportBattles
-    }
-    
     fun decidePlayerAttack(gameData: GameData): AIBattleTeam? {
         if (gameData.isPlayerProtected) return null
         
@@ -245,14 +184,11 @@ object AISectAttackManager {
                 (it.sectId1 == playerSect.id && it.sectId2 == attacker.id)
             }
             val favor = relation?.favor ?: 0
-            if (favor >= MIN_FAVOR_FOR_ATTACK) continue
+            if (favor > 0) continue
             
             if (attacker.allianceId != null && playerSect.allianceId == attacker.allianceId) continue
             
-            val probability = calculateAttackProbability(attacker, playerSect, gameData)
-            if (Random.nextDouble() < probability) {
-                return createAttackTeam(attacker, playerSect, gameData)
-            }
+            return createAttackTeam(attacker, playerSect, gameData)
         }
         
         return null
@@ -355,6 +291,10 @@ object AISectAttackManager {
     }
     
     private fun convertToCombatant(disciple: Disciple, isAttacker: Boolean): AICombatant {
+        if (!ManualDatabase.isInitialized) {
+            throw IllegalStateException("ManualDatabase not initialized when converting disciple ${disciple.name} to combatant")
+        }
+        
         val equipmentMap = buildMap {
             disciple.weaponId?.let { weaponId ->
                 EquipmentDatabase.getById(weaponId)?.let { template ->

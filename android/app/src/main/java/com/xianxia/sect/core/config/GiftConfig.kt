@@ -211,7 +211,7 @@ object GiftConfig {
          * @return 拒绝概率 (0-100)
          */
         fun getRejectProbability(sectLevel: Int, rarity: Int): Int {
-            val levelConfig = REJECT_MATRIX[sectLevel] ?: REJECT_MATRIX[0]!!
+            val levelConfig = REJECT_MATRIX[sectLevel] ?: REJECT_MATRIX[0] ?: emptyMap()
             return levelConfig[rarity] ?: 0
         }
 

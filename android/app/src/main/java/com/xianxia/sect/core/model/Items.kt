@@ -8,6 +8,7 @@ import com.xianxia.sect.core.engine.DamageType
 import com.xianxia.sect.core.engine.SkillType
 import com.xianxia.sect.core.engine.HealType
 import com.xianxia.sect.core.engine.BuffType
+import com.xianxia.sect.core.util.StackableItem
 
 sealed class GameItem {
     abstract val id: String
@@ -175,8 +176,11 @@ data class Manual(
     val minRealm: Int = 9,
     
     var ownerId: String? = null,
-    var isLearned: Boolean = false
-) : GameItem() {
+    var isLearned: Boolean = false,
+    override var quantity: Int = 1
+) : GameItem(), StackableItem {
+    
+    override fun withQuantity(newQuantity: Int): Manual = copy(quantity = newQuantity)
     
     val basePrice: Int get() = GameConfig.Rarity.get(rarity).basePrice
     
@@ -309,8 +313,10 @@ data class Pill(
     val clearAll: Boolean = false,
     val mpRecoverMaxMpPercent: Double = 0.0,
     
-    var quantity: Int = 1
-) : GameItem() {
+    override var quantity: Int = 1
+) : GameItem(), StackableItem {
+    
+    override fun withQuantity(newQuantity: Int): Pill = copy(quantity = newQuantity)
     
     val basePrice: Int get() = (GameConfig.Rarity.get(rarity).basePrice * 0.8).toInt() // 丹药基础价格是功法/装备的80%
     
@@ -391,8 +397,10 @@ data class Material(
     override val description: String = "",
     
     val category: MaterialCategory = MaterialCategory.BEAST_HIDE,
-    var quantity: Int = 1
-) : GameItem() {
+    override var quantity: Int = 1
+) : GameItem(), StackableItem {
+    
+    override fun withQuantity(newQuantity: Int): Material = copy(quantity = newQuantity)
     
     val basePrice: Int get() = (GameConfig.Rarity.get(rarity).basePrice * 0.05).toInt()
 }
@@ -434,8 +442,10 @@ data class Herb(
     override val description: String = "",
 
     val category: String = "",
-    var quantity: Int = 1
-) : GameItem() {
+    override var quantity: Int = 1
+) : GameItem(), StackableItem {
+    
+    override fun withQuantity(newQuantity: Int): Herb = copy(quantity = newQuantity)
     
     val basePrice: Int get() = (GameConfig.Rarity.get(rarity).basePrice * 0.05).toInt()
 }
@@ -450,8 +460,10 @@ data class Seed(
     
     val growTime: Int = 3,
     val yield: Int = 1,
-    var quantity: Int = 1
-) : GameItem() {
+    override var quantity: Int = 1
+) : GameItem(), StackableItem {
+    
+    override fun withQuantity(newQuantity: Int): Seed = copy(quantity = newQuantity)
     
     val basePrice: Int get() = (GameConfig.Rarity.get(rarity).basePrice * 0.05).toInt()
 }

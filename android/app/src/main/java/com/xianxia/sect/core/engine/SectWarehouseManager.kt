@@ -5,6 +5,7 @@ import com.xianxia.sect.core.data.EquipmentDatabase
 import com.xianxia.sect.core.data.ManualDatabase
 import com.xianxia.sect.core.data.PillRecipeDatabase
 import com.xianxia.sect.core.model.Herb
+import com.xianxia.sect.core.model.ManualType
 import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.MaterialCategory
 import com.xianxia.sect.core.model.Pill
@@ -98,9 +99,8 @@ object SectWarehouseManager {
     private fun generateWarehouseManual(rarity: Int): WarehouseItem? {
         var currentRarity = rarity
         while (currentRarity >= 1) {
-            val allManuals = ManualDatabase.attackManuals.values.filter { it.rarity == currentRarity } +
-                             ManualDatabase.defenseManuals.values.filter { it.rarity == currentRarity } +
-                             ManualDatabase.mindManuals.values.filter { it.rarity == currentRarity }
+            val allManuals = ManualDatabase.getByRarity(currentRarity)
+                .filter { it.type != ManualType.SUPPORT }
             
             if (allManuals.isNotEmpty()) {
                 val template = allManuals.random()

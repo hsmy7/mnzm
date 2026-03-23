@@ -283,25 +283,25 @@ class GameViewModel @Inject constructor(
         
         val usedMemory = totalMemory - freeMemory
         val availableMemory = maxMemory - usedMemory
-        
-        val threshold = maxOf(
-            (maxMemory * 0.05).toLong(),
-            50 * 1024 * 1024L
-        )
-
+        val memoryRatio = availableMemory.toDouble() / maxMemory.toDouble()
         val memoryUsagePercent = (usedMemory * 100 / maxMemory)
         
-        if (memoryUsagePercent > 85) {
-            Log.w(TAG, "High memory usage: ${memoryUsagePercent}%, suggesting GC")
+        if (memoryRatio < 0.3) {
+            Log.w(TAG, "Low memory before save: ${memoryUsagePercent}% used, forcing GC")
             System.gc()
+            Thread.sleep(100)
+            val newFree = runtime.freeMemory()
+            val newAvailable = maxMemory - (runtime.totalMemory() - newFree)
+            if (newAvailable.toDouble() / maxMemory < 0.2) {
+                Log.e(TAG, "Insufficient memory after GC: only ${newAvailable/1024/1024}MB available")
+                return false
+            }
         }
 
         Log.d(TAG, "Memory status: max=${maxMemory / MB}MB, " +
-                "total=${totalMemory / MB}MB, free=${freeMemory / MB}MB, " +
-                "used=${usedMemory / MB}MB (${memoryUsagePercent}%), available=${availableMemory / MB}MB, " +
-                "threshold=${threshold / MB}MB")
+                "used=${usedMemory / MB}MB (${memoryUsagePercent}%), available=${availableMemory / MB}MB")
 
-        return availableMemory > threshold
+        return true
     }
 
     private fun performGarbageCollection() {
@@ -530,7 +530,12 @@ class GameViewModel @Inject constructor(
                 Log.d(TAG, "Game engine created new game, elapsed=${System.currentTimeMillis() - startTime}ms")
                 
                 _loadingProgress.value = PROGRESS_SAVE_COMPLETE
-                saveGame(slot.toString())
+                val saveSuccess = performSynchronousSave(slot)
+                if (!saveSuccess) {
+                    Log.e(TAG, "=== startNewGame FAILED === save failed for slot $slot")
+                    _errorMessage.value = "保存失败，请重试"
+                    return@launch
+                }
                 Log.d(TAG, "Game saved to slot $slot, elapsed=${System.currentTimeMillis() - startTime}ms")
                 
                 _loadingProgress.value = PROGRESS_GAME_LOOP_START
@@ -540,7 +545,6 @@ class GameViewModel @Inject constructor(
                 _isGameLoaded = true
                 _loadingProgress.value = PROGRESS_COMPLETE
                 
-                // 记录游戏状态快照
                 val gd = gameEngine.gameData.value
                 Log.i(TAG, "=== startNewGame SUCCESS === " +
                     "sectName=${gd.sectName}, year=${gd.gameYear}, month=${gd.gameMonth}, day=${gd.gameDay}, " +
@@ -550,9 +554,51 @@ class GameViewModel @Inject constructor(
                 Log.e(TAG, "=== startNewGame FAILED === error=${e.message}", e)
                 _errorMessage.value = e.message ?: "开始新游戏失败"
             } finally {
-                delay(LOADING_COMPLETE_DISPLAY_DURATION) // 确保用户能看到 100% 状态
+                delay(LOADING_COMPLETE_DISPLAY_DURATION)
                 _isLoading.value = false
                 _loadingProgress.value = PROGRESS_START
+            }
+        }
+    }
+
+    private suspend fun performSynchronousSave(slot: Int): Boolean {
+        return withContext(Dispatchers.IO) {
+            try {
+                val snapshot = gameEngine.getStateSnapshot()
+                if (snapshot.gameData.sectName.isBlank()) {
+                    Log.e(TAG, "performSynchronousSave: gameData not initialized")
+                    return@withContext false
+                }
+                val updatedGameData = snapshot.gameData.copy(currentSlot = slot)
+                val saveData = SaveData(
+                    gameData = updatedGameData,
+                    disciples = snapshot.disciples,
+                    equipment = snapshot.equipment,
+                    manuals = snapshot.manuals,
+                    pills = snapshot.pills,
+                    materials = snapshot.materials,
+                    herbs = snapshot.herbs,
+                    seeds = snapshot.seeds,
+                    teams = snapshot.teams,
+                    slots = snapshot.buildingSlots,
+                    events = snapshot.events,
+                    battleLogs = snapshot.battleLogs,
+                    alliances = snapshot.alliances,
+                    supportTeams = snapshot.supportTeams,
+                    alchemySlots = snapshot.alchemySlots
+                )
+                val success = saveManager.saveAsync(slot, saveData)
+                if (success) {
+                    gameEngine.updateGameData { updatedGameData }
+                    _saveSlots.value = saveManager.getSaveSlots()
+                    Log.i(TAG, "performSynchronousSave SUCCESS for slot $slot")
+                } else {
+                    Log.e(TAG, "performSynchronousSave FAILED for slot $slot")
+                }
+                success
+            } catch (e: Exception) {
+                Log.e(TAG, "performSynchronousSave ERROR: ${e.message}", e)
+                false
             }
         }
     }
@@ -797,6 +843,10 @@ class GameViewModel @Inject constructor(
                     Log.e(TAG, "=== saveGame FAILED === saveManager.saveAsync returned false")
                     _errorMessage.value = "保存失败，请重试"
                 }
+            } catch (e: OutOfMemoryError) {
+                Log.e(TAG, "=== saveGame FAILED === OutOfMemoryError", e)
+                System.gc()
+                _errorMessage.value = "内存不足，保存失败。请关闭其他应用后重试。"
             } catch (e: Exception) {
                 Log.e(TAG, "=== saveGame FAILED === error=${e.message}", e)
                 _errorMessage.value = "保存失败: ${e.message}"
@@ -871,6 +921,10 @@ class GameViewModel @Inject constructor(
                     Log.e(TAG, "=== saveToSlot FAILED === saveManager.saveAsync returned false")
                     _errorMessage.value = "保存失败，请重试"
                 }
+            } catch (e: OutOfMemoryError) {
+                Log.e(TAG, "=== saveToSlot FAILED === OutOfMemoryError", e)
+                System.gc()
+                _errorMessage.value = "内存不足，保存失败。请关闭其他应用后重试。"
             } catch (e: Exception) {
                 Log.e(TAG, "=== saveToSlot FAILED === error=${e.message}", e)
                 _errorMessage.value = "保存失败: ${e.message}"
@@ -3317,10 +3371,10 @@ class GameViewModel @Inject constructor(
                         selectedRarities.contains(it.rarity) && !learnedManualIds.contains(it.id)
                     }
                     itemsToSell.forEach { item ->
-                        val sellPrice = (item.basePrice * 0.8).toInt()
+                        val sellPrice = (item.basePrice * item.quantity * 0.8).toInt()
                         totalValue += sellPrice
-                        soldItems.add(item.name)
-                        gameEngine.sellManual(item.id)
+                        soldItems.add("${item.name} x${item.quantity}")
+                        gameEngine.sellManual(item.id, item.quantity)
                     }
                 }
 
@@ -3461,28 +3515,54 @@ class GameViewModel @Inject constructor(
             Log.e(TAG, "Error waiting for save queue: ${e.message}")
         }
         
+        if (_isSaving.value) {
+            Log.i(TAG, "Waiting for current save operation to complete")
+            val waitStartTime = System.currentTimeMillis()
+            val maxWaitTime = 5000L
+            while (_isSaving.value && System.currentTimeMillis() - waitStartTime < maxWaitTime) {
+                Thread.sleep(100)
+            }
+            if (_isSaving.value) {
+                Log.w(TAG, "Save operation still in progress after timeout, proceeding with exit save")
+            } else {
+                Log.i(TAG, "Previous save operation completed")
+            }
+        }
+        
         try {
             val snapshot = gameEngine.getStateSnapshotSync()
-            val currentSlot = snapshot.gameData.currentSlot
-            val saveData = SaveData(
-                gameData = snapshot.gameData,
-                disciples = snapshot.disciples,
-                equipment = snapshot.equipment,
-                manuals = snapshot.manuals,
-                pills = snapshot.pills,
-                materials = snapshot.materials,
-                herbs = snapshot.herbs,
-                seeds = snapshot.seeds,
-                teams = snapshot.teams,
-                slots = snapshot.buildingSlots,
-                events = snapshot.events,
-                battleLogs = snapshot.battleLogs,
-                alliances = snapshot.alliances,
-                supportTeams = snapshot.supportTeams,
-                alchemySlots = snapshot.alchemySlots
-            )
-            saveManager.save(currentSlot, saveData)
-            Log.i(TAG, "Auto save on exit completed, slot: $currentSlot")
+            if (snapshot.gameData.sectName.isBlank()) {
+                Log.w(TAG, "Game data not initialized, skipping exit save")
+            } else {
+                val currentSlot = snapshot.gameData.currentSlot
+                if (currentSlot in 1..5) {
+                    val saveData = SaveData(
+                        gameData = snapshot.gameData,
+                        disciples = snapshot.disciples,
+                        equipment = snapshot.equipment,
+                        manuals = snapshot.manuals,
+                        pills = snapshot.pills,
+                        materials = snapshot.materials,
+                        herbs = snapshot.herbs,
+                        seeds = snapshot.seeds,
+                        teams = snapshot.teams,
+                        slots = snapshot.buildingSlots,
+                        events = snapshot.events,
+                        battleLogs = snapshot.battleLogs,
+                        alliances = snapshot.alliances,
+                        supportTeams = snapshot.supportTeams,
+                        alchemySlots = snapshot.alchemySlots
+                    )
+                    val success = saveManager.save(currentSlot, saveData)
+                    if (success) {
+                        Log.i(TAG, "Auto save on exit completed, slot: $currentSlot")
+                    } else {
+                        Log.w(TAG, "Auto save on exit skipped (another save in progress), slot: $currentSlot")
+                    }
+                } else {
+                    Log.w(TAG, "Invalid slot $currentSlot, skipping exit save")
+                }
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Auto save on exit failed: ${e.message}")
         }

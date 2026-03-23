@@ -499,7 +499,8 @@ private fun ItemGiftTab(
             enter = slideInVertically() + fadeIn(),
             exit = slideOutVertically() + fadeOut()
         ) {
-            if (selectedItem != null) {
+            val item = selectedItem
+            if (item != null) {
                 Spacer(modifier = Modifier.height(8.dp))
                 
                 Card(
@@ -517,13 +518,13 @@ private fun ItemGiftTab(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "已选: ${selectedItem!!.name}",
+                                text = "已选: ${item.name}",
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = GameColors.TextPrimary
                             )
                             Text(
-                                text = "库存: ${selectedItem!!.quantity}",
+                                text = "库存: ${item.quantity}",
                                 fontSize = 12.sp,
                                 color = GameColors.TextSecondary
                             )
@@ -573,15 +574,15 @@ private fun ItemGiftTab(
                                         .size(32.dp)
                                         .clip(CircleShape)
                                         .background(GameColors.Primary.copy(alpha = 0.1f))
-                                        .clickable(enabled = selectedQuantity < selectedItem!!.quantity) { 
-                                            if (selectedQuantity < selectedItem!!.quantity) selectedQuantity++ 
+                                        .clickable(enabled = selectedQuantity < item.quantity) { 
+                                            if (selectedQuantity < item.quantity) selectedQuantity++ 
                                         },
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
                                         "+", 
                                         fontSize = 18.sp, 
-                                        color = if (selectedQuantity < selectedItem!!.quantity) GameColors.Primary else GameColors.TextTertiary
+                                        color = if (selectedQuantity < item.quantity) GameColors.Primary else GameColors.TextTertiary
                                     )
                                 }
                                 
@@ -592,7 +593,7 @@ private fun ItemGiftTab(
                                     modifier = Modifier
                                         .padding(start = 4.dp)
                                         .clickable { 
-                                            selectedQuantity = selectedItem!!.quantity 
+                                            selectedQuantity = item.quantity 
                                         }
                                 )
                             }
@@ -611,8 +612,8 @@ private fun ItemGiftTab(
                                     if (!hasGiftedThisYear) {
                                         viewModel.giftItem(
                                             sectId = sect?.id ?: "",
-                                            itemId = selectedItem!!.id,
-                                            itemType = selectedItem!!.type,
+                                            itemId = item.id,
+                                            itemType = item.type,
                                             quantity = selectedQuantity
                                         )
                                         onDismiss()
@@ -627,14 +628,16 @@ private fun ItemGiftTab(
         }
     }
     
-    if (showDetailDialog && detailItem != null) {
-        ItemDetailDialog(
-            item = detailItem!!,
-            onDismiss = { 
-                showDetailDialog = false
-                detailItem = null
-            }
-        )
+    if (showDetailDialog) {
+        detailItem?.let { item ->
+            ItemDetailDialog(
+                item = item,
+                onDismiss = { 
+                    showDetailDialog = false
+                    detailItem = null
+                }
+            )
+        }
     }
 }
 

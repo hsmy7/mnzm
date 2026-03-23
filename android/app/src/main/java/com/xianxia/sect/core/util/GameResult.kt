@@ -2,24 +2,34 @@ package com.xianxia.sect.core.util
 
 sealed class GameResult<out T> {
     data class Success<out T>(val data: T) : GameResult<T>()
-    data class Error(val message: String, val exception: Throwable? = null) : GameResult<Nothing>()
+    data class Failure(val error: GameError) : GameResult<Nothing>()
     
     val isSuccess: Boolean get() = this is Success
-    val isError: Boolean get() = this is Error
+    val isFailure: Boolean get() = this is Failure
     
     fun getOrNull(): T? = when (this) {
         is Success -> data
-        is Error -> null
+        is Failure -> null
     }
     
     fun getErrorMessage(): String? = when (this) {
         is Success -> null
-        is Error -> message
+        is Failure -> error.message
+    }
+    
+    fun errorOrNull(): GameError? = when (this) {
+        is Success -> null
+        is Failure -> error
     }
     
     inline fun <R> map(transform: (T) -> R): GameResult<R> = when (this) {
         is Success -> Success(transform(data))
-        is Error -> this
+        is Failure -> this
+    }
+    
+    inline fun <R> flatMap(transform: (T) -> GameResult<R>): GameResult<R> = when (this) {
+        is Success -> transform(data)
+        is Failure -> this
     }
     
     inline fun onSuccess(action: (T) -> Unit): GameResult<T> {
@@ -27,23 +37,45 @@ sealed class GameResult<out T> {
         return this
     }
     
-    inline fun onError(action: (String) -> Unit): GameResult<T> {
-        if (this is Error) action(message)
+    inline fun onFailure(action: (GameError) -> Unit): GameResult<T> {
+        if (this is Failure) action(error)
         return this
     }
+    
+    inline fun recover(transform: (GameError) -> @UnsafeVariance T): T = when (this) {
+        is Success -> data
+        is Failure -> transform(error)
+    }
+    
+    fun getOrThrow(): T = when (this) {
+        is Success -> data
+        is Failure -> throw ResultException(error)
+    }
+    
+    class ResultException(val error: GameError) : Exception(error.message, error.cause)
     
     companion object {
         inline fun <T> of(block: () -> T): GameResult<T> {
             return try {
                 Success(block())
             } catch (e: Exception) {
-                Error(e.message ?: "Unknown error", e)
+                Failure(GameError.fromException(e))
+            }
+        }
+        
+        inline fun <T> ofNullable(block: () -> T?): GameResult<T> {
+            return try {
+                val result = block()
+                if (result != null) Success(result) else Failure(GameError.NotFound("结果为空"))
+            } catch (e: Exception) {
+                Failure(GameError.fromException(e))
             }
         }
     }
 }
 
 object ErrorHandler {
+    
     fun handleException(e: Throwable): String {
         return when (e) {
             is java.net.UnknownHostException -> "网络连接失败，请检查网络设置"
@@ -62,7 +94,7 @@ object ErrorHandler {
         return try {
             GameResult.Success(block())
         } catch (e: Exception) {
-            GameResult.Error(handleException(e), e)
+            GameResult.Failure(GameError.fromException(e))
         }
     }
     
@@ -70,7 +102,25 @@ object ErrorHandler {
         return try {
             GameResult.Success(block())
         } catch (e: Exception) {
-            GameResult.Error(handleException(e), e)
+            GameResult.Failure(GameError.fromException(e))
+        }
+    }
+    
+    inline fun <T> runCatching(tag: String, operation: String, block: () -> T): GameResult<T> {
+        return runCatching(tag, operation, ErrorContext.empty(), block)
+    }
+    
+    inline fun <T> runCatching(
+        tag: String,
+        operation: String,
+        context: ErrorContext,
+        block: () -> T
+    ): GameResult<T> {
+        return try {
+            GameResult.Success(block())
+        } catch (e: Exception) {
+            GameLogger.e(tag, "Error in $operation", context, e)
+            GameResult.Failure(GameError.fromException(e))
         }
     }
 }

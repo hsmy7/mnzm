@@ -162,25 +162,31 @@ object CaveExplorationSystem {
         val realmConfig = GameConfig.Realm.get(realm)
         val beastType = GameConfig.Beast.TYPES.random()
         
-        val variance = 0.8 + Random.nextDouble() * 0.4
+        val hpVariance = 0.5 + Random.nextDouble() * 1.0
+        val physicalAttackVariance = 0.5 + Random.nextDouble() * 1.0
+        val magicAttackVariance = 0.5 + Random.nextDouble() * 1.0
+        val physicalDefenseVariance = 0.5 + Random.nextDouble() * 1.0
+        val magicDefenseVariance = 0.5 + Random.nextDouble() * 1.0
+        val speedVariance = 0.5 + Random.nextDouble() * 1.0
+        
         val isPhysicalAttacker = Random.nextDouble() < 0.5
-        val atkMultiplier = 0.8 + Random.nextDouble() * 0.4
         
         val realmMultiplier = if (realm <= 4) 2.0 else 1.0
         
         val physicalAttack: Int
         val magicAttack: Int
         if (isPhysicalAttacker) {
-            physicalAttack = (realmConfig.cultivationBase * 5 * beastType.atkMod * atkMultiplier * realmMultiplier).toInt()
-            magicAttack = (realmConfig.cultivationBase * 5 * beastType.atkMod * 0.3 * atkMultiplier * realmMultiplier).toInt()
+            physicalAttack = (realmConfig.cultivationBase * 5 * beastType.atkMod * physicalAttackVariance * realmMultiplier).toInt()
+            magicAttack = (realmConfig.cultivationBase * 5 * beastType.atkMod * 0.3 * magicAttackVariance * realmMultiplier).toInt()
         } else {
-            physicalAttack = (realmConfig.cultivationBase * 5 * beastType.atkMod * 0.3 * atkMultiplier * realmMultiplier).toInt()
-            magicAttack = (realmConfig.cultivationBase * 5 * beastType.atkMod * atkMultiplier * realmMultiplier).toInt()
+            physicalAttack = (realmConfig.cultivationBase * 5 * beastType.atkMod * 0.3 * physicalAttackVariance * realmMultiplier).toInt()
+            magicAttack = (realmConfig.cultivationBase * 5 * beastType.atkMod * magicAttackVariance * realmMultiplier).toInt()
         }
         
-        val hp = (realmConfig.cultivationBase * 20 * beastType.hpMod * variance * realmMultiplier).toInt()
-        val defense = (realmConfig.cultivationBase * 2 * beastType.defMod * variance * realmMultiplier).toInt()
-        val speed = (50 + realm * 10 * beastType.speedMod * variance).toInt()
+        val hp = (realmConfig.cultivationBase * 20 * beastType.hpMod * hpVariance * realmMultiplier).toInt()
+        val defense = (realmConfig.cultivationBase * 2 * beastType.defMod * physicalDefenseVariance * realmMultiplier).toInt()
+        val magicDefense = (realmConfig.cultivationBase * 2 * beastType.defMod * 0.8 * magicDefenseVariance * realmMultiplier).toInt()
+        val speed = (50 + realm * 10 * beastType.speedMod * speedVariance).toInt()
         
         return Combatant(
             id = "guardian_$index",
@@ -193,7 +199,7 @@ object CaveExplorationSystem {
             physicalAttack = physicalAttack,
             magicAttack = magicAttack,
             physicalDefense = defense,
-            magicDefense = (defense * 0.8).toInt(),
+            magicDefense = magicDefense,
             speed = speed,
             critRate = 0.05 + realm * 0.01,
             skills = emptyList(),
@@ -290,9 +296,7 @@ object CaveExplorationSystem {
     private fun generateRandomManual(rarity: Int): CaveRewardItem? {
         var currentRarity = rarity
         while (currentRarity >= 1) {
-            val allManuals = ManualDatabase.attackManuals.values.filter { it.rarity == currentRarity } +
-                             ManualDatabase.defenseManuals.values.filter { it.rarity == currentRarity } +
-                             ManualDatabase.mindManuals.values.filter { it.rarity == currentRarity }
+            val allManuals = ManualDatabase.getByRarity(currentRarity)
             
             if (allManuals.isNotEmpty()) {
                 val template = allManuals.random()

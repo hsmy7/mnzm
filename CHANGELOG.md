@@ -1,5 +1,953 @@
 # 模拟宗门 - 更新日志
 
+## [1.5.30] - 2026-03-24
+
+### 修复
+- **ManualDatabase 初始化线程安全问题修复**
+  - 为 `_allManuals` 和 `_legacyMapping` 添加 `@Volatile` 注解，确保多线程可见性
+  - 统一锁机制，移除冗余的协程 `initMutex`，全部使用 `synchronized(initLock)`
+  - 移除未使用的异步初始化方法 `initialize()`，简化代码结构
+  - 为 `initializeWithManuals()` 添加同步锁保护，避免测试环境并发问题
+
+### 优化
+- **代码清理**
+  - 删除未使用的 `GameDataLoader` 类及其所在目录
+  - 移除未使用的导入：`Dispatchers`、`Mutex`、`withContext`
+  - 消除双重锁机制潜在的数据竞争风险
+  - `MainGameScreen.kt` 版本号改为动态读取，避免后续更新遗漏
+
+### 系统
+- 版本号：1.5.30 (build 1530)
+
+---
+
+## [1.5.29] - 2026-03-23
+
+### 修复
+- **丹药自动使用逻辑修复**
+  - 修复弟子不会自动使用悟道丹（skillExpPercent效果）的问题
+  - 修复战斗中治疗丹药（healMaxHpPercent效果）无法被自动使用的问题
+  - 修复 `autoUseHealingPillsInTransaction` 函数遗漏 `healMaxHpPercent` 条件
+
+- **功法熟练度计算修复**
+  - 修复悟道丹熟练度增益计算逻辑错误
+  - `currentThreshold` 现在正确使用当前境界的阈值，而非前一境界的阈值
+  - 修复熟练度增益被错误放大的问题
+
+- **代码质量修复**
+  - 修复 `processAutoUseFunctionalPills` 中变量使用不一致问题（disciple -> updatedDisciple）
+  - `ItemEffect` 添加 `healMaxHpPercent` 字段，确保治疗丹药效果正确传递
+
+### 系统
+- 版本号：1.5.29 (build 1529)
+
+---
+
+## [1.5.28] - 2026-03-23
+
+### 修复
+- **ManualDatabase 初始化问题修复**
+  - 修复应用启动时 ManualDatabase 未初始化导致新游戏崩溃的问题
+  - 在 XianxiaApplication.onCreate() 中同步初始化 ManualDatabase
+  - 为 ManualDatabase 所有公开方法添加初始化状态检查
+  - 添加初始化成功/失败日志记录，便于问题诊断
+
+### 系统
+- 版本号：1.5.28 (build 1528)
+
+---
+
+## [1.5.27] - 2026-03-23
+
+### 优化
+- **存档系统内存优化**
+  - 改用流式序列化，避免生成中间 JSON 字符串，内存峰值降低约 90%
+  - 存档写入添加 64KB 缓冲区，提升 IO 效率
+  - 存档读取改为流式解析，避免一次性加载解压后的完整数据
+  - checksum 计算改为流式处理，仅使用 8KB 固定缓冲区
+
+### 修复
+- **手动存档闪退修复**
+  - 解决内存不足导致存档时 OOM 崩溃的问题
+  - `emergencySave` 改用流式序列化，确保紧急保存时内存友好
+
+- **资源管理改进**
+  - `saveToFileWithChecksum` 资源释放改为嵌套 `use` 块，确保异常时正确释放
+
+### 系统
+- 新增 `streamSaveData` 字段同步检查，启动时验证字段数量匹配
+- 版本号：1.5.27 (build 1527)
+
+---
+
+## [1.5.26] - 2026-03-23
+
+### 修复
+- **占领宗门弟子属性丢失修复**
+  - 修复占领AI宗门时，转换后的弟子丢失基础属性和波动值的问题
+  - 现在使用 `copy()` 方法完整继承AI弟子的所有属性
+
+- **存档兼容性判断改进**
+  - 改进旧存档弟子属性修复的判断条件
+  - 原条件：仅检查 `baseHp != 100`（可能误判波动为0的弟子）
+  - 新条件：检查所有波动值是否为0且 `baseHp == 100`
+
+### 优化
+- **弟子基础属性计算代码重构**
+  - 提取 `Disciple.fixBaseStats()` 方法统一处理属性修复逻辑
+  - 消除 `GameEngine.kt` 中约60行重复代码
+  - 判断逻辑更加准确，避免误修复
+
+### 系统
+- 版本号：1.5.26 (build 1526)
+
+---
+
+## [1.5.25] - 2026-03-23
+
+### 架构重构
+- **ManualDatabase 数据外部化重构**
+  - 将 2600+ 行硬编码功法数据重构为 JSON 外部文件
+  - 新增 `GameDataLoader` 类统一管理 JSON 数据加载
+  - 数据与逻辑分离，便于后续调整功法数值
+  - 保留向后兼容的 legacyMapping 机制
+
+- **新增游戏子系统**
+  - 新增 `HerbGardenSubsystem` 药园子系统
+  - 新增 `AlchemySubsystem` 炼丹子系统
+  - 新增 `ForgingSubsystem` 锻造子系统
+  - 统一实现 `GameSystem` 接口，生命周期管理清晰
+
+### 修复
+- **ManualDatabase 初始化安全性修复**
+  - 新增 `isInitialized` 状态检查
+  - 添加 `synchronized` 锁保护初始化过程
+  - `initialize()` 方法返回 `Result<Unit>` 支持错误处理
+
+- **空列表异常防护**
+  - `generateRandom()` 方法添加初始化检查
+  - 空模板列表时抛出明确的 `NoSuchElementException`
+
+- **功法名称重复修复**
+  - 修复 `mind_epic_hp_recover` 和 `mind_epic_magic_def_buff` 同名"朱雀护体道"问题
+  - 将法术防御心法重命名为"朱雀凝神道"
+
+### 系统
+- 版本号：1.5.26 (build 1526)
+
+---
+
+## [1.5.25] - 2026-03-23
+
+### 调整
+- **AI宗门攻击逻辑调整**
+  - 攻击条件的好感度阈值从 `< 20` 改为 `= 0`，只有好感度为0时才会攻击
+  - 移除攻击概率计算，好感度到零时必定攻击
+  - 移除同盟支援机制（自动支援盟友的战斗）
+
+### 优化
+- **代码清理**
+  - 移除 `AISectAttackManager` 中未使用的常量：`MIN_FAVOR_FOR_ATTACK`、`BASE_ATTACK_PROBABILITY`、`MAX_ATTACK_PROBABILITY`
+
+### 系统
+- 版本号：1.5.25 (build 1525)
+
+---
+
+## [1.5.24] - 2026-03-23
+
+### 修复
+- **战斗日志回合详情显示修复**
+  - 修复战斗日志的回合详情不显示普通攻击或技能描述的问题
+  - `BattleLogAction` 数据结构新增 `skillName` 字段
+  - UI 组件现在优先显示完整的攻击/技能描述（`message` 字段）
+
+### 优化
+- **战斗描述系统统一**
+  - 探查战斗描述生成复用 `BattleDescriptionGenerator`
+  - 探查战斗与主战斗的日志描述风格完全一致
+  - 使用丰富的动词池和暴击描述池，提升沉浸感
+
+### 系统
+- 版本号：1.5.24 (build 1524)
+
+---
+
+## [1.5.23] - 2026-03-23
+
+### 修复
+- **宗门外交界面好感度显示修复**
+  - 修复月份推进时所有宗门好感度显示为0的问题
+  - 根因：`remember` 函数中 `worldSects` 未作为 key 传入，导致缓存未更新
+
+### 优化
+- **好感度计算代码优化**
+  - 提取 `sectRelations` 为局部变量，减少重复访问
+  - 使用 early return 风格优化条件分支
+  - 减少迭代内的重复 null 检查
+
+### 系统
+- 版本号：1.5.23 (build 1523)
+
+---
+
+## [1.5.22] - 2026-03-23
+
+### 调整
+- **初始弟子基础攻击调整**
+  - 基础物攻从 10 调整为 7
+  - 基础法攻从 5 调整为 7
+  - 初始弟子物攻和法攻现均为 7（等值）
+
+### 移除
+- **设计文档移除**
+  - 移除 docs/宗门征战系统设计文档.md
+
+### 系统
+- 版本号：1.5.22 (build 1522)
+
+---
+
+## [1.5.21] - 2026-03-23
+
+### 修复
+- **宗门初始好感度修复**
+  - 修复玩家宗门与AI宗门初始好感度随机（20-50）而非固定50的问题
+  - 统一所有好感度默认值使用常量 `INITIAL_SECT_FAVOR = 50`
+
+### 优化
+- **好感度代码重构**
+  - 提取 `INITIAL_SECT_FAVOR` 和 `SAME_ALIGNMENT_BONUS` 常量
+  - 新增 `calculateInitialFavorForSects()` 方法计算AI宗门间初始好感度
+  - 补充AI宗门之间缺失关系的初始化逻辑
+
+### 系统
+- 版本号：1.5.21 (build 1521)
+
+---
+
+## [1.5.20] - 2026-03-23
+
+### 调整
+- **妖兽属性计算公式统一**
+  - 所有属性（HP、物理攻击、法术攻击、物理防御、法术防御、速度）使用一致的百分比加法公式
+  - 公式：`最终属性 = 基础值 × (1 + 类型修正% + 浮动% + 境界乘数% + 层数加成%)`
+  - 境界乘数统一为 20%
+  - 浮动范围：-30% 到 +30%
+  - 层数加成：0% 到 80%（每层 +10%）
+
+- **妖兽伤害类型调整**
+  - 妖兽伤害类型由较高攻击属性决定
+  - 物理攻击 ≥ 法术攻击：使用物理伤害
+  - 法术攻击 > 物理攻击：使用法术伤害
+
+### 系统
+- 版本号：1.5.20 (build 1520)
+
+---
+
+## [1.5.19] - 2026-03-23
+
+### 调整
+- **弟子修炼速度调整**
+  - 弟子基础修炼速度从 10 调整为 8，整体修炼节奏放缓约 20%
+
+### 系统
+- 版本号：1.5.19 (build 1519)
+
+---
+
+## [1.5.18] - 2026-03-23
+
+### 优化
+- **AI宗门弟子境界调整**
+  - 顶级宗门最高境界从仙人改为渡劫
+  - 大型宗门最高境界从渡劫改为合体
+  - 中型宗门最高境界保持炼虚不变
+  - 小型宗门最高境界从化神改为元婴
+  - 低境界弟子数量从10-40人调整为5-20人
+
+### 系统
+- 版本号：1.5.18 (build 1518)
+
+---
+
+## [1.5.17] - 2026-03-23
+
+### 修复
+- **功法仓库数量显示修复**
+  - 修复仓库中堆叠功法不显示数量的问题
+  - `WarehouseManualCard` 现在与其他卡片（丹药、材料）一致，数量大于1时显示 "x{数量}"
+
+### 系统
+- 版本号：1.5.17 (build 1517)
+
+---
+
+## [1.5.16] - 2026-03-23
+
+### 优化
+- **功法名称优化**
+  - 为所有功法重新取名，增加修仙题材风味
+  - 攻击功法：青冥剑诀、惊鸿剑法、炎煌真诀、霜寒真诀、破阵剑典等
+  - 防御功法：玄铁护体功、血气养身功、金刚护体功、玄武宝甲功等
+  - 辅助功法：青囊回春术、灵泉聚气术、战神加持术、玄武守护术等
+  - 心法：灵元吐纳经、血元养身经、力元淬体经、混沌归元经等
+
+- **防御功法技能名称去重**
+  - 修复12个防御功法使用相同技能名"气血涌动"的问题
+  - 为每个防御功法设计独特技能名：血气充盈、生机勃发、血海沸腾、灵元聚体、血元凝聚、神元聚体、金血沸腾、仙体聚元、山岳血躯、天罡聚体、混沌金身、混沌神躯
+
+### 系统
+- 版本号：1.5.16 (build 1516)
+
+---
+
+## [1.5.15] - 2026-03-23
+
+### 修复
+- **存档系统稳定性优化**
+  - 修复删除存档确认对话框按钮位置颠倒的问题
+  - 修复 `Disciple.gender` 默认值使用 `Random` 导致序列化不确定的问题
+  - 修复 `GameData.lastSaveTime` 默认值使用 `System.currentTimeMillis()` 的问题
+  - 为 `MerchantItem.data` 和 `WarehouseItem.itemData` 添加 `@Transient` 注解，避免 `Any` 类型序列化问题
+
+### 优化
+- **存档内存管理增强**
+  - 新增内存预检查机制，可用内存低于30%时自动触发GC
+  - 新增OOM重试机制，最多重试2次，每次重试前执行GC并等待
+  - 统一 `GameViewModel` 和 `SaveManager` 的内存阈值检查逻辑
+  - 新增内存状态日志监控，保存前后记录内存使用情况
+
+- **存档数据清理优化**
+  - `cleanSaveData()` 新增清理死亡AI弟子数据，减少存档体积
+  - 清理 `WorldSect.aiDisciples` 和 `SupportTeam.aiDisciples` 中的死亡弟子
+
+### 系统
+- 版本号：1.5.15 (build 1515)
+
+---
+
+## [1.5.14] - 2026-03-23
+
+### 修复
+- **存档系统互斥锁问题修复**
+  - 修复 `saveAsync()` 方法中 Mutex 非可重入导致存档失败的问题
+  - `saveAsync()` 改为直接调用 `saveInternal()`，避免双重锁定
+  - `saveAsync()` 新增 `isValidSlot()` 参数验证，确保 slot 参数有效性
+
+### 系统
+- 版本号：1.5.14 (build 1514)
+
+---
+
+## [1.5.13] - 2026-03-23
+
+### 架构重构
+- **库存管理系统统一**
+  - GameEngine 改为注入 InventorySystem，库存数据统一由 InventorySystem 管理
+  - 消除 GameEngine 与 InventorySystem 双重数据源问题
+  - 移除 AppModule 中手动创建 GameEngine 的代码，改用 Hilt 自动注入
+
+### 修复
+- **堆叠匹配逻辑修复**
+  - Material 堆叠匹配加入 `category` 字段，避免不同类型材料错误堆叠
+  - Herb 堆叠匹配加入 `category` 字段，避免不同类型灵草错误堆叠
+  - Manual 堆叠匹配使用 `name + rarity + type` 组合
+  - Pill 堆叠匹配使用 `name + rarity + category` 组合
+
+### 优化
+- **StackableItemUtils 增强**
+  - 新增 `matchPredicate` 参数支持自定义堆叠匹配逻辑
+  - 新增 `addStackableBatch` 方法，批量添加时在单次锁内完成所有操作，提升性能
+
+- **InventorySystem 批量操作优化**
+  - `addMaterials`/`addHerbs`/`addSeeds`/`addPills` 改用 `addStackableBatch`，减少锁获取次数
+
+### 系统
+- 版本号：1.5.13 (build 1513)
+
+---
+
+## [1.5.12] - 2026-03-23
+
+### 修复
+- **功法堆叠线程安全问题修复**
+  - `addManualToWarehouse` 添加 `ReentrantLock` 保护，确保多线程环境下的原子性
+  - `learnManual` 添加锁保护，避免学习功法时的并发修改问题
+  - `sellManual` 添加锁保护，确保出售操作的线程安全
+  - 添加 `kotlin.concurrent.withLock` 导入，修复编译错误
+
+- **功法数量参数传递修复**
+  - 修复 `GameViewModel` 中 `sellManual` 调用未传递 `quantity` 参数的问题
+  - 一键出售现在正确传递功法数量
+
+- **功法添加入口统一**
+  - 任务奖励功法现在使用 `addManualToWarehouse` 方法，确保堆叠逻辑一致
+
+### 优化
+- **功法堆叠逻辑完善**
+  - `addManualToWarehouse` 添加数量验证（quantity <= 0 直接返回）
+  - 添加 `MAX_STACK_SIZE` 上限检查，防止堆叠数量溢出
+
+### 系统
+- 版本号：1.5.12 (build 1512)
+
+---
+
+## [1.5.11] - 2026-03-22
+
+### 优化
+- **加载界面优化**
+  - 移除游戏内手动读档后的全屏加载图片显示
+  - 首次进入游戏仍保留加载界面，手动读档时仅显示对话框内的小加载指示器
+
+### 系统
+- 版本号：1.5.11 (build 1511)
+
+---
+
+## [1.5.10] - 2026-03-22
+
+### 修复
+- **错误处理机制修复**
+  - `GameError.fromException()` 现在正确处理 `CancellationException`，重新抛出以保持协程取消机制
+  - `Validation` 错误类型新增可选 `cause` 参数，支持携带异常原因
+
+- **线程安全问题修复**
+  - `StateFlowListUtils` 所有写操作添加 `ReentrantLock` 保护，确保多线程环境下的原子性
+  - `StackableItemUtils` 所有写操作同步使用全局锁，避免并发修改
+  - `GameLogger.isDebugMode` 添加 `@Volatile` 注解，确保多线程可见性
+
+### 优化
+- **InventorySystem 批量操作优化**
+  - `addMaterials`/`addHerbs`/`addSeeds`/`addPills` 改用 `addAll` 单次发射，减少 StateFlow 更新次数
+  - 移除冗余的 `Mutex` 和 `withLock` 方法（线程安全已由 `StateFlowListUtils` 提供）
+
+- **代码清理**
+  - `StateFlowListUtils.clearList`/`setList` 移除不必要的 `inline` 修饰符
+  - `GameLogger` 移除未使用的 `GameConfig` 导入
+  - `ErrorHandler.runCatching` 无参版本改为调用带参版本，消除代码重复
+
+### 系统
+- 版本号：1.5.10 (build 1510)
+
+---
+
+## [1.5.09] - 2026-03-22
+
+### 修复
+- **存档对话框状态更新问题**
+  - 修复存档后存档卡片信息更新不及时的问题
+  - 修复存档对话框在操作完成前就关闭的问题
+  - 现在存档/读取操作完成后才关闭对话框，确保存档列表显示最新数据
+  - 存档/读取过程中显示加载指示器，禁用按钮防止重复操作
+
+### 系统
+- 版本号：1.5.09 (build 1509)
+
+---
+
+## [1.5.08] - 2026-03-22
+
+### 架构重构
+- **Coordinator架构引入**
+  - 新增 `MonthlyEventCoordinator` - 月度事件协调器，统一管理月度事件执行和性能监控
+  - 新增 `BattleCoordinator` - 战斗协调器，提供战斗超时保护和可行性验证
+  - 新增 `GameLoopCoordinator` - 游戏循环协调器，管理游戏时间流逝和状态转换
+  - 新增 `SaveLoadCoordinator` - 存档加载协调器，统一存档操作监控和验证
+  - 新增 `RealtimeDataCoordinator` - 实时数据协调器，批量处理实时数据更新
+
+### 新增
+- **对象池系统完善**
+  - 重构 `ObjectPool` 对象池实现，支持字符串key标识池
+  - 新增重试机制，borrow()验证失败后最多重试3次
+  - 新增 `TypedMapPool`、`TypedListPool` 类型化对象池
+  - 新增命中率统计（hitCount/missCount）
+  - 使用 `CopyOnWriteArrayList` 和 `AtomicInteger` 保证线程安全
+
+- **性能监控增强**
+  - `PerformanceMonitor` 新增月度事件各操作耗时监控
+  - 新增 `MonthlyEventMetric` 和 `MonthlyEventSummary` 数据类
+  - 新增 `measureMonthlyEvent()` 内联函数
+  - 新增 `getMonthlyEventPerformanceReport()` 性能报告生成
+
+- **战斗系统增强**
+  - `BattleSystem` 新增 `executeBattleWithTimeout()` 超时保护方法
+  - 新增 `MAX_BATTLE_DURATION_MS` (5秒) 超时限制
+  - `BattleSystemResult` 新增 `timedOut`、`durationMs`、`turnCount` 字段
+
+### 修复
+- **线程安全问题修复**
+  - 所有协调器监听器列表改用 `CopyOnWriteArrayList`
+  - `GameLoopCoordinator` 使用 `AtomicReference` 和状态锁保护状态变更
+  - `PerformanceMonitor` 修复 monthlyEventMetrics 同步问题
+
+- **协程作用域泄漏修复**
+  - `GameLoopCoordinator` 使用单一 CoroutineScope，避免每次 start() 创建新 Scope
+  - `resume()` 方法正确重启协程
+
+- **对象池问题修复**
+  - 修复泛型类型擦除导致池冲突问题
+  - 修复 hitRate 计算语义错误
+  - 修复 available.size 非线程安全调用
+
+- **战斗执行逻辑修复**
+  - `BattleCoordinator` 移除重复战斗逻辑，直接调用 `BattleSystem.executeBattleWithTimeout()`
+
+- **其他修复**
+  - `MonthlyEventCoordinator.executeBatch` 返回正确的 durationMs
+  - `SaveLoadCoordinator.validateSaveData` 添加版本兼容性检查
+  - 移除 `RealtimeDataCoordinator` 和 `SaveLoadCoordinator` 中未使用的 objectPool 参数
+
+### 优化
+- **内存管理优化**
+  - 新增 `CircularBuffer` 环形缓冲区，避免 tickTimes 无限增长
+  - 使用 `@Volatile` 注解确保多线程可见性
+
+### 系统
+- 版本号：1.5.08 (build 1508)
+
+---
+
+## [1.5.07] - 2026-03-22
+
+### 架构重构
+- **UseCase层架构引入**
+  - 新增 `ElderManagementUseCase` - 长老任命/卸任业务逻辑
+  - 新增 `DiplomacyUseCase` - 外交系统（送礼、结盟、支援）
+  - 新增 `AlchemyUseCase` - 炼丹系统
+  - 新增 `ForgingUseCase` - 锻造系统
+  - 新增 `DiscipleManagementUseCase` - 弟子管理（招募、装备、功法）
+  - 新增 `BuildingOperationUseCase` - 建筑操作
+  - 新增 `BattleTeamUseCase` - 战斗队伍管理
+  - 新增 `SaveLoadUseCase` - 存档/读档统一管理
+
+- **UI状态管理优化**
+  - 新增 `DialogStateManager` 统一对话框状态管理
+  - 消除30+个分散的对话框状态变量
+  - 支持对话框参数传递和类型安全访问
+
+### 新增
+- **运行时监控系统**
+  - 新增 `MemoryMonitor` 内存监控模块
+    - 实时内存使用监控（Dalvik堆、Native堆）
+    - 内存警告/临界阈值检测（85%/95%）
+    - 内存快照历史记录
+    - 内存压力事件监听器
+  - 新增 `PerformanceMonitor` 性能监控模块
+    - 帧率监控（通过Choreographer）
+    - 掉帧检测和统计
+    - 操作耗时追踪
+    - 性能优化级别建议
+  - 新增 `GCOptimizer` 垃圾回收优化模块
+    - 自动GC触发（基于内存阈值）
+    - GC统计和效果追踪
+    - 低内存情况响应
+  - 新增 `GameMonitorManager` 统一监控管理
+
+### 修复
+- **线程安全问题修复**
+  - MemoryMonitor 使用 `CopyOnWriteArrayList` 保证监听器线程安全
+  - 使用统一的 `CoroutineScope(SupervisorJob())` 避免协程泄漏
+  - cleanup() 方法正确清理所有引用
+
+- **UseCase逻辑修复**
+  - 修复 `ElderManagementUseCase` 境界判断逻辑错误（`>` 改为 `<`）
+  - 修复 `BuildingOperationUseCase` 方法签名不匹配（添加SlotType参数）
+  - 修复 `SaveLoadUseCase` 字段名不匹配（使用正确的SaveData字段）
+
+### 系统
+- 版本号：1.5.07 (build 1507)
+
+---
+
+## [1.5.06] - 2026-03-22
+
+### 架构重构
+- **GameEngine 子系统集成重构**
+  - GameEngine 通过依赖注入使用子系统，StateFlow 委托给子系统管理
+  - 添加属性访问器，将 `_gameData`、`_disciples` 等变量委托给子系统的 mutable StateFlow
+  - 统一状态更新路径，消除双重数据源问题
+
+### 优化
+- **子系统功能完善**
+  - InventorySystem：添加完整的堆叠合并逻辑，提取重复的添加/移除/更新方法
+  - DiscipleSystem：添加弟子管理、招募列表、状态同步、统计功能
+  - SectSystem：添加时间管理、资源管理、宗门关系、联盟管理功能
+
+- **输入验证和边界检查**
+  - 所有子系统添加参数验证（quantity > 0、realm 范围、id 非空等）
+  - 添加溢出保护（MAX_STACK_SIZE、MAX_SPIRIT_STONES 等）
+  - 修改操作返回 Boolean 表示成功/失败
+
+- **并发保护**
+  - 所有子系统添加 Mutex 和 withLock 方法
+  - 支持协程安全的批量操作
+
+### 系统
+- 版本号：1.5.06 (build 1506)
+
+---
+
+## [1.5.05] - 2026-03-22
+
+### 优化
+- **代码重构优化**
+  - 提取 `fixDiscipleVariance()` 函数，消除 loadData 中重复的弟子属性修复逻辑
+  - 新增 `StackableItem` 接口，统一物品堆叠操作
+  - 重构 `InventorySystem` 的 remove 方法，使用泛型函数消除重复代码
+  - 优化 `InventorySystem` 的 add 方法，确保与 GameEngine 的物品合并逻辑一致
+
+### 系统
+- 版本号：1.5.05 (build 1505)
+
+---
+
+## [1.5.04] - 2026-03-22
+
+### 修复
+- **功法/装备堆叠逻辑全面修复**
+  - 修复商城购买功法/装备时未正确堆叠的问题
+  - 修复交易下架物品返回仓库时未正确堆叠的问题
+  - 修复交易堂收购弟子物品时未正确堆叠的问题
+  - 修复恢复弟子物品时未正确堆叠的问题
+  - 修复秘洞掉落功法/装备时未正确堆叠的问题
+  - 修复锻造成功获得装备时未正确堆叠的问题
+  - 修复探索掉落功法/装备时未正确堆叠的问题
+  - 修复任务奖励功法/装备时未正确堆叠的问题
+  - 修复兑换码奖励功法/装备时未正确堆叠的问题
+  - 修复占领宗门获取仓库物品时未正确堆叠的问题
+  - 修复洞府探索奖励功法/装备时未正确堆叠的问题
+  - 统一所有物品添加入口使用 `InventorySystem.addManual()` / `addEquipment()` 方法
+
+### 系统
+- 版本号：1.5.04 (build 1504)
+
+---
+
+## [1.5.03] - 2026-03-22
+
+### 优化
+- **仓库列表滚动性能优化**
+  - 为 LazyVerticalGrid 添加 key 参数，优化列表项追踪和重组
+  - 选中状态从对象引用改为 String key 比较，减少不必要的列表重组
+  - 一键出售对话框的物品列表同步优化
+
+### 系统
+- 版本号：1.5.03 (build 1503)
+
+---
+
+## [1.5.02] - 2026-03-22
+
+### 修复
+- **功法堆叠逻辑修复**
+  - 修复从物品奖励获得功法时未正确堆叠的问题
+  - 修复探索获得功法时未正确堆叠的问题
+  - 修复探索掉落功法时未正确堆叠的问题
+  - 现在所有功法获取途径都会正确调用 `InventorySystem.addManual()` 实现堆叠
+
+### 系统
+- 版本号：1.5.02 (build 1502)
+
+---
+
+## [1.5.01] - 2026-03-22
+
+### 安全
+- **签名配置环境变量支持**
+  - 签名密码支持通过环境变量 `KEYSTORE_PASSWORD` 和 `KEY_PASSWORD` 配置
+  - 环境变量优先于 properties 文件，便于 CI/CD 流水线安全构建
+- **网络安全配置修复**
+  - 移除 AndroidManifest.xml 中与 network_security_config 冲突的 `usesCleartextTraffic` 属性
+  - 添加本地开发 HTTP 白名单（10.0.2.2、localhost、127.0.0.1）
+  - 生产环境强制使用 HTTPS，仅本地开发允许明文传输
+
+### 系统
+- 版本号：1.5.01 (build 1501)
+
+---
+
+## [1.5.00] - 2026-03-22
+
+### 新增
+- **功法和装备可堆叠功能**
+  - 装备和功法现在支持堆叠，相同名称、品阶、槽位/类型的物品会自动合并
+  - 堆叠规则：名称 + 品阶 + 槽位/类型相同，且未装备/未学习、无拥有者
+  - 穿戴装备/学习功法时从堆叠中取出一个创建独立实例
+  - 卸下装备时尝试与库存中相同装备堆叠
+
+### 修复
+- **数据库迁移修复**
+  - 添加 equipment 表的 quantity 字段迁移
+  - 添加 manuals 表的 quantity 字段迁移
+- **出售功能修复**
+  - 修复装备和功法出售价格未乘以数量的问题
+  - sellEquipment/sellManual 方法支持按数量出售
+- **UI显示修复**
+  - 装备和功法卡片现在显示数量
+  - 一键出售价格计算正确考虑数量
+
+### 系统
+- 数据库版本：52
+- 版本号：1.5.00 (build 1500)
+
+---
+
+## [1.4.99] - 2026-03-22
+
+### 架构重构
+- **GameEngine 子系统架构重构**
+  - GameEngine 不再直接管理所有状态，改为通过子系统委托管理
+  - 新增 `SectSystem`：宗门核心数据（GameData）、时间、灵石、世界地图
+  - 新增 `DiscipleSystem`：弟子管理、招募、状态同步
+  - 新增 `InventorySystem`：物品管理（装备、功法、丹药、材料、灵草、种子）
+  - 新增 `ExplorationSystem`：探索队伍管理
+  - 新增 `BuildingSubsystem`：建筑槽位、炼丹槽、锻造槽
+  - 新增 `DiplomacySubsystem`：同盟、宗门关系、支援队伍
+  - 新增 `MerchantSubsystem`：商人物品、玩家挂售物品
+  - 新增 `EventSubsystem`：游戏事件、战斗日志
+  - 新增 `SystemManager`：统一管理子系统生命周期
+
+### 优化
+- **职责边界清晰化**
+  - 移除 ExplorationSystem 中冗余的 buildingSlots 和 events 状态
+  - 删除冗余的 BattleTeamSystem（功能已被其他子系统覆盖）
+  - 统一 AlchemySlot 管理至 BuildingSubsystem
+
+- **线程安全增强**
+  - `withTransactionSync` 方法添加 Mutex 保护
+  - 同步事务操作使用 `runBlocking` + `transactionMutex.withLock`
+
+### 系统
+- 版本号：1.4.99 (build 1499)
+
+---
+
+## [1.4.98] - 2026-03-22
+
+### 优化
+- **数据同步机制重构**
+  - 移除双锁架构（`syncLock` + `transactionMutex`），统一使用单一 `transactionMutex` 锁
+  - 消除双锁潜在的死锁风险
+  - 紧急保存新增重试机制（最多 5 次，每次间隔 20ms），大幅提升崩溃时数据一致性保护
+  - 删除未使用且有设计缺陷的 `withTransactionSync()` 方法
+
+### 验证
+- **存档/读档数据完整性检查**
+  - 确认当前架构为单一 GameEngine 管理所有状态，不存在双重状态问题
+  - `loadData()` 和 `getStateSnapshot()` 操作同一套 StateFlow，数据流一致
+  - 子系统（DiscipleSystem、InventorySystem 等）为预留代码，未被注入使用
+
+### 系统
+- 版本号：1.4.98 (build 1498)
+
+---
+
+## [1.4.97] - 2026-03-21
+
+### 修复
+- **读档后仓库道具丢失问题**
+  - 修复 `GameEngine.loadData` 方法只将物品数据加载到 `InventorySystem`，但未同步到 `GameEngine` 自己的 StateFlow 的问题
+  - 修复 `getStateSnapshot` 方法从 `GameEngine` 的 StateFlow 获取数据导致存档保存时物品数据为空的问题
+  - 现在读档后仓库内的装备、功法、丹药、材料、灵药、种子都能正确恢复
+
+### 系统
+- 版本号：1.4.97 (build 1497)
+
+---
+
+## [1.4.96] - 2026-03-21
+
+### 修复
+- **6666 兑换码功法品阶问题**
+  - 修复兑换码只发放凡品功法的问题
+  - 修复 `ManualDatabase.generateRarity` 方法在 `minRarity == maxRarity` 时的品阶生成逻辑
+  - 修复 `GameEngine.redeemCode` 方法使用错误的品阶参数（`redeemCode.rarity` 改为 `reward.rarity`）
+  - 现在 6666 兑换码正确发放：凡品功法 x30、灵品功法 x30、宝品功法 x30、玄品功法 x30
+
+- **兑换码道具堆叠问题**
+  - 为 `Manual` 数据类添加 `quantity` 字段，支持功法堆叠
+  - 修复兑换码奖励发放逻辑，相同名称、品阶、类型的功法现在会正确堆叠
+  - 修复丹药、材料、灵药、种子的堆叠逻辑，使用 `reward.quantity` 设置正确数量
+  - 功法堆叠条件：名称、品阶、类型、所有者、学习状态都相同
+
+### 系统
+- 版本号：1.4.96 (build 1496)
+
+---
+
+## [1.4.95] - 2026-03-21
+
+### 修复
+- **云游商人货物刷新问题**
+  - 修复 GameEngine 和 SectSystem 数据不同步导致商人货物不刷新的问题
+  - 统一所有数据更新方法的同步顺序，确保 UI 层能正确感知数据变化
+  - 修复 loadData 时初始化方法的数据同步遗漏
+
+### 新增
+- **新增兑换码 6666**
+  - 一次性兑换码，奖励 120 本功法
+  - 凡品功法 x30、灵品功法 x30、宝品功法 x30、玄品功法 x30
+
+### 系统
+- 版本号：1.4.95 (build 1495)
+
+---
+
+## [1.4.94] - 2026-03-21
+
+### 优化
+- **功法详情界面显示优化**
+  - 伤害类型和连击次数改为只有攻击功法才会显示
+  - 移除伤害倍率显示
+  - 统一三个界面（仓库详情、弟子详情、主界面详情）的显示逻辑
+
+### 系统
+- 版本号：1.4.94 (build 1494)
+
+---
+
+## [1.4.93] - 2026-03-21
+
+### 优化
+- **游戏循环性能优化**
+  - 游戏循环频率从 5 TPS 提升至 10 TPS，响应速度翻倍
+  - 新增动态 TPS 调整机制，根据设备性能自动适配（高性能 20 TPS / 标准 10 TPS / 低性能 5 TPS）
+  - 新增 `PerformanceLevel` 枚举统一性能等级定义
+
+- **错误处理机制增强**
+  - 新增 `GameLoopError` 密封类，支持 5 种错误类型分类处理
+  - 错误信息支持用户友好提示、可恢复性判断、严重程度分级
+  - 新增 `GameLogger` 统一日志系统，支持循环缓冲、按级别/标签过滤、日志导出
+
+- **内存管理系统优化**
+  - 新增 `MemoryMonitor` 内存水位线监控（LOW/MEDIUM/HIGH/CRITICAL 四级）
+  - 新增 `GCOptimizer` 智能 GC 触发策略，避免频繁 GC 导致卡顿
+  - 新增 `PerformanceMonitor` FPS 和 Tick 耗时监控
+
+- **对象池动态扩容**
+  - `ObjectPool` 支持动态扩容（initialSize → maxSize）
+  - 新增 `shrink()` 方法支持内存压力下主动收缩
+  - 新增 `DynamicObjectPool` 通用动态对象池
+  - 新增池耗尽警告日志，避免静默创建未池化对象
+
+- **战斗系统重构**
+  - 新增 `BattleConfig` 数据类，伤害公式参数可配置化
+  - 新增 `DamageType.TRUE` 真实伤害类型
+  - 战斗计算改为纯函数实现，支持自定义 Random 便于测试
+  - `Combatant` 实现 `CombatantStats` 接口，解耦战斗计算与具体角色类型
+
+- **无障碍支持**
+  - 新增色盲友好模式，提供 6 种色盲友好稀有度颜色
+  - 新增 `getRaritySymbol()` 形状符号辅助区分稀有度
+
+### 修复
+- **枚举类型命名冲突修复**
+  - 统一 `PerformanceLevel` 枚举定义至 `GameConfig.kt`
+  - 统一 `DamageType` 枚举定义至 `BattleSystem.kt`
+
+### 系统
+- 版本号：1.4.93 (build 1493)
+
+---
+
+## [1.4.92] - 2026-03-21
+
+### 修复
+- **旧存档读取问题全面修复**
+  - 修复 `SaveData` 数据类必填字段缺少默认值导致旧存档反序列化失败的问题
+  - 修复 `EquipmentNurtureData`、`StorageBagItem`、`RewardSelectedItem` 数据类缺少默认值的问题
+  - 修复 `AlchemyRecipe`、`ForgeRecipe` 数据类缺少默认值的问题
+  - 修复 `AIRandomEquipment`、`AIRandomManual` 数据类缺少默认值的问题
+  - 修复 `SectRelation` 数据类必填字段缺少默认值的问题
+  - 修复 `Mission`、`ActiveMission`、`InvestigateRewardConfig` 数据类缺少默认值的问题
+
+- **版本迁移机制增强**
+  - 修复旧存档没有 `version` 字段导致迁移失败的问题
+  - 当 `data.version` 为空时，默认使用 `"1.4.80"` 作为版本号
+  - 添加详细的版本迁移日志，便于追踪迁移过程
+
+- **存档验证机制优化**
+  - 放宽 checksum 验证限制，旧存档即使 checksum 不匹配也能正常加载
+  - 增强 `loadFromFile` 方法的错误处理和日志输出
+  - 添加存档数据详细信息的日志输出（版本号、宗门名称、游戏年份、弟子数量等）
+
+- **世界地图初始化逻辑修复**
+  - 修复 `loadData` 方法中 `initializeWorldMap()` 无条件调用导致存档数据被覆盖的问题
+  - 只在 `worldMapSects` 为空时才初始化世界地图，避免覆盖存档数据
+
+- **GameEngine 数据同步修复**
+  - 修复 `GameEngine.loadData` 方法只设置 `SectSystem._gameData` 但未设置 `GameEngine._gameData` 的问题
+  - 确保 `GameEngine._gameData` 和 `SectSystem._gameData` 同步，避免 StateFlow 订阅者获取到错误数据
+
+### 系统
+- 版本号：1.4.92 (build 1492)
+
+---
+
+## [1.4.91] - 2026-03-21
+
+### 优化
+- **游戏循环对象复用机制**
+  - 新增 `ObjectPool` 对象池工具类，支持通用对象池、Map池、List池、StringBuilder池
+  - 新增 `GameLoopPools` 游戏循环专用对象池单例
+  - 优化 `processRealTimeUpdates` 使用对象池复用Map，减少GC压力
+  - 优化 `processDiscipleCultivation` 使用对象池复用List，缓存manualsMap
+  - 优化 `processManualProficiencyPerSecond` 缓存重复计算的值，添加hasChanges标志减少不必要更新
+  - 优化 `processEquipmentAutoNurture` 使用对象池复用List
+  - 添加容量阈值检查，防止扩容后的大容量对象持续占用内存
+
+### 修复
+- **对象池实现问题修复**
+  - 修复 acquire/release 语义不对称问题，使用 `pool.size` 替代 AtomicInteger 计数器
+  - 修正对象池配置矛盾（manualProficiencyUpdatesPool 的 initialCapacity 从128改为64）
+
+### 系统
+- 版本号：1.4.91 (build 1491)
+
+---
+
+## [1.4.90] - 2026-03-21
+
+### 架构重构
+- **GameEngine领域系统拆分**
+  - 创建 `GameSystem` 接口和 `SystemManager` 系统管理器
+  - 新增 `DiscipleSystem` 弟子管理领域系统
+  - 新增 `InventorySystem` 物品管理领域系统
+  - 新增 `SectSystem` 宗门管理领域系统
+  - 新增 `ExplorationSystem` 探索系统领域系统
+  - 新增 `BattleTeamSystem` 战斗队伍领域系统
+  - GameEngine通过依赖注入使用各系统，降低耦合度
+
+### 修复
+- **线程安全问题修复**
+  - `withTransactionSync` 方法添加 `synchronized` 锁保护
+  - 修复同步事务操作的竞态条件风险
+
+### 优化
+- **依赖注入简化**
+  - 移除冗余的 `@Provides` 方法，让Hilt自动管理系统实例
+  - 移除未使用的 `SystemManager` 注入
+
+### 系统
+- 版本号：1.4.90 (build 1490)
+
+---
+
+## [1.4.89] - 2026-03-21
+
+### 修复
+- **崩溃日志系统优化**
+  - 崩溃日志保留数量从5个增加到20个，便于追踪间歇性问题
+  - 修复报告文档中问题12的描述错误（代码实际存在）
+
+### 系统
+- 版本号：1.4.89 (build 1489)
+
+---
+
 ## [1.4.88] - 2026-03-21
 
 ### 修复

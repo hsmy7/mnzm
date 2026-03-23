@@ -9,7 +9,8 @@ enum class RedeemRewardType {
     HERB,
     SEED,
     DISCIPLE,
-    STARTER_PACK
+    STARTER_PACK,
+    MANUAL_PACK
 }
 
 data class DiscipleRewardConfig(

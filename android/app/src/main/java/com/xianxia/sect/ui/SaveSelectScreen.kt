@@ -98,20 +98,20 @@ fun SaveSelectScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        showDeleteConfirm = null
-                    }
-                ) {
-                    Text("取消")
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
                         showDeleteConfirm?.let { onDeleteSlot(it) }
                         showDeleteConfirm = null
                     }
                 ) {
                     Text("删除", color = Color.Red)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteConfirm = null
+                    }
+                ) {
+                    Text("取消")
                 }
             }
         )

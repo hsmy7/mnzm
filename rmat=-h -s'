@@ -1,0 +1,41 @@
+[33mcdb4b84[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmaster[m[33m)[m feat: 游戏功能更新 - 物品系统、战斗系统、存档系统优化
+M	CHANGELOG.md
+M	android/app/build.gradle
+M	android/app/release/baselineProfiles/0/app-release.dm
+M	android/app/release/baselineProfiles/1/app-release.dm
+M	android/app/release/output-metadata.json
+M	android/app/src/main/java/com/xianxia/sect/core/GameConfig.kt
+M	android/app/src/main/java/com/xianxia/sect/core/data/ManualDatabase.kt
+M	android/app/src/main/java/com/xianxia/sect/core/engine/AISectDiscipleManager.kt
+M	android/app/src/main/java/com/xianxia/sect/core/engine/BattleSystem.kt
+M	android/app/src/main/java/com/xianxia/sect/core/engine/GameEngine.kt
+M	android/app/src/main/java/com/xianxia/sect/core/model/Items.kt
+M	android/app/src/main/java/com/xianxia/sect/core/model/ModelConverters.kt
+M	android/app/src/main/java/com/xianxia/sect/data/SaveManager.kt
+M	android/app/src/main/java/com/xianxia/sect/data/local/DatabaseMigrations.kt
+M	android/app/src/main/java/com/xianxia/sect/data/local/GameDatabase.kt
+M	android/app/src/main/java/com/xianxia/sect/data/model/SaveData.kt
+M	android/app/src/main/java/com/xianxia/sect/ui/game/DiscipleDetailScreen.kt
+M	android/app/src/main/java/com/xianxia/sect/ui/game/GameViewModel.kt
+M	android/app/src/main/java/com/xianxia/sect/ui/game/InventoryScreen.kt
+M	android/app/src/main/java/com/xianxia/sect/ui/game/MainGameScreen.kt
+M	android/app/src/main/java/com/xianxia/sect/ui/game/MerchantScreen.kt
+M	android/app/src/main/java/com/xianxia/sect/ui/game/components/GiftDialog.kt
+A	android/app/src/main/java/com/xianxia/sect/ui/game/components/ItemDetailDialog.kt
+[33mf0f3143[m perf: 存档系统全面优化 (v1.4.72)
+M	CHANGELOG.md
+M	android/app/build.gradle
+M	android/app/src/main/java/com/xianxia/sect/data/SaveManager.kt
+M	android/app/src/main/java/com/xianxia/sect/ui/game/GameViewModel.kt
+[33maa09e12[m fix: 修复装备和功法加成未正确应用的问题
+M	android/app/build.gradle
+M	android/app/src/main/java/com/xianxia/sect/core/engine/AISectAttackManager.kt
+M	android/app/src/main/java/com/xianxia/sect/core/engine/CaveExplorationSystem.kt
+M	android/app/src/main/java/com/xianxia/sect/core/engine/GameEngine.kt
+M	android/app/src/main/java/com/xianxia/sect/core/engine/TribulationSystem.kt
+M	android/app/src/main/java/com/xianxia/sect/core/model/Items.kt
+M	android/app/src/main/java/com/xianxia/sect/ui/game/DiscipleDetailScreen.kt
+[33mfa6222c[m chore: 升级 TapTap SDK 至 4.10.0
+M	android/app/build.gradle
+[33m083e9b5[m chore: 更新 UI 版本号到 1.4.69
+M	android/app/src/main/java/com/xianxia/sect/core/GameConfig.kt

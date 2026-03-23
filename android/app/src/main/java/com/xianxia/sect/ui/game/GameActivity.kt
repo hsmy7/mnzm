@@ -111,8 +111,8 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
                             }
                         )
 
-                        // 显示加载界面：首次加载或正在加载时（重新开始时不显示）
-                        if ((isInitialLoading.value || isLoading) && !isRestarting) {
+                        // 显示加载界面：仅首次加载时显示（手动读档和重新开始时不显示）
+                        if (isInitialLoading.value && !isRestarting) {
                             LoadingScreen(
                                 progress = loadingProgress,
                                 showProgress = true

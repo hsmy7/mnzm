@@ -126,17 +126,19 @@ fun AlchemyDialog(
         }
     }
 
-    if (showPillSelection && selectedSlotIndex != null) {
-        PillSelectionDialog(
-            materials = materials,
-            herbs = herbs,
-            slotIndex = selectedSlotIndex!!,
-            viewModel = viewModel,
-            onDismiss = {
-                showPillSelection = false
-                selectedSlotIndex = null
-            }
-        )
+    if (showPillSelection) {
+        selectedSlotIndex?.let { slotIdx ->
+            PillSelectionDialog(
+                materials = materials,
+                herbs = herbs,
+                slotIndex = slotIdx,
+                viewModel = viewModel,
+                onDismiss = {
+                    showPillSelection = false
+                    selectedSlotIndex = null
+                }
+            )
+        }
     }
 
     if (showElderSelection) {
@@ -402,12 +404,14 @@ private fun PillSelectionDialog(
         }
     }
 
-    if (showDetail && clickedRecipe != null) {
-        PillDetailDialog(
-            recipe = clickedRecipe!!,
-            herbs = herbs,
-            onDismiss = { showDetail = false }
-        )
+    if (showDetail) {
+        clickedRecipe?.let { recipe ->
+            PillDetailDialog(
+                recipe = recipe,
+                herbs = herbs,
+                onDismiss = { showDetail = false }
+            )
+        }
     }
 }
 

@@ -26,6 +26,12 @@ object RedeemCodeManager {
             rewardType = RedeemRewardType.STARTER_PACK,
             quantity = 1,
             maxUses = 1
+        ),
+        RedeemCode(
+            code = "6666",
+            rewardType = RedeemRewardType.MANUAL_PACK,
+            quantity = 1,
+            maxUses = 1
         )
     )
 
@@ -314,6 +320,26 @@ object RedeemCodeManager {
                 }
                 Log.d(TAG, "Generated 5 single spirit root disciples")
             }
+            RedeemRewardType.MANUAL_PACK -> {
+                val rarities = listOf(1, 2, 3, 4)
+                rarities.forEach { targetRarity ->
+                    val templates = ManualDatabase.getByRarity(targetRarity)
+                    repeat(30) {
+                        val template = templates.random()
+                        val manual = ManualDatabase.createFromTemplate(template)
+                        rewards.add(
+                            RewardSelectedItem(
+                                id = manual.id,
+                                type = "manual",
+                                name = manual.name,
+                                rarity = manual.rarity,
+                                quantity = 1
+                            )
+                        )
+                    }
+                }
+                Log.d(TAG, "Generated manual pack: 30 manuals for each rarity 1-4")
+            }
         }
 
         Log.i(TAG, "Redeem successful for code: ${redeemCode.code}, rewards: ${rewards.size}")
@@ -377,8 +403,13 @@ object RedeemCodeManager {
 
         val talents = TalentDatabase.getTalentsByIds(talentIds)
         val lifespanBonus = talents.sumOf { it.effects["lifespan"] ?: 0.0 }
-        val combatStatsVariance = Random.nextInt(-30, 31)
-        val varianceMultiplier = 1.0 + combatStatsVariance / 100.0
+        val hpVariance = Random.nextInt(-50, 51)
+        val mpVariance = Random.nextInt(-50, 51)
+        val physicalAttackVariance = Random.nextInt(-50, 51)
+        val magicAttackVariance = Random.nextInt(-50, 51)
+        val physicalDefenseVariance = Random.nextInt(-50, 51)
+        val magicDefenseVariance = Random.nextInt(-50, 51)
+        val speedVariance = Random.nextInt(-50, 51)
 
         return Disciple(
             name = name,
@@ -398,15 +429,26 @@ object RedeemCodeManager {
             spiritPlanting = cfg.spiritPlanting ?: Random.nextInt(30, 81),
             teaching = cfg.teaching ?: Random.nextInt(30, 81),
             morality = cfg.morality ?: Random.nextInt(40, 81),
-            combatStatsVariance = combatStatsVariance,
-            baseHp = (100 * varianceMultiplier).toInt(),
-            baseMp = (50 * varianceMultiplier).toInt(),
-            basePhysicalAttack = (10 * varianceMultiplier).toInt(),
-            baseMagicAttack = (5 * varianceMultiplier).toInt(),
-            basePhysicalDefense = (5 * varianceMultiplier).toInt(),
-            baseMagicDefense = (3 * varianceMultiplier).toInt(),
-            baseSpeed = (10 * varianceMultiplier).toInt()
-        )
+            hpVariance = hpVariance,
+            mpVariance = mpVariance,
+            physicalAttackVariance = physicalAttackVariance,
+            magicAttackVariance = magicAttackVariance,
+            physicalDefenseVariance = physicalDefenseVariance,
+            magicDefenseVariance = magicDefenseVariance,
+            speedVariance = speedVariance
+        ).apply {
+            val baseStats = Disciple.calculateBaseStatsWithVariance(
+                hpVariance, mpVariance, physicalAttackVariance, magicAttackVariance,
+                physicalDefenseVariance, magicDefenseVariance, speedVariance
+            )
+            baseHp = baseStats.baseHp
+            baseMp = baseStats.baseMp
+            basePhysicalAttack = baseStats.basePhysicalAttack
+            baseMagicAttack = baseStats.baseMagicAttack
+            basePhysicalDefense = baseStats.basePhysicalDefense
+            baseMagicDefense = baseStats.baseMagicDefense
+            baseSpeed = baseStats.baseSpeed
+        }
     }
 
     private fun generateRandomTalents(): List<String> {

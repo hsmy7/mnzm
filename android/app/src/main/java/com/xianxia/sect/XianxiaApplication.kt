@@ -4,16 +4,33 @@ import android.app.Application
 import android.content.ComponentCallbacks2
 import android.content.res.Configuration
 import android.util.Log
+import com.xianxia.sect.core.data.ManualDatabase
+import com.xianxia.sect.core.util.GameMonitorManager
 import dagger.hilt.android.HiltAndroidApp
 import java.util.concurrent.CopyOnWriteArrayList
+import javax.inject.Inject
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 @HiltAndroidApp
 class XianxiaApplication : Application() {
 
     companion object {
         private const val TAG = "XianxiaApplication"
+        
+        @Volatile
+        private var instance: XianxiaApplication? = null
+        
+        fun getInstance(): XianxiaApplication? = instance
     }
 
+    @Inject
+    lateinit var gameMonitorManager: GameMonitorManager
+    
+    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    
     private val memoryPressureListeners = CopyOnWriteArrayList<MemoryPressureListener>()
 
     interface MemoryPressureListener {
@@ -33,6 +50,19 @@ class XianxiaApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        instance = this
+        
+        gameMonitorManager.initialize(this)
+        gameMonitorManager.startMonitoring()
+        
+        val result = ManualDatabase.initializeSync(this)
+        result.onSuccess { Log.i(TAG, "ManualDatabase 初始化成功") }
+            .onFailure { 
+                Log.e(TAG, "ManualDatabase 初始化失败", it)
+                throw RuntimeException("ManualDatabase initialization failed", it)
+            }
+        
+        Log.i(TAG, "Application initialized with monitoring systems")
     }
 
     override fun onTrimMemory(level: Int) {
@@ -87,5 +117,12 @@ class XianxiaApplication : Application() {
                 Log.e(TAG, "通知低内存监听器失败: ${e.message}", e)
             }
         }
+    }
+    
+    override fun onTerminate() {
+        super.onTerminate()
+        gameMonitorManager.cleanup()
+        instance = null
+        Log.i(TAG, "Application terminated, monitoring systems cleaned up")
     }
 }

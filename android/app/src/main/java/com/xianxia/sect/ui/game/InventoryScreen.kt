@@ -118,7 +118,8 @@ fun InventoryDialog(
                                 id = item.id,
                                 name = item.name,
                                 description = item.description,
-                                rarity = item.rarity
+                                rarity = item.rarity,
+                                quantity = item.quantity
                             ),
                             isSelected = isSelected,
                             showViewButton = true,
@@ -293,11 +294,13 @@ private fun <T> InventoryGrid(
         }
     }
 
-    if (showDetailDialog && selectedItem != null) {
-        com.xianxia.sect.ui.game.components.ItemDetailDialog(
-            item = selectedItem!!,
-            onDismiss = { showDetailDialog = false }
-        )
+    if (showDetailDialog) {
+        selectedItem?.let { item ->
+            com.xianxia.sect.ui.game.components.ItemDetailDialog(
+                item = item,
+                onDismiss = { showDetailDialog = false }
+            )
+        }
     }
 }
 
