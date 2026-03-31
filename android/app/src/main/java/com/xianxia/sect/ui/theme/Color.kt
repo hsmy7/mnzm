@@ -76,8 +76,8 @@ object GameColors {
     val ButtonDanger = Color(0xFFE74C3C)
     val ButtonDisabled = Color(0xFFBDBDBD)
     
-    val ButtonBackground = Color(0xFFF5DEB3)
-    val ButtonBorder = Color(0xFFD2B48C)
+    val ButtonBackground = Color(0xFFF5F5DC)
+    val ButtonBorder = Color(0xFFC4A484)
     val SelectedBorder = Color(0xFFFFD700)
     
     val TapTapGreen = Color(0xFF00D26A)

@@ -37,7 +37,6 @@ import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.MapMarker
 import com.xianxia.sect.core.model.MapMarkerType
 import com.xianxia.sect.core.model.MapPath
-import com.xianxia.sect.core.model.SupportTeam
 import com.xianxia.sect.core.model.ExplorationTeam
 import com.xianxia.sect.core.model.ExplorationStatus
 import com.xianxia.sect.core.model.CultivatorCave
@@ -61,7 +60,6 @@ data class FunctionButton(
 fun WorldMapScreen(
     markers: List<MapMarker>,
     paths: List<MapPath> = emptyList(),
-    supportTeams: List<SupportTeam> = emptyList(),
     scoutTeams: List<ExplorationTeam> = emptyList(),
     caves: List<CultivatorCave> = emptyList(),
     caveExplorationTeams: List<CaveExplorationTeam> = emptyList(),
@@ -262,15 +260,6 @@ fun WorldMapScreen(
                 }
             }
             
-            // 显示支援队伍
-            supportTeams.filter { it.isMoving }.forEach { team ->
-                SupportTeamMarker(
-                    team = team,
-                    mapWidthPx = mapWidthPx.toFloat(),
-                    mapHeightPx = mapHeightPx.toFloat()
-                )
-            }
-            
             // 显示探查队伍
             scoutTeams.filter { it.status == ExplorationStatus.SCOUTING && it.moveProgress < 1f }.forEach { team ->
                 ScoutTeamMarker(
@@ -371,19 +360,6 @@ fun WorldMapScreen(
                         sectX = defenderMarker.x * mapWidthPx.toFloat(),
                         sectY = defenderMarker.y * mapHeightPx.toFloat(),
                         isBattling = aiTeam.status == "battling"
-                    )
-                }
-            }
-            
-            // 显示驻扎的支援队伍（在玩家宗门上方）
-            supportTeams.filter { it.isStationed }.forEachIndexed { index, team ->
-                val playerSectMarker = markers.find { it.isCapital }
-                if (playerSectMarker != null) {
-                    StationedSupportTeamMarker(
-                        team = team,
-                        sectX = playerSectMarker.x * mapWidthPx.toFloat(),
-                        sectY = playerSectMarker.y * mapHeightPx.toFloat(),
-                        offsetIndex = index
                     )
                 }
             }
@@ -503,58 +479,6 @@ private fun MapMarkerItem(
             Text(
                 text = marker.name,
                 fontSize = fontSize,
-                color = textColor,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1
-            )
-        }
-    }
-}
-
-@Composable
-private fun SupportTeamMarker(
-    team: SupportTeam,
-    mapWidthPx: Float,
-    mapHeightPx: Float
-) {
-    if (mapWidthPx <= 0f || mapHeightPx <= 0f) return
-
-    val density = LocalDensity.current
-    
-    val currentX = (team.currentX / 4000f) * mapWidthPx
-    val currentY = (team.currentY / 3500f) * mapHeightPx
-    
-    val markerColor = Color(0xFFF5E6C8)
-    val borderColor = Color(0xFF8B7355)
-    val textColor = Color(0xFF3D2914)
-    
-    var boxWidth by remember { mutableIntStateOf(0) }
-    var boxHeight by remember { mutableIntStateOf(0) }
-    
-    Box(
-        modifier = Modifier
-            .onGloballyPositioned { coordinates ->
-                boxWidth = coordinates.size.width
-                boxHeight = coordinates.size.height
-            }
-            .offset { 
-                androidx.compose.ui.unit.IntOffset(
-                    x = (currentX - boxWidth / 2).toInt(),
-                    y = (currentY - boxHeight / 2).toInt()
-                )
-            }
-    ) {
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(6.dp))
-                .background(markerColor)
-                .border(2.dp, borderColor, RoundedCornerShape(6.dp))
-                .padding(horizontal = 6.dp, vertical = 3.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = team.name,
-                fontSize = 9.sp,
                 color = textColor,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1
@@ -777,50 +701,6 @@ private fun BattleTeamMarker(
         ) {
             Text(
                 text = "战斗队伍",
-                fontSize = 9.sp,
-                color = Color.White,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1
-            )
-        }
-    }
-}
-
-@Composable
-private fun StationedSupportTeamMarker(
-    team: SupportTeam,
-    sectX: Float,
-    sectY: Float,
-    offsetIndex: Int = 0
-) {
-    var boxWidth by remember { mutableIntStateOf(0) }
-    var boxHeight by remember { mutableIntStateOf(0) }
-    
-    val yOffset = -30 - (offsetIndex * 25)
-    
-    Box(
-        modifier = Modifier
-            .onGloballyPositioned { coordinates ->
-                boxWidth = coordinates.size.width
-                boxHeight = coordinates.size.height
-            }
-            .offset { 
-                androidx.compose.ui.unit.IntOffset(
-                    x = (sectX - boxWidth / 2).toInt(),
-                    y = (sectY - boxHeight / 2 + yOffset).toInt()
-                )
-            }
-    ) {
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(6.dp))
-                .background(Color(0xFF4CAF50))
-                .border(2.dp, Color(0xFF2E7D32), RoundedCornerShape(6.dp))
-                .padding(horizontal = 6.dp, vertical = 3.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = team.name,
                 fontSize = 9.sp,
                 color = Color.White,
                 fontWeight = FontWeight.Bold,

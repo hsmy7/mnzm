@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.theme.GameColors
 
 @Composable
@@ -114,19 +115,19 @@ fun ReflectionCliffDialog(
                 )
             },
             confirmButton = {
-                TextButton(
+                GameButton(
+                    text = "确认",
                     onClick = {
                         onExpelDisciple(disciple.id)
                         showExpelConfirmDialog = null
                     }
-                ) {
-                    Text("确认", color = Color(0xFFE74C3C))
-                }
+                )
             },
             dismissButton = {
-                TextButton(onClick = { showExpelConfirmDialog = null }) {
-                    Text("取消", color = Color(0xFF666666))
-                }
+                GameButton(
+                    text = "取消",
+                    onClick = { showExpelConfirmDialog = null }
+                )
             }
         )
     }

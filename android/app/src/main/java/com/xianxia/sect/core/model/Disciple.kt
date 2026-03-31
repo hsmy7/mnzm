@@ -1,13 +1,26 @@
 package com.xianxia.sect.core.model
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.data.ManualDatabase
 import com.xianxia.sect.core.data.TalentDatabase
 import com.xianxia.sect.core.engine.ManualProficiencySystem
+import kotlin.math.roundToInt
 
-@Entity(tableName = "disciples")
+@Entity(
+    tableName = "disciples",
+    indices = [
+        Index(value = ["name"]),
+        Index(value = ["realm", "realmLayer"]),
+        Index(value = ["isAlive", "realm"]),
+        Index(value = ["isAlive", "status"]),
+        Index(value = ["discipleType"]),
+        Index(value = ["loyalty"]),
+        Index(value = ["age"])
+    ]
+)
 data class Disciple(
     @PrimaryKey
     var id: String = java.util.UUID.randomUUID().toString(),
@@ -89,7 +102,7 @@ data class Disciple(
     // 招募时间（游戏月），用于新弟子保护期
     var recruitedMonth: Int = 0,
 
-    // 战斗属性独立浮动百分比（±50%，精确到1%，如15表示+15%，-20表示-20%）
+    // 战斗属性独立浮动百分比（±30%，精确到1%，如15表示+15%，-20表示-20%）
     var hpVariance: Int = 0,
     var mpVariance: Int = 0,
     var physicalAttackVariance: Int = 0,
@@ -99,13 +112,13 @@ data class Disciple(
     var speedVariance: Int = 0,
 
     // 基础战斗属性（创建时根据浮动系数计算并存储，后续境界提升不再受浮动影响）
-    var baseHp: Int = 100,
-    var baseMp: Int = 50,
-    var basePhysicalAttack: Int = 7,
-    var baseMagicAttack: Int = 7,
-    var basePhysicalDefense: Int = 5,
-    var baseMagicDefense: Int = 3,
-    var baseSpeed: Int = 10,
+    var baseHp: Int = 120,
+    var baseMp: Int = 60,
+    var basePhysicalAttack: Int = 12,
+    var baseMagicAttack: Int = 12,
+    var basePhysicalDefense: Int = 10,
+    var baseMagicDefense: Int = 8,
+    var baseSpeed: Int = 15,
 
     // 弟子类型：outer=外门弟子，inner=内门弟子
     var discipleType: String = "outer",
@@ -148,6 +161,9 @@ data class Disciple(
     val maxHp: Int get() = getBaseStats().maxHp
     val maxMp: Int get() = getBaseStats().maxMp
     
+    val hpPercent: Double get() = if (maxHp > 0) baseHp.toDouble() / maxHp * 100 else 100.0
+    val mpPercent: Double get() = if (maxMp > 0) baseMp.toDouble() / maxMp * 100 else 100.0
+    
     val equippedItems: Map<EquipmentSlot, Equipment?> get() = emptyMap()
     val learnedManuals: List<Manual> get() = emptyList()
     
@@ -168,35 +184,35 @@ data class Disciple(
             speedVariance: Int
         ): BaseCombatStats {
             return BaseCombatStats(
-                baseHp = (100 * (1.0 + hpVariance / 100.0)).toInt(),
-                baseMp = (50 * (1.0 + mpVariance / 100.0)).toInt(),
-                basePhysicalAttack = (7 * (1.0 + physicalAttackVariance / 100.0)).toInt(),
-                baseMagicAttack = (7 * (1.0 + magicAttackVariance / 100.0)).toInt(),
-                basePhysicalDefense = (5 * (1.0 + physicalDefenseVariance / 100.0)).toInt(),
-                baseMagicDefense = (3 * (1.0 + magicDefenseVariance / 100.0)).toInt(),
-                baseSpeed = (10 * (1.0 + speedVariance / 100.0)).toInt()
+                baseHp = (120 * (1.0 + hpVariance / 100.0)).toInt(),
+                baseMp = (60 * (1.0 + mpVariance / 100.0)).toInt(),
+                basePhysicalAttack = (12 * (1.0 + physicalAttackVariance / 100.0)).toInt(),
+                baseMagicAttack = (12 * (1.0 + magicAttackVariance / 100.0)).toInt(),
+                basePhysicalDefense = (10 * (1.0 + physicalDefenseVariance / 100.0)).toInt(),
+                baseMagicDefense = (8 * (1.0 + magicDefenseVariance / 100.0)).toInt(),
+                baseSpeed = (15 * (1.0 + speedVariance / 100.0)).toInt()
             )
         }
 
         fun fixBaseStats(disciple: Disciple): Disciple {
-            val needsFix = disciple.hpVariance == 0 && 
-                           disciple.mpVariance == 0 && 
+            val needsFix = disciple.hpVariance == 0 &&
+                           disciple.mpVariance == 0 &&
                            disciple.physicalAttackVariance == 0 &&
                            disciple.magicAttackVariance == 0 &&
                            disciple.physicalDefenseVariance == 0 &&
                            disciple.magicDefenseVariance == 0 &&
                            disciple.speedVariance == 0 &&
-                           disciple.baseHp == 100
+                           disciple.baseHp == 120
             
             if (!needsFix) return disciple
             
-            val hpVariance = kotlin.random.Random.nextInt(-50, 51)
-            val mpVariance = kotlin.random.Random.nextInt(-50, 51)
-            val physicalAttackVariance = kotlin.random.Random.nextInt(-50, 51)
-            val magicAttackVariance = kotlin.random.Random.nextInt(-50, 51)
-            val physicalDefenseVariance = kotlin.random.Random.nextInt(-50, 51)
-            val magicDefenseVariance = kotlin.random.Random.nextInt(-50, 51)
-            val speedVariance = kotlin.random.Random.nextInt(-50, 51)
+            val hpVariance = kotlin.random.Random.nextInt(-30, 31)
+            val mpVariance = kotlin.random.Random.nextInt(-30, 31)
+            val physicalAttackVariance = kotlin.random.Random.nextInt(-30, 31)
+            val magicAttackVariance = kotlin.random.Random.nextInt(-30, 31)
+            val physicalDefenseVariance = kotlin.random.Random.nextInt(-30, 31)
+            val magicDefenseVariance = kotlin.random.Random.nextInt(-30, 31)
+            val speedVariance = kotlin.random.Random.nextInt(-30, 31)
             
             val baseStats = calculateBaseStatsWithVariance(
                 hpVariance, mpVariance, physicalAttackVariance, magicAttackVariance,
@@ -220,49 +236,6 @@ data class Disciple(
                 baseSpeed = baseStats.baseSpeed
             )
         }
-    }
-
-    fun getRawBaseStats(): DiscipleStats {
-        val realmConfig = GameConfig.Realm.get(realm)
-        val realmMultiplier = realmConfig.multiplier
-        val layerBonus = 1.0 + (realmLayer - 1) * 0.1
-
-        return DiscipleStats(
-            hp = (100 * realmMultiplier * layerBonus).toInt(),
-            maxHp = (100 * realmMultiplier * layerBonus).toInt(),
-            mp = (50 * realmMultiplier * layerBonus).toInt(),
-            maxMp = (50 * realmMultiplier * layerBonus).toInt(),
-            physicalAttack = (7 * realmMultiplier * layerBonus).toInt(),
-            magicAttack = (7 * realmMultiplier * layerBonus).toInt(),
-            physicalDefense = (5 * realmMultiplier * layerBonus).toInt(),
-            magicDefense = (3 * realmMultiplier * layerBonus).toInt(),
-            speed = (10 * realmMultiplier * layerBonus).toInt(),
-            critRate = 0.05,
-            intelligence = 0,
-            charm = 0,
-            loyalty = 0
-        )
-    }
-
-    // 获取灵根加成值
-    fun getSpiritRootBonus(): DiscipleStats {
-        val raw = getRawBaseStats()
-        val withSpiritRoot = getBaseStats()
-        return DiscipleStats(
-            hp = withSpiritRoot.hp - raw.hp,
-            maxHp = withSpiritRoot.maxHp - raw.maxHp,
-            mp = withSpiritRoot.mp - raw.mp,
-            maxMp = withSpiritRoot.maxMp - raw.maxMp,
-            physicalAttack = withSpiritRoot.physicalAttack - raw.physicalAttack,
-            magicAttack = withSpiritRoot.magicAttack - raw.magicAttack,
-            physicalDefense = withSpiritRoot.physicalDefense - raw.physicalDefense,
-            magicDefense = withSpiritRoot.magicDefense - raw.magicDefense,
-            speed = withSpiritRoot.speed - raw.speed,
-            critRate = 0.0,
-            intelligence = withSpiritRoot.intelligence - raw.intelligence,
-            charm = withSpiritRoot.charm - raw.charm,
-            loyalty = withSpiritRoot.loyalty - raw.loyalty
-        )
     }
 
     fun getBaseStats(): DiscipleStats {
@@ -297,15 +270,15 @@ data class Disciple(
         val totalSpeedBonus = (realmMultiplier - 1.0) + (layerBonus - 1.0) + speedBonus
 
         return DiscipleStats(
-            hp = ((baseHp * (1.0 + totalHpBonus)).toInt() + maxHpGrowth),
-            maxHp = ((baseHp * (1.0 + totalHpBonus)).toInt() + maxHpGrowth),
-            mp = ((baseMp * (1.0 + totalMpBonus)).toInt() + maxMpGrowth),
-            maxMp = ((baseMp * (1.0 + totalMpBonus)).toInt() + maxMpGrowth),
-            physicalAttack = ((basePhysicalAttack * (1.0 + totalAttackBonus)).toInt() + physicalAttackGrowth),
-            magicAttack = ((baseMagicAttack * (1.0 + totalMagicAttackBonus)).toInt() + magicAttackGrowth),
-            physicalDefense = ((basePhysicalDefense * (1.0 + totalDefenseBonus)).toInt() + physicalDefenseGrowth),
-            magicDefense = ((baseMagicDefense * (1.0 + totalMagicDefenseBonus)).toInt() + magicDefenseGrowth),
-            speed = ((baseSpeed * (1.0 + totalSpeedBonus)).toInt() + speedGrowth),
+            hp = (baseHp * (1.0 + totalHpBonus)).roundToInt() + maxHpGrowth,
+            maxHp = (baseHp * (1.0 + totalHpBonus)).roundToInt() + maxHpGrowth,
+            mp = (baseMp * (1.0 + totalMpBonus)).roundToInt() + maxMpGrowth,
+            maxMp = (baseMp * (1.0 + totalMpBonus)).roundToInt() + maxMpGrowth,
+            physicalAttack = (basePhysicalAttack * (1.0 + totalAttackBonus)).roundToInt() + physicalAttackGrowth,
+            magicAttack = (baseMagicAttack * (1.0 + totalMagicAttackBonus)).roundToInt() + magicAttackGrowth,
+            physicalDefense = (basePhysicalDefense * (1.0 + totalDefenseBonus)).roundToInt() + physicalDefenseGrowth,
+            magicDefense = (baseMagicDefense * (1.0 + totalMagicDefenseBonus)).roundToInt() + magicDefenseGrowth,
+            speed = (baseSpeed * (1.0 + totalSpeedBonus)).roundToInt() + speedGrowth,
             critRate = 0.05 + critBonus,
             intelligence = intelligence,
             charm = charm,
@@ -569,11 +542,11 @@ data class SpiritRoot(
     val cultivationBonus: Double
         get() {
             return when (types.size) {
-                1 -> 4.0
-                2 -> 3.0
-                3 -> 1.5
-                4 -> 1.0
-                5 -> 0.8
+                1 -> 5.0
+                2 -> 3.5
+                3 -> 2.0
+                4 -> 1.2
+                5 -> 1.0
                 else -> 1.0
             }
         }
@@ -626,13 +599,13 @@ data class DiscipleStats(
 }
 
 data class BaseCombatStats(
-    val baseHp: Int = 100,
-    val baseMp: Int = 50,
-    val basePhysicalAttack: Int = 7,
-    val baseMagicAttack: Int = 7,
-    val basePhysicalDefense: Int = 5,
-    val baseMagicDefense: Int = 3,
-    val baseSpeed: Int = 10
+    val baseHp: Int = 120,
+    val baseMp: Int = 60,
+    val basePhysicalAttack: Int = 12,
+    val baseMagicAttack: Int = 12,
+    val basePhysicalDefense: Int = 10,
+    val baseMagicDefense: Int = 8,
+    val baseSpeed: Int = 15
 )
 
 data class StorageBagItem(

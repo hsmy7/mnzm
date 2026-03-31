@@ -1,8 +1,6 @@
 package com.xianxia.sect.ui.game
 
-import androidx.compose.animation.*
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -20,8 +18,9 @@ import androidx.compose.ui.window.Dialog
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.ui.theme.GameColors
-import com.xianxia.sect.ui.theme.getRealmColor
 import com.xianxia.sect.ui.theme.getSpiritRootColor
+import com.xianxia.sect.ui.components.discipleCardBorder
+import com.xianxia.sect.ui.components.GameButton
 
 @Composable
 fun RecruitDialog(
@@ -66,10 +65,12 @@ fun RecruitDialog(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(sortedRecruitList, key = { it.id }) { disciple ->
+                            val onAccept = remember { { viewModel.recruitDisciple(disciple) } }
+                            val onReject = remember { { viewModel.rejectDiscipleFromList(disciple.id) } }
                             RecruitDiscipleCard(
                                 disciple = disciple,
-                                onAccept = { viewModel.recruitDisciple(disciple) },
-                                onReject = { viewModel.rejectDiscipleFromList(disciple.id) }
+                                onAccept = onAccept,
+                                onReject = onReject
                             )
                         }
                     }
@@ -106,9 +107,10 @@ private fun RecruitHeader(
             )
         }
 
-        TextButton(onClick = onDismiss) {
-            Text("关闭", color = GameColors.TextSecondary, fontSize = 12.sp)
-        }
+        GameButton(
+            text = "关闭",
+            onClick = onDismiss
+        )
     }
 }
 
@@ -118,11 +120,10 @@ private fun RecruitDiscipleCard(
     onAccept: () -> Unit,
     onReject: () -> Unit
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = GameColors.PageBackground),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .discipleCardBorder()
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Row(
@@ -130,43 +131,29 @@ private fun RecruitDiscipleCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = disciple.name,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = GameColors.TextPrimary
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    val spiritRootColor = try {
+                Text(
+                    text = disciple.name,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = GameColors.TextPrimary
+                )
+                val spiritRootColor = remember(disciple.spiritRoot.countColor, disciple.spiritRootType) {
+                    try {
                         Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))
-                    } catch (e: Exception) {
+                    } catch (e: IllegalArgumentException) {
                         getSpiritRootColor(disciple.spiritRootType)
-                    }
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(spiritRootColor.copy(alpha = 0.2f))
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = disciple.spiritRootName,
-                            fontSize = 11.sp,
-                            color = spiritRootColor
-                        )
                     }
                 }
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(4.dp))
-                        .background(getRealmColor(disciple.realm).copy(alpha = 0.2f))
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                        .background(spiritRootColor.copy(alpha = 0.2f))
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
                 ) {
                     Text(
-                        text = disciple.realmName,
-                        fontSize = 12.sp,
-                        color = getRealmColor(disciple.realm),
-                        fontWeight = FontWeight.Medium
+                        text = disciple.spiritRootName,
+                        fontSize = 11.sp,
+                        color = spiritRootColor
                     )
                 }
             }
@@ -175,50 +162,27 @@ private fun RecruitDiscipleCard(
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                RecruitStatItem("年龄", "${disciple.age}岁")
-                RecruitStatItem("悟性", "${disciple.comprehension}")
-                RecruitStatItem("忠诚", "${disciple.loyalty}")
-                RecruitStatItem("道德", "${disciple.morality}")
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(Color(0xFFE74C3C))
-                        .clickable { onReject() }
-                        .padding(vertical = 10.dp),
-                    contentAlignment = Alignment.Center
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text(
-                        text = "拒绝",
-                        fontSize = 12.sp,
-                        color = Color.White,
-                        fontWeight = FontWeight.Medium
-                    )
+                    RecruitStatItem("悟性", "${disciple.comprehension}")
+                    RecruitStatItem("忠诚", "${disciple.loyalty}")
+                    RecruitStatItem("道德", "${disciple.morality}")
                 }
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(Color(0xFF27AE60))
-                        .clickable { onAccept() }
-                        .padding(vertical = 10.dp),
-                    contentAlignment = Alignment.Center
+                
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(
+                    GameButton(
+                        text = "拒绝",
+                        onClick = onReject
+                    )
+                    GameButton(
                         text = "同意",
-                        fontSize = 12.sp,
-                        color = Color.White,
-                        fontWeight = FontWeight.Medium
+                        onClick = onAccept
                     )
                 }
             }

@@ -1,6 +1,7 @@
 package com.xianxia.sect.ui.game
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -19,10 +20,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.util.GameUtils
+import com.xianxia.sect.core.util.sortedByFollowAndRealm
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.theme.getRealmColor
 import com.xianxia.sect.ui.game.components.InventoryDialog
+import com.xianxia.sect.ui.components.discipleCardBorder
+import com.xianxia.sect.ui.components.DiscipleCardStyles
 
 @Composable
 fun GameScreen(
@@ -69,11 +73,7 @@ fun GameScreen(
         } else {
             disciples.filter { it.isAlive && it.realm == selectedRealmFilter }
         }
-        baseList.sortedWith(
-            compareBy<Disciple> { it.realm }
-                .thenByDescending { it.realmLayer }
-                .thenByDescending { it.cultivationProgress }
-        )
+        baseList.sortedByFollowAndRealm()
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -242,13 +242,10 @@ private fun GameTopBar(
             color = Color.Black
         )
 
-        TextButton(onClick = onLogout) {
-            Text(
-                text = "退出",
-                fontSize = 12.sp,
-                color = Color.Black
-            )
-        }
+        GameButton(
+            text = "退出",
+            onClick = onLogout
+        )
     }
 }
 
@@ -351,15 +348,10 @@ private fun DiscipleCard(
         else -> Color(0xFF666666)
     }
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = GameColors.PageBackground
-        ),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = 2.dp
-        )
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .discipleCardBorder()
     ) {
         Column(
             modifier = Modifier

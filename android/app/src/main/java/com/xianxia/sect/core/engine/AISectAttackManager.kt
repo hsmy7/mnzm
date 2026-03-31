@@ -1,7 +1,9 @@
 package com.xianxia.sect.core.engine
 
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.data.EquipmentDatabase
 import com.xianxia.sect.core.data.ManualDatabase
+import com.xianxia.sect.core.data.TalentDatabase
 import com.xianxia.sect.core.model.AIBattleTeam
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
@@ -18,9 +20,9 @@ import kotlin.random.Random
 
 object AISectAttackManager {
     
-    private const val MIN_DISCIPLES_FOR_ATTACK = 10
-    private const val POWER_RATIO_THRESHOLD = 0.8
-    const val TEAM_SIZE = 10
+    private val MIN_DISCIPLES_FOR_ATTACK get() = GameConfig.AI.MIN_DISCIPLES_FOR_ATTACK
+    private val POWER_RATIO_THRESHOLD get() = GameConfig.AI.POWER_RATIO_THRESHOLD
+    val TEAM_SIZE get() = GameConfig.AI.TEAM_SIZE
     
     fun decideAttacks(gameData: GameData): List<AIBattleTeam> {
         val newBattles = mutableListOf<AIBattleTeam>()
@@ -95,10 +97,47 @@ object AISectAttackManager {
         val disciples = sect.aiDisciples.filter { it.isAlive }
         if (disciples.isEmpty()) return 0.0
         
-        val avgRealm = disciples.map { it.realm }.average()
-        val powerScore = disciples.size * (10.0 - avgRealm)
+        if (!ManualDatabase.isInitialized || !EquipmentDatabase.isInitialized || !TalentDatabase.isInitialized) {
+            var totalPower = 0.0
+            for (disciple in disciples) {
+                totalPower += (10 - disciple.realm) * GameConfig.AI.PowerWeights.REALM_BASE
+            }
+            return totalPower
+        }
         
-        return powerScore
+        val weights = GameConfig.AI.PowerWeights
+        var totalPower = 0.0
+        
+        for (disciple in disciples) {
+            val realmPower = (10 - disciple.realm) * weights.REALM_BASE
+            
+            val equipmentPower = buildMap {
+                disciple.weaponId?.let { put(it, 1.0) }
+                disciple.armorId?.let { put(it, 1.0) }
+                disciple.bootsId?.let { put(it, 1.0) }
+                disciple.accessoryId?.let { put(it, 1.0) }
+            }.entries.sumOf { (id, _) ->
+                EquipmentDatabase.getById(id)?.let { template ->
+                    template.rarity * weights.EQUIPMENT_RARITY
+                } ?: 0.0
+            }
+            
+            val manualPower = disciple.manualIds.sumOf { manualId ->
+                ManualDatabase.getById(manualId)?.let { template ->
+                    val mastery = disciple.manualMasteries[manualId] ?: 0
+                    template.rarity * weights.MANUAL_RARITY + mastery * weights.MANUAL_MASTERY
+                } ?: 0.0
+            }
+            
+            val talentPower = disciple.talentIds.sumOf { talentId ->
+                TalentDatabase.getById(talentId)?.rarity?.times(weights.TALENT_RARITY) ?: 0.0
+            }
+            
+            val individualPower = realmPower + equipmentPower + manualPower + talentPower
+            totalPower += individualPower
+        }
+        
+        return totalPower
     }
     
     fun createAttackTeam(attacker: WorldSect, defender: WorldSect, gameData: GameData): AIBattleTeam? {
@@ -247,7 +286,7 @@ object AISectAttackManager {
             winner = null
         )
         
-        while (!currentBattle.isFinished && currentBattle.turn < 25) {
+        while (!currentBattle.isFinished && currentBattle.turn < GameConfig.AI.MAX_BATTLE_TURNS) {
             currentBattle = executeAIBattleTurn(currentBattle)
         }
         
@@ -477,7 +516,7 @@ object AISectAttackManager {
             winner = null
         )
         
-        while (!currentBattle.isFinished && currentBattle.turn < 25) {
+        while (!currentBattle.isFinished && currentBattle.turn < GameConfig.AI.MAX_BATTLE_TURNS) {
             currentBattle = executeAIBattleTurn(currentBattle)
         }
         

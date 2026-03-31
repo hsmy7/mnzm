@@ -16,15 +16,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.ui.theme.GameColors
 
-/**
- * 统一的游戏按钮组件
- * 使用米色背景、黑色字体、浅棕色边框的统一样式
- *
- * @param text 按钮显示的文本
- * @param onClick 点击回调
- * @param modifier 修饰符
- * @param enabled 是否启用，默认为 true
- */
 @Composable
 fun GameButton(
     text: String,

@@ -7,6 +7,8 @@ import kotlin.random.Random
 
 object TalentDatabase {
 
+    val isInitialized: Boolean = true
+
     private const val NEGATIVE_TALENT_CHANCE = 0.14
 
     // User-confirmed: rarity distribution inside positive pool.

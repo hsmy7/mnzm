@@ -421,7 +421,13 @@ object RedeemCodeManager {
             gender = gender,
             talentIds = talentIds,
             intelligence = cfg.intelligence ?: Random.nextInt(30, 81),
-            comprehension = cfg.comprehension ?: Random.nextInt(30, 81),
+            comprehension = cfg.comprehension ?: when (spiritRootType.split(",").size) {
+                1 -> Random.nextInt(80, 101)
+                2 -> Random.nextInt(60, 101)
+                3 -> Random.nextInt(40, 101)
+                4 -> Random.nextInt(20, 101)
+                else -> Random.nextInt(1, 101)
+            },
             charm = cfg.charm ?: Random.nextInt(30, 81),
             loyalty = cfg.loyalty ?: Random.nextInt(40, 71),
             artifactRefining = cfg.artifactRefining ?: Random.nextInt(30, 81),

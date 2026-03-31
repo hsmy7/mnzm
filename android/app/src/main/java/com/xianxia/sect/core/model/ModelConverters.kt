@@ -411,15 +411,6 @@ object ModelConverters {
 
     @TypeConverter
     @JvmStatic
-    fun fromSupportTeamList(value: List<SupportTeam>): String = gson.toJson(value)
-
-    @TypeConverter
-    @JvmStatic
-    fun toSupportTeamList(value: String): List<SupportTeam> =
-        gson.fromJson(value, object : TypeToken<List<SupportTeam>>() {}.type) ?: emptyList()
-
-    @TypeConverter
-    @JvmStatic
     fun fromSectRelationList(value: List<SectRelation>): String = gson.toJson(value)
 
     @TypeConverter
@@ -472,4 +463,31 @@ object ModelConverters {
     @JvmStatic
     fun toMissionList(value: String): List<Mission> =
         gson.fromJson(value, object : TypeToken<List<Mission>>() {}.type) ?: emptyList()
+
+    @TypeConverter
+    @JvmStatic
+    fun fromBuildingSlotList(value: List<BuildingSlot>): String = gson.toJson(value)
+
+    @TypeConverter
+    @JvmStatic
+    fun toBuildingSlotList(value: String): List<BuildingSlot> =
+        gson.fromJson(value, object : TypeToken<List<BuildingSlot>>() {}.type) ?: emptyList()
+
+    @TypeConverter
+    @JvmStatic
+    fun fromAlchemySlotList(value: List<AlchemySlot>): String = gson.toJson(value)
+
+    @TypeConverter
+    @JvmStatic
+    fun toAlchemySlotList(value: String): List<AlchemySlot> =
+        gson.fromJson(value, object : TypeToken<List<AlchemySlot>>() {}.type) ?: emptyList()
+
+    @TypeConverter
+    @JvmStatic
+    fun fromTradeLogList(value: List<TradeLog>): String = gson.toJson(value)
+
+    @TypeConverter
+    @JvmStatic
+    fun toTradeLogList(value: String): List<TradeLog> =
+        gson.fromJson(value, object : TypeToken<List<TradeLog>>() {}.type) ?: emptyList()
 }

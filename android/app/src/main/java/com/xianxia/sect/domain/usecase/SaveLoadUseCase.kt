@@ -1,7 +1,7 @@
 package com.xianxia.sect.domain.usecase
 
 import com.xianxia.sect.core.engine.GameEngine
-import com.xianxia.sect.data.SaveManager
+import com.xianxia.sect.data.facade.RefactoredStorageFacade
 import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.model.SaveSlot
 import kotlinx.coroutines.Dispatchers
@@ -12,7 +12,7 @@ import javax.inject.Singleton
 @Singleton
 class SaveLoadUseCase @Inject constructor(
     private val gameEngine: GameEngine,
-    private val saveManager: SaveManager
+    private val storageFacade: RefactoredStorageFacade
 ) {
     sealed class SaveResult {
         data class Success(val slotId: Int) : SaveResult()
@@ -37,19 +37,14 @@ class SaveLoadUseCase @Inject constructor(
                 herbs = snapshot.herbs,
                 seeds = snapshot.seeds,
                 teams = snapshot.teams,
-                slots = snapshot.buildingSlots,
                 events = snapshot.events,
                 battleLogs = snapshot.battleLogs,
-                alliances = snapshot.alliances,
-                supportTeams = snapshot.supportTeams,
-                alchemySlots = snapshot.alchemySlots
+                alliances = snapshot.alliances
             )
             
-            val success = saveManager.save(slotId, saveData)
-            if (success) {
-                SaveResult.Success(slotId)
-            } else {
-                SaveResult.Error("保存失败")
+            when (val result = storageFacade.save(slotId, saveData)) {
+                is com.xianxia.sect.data.unified.SaveResult.Success -> SaveResult.Success(slotId)
+                is com.xianxia.sect.data.unified.SaveResult.Failure -> SaveResult.Error(result.message)
             }
         } catch (e: Exception) {
             SaveResult.Error(e.message ?: "保存失败")
@@ -58,40 +53,39 @@ class SaveLoadUseCase @Inject constructor(
     
     suspend fun loadGame(slotId: Int): LoadResult = withContext(Dispatchers.IO) {
         try {
-            val saveData = saveManager.load(slotId)
-                ?: return@withContext LoadResult.Error("存档不存在")
-            
-            gameEngine.loadData(
-                gameData = saveData.gameData,
-                disciples = saveData.disciples,
-                equipment = saveData.equipment,
-                manuals = saveData.manuals,
-                pills = saveData.pills,
-                materials = saveData.materials,
-                herbs = saveData.herbs,
-                seeds = saveData.seeds,
-                teams = saveData.teams,
-                slots = saveData.slots,
-                events = saveData.events,
-                battleLogs = saveData.battleLogs,
-                alliances = saveData.alliances,
-                supportTeams = saveData.supportTeams,
-                alchemySlots = saveData.alchemySlots
-            )
-            
-            LoadResult.Success(slotId)
+            when (val result = storageFacade.load(slotId)) {
+                is com.xianxia.sect.data.unified.SaveResult.Success -> {
+                    val saveData = result.data
+                    gameEngine.loadData(
+                        gameData = saveData.gameData,
+                        disciples = saveData.disciples,
+                        equipment = saveData.equipment,
+                        manuals = saveData.manuals,
+                        pills = saveData.pills,
+                        materials = saveData.materials,
+                        herbs = saveData.herbs,
+                        seeds = saveData.seeds,
+                        teams = saveData.teams,
+                        events = saveData.events,
+                        battleLogs = saveData.battleLogs,
+                        alliances = saveData.alliances
+                    )
+                    LoadResult.Success(slotId)
+                }
+                is com.xianxia.sect.data.unified.SaveResult.Failure -> LoadResult.Error(result.message)
+            }
         } catch (e: Exception) {
             LoadResult.Error(e.message ?: "加载失败")
         }
     }
     
     fun getSaveSlots(): List<SaveSlot> {
-        return saveManager.getSaveSlots()
+        return storageFacade.getSaveSlots()
     }
     
-    fun deleteSave(slotId: Int): Boolean {
+    suspend fun deleteSave(slotId: Int): Boolean {
         return try {
-            saveManager.delete(slotId)
+            storageFacade.delete(slotId).isSuccess
         } catch (e: Exception) {
             false
         }

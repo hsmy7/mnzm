@@ -83,12 +83,30 @@ fun GiftDialog(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column {
-                                Text(
-                                    text = "向 ${sect?.name ?: "宗门"} 送礼",
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text(
+                                        text = "向 ${sect?.name ?: "宗门"} 送礼",
+                                        fontSize = 18.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                    if (sect?.giftPreference != null && sect.giftPreference != GiftPreferenceType.NONE) {
+                                        Surface(
+                                            shape = RoundedCornerShape(4.dp),
+                                            color = Color(0xFFFFD700).copy(alpha = 0.9f)
+                                        ) {
+                                            Text(
+                                                text = "偏好: ${sect.giftPreference.displayName}",
+                                                fontSize = 11.sp,
+                                                color = Color(0xFF333333),
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+                                }
                                 Spacer(modifier = Modifier.height(6.dp))
                                 FavorProgressBar(currentFavor = relation, maxFavor = 100)
                             }

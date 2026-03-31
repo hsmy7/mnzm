@@ -8,6 +8,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.ui.components.GameButton
 
 @Composable
 fun InventoryDialog(
@@ -76,9 +77,10 @@ fun InventoryDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("关闭")
-            }
+            GameButton(
+                text = "关闭",
+                onClick = onDismiss
+            )
         }
     )
 }

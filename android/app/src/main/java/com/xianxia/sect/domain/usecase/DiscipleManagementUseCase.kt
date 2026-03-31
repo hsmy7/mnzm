@@ -1,5 +1,6 @@
 package com.xianxia.sect.domain.usecase
 
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
@@ -23,29 +24,45 @@ class DiscipleManagementUseCase @Inject constructor(
         val message: String? = null
     )
     
-    fun recruitDisciple(discipleId: String, recruitList: List<Disciple>): RecruitResult {
+    fun recruitDisciple(discipleId: String, recruitList: List<Disciple>, currentDiscipleCount: Int): RecruitResult {
         val disciple = recruitList.find { it.id == discipleId }
             ?: return RecruitResult(false, message = "弟子不存在")
         
-        val gameData = gameEngine.gameData.value
-        if (gameData.spiritStones < 1000L) {
-            return RecruitResult(false, message = "灵石不足，需要1000灵石")
+        if (currentDiscipleCount >= GameConfig.Disciple.MAX_DISCIPLES) {
+            return RecruitResult(false, message = "弟子数量已达上限(${GameConfig.Disciple.MAX_DISCIPLES}人)")
+        }
+        
+        if (!validateDiscipleData(disciple)) {
+            return RecruitResult(false, message = "弟子数据异常，无法招募")
         }
         
         gameEngine.recruitDiscipleFromList(disciple)
         return RecruitResult(true, disciple = disciple)
     }
     
-    fun recruitAllDisciples(recruitList: List<Disciple>, currentSpiritStones: Long): RecruitResult {
-        val totalCost = recruitList.size * 1000L
-        if (currentSpiritStones < totalCost) {
-            return RecruitResult(false, message = "灵石不足，需要${totalCost}灵石")
+    fun recruitAllDisciples(recruitList: List<Disciple>, currentSpiritStones: Long, currentDiscipleCount: Int): RecruitResult {
+        val availableSlots = GameConfig.Disciple.MAX_DISCIPLES - currentDiscipleCount
+        if (availableSlots <= 0) {
+            return RecruitResult(false, message = "弟子数量已达上限(${GameConfig.Disciple.MAX_DISCIPLES}人)")
         }
         
-        recruitList.forEach { disciple ->
+        val actualRecruitCount = minOf(recruitList.size, availableSlots)
+        
+        val validDisciples = recruitList.take(actualRecruitCount).filter { validateDiscipleData(it) }
+        validDisciples.forEach { disciple ->
             gameEngine.recruitDiscipleFromList(disciple)
         }
         return RecruitResult(true)
+    }
+    
+    private fun validateDiscipleData(disciple: Disciple): Boolean {
+        if (disciple.id.isBlank()) return false
+        if (disciple.name.isBlank()) return false
+        if (disciple.age < GameConfig.Disciple.MIN_AGE || disciple.age > GameConfig.Disciple.MAX_AGE) return false
+        if (disciple.lifespan <= 0) return false
+        if (disciple.loyalty < GameConfig.Disciple.MIN_LOYALTY || disciple.loyalty > GameConfig.Disciple.MAX_LOYALTY) return false
+        if (disciple.realm < 0 || disciple.realm > 9) return false
+        return true
     }
     
     fun expelDisciple(discipleId: String, disciples: List<Disciple>): RecruitResult {

@@ -18,6 +18,7 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.ManualProficiencySystem
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.ui.theme.GameColors
+import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.getRarityName
 import com.xianxia.sect.ui.theme.getRarityColor
 
@@ -97,7 +98,7 @@ fun ItemDetailDialog(
                     color = GameColors.TextSecondary
                 )
                 Spacer(modifier = Modifier.height(8.dp))
-                Divider(color = GameColors.Background, thickness = 1.dp)
+                HorizontalDivider(color = GameColors.Background, thickness = 1.dp)
                 Spacer(modifier = Modifier.height(8.dp))
                 
                 effects.forEach { effect ->
@@ -119,7 +120,7 @@ fun ItemDetailDialog(
                 
                 if (description.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(8.dp))
-                    Divider(color = GameColors.Background, thickness = 1.dp)
+                    HorizontalDivider(color = GameColors.Background, thickness = 1.dp)
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = description,
@@ -130,9 +131,10 @@ fun ItemDetailDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("关闭", color = GameColors.TextSecondary)
-            }
+            GameButton(
+                text = "关闭",
+                onClick = onDismiss
+            )
         }
     )
 }
@@ -221,7 +223,7 @@ fun LearnedManualDetailDialog(
                     color = Color(0xFF666666)
                 )
 
-                Divider(color = GameColors.Border, thickness = 1.dp)
+                HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
 
                 Text(
                     text = manual.description,
@@ -229,7 +231,7 @@ fun LearnedManualDetailDialog(
                     color = Color(0xFF333333)
                 )
 
-                Divider(color = GameColors.Border, thickness = 1.dp)
+                HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
 
                 Text(
                     text = "熟练度",
@@ -291,7 +293,7 @@ fun LearnedManualDetailDialog(
                     )
                 }
 
-                Divider(color = GameColors.Border, thickness = 1.dp)
+                HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
 
                 ManualStatsContent(manual, mastery.bonus, rarityColor)
 
@@ -306,9 +308,10 @@ fun LearnedManualDetailDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onForget) {
-                Text("遗忘", color = Color(0xFFE74C3C))
-            }
+            GameButton(
+                text = "遗忘",
+                onClick = onForget
+            )
         }
     )
 }

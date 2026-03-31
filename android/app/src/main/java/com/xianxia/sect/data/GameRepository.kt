@@ -106,7 +106,7 @@ class GameRepository @Inject constructor(
     
     suspend fun getMaterialById(id: String): Material? = materialDao.getById(id)
     
-    suspend fun getMaterialsByCategory(category: MaterialCategory): List<Material> = 
+    fun getMaterialsByCategory(category: MaterialCategory): Flow<List<Material>> = 
         materialDao.getByCategory(category)
     
     suspend fun addMaterial(material: Material) = materialDao.insert(material)

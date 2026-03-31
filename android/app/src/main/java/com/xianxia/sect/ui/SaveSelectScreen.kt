@@ -18,6 +18,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.data.model.SaveSlot
+import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.theme.GameColors
 import java.text.SimpleDateFormat
 import java.util.*
@@ -71,23 +72,11 @@ fun SaveSelectScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(48.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(GameColors.PageBackground)
-                .border(1.dp, Color(0xFFCCCCCC), RoundedCornerShape(8.dp))
-                .clickable { onLogout() },
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "退出登录",
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Medium,
-                color = Color(0xFF666666)
-            )
-        }
+        GameButton(
+            text = "退出登录",
+            onClick = onLogout,
+            modifier = Modifier.fillMaxWidth().height(48.dp)
+        )
     }
 
     if (showDeleteConfirm != null) {
@@ -96,23 +85,21 @@ fun SaveSelectScreen(
             title = { Text("确认删除") },
             text = { Text("确定要删除存档 ${showDeleteConfirm} 吗？此操作不可恢复。") },
             confirmButton = {
-                TextButton(
+                GameButton(
+                    text = "删除",
                     onClick = {
                         showDeleteConfirm?.let { onDeleteSlot(it) }
                         showDeleteConfirm = null
                     }
-                ) {
-                    Text("删除", color = Color.Red)
-                }
+                )
             },
             dismissButton = {
-                TextButton(
+                GameButton(
+                    text = "取消",
                     onClick = {
                         showDeleteConfirm = null
                     }
-                ) {
-                    Text("取消")
-                }
+                )
             }
         )
     }
@@ -135,22 +122,20 @@ fun SaveSelectScreen(
                 }
             },
             confirmButton = {
-                TextButton(
+                GameButton(
+                    text = "创建",
                     onClick = {
                         val name = sectNameInput.trim().ifEmpty { "青云宗" }
                         showSectNameDialog?.let { onNewGame(it, name) }
                         showSectNameDialog = null
                     }
-                ) {
-                    Text("创建")
-                }
+                )
             },
             dismissButton = {
-                TextButton(
+                GameButton(
+                    text = "取消",
                     onClick = { showSectNameDialog = null }
-                ) {
-                    Text("取消")
-                }
+                )
             }
         )
     }

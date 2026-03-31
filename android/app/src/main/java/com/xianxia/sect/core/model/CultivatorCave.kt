@@ -32,7 +32,10 @@ data class ExplorationTeam(
     val arrivalDay: Int = 0,
     val route: List<String> = emptyList(),
     val currentRouteIndex: Int = 0,
-    val currentSegmentProgress: Float = 0f
+    val currentSegmentProgress: Float = 0f,
+    val pityCounterEquipment: Int = 0,
+    val pityCounterPill: Int = 0,
+    val pityCounterManual: Int = 0
 ) {
     val isTraveling: Boolean get() = status == ExplorationStatus.TRAVELING
     val isExploring: Boolean get() = status == ExplorationStatus.EXPLORING

@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.xianxia.sect.core.model.EventType
 import com.xianxia.sect.core.model.GameEvent
+import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.theme.GameColors
 
 @Composable
@@ -82,9 +83,10 @@ private fun EventLogHeader(onDismiss: () -> Unit) {
             color = Color.Black
         )
 
-        TextButton(onClick = onDismiss) {
-            Text("关闭", color = GameColors.TextSecondary, fontSize = 12.sp)
-        }
+        GameButton(
+            text = "关闭",
+            onClick = onDismiss
+        )
     }
 }
 

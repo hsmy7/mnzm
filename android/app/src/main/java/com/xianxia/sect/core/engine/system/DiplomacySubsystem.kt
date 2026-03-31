@@ -4,7 +4,6 @@ import android.util.Log
 import com.xianxia.sect.core.model.Alliance
 import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.model.SectRelation
-import com.xianxia.sect.core.model.SupportTeam
 import com.xianxia.sect.core.model.MerchantItem
 import com.xianxia.sect.core.util.StateFlowListUtils
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,9 +26,6 @@ class DiplomacySubsystem @Inject constructor() : GameSystem {
     private val _sectRelations = MutableStateFlow<List<SectRelation>>(emptyList())
     val sectRelations: StateFlow<List<SectRelation>> = _sectRelations.asStateFlow()
     
-    private val _supportTeams = MutableStateFlow<List<SupportTeam>>(emptyList())
-    val supportTeams: StateFlow<List<SupportTeam>> = _supportTeams.asStateFlow()
-    
     private val _sectTradeItems = MutableStateFlow<Map<String, List<MerchantItem>>>(emptyMap())
     val sectTradeItems: StateFlow<Map<String, List<MerchantItem>>> = _sectTradeItems.asStateFlow()
     
@@ -46,19 +42,16 @@ class DiplomacySubsystem @Inject constructor() : GameSystem {
     override fun clear() {
         StateFlowListUtils.clearList(_alliances)
         StateFlowListUtils.clearList(_sectRelations)
-        StateFlowListUtils.clearList(_supportTeams)
         _sectTradeItems.value = emptyMap()
     }
     
     fun loadDiplomacyData(
         alliances: List<Alliance>,
         sectRelations: List<SectRelation>,
-        supportTeams: List<SupportTeam>,
         sectTradeItems: Map<String, List<MerchantItem>> = emptyMap()
     ) {
         StateFlowListUtils.setList(_alliances, alliances)
         StateFlowListUtils.setList(_sectRelations, sectRelations)
-        StateFlowListUtils.setList(_supportTeams, supportTeams)
         _sectTradeItems.value = sectTradeItems
     }
     
@@ -93,19 +86,6 @@ class DiplomacySubsystem @Inject constructor() : GameSystem {
             (relation.sectId1 == sectId2 && relation.sectId2 == sectId1)
         }, transform)
     }
-    
-    fun getSupportTeams(): List<SupportTeam> = _supportTeams.value
-    
-    fun getSupportTeamById(teamId: String): SupportTeam? = 
-        StateFlowListUtils.findItemById(_supportTeams, teamId) { it.id }
-    
-    fun addSupportTeam(team: SupportTeam) = StateFlowListUtils.addItem(_supportTeams, team)
-    
-    fun removeSupportTeam(teamId: String): Boolean = 
-        StateFlowListUtils.removeItemById(_supportTeams, teamId, getId = { it.id })
-    
-    fun updateSupportTeam(teamId: String, transform: (SupportTeam) -> SupportTeam): Boolean =
-        StateFlowListUtils.updateItemById(_supportTeams, teamId, { it.id }, transform)
     
     fun getSectTradeItems(sectId: String): List<MerchantItem> = 
         _sectTradeItems.value[sectId] ?: emptyList()

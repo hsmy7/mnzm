@@ -27,11 +27,13 @@ import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.lifecycle.lifecycleScope
 import com.xianxia.sect.R
+import kotlinx.coroutines.launch
 import com.xianxia.sect.BuildConfig
 import com.xianxia.sect.core.CrashHandler
 import com.xianxia.sect.data.SessionManager
-import com.xianxia.sect.data.SaveManager
+import com.xianxia.sect.data.facade.RefactoredStorageFacade
 import com.xianxia.sect.data.model.SaveSlot
 import com.xianxia.sect.taptap.TapTapAuthManager
 import com.xianxia.sect.taptap.LoginData
@@ -51,7 +53,7 @@ class MainActivity : ComponentActivity() {
     lateinit var sessionManager: SessionManager
     
     @Inject
-    lateinit var saveManager: SaveManager
+    lateinit var storageFacade: RefactoredStorageFacade
     
     @Inject
     lateinit var crashHandler: CrashHandler
@@ -130,7 +132,7 @@ class MainActivity : ComponentActivity() {
             return
         }
         
-        if (crashHandler.hasCrashed() && saveManager.hasEmergencySave()) {
+        if (crashHandler.hasCrashed() && storageFacade.hasEmergencySave()) {
             Log.i(TAG, "Detected crash with emergency save, showing recovery dialog")
             showCrashRecoveryDialog()
             return
@@ -218,7 +220,7 @@ class MainActivity : ComponentActivity() {
     }
     
     private fun showSaveSelectScreen() {
-        val saveSlots = saveManager.getSaveSlots()
+        val saveSlots = storageFacade.getSaveSlots()
         setContent {
             XianxiaTheme {
                 Surface(
@@ -248,8 +250,10 @@ class MainActivity : ComponentActivity() {
                             finish()
                         },
                         onDeleteSlot = { slot ->
-                            saveManager.delete(slot)
-                            showSaveSelectScreen()
+                            lifecycleScope.launch {
+                                storageFacade.delete(slot)
+                                showSaveSelectScreen()
+                            }
                         },
                         onLogout = {
                             sessionManager.clearSession()
@@ -293,29 +297,27 @@ class MainActivity : ComponentActivity() {
      */
     private fun recoverFromEmergencySave() {
         try {
-            val emergencyData = saveManager.loadEmergencySave()
-            if (emergencyData != null) {
-                Log.i(TAG, "Emergency save loaded successfully, sect: ${emergencyData.gameData.sectName}")
-                
-                // 清理紧急存档和崩溃状态
-                saveManager.clearEmergencySave()
-                crashHandler.clearCrashState()
-                
-                // 获取存档槽位
-                val slot = if (emergencyData.gameData.currentSlot > 0) emergencyData.gameData.currentSlot else 1
-                
-                // 将紧急存档保存到正常槽位
-                saveManager.save(slot, emergencyData)
-                
-                // 进入游戏
-                val intent = Intent(this, GameActivity::class.java)
-                intent.putExtra(EXTRA_SLOT, slot)
-                startActivity(intent)
-                finish()
-            } else {
-                Log.e(TAG, "Failed to load emergency save")
-                Toast.makeText(this, "恢复数据失败，将进入正常游戏", Toast.LENGTH_LONG).show()
-                clearCrashStateAndContinue()
+            lifecycleScope.launch {
+                val emergencyData = storageFacade.loadEmergencySave()
+                if (emergencyData != null) {
+                    Log.i(TAG, "Emergency save loaded successfully, sect: ${emergencyData.gameData.sectName}")
+                    
+                    storageFacade.clearEmergencySave()
+                    crashHandler.clearCrashState()
+                    
+                    val slot = if (emergencyData.gameData.currentSlot > 0) emergencyData.gameData.currentSlot else 1
+                    
+                    storageFacade.saveSync(slot, emergencyData)
+                    
+                    val intent = Intent(this@MainActivity, GameActivity::class.java)
+                    intent.putExtra(EXTRA_SLOT, slot)
+                    startActivity(intent)
+                    finish()
+                } else {
+                    Log.e(TAG, "Failed to load emergency save")
+                    Toast.makeText(this@MainActivity, "恢复数据失败，将进入正常游戏", Toast.LENGTH_LONG).show()
+                    clearCrashStateAndContinue()
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error recovering from emergency save", e)
@@ -324,18 +326,14 @@ class MainActivity : ComponentActivity() {
         }
     }
     
-    /**
-     * 清理崩溃状态并继续正常流程
-     */
     private fun clearCrashStateAndContinue() {
         try {
-            saveManager.clearEmergencySave()
+            storageFacade.clearEmergencySave()
             crashHandler.clearCrashState()
         } catch (e: Exception) {
             Log.e(TAG, "Error clearing crash state", e)
         }
         
-        // 继续正常流程
         initTapTapSDK()
         
         if (sessionManager.isLoggedIn) {
@@ -458,24 +456,26 @@ fun MainScreen(
                     title = { Text(state.title) },
                     text = { Text(state.message) },
                     confirmButton = {
-                        TextButton(onClick = {
-                            complianceDialogState.value = null
-                            sessionManager.clearSession()
-                            TapTapAuthManager.logout()
-                            (context as? MainActivity)?.recreate()
-                        }) {
-                            Text("退出游戏")
-                        }
+                        GameButton(
+                            text = "退出游戏",
+                            onClick = {
+                                complianceDialogState.value = null
+                                sessionManager.clearSession()
+                                TapTapAuthManager.logout()
+                                (context as? MainActivity)?.recreate()
+                            }
+                        )
                     },
                     dismissButton = {
-                        TextButton(onClick = {
-                            complianceDialogState.value = null
-                            sessionManager.clearSession()
-                            TapTapAuthManager.logout()
-                            (context as? MainActivity)?.recreate()
-                        }) {
-                            Text("切换账号")
-                        }
+                        GameButton(
+                            text = "切换账号",
+                            onClick = {
+                                complianceDialogState.value = null
+                                sessionManager.clearSession()
+                                TapTapAuthManager.logout()
+                                (context as? MainActivity)?.recreate()
+                            }
+                        )
                     }
                 )
             }
@@ -485,12 +485,13 @@ fun MainScreen(
                     title = { Text("适龄限制") },
                     text = { Text("根据游戏适龄提示，您当前年龄不符合本游戏的游玩要求。") },
                     confirmButton = {
-                        TextButton(onClick = {
-                            complianceDialogState.value = null
-                            (context as? MainActivity)?.finish()
-                        }) {
-                            Text("退出游戏")
-                        }
+                        GameButton(
+                            text = "退出游戏",
+                            onClick = {
+                                complianceDialogState.value = null
+                                (context as? MainActivity)?.finish()
+                            }
+                        )
                     }
                 )
             }
@@ -515,17 +516,19 @@ fun MainScreen(
             title = { Text("确认退出") },
             text = { Text("您需要同意隐私政策才能使用本应用。拒绝后应用将关闭。") },
             confirmButton = {
-                TextButton(onClick = {
-                    val activity = context as? MainActivity
-                    activity?.finish()
-                }) {
-                    Text("退出应用", color = MaterialTheme.colorScheme.error)
-                }
+                GameButton(
+                    text = "退出应用",
+                    onClick = {
+                        val activity = context as? MainActivity
+                        activity?.finish()
+                    }
+                )
             },
             dismissButton = {
-                TextButton(onClick = { showExitConfirm = false }) {
-                    Text("重新阅读")
-                }
+                GameButton(
+                    text = "重新阅读",
+                    onClick = { showExitConfirm = false }
+                )
             }
         )
     }
@@ -788,15 +791,13 @@ fun PrivacyPolicyDialog(
                 
                 Spacer(modifier = Modifier.height(16.dp))
                 
-                TextButton(
+                GameButton(
+                    text = "查看完整隐私政策",
                     onClick = {
                         val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://hsmy7.github.io/index.html/"))
                         context.startActivity(intent)
-                    },
-                    modifier = Modifier.align(Alignment.CenterHorizontally)
-                ) {
-                    Text("查看完整隐私政策", color = MaterialTheme.colorScheme.primary)
-                }
+                    }
+                )
             }
         },
         confirmButton = {
@@ -806,9 +807,10 @@ fun PrivacyPolicyDialog(
             )
         },
         dismissButton = {
-            TextButton(onClick = onDisagree) {
-                Text("退出", color = MaterialTheme.colorScheme.error)
-            }
+            GameButton(
+                text = "退出",
+                onClick = onDisagree
+            )
         }
     )
 }
@@ -918,15 +920,13 @@ fun PrivacyPolicyScreen(
             
             Spacer(modifier = Modifier.height(16.dp))
             
-            TextButton(
+            GameButton(
+                text = "查看完整隐私政策",
                 onClick = {
                     val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://hsmy7.github.io/index.html/"))
                     context.startActivity(intent)
-                },
-                modifier = Modifier.align(Alignment.CenterHorizontally)
-            ) {
-                Text("查看完整隐私政策", color = MaterialTheme.colorScheme.primary)
-            }
+                }
+            )
             
             Spacer(modifier = Modifier.height(16.dp))
         }
@@ -1014,9 +1014,10 @@ fun CrashRecoveryDialog(
                 )
             },
             dismissButton = {
-                TextButton(onClick = onDismiss) {
-                    Text("不恢复", color = Color(0xFF999999))
-                }
+                GameButton(
+                    text = "不恢复",
+                    onClick = onDismiss
+                )
             }
         )
     }
@@ -1065,9 +1066,10 @@ fun ComplianceVerificationScreen(
         
         Spacer(modifier = Modifier.height(16.dp))
         
-        TextButton(onClick = onLogout) {
-            Text("切换账号", color = Color(0xFF666666), fontSize = 14.sp)
-        }
+        GameButton(
+            text = "切换账号",
+            onClick = onLogout
+        )
         
         Spacer(modifier = Modifier.height(100.dp))
     }

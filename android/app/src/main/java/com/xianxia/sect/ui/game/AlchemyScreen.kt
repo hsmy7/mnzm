@@ -112,7 +112,6 @@ fun AlchemyDialog(
                             onClick = {
                                 if (slot?.status == AlchemySlotStatus.IDLE || slot == null) {
                                     selectedSlotIndex = index
-                                    viewModel.selectAlchemySlot(slot ?: AlchemySlot(slotIndex = index))
                                     showPillSelection = true
                                 }
                             },
@@ -986,7 +985,7 @@ private fun AlchemyElderSelectionDialog(
             it.status == DiscipleStatus.IDLE &&
             it.discipleType == "inner" &&
             it.realm <= 5 &&
-            !isDiscipleInAnyPosition(it.id, elderSlots)
+            !elderSlots.isDiscipleInAnyPosition(it.id)
         }
     }
 
@@ -1234,7 +1233,7 @@ private fun AlchemyDirectDiscipleSelectionDialog(
             it.age >= 5 &&
             it.status == DiscipleStatus.IDLE &&
             it.discipleType == "inner" &&
-            !isDiscipleInAnyPosition(it.id, elderSlots) &&
+            !elderSlots.isDiscipleInAnyPosition(it.id) &&
             !allDirectDiscipleIds.contains(it.id)
         }
     }
@@ -1398,32 +1397,6 @@ private fun AlchemyDirectDiscipleSelectionDialog(
         },
         confirmButton = {}
     )
-}
-
-private fun isDiscipleInAnyPosition(discipleId: String, elderSlots: ElderSlots): Boolean {
-    if (elderSlots.viceSectMaster == discipleId) {
-        return true
-    }
-
-    val allElderIds = listOf(
-        elderSlots.herbGardenElder,
-        elderSlots.alchemyElder,
-        elderSlots.forgeElder,
-        elderSlots.libraryElder
-    )
-
-    if (allElderIds.contains(discipleId)) {
-        return true
-    }
-
-    val allDirectDiscipleIds = listOf(
-        elderSlots.herbGardenDisciples,
-        elderSlots.alchemyDisciples,
-        elderSlots.forgeDisciples,
-        elderSlots.libraryDisciples
-    ).flatten().mapNotNull { it.discipleId }
-
-    return allDirectDiscipleIds.contains(discipleId)
 }
 
 @Composable

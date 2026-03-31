@@ -179,11 +179,11 @@ fun DiscipleDetailDialog(
                     position = viewModel?.getDisciplePosition(disciple.id),
                     isWorkStatusPosition = viewModel?.isPositionWorkStatus(disciple.id) ?: false
                 )
-                Divider(color = GameColors.Border, thickness = 1.dp)
+                HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
                 TalentsSection(talents)
-                Divider(color = GameColors.Border, thickness = 1.dp)
+                HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
                 AttributesSection(disciple)
-                Divider(color = GameColors.Border, thickness = 1.dp)
+                HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
                 CombatStatsSection(
                     disciple = disciple,
                     weapon = weapon,
@@ -193,7 +193,7 @@ fun DiscipleDetailDialog(
                     learnedManuals = learnedManuals,
                     manualProficiencies = manualProficiencies
                 )
-                Divider(color = GameColors.Border, thickness = 1.dp)
+                HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
                 EquipmentSection(
                     weapon = weapon,
                     armor = armor,
@@ -202,7 +202,7 @@ fun DiscipleDetailDialog(
                     onSlotClick = { slotType -> showEquipmentSelection = slotType },
                     onEquipmentClick = { equipment -> showEquipmentDetailDialog = equipment }
                 )
-                Divider(color = GameColors.Border, thickness = 1.dp)
+                HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
                 ManualsSection(
                     manuals = learnedManuals,
                     maxSlots = maxManualSlots,
@@ -257,20 +257,20 @@ fun DiscipleDetailDialog(
                 )
             },
             confirmButton = {
-                TextButton(
+                GameButton(
+                    text = "确认",
                     onClick = {
                         viewModel?.expelDisciple(disciple.id)
                         showExpelConfirmDialog = false
                         onDismiss()
                     }
-                ) {
-                    Text("确认", color = Color(0xFFE74C3C))
-                }
+                )
             },
             dismissButton = {
-                TextButton(onClick = { showExpelConfirmDialog = false }) {
-                    Text("取消", color = Color(0xFF666666))
-                }
+                GameButton(
+                    text = "取消",
+                    onClick = { showExpelConfirmDialog = false }
+                )
             }
         )
     }
@@ -649,9 +649,10 @@ private fun ManualDetailDialog(
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    TextButton(onClick = { showReplaceSelection = false }) {
-                        Text("取消", color = Color(0xFF666666))
-                    }
+                    GameButton(
+                        text = "取消",
+                        onClick = { showReplaceSelection = false }
+                    )
                     GameButton(
                         text = "确认更换",
                         onClick = {
@@ -708,7 +709,7 @@ private fun ManualDetailDialog(
                         color = Color(0xFF666666)
                     )
 
-                    Divider(color = GameColors.Border, thickness = 1.dp)
+                    HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
 
                     Text(
                         text = manual.description,
@@ -716,7 +717,7 @@ private fun ManualDetailDialog(
                         color = Color(0xFF333333)
                     )
 
-                    Divider(color = GameColors.Border, thickness = 1.dp)
+                    HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
 
                     Text(
                         text = "熟练度",
@@ -778,7 +779,7 @@ private fun ManualDetailDialog(
                         )
                     }
 
-                    Divider(color = GameColors.Border, thickness = 1.dp)
+                    HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
 
                     Text(
                         text = "加成效果",
@@ -930,9 +931,10 @@ private fun ManualDetailDialog(
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    TextButton(onClick = { showForgetConfirmDialog = true }) {
-                        Text("遗忘", color = Color(0xFFE74C3C))
-                    }
+                    GameButton(
+                        text = "遗忘",
+                        onClick = { showForgetConfirmDialog = true }
+                    )
                     GameButton(
                         text = "更换",
                         onClick = { showReplaceSelection = true }
@@ -976,19 +978,19 @@ private fun ManualDetailDialog(
                 }
             },
             confirmButton = {
-                TextButton(
+                GameButton(
+                    text = "确认遗忘",
                     onClick = {
                         showForgetConfirmDialog = false
                         onForget()
                     }
-                ) {
-                    Text("确认遗忘", color = Color(0xFFE74C3C))
-                }
+                )
             },
             dismissButton = {
-                TextButton(onClick = { showForgetConfirmDialog = false }) {
-                    Text("取消", color = Color(0xFF666666))
-                }
+                GameButton(
+                    text = "取消",
+                    onClick = { showForgetConfirmDialog = false }
+                )
             }
         )
     }
@@ -1147,9 +1149,10 @@ private fun EquipmentDetailDialog(
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    TextButton(onClick = { showReplaceSelection = false }) {
-                        Text("取消", color = Color(0xFF666666))
-                    }
+                    GameButton(
+                        text = "取消",
+                        onClick = { showReplaceSelection = false }
+                    )
                     GameButton(
                         text = "确认更换",
                         onClick = {
@@ -1214,7 +1217,7 @@ private fun EquipmentDetailDialog(
                         )
                     }
 
-                    Divider(color = GameColors.Border, thickness = 1.dp)
+                    HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
 
                     Text(
                         text = equipment.description,
@@ -1222,7 +1225,7 @@ private fun EquipmentDetailDialog(
                         color = Color(0xFF333333)
                     )
 
-                    Divider(color = GameColors.Border, thickness = 1.dp)
+                    HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
 
                     Text(
                         text = "孕养等级",
@@ -1278,7 +1281,7 @@ private fun EquipmentDetailDialog(
                         )
                     }
 
-                    Divider(color = GameColors.Border, thickness = 1.dp)
+                    HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
 
                     Text(
                         text = "加成效果",
@@ -1484,9 +1487,10 @@ private fun EquipmentDetailDialog(
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    TextButton(onClick = onUnequip) {
-                        Text("卸下", color = Color(0xFFE74C3C))
-                    }
+                    GameButton(
+                        text = "卸下",
+                        onClick = onUnequip
+                    )
                     GameButton(
                         text = "更换",
                         onClick = { showReplaceSelection = true }
@@ -1591,9 +1595,10 @@ private fun EquipmentSelectionDialog(
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                TextButton(onClick = onDismiss) {
-                    Text("取消", color = Color(0xFF666666))
-                }
+                GameButton(
+                    text = "取消",
+                    onClick = onDismiss
+                )
                 GameButton(
                     text = "确认装备",
                     onClick = onConfirm,
@@ -1639,7 +1644,7 @@ private fun EquipmentSelectionDialog(
                         )
                     }
                     Spacer(modifier = Modifier.height(8.dp))
-                    Divider(color = GameColors.Border, thickness = 1.dp)
+                    HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = equipment.description,
@@ -1820,9 +1825,10 @@ private fun ManualSelectionDialog(
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                TextButton(onClick = onDismiss) {
-                    Text("取消", color = Color(0xFF666666))
-                }
+                GameButton(
+                    text = "取消",
+                    onClick = onDismiss
+                )
                 GameButton(
                     text = "确认学习",
                     onClick = onConfirm,
@@ -1861,7 +1867,7 @@ private fun ManualSelectionDialog(
                         color = Color(0xFF666666)
                     )
                     Spacer(modifier = Modifier.height(8.dp))
-                    Divider(color = GameColors.Border, thickness = 1.dp)
+                    HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = manual.description,
@@ -2058,7 +2064,7 @@ private fun ManualReplaceDialog(
                     color = rarityColor
                 )
                 
-                Divider(color = GameColors.Border, thickness = 1.dp)
+                HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
                 
                 Text(
                     text = "选择新功法进行更换:",
@@ -2132,12 +2138,14 @@ private fun ManualReplaceDialog(
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                TextButton(onClick = onDismiss) {
-                    Text("取消", color = Color(0xFF666666))
-                }
-                TextButton(onClick = onForget) {
-                    Text("遗忘", color = Color(0xFFE74C3C))
-                }
+                GameButton(
+                    text = "取消",
+                    onClick = onDismiss
+                )
+                GameButton(
+                    text = "遗忘",
+                    onClick = onForget
+                )
                 GameButton(
                     text = "更换",
                     onClick = { 
@@ -2464,9 +2472,10 @@ private fun TalentDetailDialog(talent: Talent, onDismiss: () -> Unit) {
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("关闭", color = Color(0xFF666666))
-            }
+            GameButton(
+                text = "关闭",
+                onClick = onDismiss
+            )
         }
     )
 }
@@ -3273,9 +3282,10 @@ private fun StorageBagItemDetailDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("关闭", color = GameColors.TextSecondary)
-            }
+            GameButton(
+                text = "关闭",
+                onClick = onDismiss
+            )
         }
     )
 }
@@ -3547,9 +3557,10 @@ private fun RewardHeader(
             )
         }
 
-        TextButton(onClick = onDismiss) {
-            Text("关闭", color = GameColors.TextSecondary, fontSize = 12.sp)
-        }
+        GameButton(
+            text = "关闭",
+            onClick = onDismiss
+        )
     }
 }
 
@@ -4105,7 +4116,7 @@ private fun RewardItemDetailDialog(
                         fontSize = 12.sp,
                         color = GameColors.TextSecondary
                     )
-                    Divider(color = GameColors.Background, thickness = 1.dp)
+                    HorizontalDivider(color = GameColors.Background, thickness = 1.dp)
                 }
                 
                 effects.forEach { effect ->
@@ -4119,9 +4130,10 @@ private fun RewardItemDetailDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("关闭", color = GameColors.TextSecondary)
-            }
+            GameButton(
+                text = "关闭",
+                onClick = onDismiss
+            )
         }
     )
 }

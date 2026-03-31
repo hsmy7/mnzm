@@ -1,20 +1,21 @@
 package com.xianxia.sect.core.engine
 
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.*
 import kotlin.random.Random
 
 object WorldMapGenerator {
-    private const val MAP_WIDTH = 4000
-    private const val MAP_HEIGHT = 3500
-    private const val SECT_RADIUS = 70
-    private const val MIN_DISTANCE = 80
-    private const val MAX_CONNECTION_DISTANCE = 500.0
-    private const val BORDER_PADDING = 150
-    private const val TARGET_SECT_COUNT = 55
-    private const val MAX_ATTEMPTS = 50000
+    private val MAP_WIDTH get() = GameConfig.WorldMap.MAP_WIDTH
+    private val MAP_HEIGHT get() = GameConfig.WorldMap.MAP_HEIGHT
+    private val SECT_RADIUS get() = GameConfig.WorldMap.SECT_RADIUS
+    private val MIN_DISTANCE get() = GameConfig.WorldMap.MIN_DISTANCE
+    private val MAX_CONNECTION_DISTANCE get() = GameConfig.WorldMap.MAX_CONNECTION_DISTANCE
+    private val BORDER_PADDING get() = GameConfig.WorldMap.BORDER_PADDING
+    private val TARGET_SECT_COUNT get() = GameConfig.WorldMap.TARGET_SECT_COUNT
+    private val MAX_ATTEMPTS get() = GameConfig.WorldMap.MAX_ATTEMPTS
     
-    const val INITIAL_SECT_FAVOR = 50
-    private const val SAME_ALIGNMENT_BONUS = 10
+    val INITIAL_SECT_FAVOR get() = GameConfig.WorldMap.INITIAL_SECT_FAVOR
+    private val SAME_ALIGNMENT_BONUS get() = GameConfig.WorldMap.SAME_ALIGNMENT_BONUS
     
     // 区块数据类
     private data class MapRegion(
@@ -124,7 +125,8 @@ object WorldMapGenerator {
                 discovered = false,
                 connectedSectIds = emptyList(),
                 tradeItems = emptyList(),
-                tradeLastRefreshYear = 0
+                tradeLastRefreshYear = 0,
+                giftPreference = generateRandomGiftPreference()
             )
             
             val sectWithDisciples = AISectDiscipleManager.initializeSectDisciples(sect)
@@ -289,7 +291,7 @@ object WorldMapGenerator {
         
         val result = sects.toMutableList()
         val connections = mutableMapOf<String, MutableList<String>>()
-        val CONNECTION_DISTANCE_LIMIT = 800.0
+        val CONNECTION_DISTANCE_LIMIT = GameConfig.WorldMap.CONNECTION_DISTANCE_LIMIT
         
         sects.forEach { connections[it.id] = mutableListOf() }
         
@@ -311,8 +313,8 @@ object WorldMapGenerator {
         sectDistances.forEach { (_, distances) -> distances.sortBy { it.second } }
         allEdges.sortBy { it.third }
         
-        val targetConnectionsPerSect = 2
-        val MAX_CONNECTIONS_PER_SECT = 3
+        val targetConnectionsPerSect = GameConfig.WorldMap.TARGET_CONNECTIONS_PER_SECT
+        val MAX_CONNECTIONS_PER_SECT = GameConfig.WorldMap.MAX_CONNECTIONS_PER_SECT
         
         for (sect in sects) {
             val currentConnections = connections[sect.id] ?: mutableListOf()
@@ -376,7 +378,7 @@ object WorldMapGenerator {
             rootIds = sects.map { find(it.id) }.toSet()
         }
         
-        val MIN_CONNECTIONS_PER_SECT = 2
+        val MIN_CONNECTIONS_PER_SECT = GameConfig.WorldMap.MIN_CONNECTIONS_PER_SECT
         for (sect in sects) {
             var currentConnections = connections[sect.id] ?: mutableListOf()
             var neededConnections = MIN_CONNECTIONS_PER_SECT - currentConnections.size
@@ -524,6 +526,17 @@ object WorldMapGenerator {
             favor += SAME_ALIGNMENT_BONUS
         }
         return favor.coerceIn(10, 90)
+    }
+    
+    private fun generateRandomGiftPreference(): GiftPreferenceType {
+        val rand = Random.nextDouble()
+        return when {
+            rand < 0.25 -> GiftPreferenceType.EQUIPMENT
+            rand < 0.50 -> GiftPreferenceType.MANUAL
+            rand < 0.75 -> GiftPreferenceType.PILL
+            rand < 0.90 -> GiftPreferenceType.SPIRIT_STONE
+            else -> GiftPreferenceType.NONE
+        }
     }
     
     data class SectLevelInfo(

@@ -23,7 +23,7 @@ object HerbGardenSystem {
     ) {
         val isIdle: Boolean get() = status == PlantStatus.IDLE
         val isGrowing: Boolean get() = status == PlantStatus.GROWING
-        val isReady: Boolean get() = status == PlantStatus.READY
+        val isMature: Boolean get() = status == PlantStatus.MATURE
         
         fun getProgress(currentYear: Int, currentMonth: Int): Double {
             if (growTime <= 0) return 0.0
@@ -50,12 +50,12 @@ object HerbGardenSystem {
     }
     
     enum class PlantStatus {
-        IDLE, GROWING, READY;
+        IDLE, GROWING, MATURE;
         
         val displayName: String get() = when (this) {
             IDLE -> "空闲"
             GROWING -> "生长中"
-            READY -> "可收获"
+            MATURE -> "可收获"
         }
     }
     
@@ -81,7 +81,7 @@ object HerbGardenSystem {
         val baseGrowTime = ForgeRecipeDatabase.getDurationByTier(seed.tier)
         val actualGrowTime = calculateReducedDuration(baseGrowTime, speedBonus)
         
-        val herb = HerbDatabase.getHerbById(seedId.removeSuffix("Seed"))
+        val herb = HerbDatabase.getHerbIdFromSeedId(seedId)?.let { HerbDatabase.getHerbById(it) }
         
         return slot.copy(
             status = PlantStatus.GROWING,
@@ -103,27 +103,12 @@ object HerbGardenSystem {
         if (slot.status != PlantStatus.GROWING) return slot
         
         return if (slot.isFinished(currentYear, currentMonth)) {
-            slot.copy(status = PlantStatus.READY)
+            slot.copy(status = PlantStatus.MATURE)
         } else {
             slot
         }
     }
     
-    /**
-     * 计算种植速度加成（内门弟子加成已移除）
-     */
-    fun calculatePlantingSpeedBonus(
-        discipleSlots: List<DiscipleSlot>,
-        disciples: List<Disciple>,
-        manualProficiencies: Map<String, List<com.xianxia.sect.core.model.ManualProficiencyData>> = emptyMap(),
-        manuals: List<com.xianxia.sect.core.model.Manual> = emptyList()
-    ): Double {
-        return 0.0
-    }
-    
-    /**
-     * 计算产量加成（内门弟子加成已移除）
-     */
     fun calculateYieldBonus(
         discipleSlots: List<DiscipleSlot>,
         disciples: List<Disciple>,
@@ -133,9 +118,15 @@ object HerbGardenSystem {
         return 0.0
     }
     
-    /**
-     * 计算减少后的时间（无限制）
-     */
+    fun calculatePlantingSpeedBonus(
+        discipleSlots: List<DiscipleSlot>,
+        disciples: List<Disciple>,
+        manualProficiencies: Map<String, List<com.xianxia.sect.core.model.ManualProficiencyData>> = emptyMap(),
+        manuals: List<com.xianxia.sect.core.model.Manual> = emptyList()
+    ): Double {
+        return 0.0
+    }
+    
     fun calculateReducedDuration(baseDuration: Int, speedBonus: Double): Int {
         if (speedBonus <= 0) return baseDuration
         
@@ -144,9 +135,6 @@ object HerbGardenSystem {
         return (baseDuration - reducedMonths).coerceAtLeast(1)
     }
     
-    /**
-     * 计算增加后的产量（无限制）
-     */
     fun calculateIncreasedYield(baseYield: Int, yieldBonus: Double): Int {
         if (yieldBonus <= 0) return baseYield
         
@@ -165,7 +153,7 @@ object HerbGardenSystem {
                 val progress = (slot.getProgress(currentYear, currentMonth) * 100).toInt()
                 "${slot.seedName ?: "未知"} ($progress%)"
             }
-            PlantStatus.READY -> "${slot.seedName ?: "未知"} (可收获)"
+            PlantStatus.MATURE -> "${slot.seedName ?: "未知"} (可收获)"
         }
     }
     

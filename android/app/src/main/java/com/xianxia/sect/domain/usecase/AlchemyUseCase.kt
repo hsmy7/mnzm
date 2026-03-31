@@ -1,7 +1,6 @@
 package com.xianxia.sect.domain.usecase
 
 import com.xianxia.sect.core.engine.GameEngine
-import com.xianxia.sect.core.model.AlchemyRecipe
 import com.xianxia.sect.core.model.AlchemySlot
 import com.xianxia.sect.core.model.AlchemySlotStatus
 import javax.inject.Inject
@@ -13,7 +12,7 @@ class AlchemyUseCase @Inject constructor(
 ) {
     data class StartAlchemyParams(
         val slotIndex: Int,
-        val recipe: AlchemyRecipe,
+        val recipeId: String,
         val assignedDiscipleId: String?
     )
     
@@ -28,7 +27,7 @@ class AlchemyUseCase @Inject constructor(
         val message: String? = null
     )
     
-    fun startAlchemy(params: StartAlchemyParams): AlchemyResult {
+    suspend fun startAlchemy(params: StartAlchemyParams): AlchemyResult {
         val slots = gameEngine.getAlchemySlots()
         if (params.slotIndex < 0 || params.slotIndex >= slots.size) {
             return AlchemyResult.Error("无效的炼丹槽位")
@@ -39,8 +38,12 @@ class AlchemyUseCase @Inject constructor(
             return AlchemyResult.Error("该槽位正在使用中")
         }
         
-        gameEngine.startAlchemy(params.slotIndex, params.recipe)
-        return AlchemyResult.Success(params.slotIndex)
+        val success = gameEngine.startAlchemy(params.slotIndex, params.recipeId)
+        return if (success) {
+            AlchemyResult.Success(params.slotIndex)
+        } else {
+            AlchemyResult.Error("炼丹启动失败")
+        }
     }
     
     fun collectAlchemyResult(slotIndex: Int, currentYear: Int, currentMonth: Int): CollectResult {

@@ -12,6 +12,16 @@ enum class MapMarkerType {
 }
 
 /**
+ * 宗门显示状态
+ */
+data class SectDisplayState(
+    val isPlayerSect: Boolean = false,
+    val isPlayerOccupied: Boolean = false,
+    val occupierSectId: String? = null,
+    val isRighteous: Boolean = true
+)
+
+/**
  * 地图标记点
  */
 data class MapMarker(
@@ -23,7 +33,8 @@ data class MapMarker(
     val level: Int = 1, // 等级
     val ownerId: String? = null, // 所有者 ID
     val isCapital: Boolean = false, // 是否都城
-    val description: String = ""
+    val description: String = "",
+    val displayState: SectDisplayState? = null
 )
 
 /**

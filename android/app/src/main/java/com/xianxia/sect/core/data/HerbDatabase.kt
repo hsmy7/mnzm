@@ -171,11 +171,25 @@ object HerbDatabase {
 
     private val allSeeds = tier1Seeds + tier2Seeds + tier3Seeds + tier4Seeds + tier5Seeds + tier6Seeds
     
+    private val seedToHerbMap: Map<String, String> = buildMap {
+        allSeeds.forEach { seed ->
+            val herbId = seed.id.removeSuffix("Seed")
+            put(seed.id, herbId)
+        }
+    }
+    
+    private val herbByIdMap: Map<String, Herb> = allHerbs.associateBy { it.id }
+    private val herbByNameMap: Map<String, Herb> = allHerbs.associateBy { it.name }
+    private val seedByIdMap: Map<String, Seed> = allSeeds.associateBy { it.id }
+    private val seedByNameMap: Map<String, Seed> = allSeeds.associateBy { it.name }
+    
+    fun getHerbIdFromSeedId(seedId: String): String? = seedToHerbMap[seedId]
+    
     fun getAllHerbs(): List<Herb> = allHerbs
     
-    fun getHerbById(id: String): Herb? = allHerbs.find { it.id == id }
+    fun getHerbById(id: String): Herb? = herbByIdMap[id]
     
-    fun getHerbByName(name: String): Herb? = allHerbs.find { it.name == name }
+    fun getHerbByName(name: String): Herb? = herbByNameMap[name]
     
     fun getHerbsByTier(tier: Int): List<Herb> {
         return when (tier) {
@@ -191,9 +205,9 @@ object HerbDatabase {
     
     fun getAllSeeds(): List<Seed> = allSeeds
     
-    fun getSeedById(id: String): Seed? = allSeeds.find { it.id == id }
+    fun getSeedById(id: String): Seed? = seedByIdMap[id]
     
-    fun getSeedByName(name: String): Seed? = allSeeds.find { it.name == name }
+    fun getSeedByName(name: String): Seed? = seedByNameMap[name]
     
     fun getByRarity(rarity: Int): List<Herb> = allHerbs.filter { it.rarity == rarity }
     
@@ -231,8 +245,7 @@ object HerbDatabase {
 
     // 根据种子ID获取长成的草药
     fun getHerbFromSeed(seedId: String): Herb? {
-        // 种子ID格式: spiritGrass1Seed -> 草药ID: spiritGrass1
-        val herbId = seedId.removeSuffix("Seed").removeSuffix("核")
+        val herbId = getHerbIdFromSeedId(seedId) ?: return null
         return getHerbById(herbId)
     }
 

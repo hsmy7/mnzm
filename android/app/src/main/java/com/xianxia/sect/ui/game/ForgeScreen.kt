@@ -147,7 +147,6 @@ fun ForgeDialog(
                                     onClick = {
                                         if (slot?.status == ForgeSlotStatus.IDLE || slot == null) {
                                             selectedSlotIndex = index
-                                            viewModel.selectForgeSlot(slot ?: ForgeSlot(slotIndex = index))
                                             showEquipmentSelection = true
                                         }
                                     },
@@ -460,7 +459,7 @@ private fun ForgeElderSelectionDialog(
             it.status == DiscipleStatus.IDLE &&
             it.discipleType == "inner" &&
             it.realm <= 5 &&
-            !isDiscipleInAnyPosition(it.id, elderSlots)
+            !elderSlots.isDiscipleInAnyPosition(it.id)
         }
     }
 
@@ -708,7 +707,7 @@ private fun ForgeDirectDiscipleSelectionDialog(
             it.age >= 5 &&
             it.status == DiscipleStatus.IDLE &&
             it.discipleType == "inner" &&
-            !isDiscipleInAnyPosition(it.id, elderSlots) &&
+            !elderSlots.isDiscipleInAnyPosition(it.id) &&
             !allDirectDiscipleIds.contains(it.id)
         }
     }
@@ -874,45 +873,6 @@ private fun ForgeDirectDiscipleSelectionDialog(
     )
 }
 
-private fun isDiscipleInAnyPosition(discipleId: String, elderSlots: ElderSlots): Boolean {
-    if (elderSlots.viceSectMaster == discipleId) {
-        return true
-    }
-    
-    val allElderIds = listOf(
-        elderSlots.herbGardenElder,
-        elderSlots.alchemyElder,
-        elderSlots.forgeElder,
-        elderSlots.libraryElder,
-        elderSlots.outerElder,
-        elderSlots.preachingElder,
-        elderSlots.lawEnforcementElder,
-        elderSlots.innerElder,
-        elderSlots.qingyunPreachingElder
-    )
-
-    if (allElderIds.contains(discipleId)) {
-        return true
-    }
-
-    val allDirectDiscipleIds = listOf(
-        elderSlots.herbGardenDisciples,
-        elderSlots.alchemyDisciples,
-        elderSlots.forgeDisciples,
-        elderSlots.libraryDisciples,
-        elderSlots.preachingMasters,
-        elderSlots.lawEnforcementDisciples,
-        elderSlots.lawEnforcementReserveDisciples,
-        elderSlots.qingyunPreachingMasters,
-        elderSlots.spiritMineDeaconDisciples,
-        elderSlots.alchemyReserveDisciples,
-        elderSlots.herbGardenReserveDisciples,
-        elderSlots.forgeReserveDisciples
-    ).flatten().mapNotNull { it.discipleId }
-    
-    return allDirectDiscipleIds.contains(discipleId)
-}
-
 @Composable
 private fun ForgeSlotItem(
     slot: ForgeSlot?,
@@ -1009,25 +969,29 @@ private fun EquipmentSelectionDialog(
     var clickedRecipe by remember { mutableStateOf<ForgeRecipeDatabase.ForgeRecipe?>(null) }
     var showDetail by remember { mutableStateOf(false) }
 
+    val allRecipes by viewModel.allForgeRecipes.collectAsState()
+
     CommonDialog(
         title = "选择装备",
         onDismiss = onDismiss
     ) {
-        val allRecipes = ForgeRecipeDatabase.getAllRecipes()
-        
         data class RecipeWithStatus(
             val recipe: ForgeRecipeDatabase.ForgeRecipe,
             val canCraft: Boolean
         )
         
-        val recipesWithStatus = remember(allRecipes, materials) {
+        val materialIndex = remember(materials) {
+            materials.groupBy { it.name to it.rarity }
+                .mapValues { (_, list) -> list.sumOf { it.quantity } }
+        }
+        
+        val recipesWithStatus = remember(allRecipes, materialIndex) {
             allRecipes.map { recipe ->
                 val canCraft = recipe.materials.all { (materialId, requiredQuantity) ->
                     val materialData = com.xianxia.sect.core.data.BeastMaterialDatabase.getMaterialById(materialId)
-                    val materialName = materialData?.name
-                    val materialRarity = materialData?.rarity ?: 1
-                    val material = materials.find { it.name == materialName && it.rarity == materialRarity }
-                    material != null && material.quantity >= requiredQuantity
+                    if (materialData == null) return@all false
+                    val available = materialIndex[materialData.name to materialData.rarity] ?: 0
+                    available >= requiredQuantity
                 }
                 RecipeWithStatus(recipe, canCraft)
             }

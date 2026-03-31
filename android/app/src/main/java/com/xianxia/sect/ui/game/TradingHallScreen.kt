@@ -101,9 +101,10 @@ private fun TradingHallHeader(
             )
         }
 
-        TextButton(onClick = onDismiss) {
-            Text("关闭", color = GameColors.TextSecondary, fontSize = 12.sp)
-        }
+        GameButton(
+            text = "关闭",
+            onClick = onDismiss
+        )
     }
 }
 

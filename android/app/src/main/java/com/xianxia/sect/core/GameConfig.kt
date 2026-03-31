@@ -10,6 +10,16 @@ object GameConfig {
         const val MAX_SAVE_SLOTS = 5
     }
     
+    object Disciple {
+        const val MAX_DISCIPLES = 500
+        const val RECRUIT_COST = 1000L
+        const val MIN_LOYALTY = 0
+        const val MAX_LOYALTY = 100
+        const val MIN_AGE = 5
+        const val MAX_AGE = 100
+        const val PROTECTION_MONTHS = 12
+    }
+    
     object Time {
         const val TICK_INTERVAL = 200L
         const val TICKS_PER_SECOND = 5
@@ -48,16 +58,16 @@ object GameConfig {
     
     object Realm {
         val CONFIGS = mapOf(
-            9 to RealmConfig(9, "炼气", 225, 10, 0.75, 1.0, 80, 9),
-            8 to RealmConfig(8, "筑基", 450, 30, 0.60, 1.5, 120, 9),
-            7 to RealmConfig(7, "金丹", 900, 50, 0.50, 2.0, 200, 9),
-            6 to RealmConfig(6, "元婴", 1800, 80, 0.40, 3.0, 300, 9),
-            5 to RealmConfig(5, "化神", 3600, 110, 0.30, 4.0, 500, 9),
-            4 to RealmConfig(4, "炼虚", 16000, 180, 0.30, 5.0, 800, 9),
-            3 to RealmConfig(3, "合体", 32000, 220, 0.20, 6.0, 1500, 9),
-            2 to RealmConfig(2, "大乘", 64000, 280, 0.10, 8.0, 3000, 9),
-            1 to RealmConfig(1, "渡劫", 128000, 360, 0.05, 10.0, 5000, 9),
-            0 to RealmConfig(0, "仙人", 256000, 500, 0.0, 15.0, 9999, 9)
+            9 to RealmConfig(9, "炼气", 225, 10, 0.90, 1.0, 80, 9),
+            8 to RealmConfig(8, "筑基", 450, 30, 0.50, 3.0, 120, 9),
+            7 to RealmConfig(7, "金丹", 900, 50, 0.25, 10.0, 200, 9),
+            6 to RealmConfig(6, "元婴", 1800, 80, 0.10, 35.0, 300, 9),
+            5 to RealmConfig(5, "化神", 3600, 110, 0.03, 120.0, 500, 9),
+            4 to RealmConfig(4, "炼虚", 16000, 180, 0.01, 400.0, 800, 9),
+            3 to RealmConfig(3, "合体", 32000, 220, 0.005, 1500.0, 1500, 9),
+            2 to RealmConfig(2, "大乘", 64000, 280, 0.002, 6000.0, 3000, 9),
+            1 to RealmConfig(1, "渡劫", 128000, 360, 0.001, 25000.0, 5000, 9),
+            0 to RealmConfig(0, "仙人", 256000, 500, 0.0, 100000.0, 9999, 9)
         )
         
         fun get(realm: Int): RealmConfig = CONFIGS[realm] ?: CONFIGS.getValue(9)
@@ -102,10 +112,10 @@ object GameConfig {
         
         // 灵根数量权重配置（增量值，非累积值）
         val COUNT_WEIGHTS = mapOf(
-            1 to 0.06,  // 单灵根 6%
-            2 to 0.12,  // 双灵根 12%
-            3 to 0.15,  // 三灵根 15%
-            4 to 0.27,  // 四灵根 27%
+            1 to 0.01,  // 单灵根 1%
+            2 to 0.06,  // 双灵根 6%
+            3 to 0.23,  // 三灵根 23%
+            4 to 0.30,  // 四灵根 30%
             5 to 0.40   // 五灵根 40%
         )
         
@@ -146,14 +156,14 @@ object GameConfig {
     
     object Beast {
         val TYPES = listOf(
-            BeastTypeConfig("虎妖", "狂暴", 1.3, 1.2, 0.9, 1.0, 1.1),
-            BeastTypeConfig("狼妖", "迅捷", 0.9, 1.1, 0.8, 1.3, 1.0),
-            BeastTypeConfig("蛇妖", "剧毒", 0.8, 1.3, 0.7, 1.1, 1.2),
-            BeastTypeConfig("熊妖", "铁甲", 1.5, 0.9, 1.3, 0.7, 1.3),
-            BeastTypeConfig("鹰妖", "神风", 0.7, 1.2, 0.6, 1.4, 0.9),
-            BeastTypeConfig("狐妖", "幻魅", 0.8, 1.0, 0.8, 1.2, 1.5),
-            BeastTypeConfig("龙妖", "远古", 1.4, 1.4, 1.2, 1.1, 2.0),
-            BeastTypeConfig("龟妖", "玄甲", 1.8, 0.8, 1.5, 0.5, 1.4)
+            BeastTypeConfig("虎妖", "狂暴", 1.2, 1.2, 0.8, 1.0, 1.1),
+            BeastTypeConfig("狼妖", "迅捷", 0.8, 1.0, 0.8, 1.2, 1.0),
+            BeastTypeConfig("蛇妖", "剧毒", 0.8, 1.2, 0.8, 1.0, 1.1),
+            BeastTypeConfig("熊妖", "铁甲", 1.2, 0.8, 1.2, 0.8, 1.0),
+            BeastTypeConfig("鹰妖", "神风", 0.8, 1.0, 0.8, 1.2, 1.2),
+            BeastTypeConfig("狐妖", "幻魅", 0.8, 1.0, 0.8, 1.0, 1.2),
+            BeastTypeConfig("龙妖", "远古", 1.2, 1.2, 1.0, 1.0, 1.1),
+            BeastTypeConfig("龟妖", "玄甲", 1.2, 0.8, 1.2, 0.8, 1.0)
         )
 
         fun getType(index: Int): BeastTypeConfig = TYPES.getOrElse(index) { TYPES[0] }
@@ -406,4 +416,60 @@ object GameConfig {
         val speedMod: Double,
         val lootBonus: Double
     )
+    
+    object AI {
+        const val MIN_DISCIPLES_FOR_ATTACK = 10
+        const val POWER_RATIO_THRESHOLD = 0.8
+        const val TEAM_SIZE = 10
+        const val MAX_BATTLE_TURNS = 25
+        
+        object PowerWeights {
+            const val REALM_BASE = 100.0
+            const val EQUIPMENT_RARITY = 20.0
+            const val EQUIPMENT_LEVEL = 5.0
+            const val MANUAL_RARITY = 15.0
+            const val MANUAL_LEVEL = 3.0
+            const val MANUAL_MASTERY = 0.5
+            const val TALENT_RARITY = 10.0
+        }
+    }
+    
+    object WorldMap {
+        const val MAP_WIDTH = 4000
+        const val MAP_HEIGHT = 3500
+        const val SECT_RADIUS = 70
+        const val MIN_DISTANCE = 80
+        const val MAX_CONNECTION_DISTANCE = 500.0
+        const val BORDER_PADDING = 150
+        const val TARGET_SECT_COUNT = 55
+        const val MAX_ATTEMPTS = 50000
+        const val INITIAL_SECT_FAVOR = 50
+        const val SAME_ALIGNMENT_BONUS = 10
+        const val CONNECTION_DISTANCE_LIMIT = 800.0
+        const val TARGET_CONNECTIONS_PER_SECT = 2
+        const val MAX_CONNECTIONS_PER_SECT = 3
+        const val MIN_CONNECTIONS_PER_SECT = 2
+    }
+    
+    object Diplomacy {
+        const val MIN_ALLIANCE_FAVOR = 90
+        const val ALLIANCE_DURATION_YEARS = 5
+        const val MAX_ALLIANCE_SLOTS_DEFAULT = 3
+        const val DIPLOMATIC_EVENT_CHANCE = 0.12
+        const val FAVOR_DECAY_NO_GIFT_YEARS = 3
+        const val FAVOR_DECAY_AMOUNT = 1
+        const val MIN_FAVOR = 0
+        const val MAX_FAVOR = 100
+        
+        object AllianceScore {
+            const val THRESHOLD = 80
+            const val PROBABILITY_DIVISOR = 200.0
+            const val MAX_AI_ALLIANCES = 2
+        }
+        
+        object BreakPenalty {
+            const val FAVOR_PENALTY = 30
+            const val SPIRIT_STONE_PENALTY_RATIO = 0.1
+        }
+    }
 }

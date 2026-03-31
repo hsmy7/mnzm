@@ -70,7 +70,7 @@ class HerbGardenSubsystem @Inject constructor() : GameSystem {
     fun updatePlantSlot(index: Int, transform: (PlantSlotData) -> PlantSlotData): Boolean =
         StateFlowListUtils.updateItem(_plantSlots, { it.index == index }, transform)
     
-    fun initializePlantSlots(count: Int = 3) {
+    fun initializePlantSlots(count: Int = HerbGardenSystem.MAX_PLANT_SLOTS) {
         val currentSlots = _plantSlots.value
         
         val needsInitialization = currentSlots.isEmpty() ||
@@ -85,7 +85,10 @@ class HerbGardenSubsystem @Inject constructor() : GameSystem {
         }
     }
     
-    fun addHerbToWarehouse(herb: Herb) {
+    fun addHerbToWarehouse(herb: Herb): Boolean {
+        if (herb.quantity <= 0) return false
+        if (herb.rarity !in 1..6) return false
+        
         val currentHerbs = _herbs.value.toMutableList()
         val existingIndex = currentHerbs.indexOfFirst { 
             it.name == herb.name && it.rarity == herb.rarity 
@@ -100,9 +103,13 @@ class HerbGardenSubsystem @Inject constructor() : GameSystem {
         }
         
         StateFlowListUtils.setList(_herbs, currentHerbs.toList())
+        return true
     }
     
-    fun addSeedToWarehouse(seed: Seed) {
+    fun addSeedToWarehouse(seed: Seed): Boolean {
+        if (seed.quantity <= 0) return false
+        if (seed.rarity !in 1..6) return false
+        
         val currentSeeds = _seeds.value.toMutableList()
         val existingIndex = currentSeeds.indexOfFirst { 
             it.name == seed.name && it.rarity == seed.rarity
@@ -117,6 +124,7 @@ class HerbGardenSubsystem @Inject constructor() : GameSystem {
         }
         
         StateFlowListUtils.setList(_seeds, currentSeeds.toList())
+        return true
     }
     
     data class PlantingResult(
@@ -161,7 +169,14 @@ class HerbGardenSubsystem @Inject constructor() : GameSystem {
                 eventType = "WARNING"
             )
         
-        val herbId = seed.id.removeSuffix("Seed")
+        val herbId = HerbDatabase.getHerbIdFromSeedId(seed.id)
+            ?: return PlantingResult(
+                success = false,
+                updatedSlots = slots,
+                updatedSeeds = seeds,
+                eventMessage = "草药数据错误",
+                eventType = "WARNING"
+            )
         val herb = HerbDatabase.getHerbById(herbId)
             ?: return PlantingResult(
                 success = false,
@@ -249,7 +264,7 @@ class HerbGardenSubsystem @Inject constructor() : GameSystem {
             )
         }
         
-        val herbId = slot.harvestHerbId ?: slot.seedId?.removeSuffix("Seed")
+        val herbId = slot.harvestHerbId ?: slot.seedId?.let { HerbDatabase.getHerbIdFromSeedId(it) }
         if (herbId == null) {
             return HarvestResult(
                 success = false,
@@ -304,34 +319,52 @@ class HerbGardenSubsystem @Inject constructor() : GameSystem {
         )
     }
     
+    data class MonthlyGrowthResult(
+        val updatedSlots: List<PlantSlotData>,
+        val updatedHerbs: List<Herb>,
+        val updatedSeeds: List<Seed>,
+        val events: List<Pair<String, String>>
+    )
+
     fun processMonthlyGrowth(year: Int, month: Int): List<Pair<String, String>> {
+        val result = executeMonthlyGrowthTransaction(year, month)
+        
+        _plantSlots.value = result.updatedSlots
+        _herbs.value = result.updatedHerbs
+        _seeds.value = result.updatedSeeds
+        
+        return result.events
+    }
+    
+    fun executeMonthlyGrowthTransaction(year: Int, month: Int): MonthlyGrowthResult {
         val events = mutableListOf<Pair<String, String>>()
         val herbGardenSystem = HerbGardenSystem
         
+        val mutableHerbs = _herbs.value.toMutableList()
+        val mutableSeeds = _seeds.value.toMutableList()
         
         val updatedSlots = _plantSlots.value.map { slot ->
             if (!slot.isGrowing) return@map slot
             if (!slot.isFinished(year, month)) return@map slot
             
-            
             val seedId = slot.seedId ?: return@map PlantSlotData(index = slot.index)
             val seed = HerbDatabase.getSeedById(seedId) ?: return@map PlantSlotData(index = slot.index)
-            val herbId = seedId.removeSuffix("Seed")
+            val herbId = HerbDatabase.getHerbIdFromSeedId(seedId)
+                ?: return@map PlantSlotData(index = slot.index)
             val herb = HerbDatabase.getHerbById(herbId) ?: return@map PlantSlotData(index = slot.index)
             
             val actualYield = herbGardenSystem.calculateIncreasedYield(slot.harvestAmount, 0.0)
             
-            val currentHerbs = _herbs.value.toMutableList()
-            val existingHerbIndex = currentHerbs.indexOfFirst { 
+            val existingHerbIndex = mutableHerbs.indexOfFirst { 
                 it.name == herb.name && it.rarity == herb.rarity 
             }
             
             if (existingHerbIndex >= 0) {
-                currentHerbs[existingHerbIndex] = currentHerbs[existingHerbIndex].copy(
-                    quantity = currentHerbs[existingHerbIndex].quantity + actualYield
+                mutableHerbs[existingHerbIndex] = mutableHerbs[existingHerbIndex].copy(
+                    quantity = mutableHerbs[existingHerbIndex].quantity + actualYield
                 )
             } else {
-                currentHerbs.add(Herb(
+                mutableHerbs.add(Herb(
                     id = java.util.UUID.randomUUID().toString(),
                     name = herb.name,
                     rarity = herb.rarity,
@@ -341,21 +374,18 @@ class HerbGardenSubsystem @Inject constructor() : GameSystem {
                 ))
             }
             
-            _herbs.value = currentHerbs.toList()
             events.add("${herb.name}已成熟，收获${actualYield}个" to "SUCCESS")
             
-            val seedIndex = _seeds.value.indexOfFirst { 
+            val seedIndex = mutableSeeds.indexOfFirst { 
                 it.name == seed.name && it.rarity == seed.rarity && it.quantity > 0 
             }
             
             if (seedIndex >= 0) {
-                val currentSeeds = _seeds.value.toMutableList()
-                val currentSeed = currentSeeds[seedIndex]
-                currentSeeds[seedIndex] = currentSeed.copy(quantity = currentSeed.quantity - 1)
-                if (currentSeeds[seedIndex].quantity <= 0) {
-                    currentSeeds.removeAt(seedIndex)
+                val currentSeed = mutableSeeds[seedIndex]
+                mutableSeeds[seedIndex] = currentSeed.copy(quantity = currentSeed.quantity - 1)
+                if (mutableSeeds[seedIndex].quantity <= 0) {
+                    mutableSeeds.removeAt(seedIndex)
                 }
-                _seeds.value = currentSeeds.toList()
                 
                 val newSlot = PlantSlotData(
                     index = slot.index,
@@ -376,8 +406,12 @@ class HerbGardenSubsystem @Inject constructor() : GameSystem {
             }
         }
         
-        _plantSlots.value = updatedSlots
-        return events
+        return MonthlyGrowthResult(
+            updatedSlots = updatedSlots,
+            updatedHerbs = mutableHerbs.toList(),
+            updatedSeeds = mutableSeeds.toList(),
+            events = events.toList()
+        )
     }
     
     fun getRemainingMonths(slot: PlantSlotData, currentYear: Int, currentMonth: Int): Int {
@@ -388,12 +422,17 @@ class HerbGardenSubsystem @Inject constructor() : GameSystem {
         return (slot.growTime - elapsed.toInt()).coerceAtLeast(0)
     }
     
-    fun sellHerb(herbId: String, quantity: Int, getSpiritStonePrice: (Int) -> Long): Boolean {
+    data class SellResult(
+        val success: Boolean,
+        val totalPrice: Long
+    )
+
+    fun sellHerb(herbId: String, quantity: Int, getSpiritStonePrice: (Int) -> Long): SellResult {
         val herbIndex = _herbs.value.indexOfFirst { it.id == herbId }
-        if (herbIndex < 0) return false
+        if (herbIndex < 0) return SellResult(success = false, totalPrice = 0)
         
         val herb = _herbs.value[herbIndex]
-        if (herb.quantity < quantity) return false
+        if (herb.quantity < quantity) return SellResult(success = false, totalPrice = 0)
         
         val totalPrice = getSpiritStonePrice(herb.rarity) * quantity
         
@@ -405,15 +444,15 @@ class HerbGardenSubsystem @Inject constructor() : GameSystem {
         }
         
         _herbs.value = updatedHerbs
-        return true
+        return SellResult(success = true, totalPrice = totalPrice)
     }
     
-    fun sellSeed(seedId: String, quantity: Int, getSpiritStonePrice: (Int) -> Long): Boolean {
+    fun sellSeed(seedId: String, quantity: Int, getSpiritStonePrice: (Int) -> Long): SellResult {
         val seedIndex = _seeds.value.indexOfFirst { it.id == seedId }
-        if (seedIndex < 0) return false
+        if (seedIndex < 0) return SellResult(success = false, totalPrice = 0)
         
         val seed = _seeds.value[seedIndex]
-        if (seed.quantity < quantity) return false
+        if (seed.quantity < quantity) return SellResult(success = false, totalPrice = 0)
         
         val totalPrice = getSpiritStonePrice(seed.rarity) * quantity
         
@@ -425,6 +464,6 @@ class HerbGardenSubsystem @Inject constructor() : GameSystem {
         }
         
         _seeds.value = updatedSeeds
-        return true
+        return SellResult(success = true, totalPrice = totalPrice)
     }
 }

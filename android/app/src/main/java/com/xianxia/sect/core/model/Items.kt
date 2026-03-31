@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.model
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.CombatSkill
@@ -15,12 +16,24 @@ sealed class GameItem {
     abstract val name: String
     abstract val rarity: Int
     abstract val description: String
+    abstract val isLocked: Boolean
     
     val rarityColor: String get() = GameConfig.Rarity.getColor(rarity)
     val rarityName: String get() = GameConfig.Rarity.getName(rarity)
 }
 
-@Entity(tableName = "equipment")
+@Entity(
+    tableName = "equipment",
+    indices = [
+        Index(value = ["name"]),
+        Index(value = ["rarity"]),
+        Index(value = ["slot"]),
+        Index(value = ["ownerId"]),
+        Index(value = ["isEquipped"]),
+        Index(value = ["rarity", "slot"]),
+        Index(value = ["minRealm"])
+    ]
+)
 data class Equipment(
     @PrimaryKey
     override val id: String = java.util.UUID.randomUUID().toString(),
@@ -44,7 +57,9 @@ data class Equipment(
     val minRealm: Int = 9,
     
     var ownerId: String? = null,
-    var isEquipped: Boolean = false
+    var isEquipped: Boolean = false,
+    var quantity: Int = 1,
+    override val isLocked: Boolean = false
 ) : GameItem() {
     
     val basePrice: Int get() = GameConfig.Rarity.get(rarity).basePrice
@@ -147,7 +162,18 @@ data class EquipmentStats(
     )
 }
 
-@Entity(tableName = "manuals")
+@Entity(
+    tableName = "manuals",
+    indices = [
+        Index(value = ["name"]),
+        Index(value = ["rarity"]),
+        Index(value = ["type"]),
+        Index(value = ["ownerId"]),
+        Index(value = ["isLearned"]),
+        Index(value = ["minRealm"]),
+        Index(value = ["rarity", "type"])
+    ]
+)
 data class Manual(
     @PrimaryKey
     override val id: String = java.util.UUID.randomUUID().toString(),
@@ -177,7 +203,8 @@ data class Manual(
     
     var ownerId: String? = null,
     var isLearned: Boolean = false,
-    override var quantity: Int = 1
+    override var quantity: Int = 1,
+    override val isLocked: Boolean = false
 ) : GameItem(), StackableItem {
     
     override fun withQuantity(newQuantity: Int): Manual = copy(quantity = newQuantity)
@@ -280,7 +307,16 @@ data class ManualSkill(
     )
 }
 
-@Entity(tableName = "pills")
+@Entity(
+    tableName = "pills",
+    indices = [
+        Index(value = ["name"]),
+        Index(value = ["rarity"]),
+        Index(value = ["category"]),
+        Index(value = ["targetRealm"]),
+        Index(value = ["rarity", "category"])
+    ]
+)
 data class Pill(
     @PrimaryKey
     override val id: String = java.util.UUID.randomUUID().toString(),
@@ -313,7 +349,8 @@ data class Pill(
     val clearAll: Boolean = false,
     val mpRecoverMaxMpPercent: Double = 0.0,
     
-    override var quantity: Int = 1
+    override var quantity: Int = 1,
+    override val isLocked: Boolean = false
 ) : GameItem(), StackableItem {
     
     override fun withQuantity(newQuantity: Int): Pill = copy(quantity = newQuantity)
@@ -388,7 +425,15 @@ data class PillEffect(
     val mpRecoverMaxMpPercent: Double = 0.0
 )
 
-@Entity(tableName = "materials")
+@Entity(
+    tableName = "materials",
+    indices = [
+        Index(value = ["name"]),
+        Index(value = ["rarity"]),
+        Index(value = ["category"]),
+        Index(value = ["rarity", "category"])
+    ]
+)
 data class Material(
     @PrimaryKey
     override val id: String = java.util.UUID.randomUUID().toString(),
@@ -397,7 +442,8 @@ data class Material(
     override val description: String = "",
     
     val category: MaterialCategory = MaterialCategory.BEAST_HIDE,
-    override var quantity: Int = 1
+    override var quantity: Int = 1,
+    override val isLocked: Boolean = false
 ) : GameItem(), StackableItem {
     
     override fun withQuantity(newQuantity: Int): Material = copy(quantity = newQuantity)
@@ -433,7 +479,15 @@ enum class MaterialCategory {
     }
 }
 
-@Entity(tableName = "herbs")
+@Entity(
+    tableName = "herbs",
+    indices = [
+        Index(value = ["name"]),
+        Index(value = ["rarity"]),
+        Index(value = ["category"]),
+        Index(value = ["rarity", "category"])
+    ]
+)
 data class Herb(
     @PrimaryKey
     override val id: String = java.util.UUID.randomUUID().toString(),
@@ -442,7 +496,8 @@ data class Herb(
     override val description: String = "",
 
     val category: String = "",
-    override var quantity: Int = 1
+    override var quantity: Int = 1,
+    override val isLocked: Boolean = false
 ) : GameItem(), StackableItem {
     
     override fun withQuantity(newQuantity: Int): Herb = copy(quantity = newQuantity)
@@ -450,7 +505,14 @@ data class Herb(
     val basePrice: Int get() = (GameConfig.Rarity.get(rarity).basePrice * 0.05).toInt()
 }
 
-@Entity(tableName = "seeds")
+@Entity(
+    tableName = "seeds",
+    indices = [
+        Index(value = ["name"]),
+        Index(value = ["rarity"]),
+        Index(value = ["growTime"])
+    ]
+)
 data class Seed(
     @PrimaryKey
     override val id: String = java.util.UUID.randomUUID().toString(),
@@ -460,7 +522,8 @@ data class Seed(
     
     val growTime: Int = 3,
     val yield: Int = 1,
-    override var quantity: Int = 1
+    override var quantity: Int = 1,
+    override val isLocked: Boolean = false
 ) : GameItem(), StackableItem {
     
     override fun withQuantity(newQuantity: Int): Seed = copy(quantity = newQuantity)

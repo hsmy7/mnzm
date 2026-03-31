@@ -652,8 +652,10 @@ private fun HerbGardenElderSelectionDialog(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(filteredDisciples.size) { index ->
-                            val disciple = filteredDisciples[index]
+                        items(
+                            items = filteredDisciples,
+                            key = { it.id }
+                        ) { disciple ->
                             HerbGardenDiscipleSelectionCard(
                                 disciple = disciple,
                                 onClick = { onSelect(disciple.id) }
@@ -1324,8 +1326,10 @@ private fun HerbGardenDirectDiscipleSelectionDialog(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(filteredDisciples.size) { index ->
-                            val disciple = filteredDisciples[index]
+                        items(
+                            items = filteredDisciples,
+                            key = { it.id }
+                        ) { disciple ->
                             HerbGardenDiscipleSelectionCard(
                                 disciple = disciple,
                                 onClick = { onSelect(disciple.id) }

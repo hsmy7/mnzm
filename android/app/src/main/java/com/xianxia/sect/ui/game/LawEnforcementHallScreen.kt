@@ -109,7 +109,6 @@ fun LawEnforcementHallDialog(
 
                 LawDisciplesSection(
                     lawDisciples = lawDisciples,
-                    hasElder = lawElder != null,
                     onDiscipleClick = { index -> showDiscipleSelection = index },
                     onDiscipleRemove = { index -> viewModel.removeDirectDisciple("lawEnforcementDisciples", index) }
                 )
@@ -152,7 +151,6 @@ fun LawEnforcementHallDialog(
     if (showReserveDiscipleList) {
         ReserveDiscipleListDialog(
             reserveDisciples = reserveDisciplesWithInfo,
-            hasElder = lawElder != null,
             viewModel = viewModel,
             onDismiss = { showReserveDiscipleList = false }
         )
@@ -193,7 +191,6 @@ private fun LawElderSection(
 @Composable
 private fun LawDisciplesSection(
     lawDisciples: List<DirectDiscipleSlot>,
-    hasElder: Boolean,
     onDiscipleClick: (Int) -> Unit,
     onDiscipleRemove: (Int) -> Unit
 ) {
@@ -211,16 +208,6 @@ private fun LawDisciplesSection(
             fontWeight = FontWeight.Bold,
             color = Color.Black
         )
-        Spacer(modifier = Modifier.height(4.dp))
-        
-        if (!hasElder) {
-            Text(
-                text = "需先任命执法长老",
-                fontSize = 10.sp,
-                color = Color(0xFF999999)
-            )
-        }
-        
         Spacer(modifier = Modifier.height(8.dp))
 
         Row(
@@ -230,7 +217,6 @@ private fun LawDisciplesSection(
                 val disciple = lawDisciples.find { it.index == index }
                 LawDiscipleSlotItem(
                     disciple = disciple,
-                    enabled = hasElder,
                     onClick = { onDiscipleClick(index) },
                     onRemove = { onDiscipleRemove(index) }
                 )
@@ -246,7 +232,6 @@ private fun LawDisciplesSection(
                 val disciple = lawDisciples.find { it.index == index }
                 LawDiscipleSlotItem(
                     disciple = disciple,
-                    enabled = hasElder,
                     onClick = { onDiscipleClick(index) },
                     onRemove = { onDiscipleRemove(index) }
                 )
@@ -425,7 +410,6 @@ private fun ElderSlotItem(
 @Composable
 private fun LawDiscipleSlotItem(
     disciple: DirectDiscipleSlot?,
-    enabled: Boolean,
     onClick: () -> Unit,
     onRemove: () -> Unit
 ) {
@@ -436,7 +420,7 @@ private fun LawDiscipleSlotItem(
             text = "执法弟子",
             fontSize = 8.sp,
             fontWeight = FontWeight.Bold,
-            color = if (enabled) Color(0xFF666666) else Color(0xFFCCCCCC)
+            color = Color(0xFF666666)
         )
         Spacer(modifier = Modifier.height(2.dp))
 
@@ -454,9 +438,9 @@ private fun LawDiscipleSlotItem(
             modifier = Modifier
                 .size(48.dp)
                 .clip(RoundedCornerShape(4.dp))
-                .background(if (enabled) GameColors.PageBackground else Color(0xFFF0F0F0))
+                .background(GameColors.PageBackground)
                 .border(1.dp, borderColor, RoundedCornerShape(4.dp))
-                .clickable(enabled = enabled, onClick = onClick),
+                .clickable(onClick = onClick),
             contentAlignment = Alignment.Center
         ) {
             if (disciple != null && disciple.isActive) {
@@ -481,7 +465,7 @@ private fun LawDiscipleSlotItem(
                 Text(
                     text = "+",
                     fontSize = 14.sp,
-                    color = if (enabled) Color(0xFF999999) else Color(0xFFCCCCCC)
+                    color = Color(0xFF999999)
                 )
             }
         }
@@ -675,7 +659,10 @@ private fun DiscipleSelectionDialog(
                         modifier = Modifier.weight(1f),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(filteredDisciples) { disciple ->
+                        items(
+                            items = filteredDisciples,
+                            key = { it.id }
+                        ) { disciple ->
                             val isCurrent = disciple.id == currentDiscipleId
                             Box(
                                 modifier = Modifier
@@ -805,7 +792,6 @@ private fun CommonDialog(
 @Composable
 private fun ReserveDiscipleListDialog(
     reserveDisciples: List<Disciple>,
-    hasElder: Boolean,
     viewModel: GameViewModel,
     onDismiss: () -> Unit
 ) {
@@ -844,20 +830,18 @@ private fun ReserveDiscipleListDialog(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (hasElder) {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(Color(0xFFE74C3C))
-                                .clickable { showAddDiscipleDialog = true }
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            Text(
-                                text = "+ 添加",
-                                fontSize = 10.sp,
-                                color = Color.White
-                            )
-                        }
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(Color(0xFFE74C3C))
+                            .clickable { showAddDiscipleDialog = true }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "+ 添加",
+                            fontSize = 10.sp,
+                            color = Color.White
+                        )
                     }
                     Box(
                         modifier = Modifier

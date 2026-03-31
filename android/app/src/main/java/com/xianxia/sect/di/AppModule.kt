@@ -1,5 +1,6 @@
 package com.xianxia.sect.di
 
+import android.app.ActivityManager
 import android.content.Context
 import androidx.room.Room
 import androidx.room.RoomDatabase
@@ -7,7 +8,15 @@ import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.data.local.*
 import com.xianxia.sect.data.GameRepository
 import com.xianxia.sect.data.SessionManager
-import com.xianxia.sect.data.SaveManager
+import com.xianxia.sect.data.cache.CacheConfig
+import com.xianxia.sect.data.cache.GameDataCacheManager
+import com.xianxia.sect.data.incremental.ChangeTracker
+import com.xianxia.sect.data.incremental.DeltaCompressor
+import com.xianxia.sect.data.incremental.IncrementalStorageManager
+import com.xianxia.sect.data.incremental.IncrementalStorageCoordinator
+import com.xianxia.sect.data.serialization.unified.SaveDataConverter
+import com.xianxia.sect.data.serialization.unified.UnifiedSerializationEngine
+import com.xianxia.sect.data.unified.UnifiedSaveRepository
 import com.xianxia.sect.domain.usecase.*
 import com.xianxia.sect.ui.state.DialogStateManager
 import dagger.Module
@@ -36,9 +45,13 @@ object AppModule {
             "xianxia_sect_db"
         )
             .addMigrations(*DatabaseMigrations.ALL_MIGRATIONS)
-            .setJournalMode(RoomDatabase.JournalMode.TRUNCATE)
+            .fallbackToDestructiveMigrationOnDowngrade()
+            .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
             .build()
     }
+    
+    @Provides
+    fun provideBatchUpdateDao(database: GameDatabase): BatchUpdateDao = database.batchUpdateDao()
     
     @Provides
     fun provideGameDataDao(database: GameDatabase): GameDataDao = database.gameDataDao()
@@ -88,6 +101,9 @@ object AppModule {
     fun provideForgeSlotDao(database: GameDatabase): ForgeSlotDao = database.forgeSlotDao()
     
     @Provides
+    fun provideAlchemySlotDao(database: GameDatabase): AlchemySlotDao = database.alchemySlotDao()
+    
+    @Provides
     @Singleton
     fun provideGameRepository(
         database: GameDatabase,
@@ -124,6 +140,94 @@ object AppModule {
             recipeDao,
             battleLogDao,
             forgeSlotDao
+        )
+    }
+
+    @Provides
+    @Singleton
+    fun provideCacheConfig(@ApplicationContext context: Context): CacheConfig {
+        val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        val isLowRamDevice = activityManager.isLowRamDevice
+        val memoryClass = activityManager.memoryClass
+
+        val memoryCacheSize = when {
+            isLowRamDevice || memoryClass <= 128 -> 20 * 1024 * 1024
+            memoryClass <= 256 -> 50 * 1024 * 1024
+            else -> 100 * 1024 * 1024
+        }
+
+        val diskCacheSize = memoryCacheSize * 2L
+
+        return CacheConfig(
+            memoryCacheSize = memoryCacheSize,
+            diskCacheSize = diskCacheSize,
+            writeBatchSize = if (isLowRamDevice) 50 else 200,
+            writeDelayMs = if (isLowRamDevice) 2000L else 500L,
+            enableDiskCache = true,
+            enableCompression = true
+        )
+    }
+
+    @Provides
+    @Singleton
+    fun provideGameDataCacheManager(
+        @ApplicationContext context: Context,
+        database: GameDatabase,
+        cacheConfig: CacheConfig
+    ): GameDataCacheManager {
+        return GameDataCacheManager(context, database, cacheConfig)
+    }
+    
+
+    @Provides
+    @Singleton
+    fun provideChangeTracker(): ChangeTracker {
+        return ChangeTracker()
+    }
+    
+    @Provides
+    @Singleton
+    fun provideDeltaCompressor(): DeltaCompressor {
+        return DeltaCompressor()
+    }
+    
+    @Provides
+    @Singleton
+    fun provideIncrementalStorageManager(
+        @ApplicationContext context: Context,
+        changeTracker: ChangeTracker,
+        deltaCompressor: DeltaCompressor,
+        saveDataConverter: SaveDataConverter,
+        serializationEngine: UnifiedSerializationEngine
+    ): IncrementalStorageManager {
+        return IncrementalStorageManager(
+            context,
+            changeTracker,
+            deltaCompressor,
+            saveDataConverter,
+            serializationEngine
+        )
+    }
+    
+    @Provides
+    @Singleton
+    fun provideIncrementalStorageCoordinator(
+        @ApplicationContext context: Context,
+        database: GameDatabase,
+        cacheManager: GameDataCacheManager,
+        saveRepository: UnifiedSaveRepository,
+        changeTracker: ChangeTracker,
+        deltaCompressor: DeltaCompressor,
+        incrementalStorageManager: IncrementalStorageManager
+    ): IncrementalStorageCoordinator {
+        return IncrementalStorageCoordinator(
+            context,
+            database,
+            cacheManager,
+            saveRepository,
+            changeTracker,
+            deltaCompressor,
+            incrementalStorageManager
         )
     }
 }

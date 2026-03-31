@@ -35,7 +35,14 @@ object AISectDiscipleManager {
         val gender = if (Random.nextBoolean()) "male" else "female"
         val name = generateName(gender)
         val spiritRoot = generateSpiritRoot()
-        val comprehension = Random.nextInt(30, 81)
+        val spiritRootCount = spiritRoot.split(",").size
+        val comprehension = when (spiritRootCount) {
+            1 -> Random.nextInt(80, 101)
+            2 -> Random.nextInt(60, 101)
+            3 -> Random.nextInt(40, 101)
+            4 -> Random.nextInt(20, 101)
+            else -> Random.nextInt(1, 101)
+        }
         val hpVariance = Random.nextInt(-50, 51)
         val mpVariance = Random.nextInt(-50, 51)
         val physicalAttackVariance = Random.nextInt(-50, 51)
@@ -107,10 +114,10 @@ object AISectDiscipleManager {
     
     private fun generateSpiritRoot(): String {
         val count = when (Random.nextDouble()) {
-            in 0.0..0.05 -> 1
-            in 0.05..0.20 -> 2
-            in 0.20..0.45 -> 3
-            in 0.45..0.75 -> 4
+            in 0.0..0.01 -> 1
+            in 0.01..0.07 -> 2
+            in 0.07..0.30 -> 3
+            in 0.30..0.60 -> 4
             else -> 5
         }
         

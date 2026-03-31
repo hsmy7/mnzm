@@ -145,8 +145,15 @@ object CaveExplorationSystem {
         }
         
         val guardianRealm = (cave.ownerRealm - 1).coerceIn(0, 9)
-        val guardians = (1..3).map { index ->
-            createGuardian(guardianRealm, index)
+        val guardianCount = when {
+            cave.ownerRealm <= 2 -> Random.nextInt(4, 7)
+            cave.ownerRealm <= 4 -> Random.nextInt(3, 6)
+            else -> Random.nextInt(2, 5)
+        }
+        val hasBoss = cave.ownerRealm <= 3 && Random.nextDouble() < 0.3
+        val guardians = (1..guardianCount).mapIndexed { index, _ ->
+            val isBoss = hasBoss && index == 0
+            createGuardian(guardianRealm, index, isBoss)
         }
         
         return Battle(
@@ -158,7 +165,7 @@ object CaveExplorationSystem {
         )
     }
     
-    private fun createGuardian(realm: Int, index: Int): Combatant {
+    private fun createGuardian(realm: Int, index: Int, isBoss: Boolean = false): Combatant {
         val realmConfig = GameConfig.Realm.get(realm)
         val beastType = GameConfig.Beast.TYPES.random()
         
@@ -172,25 +179,28 @@ object CaveExplorationSystem {
         val isPhysicalAttacker = Random.nextDouble() < 0.5
         
         val realmMultiplier = if (realm <= 4) 2.0 else 1.0
+        val bossMultiplier = if (isBoss) 2.5 else 1.0
         
         val physicalAttack: Int
         val magicAttack: Int
         if (isPhysicalAttacker) {
-            physicalAttack = (realmConfig.cultivationBase * 5 * beastType.atkMod * physicalAttackVariance * realmMultiplier).toInt()
-            magicAttack = (realmConfig.cultivationBase * 5 * beastType.atkMod * 0.3 * magicAttackVariance * realmMultiplier).toInt()
+            physicalAttack = (realmConfig.cultivationBase * 5 * beastType.atkMod * physicalAttackVariance * realmMultiplier * bossMultiplier).toInt()
+            magicAttack = (realmConfig.cultivationBase * 5 * beastType.atkMod * 0.3 * magicAttackVariance * realmMultiplier * bossMultiplier).toInt()
         } else {
-            physicalAttack = (realmConfig.cultivationBase * 5 * beastType.atkMod * 0.3 * physicalAttackVariance * realmMultiplier).toInt()
-            magicAttack = (realmConfig.cultivationBase * 5 * beastType.atkMod * magicAttackVariance * realmMultiplier).toInt()
+            physicalAttack = (realmConfig.cultivationBase * 5 * beastType.atkMod * 0.3 * physicalAttackVariance * realmMultiplier * bossMultiplier).toInt()
+            magicAttack = (realmConfig.cultivationBase * 5 * beastType.atkMod * magicAttackVariance * realmMultiplier * bossMultiplier).toInt()
         }
         
-        val hp = (realmConfig.cultivationBase * 20 * beastType.hpMod * hpVariance * realmMultiplier).toInt()
-        val defense = (realmConfig.cultivationBase * 2 * beastType.defMod * physicalDefenseVariance * realmMultiplier).toInt()
-        val magicDefense = (realmConfig.cultivationBase * 2 * beastType.defMod * 0.8 * magicDefenseVariance * realmMultiplier).toInt()
+        val hp = (realmConfig.cultivationBase * 20 * beastType.hpMod * hpVariance * realmMultiplier * bossMultiplier).toInt()
+        val defense = (realmConfig.cultivationBase * 2 * beastType.defMod * physicalDefenseVariance * realmMultiplier * bossMultiplier).toInt()
+        val magicDefense = (realmConfig.cultivationBase * 2 * beastType.defMod * 0.8 * magicDefenseVariance * realmMultiplier * bossMultiplier).toInt()
         val speed = (50 + realm * 10 * beastType.speedMod * speedVariance).toInt()
         
+        val guardianName = if (isBoss) "【首领】${beastType.prefix}${beastType.name}" else "${beastType.prefix}${beastType.name}"
+        
         return Combatant(
-            id = "guardian_$index",
-            name = "${beastType.prefix}${beastType.name}",
+            id = if (isBoss) "guardian_boss_$index" else "guardian_$index",
+            name = guardianName,
             type = CombatantType.BEAST,
             hp = hp,
             maxHp = hp,
@@ -201,7 +211,7 @@ object CaveExplorationSystem {
             physicalDefense = defense,
             magicDefense = magicDefense,
             speed = speed,
-            critRate = 0.05 + realm * 0.01,
+            critRate = 0.05 + realm * 0.01 + if (isBoss) 0.1 else 0.0,
             skills = emptyList(),
             realm = realm,
             realmName = GameConfig.Realm.getName(realm)

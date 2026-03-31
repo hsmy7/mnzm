@@ -24,6 +24,20 @@ class BuildingOperationUseCase @Inject constructor(
         data class Error(val message: String) : AssignResult()
     }
     
+    companion object {
+        private val BUILDING_ID_TO_SLOT_TYPE = mapOf(
+            "mine" to SlotType.MINING,
+            "mining" to SlotType.MINING,
+            "alchemy" to SlotType.ALCHEMY,
+            "alchemyroom" to SlotType.ALCHEMY,
+            "forge" to SlotType.FORGING,
+            "forging" to SlotType.FORGING,
+            "herb" to SlotType.HERB_GARDEN,
+            "herbgarden" to SlotType.HERB_GARDEN,
+            "herb_garden" to SlotType.HERB_GARDEN
+        )
+    }
+    
     fun assignDiscipleToBuilding(params: AssignParams): AssignResult {
         val disciple = params.disciples.find { it.id == params.discipleId }
             ?: return AssignResult.Error("弟子不存在")
@@ -63,12 +77,16 @@ class BuildingOperationUseCase @Inject constructor(
     }
     
     private fun getSlotTypeForBuilding(buildingId: String): SlotType {
-        return when {
-            buildingId.contains("mine", ignoreCase = true) -> SlotType.MINING
-            buildingId.contains("alchemy", ignoreCase = true) -> SlotType.ALCHEMY
-            buildingId.contains("forge", ignoreCase = true) -> SlotType.FORGING
-            buildingId.contains("herb", ignoreCase = true) -> SlotType.HERB_GARDEN
-            else -> SlotType.IDLE
+        val normalizedId = buildingId.lowercase().replace("_", "").replace("-", "")
+        
+        BUILDING_ID_TO_SLOT_TYPE[normalizedId]?.let { return it }
+        
+        for ((key, slotType) in BUILDING_ID_TO_SLOT_TYPE) {
+            if (normalizedId.contains(key)) {
+                return slotType
+            }
         }
+        
+        return SlotType.IDLE
     }
 }

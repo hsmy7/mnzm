@@ -7,6 +7,8 @@ import com.google.gson.GsonBuilder
 
 object GsonConfig {
     
+    val gson: Gson by lazy { createGson() }
+    
     fun createGson(): Gson = GsonBuilder()
         .setDateFormat("yyyy-MM-dd HH:mm:ss")
         .serializeNulls()

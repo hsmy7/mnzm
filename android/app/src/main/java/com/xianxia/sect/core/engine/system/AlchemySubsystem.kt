@@ -2,9 +2,9 @@ package com.xianxia.sect.core.engine.system
 
 import android.util.Log
 import com.xianxia.sect.core.data.PillRecipeDatabase
-import com.xianxia.sect.core.model.BuildingSlot
+import com.xianxia.sect.core.model.AlchemySlot
+import com.xianxia.sect.core.model.AlchemySlotStatus
 import com.xianxia.sect.core.model.Pill
-import com.xianxia.sect.core.model.SlotStatus
 import com.xianxia.sect.core.util.StateFlowListUtils
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,8 +20,8 @@ class AlchemySubsystem @Inject constructor() : GameSystem {
         const val SYSTEM_NAME = "AlchemySubsystem"
     }
     
-    private val _alchemySlots = MutableStateFlow<List<BuildingSlot>>(emptyList())
-    val alchemySlots: StateFlow<List<BuildingSlot>> = _alchemySlots.asStateFlow()
+    private val _alchemySlots = MutableStateFlow<List<AlchemySlot>>(emptyList())
+    val alchemySlots: StateFlow<List<AlchemySlot>> = _alchemySlots.asStateFlow()
     
     private val _pills = MutableStateFlow<List<Pill>>(emptyList())
     val pills: StateFlow<List<Pill>> = _pills.asStateFlow()
@@ -42,23 +42,23 @@ class AlchemySubsystem @Inject constructor() : GameSystem {
     }
     
     fun loadAlchemyData(
-        alchemySlots: List<BuildingSlot>,
+        alchemySlots: List<AlchemySlot>,
         pills: List<Pill>
     ) {
         StateFlowListUtils.setList(_alchemySlots, alchemySlots)
         StateFlowListUtils.setList(_pills, pills)
     }
     
-    fun getAlchemySlots(): List<BuildingSlot> = _alchemySlots.value
+    fun getAlchemySlots(): List<AlchemySlot> = _alchemySlots.value
     
-    fun getAlchemySlotByIndex(index: Int): BuildingSlot? =
+    fun getAlchemySlotByIndex(index: Int): AlchemySlot? =
         _alchemySlots.value.find { it.slotIndex == index }
     
-    fun updateAlchemySlots(transform: (List<BuildingSlot>) -> List<BuildingSlot>) {
+    fun updateAlchemySlots(transform: (List<AlchemySlot>) -> List<AlchemySlot>) {
         _alchemySlots.value = transform(_alchemySlots.value)
     }
     
-    fun updateAlchemySlot(slotIndex: Int, transform: (BuildingSlot) -> BuildingSlot): Boolean =
+    fun updateAlchemySlot(slotIndex: Int, transform: (AlchemySlot) -> AlchemySlot): Boolean =
         StateFlowListUtils.updateItem(_alchemySlots, { it.slotIndex == slotIndex }, transform)
     
     fun initializeAlchemySlots(count: Int = 3) {
@@ -70,9 +70,7 @@ class AlchemySubsystem @Inject constructor() : GameSystem {
         
         if (needsInitialization) {
             val initializedSlots = (0 until count).map { idx ->
-                currentSlots.find { it.slotIndex == idx } ?: BuildingSlot(
-                    id = java.util.UUID.randomUUID().toString(),
-                    buildingId = "alchemy",
+                currentSlots.find { it.slotIndex == idx } ?: AlchemySlot(
                     slotIndex = idx
                 )
             }
@@ -122,7 +120,7 @@ class AlchemySubsystem @Inject constructor() : GameSystem {
     }
     
     data class AlchemyProgressResult(
-        val slot: BuildingSlot,
+        val slot: AlchemySlot,
         val isCompleted: Boolean,
         val producedPill: Pill? = null,
         val eventMessage: String? = null
@@ -135,15 +133,11 @@ class AlchemySubsystem @Inject constructor() : GameSystem {
         speedBonus: Double = 0.0
     ): AlchemyProgressResult {
         val slot = getAlchemySlotByIndex(slotIndex) ?: return AlchemyProgressResult(
-            slot = BuildingSlot(
-                id = "",
-                buildingId = "alchemy",
-                slotIndex = slotIndex
-            ),
+            slot = AlchemySlot(slotIndex = slotIndex),
             isCompleted = false
         )
         
-        if (slot.discipleId == null || slot.recipeId == null) {
+        if (slot.recipeId == null) {
             return AlchemyProgressResult(slot = slot, isCompleted = false)
         }
         
@@ -176,7 +170,7 @@ class AlchemySubsystem @Inject constructor() : GameSystem {
         )
         
         val completedSlot = slot.copy(
-            status = SlotStatus.IDLE
+            status = AlchemySlotStatus.FINISHED
         )
         
         return AlchemyProgressResult(
@@ -188,11 +182,11 @@ class AlchemySubsystem @Inject constructor() : GameSystem {
     }
     
     private fun calculateRemainingTime(
-        slot: BuildingSlot,
+        slot: AlchemySlot,
         currentYear: Int,
         currentMonth: Int
     ): Int {
-        if (slot.startYear == null || slot.startMonth == null || slot.duration == null) {
+        if (slot.status != AlchemySlotStatus.WORKING) {
             return 0
         }
         

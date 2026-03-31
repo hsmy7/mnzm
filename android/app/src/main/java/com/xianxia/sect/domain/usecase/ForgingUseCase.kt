@@ -28,7 +28,7 @@ class ForgingUseCase @Inject constructor(
         val message: String? = null
     )
     
-    fun startForging(params: StartForgingParams): ForgingResult {
+    suspend fun startForging(params: StartForgingParams): ForgingResult {
         val slots = gameEngine.getBuildingSlots("forge")
         if (params.slotIndex < 0 || params.slotIndex >= slots.size) {
             return ForgingResult.Error("无效的锻造槽位")

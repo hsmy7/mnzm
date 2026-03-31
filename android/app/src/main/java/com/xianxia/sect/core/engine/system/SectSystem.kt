@@ -5,7 +5,6 @@ import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.model.SectRelation
 import com.xianxia.sect.core.model.Alliance
-import com.xianxia.sect.core.model.SupportTeam
 import com.xianxia.sect.core.model.SectPolicies
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -51,6 +50,12 @@ class SectSystem @Inject constructor() : GameSystem {
     
     fun loadGameData(data: GameData) {
         _gameData.value = data
+    }
+    
+    suspend fun updateGameDataSuspend(transform: (GameData) -> GameData) {
+        mutex.withLock {
+            _gameData.value = transform(_gameData.value)
+        }
     }
     
     fun updateGameData(transform: (GameData) -> GameData) {
@@ -256,12 +261,6 @@ class SectSystem @Inject constructor() : GameSystem {
     
     fun getAllianceById(allianceId: String): Alliance? = 
         _gameData.value.alliances.find { it.id == allianceId }
-    
-    val supportTeams: List<SupportTeam> get() = _gameData.value.supportTeams
-    
-    fun updateSupportTeams(teams: List<SupportTeam>) {
-        _gameData.value = _gameData.value.copy(supportTeams = teams)
-    }
     
     val sectPolicies: SectPolicies get() = _gameData.value.sectPolicies
     

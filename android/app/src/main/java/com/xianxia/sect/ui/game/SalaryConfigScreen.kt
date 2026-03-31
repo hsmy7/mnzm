@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.theme.GameColors
 
 @Composable
@@ -91,9 +92,10 @@ private fun SalaryConfigHeader(onDismiss: () -> Unit) {
             color = Color.Black
         )
 
-        TextButton(onClick = onDismiss) {
-            Text("关闭", color = Color.Black, fontSize = 12.sp)
-        }
+        GameButton(
+            text = "关闭",
+            onClick = onDismiss
+        )
     }
 }
 

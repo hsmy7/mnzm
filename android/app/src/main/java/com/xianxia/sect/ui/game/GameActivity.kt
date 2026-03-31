@@ -22,9 +22,10 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.xianxia.sect.XianxiaApplication
 import com.xianxia.sect.core.CrashHandler
-import com.xianxia.sect.data.SaveManager
+import com.xianxia.sect.data.facade.RefactoredStorageFacade
 import com.xianxia.sect.data.SessionManager
 import com.xianxia.sect.ui.MainActivity
+import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.theme.XianxiaTheme
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
@@ -45,7 +46,7 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
     lateinit var sessionManager: SessionManager
 
     @Inject
-    lateinit var saveManager: SaveManager
+    lateinit var storageFacade: RefactoredStorageFacade
 
     @Inject
     lateinit var crashHandler: CrashHandler
@@ -125,11 +126,10 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
                                 title = { Text("提示") },
                                 text = { Text(error) },
                                 confirmButton = {
-                                    TextButton(onClick = {
-                                        viewModel.clearErrorMessage()
-                                    }) {
-                                        Text("确定")
-                                    }
+                                    GameButton(
+                                        text = "确定",
+                                        onClick = { viewModel.clearErrorMessage() }
+                                    )
                                 }
                             )
                         }
@@ -284,7 +284,7 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
             if (gameData.sectName.isNotEmpty()) {
                 Log.i(TAG, "Attempting emergency save for sect: ${gameData.sectName}")
                 val saveData = viewModel.createSaveDataSync()
-                saveManager.emergencySave(saveData)
+                kotlinx.coroutines.runBlocking { storageFacade.emergencySave(saveData) }
             } else {
                 Log.w(TAG, "No valid game data to save in emergency")
                 false

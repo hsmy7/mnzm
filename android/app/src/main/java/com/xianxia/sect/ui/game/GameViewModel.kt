@@ -9,10 +9,11 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.data.ForgeRecipeDatabase
 import com.xianxia.sect.core.data.PillRecipeDatabase
 import com.xianxia.sect.core.engine.AISectAttackManager
-import com.xianxia.sect.core.engine.GameEngine
+import com.xianxia.sect.core.engine.GameEngineAdapter
+import com.xianxia.sect.core.engine.GameEngineCore
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.data.GameRepository
-import com.xianxia.sect.data.SaveManager
+import com.xianxia.sect.data.facade.RefactoredStorageFacade
 import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.model.SaveSlot
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -23,8 +24,9 @@ import javax.inject.Inject
 @HiltViewModel
 class GameViewModel @Inject constructor(
     private val repository: GameRepository,
-    private val gameEngine: GameEngine,
-    private val saveManager: SaveManager
+    private val gameEngine: GameEngineAdapter,
+    private val gameEngineCore: GameEngineCore,
+    private val storageFacade: RefactoredStorageFacade
 ) : ViewModel() {
 
     companion object {
@@ -84,8 +86,8 @@ class GameViewModel @Inject constructor(
     val alchemySlots: StateFlow<List<AlchemySlot>> = gameEngine.alchemySlots
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val highFrequencyData: StateFlow<GameEngine.HighFrequencyData> = gameEngine.highFrequencyData
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), GameEngine.HighFrequencyData())
+    val highFrequencyData: StateFlow<GameEngineAdapter.HighFrequencyData> = gameEngine.highFrequencyData
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), GameEngineAdapter.HighFrequencyData())
 
     val realtimeCultivation: StateFlow<Map<String, Double>> = gameEngine.realtimeCultivation
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
@@ -171,6 +173,10 @@ class GameViewModel @Inject constructor(
             }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val allForgeRecipes: StateFlow<List<ForgeRecipeDatabase.ForgeRecipe>> = flow {
+        emit(ForgeRecipeDatabase.getAllRecipes())
+    }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     private val _showAlchemyDialog = MutableStateFlow(false)
     val showAlchemyDialog: StateFlow<Boolean> = _showAlchemyDialog.asStateFlow()
@@ -261,18 +267,8 @@ class GameViewModel @Inject constructor(
     private val _notifications = MutableStateFlow<List<String>>(emptyList())
     val notifications: StateFlow<List<String>> = _notifications.asStateFlow()
 
-    private var gameLoopJob: Job? = null
-    private var secondTickJob: Job? = null
-    private var dayAccumulator = 0.0
-    private var autoSaveMonthCounter = 0
-
-    // 游戏循环错误计数器
-    private var consecutiveErrorCount = 0
-    private var totalErrorCount = 0
-    private val maxConsecutiveErrors = 10 // 连续错误超过此数值时暂停游戏
-
     init {
-        _saveSlots.value = saveManager.getSaveSlots()
+        _saveSlots.value = storageFacade.getSaveSlots()
     }
 
     private fun canPerformSaveOperation(): Boolean {
@@ -321,84 +317,10 @@ class GameViewModel @Inject constructor(
     val isTimeRunning: StateFlow<Boolean> = _isTimeRunning.asStateFlow()
 
     private fun startGameLoop() {
-        gameLoopJob?.cancel()
-        secondTickJob?.cancel()
-
-        dayAccumulator = 0.0
-        autoSaveMonthCounter = 0
-        consecutiveErrorCount = 0
-        totalErrorCount = 0
-
+        gameEngineCore.startGameLoop()
         _isTimeRunning.value = true
         _isPaused.value = false
-
-        Log.d(TAG, "Game loop started")
-
-        gameLoopJob = viewModelScope.launch {
-            while (isActive) {
-                try {
-                    delay(GameConfig.Time.TICK_INTERVAL)
-
-                    if (!_isPaused.value) {
-                        var tickErrorOccurred = false
-                        
-                        // 处理 processSecondTick
-                        try {
-                            gameEngine.processSecondTick()
-                            consecutiveErrorCount = 0 // 成功执行后重置连续错误计数
-                        } catch (e: Exception) {
-                            tickErrorOccurred = true
-                            consecutiveErrorCount++
-                            totalErrorCount++
-                            val gameData = gameEngine.gameData.value
-                            Log.e(TAG, "Error in processSecondTick (consecutive: $consecutiveErrorCount, total: $totalErrorCount) - " +
-                                "Game: Year=${gameData.gameYear}, Month=${gameData.gameMonth}, Day=${gameData.gameDay}, " +
-                                "Sect=${gameData.sectName}", e)
-                        }
-
-                        val daysPerTick = GameConfig.Time.DAYS_PER_MONTH.toDouble() / 
-                            (GameConfig.Time.SECONDS_PER_REAL_MONTH * GameConfig.Time.TICKS_PER_SECOND)
-                        dayAccumulator += daysPerTick * _timeScale.value
-                        
-                        while (dayAccumulator >= 1.0) {
-                            dayAccumulator -= 1.0
-                            try {
-                                gameEngine.advanceDay()
-                                consecutiveErrorCount = 0
-                            } catch (e: Exception) {
-                                tickErrorOccurred = true
-                                consecutiveErrorCount++
-                                totalErrorCount++
-                                val gameData = gameEngine.gameData.value
-                                Log.e(TAG, "Error in advanceDay (consecutive: $consecutiveErrorCount, total: $totalErrorCount) - " +
-                                    "Game: Year=${gameData.gameYear}, Month=${gameData.gameMonth}, Day=${gameData.gameDay}, " +
-                                    "Sect=${gameData.sectName}", e)
-                            }
-                            autoSaveMonthCounter++
-                        }
-                        
-                        val autoSaveInterval = gameEngine.gameData.value.autoSaveIntervalMonths
-                        if (autoSaveInterval > 0 && autoSaveMonthCounter >= autoSaveInterval * GameConfig.Time.DAYS_PER_MONTH) {
-                            autoSaveMonthCounter = 0
-                            try {
-                                performAutoSave()
-                            } catch (e: Exception) {
-                                Log.e(TAG, "Error in performAutoSave", e)
-                            }
-                        }
-                        
-                        // 检查连续错误次数，过多时暂停游戏
-                        if (consecutiveErrorCount >= maxConsecutiveErrors) {
-                            Log.e(TAG, "Game loop paused due to too many consecutive errors ($consecutiveErrorCount)")
-                            _isPaused.value = true
-                            _errorMessage.value = "游戏因连续错误已暂停，请检查日志或重新加载存档"
-                        }
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error in game loop outer try-catch", e)
-                }
-            }
-        }
+        Log.d(TAG, "Game loop started via GameEngineCore")
     }
     
     fun performAutoSave() {
@@ -416,17 +338,14 @@ class GameViewModel @Inject constructor(
                     herbs = snapshot.herbs,
                     seeds = snapshot.seeds,
                     teams = snapshot.teams,
-                    slots = snapshot.buildingSlots,
                     events = snapshot.events,
                     battleLogs = snapshot.battleLogs,
-                    alliances = snapshot.alliances,
-                    supportTeams = snapshot.supportTeams,
-                    alchemySlots = snapshot.alchemySlots
+                    alliances = snapshot.alliances
                 )
 
-                val success = saveManager.saveAsync(currentSlot, saveData)
+                val success = storageFacade.saveSync(currentSlot, saveData)
                 if (success) {
-                    _saveSlots.value = saveManager.getSaveSlots()
+                    _saveSlots.value = storageFacade.getSaveSlots()
                     Log.d(TAG, "Auto save completed for slot: $currentSlot")
                 } else {
                     Log.e(TAG, "Auto save failed for slot: $currentSlot")
@@ -445,21 +364,18 @@ class GameViewModel @Inject constructor(
     suspend fun createSaveData(): SaveData {
         val snapshot = gameEngine.getStateSnapshot()
         return SaveData(
-            gameData = snapshot.gameData,
-            disciples = snapshot.disciples,
-            equipment = snapshot.equipment,
-            manuals = snapshot.manuals,
-            pills = snapshot.pills,
-            materials = snapshot.materials,
-            herbs = snapshot.herbs,
-            seeds = snapshot.seeds,
-            teams = snapshot.teams,
-            slots = snapshot.buildingSlots,
+                    gameData = snapshot.gameData,
+                    disciples = snapshot.disciples,
+                    equipment = snapshot.equipment,
+                    manuals = snapshot.manuals,
+                    pills = snapshot.pills,
+                    materials = snapshot.materials,
+                    herbs = snapshot.herbs,
+                    seeds = snapshot.seeds,
+                    teams = snapshot.teams,
             events = snapshot.events,
             battleLogs = snapshot.battleLogs,
-            alliances = snapshot.alliances,
-            supportTeams = snapshot.supportTeams,
-            alchemySlots = snapshot.alchemySlots
+            alliances = snapshot.alliances
         )
     }
     
@@ -481,24 +397,18 @@ class GameViewModel @Inject constructor(
             herbs = snapshot.herbs,
             seeds = snapshot.seeds,
             teams = snapshot.teams,
-            slots = snapshot.buildingSlots,
             events = snapshot.events,
             battleLogs = snapshot.battleLogs,
-            alliances = snapshot.alliances,
-            supportTeams = snapshot.supportTeams,
-            alchemySlots = snapshot.alchemySlots
+            alliances = snapshot.alliances
         )
     }
 
     private fun stopGameLoop() {
         try {
-            gameLoopJob?.cancel()
-            secondTickJob?.cancel()
+            gameEngineCore.stopGameLoop()
         } catch (e: Exception) {
             Log.e(TAG, "Error stopping game loop", e)
         } finally {
-            gameLoopJob = null
-            secondTickJob = null
             _isTimeRunning.value = false
             _isPaused.value = true
         }
@@ -528,6 +438,9 @@ class GameViewModel @Inject constructor(
                 gameEngine.createNewGame(sectName)
                 gameEngine.updateGameData { it.copy(currentSlot = slot) }
                 Log.d(TAG, "Game engine created new game, elapsed=${System.currentTimeMillis() - startTime}ms")
+                
+                storageFacade.setCurrentSlot(slot)
+                Log.d(TAG, "Active slot set to $slot")
                 
                 _loadingProgress.value = PROGRESS_SAVE_COMPLETE
                 val saveSuccess = performSynchronousSave(slot)
@@ -580,17 +493,14 @@ class GameViewModel @Inject constructor(
                     herbs = snapshot.herbs,
                     seeds = snapshot.seeds,
                     teams = snapshot.teams,
-                    slots = snapshot.buildingSlots,
                     events = snapshot.events,
                     battleLogs = snapshot.battleLogs,
-                    alliances = snapshot.alliances,
-                    supportTeams = snapshot.supportTeams,
-                    alchemySlots = snapshot.alchemySlots
+                    alliances = snapshot.alliances
                 )
-                val success = saveManager.saveAsync(slot, saveData)
+                val success = storageFacade.saveSync(slot, saveData)
                 if (success) {
                     gameEngine.updateGameData { updatedGameData }
-                    _saveSlots.value = saveManager.getSaveSlots()
+                    _saveSlots.value = storageFacade.getSaveSlots()
                     Log.i(TAG, "performSynchronousSave SUCCESS for slot $slot")
                 } else {
                     Log.e(TAG, "performSynchronousSave FAILED for slot $slot")
@@ -635,7 +545,7 @@ class GameViewModel @Inject constructor(
                 performGarbageCollection()
                 
                 val saveData = withTimeoutOrNull(30_000L) {
-                    saveManager.loadAsync(saveSlot.slot)
+                    storageFacade.loadSync(saveSlot.slot)
                 }
                 if (saveData == null) {
                     Log.e(TAG, "=== loadGame FAILED === timeout or null for slot ${saveSlot.slot}")
@@ -643,6 +553,7 @@ class GameViewModel @Inject constructor(
                     return@launch
                 }
                 if (saveData != null) {
+                    storageFacade.setCurrentSlot(saveSlot.slot)
                     gameEngine.loadData(
                         gameData = saveData.gameData.copy(currentSlot = saveSlot.slot),
                         disciples = saveData.disciples,
@@ -653,18 +564,9 @@ class GameViewModel @Inject constructor(
                         herbs = saveData.herbs,
                         seeds = saveData.seeds,
                         teams = saveData.teams,
-                        slots = saveData.slots,
                         events = saveData.events,
                         battleLogs = saveData.battleLogs,
-                        alliances = saveData.alliances ?: emptyList(),
-                        supportTeams = saveData.supportTeams?.map { team ->
-                            if (team.duration == 0 && team.status == "moving") {
-                                team.copy(duration = 1, moveProgress = 1f, status = "stationed")
-                            } else {
-                                team
-                            }
-                        } ?: emptyList(),
-                        alchemySlots = saveData.alchemySlots
+                        alliances = saveData.alliances ?: emptyList()
                     )
                     startGameLoop()
                     _isGameLoaded = true
@@ -718,10 +620,11 @@ class GameViewModel @Inject constructor(
                 performGarbageCollection()
                 
                 val saveData = withTimeoutOrNull(30_000L) {
-                    saveManager.loadAsync(slot)
+                    storageFacade.loadSync(slot)
                 }
                 if (saveData != null) {
                     _loadingProgress.value = PROGRESS_DATA_LOAD
+                    storageFacade.setCurrentSlot(slot)
                     gameEngine.loadData(
                         gameData = saveData.gameData.copy(currentSlot = slot),
                         disciples = saveData.disciples,
@@ -732,18 +635,9 @@ class GameViewModel @Inject constructor(
                         herbs = saveData.herbs,
                         seeds = saveData.seeds,
                         teams = saveData.teams,
-                        slots = saveData.slots,
                         events = saveData.events,
                         battleLogs = saveData.battleLogs,
-                        alliances = saveData.alliances ?: emptyList(),
-                        supportTeams = saveData.supportTeams?.map { team ->
-                            if (team.duration == 0 && team.status == "moving") {
-                                team.copy(duration = 1, moveProgress = 1f, status = "stationed")
-                            } else {
-                                team
-                            }
-                        } ?: emptyList(),
-                        alchemySlots = saveData.alchemySlots
+                        alliances = saveData.alliances ?: emptyList()
                     )
                     _loadingProgress.value = PROGRESS_GAME_LOOP_START
                     startGameLoop()
@@ -811,19 +705,17 @@ class GameViewModel @Inject constructor(
                     herbs = snapshot.herbs,
                     seeds = snapshot.seeds,
                     teams = snapshot.teams,
-                    slots = snapshot.buildingSlots,
                     events = snapshot.events,
                     battleLogs = snapshot.battleLogs,
-                    alliances = snapshot.alliances,
-                    supportTeams = snapshot.supportTeams,
-                    alchemySlots = snapshot.alchemySlots
+                    alliances = snapshot.alliances
                 )
                 val success = withTimeoutOrNull(30_000L) {
-                    saveManager.saveAsync(slot, saveData)
+                    storageFacade.saveSync(slot, saveData)
                 }
                 if (success == true) {
                     gameEngine.updateGameData { updatedGameData }
-                    _saveSlots.value = saveManager.getSaveSlots()
+                    storageFacade.setCurrentSlot(slot)
+                    _saveSlots.value = storageFacade.getSaveSlots()
                     _successMessage.value = "游戏保存成功"
                     
                     Log.i(TAG, "=== saveGame SUCCESS === " +
@@ -834,13 +726,13 @@ class GameViewModel @Inject constructor(
                         "manuals=${saveData.manuals.size}, elapsed=${System.currentTimeMillis() - startTime}ms")
                 } else if (success == null) {
                     Log.e(TAG, "=== saveGame FAILED === timeout after 30 seconds")
-                    if (saveManager.isSaveCorrupted(slot)) {
-                        saveManager.restoreFromBackup(slot)
+                    if (storageFacade.isSaveCorrupted(slot)) {
+                        storageFacade.restoreFromBackupIfCorrupted(slot)
                         Log.w(TAG, "Save may be corrupted, attempted to restore from backup")
                     }
                     _errorMessage.value = "保存超时，请重试"
                 } else {
-                    Log.e(TAG, "=== saveGame FAILED === saveManager.saveAsync returned false")
+                    Log.e(TAG, "=== saveGame FAILED === storageFacade.saveSync returned false")
                     _errorMessage.value = "保存失败，请重试"
                 }
             } catch (e: OutOfMemoryError) {
@@ -893,19 +785,17 @@ class GameViewModel @Inject constructor(
                     herbs = snapshot.herbs,
                     seeds = snapshot.seeds,
                     teams = snapshot.teams,
-                    slots = snapshot.buildingSlots,
                     events = snapshot.events,
                     battleLogs = snapshot.battleLogs,
-                    alliances = snapshot.alliances,
-                    supportTeams = snapshot.supportTeams,
-                    alchemySlots = snapshot.alchemySlots
+                    alliances = snapshot.alliances
                 )
                 val success = withTimeoutOrNull(30_000L) {
-                    saveManager.saveAsync(slot, saveData)
+                    storageFacade.saveSync(slot, saveData)
                 }
                 if (success == true) {
                     gameEngine.updateGameData { updatedGameData }
-                    _saveSlots.value = saveManager.getSaveSlots()
+                    storageFacade.setCurrentSlot(slot)
+                    _saveSlots.value = storageFacade.getSaveSlots()
                     _successMessage.value = "游戏保存成功"
                     _showSaveDialog.value = false
                     
@@ -918,7 +808,7 @@ class GameViewModel @Inject constructor(
                     Log.e(TAG, "=== saveToSlot FAILED === timeout after 30 seconds")
                     _errorMessage.value = "保存超时，请重试"
                 } else {
-                    Log.e(TAG, "=== saveToSlot FAILED === saveManager.saveAsync returned false")
+                    Log.e(TAG, "=== saveToSlot FAILED === storageFacade.saveSync returned false")
                     _errorMessage.value = "保存失败，请重试"
                 }
             } catch (e: OutOfMemoryError) {
@@ -935,21 +825,28 @@ class GameViewModel @Inject constructor(
     }
 
     fun togglePause() {
-        _isPaused.value = !_isPaused.value
+        viewModelScope.launch {
+            if (_isPaused.value) {
+                gameEngineCore.resume()
+            } else {
+                gameEngineCore.pause()
+            }
+            _isPaused.value = !_isPaused.value
+        }
     }
 
     fun pauseGame() {
-        _isPaused.value = true
-        // 可选：如果需要完全停止游戏循环，可以在这里调用stopGameLoop()
-        // stopGameLoop()
+        viewModelScope.launch {
+            gameEngineCore.pause()
+            _isPaused.value = true
+        }
     }
 
     fun resumeGame() {
-        _isPaused.value = false
-        // 如果之前停止了游戏循环，需要在这里重新启动
-        // if (gameLoopJob == null) {
-        //     startGameLoop()
-        // }
+        viewModelScope.launch {
+            gameEngineCore.resume()
+            _isPaused.value = false
+        }
     }
 
     val timeSpeed: StateFlow<Int> = _timeScale
@@ -966,7 +863,9 @@ class GameViewModel @Inject constructor(
     }
 
     fun setAutoSaveIntervalMonths(interval: Int) {
-        gameEngine.updateGameData { it.copy(autoSaveIntervalMonths = interval) }
+        viewModelScope.launch {
+            gameEngine.updateGameData { it.copy(autoSaveIntervalMonths = interval) }
+        }
     }
 
     fun resetAllDisciplesStatus() {
@@ -975,7 +874,7 @@ class GameViewModel @Inject constructor(
 
     fun showSaveManagementDialog() {
         // ˢ�´浵��λ��Ϣ
-        _saveSlots.value = saveManager.getSaveSlots()
+        _saveSlots.value = storageFacade.getSaveSlots()
         _showSaveDialog.value = true
     }
 
@@ -1169,15 +1068,19 @@ class GameViewModel @Inject constructor(
             return
         }
         
-        gameEngine.updateGameData { 
-            it.copy(elderSlots = currentSlots.copy(viceSectMaster = discipleId))
+        viewModelScope.launch {
+            gameEngine.updateGameData { 
+                it.copy(elderSlots = currentSlots.copy(viceSectMaster = discipleId))
+            }
         }
     }
     
     fun removeViceSectMaster() {
         val currentSlots = gameEngine.gameData.value.elderSlots
-        gameEngine.updateGameData { 
-            it.copy(elderSlots = currentSlots.copy(viceSectMaster = null))
+        viewModelScope.launch {
+            gameEngine.updateGameData { 
+                it.copy(elderSlots = currentSlots.copy(viceSectMaster = null))
+            }
         }
     }
     
@@ -1294,9 +1197,6 @@ class GameViewModel @Inject constructor(
     private val _showEnvoyDiscipleSelectDialog = MutableStateFlow(false)
     val showEnvoyDiscipleSelectDialog: StateFlow<Boolean> = _showEnvoyDiscipleSelectDialog.asStateFlow()
     
-    private val _showRequestSupportDialog = MutableStateFlow(false)
-    val showRequestSupportDialog: StateFlow<Boolean> = _showRequestSupportDialog.asStateFlow()
-    
     fun openAllianceDialog(sectId: String) {
         _selectedAllianceSectId.value = sectId
         _showAllianceDialog.value = true
@@ -1313,14 +1213,6 @@ class GameViewModel @Inject constructor(
     
     fun closeEnvoyDiscipleSelectDialog() {
         _showEnvoyDiscipleSelectDialog.value = false
-    }
-    
-    fun openRequestSupportDialog() {
-        _showRequestSupportDialog.value = true
-    }
-    
-    fun closeRequestSupportDialog() {
-        _showRequestSupportDialog.value = false
     }
     
     fun requestAlliance(sectId: String, envoyDiscipleId: String) {
@@ -1354,35 +1246,12 @@ class GameViewModel @Inject constructor(
         }
     }
     
-    fun requestSupport(allySectId: String, envoyDiscipleId: String) {
-        viewModelScope.launch {
-            try {
-                val (success, message) = gameEngine.requestSupport(allySectId, envoyDiscipleId)
-                if (success) {
-                    closeRequestSupportDialog()
-                } else {
-                    _errorMessage.value = message
-                }
-            } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "求援失败"
-            }
-        }
-    }
-    
     fun getEligibleEnvoyDisciples(sectLevel: Int): List<Disciple> {
         val requiredRealm = gameEngine.getEnvoyRealmRequirement(sectLevel)
         return disciples.value.filter { 
             it.isAlive && 
             it.status == DiscipleStatus.IDLE &&
             it.realm <= requiredRealm
-        }
-    }
-    
-    fun getEligibleRequestDisciples(): List<Disciple> {
-        return disciples.value.filter { 
-            it.isAlive && 
-            it.status == DiscipleStatus.IDLE &&
-            it.realm <= 7
         }
     }
     
@@ -1590,8 +1459,7 @@ class GameViewModel @Inject constructor(
                         preachingMasters = emptyList()
                     )
                     "lawEnforcementElder" -> elderSlots.copy(
-                        lawEnforcementElder = discipleId,
-                        lawEnforcementDisciples = emptyList()
+                        lawEnforcementElder = discipleId
                     )
                     "innerElder" -> elderSlots.copy(
                         innerElder = discipleId
@@ -1643,8 +1511,7 @@ class GameViewModel @Inject constructor(
                         preachingMasters = emptyList()
                     )
                     "lawEnforcementElder" -> elderSlots.copy(
-                        lawEnforcementElder = null,
-                        lawEnforcementDisciples = emptyList()
+                        lawEnforcementElder = null
                     )
                     "innerElder" -> elderSlots.copy(
                         innerElder = null
@@ -1670,7 +1537,7 @@ class GameViewModel @Inject constructor(
 
     fun toggleSpiritMineBoost() {
         val currentPolicies = gameEngine.gameData.value.sectPolicies
-        gameEngine.updateGameData { it.copy(sectPolicies = currentPolicies.copy(spiritMineBoost = !currentPolicies.spiritMineBoost)) }
+        gameEngine.updateGameDataSync { it.copy(sectPolicies = currentPolicies.copy(spiritMineBoost = !currentPolicies.spiritMineBoost)) }
     }
 
     fun isSpiritMineBoostEnabled(): Boolean {
@@ -1690,7 +1557,7 @@ class GameViewModel @Inject constructor(
             return false
         }
         
-        gameEngine.updateGameData { it.copy(sectPolicies = currentPolicies.copy(enhancedSecurity = !currentPolicies.enhancedSecurity)) }
+        gameEngine.updateGameDataSync { it.copy(sectPolicies = currentPolicies.copy(enhancedSecurity = !currentPolicies.enhancedSecurity)) }
         return true
     }
 
@@ -1711,7 +1578,7 @@ class GameViewModel @Inject constructor(
             return false
         }
         
-        gameEngine.updateGameData { it.copy(sectPolicies = currentPolicies.copy(alchemyIncentive = !currentPolicies.alchemyIncentive)) }
+        gameEngine.updateGameDataSync { it.copy(sectPolicies = currentPolicies.copy(alchemyIncentive = !currentPolicies.alchemyIncentive)) }
         return true
     }
 
@@ -1728,7 +1595,7 @@ class GameViewModel @Inject constructor(
             return false
         }
         
-        gameEngine.updateGameData { it.copy(sectPolicies = currentPolicies.copy(forgeIncentive = !currentPolicies.forgeIncentive)) }
+        gameEngine.updateGameDataSync { it.copy(sectPolicies = currentPolicies.copy(forgeIncentive = !currentPolicies.forgeIncentive)) }
         return true
     }
 
@@ -1745,7 +1612,7 @@ class GameViewModel @Inject constructor(
             return false
         }
         
-        gameEngine.updateGameData { it.copy(sectPolicies = currentPolicies.copy(herbCultivation = !currentPolicies.herbCultivation)) }
+        gameEngine.updateGameDataSync { it.copy(sectPolicies = currentPolicies.copy(herbCultivation = !currentPolicies.herbCultivation)) }
         return true
     }
 
@@ -1762,7 +1629,7 @@ class GameViewModel @Inject constructor(
             return false
         }
         
-        gameEngine.updateGameData { it.copy(sectPolicies = currentPolicies.copy(cultivationSubsidy = !currentPolicies.cultivationSubsidy)) }
+        gameEngine.updateGameDataSync { it.copy(sectPolicies = currentPolicies.copy(cultivationSubsidy = !currentPolicies.cultivationSubsidy)) }
         return true
     }
 
@@ -1779,7 +1646,7 @@ class GameViewModel @Inject constructor(
             return false
         }
         
-        gameEngine.updateGameData { it.copy(sectPolicies = currentPolicies.copy(manualResearch = !currentPolicies.manualResearch)) }
+        gameEngine.updateGameDataSync { it.copy(sectPolicies = currentPolicies.copy(manualResearch = !currentPolicies.manualResearch)) }
         return true
     }
 
@@ -2843,10 +2710,6 @@ class GameViewModel @Inject constructor(
         }
     }
 
-    fun selectSpiritMineSlot(slotIndex: Int) {
-        // TODO: 实现灵矿选择
-    }
-
     // 招募弟子
     fun recruitDisciple(name: String, aptitude: Int = 50) {
         viewModelScope.launch {
@@ -2964,11 +2827,6 @@ class GameViewModel @Inject constructor(
         }
     }
 
-    // 炼丹室相关
-    fun selectAlchemySlot(slot: AlchemySlot) {
-        // TODO: 实现炼丹室选择
-    }
-
     fun startAlchemy(slotIndex: Int, recipe: PillRecipeDatabase.PillRecipe) {
         // 防止重复点击
         if (_isStartingAlchemy.value) return
@@ -2993,11 +2851,6 @@ class GameViewModel @Inject constructor(
         viewModelScope.launch {
             gameEngine.clearAlchemySlot(slotIndex)
         }
-    }
-
-    // 天工峰相关
-    fun selectForgeSlot(slot: ForgeSlot) {
-        // TODO: 实现天工峰选择
     }
 
     fun startForge(slotIndex: Int, recipe: ForgeRecipeDatabase.ForgeRecipe) {
@@ -3205,10 +3058,9 @@ class GameViewModel @Inject constructor(
 
     fun buyFromMerchant(itemId: String, quantity: Int = 1) {
         viewModelScope.launch {
-            try {
-                gameEngine.buyMerchantItem(itemId, quantity)
-            } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "购买失败"
+            val result = gameEngine.buyMerchantItem(itemId, quantity)
+            if (!result.success) {
+                _errorMessage.value = result.message
             }
         }
     }
@@ -3235,11 +3087,19 @@ class GameViewModel @Inject constructor(
 
     fun buyFromTradingHall(itemId: String) {
         viewModelScope.launch {
+            val result = gameEngine.buyFromTradingHall(itemId)
+            if (!result.success) {
+                _errorMessage.value = result.message
+            }
         }
     }
 
     fun sellToTradingHall(itemId: String) {
         viewModelScope.launch {
+            val result = gameEngine.sellToTradingHall(itemId)
+            if (!result.success) {
+                _errorMessage.value = result.message
+            }
         }
     }
 
@@ -3331,17 +3191,13 @@ class GameViewModel @Inject constructor(
         return manuals.value.find { it.id == id }
     }
 
-    // 一键出售物品
+    // 一键出售物品（原子性操作，排除锁定物品）
     fun bulkSellItems(
         selectedRarities: Set<Int>,
         selectedTypes: Set<String>
     ) {
         viewModelScope.launch {
             try {
-                var totalValue = 0
-                val soldItems = mutableListOf<String>()
-
-                // 获取所有存活弟子穿戴的装备ID和学习的功法ID
                 val equippedIds = mutableSetOf<String>()
                 val learnedManualIds = mutableSetOf<String>()
                 disciples.value.filter { it.isAlive }.forEach { disciple ->
@@ -3351,87 +3207,135 @@ class GameViewModel @Inject constructor(
                     disciple.accessoryId?.let { equippedIds.add(it) }
                     learnedManualIds.addAll(disciple.manualIds)
                 }
-
-                // 出售装备（排除已穿戴的）
+                
+                val sellOperations = mutableListOf<SuspendableSellOperation>()
+                
                 if (selectedTypes.contains("EQUIPMENT")) {
-                    val itemsToSell = equipment.value.filter { 
-                        selectedRarities.contains(it.rarity) && !equippedIds.contains(it.id)
-                    }
-                    itemsToSell.forEach { item ->
-                        val sellPrice = (item.basePrice * 0.8).toInt()
-                        totalValue += sellPrice
-                        soldItems.add(item.name)
-                        gameEngine.sellEquipment(item.id)
+                    equipment.value.filter { 
+                        selectedRarities.contains(it.rarity) && 
+                        !equippedIds.contains(it.id) && 
+                        !it.isLocked
+                    }.forEach { item ->
+                        sellOperations.add(SuspendableSellOperation.Equipment(item.id, item.name, (item.basePrice * 0.8).toInt()))
                     }
                 }
 
-                // 出售功法（排除已学习的）
                 if (selectedTypes.contains("MANUAL")) {
-                    val itemsToSell = manuals.value.filter { 
-                        selectedRarities.contains(it.rarity) && !learnedManualIds.contains(it.id)
-                    }
-                    itemsToSell.forEach { item ->
-                        val sellPrice = (item.basePrice * item.quantity * 0.8).toInt()
-                        totalValue += sellPrice
-                        soldItems.add("${item.name} x${item.quantity}")
-                        gameEngine.sellManual(item.id, item.quantity)
+                    manuals.value.filter { 
+                        selectedRarities.contains(it.rarity) && 
+                        !learnedManualIds.contains(it.id) &&
+                        !it.isLocked
+                    }.forEach { item ->
+                        sellOperations.add(SuspendableSellOperation.Manual(item.id, item.name, item.quantity, (item.basePrice * item.quantity * 0.8).toInt()))
                     }
                 }
 
-                // 出售丹药
                 if (selectedTypes.contains("PILL")) {
-                    val itemsToSell = pills.value.filter { selectedRarities.contains(it.rarity) }
-                    itemsToSell.forEach { item ->
-                        val sellPrice = (item.basePrice * item.quantity * 0.8).toInt()
-                        totalValue += sellPrice
-                        soldItems.add("${item.name} x${item.quantity}")
-                        gameEngine.sellPill(item.id, item.quantity)
+                    pills.value.filter { 
+                        selectedRarities.contains(it.rarity) && !it.isLocked
+                    }.forEach { item ->
+                        sellOperations.add(SuspendableSellOperation.Pill(item.id, item.name, item.quantity, (item.basePrice * item.quantity * 0.8).toInt()))
                     }
                 }
 
-                // 出售材料
                 if (selectedTypes.contains("MATERIAL")) {
-                    val itemsToSell = materials.value.filter { selectedRarities.contains(it.rarity) }
-                    itemsToSell.forEach { item ->
-                        val sellPrice = (item.basePrice * item.quantity * 0.8).toInt()
-                        totalValue += sellPrice
-                        soldItems.add("${item.name} x${item.quantity}")
-                        gameEngine.sellMaterial(item.id, item.quantity)
+                    materials.value.filter { 
+                        selectedRarities.contains(it.rarity) && !it.isLocked
+                    }.forEach { item ->
+                        sellOperations.add(SuspendableSellOperation.Material(item.id, item.name, item.quantity, (item.basePrice * item.quantity * 0.8).toInt()))
                     }
                 }
 
-                // 出售灵药
                 if (selectedTypes.contains("HERB")) {
-                    val itemsToSell = herbs.value.filter { selectedRarities.contains(it.rarity) }
-                    itemsToSell.forEach { item ->
-                        val sellPrice = (item.basePrice * item.quantity * 0.8).toInt()
-                        totalValue += sellPrice
-                        soldItems.add("${item.name} x${item.quantity}")
-                        gameEngine.sellHerb(item.id, item.quantity)
+                    herbs.value.filter { 
+                        selectedRarities.contains(it.rarity) && !it.isLocked
+                    }.forEach { item ->
+                        sellOperations.add(SuspendableSellOperation.Herb(item.id, item.name, item.quantity, (item.basePrice * item.quantity * 0.8).toInt()))
                     }
                 }
 
-                // 出售种子
                 if (selectedTypes.contains("SEED")) {
-                    val itemsToSell = seeds.value.filter { selectedRarities.contains(it.rarity) }
-                    itemsToSell.forEach { item ->
-                        val sellPrice = (item.basePrice * item.quantity * 0.8).toInt()
-                        totalValue += sellPrice
-                        soldItems.add("${item.name} x${item.quantity}")
-                        gameEngine.sellSeed(item.id, item.quantity)
+                    seeds.value.filter { 
+                        selectedRarities.contains(it.rarity) && !it.isLocked
+                    }.forEach { item ->
+                        sellOperations.add(SuspendableSellOperation.Seed(item.id, item.name, item.quantity, (item.basePrice * item.quantity * 0.8).toInt()))
                     }
                 }
 
-                // 增加灵石
-                if (totalValue > 0) {
-                    gameEngine.addSpiritStones(totalValue)
-                    gameEngine.syncListedItemsWithInventory()
-                } else {
-                    _errorMessage.value = "没有符合条件的物品可出售"
+                if (sellOperations.isEmpty()) {
+                    _errorMessage.value = "没有符合条件的物品可出售（已排除锁定物品）"
+                    return@launch
+                }
+
+                var totalValue = 0
+                val soldItems = mutableListOf<String>()
+                val executedOperations = mutableListOf<SuspendableSellOperation>()
+                
+                try {
+                    for (op in sellOperations) {
+                        val success = when (op) {
+                            is SuspendableSellOperation.Equipment -> {
+                                gameEngine.sellEquipment(op.id)
+                            }
+                            is SuspendableSellOperation.Manual -> {
+                                gameEngine.sellManual(op.id, op.quantity)
+                            }
+                            is SuspendableSellOperation.Pill -> {
+                                gameEngine.sellPill(op.id, op.quantity)
+                            }
+                            is SuspendableSellOperation.Material -> {
+                                gameEngine.sellMaterial(op.id, op.quantity)
+                            }
+                            is SuspendableSellOperation.Herb -> {
+                                gameEngine.sellHerb(op.id, op.quantity)
+                            }
+                            is SuspendableSellOperation.Seed -> {
+                                gameEngine.sellSeed(op.id, op.quantity)
+                            }
+                        }
+                        
+                        if (success) {
+                            totalValue += op.price
+                            soldItems.add(op.displayName)
+                            executedOperations.add(op)
+                        }
+                    }
+                    
+                    if (totalValue > 0) {
+                        gameEngine.addSpiritStones(totalValue)
+                        gameEngine.syncListedItemsWithInventory()
+                    }
+                } catch (e: Exception) {
+                    _errorMessage.value = "出售过程中发生错误: ${e.message}"
                 }
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "一键出售失败"
             }
+        }
+    }
+    
+    private sealed class SuspendableSellOperation {
+        abstract val id: String
+        abstract val displayName: String
+        abstract val price: Int
+        
+        data class Equipment(override val id: String, val name: String, override val price: Int) : SuspendableSellOperation() {
+            override val displayName: String = name
+        }
+        data class Manual(override val id: String, val name: String, val quantity: Int, override val price: Int) : SuspendableSellOperation() {
+            override val displayName: String = "$name x$quantity"
+        }
+        data class Pill(override val id: String, val name: String, val quantity: Int, override val price: Int) : SuspendableSellOperation() {
+            override val displayName: String = "$name x$quantity"
+        }
+        data class Material(override val id: String, val name: String, val quantity: Int, override val price: Int) : SuspendableSellOperation() {
+            override val displayName: String = "$name x$quantity"
+        }
+        data class Herb(override val id: String, val name: String, val quantity: Int, override val price: Int) : SuspendableSellOperation() {
+            override val displayName: String = "$name x$quantity"
+        }
+        data class Seed(override val id: String, val name: String, val quantity: Int, override val price: Int) : SuspendableSellOperation() {
+            override val displayName: String = "$name x$quantity"
         }
     }
 
@@ -3492,29 +3396,6 @@ class GameViewModel @Inject constructor(
         
         clearResources()
         
-        try {
-            val queueSize = saveManager.saveQueueSize.value
-            if (queueSize > 0) {
-                Log.i(TAG, "Waiting for $queueSize queued save operations to complete")
-                val waitStartTime = System.currentTimeMillis()
-                val maxWaitTime = 5000L
-                
-                while (saveManager.saveQueueSize.value > 0 && 
-                       System.currentTimeMillis() - waitStartTime < maxWaitTime) {
-                    Thread.sleep(100)
-                }
-                
-                val remainingQueue = saveManager.saveQueueSize.value
-                if (remainingQueue > 0) {
-                    Log.w(TAG, "Queue processing timeout, $remainingQueue items remaining")
-                } else {
-                    Log.i(TAG, "Queue processing completed")
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error waiting for save queue: ${e.message}")
-        }
-        
         if (_isSaving.value) {
             Log.i(TAG, "Waiting for current save operation to complete")
             val waitStartTime = System.currentTimeMillis()
@@ -3546,15 +3427,12 @@ class GameViewModel @Inject constructor(
                         herbs = snapshot.herbs,
                         seeds = snapshot.seeds,
                         teams = snapshot.teams,
-                        slots = snapshot.buildingSlots,
                         events = snapshot.events,
                         battleLogs = snapshot.battleLogs,
-                        alliances = snapshot.alliances,
-                        supportTeams = snapshot.supportTeams,
-                        alchemySlots = snapshot.alchemySlots
+                        alliances = snapshot.alliances
                     )
-                    val success = saveManager.save(currentSlot, saveData)
-                    if (success) {
+                    val result = runBlocking { storageFacade.save(currentSlot, saveData) }
+                    if (result.isSuccess) {
                         Log.i(TAG, "Auto save on exit completed, slot: $currentSlot")
                     } else {
                         Log.w(TAG, "Auto save on exit skipped (another save in progress), slot: $currentSlot")
@@ -3747,6 +3625,45 @@ class GameViewModel @Inject constructor(
 
     fun hasBattleTeam(): Boolean {
         return gameEngine.gameData.value.battleTeam != null
+    }
+
+    fun returnStationedBattleTeam() {
+        val team = gameEngine.gameData.value.battleTeam
+        if (team == null) {
+            _errorMessage.value = "没有可召回的战斗队伍"
+            return
+        }
+        
+        if (!team.isAtSect) {
+            _errorMessage.value = "队伍不在宗门，无法召回"
+            return
+        }
+        
+        if (!team.isIdle) {
+            _errorMessage.value = "队伍正在移动或战斗中，无法召回"
+            return
+        }
+        
+        viewModelScope.launch {
+            try {
+                gameEngine.updateGameData { it.copy(battleTeam = null) }
+                gameEngine.syncAllDiscipleStatuses()
+                
+                _battleTeamSlots.value = buildList {
+                    repeat(2) { index ->
+                        add(BattleTeamSlot(index, slotType = BattleSlotType.ELDER))
+                    }
+                    repeat(8) { index ->
+                        add(BattleTeamSlot(index + 2, slotType = BattleSlotType.DISCIPLE))
+                    }
+                }
+                
+                _showBattleTeamDialog.value = false
+                _successMessage.value = "战斗队伍已召回"
+            } catch (e: Exception) {
+                _errorMessage.value = e.message ?: "召回队伍失败"
+            }
+        }
     }
 
     fun hasBattleTeamAtSect(): Boolean {

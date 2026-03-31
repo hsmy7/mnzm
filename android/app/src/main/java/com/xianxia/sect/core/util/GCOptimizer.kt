@@ -7,6 +7,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.util.concurrent.CopyOnWriteArrayList
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -30,7 +31,7 @@ class GCOptimizer @Inject constructor(
     private var totalGCTime = 0L
     private var isManualGCPending = false
     
-    private val listeners = mutableListOf<GCEventListener>()
+    private val listeners = CopyOnWriteArrayList<GCEventListener>()
     
     data class GCStats(
         val totalGCCount: Long,

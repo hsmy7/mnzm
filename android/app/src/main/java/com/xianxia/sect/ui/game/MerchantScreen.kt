@@ -13,6 +13,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -195,9 +196,10 @@ private fun MerchantHeader(
                 text = "上架",
                 onClick = onListClick
             )
-            TextButton(onClick = onDismiss) {
-                Text("关闭", color = GameColors.TextSecondary, fontSize = 12.sp)
-            }
+            GameButton(
+                text = "关闭",
+                onClick = onDismiss
+            )
         }
     }
 }
@@ -385,10 +387,11 @@ private fun PurchasePanel(
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        TextButton(onClick = onCancel) {
-                            Text("取消", fontSize = 11.sp, color = GameColors.TextSecondary)
-                        }
-                        
+                        GameButton(
+                            text = "取消",
+                            onClick = onCancel
+                        )
+
                         GameButton(
                             text = "确认购买",
                             onClick = onConfirm,
@@ -468,7 +471,7 @@ private fun ItemDetailDialog(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Divider(color = GameColors.Background, thickness = 1.dp)
+                HorizontalDivider(color = GameColors.Background, thickness = 1.dp)
                 
                 Text(
                     text = "道具效果",
@@ -487,9 +490,10 @@ private fun ItemDetailDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("关闭", color = GameColors.TextSecondary)
-            }
+            GameButton(
+                text = "关闭",
+                onClick = onDismiss
+            )
         }
     )
 }
@@ -622,6 +626,7 @@ private fun getBuffTypeNameFromString(buffType: String): String = when (buffType
     else -> buffType
 }
 
+@Immutable
 data class PlayerListItem(
     val id: String,
     val name: String,
@@ -687,9 +692,10 @@ fun ListingManagementDialog(
                             text = "上架",
                             onClick = { showInventorySelectDialog = true }
                         )
-                        TextButton(onClick = onDismiss) {
-                            Text("关闭", color = GameColors.TextSecondary, fontSize = 12.sp)
-                        }
+                        GameButton(
+                            text = "关闭",
+                            onClick = onDismiss
+                        )
                     }
                 }
 
@@ -922,9 +928,10 @@ fun InventorySelectDialog(
                             onClick = { showConfirmDialog = true },
                             enabled = selectedItems.isNotEmpty() && !isSubmitting
                         )
-                        TextButton(onClick = onDismiss) {
-                            Text("取消", color = GameColors.TextSecondary, fontSize = 12.sp)
-                        }
+                        GameButton(
+                            text = "取消",
+                            onClick = onDismiss
+                        )
                     }
                 }
 

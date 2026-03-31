@@ -3,7 +3,6 @@ package com.xianxia.sect.core.model
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.engine.WorldMapGenerator.INITIAL_SECT_FAVOR
 
 @Entity(tableName = "game_data")
 data class GameData(
@@ -78,6 +77,7 @@ data class GameData(
     // 交易堂
     var tradingSellList: List<TradingItem> = emptyList(),
     var tradingBuyList: List<TradingItem> = emptyList(),
+    var tradeLogs: List<TradeLog> = emptyList(),
 
     // 弟子招募
     var recruitList: List<Disciple> = emptyList(),
@@ -113,6 +113,12 @@ data class GameData(
     // 藏经阁弟子槽位（独立3个）
     var librarySlots: List<LibrarySlot> = emptyList(),
 
+    // 炼器槽位
+    var forgeSlots: List<BuildingSlot> = emptyList(),
+
+    // 炼丹槽位
+    var alchemySlots: List<AlchemySlot> = emptyList(),
+
     // 结盟关系
     var alliances: List<Alliance> = emptyList(),
 
@@ -121,9 +127,6 @@ data class GameData(
 
     // 玩家最大结盟数量
     var playerAllianceSlots: Int = 3,
-
-    // 支援队伍
-    var supportTeams: List<SupportTeam> = emptyList(),
 
     // 宗门政策
     var sectPolicies: SectPolicies = SectPolicies(),
@@ -206,7 +209,27 @@ data class ElderSlots(
     val forgeReserveDisciples: List<DirectDiscipleSlot> = emptyList(),
     // 灵矿执事槽位（灵矿场2个）
     val spiritMineDeaconDisciples: List<DirectDiscipleSlot> = emptyList()
-)
+) {
+    fun isDiscipleInAnyPosition(discipleId: String): Boolean {
+        if (viceSectMaster == discipleId) return true
+        
+        val allElderIds = listOf(
+            herbGardenElder, alchemyElder, forgeElder, libraryElder,
+            outerElder, preachingElder, lawEnforcementElder,
+            innerElder, qingyunPreachingElder
+        )
+        if (allElderIds.contains(discipleId)) return true
+        
+        val allDirectDiscipleIds = listOf(
+            herbGardenDisciples, alchemyDisciples, forgeDisciples, libraryDisciples,
+            preachingMasters, lawEnforcementDisciples, lawEnforcementReserveDisciples,
+            qingyunPreachingMasters, spiritMineDeaconDisciples,
+            alchemyReserveDisciples, herbGardenReserveDisciples, forgeReserveDisciples
+        ).flatten().mapNotNull { it.discipleId }
+        
+        return allDirectDiscipleIds.contains(discipleId)
+    }
+}
 
 // 亲传弟子槽位数据
 data class DirectDiscipleSlot(
@@ -277,6 +300,21 @@ data class TradingItem(
     val rarity: Int = 1,
     val price: Int = 0,
     val quantity: Int = 1
+)
+
+// 交易日志
+data class TradeLog(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val timestamp: Long = System.currentTimeMillis(),
+    val type: String = "", // buy_merchant, sell_merchant, list_item, delist_item, buy_trading_hall, sell_trading_hall
+    val itemId: String = "",
+    val itemName: String = "",
+    val itemType: String = "",
+    val quantity: Int = 0,
+    val price: Int = 0,
+    val totalPrice: Int = 0,
+    val spiritStonesBefore: Long = 0,
+    val spiritStonesAfter: Long = 0
 )
 
 // 游戏设置数据
@@ -361,7 +399,8 @@ data class WorldSect(
     val isUnderAttack: Boolean = false,
     val attackerSectId: String? = null,
     val occupierSectId: String? = null,
-    val warehouse: SectWarehouse = SectWarehouse()
+    val warehouse: SectWarehouse = SectWarehouse(),
+    val giftPreference: GiftPreferenceType = GiftPreferenceType.NONE
 ) {
     val discipleCountByRealm: Map<Int, Int> get() {
         if (aiDisciples.isEmpty()) return disciples
@@ -396,6 +435,13 @@ data class ExploredSectInfo(
     val sectName: String = "",
     val year: Int = 0,
     val month: Int = 0,
+    val duration: Int = 0,
+    val memberIds: List<String> = emptyList(),
+    val memberNames: List<String> = emptyList(),
+    val events: List<String> = emptyList(),
+    val rewards: List<String> = emptyList(),
+    val battleCount: Int = 0,
+    val casualties: Int = 0,
     val discipleCount: Int = 0,
     val maxRealm: Int = 9
 )
@@ -449,42 +495,10 @@ data class Alliance(
 data class SectRelation(
     val sectId1: String,
     val sectId2: String,
-    var favor: Int = INITIAL_SECT_FAVOR,
+    var favor: Int = GameConfig.WorldMap.INITIAL_SECT_FAVOR,
     var lastInteractionYear: Int = 0,
     var noGiftYears: Int = 0
 )
-
-data class SupportTeam(
-    val id: String = java.util.UUID.randomUUID().toString(),
-    val name: String = "",
-    val sourceSectId: String = "",
-    val sourceSectName: String = "",
-    val targetSectId: String = "player",
-    val disciples: List<String> = emptyList(),
-    val aiDisciples: List<Disciple> = emptyList(),
-    val size: Int = 0,
-    val currentX: Float = 0f,
-    val currentY: Float = 0f,
-    val targetX: Float = 0f,
-    val targetY: Float = 0f,
-    val moveProgress: Float = 0f,
-    val status: String = "moving",
-    val startYear: Int = 0,
-    val startMonth: Int = 0,
-    val startDay: Int = 0,
-    val duration: Int = 0,
-    val arrivalYear: Int = 0,
-    val arrivalMonth: Int = 0,
-    val arrivalDay: Int = 0,
-    val route: List<String> = emptyList(),
-    val currentRouteIndex: Int = 0,
-    val currentSegmentProgress: Float = 0f
-) {
-    val progress: Float get() = moveProgress
-    val isArrived: Boolean get() = status == "arrived"
-    val isMoving: Boolean get() = status == "moving"
-    val isStationed: Boolean get() = status == "stationed"
-}
 
 data class BattleTeam(
     val id: String = java.util.UUID.randomUUID().toString(),

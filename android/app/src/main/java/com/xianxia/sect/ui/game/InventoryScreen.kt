@@ -658,7 +658,7 @@ internal fun BulkSellDialog(
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
-                Divider(color = GameColors.Background)
+                HorizontalDivider(color = GameColors.Background)
                 Spacer(modifier = Modifier.height(16.dp))
 
                 // 预览信息

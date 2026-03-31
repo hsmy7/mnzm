@@ -34,10 +34,7 @@ data class SaveData(
     val herbs: List<Herb>,
     val seeds: List<Seed>,
     val teams: List<ExplorationTeam>,
-    val slots: List<BuildingSlot>,
     val events: List<GameEvent>,
     val battleLogs: List<BattleLog> = emptyList(),
-    val alliances: List<Alliance> = emptyList(),
-    val supportTeams: List<SupportTeam> = emptyList(),
-    val alchemySlots: List<AlchemySlot> = emptyList()
+    val alliances: List<Alliance> = emptyList()
 )

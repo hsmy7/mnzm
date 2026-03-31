@@ -111,3 +111,15 @@ git_backup*.bundle
 eKotlin*
 sembleDebug*
 tatus*
+
+decompile_tools/
+backup_check/
+backup_extracted/
+temp_check/
+temp1_check/
+temp_check2/
+temp_check_extracted/
+temp_new_check/
+android/app/release/apk_decompiled/
+decompiled_source/
+*.zip

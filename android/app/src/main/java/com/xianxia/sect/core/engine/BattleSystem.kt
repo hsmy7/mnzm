@@ -95,20 +95,22 @@ object BattleSystem {
         val realmLayer = ((teamAvgRealm - realmIndex) * 10).toInt().coerceIn(1, 9)
         val layerBonus = 1.0 + (realmLayer - 1) * 0.1
 
-        val baseHp = (100 * realmMultiplier * layerBonus).toInt()
-        val baseAtk = (7 * realmMultiplier * layerBonus).toInt()
-        val baseDef = (5 * realmMultiplier * layerBonus).toInt()
-        val baseSpeed = (10 * realmMultiplier * layerBonus).toInt()
+        val baseHp = (120 * realmMultiplier * layerBonus).toInt()
+        val baseMp = (60 * realmMultiplier * layerBonus).toInt()
+        val baseAtk = (12 * realmMultiplier * layerBonus).toInt()
+        val baseDef = (10 * realmMultiplier * layerBonus).toInt()
+        val baseSpeed = (15 * realmMultiplier * layerBonus).toInt()
 
-        val beastBonus = 0.2
-        val hpVariance = -0.5 + Random.nextDouble() * 1.0
-        val physicalAttackVariance = -0.5 + Random.nextDouble() * 1.0
-        val magicAttackVariance = -0.5 + Random.nextDouble() * 1.0
-        val physicalDefenseVariance = -0.5 + Random.nextDouble() * 1.0
-        val magicDefenseVariance = -0.5 + Random.nextDouble() * 1.0
-        val speedVariance = -0.5 + Random.nextDouble() * 1.0
+        val beastBonus = 0.0
+        val hpVariance = -0.2 + Random.nextDouble() * 0.4
+        val physicalAttackVariance = -0.2 + Random.nextDouble() * 0.4
+        val magicAttackVariance = -0.2 + Random.nextDouble() * 0.4
+        val physicalDefenseVariance = -0.2 + Random.nextDouble() * 0.4
+        val magicDefenseVariance = -0.2 + Random.nextDouble() * 0.4
+        val speedVariance = -0.2 + Random.nextDouble() * 0.4
 
         val hp = (baseHp * (1.0 + (type.hpMod - 1.0) + hpVariance + beastBonus)).toInt()
+        val mp = (baseMp * (1.0 + (type.hpMod - 1.0) + hpVariance + beastBonus)).toInt()
         val physicalAttack = (baseAtk * (1.0 + (type.atkMod - 1.0) + physicalAttackVariance + beastBonus)).toInt()
         val magicAttack = (baseAtk * (1.0 + (type.atkMod - 1.0) + magicAttackVariance + beastBonus)).toInt()
         val physicalDefense = (baseDef * (1.0 + (type.defMod - 1.0) + physicalDefenseVariance + beastBonus)).toInt()
@@ -121,8 +123,8 @@ object BattleSystem {
             type = CombatantType.BEAST,
             hp = hp,
             maxHp = hp,
-            mp = (baseHp * 0.5).toInt(),
-            maxMp = (baseHp * 0.5).toInt(),
+            mp = mp,
+            maxMp = mp,
             physicalAttack = physicalAttack,
             magicAttack = magicAttack,
             physicalDefense = physicalDefense,

@@ -3,6 +3,12 @@ package com.xianxia.sect.core.util
 import android.content.Context
 import android.util.Log
 import com.xianxia.sect.XianxiaApplication
+import com.xianxia.sect.core.performance.MetricCategory
+import com.xianxia.sect.core.performance.MetricDefinition
+import com.xianxia.sect.core.performance.MetricsListener
+import com.xianxia.sect.core.performance.MetricStats
+import com.xianxia.sect.core.performance.Trace
+import com.xianxia.sect.core.performance.UnifiedPerformanceMonitor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -16,7 +22,8 @@ import javax.inject.Singleton
 class GameMonitorManager @Inject constructor(
     private val memoryMonitor: MemoryMonitor,
     private val performanceMonitor: PerformanceMonitor,
-    private val gcOptimizer: GCOptimizer
+    private val gcOptimizer: GCOptimizer,
+    private val unifiedPerformanceMonitor: UnifiedPerformanceMonitor
 ) {
     
     companion object {
@@ -47,6 +54,8 @@ class GameMonitorManager @Inject constructor(
         memoryMonitor.initialize(context)
         performanceMonitor.initialize()
         
+        registerDefaultMetrics()
+        
         if (context.applicationContext is XianxiaApplication) {
             application = context.applicationContext as XianxiaApplication
             application?.registerMemoryPressureListener(memoryPressureListener)
@@ -54,6 +63,74 @@ class GameMonitorManager @Inject constructor(
         
         isInitialized = true
         Log.i(TAG, "GameMonitorManager initialized successfully")
+    }
+    
+    private fun registerDefaultMetrics() {
+        unifiedPerformanceMonitor.registerMetric(
+            MetricDefinition(
+                name = "game_tick_duration",
+                category = MetricCategory.GAME_LOOP,
+                unit = "ns",
+                description = "Game tick execution duration",
+                warningThreshold = 16_000_000L,
+                criticalThreshold = 33_000_000L
+            )
+        )
+        
+        unifiedPerformanceMonitor.registerMetric(
+            MetricDefinition(
+                name = "save_operation_duration",
+                category = MetricCategory.STORAGE,
+                unit = "ns",
+                description = "Save operation duration",
+                warningThreshold = 1_000_000_000L,
+                criticalThreshold = 3_000_000_000L
+            )
+        )
+        
+        unifiedPerformanceMonitor.registerMetric(
+            MetricDefinition(
+                name = "load_operation_duration",
+                category = MetricCategory.STORAGE,
+                unit = "ns",
+                description = "Load operation duration",
+                warningThreshold = 1_500_000_000L,
+                criticalThreshold = 5_000_000_000L
+            )
+        )
+        
+        unifiedPerformanceMonitor.registerMetric(
+            MetricDefinition(
+                name = "ui_frame_duration",
+                category = MetricCategory.UI,
+                unit = "ns",
+                description = "UI frame render duration",
+                warningThreshold = 16_000_000L,
+                criticalThreshold = 33_000_000L
+            )
+        )
+        
+        unifiedPerformanceMonitor.registerMetric(
+            MetricDefinition(
+                name = "db_query_duration",
+                category = MetricCategory.DATABASE,
+                unit = "ns",
+                description = "Database query duration",
+                warningThreshold = 100_000_000L,
+                criticalThreshold = 500_000_000L
+            )
+        )
+        
+        unifiedPerformanceMonitor.registerMetric(
+            MetricDefinition(
+                name = "memory_usage",
+                category = MetricCategory.MEMORY,
+                unit = "bytes",
+                description = "Current memory usage"
+            )
+        )
+        
+        Log.d(TAG, "Registered ${unifiedPerformanceMonitor.getAllMetricDefinitions().size} default metrics")
     }
     
     fun startMonitoring() {
@@ -67,6 +144,7 @@ class GameMonitorManager @Inject constructor(
         memoryMonitor.startMonitoring()
         performanceMonitor.startMonitoring()
         gcOptimizer.startOptimization()
+        unifiedPerformanceMonitor.startReporting()
         
         startPeriodicReport()
     }
@@ -77,6 +155,7 @@ class GameMonitorManager @Inject constructor(
         memoryMonitor.stopMonitoring()
         performanceMonitor.stopMonitoring()
         gcOptimizer.stopOptimization()
+        unifiedPerformanceMonitor.stopReporting()
         
         reportJob?.cancel()
         reportJob = null
@@ -96,6 +175,7 @@ class GameMonitorManager @Inject constructor(
         memoryMonitor.logMemoryStatus(TAG)
         performanceMonitor.logPerformanceStatus(TAG)
         gcOptimizer.logGCStatus(TAG)
+        unifiedPerformanceMonitor.logPerformanceSummary()
         Log.i(TAG, "==================================")
     }
     
@@ -126,6 +206,40 @@ class GameMonitorManager @Inject constructor(
     fun getPerformanceMonitor(): PerformanceMonitor = performanceMonitor
     
     fun getGCOptimizer(): GCOptimizer = gcOptimizer
+    
+    fun getUnifiedPerformanceMonitor(): UnifiedPerformanceMonitor = unifiedPerformanceMonitor
+    
+    fun startTrace(name: String, tags: Map<String, String> = emptyMap()): Trace {
+        return unifiedPerformanceMonitor.startTrace(name, tags)
+    }
+    
+    fun endTrace(trace: Trace): Trace {
+        return unifiedPerformanceMonitor.endTrace(trace)
+    }
+    
+    fun <T> trace(name: String, tags: Map<String, String> = emptyMap(), block: () -> T): T {
+        return unifiedPerformanceMonitor.trace(name, tags, block)
+    }
+    
+    fun recordMetric(name: String, value: Long) {
+        unifiedPerformanceMonitor.recordMetric(name, value)
+    }
+    
+    fun getMetricStats(name: String): com.xianxia.sect.core.performance.MetricStats? {
+        return unifiedPerformanceMonitor.getMetric(name)
+    }
+    
+    fun getAllMetrics(): Map<String, com.xianxia.sect.core.performance.MetricStats> {
+        return unifiedPerformanceMonitor.getMetrics()
+    }
+    
+    fun addMetricsListener(listener: MetricsListener) {
+        unifiedPerformanceMonitor.addListener(listener)
+    }
+    
+    fun removeMetricsListener(listener: MetricsListener) {
+        unifiedPerformanceMonitor.removeListener(listener)
+    }
     
     fun isPerformanceHealthy(): Boolean {
         val memoryInfo = memoryMonitor.getCurrentMemoryInfo()
@@ -162,6 +276,7 @@ class GameMonitorManager @Inject constructor(
         memoryMonitor.cleanup()
         performanceMonitor.cleanup()
         gcOptimizer.cleanup()
+        unifiedPerformanceMonitor.cleanup()
         isInitialized = false
     }
 }

@@ -7,6 +7,10 @@ import kotlin.random.Random
 
 object CaveGenerator {
     
+    private const val MAP_WIDTH = 4000
+    private const val MAP_HEIGHT = 3500
+    private const val BORDER_PADDING = 100
+    
     private val caveNames = listOf(
         "化神洞府", "炼虚洞府", "合体洞府", "大乘洞府", "渡劫洞府"
     )
@@ -62,8 +66,8 @@ object CaveGenerator {
         while (caves.size < newCaveCount && attempts < 5000) {
             attempts++
             
-            val x = Random.nextInt(50, 1950)
-            val y = Random.nextInt(50, 950)
+            val x = Random.nextInt(BORDER_PADDING, MAP_WIDTH - BORDER_PADDING)
+            val y = Random.nextInt(BORDER_PADDING, MAP_HEIGHT - BORDER_PADDING)
             
             if (!isValidPosition(x, y, usedPositions, existingSects, connectionEdges, existingCaves)) {
                 continue
