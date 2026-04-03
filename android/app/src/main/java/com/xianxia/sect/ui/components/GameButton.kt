@@ -1,0 +1,57 @@
+package com.xianxia.sect.ui.components
+
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.xianxia.sect.ui.theme.GameColors
+
+@Composable
+fun GameButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    backgroundColor: Color? = null
+) {
+    val actualBackgroundColor = when {
+        !enabled -> Color(0xFFE0E0E0)
+        backgroundColor != null -> backgroundColor
+        else -> GameColors.ButtonBackground
+    }
+    val contentColor = if (enabled) Color.Black else Color(0xFF9E9E9E)
+    val borderColor = if (enabled) GameColors.ButtonBorder else Color(0xFFBDBDBD)
+
+    Button(
+        onClick = onClick,
+        modifier = modifier.height(32.dp),
+        enabled = enabled,
+        shape = RoundedCornerShape(4.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = actualBackgroundColor,
+            contentColor = contentColor,
+            disabledContainerColor = Color(0xFFE0E0E0),
+            disabledContentColor = Color(0xFF9E9E9E)
+        ),
+        border = BorderStroke(1.dp, borderColor),
+        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+    ) {
+        Text(
+            text = text,
+            fontSize = 10.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Clip,
+            textAlign = TextAlign.Center
+        )
+    }
+}

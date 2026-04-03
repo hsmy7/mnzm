@@ -1,0 +1,136 @@
+syntax = "proto3";
+
+package xianxia.templates;
+
+option java_package = "com.xianxia.sect.proto.templates";
+option java_multiple_files = true;
+
+// ==================== 功法模板 (Manual Template) ====================
+
+/**
+ * 功法类型枚举
+ */
+enum ManualTypeProto {
+    MANUAL_TYPE_UNKNOWN = 0;
+    MANUAL_TYPE_ATTACK = 1;
+    MANUAL_TYPE_DEFENSE = 2;
+    MANUAL_TYPE_SUPPORT = 3;
+    MANUAL_TYPE_MIND = 4;
+}
+
+/**
+ * 技能Buff信息
+ */
+message BuffInfoProto {
+    string type = 1;       // buff类型: physical_attack, physical_defense, magic_attack, magic_defense, hp, mp, speed, crit_rate
+    double value = 2;      // buff数值 (百分比，如0.15表示15%)
+    int32 duration = 3;    // 持续回合数
+}
+
+/**
+ * 技能模板（嵌入在功法中）
+ */
+message SkillTemplateProto {
+    string name = 1;                    // 技能名称
+    string description = 2;             // 技能描述
+    string type = 3;                    // 技能类型: attack, support
+    string damage_type = 4;             // 伤害类型: physical, magic
+    int32 hits = 5;                     // 攻击次数
+    double damage_multiplier = 6;       // 伤害倍率
+    int32 cooldown = 7;                 // 冷却回合
+    int32 mp_cost = 8;                  // 灵力消耗
+    
+    // 治疗相关
+    double heal_percent = 9;            // 治疗百分比 (如0.08表示8%)
+    string heal_type = 10;              // 治疗类型: hp, mp
+    
+    // Buff相关（单buff快捷方式）
+    string buff_type = 11;              // buff类型
+    double buff_value = 12;             // buff值
+    int32 buff_duration = 13;           // buff持续回合
+    
+    // 多buff列表（支持多个buff）
+    repeated BuffInfoProto buffs = 14;
+}
+
+/**
+ * 功法模板（对应 manuals.json 中的单条记录）
+ */
+message ManualTemplateProto {
+    string id = 1;                      // 功法ID (唯一标识)
+    string name = 2;                    // 功法名称
+    ManualTypeProto type = 3;          // 功法类型
+    int32 rarity = 4;                   // 稀有度 (1-6: 凡/灵/宝/玄/地/天)
+    string description = 5;             // 描述文本
+    
+    // 属性加成 map
+    map<string, int32> stats = 6;       // 属性加成，如 {"physicalAttack": 5, "hp": 40}
+    
+    // 技能信息
+    SkillTemplateProto skill = 7;       // 技能模板
+    
+    // 价格与解锁
+    int64 price = 8;                    // 购买价格（灵石）
+    int32 min_realm = 9;                // 最低需求境界 (默认9)
+    
+    // 修炼速度加成（心法特有）
+    double cultivation_speed_percent = 10; // 修炼速度百分比加成
+}
+
+/**
+ * 功法数据文件（对应 manuals.json 整体结构）
+ */
+message ManualDataFileProto {
+    repeated ManualTemplateProto attack_manuals = 1;   // 攻击类功法
+    repeated ManualTemplateProto defense_manuals = 2;  // 防御类功法
+    repeated ManualTemplateProto support_manuals = 3;  // 辅助类功法
+    repeated ManualTemplateProto mind_manuals = 4;     // 心法类功法
+}
+
+// ==================== 建筑配置 (Building Config) ====================
+
+/**
+ * 建筑类型枚举
+ */
+enum BuildingTypeProto {
+    BUILDING_TYPE_UNKNOWN = 0;
+    BUILDING_TYPE_ALCHEMY = 1;     // 炼丹房
+    BUILDING_TYPE_FORGE = 2;       // 锻造坊
+    BUILDING_TYPE_MINING = 3;      // 灵矿
+    BUILDING_TYPE_HERB_GARDEN = 4; // 灵药园
+    BUILDING_TYPE_LIBRARY = 5;     // 藏经阁
+    BUILDING_TYPE_REFINERY = 6;    // 炼器房
+}
+
+/**
+ * 解锁条件
+ */
+message UnlockConditionsProto {
+    int32 sect_level = 1;              // 需要宗门等级
+    int64 required_spirit_stones = 2;  // 需要灵石数量
+    int32 required_year = 3;           // 需要游戏年份
+}
+
+/**
+ * 建筑模板（对应 buildings.json 中的单个建筑配置）
+ */
+message BuildingTemplateProto {
+    string id = 1;                          // 建筑ID
+    string display_name = 2;                // 显示名称
+    BuildingTypeProto building_type = 3;    // 建筑类型
+    int32 slot_count = 4;                   // 槽位数量
+    UnlockConditionsProto unlock_conditions = 5;  // 解锁条件
+    double base_success_rate = 6;           // 基础成功率
+    double speed_bonus_per_disciple_realm = 7; // 每个弟子境界的速度加成
+    int32 max_queue_length = 8;             // 最大队列长度
+    bool auto_restart_enabled = 9;         // 是否自动重启
+    string description = 10;               // 描述文本
+}
+
+/**
+ * 建筑配置数据文件（对应 buildings.json 整体结构）
+ */
+message BuildingConfigFileProto {
+    map<string, BuildingTemplateProto> buildings = 1;  // 建筑配置映射 (id -> config)
+    map<string, string> building_aliases = 2;           // 建筑别名映射 (alias -> id)
+}

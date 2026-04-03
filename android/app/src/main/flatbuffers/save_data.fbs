@@ -1,0 +1,362 @@
+namespace com.xianxia.sect.flatbuf;
+
+table KeyValue {
+    key: string;
+    value: int;
+}
+
+table KeyValueBool {
+    key: string;
+    value: bool;
+}
+
+table StringIntMap {
+    entries: [KeyValue];
+}
+
+table StringBoolMap {
+    entries: [KeyValueBool];
+}
+
+table DiscipleStatsFlat {
+    hp: int = 0;
+    maxHp: int = 0;
+    mp: int = 0;
+    maxMp: int = 0;
+    physicalAttack: int = 0;
+    magicAttack: int = 0;
+    physicalDefense: int = 0;
+    magicDefense: int = 0;
+    speed: int = 0;
+    critRate: double = 0.0;
+    intelligence: int = 0;
+    charm: int = 0;
+    loyalty: int = 0;
+}
+
+table EquipmentNurtureDataFlat {
+    equipmentId: string;
+    rarity: int = 1;
+    nurtureLevel: int = 0;
+    nurtureProgress: double = 0.0;
+}
+
+table StorageBagItemFlat {
+    itemId: string;
+    itemType: string;
+    name: string;
+    rarity: int = 1;
+    quantity: int = 1;
+    obtainedYear: int = 1;
+    obtainedMonth: int = 1;
+}
+
+table DiscipleFlat {
+    id: string;
+    name: string;
+    realm: int = 9;
+    realmLayer: int = 1;
+    cultivation: double = 0.0;
+    spiritRootType: string;
+    age: int = 16;
+    lifespan: int = 80;
+    isAlive: bool = true;
+    gender: string;
+    partnerId: string;
+    partnerSectId: string;
+    parentId1: string;
+    parentId2: string;
+    lastChildYear: int = 0;
+    griefEndYear: int;
+    
+    weaponId: string;
+    armorId: string;
+    bootsId: string;
+    accessoryId: string;
+    
+    manualIds: [string];
+    talentIds: [string];
+    manualMasteries: [KeyValue];
+    
+    weaponNurture: EquipmentNurtureDataFlat;
+    armorNurture: EquipmentNurtureDataFlat;
+    bootsNurture: EquipmentNurtureDataFlat;
+    accessoryNurture: EquipmentNurtureDataFlat;
+    
+    spiritStones: int = 0;
+    soulPower: int = 10;
+    
+    storageBagItems: [StorageBagItemFlat];
+    storageBagSpiritStones: long = 0;
+    
+    status: int = 0;
+    statusData: [KeyValue];
+    
+    cultivationSpeedBonus: double = 1.0;
+    cultivationSpeedDuration: int = 0;
+    
+    pillPhysicalAttackBonus: double = 0.0;
+    pillMagicAttackBonus: double = 0.0;
+    pillPhysicalDefenseBonus: double = 0.0;
+    pillMagicDefenseBonus: double = 0.0;
+    pillHpBonus: double = 0.0;
+    pillMpBonus: double = 0.0;
+    pillSpeedBonus: double = 0.0;
+    pillEffectDuration: int = 0;
+    
+    totalCultivation: long = 0;
+    breakthroughCount: int = 0;
+    breakthroughFailCount: int = 0;
+    battlesWon: int = 0;
+    
+    intelligence: int = 50;
+    charm: int = 50;
+    loyalty: int = 50;
+    comprehension: int = 50;
+    artifactRefining: int = 50;
+    pillRefining: int = 50;
+    spiritPlanting: int = 50;
+    teaching: int = 50;
+    morality: int = 50;
+    
+    salaryPaidCount: int = 0;
+    salaryMissedCount: int = 0;
+    recruitedMonth: int = 0;
+    
+    hpVariance: int = 0;
+    mpVariance: int = 0;
+    physicalAttackVariance: int = 0;
+    magicAttackVariance: int = 0;
+    physicalDefenseVariance: int = 0;
+    magicDefenseVariance: int = 0;
+    speedVariance: int = 0;
+    
+    baseHp: int = 120;
+    baseMp: int = 60;
+    basePhysicalAttack: int = 12;
+    baseMagicAttack: int = 12;
+    basePhysicalDefense: int = 10;
+    baseMagicDefense: int = 8;
+    baseSpeed: int = 15;
+    
+    discipleType: string;
+    
+    monthlyUsedPillIds: [string];
+    usedExtendLifePillIds: [string];
+    
+    hasReviveEffect: bool = false;
+    hasClearAllEffect: bool = false;
+}
+
+table EquipmentFlat {
+    id: string;
+    name: string;
+    rarity: int = 1;
+    description: string;
+    slot: int = 0;
+    physicalAttack: int = 0;
+    magicAttack: int = 0;
+    physicalDefense: int = 0;
+    magicDefense: int = 0;
+    speed: int = 0;
+    hp: int = 0;
+    mp: int = 0;
+    critChance: double = 0.0;
+    nurtureLevel: int = 0;
+    nurtureProgress: double = 0.0;
+    minRealm: int = 9;
+    ownerId: string;
+    isEquipped: bool = false;
+    quantity: int = 1;
+    isLocked: bool = false;
+}
+
+table ManualFlat {
+    id: string;
+    name: string;
+    rarity: int = 1;
+    description: string;
+    type: int = 0;
+    stats: [KeyValue];
+    skillName: string;
+    skillDescription: string;
+    skillType: string;
+    skillDamageType: string;
+    skillHits: int = 1;
+    skillDamageMultiplier: double = 1.0;
+    skillCooldown: int = 3;
+    skillMpCost: int = 10;
+    skillHealPercent: double = 0.0;
+    skillHealType: string;
+    skillBuffType: string;
+    skillBuffValue: double = 0.0;
+    skillBuffDuration: int = 0;
+    skillBuffsJson: string;
+    minRealm: int = 9;
+    ownerId: string;
+    isLearned: bool = false;
+    quantity: int = 1;
+    isLocked: bool = false;
+}
+
+table PillFlat {
+    id: string;
+    name: string;
+    rarity: int = 1;
+    description: string;
+    category: int = 0;
+    breakthroughChance: double = 0.0;
+    targetRealm: int = 0;
+    isAscension: bool = false;
+    cultivationSpeed: double = 1.0;
+    duration: int = 0;
+    cannotStack: bool = false;
+    cultivationPercent: double = 0.0;
+    skillExpPercent: double = 0.0;
+    extendLife: int = 0;
+    physicalAttackPercent: double = 0.0;
+    magicAttackPercent: double = 0.0;
+    physicalDefensePercent: double = 0.0;
+    magicDefensePercent: double = 0.0;
+    hpPercent: double = 0.0;
+    mpPercent: double = 0.0;
+    speedPercent: double = 0.0;
+    healMaxHpPercent: double = 0.0;
+    healPercent: double = 0.0;
+    heal: int = 0;
+    battleCount: int = 0;
+    revive: bool = false;
+    clearAll: bool = false;
+    mpRecoverMaxMpPercent: double = 0.0;
+    quantity: int = 1;
+    isLocked: bool = false;
+}
+
+table MaterialFlat {
+    id: string;
+    name: string;
+    rarity: int = 1;
+    description: string;
+    category: int = 0;
+    quantity: int = 1;
+    isLocked: bool = false;
+}
+
+table HerbFlat {
+    id: string;
+    name: string;
+    rarity: int = 1;
+    description: string;
+    category: string;
+    quantity: int = 1;
+    isLocked: bool = false;
+}
+
+table SeedFlat {
+    id: string;
+    name: string;
+    rarity: int = 1;
+    description: string;
+    growTime: int = 3;
+    yield: int = 1;
+    quantity: int = 1;
+    isLocked: bool = false;
+}
+
+table GameEventFlat {
+    id: string;
+    type: string;
+    year: int = 1;
+    month: int = 1;
+    day: int = 1;
+    title: string;
+    description: string;
+    data: [KeyValue];
+}
+
+table BattleLogFlat {
+    id: string;
+    timestamp: long;
+    type: string;
+    attackerName: string;
+    defenderName: string;
+    result: string;
+    rewards: [KeyValue];
+    casualties: [KeyValue];
+}
+
+table AllianceFlat {
+    id: string;
+    sectIds: [string];
+    startYear: int = 0;
+    initiatorId: string;
+    envoyDiscipleId: string;
+}
+
+table ExplorationTeamFlat {
+    id: string;
+    name: string;
+    memberIds: [string];
+    memberNames: [string];
+    status: int = 0;
+    targetSectId: string;
+    targetSectName: string;
+    originSectId: string;
+    currentX: float = 0.0;
+    currentY: float = 0.0;
+    targetX: float = 0.0;
+    targetY: float = 0.0;
+    moveProgress: float = 0.0;
+    route: [string];
+    currentRouteIndex: int = 0;
+    startYear: int = 0;
+    startMonth: int = 0;
+    returnYear: int = 0;
+    returnMonth: int = 0;
+    isReturning: bool = false;
+}
+
+table GameDataFlat {
+    id: string;
+    sectName: string;
+    currentSlot: int = 1;
+    gameYear: int = 1;
+    gameMonth: int = 1;
+    gameDay: int = 1;
+    spiritStones: long = 1000;
+    spiritHerbs: int = 0;
+    autoSaveIntervalMonths: int = 3;
+    monthlySalary: [KeyValue];
+    monthlySalaryEnabled: [KeyValueBool];
+    lastSaveTime: long = 0;
+    playerProtectionEnabled: bool = true;
+    playerProtectionStartYear: int = 1;
+    playerHasAttackedAI: bool = false;
+    playerAllianceSlots: int = 3;
+    usedRedeemCodes: [string];
+    unlockedDungeons: [string];
+    unlockedRecipes: [string];
+    unlockedManuals: [string];
+}
+
+table SaveDataFlat {
+    version: string;
+    timestamp: long;
+    gameData: GameDataFlat;
+    disciples: [DiscipleFlat];
+    equipment: [EquipmentFlat];
+    manuals: [ManualFlat];
+    pills: [PillFlat];
+    materials: [MaterialFlat];
+    herbs: [HerbFlat];
+    seeds: [SeedFlat];
+    teams: [ExplorationTeamFlat];
+    events: [GameEventFlat];
+    battleLogs: [BattleLogFlat];
+    alliances: [AllianceFlat];
+    
+    checksum: string;
+    schemaVersion: int = 1;
+}
+
+root_type SaveDataFlat;

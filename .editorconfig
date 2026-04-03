@@ -1,0 +1,58 @@
+# EditorConfig 文件
+# 统一项目编码和代码风格
+# 更多信息: https://editorconfig.org
+
+# 根目录配置
+root = true
+
+# 所有文件通用设置
+[*]
+# 使用 UTF-8 编码（防止中文乱码）
+charset = utf-8
+
+# 使用 LF 换行符（Unix 风格）
+end_of_line = lf
+
+# 文件末尾插入空行
+insert_final_newline = true
+
+# 删除行尾空格
+trim_trailing_whitespace = true
+
+# 缩进使用 4 个空格
+indent_style = space
+indent_size = 4
+
+# 最大行长度（可选）
+max_line_length = 120
+
+# Kotlin 文件特定设置
+[*.{kt,kts}]
+indent_size = 4
+continuation_indent_size = 4
+
+# Java 文件特定设置
+[*.java]
+indent_size = 4
+continuation_indent_size = 4
+
+# Gradle 文件特定设置
+[*.{gradle,groovy}]
+indent_size = 4
+
+# XML 文件特定设置
+[*.xml]
+indent_size = 4
+
+# JSON/YAML/Properties 文件特定设置
+[*.{json,yml,yaml,properties}]
+indent_size = 2
+
+# Markdown 文件特定设置
+[*.md]
+trim_trailing_whitespace = false
+max_line_length = off
+
+# Windows 批处理文件使用 CRLF
+[*.{bat,cmd}]
+end_of_line = crlf

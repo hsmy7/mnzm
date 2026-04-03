@@ -1,0 +1,11 @@
+- [x] GameViewModel 中所有 StateFlow 使用 `SharingStarted.Eagerly` 策略（已修正）
+- [x] GameViewModel 添加 `canPerformSaveOperation()` 内存检查方法（已修正计算逻辑）
+- [x] `saveGame()` 方法在开始时检查内存状态
+- [x] `saveToSlot()` 方法在开始时检查内存状态
+- [x] `loadGame()` 方法在读档前确保游戏循环已停止
+- [x] `loadGameFromSlot()` 方法在读档前确保游戏循环已停止
+- [x] 存档操作添加 30 秒超时保护
+- [x] 读档操作添加 30 秒超时保护
+- [x] 内存不足时显示友好提示而非闪退
+- [x] 编译项目无错误
+- [ ] 长时间运行后存档/读档测试通过

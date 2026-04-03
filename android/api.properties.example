@@ -1,0 +1,6 @@
+API_BASE_URL="https://api.xianxia.com/api/"
+DEV_API_BASE_URL="http://10.0.2.2:3000/api/"
+PROD_API_BASE_URL="https://api.xianxia.com/api/"
+TAPTAP_CLIENT_ID="your_taptap_client_id_here"
+TAPTAP_CLIENT_TOKEN="your_taptap_client_token_here"
+TAPTAP_IS_CN=true

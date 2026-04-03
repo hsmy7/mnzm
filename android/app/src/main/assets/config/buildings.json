@@ -1,0 +1,87 @@
+{
+  "version": "1.0.0",
+  "buildings": {
+    "alchemy": {
+      "id": "alchemy",
+      "displayName": "丹鼎殿",
+      "buildingType": "ALCHEMY",
+      "slotCount": 3,
+      "baseSuccessRate": 0.7,
+      "maxQueueLength": 1,
+      "autoRestartEnabled": true,
+      "description": "用于炼制各种丹药的场所"
+    },
+    "forge": {
+      "id": "forge",
+      "displayName": "天工峰",
+      "buildingType": "FORGE",
+      "slotCount": 3,
+      "baseSuccessRate": 0.7,
+      "maxQueueLength": 1,
+      "autoRestartEnabled": true,
+      "description": "锻造装备的场所"
+    },
+    "mining": {
+      "id": "mining",
+      "displayName": "灵矿",
+      "buildingType": "MINING",
+      "slotCount": 3,
+      "unlockConditions": {
+        "sectLevel": 1,
+        "requiredSpiritStones": 0,
+        "requiredYear": 1
+      },
+      "baseSuccessRate": 1.0,
+      "speedBonusPerDiscipleRealm": 0.0,
+      "maxQueueLength": 1,
+      "autoRestartEnabled": false,
+      "description": "开采灵石和矿石"
+    },
+    "herb_garden": {
+      "id": "herb_garden",
+      "displayName": "灵药园",
+      "buildingType": "HERB_GARDEN",
+      "slotCount": 6,
+      "unlockConditions": {
+        "sectLevel": 1,
+        "requiredSpiritStones": 0,
+        "requiredYear": 1
+      },
+      "baseSuccessRate": 1.0,
+      "speedBonusPerDiscipleRealm": 0.0,
+      "maxQueueLength": 1,
+      "autoRestartEnabled": false,
+      "description": "种植灵草的园地"
+    },
+    "tianshu_hall": {
+      "id": "tianshu_hall",
+      "displayName": "天枢殿",
+      "buildingType": "ADMINISTRATION",
+      "slotCount": 2,
+      "unlockConditions": {
+        "sectLevel": 1,
+        "requiredSpiritStones": 0,
+        "requiredYear": 1
+      },
+      "baseSuccessRate": 1.0,
+      "speedBonusPerDiscipleRealm": 0.0,
+      "maxQueueLength": 1,
+      "autoRestartEnabled": false,
+      "description": "处理宗门事务的核心建筑"
+    }
+  },
+  "buildingAliases": {
+    "mine": "mining",
+    "mining": "mining",
+    "alchemyroom": "alchemy",
+    "alchemy": "alchemy",
+    "forging": "forge",
+    "forge": "forge",
+    "herb": "herb_garden",
+    "herbgarden": "herb_garden",
+    "herb_garden": "herb_garden",
+    "tianshu": "tianshu_hall",
+    "tianshuhall": "tianshu_hall",
+    "tianshu_hall": "tianshu_hall"
+  }
+}

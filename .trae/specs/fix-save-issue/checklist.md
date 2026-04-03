@@ -1,0 +1,4 @@
+- [x] SaveManager.kt 中 Gson 配置添加 excludeFieldsWithModifiers
+- [x] ModelConverters.kt 中 Gson 配置添加 excludeFieldsWithModifiers
+- [x] 编译项目无错误
+- [x] 存档功能测试通过（不再闪退）
