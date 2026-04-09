@@ -124,9 +124,9 @@ class BuildingConfigService @Inject constructor(
     }
     
     fun resolveBuildingId(input: String): String {
-        val cfg = config ?: return input.lowercase()
-        return cfg.buildingAliases[input.lowercase().replace("_", "").replace("-", "")] 
-            ?: input.lowercase()
+        val cfg = config ?: return input.lowercase(java.util.Locale.getDefault())
+        return cfg.buildingAliases[input.lowercase(java.util.Locale.getDefault()).replace("_", "").replace("-", "")]
+            ?: input.lowercase(java.util.Locale.getDefault())
     }
     
     fun getBuildingTypeFromId(buildingId: String): BuildingType {
@@ -146,9 +146,9 @@ class BuildingConfigService @Inject constructor(
     }
     
     private fun normalizeBuildingId(buildingId: String): String {
-        val cfg = config ?: return buildingId.lowercase()
-        val normalized = buildingId.lowercase().replace("_", "").replace("-", "")
-        return cfg.buildingAliases[normalized] ?: buildingId.lowercase()
+        val cfg = config ?: return buildingId.lowercase(java.util.Locale.getDefault())
+        val normalized = buildingId.lowercase(java.util.Locale.getDefault()).replace("_", "").replace("-", "")
+        return cfg.buildingAliases[normalized] ?: buildingId.lowercase(java.util.Locale.getDefault())
     }
     
     private fun createDefaultConfig(): BuildingsConfig {

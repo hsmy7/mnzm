@@ -34,79 +34,77 @@ data class ItemCardData(
 @Composable
 fun UnifiedItemCard(
     data: ItemCardData,
+    modifier: Modifier = Modifier,
     isSelected: Boolean = false,
     showViewButton: Boolean = false,
     showQuantity: Boolean = true,
     showPrice: Boolean = false,
     onClick: () -> Unit = {},
-    onViewDetail: (() -> Unit)? = null,
-    modifier: Modifier = Modifier
+    onViewDetail: (() -> Unit)? = null
 ) {
     val rarityColor = getRarityColor(data.rarity)
-    
-    // 使用 Box 包裹整个卡片，查看按钮放在卡片上方
+
     Box(
-        modifier = modifier.size(68.dp),
+        modifier = modifier.size(56.dp),
         contentAlignment = Alignment.Center
     ) {
-        // 卡片主体 - 点击选中
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .clip(RoundedCornerShape(6.dp))
-                .background(GameColors.PageBackground)
+                .background(if (isSelected) Color(0xFFFFF8E1) else GameColors.PageBackground)
                 .border(
                     width = if (isSelected) 3.dp else 2.dp,
-                    color = if (isSelected) GameColors.SelectedBorder else rarityColor,
+                    color = if (isSelected) Color(0xFFFFD700) else rarityColor,
                     shape = RoundedCornerShape(6.dp)
                 )
-                .clickable(onClick = onClick),
+                .clickable(onClick = onClick)
+                .padding(8.dp),
             contentAlignment = Alignment.Center
         ) {
-            // 道具名称
-            Text(
-                text = data.name,
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Bold,
-                color = GameColors.TextPrimary,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(horizontal = 4.dp)
-            )
-            
-            // 数量显示
-            if (showQuantity && data.quantity > 1) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
                 Text(
-                    text = "x${data.quantity}",
-                    fontSize = 9.sp,
-                    color = GameColors.TextSecondary,
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(4.dp)
+                    text = data.name,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = GameColors.TextPrimary,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center
                 )
+
+                if (showQuantity && data.quantity > 1) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "x${data.quantity}",
+                        fontSize = 9.sp,
+                        color = GameColors.TextSecondary
+                    )
+                }
             }
         }
-        
-        // 查看按钮 - 放在卡片上方（z轴方向），不拦截卡片点击
+
         if (showViewButton && isSelected && onViewDetail != null) {
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .offset(x = 4.dp, y = (-4).dp)
-                    .size(22.dp)
+                    .offset(x = (-2).dp, y = 2.dp)
                     .clip(RoundedCornerShape(4.dp))
-                    .background(GameColors.SelectedBorder)
+                    .background(Color(0xFFFFD700))
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                         onClick = { onViewDetail() }
-                    ),
+                    )
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = "查看",
-                    fontSize = 7.sp,
+                    fontSize = 8.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White
                 )

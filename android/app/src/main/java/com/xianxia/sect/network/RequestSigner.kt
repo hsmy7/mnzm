@@ -1,5 +1,6 @@
 package com.xianxia.sect.network
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.os.Build
 import android.util.Log
@@ -305,6 +306,7 @@ class RequestSigner @Inject constructor(
      * 复用 SecureKeyManager 中已有的设备标识逻辑，
      * 但额外加入包名和应用签名证书哈希以增强唯一性。
      */
+    @SuppressLint("HardwareIds")
     private fun computeDeviceFingerprint(): String {
         val parts = mutableListOf<String>()
 
@@ -330,12 +332,15 @@ class RequestSigner @Inject constructor(
         // 序列号（Android O+）
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+                @SuppressLint("HardwareIds")
                 parts.add(Build.getSerial() ?: "no_serial")
             }
         } catch (_: Exception) {}
 
         // 应用签名证书哈希（区分不同开发者签名的同包名应用）
         try {
+            @Suppress("NewApi")
+            @SuppressLint("InlinedApi")
             val packageInfo = context.packageManager.getPackageInfo(
                 context.packageName,
                 android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES

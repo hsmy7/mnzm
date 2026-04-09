@@ -1,15 +1,22 @@
 package com.xianxia.sect.core.model
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
-import androidx.room.PrimaryKey
 import com.xianxia.sect.core.model.production.SlotType
 import kotlinx.serialization.Serializable
 
 @Serializable
-@Entity(tableName = "exploration_teams")
+@Entity(
+    tableName = "exploration_teams",
+    primaryKeys = ["id", "slot_id"]
+)
 data class ExplorationTeam(
-    @PrimaryKey
+    @ColumnInfo(name = "id")
     val id: String = java.util.UUID.randomUUID().toString(),
+
+    @ColumnInfo(name = "slot_id")
+    var slotId: Int = 0,
+
     val name: String = "",
     val caveId: String? = null,
     val caveName: String = "",
@@ -80,10 +87,17 @@ enum class ExplorationStatus {
 }
 
 @Serializable
-@Entity(tableName = "building_slots")
+@Entity(
+    tableName = "building_slots",
+    primaryKeys = ["id", "slot_id"]
+)
 data class BuildingSlot(
-    @PrimaryKey
+    @ColumnInfo(name = "id")
     val id: String = java.util.UUID.randomUUID().toString(),
+
+    @ColumnInfo(name = "slot_id")
+    var slotId: Int = 0,
+
     val buildingId: String = "",
     val slotIndex: Int = 0,
     val type: SlotType = SlotType.IDLE,
@@ -127,10 +141,17 @@ enum class SlotStatus {
 }
 
 @Serializable
-@Entity(tableName = "game_events")
+@Entity(
+    tableName = "game_events",
+    primaryKeys = ["id", "slot_id"]
+)
 data class GameEvent(
-    @PrimaryKey
+    @ColumnInfo(name = "id")
     val id: String = java.util.UUID.randomUUID().toString(),
+
+    @ColumnInfo(name = "slot_id")
+    var slotId: Int = 0,
+
     val message: String = "",
     val type: EventType = EventType.INFO,
     val timestamp: Long = System.currentTimeMillis(),
@@ -162,10 +183,17 @@ enum class EventType {
 }
 
 @Serializable
-@Entity(tableName = "dungeons")
+@Entity(
+    tableName = "dungeons",
+    primaryKeys = ["id", "slot_id"]
+)
 data class Dungeon(
-    @PrimaryKey
+    @ColumnInfo(name = "id")
     val id: String = java.util.UUID.randomUUID().toString(),
+
+    @ColumnInfo(name = "slot_id")
+    var slotId: Int = 0,
+
     val name: String = "",
     val description: String = "",
     val realm: Int = 9,
@@ -186,10 +214,17 @@ data class DungeonRewards(
 )
 
 @Serializable
-@Entity(tableName = "recipes")
+@Entity(
+    tableName = "recipes",
+    primaryKeys = ["id", "slot_id"]
+)
 data class Recipe(
-    @PrimaryKey
+    @ColumnInfo(name = "id")
     val id: String = java.util.UUID.randomUUID().toString(),
+
+    @ColumnInfo(name = "slot_id")
+    var slotId: Int = 0,
+
     val name: String = "",
     val description: String = "",
     val type: RecipeType = RecipeType.PILL,
@@ -215,10 +250,17 @@ enum class RecipeType {
 }
 
 @Serializable
-@Entity(tableName = "battle_logs")
+@Entity(
+    tableName = "battle_logs",
+    primaryKeys = ["id", "slot_id"]
+)
 data class BattleLog(
-    @PrimaryKey
+    @ColumnInfo(name = "id")
     val id: String = java.util.UUID.randomUUID().toString(),
+
+    @ColumnInfo(name = "slot_id")
+    var slotId: Int = 0,
+
     val timestamp: Long = System.currentTimeMillis(),
     val year: Int = 1,
     val month: Int = 1,
@@ -450,6 +492,8 @@ data class BattleLogMember(
     val realmLayer: Int = 0,
     val hp: Int = 0,
     val maxHp: Int = 0,
+    val mp: Int = 0,
+    val maxMp: Int = 0,
     val isAlive: Boolean = true
 )
 

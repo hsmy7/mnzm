@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.xianxia.sect.core.engine.service
 
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,6 +37,7 @@ class BuildingService constructor(
     private val _gameData: MutableStateFlow<GameData>,
     private val _disciples: MutableStateFlow<List<Disciple>>,
     private val _herbs: MutableStateFlow<List<Herb>>,
+    private val _materials: MutableStateFlow<List<Material>>,
     private val _equipment: MutableStateFlow<List<Equipment>>,
     private val _pills: MutableStateFlow<List<Pill>>,
     private val productionCoordinator: ProductionCoordinator,
@@ -111,12 +114,8 @@ class BuildingService constructor(
                 status = SlotStatus.IDLE
             )
 
-            // Update forge slots
             _gameData.value = data.copy(forgeSlots = data.forgeSlots
                 .filter { !(it.buildingId == buildingId && it.slotIndex == slotIndex) } + newSlot)
-
-            // Update disciple status to WORKING
-            updateDiscipleStatus(discipleId, DiscipleStatus.WORKING)
         }
     }
 
@@ -144,10 +143,7 @@ class BuildingService constructor(
             return
         }
 
-        // Reset disciple status
         existingSlot.discipleId?.let { oldDiscipleId ->
-            updateDiscipleStatus(oldDiscipleId, DiscipleStatus.IDLE)
-
             val disciple = _disciples.value.find { it.id == oldDiscipleId }
             disciple?.let {
                 addEvent("${it.name}从${getBuildingName(buildingId)}移除", EventType.INFO)
@@ -186,7 +182,8 @@ class BuildingService constructor(
             currentYear = data.gameYear,
             currentMonth = data.gameMonth,
             herbs = _herbs.value,
-            buildingId = "alchemy"
+            buildingId = "alchemy",
+            alchemyPolicyBonus = if (data.sectPolicies.alchemyIncentive) com.xianxia.sect.core.GameConfig.PolicyConfig.ALCHEMY_INCENTIVE_BASE_EFFECT else 0.0
         )
 
         when {
@@ -251,8 +248,9 @@ class BuildingService constructor(
             recipeId = recipeId,
             currentYear = data.gameYear,
             currentMonth = data.gameMonth,
-            materials = emptyList(),
-            buildingId = "forge"
+            materials = _materials.value,
+            buildingId = "forge",
+            forgePolicyBonus = if (data.sectPolicies.forgeIncentive) com.xianxia.sect.core.GameConfig.PolicyConfig.FORGE_INCENTIVE_BASE_EFFECT else 0.0
         )
 
         when {
@@ -267,7 +265,7 @@ class BuildingService constructor(
                 return false
             }
             result.materialUpdate != null -> {
-                // Update materials (would delegate to InventoryService)
+                _materials.value = result.materialUpdate.materials
 
                 val recipe = ForgeRecipeDatabase.getRecipeById(recipeId) ?: return false
                 val duration = ForgeRecipeDatabase.getDurationByTier(recipe.tier)
@@ -531,14 +529,128 @@ class BuildingService constructor(
 
     /**
      * Calculate work duration with all disciple bonuses
+     * Delegates bonus calculation logic (elder position + disciple speed bonuses)
      */
-    private fun calculateWorkDurationWithAllDisciples(baseDuration: Int, buildingId: String): Int =
-        baseDuration
+    private fun calculateWorkDurationWithAllDisciples(baseDuration: Int, buildingId: String): Int {
+        var totalSpeedBonus = 0.0
+        val data = _gameData.value
+
+        // Elder position bonus
+        totalSpeedBonus += getElderPositionBonusLocal(buildingId)
+
+        // Disciple speed bonus from assigned disciples
+        when (buildingId) {
+            "forge", "alchemy", "herbGarden" -> {
+                val assignedDiscipleIds = when (buildingId) {
+                    "forge" -> data.forgeSlots.mapNotNull { it.discipleId }
+                    "alchemy" -> emptyList()
+                    else -> emptyList()
+                }
+                if (assignedDiscipleIds.isNotEmpty()) {
+                    val elderBonus = getElderPositionBonusLocal(buildingId)
+                    totalSpeedBonus += elderBonus
+                }
+            }
+        }
+
+        return calculateReducedDurationLocal(baseDuration, totalSpeedBonus)
+    }
 
     /**
-     * Complete building task (placeholder)
+     * Get elder position bonus for a specific building (local implementation)
+     */
+    private fun getElderPositionBonusLocal(buildingId: String): Double {
+        val data = _gameData.value
+        val elderSlots = data.elderSlots
+
+        // Find the elder disciple ID for this building type
+        val elderDiscipleId = when (buildingId) {
+            "forge" -> elderSlots.forgeElder
+            "alchemy" -> elderSlots.alchemyElder
+            "herbGarden" -> elderSlots.herbGardenElder
+            else -> null
+        } ?: return 0.0
+
+        val elderDisciple = _disciples.value.find { it.id == elderDiscipleId } ?: return 0.0
+
+        return when (buildingId) {
+            "forge" -> {
+                val baseline = 80
+                val maxBonus = 0.20
+                val diff = (elderDisciple.artifactRefining - baseline).coerceAtLeast(0)
+                (diff * 0.01).coerceAtMost(maxBonus)
+            }
+            "alchemy" -> {
+                val diff = elderDisciple.pillRefining - 50
+                (diff * 0.02).coerceIn(-0.10, 0.30)
+            }
+            "herbGarden" -> {
+                val diff = elderDisciple.spiritPlanting - 50
+                (diff * 0.02).coerceIn(-0.10, 0.30)
+            }
+            else -> 0.0
+        }
+    }
+
+    /**
+     * Calculate reduced duration based on speed bonus (local implementation)
+     */
+    private fun calculateReducedDurationLocal(baseDuration: Int, speedBonus: Double): Int {
+        if (speedBonus <= 0) return baseDuration
+        val reductionPercent = speedBonus / 4.0
+        val reducedMonths = (baseDuration * reductionPercent).toInt()
+        return (baseDuration - reducedMonths).coerceAtLeast(1)
+    }
+
+    /**
+     * Complete building task - produce items based on slot recipe and add to inventory
      */
     private fun completeBuildingTask(slot: BuildingSlot) {
-        addEvent("${BuildingNames.getDisplayName(slot.buildingId)}工作已完成，等待产出实现", EventType.INFO)
+        val recipeId = slot.recipeId
+        if (recipeId == null) {
+            addEvent("${BuildingNames.getDisplayName(slot.buildingId)}工作已完成，但无配方信息", EventType.WARNING)
+            return
+        }
+
+        when (slot.buildingId) {
+            "forge" -> {
+                val recipe = ForgeRecipeDatabase.getRecipeById(recipeId)
+                if (recipe != null) {
+                    val equipment = Equipment(
+                        name = recipe.name,
+                        rarity = recipe.rarity,
+                        description = recipe.description,
+                        slot = recipe.type,
+                        minRealm = recipe.tier
+                    )
+                    val currentEquipment = _equipment.value.toMutableList()
+                    currentEquipment.add(equipment)
+                    _equipment.value = currentEquipment
+                    addEvent("锻造完成！获得${recipe.name}，已放入宗门仓库", EventType.INFO)
+                } else {
+                    addEvent("锻造完成，但配方[$recipeId]不存在", EventType.ERROR)
+                }
+            }
+            "alchemy" -> {
+                val recipe = PillRecipeDatabase.getRecipeById(recipeId)
+                if (recipe != null) {
+                    val pill = Pill(
+                        name = recipe.name,
+                        rarity = recipe.rarity,
+                        description = "通过炼丹炉炼制而成",
+                        quantity = 1
+                    )
+                    val currentPills = _pills.value.toMutableList()
+                    currentPills.add(pill)
+                    _pills.value = currentPills
+                    addEvent("炼制完成！获得${recipe.name}，已放入宗门仓库", EventType.INFO)
+                } else {
+                    addEvent("炼制完成，但配方[$recipeId]不存在", EventType.ERROR)
+                }
+            }
+            else -> {
+                addEvent("${BuildingNames.getDisplayName(slot.buildingId)}工作已完成，产出类型暂不支持", EventType.INFO)
+            }
+        }
     }
 }

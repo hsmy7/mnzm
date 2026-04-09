@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.xianxia.sect.core.util
 
 import com.xianxia.sect.core.model.Disciple
@@ -131,19 +133,19 @@ class MutableDisciple {
     var lastChildYear: Int = 0
     var griefEndYear: Int? = null
     
-    var weaponId: String? = null
-    var armorId: String? = null
-    var bootsId: String? = null
-    var accessoryId: String? = null
-    
+    var weaponId: String = ""
+    var armorId: String = ""
+    var bootsId: String = ""
+    var accessoryId: String = ""
+
     var manualIds: MutableList<String> = mutableListOf()
     var talentIds: MutableList<String> = mutableListOf()
     var manualMasteries: MutableMap<String, Int> = mutableMapOf()
-    
-    var weaponNurture: EquipmentNurtureData? = null
-    var armorNurture: EquipmentNurtureData? = null
-    var bootsNurture: EquipmentNurtureData? = null
-    var accessoryNurture: EquipmentNurtureData? = null
+
+    var weaponNurture: EquipmentNurtureData = EquipmentNurtureData("", 0)
+    var armorNurture: EquipmentNurtureData = EquipmentNurtureData("", 0)
+    var bootsNurture: EquipmentNurtureData = EquipmentNurtureData("", 0)
+    var accessoryNurture: EquipmentNurtureData = EquipmentNurtureData("", 0)
     
     var spiritStones: Int = 0
     var soulPower: Int = 10
@@ -169,8 +171,7 @@ class MutableDisciple {
     var totalCultivation: Long = 0
     var breakthroughCount: Int = 0
     var breakthroughFailCount: Int = 0
-    var battlesWon: Int = 0
-    
+
     var intelligence: Int = 50
     var charm: Int = 50
     var loyalty: Int = 50
@@ -210,6 +211,9 @@ class MutableDisciple {
     var hasReviveEffect: Boolean = false
     var hasClearAllEffect: Boolean = false
     
+    var currentHp: Int = -1
+    var currentMp: Int = -1
+    
     fun reset() {
         id = UUID.randomUUID().toString()
         name = ""
@@ -227,17 +231,17 @@ class MutableDisciple {
         parentId2 = null
         lastChildYear = 0
         griefEndYear = null
-        weaponId = null
-        armorId = null
-        bootsId = null
-        accessoryId = null
+        weaponId = ""
+        armorId = ""
+        bootsId = ""
+        accessoryId = ""
         manualIds.clear()
         talentIds.clear()
         manualMasteries.clear()
-        weaponNurture = null
-        armorNurture = null
-        bootsNurture = null
-        accessoryNurture = null
+        weaponNurture = EquipmentNurtureData("", 0)
+        armorNurture = EquipmentNurtureData("", 0)
+        bootsNurture = EquipmentNurtureData("", 0)
+        accessoryNurture = EquipmentNurtureData("", 0)
         spiritStones = 0
         soulPower = 10
         storageBagItems.clear()
@@ -257,7 +261,6 @@ class MutableDisciple {
         totalCultivation = 0
         breakthroughCount = 0
         breakthroughFailCount = 0
-        battlesWon = 0
         intelligence = 50
         charm = 50
         loyalty = 50
@@ -289,6 +292,8 @@ class MutableDisciple {
         usedExtendLifePillIds.clear()
         hasReviveEffect = false
         hasClearAllEffect = false
+        currentHp = -1
+        currentMp = -1
     }
     
     fun copyFrom(disciple: Disciple) {
@@ -343,7 +348,6 @@ class MutableDisciple {
         totalCultivation = disciple.totalCultivation
         breakthroughCount = disciple.breakthroughCount
         breakthroughFailCount = disciple.breakthroughFailCount
-        battlesWon = disciple.battlesWon
         intelligence = disciple.intelligence
         charm = disciple.charm
         loyalty = disciple.loyalty
@@ -377,6 +381,8 @@ class MutableDisciple {
         usedExtendLifePillIds.addAll(disciple.usedExtendLifePillIds)
         hasReviveEffect = disciple.hasReviveEffect
         hasClearAllEffect = disciple.hasClearAllEffect
+        currentHp = disciple.currentHp
+        currentMp = disciple.currentMp
     }
     
     fun toDisciple(): Disciple {
@@ -414,10 +420,11 @@ class MutableDisciple {
                 physicalDefenseVariance = physicalDefenseVariance,
                 magicDefenseVariance = magicDefenseVariance,
                 speedVariance = speedVariance,
-                battlesWon = battlesWon,
                 totalCultivation = totalCultivation,
                 breakthroughCount = breakthroughCount,
-                breakthroughFailCount = breakthroughFailCount
+                breakthroughFailCount = breakthroughFailCount,
+                currentHp = currentHp,
+                currentMp = currentMp
             ),
             pillEffects = PillEffects(
                 pillPhysicalAttackBonus = pillPhysicalAttackBonus,

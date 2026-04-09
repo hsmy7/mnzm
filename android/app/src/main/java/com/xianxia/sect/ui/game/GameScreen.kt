@@ -18,16 +18,20 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.DiscipleAggregate
+import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.core.util.sortedByFollowAndRealm
 import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.ui.state.DialogStateManager.DialogType
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.theme.getRealmColor
 import com.xianxia.sect.ui.game.components.InventoryDialog
 import com.xianxia.sect.ui.components.discipleCardBorder
+import com.xianxia.sect.ui.components.DiscipleAttrText
 import com.xianxia.sect.ui.components.DiscipleCardStyles
 
+@Suppress("DEPRECATION")
 @Composable
 fun GameScreen(
     viewModel: GameViewModel,
@@ -44,12 +48,14 @@ fun GameScreen(
     val herbs by viewModel.herbs.collectAsState()
     val events by viewModel.events.collectAsState()
 
-    val showRecruitDialog by viewModel.showRecruitDialog.collectAsState()
-    val showInventoryDialog by viewModel.showInventoryDialog.collectAsState()
-    val showDiplomacyDialog by viewModel.showDiplomacyDialog.collectAsState()
-    val showMerchantDialog by viewModel.showMerchantDialog.collectAsState()
-    val showEventLogDialog by viewModel.showEventLogDialog.collectAsState()
-    val showSalaryConfigDialog by viewModel.showSalaryConfigDialog.collectAsState()
+    val currentDialog by viewModel.dialogStateManager.currentDialog.collectAsState()
+
+    val showRecruitDialog = currentDialog?.type == DialogType.Recruit
+    val showInventoryDialog = currentDialog?.type == DialogType.Inventory
+    val showDiplomacyDialog = currentDialog?.type == DialogType.Diplomacy
+    val showMerchantDialog = currentDialog?.type == DialogType.Merchant
+    val showEventLogDialog = currentDialog?.type == DialogType.EventLog
+    val showSalaryConfigDialog = currentDialog?.type == DialogType.SalaryConfig
 
     var selectedRealmFilter by remember { mutableStateOf<Int?>(null) }
 
@@ -108,8 +114,9 @@ fun GameScreen(
         }
 
         if (showRecruitDialog) {
+            val recruitList by viewModel.recruitListAggregates.collectAsState()
             RecruitDialog(
-                recruitList = gameData?.recruitList ?: emptyList(),
+                recruitList = recruitList,
                 gameData = gameData,
                 viewModel = viewModel,
                 onDismiss = { viewModel.closeRecruitDialog() }
@@ -162,6 +169,7 @@ fun GameScreen(
     }
 }
 
+@Suppress("DEPRECATION")
 @Composable
 private fun QuickActionBar(
     viewModel: GameViewModel
@@ -294,7 +302,7 @@ private fun RealmFilterBar(
 
 @Composable
 private fun DiscipleList(
-    disciples: List<Disciple>,
+    disciples: List<DiscipleAggregate>,
     modifier: Modifier = Modifier
 ) {
     if (disciples.isEmpty()) {
@@ -328,24 +336,24 @@ private fun DiscipleList(
 
 @Composable
 private fun DiscipleCard(
-    disciple: Disciple
+    disciple: DiscipleAggregate
 ) {
     val realmColor = getRealmColor(disciple.realm)
 
-    val statusText = when (disciple.status.name) {
-        "IDLE" -> "空闲"
-        "CULTIVATING" -> "修炼中"
-        "WORKING" -> "工作中"
-        "EXPLORING" -> "探索中"
-        else -> disciple.status.name
-    }
+    val statusText = disciple.status.displayName
 
-    val statusColor = when (disciple.status.name) {
-        "IDLE" -> Color(0xFF27AE60)
-        "CULTIVATING" -> Color(0xFF3498DB)
-        "WORKING" -> Color(0xFFF39C12)
-        "EXPLORING" -> Color(0xFF9B59B6)
-        else -> Color(0xFF666666)
+    val statusColor = when (disciple.status) {
+        DiscipleStatus.IDLE -> Color(0xFF27AE60)
+        DiscipleStatus.DEACONING -> Color(0xFFFF9800)
+        DiscipleStatus.MINING -> Color(0xFF8D6E63)
+        DiscipleStatus.STUDYING -> Color(0xFF2196F3)
+        DiscipleStatus.PREACHING -> Color(0xFF9C27B0)
+        DiscipleStatus.MANAGING -> Color(0xFFF44336)
+        DiscipleStatus.LAW_ENFORCING -> Color(0xFF607D8B)
+        DiscipleStatus.ON_MISSION -> Color(0xFF00BCD4)
+        DiscipleStatus.REFLECTING -> Color(0xFF795548)
+        DiscipleStatus.IN_TEAM -> Color(0xFF9B59B6)
+        DiscipleStatus.DEAD -> Color(0xFF999999)
     }
 
     Box(
@@ -408,23 +416,11 @@ private fun DiscipleCard(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "悟性: ${disciple.comprehension}",
-                    fontSize = 11.sp,
-                    color = Color(0xFF666666)
-                )
+                DiscipleAttrText("悟性", disciple.comprehension)
 
-                Text(
-                    text = "忠诚: ${disciple.loyalty}",
-                    fontSize = 11.sp,
-                    color = Color(0xFF666666)
-                )
+                DiscipleAttrText("忠诚", disciple.loyalty)
 
-                Text(
-                    text = "道德: ${disciple.morality}",
-                    fontSize = 11.sp,
-                    color = Color(0xFF666666)
-                )
+                DiscipleAttrText("道德", disciple.morality)
             }
 
             Spacer(modifier = Modifier.height(8.dp))

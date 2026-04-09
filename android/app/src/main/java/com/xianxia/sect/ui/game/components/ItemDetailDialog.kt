@@ -15,17 +15,25 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.data.EquipmentDatabase
+import com.xianxia.sect.core.data.ForgeRecipeDatabase
+import com.xianxia.sect.core.data.HerbDatabase
+import com.xianxia.sect.core.data.ManualDatabase
+import com.xianxia.sect.core.data.PillRecipeDatabase
 import com.xianxia.sect.core.engine.ManualProficiencySystem
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.getRarityName
 import com.xianxia.sect.ui.theme.getRarityColor
+import java.util.Locale
 
 @Composable
 fun ItemDetailDialog(
     item: Any,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    extraActions: @Composable (() -> Unit)? = null
 ) {
     val name: String
     val rarity: Int
@@ -68,6 +76,18 @@ fun ItemDetailDialog(
             rarity = item.rarity
             description = item.description
             effects = getSeedEffects(item)
+        }
+        is MerchantItem -> {
+            name = item.name
+            rarity = item.rarity
+            description = item.description
+            effects = getMerchantItemEffects(item)
+        }
+        is StorageBagItem -> {
+            name = item.name
+            rarity = item.rarity
+            description = ""
+            effects = getStorageBagItemEffects(item)
         }
         else -> {
             name = "未知物品"
@@ -131,10 +151,22 @@ fun ItemDetailDialog(
             }
         },
         confirmButton = {
-            GameButton(
-                text = "关闭",
-                onClick = onDismiss
-            )
+            if (extraActions != null) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    extraActions()
+                    GameButton(
+                        text = "关闭",
+                        onClick = onDismiss
+                    )
+                }
+            } else {
+                GameButton(
+                    text = "关闭",
+                    onClick = onDismiss
+                )
+            }
         }
     )
 }
@@ -453,7 +485,7 @@ private fun getEquipmentEffects(item: Equipment): List<String> = buildList {
         add("孕养等级: Lv.${item.nurtureLevel}")
         val nurtureBonus = (item.totalMultiplier / GameConfig.Rarity.get(item.rarity).multiplier - 1.0) * 100
         if (nurtureBonus > 0) {
-            add("  孕养加成: +${String.format("%.1f", nurtureBonus)}%")
+            add("  孕养加成: +${String.format(Locale.getDefault(), "%.1f", nurtureBonus)}%")
         }
     }
     add("")
@@ -495,7 +527,7 @@ private fun getEquipmentEffects(item: Equipment): List<String> = buildList {
         val bonusText = if (bonus > 0) " (↑$bonus)" else ""
         add("  灵力 +${finalStats.mp}$bonusText")
     }
-    if (item.critChance > 0) add("  暴击率 +${String.format("%.1f", item.critChance * 100)}%")
+    if (item.critChance > 0) add("  暴击率 +${String.format(Locale.getDefault(), "%.1f", item.critChance * 100)}%")
 }
 
 private fun getManualEffects(item: Manual): List<String> = buildList {
@@ -524,6 +556,9 @@ private fun getManualEffects(item: Manual): List<String> = buildList {
         }
         if (skill.skillType == com.xianxia.sect.core.engine.SkillType.SUPPORT) {
             add("  类型: 辅助")
+        }
+        if (skill.targetScope == "team") {
+            add("  作用范围: 全队")
         }
         if (skill.healPercent > 0) {
             val healTypeName = when (skill.healType) {
@@ -563,7 +598,7 @@ private fun getPillEffects(item: Pill): List<String> = buildList {
     when (item.category) {
         PillCategory.BREAKTHROUGH -> {
             if (item.breakthroughChance > 0) {
-                add("  突破概率 +${String.format("%.1f", item.breakthroughChance * 100)}%")
+                add("  突破概率 +${String.format(Locale.getDefault(), "%.1f", item.breakthroughChance * 100)}%")
             }
             if (item.targetRealm > 0) {
                 add("  目标境界: ${GameConfig.Realm.getName(item.targetRealm)}")
@@ -574,33 +609,33 @@ private fun getPillEffects(item: Pill): List<String> = buildList {
         }
         PillCategory.CULTIVATION -> {
             if (item.cultivationPercent > 0) {
-                add("  修为 +${String.format("%.1f", item.cultivationPercent * 100)}%")
+                add("  修为 +${String.format(Locale.getDefault(), "%.1f", item.cultivationPercent * 100)}%")
             }
             if (item.cultivationSpeed > 1.0) {
                 add("  修炼速度 x${item.cultivationSpeed}")
             }
             if (item.skillExpPercent > 0) {
-                add("  功法熟练度 +${String.format("%.1f", item.skillExpPercent * 100)}%")
+                add("  功法熟练度 +${String.format(Locale.getDefault(), "%.1f", item.skillExpPercent * 100)}%")
             }
             if (item.extendLife > 0) {
                 add("  延寿 ${item.extendLife} 年")
             }
         }
         PillCategory.BATTLE_PHYSICAL, PillCategory.BATTLE_MAGIC, PillCategory.BATTLE_STATUS -> {
-            if (item.physicalAttackPercent > 0) add("  物理攻击 +${String.format("%.1f", item.physicalAttackPercent * 100)}%")
-            if (item.magicAttackPercent > 0) add("  法术攻击 +${String.format("%.1f", item.magicAttackPercent * 100)}%")
-            if (item.physicalDefensePercent > 0) add("  物理防御 +${String.format("%.1f", item.physicalDefensePercent * 100)}%")
-            if (item.magicDefensePercent > 0) add("  法术防御 +${String.format("%.1f", item.magicDefensePercent * 100)}%")
-            if (item.hpPercent > 0) add("  生命 +${String.format("%.1f", item.hpPercent * 100)}%")
-            if (item.mpPercent > 0) add("  灵力 +${String.format("%.1f", item.mpPercent * 100)}%")
-            if (item.speedPercent > 0) add("  速度 +${String.format("%.1f", item.speedPercent * 100)}%")
+            if (item.physicalAttackPercent > 0) add("  物理攻击 +${String.format(Locale.getDefault(), "%.1f", item.physicalAttackPercent * 100)}%")
+            if (item.magicAttackPercent > 0) add("  法术攻击 +${String.format(Locale.getDefault(), "%.1f", item.magicAttackPercent * 100)}%")
+            if (item.physicalDefensePercent > 0) add("  物理防御 +${String.format(Locale.getDefault(), "%.1f", item.physicalDefensePercent * 100)}%")
+            if (item.magicDefensePercent > 0) add("  法术防御 +${String.format(Locale.getDefault(), "%.1f", item.magicDefensePercent * 100)}%")
+            if (item.hpPercent > 0) add("  生命 +${String.format(Locale.getDefault(), "%.1f", item.hpPercent * 100)}%")
+            if (item.mpPercent > 0) add("  灵力 +${String.format(Locale.getDefault(), "%.1f", item.mpPercent * 100)}%")
+            if (item.speedPercent > 0) add("  速度 +${String.format(Locale.getDefault(), "%.1f", item.speedPercent * 100)}%")
             if (item.battleCount > 0) add("  持续 ${item.battleCount} 场战斗")
         }
         PillCategory.HEALING -> {
             if (item.heal > 0) add("  恢复生命 ${item.heal}")
-            if (item.healPercent > 0) add("  恢复生命 ${String.format("%.1f", item.healPercent * 100)}%")
-            if (item.healMaxHpPercent > 0) add("  恢复生命 ${String.format("%.1f", item.healMaxHpPercent * 100)}% 最大生命")
-            if (item.mpRecoverMaxMpPercent > 0) add("  恢复灵力 ${String.format("%.1f", item.mpRecoverMaxMpPercent * 100)}% 最大灵力")
+            if (item.healPercent > 0) add("  恢复生命 ${String.format(Locale.getDefault(), "%.1f", item.healPercent * 100)}%")
+            if (item.healMaxHpPercent > 0) add("  恢复生命 ${String.format(Locale.getDefault(), "%.1f", item.healMaxHpPercent * 100)}% 最大生命")
+            if (item.mpRecoverMaxMpPercent > 0) add("  恢复灵力 ${String.format(Locale.getDefault(), "%.1f", item.mpRecoverMaxMpPercent * 100)}% 最大灵力")
             if (item.revive) add("  可复活弟子")
             if (item.clearAll) add("  清除所有负面状态")
         }
@@ -699,4 +734,107 @@ private fun getStatDisplayName(key: String): String = when (key) {
     "speed" -> "速度"
     "critRate" -> "暴击率"
     else -> key
+}
+
+private fun getMerchantItemEffects(item: MerchantItem): List<String> = buildList {
+    val typeName = when (item.type) {
+        "equipment" -> "装备"
+        "manual" -> "功法"
+        "pill" -> "丹药"
+        "material" -> "材料"
+        "herb" -> "灵草"
+        "seed" -> "种子"
+        else -> "物品"
+    }
+    add("类型: $typeName")
+    add("数量: ${item.quantity}")
+    if (item.price > 0) {
+        add("价格: ${item.price}灵石")
+    }
+    add("")
+
+    val template = EquipmentDatabase.getTemplateByName(item.name)
+    if (template != null) {
+        add("属性:")
+        if (template.physicalAttack > 0) add("  物理攻击 +${template.physicalAttack}")
+        if (template.magicAttack > 0) add("  法术攻击 +${template.magicAttack}")
+        if (template.physicalDefense > 0) add("  物理防御 +${template.physicalDefense}")
+        if (template.magicDefense > 0) add("  法术防御 +${template.magicDefense}")
+        if (template.hp > 0) add("  生命 +${template.hp}")
+        if (template.mp > 0) add("  灵力 +${template.mp}")
+        if (template.speed > 0) add("  速度 +${template.speed}")
+        if (template.critChance > 0) add("  暴击率 +${String.format(Locale.getDefault(), "%.1f%%", template.critChance * 100)}")
+        return@buildList
+    }
+
+    val manualTemplate = ManualDatabase.getByName(item.name)
+    if (manualTemplate != null) {
+        val stats = manualTemplate.stats
+        if (stats.isNotEmpty()) {
+            add("属性加成:")
+            stats.forEach { (key, value) ->
+                val statName = getStatDisplayName(key)
+                if (key.contains("Percent")) {
+                    add("  $statName +$value%")
+                } else {
+                    add("  $statName +$value")
+                }
+            }
+        }
+        manualTemplate.skillName?.let { sName ->
+            add("")
+            add("技能: $sName")
+            val sDesc = manualTemplate.skillDescription
+            if (!sDesc.isNullOrEmpty()) {
+                add("  $sDesc")
+            }
+        }
+        return@buildList
+    }
+
+    if (item.description.isNotEmpty()) {
+        add("效果:")
+        add("  ${item.description}")
+    }
+}
+
+private fun getStorageBagItemEffects(item: StorageBagItem): List<String> = buildList {
+    val typeName = when (item.itemType) {
+        "equipment" -> "装备"
+        "manual" -> "功法"
+        "pill" -> "丹药"
+        "material" -> "材料"
+        "herb" -> "灵草"
+        "seed" -> "种子"
+        else -> "物品"
+    }
+    add("类型: $typeName")
+    add("数量: ${item.quantity}")
+    add("获得时间: 第${item.obtainedYear}年${item.obtainedMonth}月")
+    add("")
+
+    item.effect?.let { effect ->
+        add("效果:")
+        if (effect.cultivationSpeed > 1.0) add("  修炼速度 x${effect.cultivationSpeed}")
+        if (effect.cultivationPercent > 0) add("  修为 +${GameUtils.formatPercent(effect.cultivationPercent)}")
+        if (effect.skillExpPercent > 0) add("  功法熟练度 +${GameUtils.formatPercent(effect.skillExpPercent)}")
+        if (effect.breakthroughChance > 0) add("  突破概率 +${GameUtils.formatPercent(effect.breakthroughChance)}")
+        if (effect.targetRealm > 0) add("  目标境界: ${GameConfig.Realm.getName(effect.targetRealm)}")
+        if (effect.heal > 0) add("  恢复生命 ${effect.heal}")
+        if (effect.healPercent > 0) add("  恢复生命 ${GameUtils.formatPercent(effect.healPercent)}")
+        if (effect.healMaxHpPercent > 0) add("  恢复生命 ${GameUtils.formatPercent(effect.healMaxHpPercent)} 最大生命")
+        if (effect.hpPercent > 0) add("  生命 +${GameUtils.formatPercent(effect.hpPercent)}")
+        if (effect.mpPercent > 0) add("  灵力 +${GameUtils.formatPercent(effect.mpPercent)}")
+        if (effect.mpRecoverPercent > 0) add("  恢复灵力 ${GameUtils.formatPercent(effect.mpRecoverPercent)}")
+        if (effect.extendLife > 0) add("  延寿 ${effect.extendLife} 年")
+        if (effect.battleCount > 0) add("  持续 ${effect.battleCount} 场战斗")
+        if (effect.physicalAttackPercent > 0) add("  物理攻击 +${GameUtils.formatPercent(effect.physicalAttackPercent)}")
+        if (effect.magicAttackPercent > 0) add("  法术攻击 +${GameUtils.formatPercent(effect.magicAttackPercent)}")
+        if (effect.physicalDefensePercent > 0) add("  物理防御 +${GameUtils.formatPercent(effect.physicalDefensePercent)}")
+        if (effect.magicDefensePercent > 0) add("  法术防御 +${GameUtils.formatPercent(effect.magicDefensePercent)}")
+        if (effect.speedPercent > 0) add("  速度 +${GameUtils.formatPercent(effect.speedPercent)}")
+        if (effect.revive) add("  可复活弟子")
+        if (effect.clearAll) add("  清除所有负面状态")
+        if (effect.duration > 0) add("  持续 ${effect.duration} 月")
+    }
 }

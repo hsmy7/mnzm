@@ -1,7 +1,7 @@
 package com.xianxia.sect.core.model.production
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
-import androidx.room.PrimaryKey
 import androidx.room.Index
 import androidx.room.TypeConverter
 import androidx.room.TypeConverters
@@ -11,6 +11,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 @Entity(
     tableName = "production_slots",
+    primaryKeys = ["id", "slot_id"],
     indices = [
         Index(value = ["buildingId", "slotIndex"]),
         Index(value = ["buildingType"]),
@@ -19,8 +20,12 @@ import kotlinx.serialization.Serializable
 )
 @TypeConverters(ProductionSlotConverters::class)
 data class ProductionSlot(
-    @PrimaryKey
+    @ColumnInfo(name = "id")
     val id: String = java.util.UUID.randomUUID().toString(),
+
+    @ColumnInfo(name = "slot_id")
+    var slotId: Int = 0,
+
     val slotIndex: Int = 0,
     val buildingType: BuildingType = BuildingType.ALCHEMY,
     val buildingId: String = "",
@@ -83,7 +88,7 @@ data class ProductionSlot(
         )
 
         fun fromBuildingSlot(buildingSlot: com.xianxia.sect.core.model.BuildingSlot): ProductionSlot {
-            val bType = when (buildingSlot.buildingId.lowercase()) {
+            val bType = when (buildingSlot.buildingId.lowercase(java.util.Locale.getDefault())) {
                 "forge", "forging" -> BuildingType.FORGE
                 "alchemy", "alchemyroom" -> BuildingType.ALCHEMY
                 "mine", "mining" -> BuildingType.MINING

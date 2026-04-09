@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.GameConfig
@@ -18,28 +20,6 @@ import kotlin.random.Random
  */
 @Singleton
 class BattleSystem @Inject constructor() {
-    
-    companion object {
-        /**
-         * 便捷访问器：提供静态访问方式以兼容无法注入的场景。
-         * 
-         * 注意：此访问器仅用于过渡期兼容。
-         * 新代码应优先通过构造函数注入 [BattleSystem] 实例。
-         * 
-         * @deprecated 使用注入的 BattleSystem 实例代替
-         */
-        @JvmStatic
-        @Deprecated(
-            message = "Use injected BattleSystem instance instead. This is for backward compatibility only.",
-            replaceWith = ReplaceWith("injectedBattleSystem", "com.xianxia.sect.core.engine.BattleSystem")
-        )
-        lateinit var instance: BattleSystem
-            private set
-    }
-    
-    init {
-        instance = this
-    }
     
     fun createBattle(
         disciples: List<Disciple>,
@@ -67,13 +47,16 @@ class BattleSystem @Inject constructor() {
                 ).toCombatSkill(manualName = manual.name)
             }
             
+            val effectiveHp = if (disciple.currentHp < 0) stats.maxHp else disciple.currentHp.coerceAtMost(stats.maxHp)
+            val effectiveMp = if (disciple.currentMp < 0) stats.maxMp else disciple.currentMp.coerceAtMost(stats.maxMp)
+            
             Combatant(
                 id = disciple.id,
                 name = disciple.name,
                 type = CombatantType.DISCIPLE,
-                hp = stats.maxHp,
+                hp = effectiveHp,
                 maxHp = stats.maxHp,
-                mp = stats.maxMp,
+                mp = effectiveMp,
                 maxMp = stats.maxMp,
                 physicalAttack = stats.physicalAttack,
                 magicAttack = stats.magicAttack,
@@ -190,6 +173,8 @@ class BattleSystem @Inject constructor() {
                 realmName = combatant.realmName,
                 hp = combatant.hp,
                 maxHp = combatant.maxHp,
+                mp = combatant.mp,
+                maxMp = combatant.maxMp,
                 isAlive = true
             )
         }.toMutableList()
@@ -227,7 +212,8 @@ class BattleSystem @Inject constructor() {
                 if (combatant != null) {
                     teamMembers[index] = member.copy(
                         isAlive = !combatant.isDead,
-                        hp = combatant.hp
+                        hp = combatant.hp,
+                        mp = combatant.mp
                     )
                 }
             }
@@ -305,19 +291,26 @@ class BattleSystem @Inject constructor() {
             }
             
             val isSupportSkill = availableSkill?.skillType == SkillType.SUPPORT
+            val isAoeSkill = availableSkill?.isAoe == true && !isSupportSkill
             
-            val result = if (availableSkill != null) {
+            val results = if (availableSkill != null) {
                 if (isSupportSkill && currentCombatant.type == CombatantType.DISCIPLE) {
-                    executeSupportSkill(currentCombatant, team, availableSkill)
+                    listOf(executeSupportSkill(currentCombatant, team, availableSkill))
+                } else if (isAoeSkill) {
+                    targets.map { target -> executeSkill(currentCombatant, target, availableSkill) }
                 } else {
-                    executeSkill(currentCombatant, target, availableSkill)
+                    val target = selectTarget(combatant, targets)
+                    listOf(executeSkill(currentCombatant, target, availableSkill))
                 }
             } else {
-                executeAttack(currentCombatant, target)
+                val target = selectTarget(combatant, targets)
+                listOf(executeAttack(currentCombatant, target))
             }
             
+            val result = results.first()
             var message: String
             var isKill = false
+            var totalDamage = 0
             
             if (result.isSupport && availableSkill != null) {
                 val buffs = availableSkill.buffs ?: emptyList()
@@ -329,19 +322,32 @@ class BattleSystem @Inject constructor() {
                     buffs = buffs
                 )
             } else if (availableSkill != null) {
-                isKill = target.hp - result.damage <= 0
-                message = BattleDescriptionGenerator.generateSkillDescription(
-                    attacker = currentCombatant,
-                    target = target,
-                    skill = availableSkill,
-                    result = result,
-                    isKill = isKill
-                )
+                totalDamage = results.sumOf { it.damage }
+                isKill = results.any { r -> r.target.hp - r.damage <= 0 }
+                if (isAoeSkill) {
+                    message = BattleDescriptionGenerator.generateAoeSkillDescription(
+                        attacker = currentCombatant,
+                        skill = availableSkill,
+                        results = results,
+                        isKill = isKill
+                    )
+                } else {
+                    val singleResult = result
+                    val singleTarget = singleResult.target
+                    isKill = singleTarget.hp - singleResult.damage <= 0
+                    message = BattleDescriptionGenerator.generateSkillDescription(
+                        attacker = currentCombatant,
+                        target = singleTarget,
+                        skill = availableSkill,
+                        result = singleResult,
+                        isKill = isKill
+                    )
+                }
             } else {
-                isKill = target.hp - result.damage <= 0
+                isKill = result.target.hp - result.damage <= 0
                 message = BattleDescriptionGenerator.generateAttackDescription(
                     attacker = currentCombatant,
-                    target = target,
+                    target = result.target,
                     result = result,
                     isKill = isKill
                 )
@@ -355,33 +361,37 @@ class BattleSystem @Inject constructor() {
                 },
                 attacker = currentCombatant.name,
                 attackerType = if (currentCombatant.type == CombatantType.DISCIPLE) "disciple" else "beast",
-                target = if (isSupportSkill) "team" else target.name,
-                damage = result.damage,
+                target = if (isSupportSkill) "team" else if (isAoeSkill) "全体敌人" else result.target.name,
+                damage = if (isAoeSkill) totalDamage else result.damage,
                 damageType = if (result.isSupport) "support" else if (result.isDodged) "闪避" else if (result.isPhysical) "物理" else "法术",
-                isCrit = result.isCrit,
+                isCrit = results.any { it.isCrit },
                 isKill = isKill,
                 message = message,
                 skillName = result.skillName
             ))
             
             if (!result.isSupport) {
-                val targetIndex = if (target.type == CombatantType.DISCIPLE) {
-                    team.indexOfFirst { it.id == target.id }
-                } else {
-                    beasts.indexOfFirst { it.id == target.id }
-                }
-                
-                if (!result.isDodged) {
-                    if (target.type == CombatantType.DISCIPLE && targetIndex >= 0) {
-                        team[targetIndex] = result.target.copy(
-                            hp = maxOf(0, result.target.hp - result.damage)
+                results.forEach { r ->
+                    if (r.isDodged) return@forEach
+                    val targetIndex = if (r.target.type == CombatantType.DISCIPLE) {
+                        team.indexOfFirst { it.id == r.target.id }
+                    } else {
+                        beasts.indexOfFirst { it.id == r.target.id }
+                    }
+                    
+                    if (r.target.type == CombatantType.DISCIPLE && targetIndex >= 0) {
+                        team[targetIndex] = r.target.copy(
+                            hp = maxOf(0, r.target.hp - r.damage)
                         )
                     } else if (targetIndex >= 0) {
-                        beasts[targetIndex] = result.target.copy(
-                            hp = maxOf(0, result.target.hp - result.damage)
+                        beasts[targetIndex] = r.target.copy(
+                            hp = maxOf(0, r.target.hp - r.damage)
                         )
                     }
                 }
+                
+                team = team.filter { !it.isDead }.toMutableList()
+                beasts = beasts.filter { !it.isDead }.toMutableList()
             }
             
             if (availableSkill != null) {
@@ -556,17 +566,18 @@ class BattleSystem @Inject constructor() {
     }
     
     private fun executeSupportSkill(
-        caster: Combatant, 
-        team: List<Combatant>, 
+        caster: Combatant,
+        team: List<Combatant>,
         skill: CombatSkill
     ): AttackResult {
         val aliveTeamMembers = team.filter { !it.isDead }
+        val targets = if (skill.targetScope == "team") aliveTeamMembers else listOf(caster)
         val healPercent = skill.healPercent
         val healType = skill.healType
-        
+
         var healAmount = 0
         val teamBuffs = mutableMapOf<String, List<CombatBuff>>()
-        
+
         if (healPercent > 0) {
             healAmount = if (healType == HealType.MP) {
                 (caster.maxMp * healPercent).toInt()
@@ -574,30 +585,30 @@ class BattleSystem @Inject constructor() {
                 (caster.maxHp * healPercent).toInt()
             }
         }
-        
+
         if (skill.buffType != null && skill.buffDuration > 0) {
             val buff = CombatBuff(
                 type = skill.buffType,
                 value = skill.buffValue,
                 remainingDuration = skill.buffDuration
             )
-            for (member in aliveTeamMembers) {
+            for (member in targets) {
                 teamBuffs[member.id] = listOf(buff)
             }
         }
-        
+
         for ((buffType, buffValue, buffDuration) in skill.buffs) {
             val buff = CombatBuff(
                 type = buffType,
                 value = buffValue,
                 remainingDuration = buffDuration
             )
-            for (member in aliveTeamMembers) {
+            for (member in targets) {
                 val existing = teamBuffs[member.id] ?: emptyList()
                 teamBuffs[member.id] = existing + buff
             }
         }
-        
+
         return AttackResult(
             attacker = caster,
             target = caster,
@@ -612,7 +623,7 @@ class BattleSystem @Inject constructor() {
             healPercent = healPercent,
             healType = healType,
             healAmount = healAmount,
-            healedIds = if (healAmount > 0) aliveTeamMembers.map { it.id } else emptyList(),
+            healedIds = if (healAmount > 0) targets.map { it.id } else emptyList(),
             newBuffs = emptyList(),
             teamBuffs = teamBuffs
         )
@@ -787,7 +798,9 @@ data class CombatSkill(
     val buffs: List<Triple<BuffType, Double, Int>> = emptyList(),
     var currentCooldown: Int = 0,
     val skillDescription: String = "",
-    val manualName: String = ""
+    val manualName: String = "",
+    val isAoe: Boolean = false,
+    val targetScope: String = "self"
 )
 
 enum class BattleWinner {
@@ -854,6 +867,8 @@ data class BattleMemberData(
     val realmName: String = "",
     val hp: Int = 0,
     val maxHp: Int = 0,
+    val mp: Int = 0,
+    val maxMp: Int = 0,
     var isAlive: Boolean = true
 )
 
@@ -1023,6 +1038,8 @@ object BattleDescriptionGenerator {
         healType: HealType,
         buffs: List<Triple<BuffType, Double, Int>>
     ): String {
+
+
         val sb = StringBuilder()
         
         val castPhrase = skillCastPhrases.random()
@@ -1052,6 +1069,52 @@ object BattleDescriptionGenerator {
             sb.append("，${effects.joinToString("，")}")
         }
         
+        return sb.toString()
+    }
+
+    fun generateAoeSkillDescription(
+        attacker: Combatant,
+        skill: CombatSkill,
+        results: List<AttackResult>,
+        isKill: Boolean
+    ): String {
+        val sb = StringBuilder()
+
+        val castPhrase = skillCastPhrases.random()
+        if (skill.manualName.isNotEmpty()) {
+            sb.append("${attacker.name}${castPhrase}【${skill.manualName}】，使出[${skill.name}]")
+        } else {
+            sb.append("${attacker.name}使出[${skill.name}]")
+        }
+
+        if (skill.skillDescription.isNotEmpty()) {
+            sb.append("（${skill.skillDescription}）")
+        }
+
+        val damageType = if (results.first().isPhysical) "物理" else "法术"
+        val totalDamage = results.sumOf { it.damage }
+        val hitCount = results.count { !it.isDodged }
+        val dodgeCount = results.count { it.isDodged }
+
+        sb.append("，对全体敌人造成${totalDamage}点${damageType}伤害")
+
+        if (skill.damageMultiplier > 1.0) {
+            sb.append("（威力${(skill.damageMultiplier * 100).toInt()}%）")
+        }
+
+        if (skill.hits > 1) {
+            sb.append("（${skill.hits}连击×${hitCount}目标）")
+        }
+
+        if (dodgeCount > 0) {
+            sb.append("，${dodgeCount}个目标闪避")
+        }
+
+        if (isKill) {
+            val killDesc = killDescriptions.random()
+            sb.append("，${killDesc}了敌人！")
+        }
+
         return sb.toString()
     }
 }

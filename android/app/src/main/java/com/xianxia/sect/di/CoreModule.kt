@@ -88,9 +88,8 @@ object CoreModule {
 
     // ==================== GameEngineCore ====================
     //
-    // 注意：GameEngineCore 不再通过 @Provides 提供
-    // 原因：它依赖 @ViewModelScoped 的 GameEngine，无法从 SingletonComponent 提供
-    // 实际创建位置：GameViewModel 的 init 块中直接构建
+    // GameEngineCore 使用 @ViewModelScoped + @Inject constructor
+    // 由 Hilt 自动在 ViewModel 作用域内提供，无需手动 @Provides
     //
     @Provides
     @Singleton

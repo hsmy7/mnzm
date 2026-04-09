@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.xianxia.sect.core.util
 
 import com.xianxia.sect.core.model.*
@@ -55,9 +57,9 @@ object EntityQueryHelper {
     
     suspend fun queryDisciples(dao: DiscipleDao, query: DiscipleQuery): List<Disciple> {
         val baseList = when {
-            query.name != null -> dao.searchByName(query.name)
-            query.status != null -> dao.getByStatus(query.status)
-            else -> dao.getAllAliveSync()
+            query.name != null -> dao.searchByName(0, query.name)
+            query.status != null -> dao.getByStatus(0, query.status)
+            else -> dao.getAllAliveSync(0)
         }
         
         return baseList
@@ -86,10 +88,10 @@ object EntityQueryHelper {
     
     suspend fun queryEquipment(dao: EquipmentDao, query: EquipmentQuery): List<Equipment> {
         val baseList = when {
-            query.ownerId != null -> dao.getByOwner(query.ownerId)
-            query.name != null -> dao.searchByName(query.name)
-            query.slot != null -> dao.getUnequippedBySlot(query.slot).first()
-            else -> dao.getUnequipped().first()
+            query.ownerId != null -> dao.getByOwner(0, query.ownerId)
+            query.name != null -> dao.searchByName(0, query.name)
+            query.slot != null -> dao.getUnequippedBySlot(0, query.slot).first()
+            else -> dao.getUnequipped(0).first()
         }
         
         return baseList
@@ -109,10 +111,10 @@ object EntityQueryHelper {
     
     suspend fun queryManuals(dao: ManualDao, query: ManualQuery): List<Manual> {
         val baseList = when {
-            query.ownerId != null -> dao.getByOwner(query.ownerId)
-            query.name != null -> dao.searchByName(query.name)
-            query.type != null -> dao.getByType(query.type).first()
-            else -> dao.getUnlearned().first()
+            query.ownerId != null -> dao.getByOwner(0, query.ownerId)
+            query.name != null -> dao.searchByName(0, query.name)
+            query.type != null -> dao.getByType(0, query.type).first()
+            else -> dao.getUnlearned(0).first()
         }
         
         return baseList
@@ -132,10 +134,10 @@ object EntityQueryHelper {
     
     suspend fun queryPills(dao: PillDao, query: PillQuery): List<Pill> {
         val baseList = when {
-            query.name != null -> dao.searchByName(query.name)
-            query.category != null -> dao.getByCategory(query.category).first()
-            query.targetRealm != null -> dao.getByTargetRealm(query.targetRealm).first()
-            else -> dao.getAll().first()
+            query.name != null -> dao.searchByName(0, query.name)
+            query.category != null -> dao.getByCategory(0, query.category).first()
+            query.targetRealm != null -> dao.getByTargetRealm(0, query.targetRealm).first()
+            else -> dao.getAll(0).first()
         }
         
         return baseList
@@ -150,9 +152,9 @@ object EntityQueryHelper {
     
     suspend fun queryMaterials(dao: MaterialDao, query: MaterialQuery): List<Material> {
         val baseList = when {
-            query.name != null -> dao.searchByName(query.name)
-            query.category != null -> dao.getByCategory(query.category).first()
-            else -> dao.getAll().first()
+            query.name != null -> dao.searchByName(0, query.name)
+            query.category != null -> dao.getByCategory(0, query.category).first()
+            else -> dao.getAll(0).first()
         }
         
         return baseList
@@ -167,9 +169,9 @@ object EntityQueryHelper {
 }
 
 object DiscipleSorter {
-    
-    fun byRealm(disciples: List<Disciple>): List<Disciple> = 
-        disciples.sortedByDescending { it.realm * 100 + it.realmLayer }
+
+    fun byRealm(disciples: List<Disciple>): List<Disciple> =
+        disciples.sortedWith(compareBy<Disciple> { it.realm }.thenByDescending { it.realmLayer })
     
     fun byCultivation(disciples: List<Disciple>): List<Disciple> = 
         disciples.sortedByDescending { it.cultivation }

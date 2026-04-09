@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.engine.production
 
 import android.util.Log
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.data.BeastMaterialDatabase
 import com.xianxia.sect.core.data.ForgeRecipeDatabase
 import com.xianxia.sect.core.data.HerbDatabase
@@ -132,7 +133,8 @@ class ProductionCoordinator @Inject constructor(
         currentYear: Int,
         currentMonth: Int,
         herbs: List<Herb>,
-        buildingId: String = "alchemy"
+        buildingId: String = "alchemy",
+        alchemyPolicyBonus: Double = 0.0
     ): ProductionStartResult {
         Log.d(TAG, "Starting alchemy: $buildingId[$slotIndex] recipe=$recipeId")
         
@@ -160,7 +162,7 @@ class ProductionCoordinator @Inject constructor(
             currentMonth = currentMonth,
             discipleId = null,
             discipleName = "",
-            successRate = recipe.successRate,
+            successRate = recipe.successRate + alchemyPolicyBonus,
             materials = recipe.materials,
             availableMaterials = availableMaterials,
             outputItemId = recipe.id,
@@ -218,7 +220,8 @@ class ProductionCoordinator @Inject constructor(
         currentYear: Int,
         currentMonth: Int,
         materials: List<Material>,
-        buildingId: String = "forge"
+        buildingId: String = "forge",
+        forgePolicyBonus: Double = 0.0
     ): ProductionStartResult {
         Log.d(TAG, "Starting forging: $buildingId[$slotIndex] recipe=$recipeId")
         
@@ -248,7 +251,7 @@ class ProductionCoordinator @Inject constructor(
             currentMonth = currentMonth,
             discipleId = null,
             discipleName = "",
-            successRate = recipe.successRate,
+            successRate = recipe.successRate + forgePolicyBonus,
             materials = recipe.materials,
             availableMaterials = availableMaterials,
             outputItemId = recipe.id,

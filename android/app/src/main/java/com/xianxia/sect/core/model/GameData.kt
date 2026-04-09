@@ -1,16 +1,30 @@
+@file:Suppress("DEPRECATION")
+
 package com.xianxia.sect.core.model
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
-import androidx.room.PrimaryKey
+import androidx.room.Index
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.production.ProductionSlot
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 
 @Serializable
-@Entity(tableName = "game_data")
+@Entity(
+    tableName = "game_data",
+    primaryKeys = ["id", "slot_id"],
+    indices = [
+        Index(value = ["slot_id"], unique = true)
+    ]
+)
 data class GameData(
-    @PrimaryKey
-    var id: String = "game_data",
+    @ColumnInfo(name = "id")
+    var id: String = "",
+
+    @ColumnInfo(name = "slot_id")
+    var slotId: Int = 0,
+
     var sectName: String = "青云宗",
     var currentSlot: Int = 1,
 
@@ -28,7 +42,7 @@ data class GameData(
     var spiritHerbs: Int = 0,
     var sectCultivation: Double = 0.0,
 
-    // 自动存档设置（月数：3, 6, 12）
+    // 自动存档设置（月数，0为停止）
     var autoSaveIntervalMonths: Int = 3,
 
     // 月俸配置
@@ -82,7 +96,7 @@ data class GameData(
     // 玩家上架商品
     var playerListedItems: List<MerchantItem> = emptyList(),
 
-    // 弟子招募
+    // 弟子招募（存储完整弟子对象，仅包含可招募但未正式招募的弟子）
     var recruitList: List<Disciple> = emptyList(),
     var lastRecruitYear: Int = 0,
 
@@ -143,7 +157,7 @@ data class GameData(
     // AI战斗队伍
     var aiBattleTeams: List<AIBattleTeam> = emptyList(),
 
-    // 已使用的兑换码列表
+    // 已使用的兑换码列表（使用 LinkedHashSet 去重 + 上限保护）
     var usedRedeemCodes: List<String> = emptyList(),
 
     // 玩家保护机制：AI宗门100年内不会攻击玩家宗门（若玩家主动攻击则解除）
@@ -153,7 +167,11 @@ data class GameData(
 
     // 任务阁系统
     var activeMissions: List<ActiveMission> = emptyList(),
-    var availableMissions: List<Mission> = emptyList()
+    var availableMissions: List<Mission> = emptyList(),
+
+    // 外门大比系统
+    var pendingCompetitionResults: List<CompetitionRankResult> = emptyList(),
+    var lastCompetitionYear: Int = 0
 ) {
     val displayTime: String get() = "第${gameYear}年${gameMonth}月"
 
@@ -222,7 +240,9 @@ data class GameData(
         unlockedDungeons = unlockedDungeons,
         unlockedRecipes = unlockedRecipes,
         unlockedManuals = unlockedManuals,
-        manualProficiencies = manualProficiencies
+        manualProficiencies = manualProficiencies,
+        pendingCompetitionResults = pendingCompetitionResults,
+        lastCompetitionYear = lastCompetitionYear
     )
 
     /**
@@ -272,8 +292,14 @@ data class GameData(
         unlockedDungeons = state.unlockedDungeons,
         unlockedRecipes = state.unlockedRecipes,
         unlockedManuals = state.unlockedManuals,
-        manualProficiencies = state.manualProficiencies
+        manualProficiencies = state.manualProficiencies,
+        pendingCompetitionResults = state.pendingCompetitionResults,
+        lastCompetitionYear = state.lastCompetitionYear
     )
+
+    companion object {
+        const val MAX_REDEEM_CODES = 500
+    }
 }
 
 // 宗门政策数据
@@ -291,33 +317,25 @@ data class SectPolicies(
 // 长老槽位数据
 @Serializable
 data class ElderSlots(
-    val viceSectMaster: String? = null,
-    val herbGardenElder: String? = null,
-    val alchemyElder: String? = null,
-    val forgeElder: String? = null,
-    // 问道峰相关槽位
-    val outerElder: String? = null,
-    val preachingElder: String? = null,
+    val viceSectMaster: String = "",
+    val herbGardenElder: String = "",
+    val alchemyElder: String = "",
+    val forgeElder: String = "",
+    val outerElder: String = "",
+    val preachingElder: String = "",
     val preachingMasters: List<DirectDiscipleSlot> = emptyList(),
-    // 执法堂相关槽位
-    val lawEnforcementElder: String? = null,
+    val lawEnforcementElder: String = "",
     val lawEnforcementDisciples: List<DirectDiscipleSlot> = emptyList(),
     val lawEnforcementReserveDisciples: List<DirectDiscipleSlot> = emptyList(),
-    // 青云峰相关槽位
-    val innerElder: String? = null,
-    val qingyunPreachingElder: String? = null,
+    val innerElder: String = "",
+    val qingyunPreachingElder: String = "",
     val qingyunPreachingMasters: List<DirectDiscipleSlot> = emptyList(),
-    // 每个长老的亲传弟子槽位（每个长老 2 个）
     val herbGardenDisciples: List<DirectDiscipleSlot> = emptyList(),
     val alchemyDisciples: List<DirectDiscipleSlot> = emptyList(),
     val forgeDisciples: List<DirectDiscipleSlot> = emptyList(),
-    // 灵药宛储备弟子
     val herbGardenReserveDisciples: List<DirectDiscipleSlot> = emptyList(),
-    // 丹鼎殿储备弟子
     val alchemyReserveDisciples: List<DirectDiscipleSlot> = emptyList(),
-    // 天工峰储备弟子
     val forgeReserveDisciples: List<DirectDiscipleSlot> = emptyList(),
-    // 灵矿执事槽位（灵矿场2个）
     val spiritMineDeaconDisciples: List<DirectDiscipleSlot> = emptyList()
 ) {
     fun isDiscipleInAnyPosition(discipleId: String): Boolean {
@@ -345,27 +363,27 @@ data class ElderSlots(
 @Serializable
 data class DirectDiscipleSlot(
     val index: Int = 0,
-    val discipleId: String? = null,
+    val discipleId: String = "",
     val discipleName: String = "",
     val discipleRealm: String = "",
     val discipleSpiritRootColor: String = "#E0E0E0"
 ) {
-    val isActive: Boolean get() = discipleId != null
+    val isActive: Boolean get() = discipleId.isNotEmpty()
 }
 
 // 种植槽位数据
 @Serializable
 data class PlantSlotData(
     val index: Int = 0,
-    val status: String = "idle", // idle, growing, mature
-    val seedId: String? = null,
+    val status: String = "idle",
+    val seedId: String = "",
     val seedName: String = "",
     val startYear: Int = 0,
     val startMonth: Int = 0,
-    val growTime: Int = 0, // 生长所需月数
-    val expectedYield: Int = 0, // 预期产量
+    val growTime: Int = 0,
+    val expectedYield: Int = 0,
     val harvestAmount: Int = 0,
-    val harvestHerbId: String? = null
+    val harvestHerbId: String = ""
 ) {
     val isGrowing: Boolean get() = status == "growing"
     val isFinished: Boolean get() = status == "mature"
@@ -385,6 +403,10 @@ data class PlantSlotData(
         val monthDiff = (currentMonth - startMonth).toLong()
         val elapsedMonths = yearDiff * 12 + monthDiff
         return (growTime - elapsedMonths.toInt()).coerceAtLeast(0)
+    }
+
+    companion object {
+        const val MAX_AI_DISCIPLES_PER_SECT = 1000
     }
 }
 
@@ -428,7 +450,7 @@ data class ManualProficiencyData(
 @Serializable
 data class MineSlot(
     val index: Int = 0,
-    val discipleId: String? = null,
+    val discipleId: String = "",
     val discipleName: String = "",
     val output: Int = 0,
     val efficiency: Double = 1.0,
@@ -470,26 +492,26 @@ data class WorldSect(
     val connectedSectIds: List<String> = emptyList(),
     @Transient val connectedSects: List<WorldSect> = emptyList(),
     val isOccupied: Boolean = false,
-    val occupierTeamId: String? = null,
+    val occupierTeamId: String = "",
     val occupierTeamName: String = "",
     val mineSlots: List<MineSlot> = emptyList(),
     val occupationTime: Long = 0,
     val isOwned: Boolean = false,
     val expiryYear: Int = 0,
     val expiryMonth: Int = 0,
-    val scoutInfo: SectScoutInfo? = null,
+    val scoutInfo: SectScoutInfo = SectScoutInfo(),
     val tradeItems: List<MerchantItem> = emptyList(),
     val tradeLastRefreshYear: Int = 0,
     val lastGiftYear: Int = 0,
-    val allianceId: String? = null,
+    val allianceId: String = "",
     val allianceStartYear: Int = 0,
     val isRighteous: Boolean = true,
     val aiDisciples: List<Disciple> = emptyList(),
     val isPlayerOccupied: Boolean = false,
-    val occupierBattleTeamId: String? = null,
+    val occupierBattleTeamId: String = "",
     val isUnderAttack: Boolean = false,
-    val attackerSectId: String? = null,
-    val occupierSectId: String? = null,
+    val attackerSectId: String = "",
+    val occupierSectId: String = "",
     val warehouse: SectWarehouse = SectWarehouse(),
     val giftPreference: GiftPreferenceType = GiftPreferenceType.NONE
 ) {
@@ -559,21 +581,20 @@ data class SectScoutInfo(
 @Serializable
 data class SpiritMineSlot(
     val index: Int = 0,
-    val discipleId: String? = null,
+    val discipleId: String = "",
     val discipleName: String = "",
     val output: Int = 100
 ) {
-    val isActive: Boolean get() = discipleId != null
+    val isActive: Boolean get() = discipleId.isNotEmpty()
 }
 
-// 藏经阁弟子槽位
 @Serializable
 data class LibrarySlot(
     val index: Int = 0,
-    val discipleId: String? = null,
+    val discipleId: String = "",
     val discipleName: String = ""
 ) {
-    val isActive: Boolean get() = discipleId != null
+    val isActive: Boolean get() = discipleId.isNotEmpty()
 }
 
 @Serializable
@@ -615,22 +636,22 @@ data class BattleTeam(
     val targetX: Float = 0f,
     val targetY: Float = 0f,
     val status: String = "idle",
-    val targetSectId: String? = null,
-    val originSectId: String? = null,
+    val targetSectId: String = "",
+    val originSectId: String = "",
     val route: List<String> = emptyList(),
     val currentRouteIndex: Int = 0,
     val moveProgress: Float = 0f,
     val isOccupying: Boolean = false,
-    val occupiedSectId: String? = null,
+    val occupiedSectId: String = "",
     val isReturning: Boolean = false
 ) {
-    val isFull: Boolean get() = slots.all { it.discipleId != null }
-    val memberCount: Int get() = slots.count { it.discipleId != null }
+    val isFull: Boolean get() = slots.all { it.discipleId.isNotEmpty() }
+    val memberCount: Int get() = slots.count { it.discipleId.isNotEmpty() }
     val isIdle: Boolean get() = status == "idle"
     val isMoving: Boolean get() = status == "moving"
     val isInBattle: Boolean get() = status == "battle"
     val isStationed: Boolean get() = status == "stationed"
-    val aliveMemberCount: Int get() = slots.count { it.discipleId != null && it.isAlive }
+    val aliveMemberCount: Int get() = slots.count { it.discipleId.isNotEmpty() && it.isAlive }
 }
 
 @Serializable
@@ -642,13 +663,13 @@ enum class BattleSlotType {
 @Serializable
 data class BattleTeamSlot(
     val index: Int = 0,
-    val discipleId: String? = null,
+    val discipleId: String = "",
     val discipleName: String = "",
     val discipleRealm: String = "",
     val slotType: BattleSlotType = BattleSlotType.DISCIPLE,
     val isAlive: Boolean = true
 ) {
-    val isActive: Boolean get() = discipleId != null
+    val isActive: Boolean get() = discipleId.isNotEmpty()
 }
 
 @Serializable
@@ -672,4 +693,10 @@ data class AIBattleTeam(
     val startYear: Int = 0,
     val startMonth: Int = 0,
     val isPlayerDefender: Boolean = false
+)
+
+@Serializable
+data class CompetitionRankResult(
+    val discipleId: String = "",
+    val rank: Int = 0
 )

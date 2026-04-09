@@ -24,9 +24,10 @@ class SaveLoadUseCase @Inject constructor(
         data class Error(val message: String) : LoadResult()
     }
     
+    @Suppress("DEPRECATION")
     suspend fun saveGame(slotId: Int): SaveResult = withContext(Dispatchers.IO) {
         try {
-            val snapshot = gameEngine.getStateSnapshotSync()
+            val snapshot = gameEngine.getStateSnapshot()
             val saveData = SaveData(
                 gameData = snapshot.gameData,
                 disciples = snapshot.disciples,
@@ -39,7 +40,8 @@ class SaveLoadUseCase @Inject constructor(
                 teams = snapshot.teams,
                 events = snapshot.events,
                 battleLogs = snapshot.battleLogs,
-                alliances = snapshot.alliances
+                alliances = snapshot.alliances,
+                productionSlots = snapshot.productionSlots
             )
             
             when (val result = storageFacade.save(slotId, saveData)) {

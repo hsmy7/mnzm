@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.xianxia.sect.data.incremental
 
 import android.content.Context
@@ -9,7 +11,8 @@ import com.xianxia.sect.data.model.SaveSlot
 import com.xianxia.sect.data.local.GameDatabase
 import com.xianxia.sect.data.cache.CacheKey
 import com.xianxia.sect.data.cache.GameDataCacheManager
-import com.xianxia.sect.data.unified.UnifiedSaveRepository
+import com.xianxia.sect.data.engine.UnifiedStorageEngine
+import com.xianxia.sect.data.result.StorageResult
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -62,10 +65,9 @@ class IncrementalStorageCoordinator @Inject constructor(
     private val context: Context,
     private val database: GameDatabase,
     private val cacheManager: GameDataCacheManager,
-    private val saveRepository: UnifiedSaveRepository,
     private val changeTracker: ChangeTracker,
     private val deltaCompressor: DeltaCompressor,
-    private val incrementalManager: IncrementalStorageManager
+    private val engine: UnifiedStorageEngine
 ) {
     companion object {
         private const val TAG = "IncStorageCoordinator"
@@ -100,39 +102,31 @@ class IncrementalStorageCoordinator @Inject constructor(
         if (!isValidSlot(slot)) {
             return StorageSaveResult(false, error = "Invalid slot")
         }
-        
+
         return saveMutex.withLock {
             _isSaving.value = true
             val startTime = System.currentTimeMillis()
-            
+
             try {
-                val shouldDoFullSave = !config.enableIncrementalSave ||
-                    !incrementalManager.hasSave(slot) ||
-                    !changeTracker.hasChanges() ||
-                    (saveCount - lastFullSaveCount) >= config.forceFullSaveInterval
-                
-                val result = if (shouldDoFullSave) {
-                    performFullSave(slot, data)
-                } else {
-                    performIncrementalSave(slot, data)
-                }
-                
-                if (result.success) {
+                val result = engine.save(slot, data)
+                val coordinatorResult = result.toCoordinatorResult(startTime)
+
+                if (coordinatorResult.success) {
                     saveCount++
-                    totalBytesSaved += result.savedBytes
-                    totalSaveTime += result.elapsedMs
-                    
-                    if (result.isIncremental) {
+                    totalBytesSaved += coordinatorResult.savedBytes
+                    totalSaveTime += coordinatorResult.elapsedMs
+
+                    if (coordinatorResult.isIncremental) {
                         incrementalSaveCount++
                     } else {
                         fullSaveCount++
                         lastFullSaveCount = saveCount
                     }
-                    
+
                     updateStats()
                 }
-                
-                result
+
+                coordinatorResult
             } finally {
                 _isSaving.value = false
             }
@@ -141,55 +135,49 @@ class IncrementalStorageCoordinator @Inject constructor(
     
     private suspend fun performFullSave(slot: Int, data: SaveData): StorageSaveResult {
         Log.i(TAG, "Performing full save for slot $slot")
-        
-        val incrementalResult = incrementalManager.saveFull(slot, data)
-        
-        if (incrementalResult.success) {
+
+        val result = engine.save(slot, data, com.xianxia.sect.data.engine.SavePriority.HIGH)
+
+        if (result.isSuccess) {
             changeTracker.clearChanges()
-            val syncSuccess = syncToDatabaseWithTransaction(data)
-            if (!syncSuccess) {
-                Log.w(TAG, "Database sync failed for slot $slot, but incremental save succeeded")
-            }
         }
-        
+
+        val stats = result.getOrNull() ?: com.xianxia.sect.data.engine.SaveOperationStats()
         return StorageSaveResult(
-            success = incrementalResult.success,
-            savedBytes = incrementalResult.savedBytes,
-            elapsedMs = incrementalResult.elapsedMs,
+            success = result.isSuccess,
+            savedBytes = stats.bytesWritten,
+            elapsedMs = stats.timeMs,
             isIncremental = false,
             deltaCount = 0,
-            error = incrementalResult.error
+            error = if (result.isFailure) (result as com.xianxia.sect.data.result.StorageResult.Failure).message else null
         )
     }
-    
+
     private suspend fun performIncrementalSave(slot: Int, data: SaveData): StorageSaveResult {
         Log.i(TAG, "Performing incremental save for slot $slot")
-        
-        val result = incrementalManager.saveIncremental(slot, data)
-        
-        if (result.success) {
-            val chain = incrementalManager.getDeltaChain(slot)
-            if (chain != null && chain.chainLength >= config.compactionThreshold) {
-                Log.i(TAG, "Delta chain length ${chain.chainLength} exceeds threshold, triggering compaction")
-                incrementalManager.compact(slot)
-            }
-            
-            syncChangesToDatabase()
+
+        val result = engine.save(slot, data)
+
+        if (result.isSuccess) {
+            changeTracker.clearChanges()
         }
-        
+
+        val stats = result.getOrNull() ?: com.xianxia.sect.data.engine.SaveOperationStats()
         return StorageSaveResult(
-            success = result.success,
-            savedBytes = result.savedBytes,
-            elapsedMs = result.elapsedMs,
-            isIncremental = true,
-            deltaCount = result.deltaCount,
-            error = result.error
+            success = result.isSuccess,
+            savedBytes = stats.bytesWritten,
+            elapsedMs = stats.timeMs,
+            isIncremental = stats.wasIncremental,
+            deltaCount = if (stats.wasIncremental) 1 else 0,
+            error = if (result.isFailure) (result as com.xianxia.sect.data.result.StorageResult.Failure).message else null
         )
     }
     
     private suspend fun syncToDatabase(data: SaveData) {
         try {
-            database.gameDataDao().insert(data.gameData)
+            val slot = data.gameData.currentSlot.takeIf { it > 0 } ?: data.gameData.slotId.takeIf { it > 0 } ?: 1
+            val gameDataWithSlot = data.gameData.copy(slotId = slot, currentSlot = slot, id = "game_data_$slot")
+            database.gameDataDao().insert(gameDataWithSlot)
             
             val batchSize = 50
             data.disciples.chunked(batchSize).forEach { batch ->
@@ -224,7 +212,11 @@ class IncrementalStorageCoordinator @Inject constructor(
     private suspend fun syncToDatabaseWithTransaction(data: SaveData): Boolean {
         return try {
             database.withTransaction {
-                data.gameData?.let { database.gameDataDao().insert(it) }
+                val slot = data.gameData?.currentSlot?.takeIf { it > 0 } ?: data.gameData?.slotId?.takeIf { it > 0 } ?: 1
+                data.gameData?.let {
+                    val gameDataWithSlot = it.copy(slotId = slot, currentSlot = slot, id = "game_data_$slot")
+                    database.gameDataDao().insert(gameDataWithSlot)
+                }
                 
                 val batchSize = 50
                 data.disciples.chunked(batchSize).forEach { batch ->
@@ -274,7 +266,10 @@ class IncrementalStorageCoordinator @Inject constructor(
                             DataType.MATERIAL -> if (change.newValue is Material) database.materialDao().insert(change.newValue)
                             DataType.HERB -> if (change.newValue is Herb) database.herbDao().insert(change.newValue)
                             DataType.SEED -> if (change.newValue is Seed) database.seedDao().insert(change.newValue)
-                            DataType.GAME_DATA -> if (change.newValue is GameData) database.gameDataDao().insert(change.newValue)
+                            DataType.GAME_DATA -> if (change.newValue is GameData) {
+                                val slot = change.newValue.currentSlot.takeIf { it > 0 } ?: change.newValue.slotId.takeIf { it > 0 } ?: 1
+                                database.gameDataDao().insert(change.newValue.copy(slotId = slot, currentSlot = slot, id = "game_data_$slot"))
+                            }
                             else -> {}
                         }
                     }
@@ -287,14 +282,17 @@ class IncrementalStorageCoordinator @Inject constructor(
                             DataType.MATERIAL -> if (change.newValue is Material) database.materialDao().insert(change.newValue)
                             DataType.HERB -> if (change.newValue is Herb) database.herbDao().insert(change.newValue)
                             DataType.SEED -> if (change.newValue is Seed) database.seedDao().insert(change.newValue)
-                            DataType.GAME_DATA -> if (change.newValue is GameData) database.gameDataDao().insert(change.newValue)
+                            DataType.GAME_DATA -> if (change.newValue is GameData) {
+                                val slot = change.newValue.currentSlot.takeIf { it > 0 } ?: change.newValue.slotId.takeIf { it > 0 } ?: 1
+                                database.gameDataDao().insert(change.newValue.copy(slotId = slot, currentSlot = slot, id = "game_data_$slot"))
+                            }
                             else -> {}
                         }
                     }
                     ChangeType.DELETED -> {
                         when (change.dataType) {
-                            DataType.DISCIPLE -> database.discipleDao().deleteById(change.entityId)
-                            DataType.EQUIPMENT -> database.equipmentDao().deleteById(change.entityId)
+                            DataType.DISCIPLE -> database.discipleDao().deleteById(0, change.entityId)
+                            DataType.EQUIPMENT -> database.equipmentDao().deleteById(0, change.entityId)
                             DataType.MANUAL -> if (change.oldValue is Manual) database.manualDao().delete(change.oldValue)
                             DataType.PILL -> if (change.oldValue is Pill) database.pillDao().delete(change.oldValue)
                             DataType.MATERIAL -> if (change.oldValue is Material) database.materialDao().delete(change.oldValue)
@@ -316,34 +314,29 @@ class IncrementalStorageCoordinator @Inject constructor(
         if (!isValidSlot(slot)) {
             return StorageLoadResult(null, error = "Invalid slot")
         }
-        
+
         val startTime = System.currentTimeMillis()
-        
+
         try {
-            val incrementalResult = incrementalManager.load(slot)
-            
-            val data = if (incrementalResult.data != null) {
-                incrementalResult.data
-            } else {
-                saveRepository.load(slot).getOrNull()
-            }
-            
+            val result = engine.load(slot)
+
             loadCount++
             totalLoadTime += System.currentTimeMillis() - startTime
-            
+
+            val data = result.getOrNull()
             if (data != null) {
-                totalBytesLoaded += estimateDataSize(data)
+                totalBytesSaved += UnifiedStorageEngine.estimateSaveSize(data)
                 warmupCache(slot, data)
             }
-            
+
             updateStats()
-            
+
             return StorageLoadResult(
                 data = data,
                 elapsedMs = System.currentTimeMillis() - startTime,
-                appliedDeltas = incrementalResult.appliedDeltas,
-                wasFromSnapshot = incrementalResult.wasFromSnapshot,
-                error = incrementalResult.error
+                appliedDeltas = 0,
+                wasFromSnapshot = false,
+                error = if (result.isFailure) (result as com.xianxia.sect.data.result.StorageResult.Failure).message else null
             )
         } catch (e: Exception) {
             Log.e(TAG, "Load failed for slot $slot", e)
@@ -353,7 +346,7 @@ class IncrementalStorageCoordinator @Inject constructor(
     
     private fun warmupCache(slot: Int, data: SaveData) {
         try {
-            cacheManager.put(CacheKey.forGameData(slot), data.gameData)
+            cacheManager.putAsync(CacheKey.forGameData(slot), data.gameData)
             Log.d(TAG, "Warmed up cache with loaded data for slot $slot")
         } catch (e: Exception) {
             Log.w(TAG, "Failed to warmup cache: ${e.message}")
@@ -361,7 +354,12 @@ class IncrementalStorageCoordinator @Inject constructor(
     }
     
     fun trackChange(dataType: DataType, entityId: String, oldValue: Any?, newValue: Any?) {
-        incrementalManager.trackChange(dataType, entityId, oldValue, newValue)
+        when {
+            oldValue == null -> newValue?.let { changeTracker.trackCreate(dataType, entityId, it) }
+                ?: Log.w(TAG, "trackCreate called with null newValue for $entityId")
+            newValue == null -> changeTracker.trackDelete(dataType, entityId, oldValue)
+            else -> changeTracker.trackUpdate(dataType, entityId, oldValue, newValue)
+        }
     }
     
     fun trackDiscipleCreate(disciple: Disciple) {
@@ -464,31 +462,25 @@ class IncrementalStorageCoordinator @Inject constructor(
         trackChange(DataType.GAME_DATA, "current", oldGameData, newGameData)
     }
     
-    fun hasPendingChanges(): Boolean = incrementalManager.hasPendingChanges()
+    fun hasPendingChanges(): Boolean = changeTracker.hasChanges()
+
+    fun getPendingChangeCount(): Int = changeTracker.changeCount()
     
-    fun getPendingChangeCount(): Int = incrementalManager.getPendingChangeCount()
-    
-    fun getSaveSlots(): List<SaveSlot> {
-        return (1..IncrementalStorageConfig.MAX_SLOTS).mapNotNull { slot ->
-            incrementalManager.getSlotInfo(slot)
-        }
-    }
-    
-    fun hasSave(slot: Int): Boolean = incrementalManager.hasSave(slot)
-    
+    fun getSaveSlots(): List<SaveSlot> = emptyList()
+
+    suspend fun hasSave(slot: Int): Boolean = engine.hasData(slot)
+
     suspend fun delete(slot: Int): Boolean {
-        val incrementalDeleted = incrementalManager.delete(slot)
-        val repoDeleted = saveRepository.delete(slot).isSuccess
-        return incrementalDeleted && repoDeleted
+        return engine.delete(slot).isSuccess
     }
-    
+
     suspend fun compact(slot: Int): Boolean {
-        return incrementalManager.compact(slot)
+        return engine.save(slot, engine.load(slot).getOrNull() ?: return false, com.xianxia.sect.data.engine.SavePriority.HIGH).isSuccess
     }
-    
-    fun getDeltaChain(slot: Int): DeltaChain? = incrementalManager.getDeltaChain(slot)
-    
-    fun getIncrementalStats(): IncrementalStorageStats = incrementalManager.stats.value
+
+    fun getDeltaChain(slot: Int): DeltaChain? = null
+
+    fun getIncrementalStats(): IncrementalStorageStats = IncrementalStorageStats()
     
     private fun updateStats() {
         _stats.value = StorageStats(
@@ -500,32 +492,41 @@ class IncrementalStorageCoordinator @Inject constructor(
             totalBytesLoaded = totalBytesLoaded,
             avgSaveTimeMs = if (saveCount > 0) totalSaveTime / saveCount else 0,
             avgLoadTimeMs = if (loadCount > 0) totalLoadTime / loadCount else 0,
-            currentDeltaChainLength = incrementalManager.stats.value.deltaChainLength,
-            pendingChanges = incrementalManager.stats.value.pendingChanges
+            currentDeltaChainLength = 0,
+            pendingChanges = changeTracker.changeCount()
         )
     }
-    
-    private fun estimateDataSize(data: SaveData): Long {
-        var size = 0L
-        size += data.disciples.size * 500L
-        size += data.equipment.size * 200L
-        size += data.manuals.size * 200L
-        size += data.pills.size * 100L
-        size += data.materials.size * 100L
-        size += data.herbs.size * 100L
-        size += data.seeds.size * 100L
-        size += data.teams.size * 300L
-        size += data.events.size * 200L
-        size += data.battleLogs.size * 500L
-        size += 10000L
-        return size
-    }
+
+    private fun estimateDataSize(data: SaveData): Long = UnifiedStorageEngine.estimateSaveSize(data)
     
     private fun isValidSlot(slot: Int): Boolean = slot in 1..IncrementalStorageConfig.MAX_SLOTS
     
     fun shutdown() {
-        incrementalManager.shutdown()
         scope.cancel()
         Log.i(TAG, "IncrementalStorageCoordinator shutdown completed")
+    }
+}
+
+private fun StorageResult<com.xianxia.sect.data.engine.SaveOperationStats>.toCoordinatorResult(startTime: Long): StorageSaveResult {
+    return if (isSuccess) {
+        val stats = getOrNull()
+        if (stats != null) {
+            StorageSaveResult(
+                success = true,
+                savedBytes = stats.bytesWritten,
+                elapsedMs = if (stats.timeMs > 0) stats.timeMs else System.currentTimeMillis() - startTime,
+                isIncremental = stats.wasIncremental
+            )
+        } else {
+            StorageSaveResult(
+                success = false,
+                error = "Stats data is null for successful save result"
+            )
+        }
+    } else {
+        StorageSaveResult(
+            success = false,
+            error = (this as StorageResult.Failure).message.let { if (it.isEmpty()) "Save failed" else it }
+        )
     }
 }

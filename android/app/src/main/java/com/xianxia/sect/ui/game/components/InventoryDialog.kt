@@ -10,6 +10,7 @@ import androidx.compose.ui.unit.dp
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.ui.components.GameButton
 
+@Suppress("UNUSED_PARAMETER")
 @Composable
 fun InventoryDialog(
     equipment: List<Equipment>,
@@ -20,7 +21,7 @@ fun InventoryDialog(
     viewModel: com.xianxia.sect.ui.game.GameViewModel,
     onDismiss: () -> Unit
 ) {
-    var selectedTab by remember { mutableStateOf(0) }
+    var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("装备", "功法", "丹药", "材料", "灵草")
     
     AlertDialog(

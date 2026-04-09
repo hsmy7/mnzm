@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.GameConfig
@@ -57,13 +59,15 @@ object CaveExplorationSystem {
             val discipleManuals = disciple.manualIds.mapNotNull { id -> playerManualMap[id]?.let { id to it } }.toMap()
             val discipleProficiencies = playerManualProficiencies[disciple.id] ?: emptyMap()
             val stats = disciple.getFinalStats(discipleEquipment, discipleManuals, discipleProficiencies)
+            val effectiveHp = if (disciple.currentHp < 0) stats.maxHp else disciple.currentHp.coerceAtMost(stats.maxHp)
+            val effectiveMp = if (disciple.currentMp < 0) stats.maxMp else disciple.currentMp.coerceAtMost(stats.maxMp)
             Combatant(
                 id = disciple.id,
                 name = disciple.name,
                 type = CombatantType.DISCIPLE,
-                hp = stats.maxHp,
+                hp = effectiveHp,
                 maxHp = stats.maxHp,
-                mp = stats.maxMp,
+                mp = effectiveMp,
                 maxMp = stats.maxMp,
                 physicalAttack = stats.physicalAttack,
                 magicAttack = stats.magicAttack,
@@ -124,13 +128,15 @@ object CaveExplorationSystem {
             val discipleManuals = disciple.manualIds.mapNotNull { id -> playerManualMap[id]?.let { id to it } }.toMap()
             val discipleProficiencies = playerManualProficiencies[disciple.id] ?: emptyMap()
             val stats = disciple.getFinalStats(discipleEquipment, discipleManuals, discipleProficiencies)
+            val effectiveHp = if (disciple.currentHp < 0) stats.maxHp else disciple.currentHp.coerceAtMost(stats.maxHp)
+            val effectiveMp = if (disciple.currentMp < 0) stats.maxMp else disciple.currentMp.coerceAtMost(stats.maxMp)
             Combatant(
                 id = disciple.id,
                 name = disciple.name,
                 type = CombatantType.DISCIPLE,
-                hp = stats.maxHp,
+                hp = effectiveHp,
                 maxHp = stats.maxHp,
-                mp = stats.maxMp,
+                mp = effectiveMp,
                 maxMp = stats.maxMp,
                 physicalAttack = stats.physicalAttack,
                 magicAttack = stats.magicAttack,

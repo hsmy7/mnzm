@@ -25,6 +25,7 @@ import com.xianxia.sect.core.data.PillRecipeDatabase
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.theme.GameColors
+import java.util.Locale
 
 @Composable
 fun AlchemyDialog(
@@ -32,7 +33,7 @@ fun AlchemyDialog(
     materials: List<Material>,
     herbs: List<Herb>,
     gameData: GameData?,
-    disciples: List<Disciple>,
+    disciples: List<DiscipleAggregate>,
     viewModel: GameViewModel,
     colors: com.xianxia.sect.ui.theme.XianxiaColorScheme,
     onDismiss: () -> Unit
@@ -93,12 +94,32 @@ fun AlchemyDialog(
                 thickness = 1.dp
             )
 
-            Text(
-                text = theme.slotLabelPrefix,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = theme.slotLabelPrefix,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(theme.reserveButtonBackgroundColor)
+                        .clickable { viewModel.autoAlchemyAllSlots() }
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "自动炼丹",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = theme.reserveButtonTextColor
+                    )
+                }
+            }
 
             val slotCount = theme.slotCount
             (0 until slotCount).chunked(3).forEach { rowIndexes ->
@@ -110,7 +131,7 @@ fun AlchemyDialog(
                         val slot = alchemySlots.getOrNull(index)
                         val isIdle = slot?.status == AlchemySlotStatus.IDLE || slot == null
                         val isWorking = slot?.status == AlchemySlotStatus.WORKING
-                        val remainingMonths = if (isWorking && slot != null && gameData != null)
+                        val remainingMonths = if (isWorking && gameData != null)
                             slot.getRemainingMonths(gameData.gameYear, gameData.gameMonth) else 0
 
                         ProductionSlotItem(
@@ -187,7 +208,7 @@ fun AlchemyDialog(
 
 @Composable
 private fun AlchemyReserveDiscipleDialogWrapper(
-    disciples: List<Disciple>,
+    disciples: List<DiscipleAggregate>,
     viewModel: GameViewModel,
     onDismiss: () -> Unit
 ) {
@@ -258,12 +279,11 @@ private fun PillSelectionDialog(
             craftable.sortedByDescending { it.recipe.rarity } + uncraftable
         }
 
-        Column {
+        Column(modifier = Modifier.weight(1f)) {
             LazyVerticalGrid(
-                columns = GridCells.Fixed(4),
+                columns = GridCells.Adaptive(56.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.height(300.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(sortedRecipes) { recipeWithStatus ->
                     val recipe = recipeWithStatus.recipe
@@ -419,55 +439,55 @@ private fun PillDetailDialog(
                     Text(text = "类型: ${recipe.category.displayName}", fontSize = 11.sp, color = Color(0xFF666666))
 
                     if (recipe.breakthroughChance > 0) {
-                        Text(text = "突破成功率 +${String.format("%.1f", recipe.breakthroughChance * 100)}%", fontSize = 11.sp, color = Color(0xFF666666))
+                        Text(text = "突破成功率 +${String.format(Locale.getDefault(), "%.1f", recipe.breakthroughChance * 100)}%", fontSize = 11.sp, color = Color(0xFF666666))
                         if (recipe.targetRealm > 0) {
                             Text(text = "目标境界: ${recipe.targetRealm}阶", fontSize = 11.sp, color = Color(0xFF666666))
                         }
                     }
                     if (recipe.cultivationSpeed > 1.0) {
-                        Text(text = "修炼速度 +${String.format("%.1f", (recipe.cultivationSpeed - 1.0) * 100)}%", fontSize = 11.sp, color = Color(0xFF666666))
+                        Text(text = "修炼速度 +${String.format(Locale.getDefault(), "%.1f", (recipe.cultivationSpeed - 1.0) * 100)}%", fontSize = 11.sp, color = Color(0xFF666666))
                     }
                     if (recipe.cultivation > 0) {
                         Text(text = "修为 +${recipe.cultivation}", fontSize = 11.sp, color = Color(0xFF666666))
                     }
                     if (recipe.cultivationPercent > 0) {
-                        Text(text = "修为 +${String.format("%.1f", recipe.cultivationPercent * 100)}%", fontSize = 11.sp, color = Color(0xFF666666))
+                        Text(text = "修为 +${String.format(Locale.getDefault(), "%.1f", recipe.cultivationPercent * 100)}%", fontSize = 11.sp, color = Color(0xFF666666))
                     }
                     if (recipe.physicalAttackPercent > 0) {
-                        Text(text = "物理攻击 +${String.format("%.1f", recipe.physicalAttackPercent * 100)}%", fontSize = 11.sp, color = Color(0xFF666666))
+                        Text(text = "物理攻击 +${String.format(Locale.getDefault(), "%.1f", recipe.physicalAttackPercent * 100)}%", fontSize = 11.sp, color = Color(0xFF666666))
                     }
                     if (recipe.magicAttackPercent > 0) {
-                        Text(text = "法术攻击 +${String.format("%.1f", recipe.magicAttackPercent * 100)}%", fontSize = 11.sp, color = Color(0xFF666666))
+                        Text(text = "法术攻击 +${String.format(Locale.getDefault(), "%.1f", recipe.magicAttackPercent * 100)}%", fontSize = 11.sp, color = Color(0xFF666666))
                     }
                     if (recipe.physicalDefensePercent > 0) {
-                        Text(text = "物理防御 +${String.format("%.1f", recipe.physicalDefensePercent * 100)}%", fontSize = 11.sp, color = Color(0xFF666666))
+                        Text(text = "物理防御 +${String.format(Locale.getDefault(), "%.1f", recipe.physicalDefensePercent * 100)}%", fontSize = 11.sp, color = Color(0xFF666666))
                     }
                     if (recipe.magicDefensePercent > 0) {
-                        Text(text = "法术防御 +${String.format("%.1f", recipe.magicDefensePercent * 100)}%", fontSize = 11.sp, color = Color(0xFF666666))
+                        Text(text = "法术防御 +${String.format(Locale.getDefault(), "%.1f", recipe.magicDefensePercent * 100)}%", fontSize = 11.sp, color = Color(0xFF666666))
                     }
                     if (recipe.hpPercent > 0) {
-                        Text(text = "生命值 +${String.format("%.1f", recipe.hpPercent * 100)}%", fontSize = 11.sp, color = Color(0xFF666666))
+                        Text(text = "生命值 +${String.format(Locale.getDefault(), "%.1f", recipe.hpPercent * 100)}%", fontSize = 11.sp, color = Color(0xFF666666))
                     }
                     if (recipe.mpPercent > 0) {
-                        Text(text = "灵力容量 +${String.format("%.1f", recipe.mpPercent * 100)}%", fontSize = 11.sp, color = Color(0xFF666666))
+                        Text(text = "灵力容量 +${String.format(Locale.getDefault(), "%.1f", recipe.mpPercent * 100)}%", fontSize = 11.sp, color = Color(0xFF666666))
                     }
                     if (recipe.speedPercent > 0) {
-                        Text(text = "身法 +${String.format("%.1f", recipe.speedPercent * 100)}%", fontSize = 11.sp, color = Color(0xFF666666))
+                        Text(text = "身法 +${String.format(Locale.getDefault(), "%.1f", recipe.speedPercent * 100)}%", fontSize = 11.sp, color = Color(0xFF666666))
                     }
                     if (recipe.heal > 0) {
                         Text(text = "恢复生命值 ${recipe.heal}点", fontSize = 11.sp, color = Color(0xFF666666))
                     }
                     if (recipe.healPercent > 0) {
-                        Text(text = "恢复生命值 ${String.format("%.1f", recipe.healPercent * 100)}%", fontSize = 11.sp, color = Color(0xFF666666))
+                        Text(text = "恢复生命值 ${String.format(Locale.getDefault(), "%.1f", recipe.healPercent * 100)}%", fontSize = 11.sp, color = Color(0xFF666666))
                     }
                     if (recipe.healMaxHpPercent > 0) {
-                        Text(text = "恢复 ${String.format("%.1f", recipe.healMaxHpPercent * 100)}%最大生命值", fontSize = 11.sp, color = Color(0xFF666666))
+                        Text(text = "恢复 ${String.format(Locale.getDefault(), "%.1f", recipe.healMaxHpPercent * 100)}%最大生命值", fontSize = 11.sp, color = Color(0xFF666666))
                     }
                     if (recipe.mpRecoverMaxMpPercent > 0) {
-                        Text(text = "恢复 ${String.format("%.1f", recipe.mpRecoverMaxMpPercent * 100)}%最大灵力", fontSize = 11.sp, color = Color(0xFF666666))
+                        Text(text = "恢复 ${String.format(Locale.getDefault(), "%.1f", recipe.mpRecoverMaxMpPercent * 100)}%最大灵力", fontSize = 11.sp, color = Color(0xFF666666))
                     }
                     if (recipe.skillExpPercent > 0) {
-                        Text(text = "功法熟练度 +${String.format("%.1f", recipe.skillExpPercent * 100)}%", fontSize = 11.sp, color = Color(0xFF666666))
+                        Text(text = "功法熟练度 +${String.format(Locale.getDefault(), "%.1f", recipe.skillExpPercent * 100)}%", fontSize = 11.sp, color = Color(0xFF666666))
                     }
                     if (recipe.extendLife > 0) {
                         Text(text = "延长寿命 ${recipe.extendLife}年", fontSize = 11.sp, color = Color(0xFF666666))

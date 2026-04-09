@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.xianxia.sect.core.engine.service
 
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -179,24 +181,26 @@ class FormulaService(
      * @return 速度加成
      */
     private fun getElderPositionBonus(buildingId: String): Double {
-        val elderBuildingId = when (buildingId) {
-            "forge" -> "forge"
-            "alchemy" -> "alchemy"
-            "herbGarden" -> "herbGarden"
-            else -> return 0.0
-        }
+        // Early return for unsupported building types
+        if (buildingId !in listOf("forge", "alchemy", "herbGarden")) return 0.0
 
-        // 检查该建筑是否有长老任职
+        // Check if there is an elder assigned to this building type
         val data = _gameData.value
-        val elderSlot = data.forgeSlots.find {
-            it.buildingId == elderBuildingId && it.discipleId != null
+        val elderSlots = data.elderSlots
+
+        // Find the elder disciple ID for this building type from elderSlots
+        val elderDiscipleId = when (buildingId) {
+            "forge" -> elderSlots.forgeElder
+            "alchemy" -> elderSlots.alchemyElder
+            "herbGarden" -> elderSlots.herbGardenElder
+            else -> null
         }
 
-        // 如果没有长老任职，返回 0 加成
-        val elderDiscipleId = elderSlot?.discipleId ?: return 0.0
+        // If no elder is assigned, return 0 bonus
+        val resolvedElderDiscipleId = elderDiscipleId ?: return 0.0
 
         // 获取长老弟子对象
-        val elderDisciple = _disciples.value.find { it.id == elderDiscipleId } ?: return 0.0
+        val elderDisciple = _disciples.value.find { it.id == resolvedElderDiscipleId } ?: return 0.0
 
         return when (buildingId) {
             "forge" -> {
@@ -207,11 +211,11 @@ class FormulaService(
             }
             "alchemy" -> {
                 val diff = elderDisciple.pillRefining - 50
-                diff * 0.02
+                (diff * 0.02).coerceIn(-0.10, 0.30)
             }
             "herbGarden" -> {
                 val diff = elderDisciple.spiritPlanting - 50
-                diff * 0.02
+                (diff * 0.02).coerceIn(-0.10, 0.30)
             }
             else -> 0.0
         }

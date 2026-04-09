@@ -2,9 +2,11 @@ package com.xianxia.sect.data.facade
 
 import android.content.Context
 import android.util.Log
+// 迁移说明：引入 StorageGateway 替代直接依赖 UnifiedSaveRepository（2026-04-07）
+// 原因：统一存储访问入口，遵循 Storage Gateway 模式
+import com.xianxia.sect.data.StorageGateway
 import com.xianxia.sect.data.unified.RepositoryStats
-import com.xianxia.sect.data.unified.UnifiedSaveRepository
-import com.xianxia.sect.data.wal.EnhancedTransactionalWAL
+import com.xianxia.sect.data.wal.WALProvider
 import com.xianxia.sect.data.wal.EnhancedWALStats
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.*
@@ -32,11 +34,14 @@ data class StorageUsage(
     val cacheSize: Long
 )
 
+@Suppress("DEPRECATION")
 @Singleton
 class StorageStatsCollector @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val saveRepository: UnifiedSaveRepository,
-    private val wal: EnhancedTransactionalWAL
+    private val storageGateway: StorageGateway,
+    // 高级功能（stats/slots）仍需通过 UnifiedSaveRepository 访问
+    private val unifiedSaveRepository: com.xianxia.sect.data.unified.UnifiedSaveRepository,
+    private val wal: WALProvider
 ) {
     companion object {
         private const val TAG = "StorageStatsCollector"
@@ -79,13 +84,14 @@ class StorageStatsCollector @Inject constructor(
     
     private suspend fun updateStats() {
         try {
-            val repoStats = saveRepository.getStats()
+            // 使用 unifiedSaveRepository.getStats() 替代已删除的 storageGateway.getRepositoryStats()
+            val repoStats = unifiedSaveRepository.getStats()
             val walStats = wal.getStats()
             val usage = calculateStorageUsage()
-            
+
             val avgSave = if (saveTimes.isNotEmpty()) saveTimes.average().toLong() else 0L
             val avgLoad = if (loadTimes.isNotEmpty()) loadTimes.average().toLong() else 0L
-            
+
             _stats.value = StorageSystemStats(
                 totalSaves = repoStats.totalSaves,
                 totalLoads = repoStats.totalLoads,
@@ -93,7 +99,8 @@ class StorageStatsCollector @Inject constructor(
                 avgLoadTimeMs = avgLoad,
                 cacheHitRate = repoStats.cacheHitRate,
                 totalStorageBytes = usage.totalSize,
-                activeSlots = saveRepository.getSaveSlots().count { !it.isEmpty },
+                // 使用 unifiedSaveRepository.getSaveSlots() 替代已删除的 storageGateway.getUnifiedSaveSlots()
+                activeSlots = unifiedSaveRepository.getSaveSlots().count { !it.isEmpty },
                 activeTransactions = repoStats.activeTransactions,
                 walStats = walStats
             )
@@ -162,9 +169,10 @@ class StorageStatsCollector @Inject constructor(
     }
     
     fun getSystemStats(): StorageSystemStats = _stats.value
-    
-    fun getRepositoryStats(): RepositoryStats = saveRepository.getStats()
-    
+
+    // 使用 unifiedSaveRepository.getStats() 替代已删除的 storageGateway.getRepositoryStats()
+    fun getRepositoryStats(): RepositoryStats = unifiedSaveRepository.getStats()
+
     fun shutdown() {
         updateJob?.cancel()
         scope.cancel()

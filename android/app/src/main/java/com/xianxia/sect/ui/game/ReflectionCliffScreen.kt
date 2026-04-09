@@ -24,13 +24,13 @@ import com.xianxia.sect.ui.theme.GameColors
 
 @Composable
 fun ReflectionCliffDialog(
-    disciples: List<Disciple>,
+    disciples: List<DiscipleAggregate>,
     gameData: GameData?,
     onDismiss: () -> Unit,
     onExpelDisciple: (String) -> Unit = {}
 ) {
     val reflectingDisciples = disciples.filter { it.status == DiscipleStatus.REFLECTING }
-    var showExpelConfirmDialog by remember { mutableStateOf<Disciple?>(null) }
+    var showExpelConfirmDialog by remember { mutableStateOf<DiscipleAggregate?>(null) }
 
     CommonDialog(
         title = "思过崖",
@@ -135,12 +135,12 @@ fun ReflectionCliffDialog(
 
 @Composable
 private fun ReflectingDiscipleCard(
-    disciple: Disciple,
+    disciple: DiscipleAggregate,
     currentYear: Int,
     onExpelClick: () -> Unit = {}
 ) {
-    val startYear = disciple.statusData["reflectionStartYear"]?.toIntOrNull() ?: currentYear
-    val endYear = disciple.statusData["reflectionEndYear"]?.toIntOrNull() ?: (currentYear + 10)
+    val startYear = disciple.statusData["reflectionStartYear"]?.toIntOrNull() ?: 1
+    val endYear = disciple.statusData["reflectionEndYear"]?.toIntOrNull() ?: (startYear + 10)
     val remainingYears = (endYear - currentYear).coerceAtLeast(0)
 
     Card(
@@ -169,7 +169,7 @@ private fun ReflectingDiscipleCard(
                         color = Color.Black
                     )
                     Text(
-                        text = disciple.genderSymbol,
+                        text = disciple.core.genderSymbol,
                         fontSize = 11.sp,
                         color = if (disciple.gender == "male") Color(0xFF2196F3) else Color(0xFFE91E63)
                     )

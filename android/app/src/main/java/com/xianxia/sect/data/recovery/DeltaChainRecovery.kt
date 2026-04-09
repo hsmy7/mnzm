@@ -9,6 +9,7 @@ import com.xianxia.sect.data.validation.StorageValidator
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
 import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -91,6 +92,7 @@ class DeltaChainRecovery @Inject constructor(
         private const val DELTA_DIR = "deltas"
         private const val SNAPSHOT_DIR = "snapshots"
         private const val MANIFEST_FILE = "manifest.json"
+        private val jsonDecoder = Json { ignoreUnknownKeys = true }
         
         /** 部分重放策略的缺失delta数量阈值 */
         const val PARTIAL_REPLAY_THRESHOLD = 3
@@ -257,15 +259,6 @@ class DeltaChainRecovery @Inject constructor(
                         error = "Unrecoverable delta chain"
                     )
                 }
-                null -> {
-                    DeltaChainRepairResult(
-                        success = false,
-                        slot = slot,
-                        strategy = null,
-                        recoveredData = null,
-                        error = "Unknown recovery strategy"
-                    )
-                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to repair delta chain for slot $slot", e)
@@ -382,8 +375,8 @@ class DeltaChainRecovery @Inject constructor(
             if (!manifestFile.exists()) return null
             
             val json = manifestFile.readText()
-            kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
-                .decodeFromString<SlotManifest>(json)
+            val manifest = jsonDecoder.decodeFromString<SlotManifest>(json)
+            manifest
         } catch (e: Exception) {
             Log.e(TAG, "Failed to load manifest for slot $slot", e)
             null

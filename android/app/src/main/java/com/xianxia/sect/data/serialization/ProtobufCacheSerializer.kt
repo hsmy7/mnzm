@@ -1,11 +1,11 @@
 package com.xianxia.sect.data.serialization
 
 import android.util.Log
+import com.xianxia.sect.data.serialization.NullSafeProtoBuf
 import com.xianxia.sect.data.serialization.unified.*
 import com.xianxia.sect.data.serialization.unified.CompressionType as UCompressionType
 import kotlinx.serialization.*
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.protobuf.ProtoBuf
 import kotlinx.serialization.serializer
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
@@ -56,10 +56,13 @@ class ProtobufCacheSerializer @Inject constructor() {
         private const val TAG = "ProtobufCacheSerializer"
     }
     
-    @OptIn(ExperimentalSerializationApi::class)
-    internal val protoBuf = ProtoBuf {
-        encodeDefaults = true
-    }
+    /**
+     * 统一的 ProtoBuf 实例（来自 NullSafeProtoBuf 工具类）
+     *
+     * 配置：encodeDefaults = true
+     * 确保所有字段都被序列化，即使值为默认值
+     */
+    internal val protoBuf = NullSafeProtoBuf.protoBuf
     
     internal val json = Json {
         ignoreUnknownKeys = true
@@ -368,11 +371,13 @@ class LightweightIntegrityLayer {
     }
     
     fun computeChecksum(data: ByteArray): ByteArray {
-        return digestProvider.get().digest(data)
+        return digestProvider.get()?.digest(data)
+            ?: throw IllegalStateException("MessageDigest not initialized in ThreadLocal")
     }
-    
+
     fun verifyChecksum(data: ByteArray, expected: ByteArray): Boolean {
-        return digestProvider.get().digest(data).contentEquals(expected)
+        return digestProvider.get()?.digest(data)?.contentEquals(expected)
+            ?: false
     }
 }
 

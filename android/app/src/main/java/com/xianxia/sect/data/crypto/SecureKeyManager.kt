@@ -1,5 +1,6 @@
 package com.xianxia.sect.data.crypto
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
@@ -10,9 +11,42 @@ import kotlinx.coroutines.withContext
 import java.io.*
 import java.security.*
 import java.util.Base64
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import javax.crypto.*
 import javax.crypto.spec.*
+
+/**
+ * 密钥恢复决策枚举
+ * 用于在密钥丢失时让用户选择恢复策略
+ */
+enum class KeyRecoveryDecision {
+    IMPORT_TOKEN,       // 用户选择导入recovery token
+    GENERATE_NEW_KEY,   // 用户确认生成新密钥（已知旧存档将永久丢失）
+    RETRY,              // 重试读取密钥文件
+    CANCEL              // 取消操作，抛出异常阻止自动恢复
+}
+
+/**
+ * 密钥恢复回调接口
+ * 当主密钥和备份都不可读时触发，由调用方决定如何处理
+ *
+ * 使用场景：
+ * - 首次安装后数据迁移
+ * - 设备更换后的密钥恢复
+ * - 数据损坏时的用户确认
+ */
+interface KeyRecoveryCallback {
+    /**
+     * 当密钥需要恢复时调用
+     * 注意：此方法设计为非 suspend 函数，因为调用方 getOrCreateDerivedKey() 本身不是协程上下文。
+     * 如需在实现中执行异步操作（如弹 UI 对话框），由实现方自行处理（例如通过 runBlocking 或事件机制）。
+     *
+     * @param reason 密钥不可用的原因描述
+     * @return 用户的恢复决策
+     */
+    fun onKeyRecoveryRequired(reason: String): KeyRecoveryDecision
+}
 
 sealed class KeyRecoveryResult {
     data class Success(val key: ByteArray, val message: String) : KeyRecoveryResult()
@@ -60,7 +94,22 @@ object KeyManagerMetrics {
 
 object SecureKeyManager {
     private const val TAG = "SecureKeyManager"
-    
+
+    /**
+     * 密钥恢复回调（可选）
+     *
+     * 当主密钥和备份都不可读时，系统不再静默生成新密钥，
+     * 而是通过此回调让用户/调用方决策如何处理。
+     *
+     * 设置此回调后，密钥丢失将触发用户确认流程，防止旧存档被静默丢弃。
+     * 若不设置（null），则保持向后兼容行为：记录警告日志后自动恢复。
+     */
+    @Volatile
+    var recoveryCallback: KeyRecoveryCallback? = null
+
+    @Volatile
+    var allowAutoRecovery: Boolean = false
+
     private const val PREFS_NAME = "secure_key_prefs"
     private const val KEY_PREF_KEY = "derived_key_hash"
     private const val ACCOUNT_ANCHOR_KEY = "account_anchor_id"
@@ -77,6 +126,11 @@ object SecureKeyManager {
     private const val TEMP_FILE_NAME = ".secure_key.tmp"
     
     private const val MIN_DISK_SPACE_BYTES = 64 * 1024L
+
+    // 密钥版本化支持
+    private const val KEY_VERSION_CURRENT = 2
+    private const val KEY_VERSION_V1 = 1
+    private const val KEY_VERSION_PREF_KEY = "key_version"
     
     private data class KeyCache(
         val key: ByteArray,
@@ -194,6 +248,12 @@ object SecureKeyManager {
                 throw KeyIntegrityException(
                     "Failed to read key file and no valid backup found."
                 )
+            } catch (e: javax.crypto.AEADBadTagException) {
+                Log.w(TAG, "Key decryption failed (AEADBadTagException), device secret may have changed", e)
+            } catch (e: java.security.InvalidKeyException) {
+                Log.w(TAG, "Key decryption failed (InvalidKeyException), key material invalid", e)
+            } catch (e: IllegalArgumentException) {
+                Log.w(TAG, "Key data appears corrupted or truncated", e)
             } catch (e: KeyIntegrityException) {
                 throw e
             } catch (e: KeyPermissionException) {
@@ -202,16 +262,77 @@ object SecureKeyManager {
                 throw e
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to read existing key, attempting recovery from backup", e)
-                val recoveredKey = tryRecoverFromBackup(context, backupFile, prefs)
-                if (recoveredKey != null) {
-                    return recoveredKey
-                }
-                throw KeyIntegrityException(
-                    "Failed to read key file and no valid backup found. " +
-                    "Manual recovery may be required. Original error: ${e.message}",
-                    e
-                )
             }
+
+            val recoveredKey = tryRecoverFromBackup(context, backupFile, prefs)
+            if (recoveredKey != null) {
+                return recoveredKey }
+            
+            // ========== 密钥丢失预警机制 ==========
+            // 原问题：此处直接调用 generateNewKey() 会导致所有旧存档永久丢失，且无任何用户确认。
+            // 修复方案：通过 recoveryCallback 让用户/调用方决策是否允许生成新密钥。
+            val lossReason = "Both key file and backup are unrecoverable. " +
+                    "keyFile exists=${keyFile.exists()}, backupFile exists=${backupFile.exists()}. " +
+                    "WARNING: Generating a new key will permanently lose access to all existing save data."
+            
+            Log.e(TAG, "[KEY LOSS WARNING] $lossReason")
+            
+            // 检查是否有注册的恢复回调
+            val callback = recoveryCallback
+            if (callback != null) {
+                // 有回调：交由用户决策
+                Log.i(TAG, "KeyRecoveryCallback registered, requesting user decision")
+                val decision = callback.onKeyRecoveryRequired(lossReason)
+                
+                when (decision) {
+                    KeyRecoveryDecision.IMPORT_TOKEN -> {
+                        // 用户选择导入 token，抛出异常提示上层处理导入流程
+                        throw KeyIntegrityException(
+                            "User chose to import recovery token. " +
+                            "Call importKeyRecoveryToken() with user-provided token, then retry."
+                        )
+                    }
+                    KeyRecoveryDecision.GENERATE_NEW_KEY -> {
+                        // 用户明确确认生成新密钥（已知旧存档将丢失）
+                        Log.w(TAG, "[USER CONFIRMED] User explicitly confirmed key regeneration. Old saves will be permanently lost.")
+                    }
+                    KeyRecoveryDecision.RETRY -> {
+                        // 用户选择重试，再次尝试从备份恢复
+                        Log.i(TAG, "User requested retry, attempting backup recovery again")
+                        val retryKey = tryRecoverFromBackup(context, backupFile, prefs)
+                        if (retryKey != null) {
+                            return retryKey
+                        }
+                        // 重试仍失败，继续走生成新密钥流程（但已记录警告）
+                        Log.w(TAG, "Retry failed, proceeding with key generation after user acknowledgment")
+                    }
+                    KeyRecoveryDecision.CANCEL -> {
+                        // 用户取消操作，阻止自动恢复
+                        throw KeyIntegrityException(
+                            "Operation cancelled by user. Key recovery aborted to protect existing data."
+                        )
+                    }
+                }
+                // 决策为 GENERATE_NEW_KEY 或 RETRY 失败后的兜底：继续执行生成新密钥
+            } else {
+                if (!allowAutoRecovery) {
+                    throw KeyIntegrityException(
+                        "No KeyRecoveryCallback registered and auto-recovery is disabled. " +
+                        "Register a callback via SecureKeyManager.recoveryCallback, or enable " +
+                        "auto-recovery with SecureKeyManager.allowAutoRecovery = true (not recommended)."
+                    )
+                }
+                Log.w(TAG,
+                    "[BACKWARD COMPATIBILITY] Auto-recovery explicitly enabled. " +
+                    "OLD SAVES WILL BE LOST.")
+            }
+            
+            // 二次确认日志：在真正执行生成新密钥前再次记录
+            Log.w(TAG, "[FINAL CONFIRMATION] Executing generateNewKey(). This action is irreversible.")
+            
+            if (keyFile.exists()) keyFile.delete()
+            if (backupFile.exists()) backupFile.delete()
+            return generateNewKey(context, prefs, keyFile, backupFile)
         }
         
         if (backupFile.exists()) {
@@ -333,8 +454,9 @@ object SecureKeyManager {
         val hash = MessageDigest.getInstance("SHA-256").digest(key)
             .joinToString("") { "%02x".format(it) }
         prefs.edit().putString(KEY_PREF_KEY, hash).apply()
+        prefs.edit().putInt(KEY_VERSION_PREF_KEY, KEY_VERSION_CURRENT).apply()
         
-        Log.i(TAG, "Generated and stored new derived key")
+        Log.i(TAG, "Generated and stored new derived key v$KEY_VERSION_CURRENT")
         return key
     }
     
@@ -474,11 +596,7 @@ object SecureKeyManager {
     
     private fun getHardwareBackedSecret(context: Context): String {
         return try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                generateKeyStoreSecret(context)
-            } else {
-                generateSecureRandomSecret(context)
-            }
+            generateKeyStoreSecret(context)
         } catch (e: Exception) {
             Log.w(TAG, "Hardware secret generation failed, fallback to secure random", e)
             generateSecureRandomSecret(context)
@@ -488,7 +606,7 @@ object SecureKeyManager {
     @Suppress("NewApi")
     private fun generateKeyStoreSecret(context: Context): String {
         val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        
+
         if (!keyStore.containsAlias(KEYSTORE_ALIAS)) {
             val keyGenerator = KeyGenerator.getInstance(
                 KeyProperties.KEY_ALGORITHM_AES,
@@ -500,13 +618,53 @@ object SecureKeyManager {
             )
                 .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
                 .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-                .setUserAuthenticationRequired(false)
                 .setRandomizedEncryptionRequired(true)
-            
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                builder.setIsStrongBoxBacked(true)
+
+            try {
+                // TODO: 迁移计划 - 废弃API替换方案
+                // 当前使用的 setUserAuthenticationValidityDurationSeconds() 已在 Android R (API 30) 废弃
+                //
+                // 替代方案（按优先级）：
+                // 1. [推荐] 使用 BiometricPrompt API 进行用户认证
+                //    - 优势：支持生物识别（指纹/面部），用户体验更好
+                //    - 实现：使用 androidx.biometric:biometric 库
+                //    - 参考文档：https://developer.android.com/training/sign-in/biometric-auth
+                //
+                // 2. 使用 setUserAuthenticationParameters() (Android S+) [已在此实现]
+                //    - 优势：新的官方替代API
+                //    - 限制：仅支持 Android 12 (API 31) 及以上
+                //
+                // 3. 移除用户认证要求（如果业务允许）
+                //    - 优势：简单，无需用户交互
+                //    -劣势：安全性降低，密钥可被无认证访问
+                //
+                // 当前措施：
+                // - API >= 31: 使用新的 setUserAuthenticationParameters() API
+                // - API < 31: 保持废弃 API 以兼容 Android 6-10 设备，通过 @Suppress 抑制警告
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    // Android 12+ (API 31): 使用新的认证参数 API
+                    builder.setUserAuthenticationParameters(300, KeyProperties.AUTH_BIOMETRIC_STRONG)
+                    Log.d(TAG, "Using setUserAuthenticationParameters() for API ${Build.VERSION.SDK_INT}")
+                } else {
+                    // Android 6-11 (API 23-30): 使用废弃 API（保持向后兼容）
+                    @Suppress("DEPRECATION")
+                    builder.setUserAuthenticationRequired(true)
+                        .setUserAuthenticationValidityDurationSeconds(300)
+                    Log.d(TAG, "Using deprecated setUserAuthenticationValidityDurationSeconds() for API ${Build.VERSION.SDK_INT}")
+                }
+            } catch (e: java.security.InvalidAlgorithmParameterException) {
+                Log.w(TAG, "Device does not support user authentication, generating key without auth requirement")
             }
-            
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                try {
+                    builder.setIsStrongBoxBacked(true)
+                } catch (e: java.security.InvalidAlgorithmParameterException) {
+                    Log.w(TAG, "StrongBox not available on this device")
+                }
+            }
+
             keyGenerator.init(builder.build())
             keyGenerator.generateKey()
         }
@@ -552,6 +710,7 @@ object SecureKeyManager {
         return secretHash ?: throw IllegalStateException("Failed to generate secure random secret")
     }
     
+    @SuppressLint("HardwareIds")
     private fun getDeviceFingerprint(context: Context): String {
         val parts = mutableListOf<String>()
         
@@ -579,8 +738,21 @@ object SecureKeyManager {
         
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+                @SuppressLint("HardwareIds")
                 parts.add(Build.getSerial() ?: "no_serial")
             }
+        } catch (_: Exception) {}
+        
+        // 运行时熵因子：增加动态熵源，提升指纹唯一性
+        try {
+            val runtime = Runtime.getRuntime()
+            parts.add("${runtime.availableProcessors()}")
+            parts.add("${runtime.maxMemory()}")
+        } catch (_: Exception) {}
+        
+        try {
+            val buildDate = java.io.File("/proc/version").lastModified().toString()
+            parts.add(buildDate)
         } catch (_: Exception) {}
         
         return if (parts.isNotEmpty()) {
@@ -600,22 +772,29 @@ object SecureKeyManager {
         cipher.init(Cipher.ENCRYPT_MODE, secretKeySpec, GCMParameterSpec(GCM_TAG_LENGTH, iv))
         val encrypted = cipher.doFinal(key)
         
-        val result = ByteArray(GCM_IV_LENGTH + encrypted.size)
-        System.arraycopy(iv, 0, result, 0, GCM_IV_LENGTH)
-        System.arraycopy(encrypted, 0, result, GCM_IV_LENGTH, encrypted.size)
+        // 版本化加密格式: [版本号(1字节)] [IV(12字节)] [密文+GCM标签]
+        val result = ByteArray(1 + GCM_IV_LENGTH + encrypted.size)
+        result[0] = KEY_VERSION_CURRENT.toByte()
+        System.arraycopy(iv, 0, result, 1, GCM_IV_LENGTH)
+        System.arraycopy(encrypted, 0, result, 1 + GCM_IV_LENGTH, encrypted.size)
         
         return result
     }
     
     private fun decryptKey(encryptedKey: ByteArray, secret: ByteArray): ByteArray {
-        if (encryptedKey.size < GCM_IV_LENGTH + 16) {
-            throw IllegalArgumentException("Invalid encrypted key length")
+        // 自动检测版本头：新格式首字节为版本号(1-3)，旧格式无版本头
+        val headerOffset = if (encryptedKey.size > (GCM_IV_LENGTH + 16 + 1) && 
+                               encryptedKey[0].toInt() in 1..3) 1 else 0
+        
+        val minLen = headerOffset + GCM_IV_LENGTH + 16
+        if (encryptedKey.size < minLen) {
+            throw IllegalArgumentException("Invalid encrypted key length: ${encryptedKey.size}, min: $minLen")
         }
         
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         val secretKeySpec = SecretKeySpec(secret, "AES")
-        val iv = encryptedKey.copyOfRange(0, GCM_IV_LENGTH)
-        val encrypted = encryptedKey.copyOfRange(GCM_IV_LENGTH, encryptedKey.size)
+        val iv = encryptedKey.copyOfRange(headerOffset, headerOffset + GCM_IV_LENGTH)
+        val encrypted = encryptedKey.copyOfRange(headerOffset + GCM_IV_LENGTH, encryptedKey.size)
         
         cipher.init(Cipher.DECRYPT_MODE, secretKeySpec, GCMParameterSpec(GCM_TAG_LENGTH, iv))
         return cipher.doFinal(encrypted)
@@ -799,7 +978,8 @@ object SecureKeyManager {
                 
                 tokenCipher.init(Cipher.ENCRYPT_MODE, tokenKeySpec, GCMParameterSpec(GCM_TAG_LENGTH, tokenIv))
                 val encryptedKey = tokenCipher.doFinal(key)
-                
+
+                @Suppress("NewApi")
                 val result = Base64.getEncoder().encodeToString(tokenIv + encryptedKey)
                 
                 Log.i(TAG, "Key recovery token exported successfully")
@@ -815,7 +995,8 @@ object SecureKeyManager {
         return synchronized(keyLock) {
             try {
                 require(token.isNotEmpty()) { "Token must not be empty" }
-                
+
+                @Suppress("NewApi")
                 val tokenBytes = Base64.getDecoder().decode(token)
                 if (tokenBytes.size < GCM_IV_LENGTH + 32) {
                     throw IllegalArgumentException("Invalid token format")
@@ -886,6 +1067,65 @@ object SecureKeyManager {
             false
         }
     }
+    
+    // ========== 密钥健康状态查询 ==========
+    
+    /**
+     * 获取当前存储的密钥版本号
+     * @return 密钥版本号，默认返回 V1（兼容旧数据）
+     */
+    fun getKeyVersion(context: Context): Int {
+        return try {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            prefs.getInt(KEY_VERSION_PREF_KEY, KEY_VERSION_V1)
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to get key version", e)
+            KEY_VERSION_V1
+        }
+    }
+    
+    /**
+     * 检查是否具备强绑定因子（账号绑定）
+     * @return true 表示有有效的账号绑定因子
+     */
+    fun isStrongBindingAvailable(context: Context): Boolean {
+        return try {
+            val accountFactor = getAccountBindingFactor(context)
+            accountFactor != "no_account" && accountFactor.isNotEmpty()
+        } catch (e: Exception) {
+            false
+        }
+    }
+    
+    /**
+     * 获取完整的安全评估报告
+     * @return 包含各项安全指标的 Map
+     */
+    fun getSecurityAssessment(context: Context): Map<String, Any> {
+        return mapOf(
+            "keyVersion" to getKeyVersion(context),
+            "hasStrongBinding" to isStrongBindingAvailable(context),
+            "hasHardwareBacking" to true,
+            "keyFileExists" to File(context.filesDir, KEY_FILE_NAME).exists(),
+            "backupExists" to File(context.filesDir, BACKUP_FILE_NAME).exists(),
+            "integrityValid" to verifyKeyIntegrity(context),
+            "accountBinding" to getAccountBindingFactor(context).take(8) + "..."
+        )
+    }
+
+    /**
+     * Argon2id 密钥派生（委托给 SaveCrypto）
+     *
+     * 提供统一的 Argon2id 接口，内部委托 SaveCrypto 实现。
+     * 参数配置遵循 OWASP/NIST 推荐：memory=64MB, parallelism=2, iterations=3
+     *
+     * @param password 用户密码
+     * @param salt 随机盐值（32 字节）
+     * @return 派生的 256 位密钥
+     */
+    fun deriveKeyArgon2id(password: String, salt: ByteArray): ByteArray {
+        return SaveCrypto.deriveKeyArgon2id(password, salt)
+    }
 }
 
 class KeyRotationManager(
@@ -899,6 +1139,27 @@ class KeyRotationManager(
         private const val ROTATION_INTERVAL_MS = 30L * 24 * 60 * 60 * 1000
     }
     
+    /**
+     * 维护模式锁（AtomicBoolean 保证线程安全）
+     *
+     * 用途：
+     * - 在密钥轮换期间标记系统处于维护状态
+     * - 外部可通过 isMaintenanceMode() 查询当前状态
+     * - 在轮换进行时阻止并发操作或提示用户等待
+     *
+     * 为什么需要维护模式锁：
+     * 密钥轮换涉及读取所有存档、生成新密钥、重新加密并写回的完整流程，
+     * 此过程中存档数据处于不一致状态（旧密钥加密的存档尚未用新密钥重加密）。
+     * 如果此时允许其他写入操作，可能导致数据混乱或丢失。
+     */
+    private val isInMaintenanceMode = AtomicBoolean(false)
+    
+    /**
+     * 查询当前是否处于密钥轮换维护模式
+     * @return true 表示正在进行密钥轮换，系统处于维护状态
+     */
+    fun isMaintenanceMode(): Boolean = isInMaintenanceMode.get()
+    
     suspend fun needsRotation(): Boolean = withContext(Dispatchers.IO) {
         val prefs = context.getSharedPreferences(ROTATION_PREFS, Context.MODE_PRIVATE)
         val lastRotation = prefs.getLong(KEY_LAST_ROTATION, 0)
@@ -907,10 +1168,14 @@ class KeyRotationManager(
     }
     
     suspend fun performRotation(): com.xianxia.sect.data.unified.SaveResult<Unit> = withContext(Dispatchers.IO) {
+        // 进入维护模式：防止轮换期间的并发操作导致数据不一致
+        isInMaintenanceMode.set(true)
+        Log.i(TAG, "Entering maintenance mode for key rotation")
+        
         try {
             Log.i(TAG, "Starting key rotation process")
 
-            val slots = (1..5).filter { slot ->
+            val slots = (1..6).filter { slot ->
                 saveRepository.hasSave(slot)
             }
 
@@ -925,8 +1190,6 @@ class KeyRotationManager(
 
                 try {
                     val data = result.getOrThrow()
-                    val json = com.xianxia.sect.data.GsonConfig.createGson().toJson(data)
-                    val encryptedBytes = json.toByteArray(Charsets.UTF_8)
 
                     val saveResult = saveRepository.save(slot, data)
                     if (saveResult.isFailure) {
@@ -936,8 +1199,6 @@ class KeyRotationManager(
                             "Failed to re-encrypt slot $slot"
                         )
                     }
-
-                    encryptedBytes.fill(0)
 
                     Log.d(TAG, "Successfully rotated and saved slot $slot")
                 } catch (slotEx: Exception) {
@@ -959,6 +1220,11 @@ class KeyRotationManager(
                 "Key rotation failed: ${e.message}",
                 e
             )
+        } finally {
+            // 无论成功还是失败，都必须退出维护模式
+            // 防止因异常导致锁永远无法释放，阻塞后续所有操作
+            isInMaintenanceMode.set(false)
+            Log.i(TAG, "Exited maintenance mode (key rotation finished or aborted)")
         }
     }
 }

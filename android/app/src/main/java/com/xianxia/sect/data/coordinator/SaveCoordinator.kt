@@ -5,10 +5,11 @@ import android.util.Log
 import com.xianxia.sect.data.cache.GameDataCacheManager
 import com.xianxia.sect.data.concurrent.SlotLockManager
 import com.xianxia.sect.data.config.StorageConfig
-import com.xianxia.sect.data.incremental.IncrementalStorageManager
+import com.xianxia.sect.data.engine.SavePriority as EngineSavePriority
+import com.xianxia.sect.data.engine.UnifiedStorageEngine
 import com.xianxia.sect.data.model.SaveData
+import com.xianxia.sect.data.result.StorageResult
 import com.xianxia.sect.data.unified.*
-import com.xianxia.sect.data.wal.EnhancedTransactionalWAL
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -73,17 +74,14 @@ data class CoordinatorSaveProgress(
 @Singleton
 class SaveCoordinator @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val saveRepository: UnifiedSaveRepository,
-    private val incrementalManager: IncrementalStorageManager,
+    private val engine: UnifiedStorageEngine,
     private val cacheManager: GameDataCacheManager,
-    private val wal: EnhancedTransactionalWAL,
     private val lockManager: SlotLockManager,
     private val config: StorageConfig,
     private val scope: CoroutineScope
 ) {
     companion object {
         private const val TAG = "SaveCoordinator"
-        private const val MAX_PENDING_SAVES = 10
         private const val SAVE_TIMEOUT_MS = 60_000L
     }
 
@@ -95,9 +93,6 @@ class SaveCoordinator @Inject constructor(
     private val incrementalSaves = AtomicLong(0)
     private val failedSaves = AtomicLong(0)
     private val totalSaveTime = AtomicLong(0)
-    
-    private val pendingSaves = mutableListOf<SaveRequest>()
-    private val pendingMutex = Any()
     
     private val _progress = MutableStateFlow(CoordinatorSaveProgress(
         CoordinatorSaveProgress.Stage.IDLE, 0f
@@ -129,8 +124,7 @@ class SaveCoordinator @Inject constructor(
     }
 
     suspend fun emergencySave(data: SaveData): SaveResult<SaveOperationStats> {
-        val slot = saveRepository.currentSlot.value
-        return save(slot, data, SaveType.FULL, SavePriority.CRITICAL)
+        return engine.emergencySave(data).toCoordinatorResult()
     }
 
     private suspend fun executeSave(request: SaveRequest): SaveResult<SaveOperationStats> {
@@ -217,65 +211,47 @@ class SaveCoordinator @Inject constructor(
         _progress.value = CoordinatorSaveProgress(
             CoordinatorSaveProgress.Stage.SAVING_PRIMARY, 0.3f, "Performing full save"
         )
-        
-        val result = saveRepository.save(request.slot, request.data)
-        
+
+        val result = engine.save(request.slot, request.data,
+            when (request.priority) {
+                SavePriority.CRITICAL -> EngineSavePriority.CRITICAL
+                SavePriority.HIGH -> EngineSavePriority.HIGH
+                else -> EngineSavePriority.NORMAL
+            })
+
         if (result.isSuccess) {
-            _progress.value = CoordinatorSaveProgress(
-                CoordinatorSaveProgress.Stage.SAVING_BACKUP, 0.7f, "Creating backup"
-            )
-            
-            try {
-                saveRepository.createBackup(request.slot)
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed to create backup for slot ${request.slot}", e)
-            }
-            
             savesSinceLastFull = 0
             lastSaveType = SaveType.FULL
         }
-        
-        return result
+
+        return result.toCoordinatorResult()
     }
 
     private suspend fun executeIncrementalSave(request: SaveRequest): SaveResult<SaveOperationStats> {
         _progress.value = CoordinatorSaveProgress(
             CoordinatorSaveProgress.Stage.SAVING_PRIMARY, 0.3f, "Performing incremental save"
         )
-        
-        val incrementalResult = incrementalManager.saveIncremental(request.slot, request.data)
-        
-        if (incrementalResult.success) {
-            savesSinceLastFull++
-            lastSaveType = SaveType.INCREMENTAL
-            
-            return SaveResult.success(SaveOperationStats(
-                bytesWritten = incrementalResult.savedBytes,
-                timeMs = incrementalResult.elapsedMs,
-                wasIncremental = true
-            ))
-        } else {
-            Log.w(TAG, "Incremental save failed, falling back to full save: ${incrementalResult.error}")
+
+        val result = engine.save(request.slot, request.data)
+
+        if (result.isFailure) {
             return executeFullSave(request)
         }
+
+        savesSinceLastFull++
+        lastSaveType = SaveType.INCREMENTAL
+        return result.toCoordinatorResult()
     }
 
     private suspend fun determineSaveType(request: SaveRequest): SaveType {
         return when (request.type) {
             SaveType.FULL -> SaveType.FULL
-            SaveType.INCREMENTAL -> {
-                if (savesSinceLastFull >= config.incrementalSaveThreshold) {
-                    Log.d(TAG, "Forcing full save after ${savesSinceLastFull} incremental saves")
-                    SaveType.FULL
-                } else {
-                    SaveType.INCREMENTAL
-                }
-            }
+            SaveType.INCREMENTAL -> SaveType.INCREMENTAL
             SaveType.AUTO -> {
                 when {
                     request.priority == SavePriority.CRITICAL -> SaveType.FULL
                     savesSinceLastFull >= config.incrementalSaveThreshold -> SaveType.FULL
-                    !hasIncrementalBase(request.slot) -> SaveType.FULL
+                    !engine.hasData(request.slot) -> SaveType.FULL
                     else -> SaveType.INCREMENTAL
                 }
             }
@@ -284,21 +260,29 @@ class SaveCoordinator @Inject constructor(
 
     private suspend fun hasIncrementalBase(slot: Int): Boolean {
         return try {
-            incrementalManager.hasSnapshot(slot)
+            engine.hasData(slot)
         } catch (e: Exception) {
             false
         }
     }
 
     private fun validateSaveData(data: SaveData): CoordinatorValidationResult {
+        // 硬性校验：sectName 为空则拒绝存档
         if (data.gameData.sectName.isBlank()) {
             return CoordinatorValidationResult(false, "Sect name is empty")
         }
-        
+
+        // 软性校验（仅 warn，不阻止存档流程）
+        if (data.disciples.isEmpty()) {
+            Log.w(TAG, "Saving with empty disciple list for slot")
+        }
+        if (data.gameData.spiritStones < 0) {
+            Log.w(TAG, "Negative spiritStones detected: ${data.gameData.spiritStones}")
+        }
         if (data.disciples.size > config.maxDisciples) {
             Log.w(TAG, "Disciple count ${data.disciples.size} exceeds max ${config.maxDisciples}")
         }
-        
+
         return CoordinatorValidationResult(true)
     }
 
@@ -343,7 +327,7 @@ class SaveCoordinator @Inject constructor(
             failedSaves = failedSaves.get(),
             averageSaveTimeMs = if (total > 0) totalSaveTime.get() / total else 0,
             lastSaveTime = System.currentTimeMillis(),
-            pendingOperations = synchronized(pendingMutex) { pendingSaves.size }
+            pendingOperations = 0
         )
     }
 
@@ -367,3 +351,15 @@ data class CoordinatorValidationResult(
     val isValid: Boolean,
     val error: String = ""
 )
+
+private fun <T> StorageResult<T>.toCoordinatorResult(): SaveResult<SaveOperationStats> {
+    return when (this) {
+        is StorageResult.Success -> {
+            val stats = this.data as? SaveOperationStats ?: SaveOperationStats()
+            SaveResult.success(stats)
+        }
+        is StorageResult.Failure -> {
+            SaveResult.failure(SaveError.SAVE_FAILED, this.message, this.cause)
+        }
+    }
+}

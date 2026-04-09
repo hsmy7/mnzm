@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.xianxia.sect.core.util
 
 import com.xianxia.sect.core.model.Disciple

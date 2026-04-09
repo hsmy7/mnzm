@@ -1,3 +1,4 @@
+@file:Suppress("DEPRECATION")
 package com.xianxia.sect.ui.game.components
 
 import androidx.compose.foundation.background
@@ -22,9 +23,11 @@ import androidx.compose.material3.AlertDialog
 import android.graphics.Color as AndroidColor
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.game.GameViewModel
+import com.xianxia.sect.ui.components.DiscipleAttrText
 import com.xianxia.sect.ui.components.GameButton
 
 @Composable
@@ -47,7 +50,7 @@ fun AllianceDialog(
         }?.favor ?: 0
     } else 0
     val meetsFavorRequirement = relation >= 90
-    val hasOtherAlliance = sect?.allianceId != null && !isAlly
+    val hasOtherAlliance = sect?.allianceId?.isNotEmpty() == true && !isAlly
     var showAlreadyAllianceDialog by remember { mutableStateOf(false) }
 
     Dialog(onDismissRequest = onDismiss) {
@@ -134,6 +137,7 @@ fun AllianceDialog(
     }
 }
 
+@Suppress("UNUSED_PARAMETER")
 @Composable
 private fun AllyStatusSection(
     sect: WorldSect?,
@@ -191,6 +195,7 @@ private fun AllyStatusSection(
     }
 }
 
+@Suppress("UNUSED_PARAMETER")
 @Composable
 private fun NonAllySection(
     sect: WorldSect?,
@@ -301,11 +306,11 @@ private fun ConditionItem(text: String, isMet: Boolean) {
 @Composable
 fun EnvoyDiscipleSelectDialog(
     sect: WorldSect?,
-    disciples: List<Disciple>,
+    disciples: List<DiscipleAggregate>,
     viewModel: GameViewModel,
     onDismiss: () -> Unit
 ) {
-    var selectedDisciple by remember { mutableStateOf<Disciple?>(null) }
+    var selectedDisciple by remember { mutableStateOf<DiscipleAggregate?>(null) }
     val sectLevel = sect?.level ?: 0
     val requiredRealm = GameConfig.Realm.getName(
         when (sectLevel) {
@@ -407,7 +412,7 @@ fun EnvoyDiscipleSelectDialog(
 
 @Composable
 private fun DiscipleSelectCard(
-    disciple: Disciple,
+    disciple: DiscipleAggregate,
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
@@ -526,7 +531,7 @@ private fun formatSpiritStones(amount: Long): String {
 @Composable
 fun ScoutDiscipleSelectDialog(
     sect: WorldSect?,
-    disciples: List<Disciple>,
+    disciples: List<DiscipleAggregate>,
     viewModel: GameViewModel,
     onDismiss: () -> Unit
 ) {
@@ -732,7 +737,7 @@ private fun ScoutFilterChip(
 
 @Composable
 private fun ScoutDiscipleCard(
-    disciple: Disciple,
+    disciple: DiscipleAggregate,
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
@@ -804,21 +809,9 @@ private fun ScoutDiscipleCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Text(
-                    text = "悟性:${disciple.comprehension}",
-                    fontSize = 11.sp,
-                    color = Color(0xFF666666)
-                )
-                Text(
-                    text = "忠诚:${disciple.loyalty}",
-                    fontSize = 11.sp,
-                    color = Color(0xFF666666)
-                )
-                Text(
-                    text = "道德:${disciple.morality}",
-                    fontSize = 11.sp,
-                    color = Color(0xFF666666)
-                )
+                DiscipleAttrText("悟性", disciple.comprehension)
+                DiscipleAttrText("忠诚", disciple.loyalty)
+                DiscipleAttrText("道德", disciple.morality)
             }
         }
     }

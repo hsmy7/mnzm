@@ -38,6 +38,7 @@ class DialogStateManager @Inject constructor() {
         object Scout : DialogType()
         object Alliance : DialogType()
         object EnvoyDiscipleSelect : DialogType()
+        object OuterTournament : DialogType()
         object RequestSupport : DialogType()
         object RedeemCode : DialogType()
         object MonthlySalary : DialogType()

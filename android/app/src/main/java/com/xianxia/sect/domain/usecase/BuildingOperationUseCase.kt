@@ -1,3 +1,4 @@
+@file:Suppress("DEPRECATION")
 package com.xianxia.sect.domain.usecase
 
 import com.xianxia.sect.core.engine.GameEngine
@@ -54,7 +55,6 @@ class BuildingOperationUseCase @Inject constructor(
     }
     
     fun collectBuildingResult(buildingId: String, slotIndex: Int): AssignResult {
-        gameEngine.collectBuildingResult("$buildingId-$slotIndex")
-        return AssignResult.Success(slotIndex)
+        return AssignResult.Error("建筑产物自动收取，无需手动操作")
     }
 }

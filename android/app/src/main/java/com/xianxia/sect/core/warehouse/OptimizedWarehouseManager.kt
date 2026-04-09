@@ -370,9 +370,11 @@ object OptimizedWarehouseManager {
         
         val newWarehouse = warehouse.copy(items = items)
         
-        if (removedIndex != null && removedItem != null) {
-            removeFromIndex(removedItem, removedIndex)
-            shiftIndicesAfter(removedIndex)
+        removedItem?.let { item ->
+            removedIndex?.let { idx ->
+                removeFromIndex(item, idx)
+                shiftIndicesAfter(idx)
+            }
         }
         
         currentWarehouseItems = items

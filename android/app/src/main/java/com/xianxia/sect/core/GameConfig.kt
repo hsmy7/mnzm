@@ -13,7 +13,7 @@ object GameConfig {
     }
     
     object Disciple {
-        const val MAX_DISCIPLES = 500
+        const val MAX_DISCIPLES = 1000
         const val RECRUIT_COST = 1000L
         const val MIN_LOYALTY = 0
         const val MAX_LOYALTY = 100
@@ -114,11 +114,11 @@ object GameConfig {
         
         // 灵根数量权重配置（增量值，非累积值）
         val COUNT_WEIGHTS = mapOf(
-            1 to 0.01,  // 单灵根 1%
-            2 to 0.06,  // 双灵根 6%
-            3 to 0.23,  // 三灵根 23%
-            4 to 0.30,  // 四灵根 30%
-            5 to 0.40   // 五灵根 40%
+            1 to 0.05,
+            2 to 0.20,
+            3 to 0.30,
+            4 to 0.30,
+            5 to 0.15
         )
         
         fun get(type: String): SpiritRootConfig = TYPES[type] ?: TYPES.getValue("metal")
@@ -355,7 +355,22 @@ object GameConfig {
         const val VICE_SECT_MASTER_INTELLIGENCE_STEP = 5
         const val VICE_SECT_MASTER_INTELLIGENCE_BONUS_PER_STEP = 0.01
     }
-    
+
+    object LawEnforcementConfig {
+        const val LOYALTY_THRESHOLD = 30
+        const val MORALITY_THRESHOLD = 30
+        const val PROB_PER_POINT = 0.03
+        const val MAX_PROB = 0.90
+        const val THEFT_MIN_RATIO = 0.01
+        const val THEFT_MAX_RATIO = 0.05
+        const val BASE_CAPTURE_RATE = 0.0
+        const val INTELLIGENCE_BASE = 50
+        const val ELDER_BONUS_PER_POINT = 0.01
+        const val DISCIPLE_INTELLIGENCE_STEP = 5
+        const val DISCIPLE_BONUS_PER_STEP = 0.01
+        const val REFLECTION_YEARS = 10
+    }
+
     data class RarityConfig(
         val level: Int,
         val name: String,

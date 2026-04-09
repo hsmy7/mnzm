@@ -311,7 +311,9 @@ class SectSystem @Inject constructor() : GameSystem {
             return false
         }
         _gameData.value = _gameData.value.copy(
-            usedRedeemCodes = _gameData.value.usedRedeemCodes + code
+            usedRedeemCodes = (_gameData.value.usedRedeemCodes + code)
+                .distinct()
+                .takeLast(com.xianxia.sect.core.model.GameData.MAX_REDEEM_CODES)
         )
         return true
     }
@@ -319,8 +321,8 @@ class SectSystem @Inject constructor() : GameSystem {
     val autoSaveIntervalMonths: Int get() = _gameData.value.autoSaveIntervalMonths
     
     fun setAutoSaveIntervalMonths(months: Int): Boolean {
-        if (months < 1 || months > 12) {
-            Log.w(TAG, "Invalid auto save interval: $months, must be in range [1, 12]")
+        if (months < 0 || months > 12) {
+            Log.w(TAG, "Invalid auto save interval: $months, must be in range [0, 12]")
             return false
         }
         _gameData.value = _gameData.value.copy(autoSaveIntervalMonths = months)

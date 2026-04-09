@@ -148,7 +148,7 @@ class InventoryService(
      */
     fun addManualToWarehouse(manual: Manual) {
         val currentManuals = _manuals.value
-        val existingIndex = currentManuals.indexOfFirst { it.id == manual.id }
+        val existingIndex = currentManuals.indexOfFirst { it.name == manual.name && it.rarity == manual.rarity }
 
         if (existingIndex >= 0) {
             // Stack with existing manual
@@ -166,7 +166,10 @@ class InventoryService(
      */
     fun removeManual(manualId: String, quantity: Int = 1): Boolean {
         val currentManuals = _manuals.value
-        val index = currentManuals.indexOfFirst { it.id == manualId }
+        // Locate manual by ID to resolve its stacking identity (name + rarity),
+        // then operate on the stack matched by name+rarity (consistent with addManualToWarehouse).
+        val targetManual = currentManuals.find { it.id == manualId } ?: return false
+        val index = currentManuals.indexOfFirst { it.name == targetManual.name && it.rarity == targetManual.rarity }
         if (index < 0) return false
 
         val manual = currentManuals[index]
@@ -174,7 +177,7 @@ class InventoryService(
 
         val updatedQuantity = manual.quantity - quantity
         if (updatedQuantity <= 0) {
-            _manuals.value = currentManuals.filter { it.id != manualId }
+            _manuals.value = currentManuals.filter { it.name != targetManual.name || it.rarity != targetManual.rarity }
         } else {
             _manuals.value = currentManuals.toMutableList().also {
                 it[index] = manual.copy(quantity = updatedQuantity)
@@ -231,7 +234,10 @@ class InventoryService(
      */
     fun removePill(pillId: String, quantity: Int = 1): Boolean {
         val currentPills = _pills.value
-        val index = currentPills.indexOfFirst { it.id == pillId }
+        // Locate pill by ID to resolve its stacking identity (name + rarity),
+        // then operate on the stack matched by name+rarity (consistent with addPillToWarehouse).
+        val targetPill = currentPills.find { it.id == pillId } ?: return false
+        val index = currentPills.indexOfFirst { it.name == targetPill.name && it.rarity == targetPill.rarity }
         if (index < 0) return false
 
         val pill = currentPills[index]
@@ -239,7 +245,7 @@ class InventoryService(
 
         val updatedQuantity = pill.quantity - quantity
         if (updatedQuantity <= 0) {
-            _pills.value = currentPills.filter { it.id != pillId }
+            _pills.value = currentPills.filter { it.name != targetPill.name || it.rarity != targetPill.rarity }
         } else {
             _pills.value = currentPills.toMutableList().also {
                 it[index] = pill.copy(quantity = updatedQuantity)
@@ -316,7 +322,10 @@ class InventoryService(
      */
     fun removeMaterial(materialId: String, quantity: Int = 1): Boolean {
         val currentMaterials = _materials.value
-        val index = currentMaterials.indexOfFirst { it.id == materialId }
+        // Locate material by ID to resolve its stacking identity (name + rarity),
+        // then operate on the stack matched by name+rarity (consistent with addMaterialToWarehouse).
+        val targetMaterial = currentMaterials.find { it.id == materialId } ?: return false
+        val index = currentMaterials.indexOfFirst { it.name == targetMaterial.name && it.rarity == targetMaterial.rarity }
         if (index < 0) return false
 
         val material = currentMaterials[index]
@@ -324,7 +333,7 @@ class InventoryService(
 
         val updatedQuantity = material.quantity - quantity
         if (updatedQuantity <= 0) {
-            _materials.value = currentMaterials.filter { it.id != materialId }
+            _materials.value = currentMaterials.filter { it.name != targetMaterial.name || it.rarity != targetMaterial.rarity }
         } else {
             _materials.value = currentMaterials.toMutableList().also {
                 it[index] = material.copy(quantity = updatedQuantity)
@@ -382,7 +391,10 @@ class InventoryService(
      */
     fun removeHerb(herbId: String, quantity: Int = 1): Boolean {
         val currentHerbs = _herbs.value
-        val index = currentHerbs.indexOfFirst { it.id == herbId }
+        // Locate herb by ID to resolve its stacking identity (name + rarity),
+        // then operate on the stack matched by name+rarity (consistent with addHerbToWarehouse).
+        val targetHerb = currentHerbs.find { it.id == herbId } ?: return false
+        val index = currentHerbs.indexOfFirst { it.name == targetHerb.name && it.rarity == targetHerb.rarity }
         if (index < 0) return false
 
         val herb = currentHerbs[index]
@@ -390,7 +402,7 @@ class InventoryService(
 
         val updatedQuantity = herb.quantity - quantity
         if (updatedQuantity <= 0) {
-            _herbs.value = currentHerbs.filter { it.id != herbId }
+            _herbs.value = currentHerbs.filter { it.name != targetHerb.name || it.rarity != targetHerb.rarity }
         } else {
             _herbs.value = currentHerbs.toMutableList().also {
                 it[index] = herb.copy(quantity = updatedQuantity)
@@ -455,7 +467,10 @@ class InventoryService(
      */
     fun removeSeed(seedId: String, quantity: Int = 1): Boolean {
         val currentSeeds = _seeds.value
-        val index = currentSeeds.indexOfFirst { it.id == seedId }
+        // Locate seed by ID to resolve its stacking identity (name + rarity),
+        // then operate on the stack matched by name+rarity (consistent with addSeedToWarehouse).
+        val targetSeed = currentSeeds.find { it.id == seedId } ?: return false
+        val index = currentSeeds.indexOfFirst { it.name == targetSeed.name && it.rarity == targetSeed.rarity }
         if (index < 0) return false
 
         val seed = currentSeeds[index]
@@ -463,7 +478,7 @@ class InventoryService(
 
         val updatedQuantity = seed.quantity - quantity
         if (updatedQuantity <= 0) {
-            _seeds.value = currentSeeds.filter { it.id != seedId }
+            _seeds.value = currentSeeds.filter { it.name != targetSeed.name || it.rarity != targetSeed.rarity }
         } else {
             _seeds.value = currentSeeds.toMutableList().also {
                 it[index] = seed.copy(quantity = updatedQuantity)
@@ -551,7 +566,7 @@ class InventoryService(
      * Get item count by type
      */
     fun getItemCountByType(type: String): Int {
-        return when (type.lowercase()) {
+        return when (type.lowercase(java.util.Locale.getDefault())) {
             "equipment" -> _equipment.value.size
             "manual" -> _manuals.value.size
             "pill" -> _pills.value.size

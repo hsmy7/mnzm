@@ -29,7 +29,7 @@ fun DialogHost(
 
 class DialogHostScope {
     @Composable
-    fun <T> dialog(
+    fun <T> Dialog(
         isVisible: Boolean,
         data: T? = null,
         onDismiss: () -> Unit,

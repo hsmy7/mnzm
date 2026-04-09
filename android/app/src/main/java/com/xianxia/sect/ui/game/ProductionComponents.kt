@@ -22,7 +22,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.ui.components.ElderBonusInfo
 import com.xianxia.sect.ui.components.ElderBonusInfoButton
+import com.xianxia.sect.ui.components.ElderBonusInfoProvider
 import com.xianxia.sect.ui.theme.GameColors
 
 data class ProductionTheme(
@@ -43,11 +45,11 @@ data class ProductionTheme(
     val elderSelectionTitle: String,
     val recommendAttributeText: String,
     val slotCount: Int,
-    val getCoreAttributeValue: (Disciple) -> Int,
+    val getCoreAttributeValue: (DiscipleAggregate) -> Int,
     val getElderId: (ElderSlots) -> String?,
     val getDirectDisciples: (ElderSlots) -> List<DirectDiscipleSlot>,
-    val elderSortComparator: Comparator<Disciple>,
-    val directDiscipleSortComparator: Comparator<Disciple>
+    val elderSortComparator: Comparator<DiscipleAggregate>,
+    val directDiscipleSortComparator: Comparator<DiscipleAggregate>
 )
 
 val ALCHEMY_THEME = ProductionTheme(
@@ -70,10 +72,10 @@ val ALCHEMY_THEME = ProductionTheme(
     getCoreAttributeValue = { it.pillRefining },
     getElderId = { it.alchemyElder },
     getDirectDisciples = { it.alchemyDisciples },
-    elderSortComparator = compareByDescending<Disciple> { it.pillRefining }
+    elderSortComparator = compareByDescending<DiscipleAggregate> { it.pillRefining }
         .thenBy { it.realm }
         .thenByDescending { it.realmLayer },
-    directDiscipleSortComparator = compareBy<Disciple> { it.realm }
+    directDiscipleSortComparator = compareBy<DiscipleAggregate> { it.realm }
         .thenByDescending { it.realmLayer }
         .thenByDescending { it.pillRefining }
 )
@@ -98,10 +100,10 @@ val FORGE_THEME = ProductionTheme(
     getCoreAttributeValue = { it.artifactRefining },
     getElderId = { it.forgeElder },
     getDirectDisciples = { it.forgeDisciples },
-    elderSortComparator = compareByDescending<Disciple> { it.artifactRefining }
+    elderSortComparator = compareByDescending<DiscipleAggregate> { it.artifactRefining }
         .thenBy { it.realm }
         .thenByDescending { it.realmLayer },
-    directDiscipleSortComparator = compareBy<Disciple> { it.realm }
+    directDiscipleSortComparator = compareBy<DiscipleAggregate> { it.realm }
         .thenByDescending { it.realmLayer }
         .thenByDescending { it.artifactRefining }
 )
@@ -169,12 +171,12 @@ fun ProductionCommonDialog(
 @Composable
 fun ProductionElderSection(
     theme: ProductionTheme,
-    elder: Disciple?,
+    elder: DiscipleAggregate?,
     onElderClick: () -> Unit,
     onElderRemove: () -> Unit
 ) {
     val elderBorderColor = if (elder != null) {
-        try { Color(android.graphics.Color.parseColor(elder.spiritRoot.countColor) }
+        try { Color(android.graphics.Color.parseColor(elder.spiritRoot.countColor)) }
         catch (e: Exception) { theme.defaultBorderColor }
     } else {
         GameColors.Border
@@ -364,7 +366,7 @@ fun ProductionSlotItem(
 @Composable
 fun ProductionElderSelectionDialog(
     theme: ProductionTheme,
-    disciples: List<Disciple>,
+    disciples: List<DiscipleAggregate>,
     currentElderId: String?,
     elderSlots: ElderSlots,
     onDismiss: () -> Unit,
@@ -429,12 +431,12 @@ fun ProductionElderSelectionDialog(
 
                 if (filteredDisciples.isEmpty()) {
                     Box(
-                        modifier = Modifier.fillMaxWidth().weight(1),
+                        modifier = Modifier.fillMaxWidth().weight(1f),
                         contentAlignment = Alignment.Center
                     ) { Text(text = "暂无可用弟子", fontSize = 12.sp, color = Color(0xFF999999)) }
                 } else {
                     LazyVerticalGrid(
-                        columns = GridCells.Fixed(4),
+                        columns = GridCells.Fixed(5),
                         modifier = Modifier.fillMaxWidth().weight(1f),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -457,7 +459,7 @@ fun ProductionElderSelectionDialog(
 @Composable
 fun ProductionDirectDiscipleSelectionDialog(
     theme: ProductionTheme,
-    disciples: List<Disciple>,
+    disciples: List<DiscipleAggregate>,
     elderSlots: ElderSlots,
     onDismiss: () -> Unit,
     onSelect: (String) -> Unit
@@ -529,12 +531,12 @@ fun ProductionDirectDiscipleSelectionDialog(
 
                 if (filteredDisciples.isEmpty()) {
                     Box(
-                        modifier = Modifier.fillMaxWidth().weight(1),
+                        modifier = Modifier.fillMaxWidth().weight(1f),
                         contentAlignment = Alignment.Center
                     ) { Text(text = "暂无可用弟子", fontSize = 12.sp, color = Color(0xFF999999)) }
                 } else {
                     LazyVerticalGrid(
-                        columns = GridCells.Fixed(4),
+                        columns = GridCells.Fixed(5),
                         modifier = Modifier.fillMaxWidth().weight(1f),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -557,7 +559,7 @@ fun ProductionDirectDiscipleSelectionDialog(
 @Composable
 private fun ProductionDiscipleSelectionCard(
     theme: ProductionTheme,
-    disciple: Disciple,
+    disciple: DiscipleAggregate,
     onClick: () -> Unit
 ) {
     val spiritRootColor = try {
@@ -631,7 +633,7 @@ private fun RealmFilterRow(
 @Composable
 fun ProductionReserveDiscipleDialog(
     theme: ProductionTheme,
-    reserveDisciples: List<Disciple>,
+    reserveDisciples: List<DiscipleAggregate>,
     onDismiss: () -> Unit,
     onAddClick: () -> Unit,
     onRemove: (String) -> Unit
@@ -679,16 +681,16 @@ fun ProductionReserveDiscipleDialog(
                     ) { Text(text = "暂无储备弟子", fontSize = 12.sp, color = Color(0xFF999999)) }
                 } else {
                     LazyVerticalGrid(
-                        columns = GridCells.Fixed(4),
+                        columns = GridCells.Fixed(5),
                         modifier = Modifier.fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(reserveDisciples.size) { index =>
+                        items(reserveDisciples) { disciple ->
                             ProductionReserveDiscipleCard(
                                 theme = theme,
-                                disciple = reserveDisciples[index],
-                                onRemove = { onRemove(reserveDisciples[index].id) }
+                                disciple = disciple,
+                                onRemove = { onRemove(disciple.id) }
                             )
                         }
                     }
@@ -702,7 +704,7 @@ fun ProductionReserveDiscipleDialog(
 @Composable
 private fun ProductionReserveDiscipleCard(
     theme: ProductionTheme,
-    disciple: Disciple,
+    disciple: DiscipleAggregate,
     onRemove: () -> Unit
 ) {
     val spiritRootColor = try {
@@ -747,7 +749,7 @@ private fun ProductionReserveDiscipleCard(
 @Composable
 fun ProductionAddReserveDiscipleDialog(
     theme: ProductionTheme,
-    availableDisciples: List<Disciple>,
+    availableDisciples: List<DiscipleAggregate>,
     onDismiss: () -> Unit,
     onConfirm: (List<String>) -> Unit
 ) {
@@ -789,7 +791,7 @@ fun ProductionAddReserveDiscipleDialog(
                     ) { Text(text = "暂无可用弟子", fontSize = 12.sp, color = Color(0xFF999999)) }
                 } else {
                     LazyVerticalGrid(
-                        columns = GridCells.Fixed(4),
+                        columns = GridCells.Fixed(5),
                         modifier = Modifier.fillMaxWidth().weight(1f),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -825,7 +827,7 @@ fun ProductionAddReserveDiscipleDialog(
 @Composable
 private fun ProductionAddReserveDiscipleSelectCard(
     theme: ProductionTheme,
-    disciple: Disciple,
+    disciple: DiscipleAggregate,
     isSelected: Boolean,
     onClick: () -> Unit
 ) {

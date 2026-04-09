@@ -5,7 +5,9 @@ import android.util.Log
 import com.xianxia.sect.data.crypto.IntegrityValidator
 import com.xianxia.sect.data.crypto.SecureKeyManager
 import com.xianxia.sect.data.model.SaveData
+import com.xianxia.sect.data.serialization.NullSafeProtoBuf
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.util.Base64
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -20,7 +22,7 @@ class MetadataManager @Inject constructor(
         private const val TAG = "MetadataManager"
     }
     
-    private val gson = com.xianxia.sect.data.GsonConfig.createGson()
+    private val protoBuf = NullSafeProtoBuf.protoBuf
     
     val slotMetadataCache = ConcurrentHashMap<Int, SlotMetadata>()
     
@@ -58,19 +60,23 @@ class MetadataManager @Inject constructor(
     fun saveSlotMetadata(slot: Int, metadata: SlotMetadata) {
         try {
             val metaFile = fileHandler.getMetaFile(slot)
-            metaFile.writeText(gson.toJson(metadata))
+            val bytes = protoBuf.encodeToByteArray(SlotMetadata.serializer(), metadata)
+            @Suppress("NewApi")
+            metaFile.writeText(Base64.getEncoder().encodeToString(bytes))
         } catch (e: Exception) {
             Log.e(TAG, "Failed to save metadata for slot $slot", e)
         }
     }
-    
+
     fun loadSlotMetadata(slot: Int): SlotMetadata? {
         return try {
             val metaFile = fileHandler.getMetaFile(slot)
             if (!metaFile.exists()) return null
-            
-            val json = metaFile.readText()
-            gson.fromJson(json, SlotMetadata::class.java)
+
+            val base64 = metaFile.readText()
+            @Suppress("NewApi")
+            val bytes = Base64.getDecoder().decode(base64)
+            protoBuf.decodeFromByteArray(SlotMetadata.serializer(), bytes)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to load metadata for slot $slot", e)
             null

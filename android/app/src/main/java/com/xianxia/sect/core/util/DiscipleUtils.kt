@@ -1,17 +1,17 @@
 package com.xianxia.sect.core.util
 
-import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.DiscipleAggregate
 
-fun List<Disciple>.sortedByFollowAndRealm(): List<Disciple> {
-    return this.sortedWith(compareByDescending<Disciple> { it.isFollowed }
-        .thenByDescending { it.realm }
+fun List<DiscipleAggregate>.sortedByFollowAndRealm(): List<DiscipleAggregate> {
+    return this.sortedWith(compareByDescending<DiscipleAggregate> { it.isFollowed }
+        .thenBy { it.realm }
         .thenByDescending { it.realmLayer })
 }
 
-fun List<Disciple>.sortedByFollowAttributeAndRealm(attribute: String? = null): List<Disciple> {
+fun List<DiscipleAggregate>.sortedByFollowAttributeAndRealm(attribute: String? = null): List<DiscipleAggregate> {
     return if (attribute != null) {
-        this.sortedWith(compareByDescending<Disciple> { it.isFollowed }
-            .thenByDescending { it.realm }
+        this.sortedWith(compareByDescending<DiscipleAggregate> { it.isFollowed }
+            .thenBy { it.realm }
             .thenByDescending { it.realmLayer }
             .thenByDescending { disciple ->
                 when (attribute) {
@@ -28,12 +28,12 @@ fun List<Disciple>.sortedByFollowAttributeAndRealm(attribute: String? = null): L
                 }
             })
     } else {
-        this.sortedWith(compareByDescending<Disciple> { it.isFollowed }
-            .thenByDescending { it.realm }
+        this.sortedWith(compareByDescending<DiscipleAggregate> { it.isFollowed }
+            .thenBy { it.realm }
             .thenByDescending { it.realmLayer }
             .thenByDescending { it.comprehension })
     }
 }
 
-val Disciple.isFollowed: Boolean
+val DiscipleAggregate.isFollowed: Boolean
     get() = statusData["followed"] == "true"

@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.GameConfig
@@ -23,6 +25,8 @@ import kotlin.math.roundToInt
  * 保持数据模型的纯粹性，提高可测试性和可维护性。
  */
 object DiscipleStatCalculator {
+
+    private const val BASE_CULTIVATION_SPEED = 8.0
 
     // ==================== 基础属性计算 ====================
 
@@ -52,6 +56,12 @@ object DiscipleStatCalculator {
         val magicDefenseBonus = talentEffects["magicDefense"] ?: 0.0
         val speedBonus = talentEffects["speed"] ?: 0.0
         val critBonus = talentEffects["critRate"] ?: 0.0
+        val intelligenceFlat = (talentEffects["intelligenceFlat"] ?: 0.0).toInt()
+        val charmFlat = (talentEffects["charmFlat"] ?: 0.0).toInt()
+        val loyaltyFlat = (talentEffects["loyaltyFlat"] ?: 0.0).toInt()
+        val comprehensionFlat = (talentEffects["comprehensionFlat"] ?: 0.0).toInt()
+        val teachingFlat = (talentEffects["teachingFlat"] ?: 0.0).toInt()
+        val moralityFlat = (talentEffects["moralityFlat"] ?: 0.0).toInt()
 
         val maxHpGrowth = disciple.statusData["winGrowth.maxHp"]?.toIntOrNull() ?: 0
         val maxMpGrowth = disciple.statusData["winGrowth.maxMp"]?.toIntOrNull() ?: 0
@@ -80,9 +90,12 @@ object DiscipleStatCalculator {
             magicDefense = (disciple.baseMagicDefense * (1.0 + totalMagicDefenseBonus)).roundToInt() + magicDefenseGrowth,
             speed = (disciple.baseSpeed * (1.0 + totalSpeedBonus)).roundToInt() + speedGrowth,
             critRate = 0.05 + critBonus,
-            intelligence = disciple.intelligence,
-            charm = disciple.charm,
-            loyalty = disciple.loyalty
+            intelligence = disciple.intelligence + intelligenceFlat,
+            charm = disciple.charm + charmFlat,
+            loyalty = disciple.loyalty + loyaltyFlat,
+            comprehension = disciple.comprehension + comprehensionFlat,
+            teaching = disciple.teaching + teachingFlat,
+            morality = disciple.morality + moralityFlat
         )
     }
 
@@ -236,18 +249,26 @@ object DiscipleStatCalculator {
     /**
      * 计算每秒修炼速度（支持外部传入功法和熟练度数据）
      *
-     * 加成来源：
+     * 基础值固定为 [BASE_CULTIVATION_SPEED]，所有境界统一，不随境界或层级变化。
+     * 弟子间的修炼速度差异完全由加成项体现（灵根、悟性、功法、天赋等）。
+     *
+     * 加成来源（按顺序累加）：
      * 1. 灵根品质基础加成
      * 2. 悟性加成（每点超出50的悟性+2%）
-     * 3. 修炼加速buff加成
-     * 4. 已学功法的修炼速度加成（考虑熟练度）
-     * 5. 天赋中的修炼速度加成
-     * 6. 外部额外加成（如丹药、建筑等）
+     * 3. 已学功法的修炼速度加成（考虑熟练度）
+     * 4. 天赋中的修炼速度加成
+     * 5. 建筑加成（青云峰讲道加成，不含藏经阁）
+     * 6. 外部额外加成（如事件等）
+     * 7. 外门/内门传道加成
+     * 8. 修炼补贴加成
      *
      * @param disciple 弟子实例
      * @param manuals 功法字典（可选，为空则不计算功法加成）
      * @param manualProficiencies 功法熟练度字典
+     * @param buildingBonus 建筑加成倍率（默认1.0即无加成）
      * @param additionalBonus 额外加成比例（如0.1表示+10%）
+     * @param preachingElderBonus 内门长老传道加成比例
+     * @param preachingMastersBonus 外门/执事传道加成比例
      * @return 每秒修为增长值
      */
     fun calculateCultivationSpeed(
@@ -257,31 +278,16 @@ object DiscipleStatCalculator {
         buildingBonus: Double = 1.0,
         additionalBonus: Double = 0.0,
         preachingElderBonus: Double = 0.0,
-        preachingMastersBonus: Double = 0.0
+        preachingMastersBonus: Double = 0.0,
+        cultivationSubsidyBonus: Double = 0.0
     ): Double {
-        val baseCultivation = when (disciple.realm) {
-            0 -> 100.0
-            1 -> 80.0
-            2 -> 60.0
-            3 -> 45.0
-            4 -> 30.0
-            5 -> 20.0
-            6 -> 12.0
-            7 -> 8.0
-            8 -> 5.0
-            9 -> 3.0
-            else -> 1.0
-        }
+        val baseCultivation = BASE_CULTIVATION_SPEED
 
         var totalBonus = 0.0
-
-        totalBonus += disciple.realmLayer * 0.1
 
         totalBonus += (disciple.spiritRoot.cultivationBonus - 1.0)
 
         totalBonus += (disciple.comprehensionSpeedBonus - 1.0)
-
-        totalBonus += (disciple.cultivationSpeedBonus - 1.0)
 
         if (manuals.isNotEmpty()) {
             disciple.manualIds.forEach { manualId ->
@@ -321,8 +327,9 @@ object DiscipleStatCalculator {
 
         totalBonus += preachingElderBonus
         totalBonus += preachingMastersBonus
+        totalBonus += cultivationSubsidyBonus
 
-        return baseCultivation * (1.0 + totalBonus)
+        return (baseCultivation * (1.0 + totalBonus)).coerceAtLeast(1.0)
     }
 
     // ==================== 突破概率计算 ====================
@@ -332,13 +339,11 @@ object DiscipleStatCalculator {
      *
      * 影响因素：
      * 1. 基础突破率（由目标境界决定）
-     * 2. 每次尝试固定-1%惩罚
-     * 3. 灵根品质加成（单/双灵根在高境界有额外加成）
-     * 4. 丹药加成
-     * 5. 天赋突破加成
-     * 6. 内门长老指导加成
-     * 7. 外门长老指导加成
-     * 8. 失败累积加成（每次失败+3%）
+     * 2. 丹药加成
+     * 3. 天赋突破加成
+     * 4. 内门长老指导加成
+     * 5. 外门长老指导加成
+     * 6. 失败累积加成（每次失败+1%）
      *
      * 最终结果限制在 [0.01, 1.0] 范围内
      *
@@ -360,20 +365,6 @@ object DiscipleStatCalculator {
 
         var totalBonus = 0.0
 
-        // 每次尝试的基础惩罚
-        totalBonus += -0.01
-
-        // 灵根品质加成
-        val spiritRootCount = disciple.spiritRoot.types.size
-        val targetRealm = disciple.realm - 1
-
-        val spiritRootBonus = when (spiritRootCount) {
-            1 -> if (targetRealm >= 5) 0.5 else 0.2
-            2 -> if (targetRealm >= 5) 0.25 else 0.1
-            else -> 0.0
-        }
-        totalBonus += spiritRootBonus
-
         // 丹药加成
         totalBonus += pillBonus
 
@@ -394,7 +385,7 @@ object DiscipleStatCalculator {
         totalBonus += outerElderComprehensionBonus
 
         // 失败累积加成
-        totalBonus += disciple.breakthroughFailCount * 0.03
+        totalBonus += disciple.breakthroughFailCount * 0.01
 
         val finalChance = baseChance * (1.0 + totalBonus)
         return finalChance.coerceIn(0.01, 1.0)

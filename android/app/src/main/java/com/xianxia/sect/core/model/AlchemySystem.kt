@@ -1,14 +1,21 @@
 package com.xianxia.sect.core.model
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
-import androidx.room.PrimaryKey
 import kotlinx.serialization.Serializable
 
 @Serializable
-@Entity(tableName = "alchemy_slots")
+@Entity(
+    tableName = "alchemy_slots",
+    primaryKeys = ["id", "slot_id"]
+)
 data class AlchemySlot(
-    @PrimaryKey
+    @ColumnInfo(name = "id")
     val id: String = java.util.UUID.randomUUID().toString(),
+
+    @ColumnInfo(name = "slot_id")
+    var slotId: Int = 0,
+
     val slotIndex: Int = 0,
     val recipeId: String? = null,
     val recipeName: String = "",
@@ -107,10 +114,17 @@ data class AlchemyResult(
 )
 
 @Serializable
-@Entity(tableName = "forge_slots")
+@Entity(
+    tableName = "forge_slots",
+    primaryKeys = ["id", "slot_id"]
+)
 data class ForgeSlot(
-    @PrimaryKey
+    @ColumnInfo(name = "id")
     val id: String = java.util.UUID.randomUUID().toString(),
+
+    @ColumnInfo(name = "slot_id")
+    var slotId: Int = 0,
+
     val slotIndex: Int = 0,
     val recipeId: String? = null,
     val recipeName: String = "",

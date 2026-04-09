@@ -1,7 +1,6 @@
 package com.xianxia.sect.core.engine.system
 
 import android.util.Log
-import com.xianxia.sect.core.engine.system.inventory.InventorySystemV2
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject

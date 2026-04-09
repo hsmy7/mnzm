@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.xianxia.sect.core.engine.service
 
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -172,7 +174,9 @@ class RedeemCodeService(
         }
 
         _gameData.value = _gameData.value.copy(
-            usedRedeemCodes = _gameData.value.usedRedeemCodes + code.uppercase()
+            usedRedeemCodes = (_gameData.value.usedRedeemCodes + code.uppercase(java.util.Locale.getDefault()))
+                .distinct()
+                .takeLast(GameData.MAX_REDEEM_CODES)
         )
 
         val rewardDescription = result.rewards.joinToString("、") { reward ->

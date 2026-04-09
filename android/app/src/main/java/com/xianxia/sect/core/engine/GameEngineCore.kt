@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.xianxia.sect.core.engine
 
 import android.util.Log
@@ -14,6 +16,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import java.util.EnumSet
 import javax.inject.Inject
+import dagger.hilt.android.scopes.ViewModelScoped
 
 /**
  * ## GameEngineCore - 游戏循环控制器与状态同步协调层
@@ -66,6 +69,7 @@ import javax.inject.Inject
  * - [TODO-H01] 评估是否可以将 Core 的部分职责合并到 Engine (减少一层间接调用)
  * - [TODO-H01] 对于高频变化的 cultivation progress，考虑使用独立的高频通道绕过主状态流
  */
+@ViewModelScoped
 class GameEngineCore @Inject constructor(
     private val stateManager: UnifiedGameStateManager,
     private val eventBus: EventBus,
@@ -170,7 +174,7 @@ class GameEngineCore @Inject constructor(
         dayAccumulator = 0.0
         gameLoopStoppedSignal = CompletableDeferred()
         
-        stateManager.setPausedSync(false)
+        scope.launch { stateManager.setPaused(false) }
         Log.i(TAG, "Game state resumed (isPaused=false)")
         
         gameLoopJob = scope.launch {
@@ -209,7 +213,7 @@ class GameEngineCore @Inject constructor(
     }
     
     fun stopGameLoop() {
-        stateManager.setPausedSync(true)
+        scope.launch { stateManager.setPaused(true) }
         gameLoopJob?.cancel()
         gameLoopJob = null
         Log.i(TAG, "Game loop stop requested, isPaused=true")
@@ -359,7 +363,7 @@ class GameEngineCore @Inject constructor(
      * 全量同步：当脏域过多时使用，一次性拷贝所有字段
      */
     private suspend fun performFullSync(dirtyFlags: EnumSet<DirtyFlag>) {
-        val engineSnapshot = gameEngine.getStateSnapshotSync()
+        val engineSnapshot = gameEngine.getStateSnapshot()
         stateManager.updateStateSync { currentState ->
             currentState.copy(
                 gameData = engineSnapshot.gameData,
@@ -387,59 +391,38 @@ class GameEngineCore @Inject constructor(
      * 显著减少每 tick 的数据拷贝开销
      */
     private suspend fun performIncrementalSync(dirtyFlags: EnumSet<DirtyFlag>) {
-        // 优化：预先获取 Engine 快照，避免重复调用 getStateSnapshotSync
-        // 注意：这里我们按需读取每个域，而不是一次性读取所有域
-        // 这样可以避免读取未变化域的开销
-        
-        when {
-            dirtyFlags.contains(DirtyFlag.GAME_DATA) -> {
-                stateManager.updateGameDataSync(gameEngine.gameData.value)
-            }
-            
-            dirtyFlags.contains(DirtyFlag.DISCIPLES) -> {
-                stateManager.updateDisciplesSync(gameEngine.disciples.value)
-            }
-            
-            dirtyFlags.contains(DirtyFlag.EQUIPMENT) -> {
-                stateManager.updateEquipmentSync(gameEngine.equipment.value)
-            }
-            
-            dirtyFlags.contains(DirtyFlag.MANUALS) -> {
-                stateManager.updateManualsSync(gameEngine.manuals.value)
-            }
-            
-            dirtyFlags.contains(DirtyFlag.PILLS) -> {
-                stateManager.updatePillsSync(gameEngine.pills.value)
-            }
-            
-            dirtyFlags.contains(DirtyFlag.MATERIALS) -> {
-                stateManager.updateMaterialsSync(gameEngine.materials.value)
-            }
-            
-            dirtyFlags.contains(DirtyFlag.HERBS) -> {
-                stateManager.updateHerbsSync(gameEngine.herbs.value)
-            }
-            
-            dirtyFlags.contains(DirtyFlag.SEEDS) -> {
-                stateManager.updateSeedsSync(gameEngine.seeds.value)
-            }
-            
-            dirtyFlags.contains(DirtyFlag.TEAMS) -> {
-                stateManager.updateTeamsSync(gameEngine.teams.value)
-            }
-            
-            dirtyFlags.contains(DirtyFlag.EVENTS) -> {
-                stateManager.updateEventsSync(gameEngine.events.value)
-            }
-            
-            dirtyFlags.contains(DirtyFlag.BATTLE_LOGS) -> {
-                stateManager.updateBattleLogsSync(gameEngine.battleLogs.value)
-            }
-            
-            dirtyFlags.contains(DirtyFlag.ALLIANCES) -> {
-                // alliances 需要从快照获取，因为 GameEngine 可能不暴露该 StateFlow
-                val snapshot = gameEngine.getStateSnapshotSync()
-                stateManager.updateAlliancesSync(snapshot.alliances)
+        val snapshot = if (dirtyFlags.contains(DirtyFlag.ALLIANCES)) {
+            gameEngine.getStateSnapshot()
+        } else {
+            null
+        }
+
+        val gameDataValue = if (dirtyFlags.contains(DirtyFlag.GAME_DATA)) gameEngine.gameData.value else null
+        val disciplesValue = if (dirtyFlags.contains(DirtyFlag.DISCIPLES)) gameEngine.disciples.value else null
+        val equipmentValue = if (dirtyFlags.contains(DirtyFlag.EQUIPMENT)) gameEngine.equipment.value else null
+        val manualsValue = if (dirtyFlags.contains(DirtyFlag.MANUALS)) gameEngine.manuals.value else null
+        val pillsValue = if (dirtyFlags.contains(DirtyFlag.PILLS)) gameEngine.pills.value else null
+        val materialsValue = if (dirtyFlags.contains(DirtyFlag.MATERIALS)) gameEngine.materials.value else null
+        val herbsValue = if (dirtyFlags.contains(DirtyFlag.HERBS)) gameEngine.herbs.value else null
+        val seedsValue = if (dirtyFlags.contains(DirtyFlag.SEEDS)) gameEngine.seeds.value else null
+        val teamsValue = if (dirtyFlags.contains(DirtyFlag.TEAMS)) gameEngine.teams.value else null
+        val eventsValue = if (dirtyFlags.contains(DirtyFlag.EVENTS)) gameEngine.events.value else null
+        val battleLogsValue = if (dirtyFlags.contains(DirtyFlag.BATTLE_LOGS)) gameEngine.battleLogs.value else null
+
+        for (flag in dirtyFlags) {
+            when (flag) {
+                DirtyFlag.GAME_DATA -> gameDataValue?.let { stateManager.updateGameDataState(it) }
+                DirtyFlag.DISCIPLES -> disciplesValue?.let { stateManager.updateDisciplesState(it) }
+                DirtyFlag.EQUIPMENT -> equipmentValue?.let { stateManager.updateEquipmentState(it) }
+                DirtyFlag.MANUALS -> manualsValue?.let { stateManager.updateManualsState(it) }
+                DirtyFlag.PILLS -> pillsValue?.let { stateManager.updatePillsState(it) }
+                DirtyFlag.MATERIALS -> materialsValue?.let { stateManager.updateMaterialsState(it) }
+                DirtyFlag.HERBS -> herbsValue?.let { stateManager.updateHerbsState(it) }
+                DirtyFlag.SEEDS -> seedsValue?.let { stateManager.updateSeedsState(it) }
+                DirtyFlag.TEAMS -> teamsValue?.let { stateManager.updateTeamsState(it) }
+                DirtyFlag.EVENTS -> eventsValue?.let { stateManager.updateEventsState(it) }
+                DirtyFlag.BATTLE_LOGS -> battleLogsValue?.let { stateManager.updateBattleLogsState(it) }
+                DirtyFlag.ALLIANCES -> snapshot?.let { stateManager.updateAlliancesState(it.alliances) }
             }
         }
     }
@@ -505,7 +488,8 @@ class GameEngineCore @Inject constructor(
         val teams: List<ExplorationTeam>,
         val events: List<GameEvent>,
         val battleLogs: List<BattleLog>,
-        val alliances: List<Alliance>
+        val alliances: List<Alliance>,
+        val productionSlots: List<com.xianxia.sect.core.model.production.ProductionSlot> = emptyList()
     )
     
     fun dispose() {

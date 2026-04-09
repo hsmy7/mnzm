@@ -1,17 +1,36 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- 基本网络权限 -->
+    <!-- 基本网络权限 - 用于云存档和网络功能 -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
-    
+
     <!-- 存储权限 - 用于存档功能 -->
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" 
+    <!-- 注意：在 Android 10 (API 29) 及以上版本，应用只能访问自己的私有目录 -->
+    <!-- maxSdkVersion="28" 表示这些权限仅在 Android 9 及以下版本请求 -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" 
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
-    
+
+    <!--
+    权限使用说明：
+    1. INTERNET/ACCESS_NETWORK_STATE/ACCESS_WIFI_STATE：用于云存档同步、数据备份等网络功能
+    2. WRITE_EXTERNAL_STORAGE/READ_EXTERNAL_STORAGE：用于本地存档文件的读写（仅 API 28 及以下）
+
+    运行时权限检查：
+    - 对于 API 23-28：需要在运行时请求存储权限（已在相关 Activity 中处理）
+    - 对于 API 29+：使用分区存储，无需请求这些权限
+
+    如果将来需要以下功能，请添加对应权限：
+    - 前台服务：<uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    - 保持设备唤醒：<uses-permission android:name="android.permission.WAKE_LOCK" />
+    - 震动反馈：<uses-permission android:name="android.permission.VIBRATE" />
+    - 开机自启：<uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    -->
+
     <!-- 设备特性声明 - 非必需 -->
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
     <uses-feature android:name="android.hardware.screen.portrait" android:required="false" />
@@ -35,7 +54,8 @@
             android:theme="@style/Theme.XianxiaSect.Splash"
             android:configChanges="orientation|screenSize|smallestScreenSize|keyboardHidden"
             android:screenOrientation="portrait"
-            android:windowSoftInputMode="adjustResize">
+            android:windowSoftInputMode="adjustResize"
+            tools:ignore="LockedOrientationActivity,DiscouragedApi">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -47,7 +67,8 @@
             android:exported="false"
             android:configChanges="orientation|screenSize|smallestScreenSize|keyboardHidden"
             android:screenOrientation="portrait"
-            android:windowSoftInputMode="adjustResize" />
+            android:windowSoftInputMode="adjustResize"
+            tools:ignore="LockedOrientationActivity,DiscouragedApi" />
 
     </application>
 

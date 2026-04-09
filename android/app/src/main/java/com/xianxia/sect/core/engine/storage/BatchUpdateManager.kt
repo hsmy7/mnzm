@@ -7,7 +7,8 @@ class BatchUpdateManager<T>(
     private val delayMs: Long = 100,
     private val maxBatchSize: Int = 50,
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.Default + SupervisorJob()),
-    private val onFlush: suspend (Map<String, T>) -> Unit = {}
+    private val onFlush: suspend (Map<String, T>) -> Unit = {},
+    private val syncDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
     companion object {
         private const val TAG = "BatchUpdateManager"
@@ -99,11 +100,14 @@ class BatchUpdateManager<T>(
     }
     
     fun flushSync(): Map<String, T> {
-        runBlocking {
+        // 使用独立的 syncDispatcher 避免 runBlocking 与 scope 的调度器死锁：
+        // 如果调用线程恰好是 scope 调度器的工作线程，runBlocking 内的 cancelAndJoin()
+        // 需要等待协程完成，而协程恢复又需要该调度器线程，形成循环等待。
+        runBlocking(syncDispatcher) {
             updateJob?.cancelAndJoin()
         }
         updateJob = null
-        
+
         val updates: Map<String, T>
         synchronized(lock) {
             updates = pendingUpdates.toMap()

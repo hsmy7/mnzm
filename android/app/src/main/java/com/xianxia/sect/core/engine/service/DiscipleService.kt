@@ -1,9 +1,12 @@
+@file:Suppress("DEPRECATION")
+
 package com.xianxia.sect.core.engine.service
 
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.data.TalentDatabase
 import java.util.UUID
 import kotlin.random.Random
 
@@ -22,6 +25,7 @@ class DiscipleService constructor(
     private val _gameData: MutableStateFlow<GameData>,
     private val _disciples: MutableStateFlow<List<Disciple>>,
     private val _equipment: MutableStateFlow<List<Equipment>>,
+    private val _teams: MutableStateFlow<List<ExplorationTeam>>,
     private val addEvent: (String, EventType) -> Unit,
     private val transactionMutex: Any
 ) {
@@ -85,22 +89,19 @@ class DiscipleService constructor(
 
         if (!disciple.isAlive) return DiscipleStatus.DEAD
         if (disciple.status == DiscipleStatus.REFLECTING) return DiscipleStatus.REFLECTING
+        if (disciple.status == DiscipleStatus.ON_MISSION) return DiscipleStatus.ON_MISSION
 
-        // Check battle team
         val battleTeam = data.battleTeam
         if (battleTeam != null && battleTeam.status != "idle") {
             if (battleTeam.slots.any { it.discipleId == discipleId }) {
-                return DiscipleStatus.BATTLE
+                return DiscipleStatus.IN_TEAM
             }
         }
 
-        // Check exploration teams
-        if (_isInExploration(discipleId)) return DiscipleStatus.EXPLORING
+        if (_isInExploration(discipleId)) return DiscipleStatus.IN_TEAM
 
-        // Check cave exploration teams
-        if (_isInCaveExploration(discipleId)) return DiscipleStatus.EXPLORING
+        if (_isInCaveExploration(discipleId)) return DiscipleStatus.IN_TEAM
 
-        // Check elder slots
         val elderSlots = data.elderSlots
         if (elderSlots.lawEnforcementElder == discipleId ||
             elderSlots.lawEnforcementDisciples.any { it.discipleId == discipleId } ||
@@ -116,31 +117,26 @@ class DiscipleService constructor(
             return DiscipleStatus.PREACHING
         }
 
-        // Check management positions
+        if (elderSlots.spiritMineDeaconDisciples.any { it.discipleId == discipleId }) {
+            return DiscipleStatus.DEACONING
+        }
+
         if (elderSlots.viceSectMaster == discipleId ||
             elderSlots.outerElder == discipleId ||
             elderSlots.innerElder == discipleId ||
-            elderSlots.spiritMineDeaconDisciples.any { it.discipleId == discipleId }) {
+            elderSlots.forgeElder == discipleId ||
+            elderSlots.alchemyElder == discipleId ||
+            elderSlots.herbGardenElder == discipleId) {
             return DiscipleStatus.MANAGING
         }
 
-        // Check work positions
-        if (elderSlots.forgeElder == discipleId) return DiscipleStatus.FORGING
-        if (elderSlots.alchemyElder == discipleId) return DiscipleStatus.ALCHEMY
-        if (elderSlots.herbGardenElder == discipleId) return DiscipleStatus.FARMING
-
-        // Check library slots
         if (data.librarySlots.any { it.discipleId == discipleId }) {
             return DiscipleStatus.STUDYING
         }
 
-        // Check spirit mine slots
         if (data.spiritMineSlots.any { it.discipleId == discipleId }) {
             return DiscipleStatus.MINING
         }
-
-        // Growing children
-        if (disciple.realmLayer == 0) return DiscipleStatus.GROWING
 
         return DiscipleStatus.IDLE
     }
@@ -152,7 +148,6 @@ class DiscipleService constructor(
         val data = _gameData.value
         val elderSlots = data.elderSlots
 
-        // Build sets of assigned disciple IDs for each status
         val lawEnforcerIds = mutableSetOf<String>()
         elderSlots.lawEnforcementElder?.let { lawEnforcerIds.add(it) }
         elderSlots.lawEnforcementDisciples.mapNotNull { it.discipleId }.forEach { lawEnforcerIds.add(it) }
@@ -163,52 +158,45 @@ class DiscipleService constructor(
         elderSlots.preachingMasters.mapNotNull { it.discipleId }.forEach { preachingIds.add(it) }
         elderSlots.qingyunPreachingMasters.mapNotNull { it.discipleId }.forEach { preachingIds.add(it) }
 
+        val deaconingIds = mutableSetOf<String>()
+        elderSlots.spiritMineDeaconDisciples.mapNotNull { it.discipleId }.forEach { deaconingIds.add(it) }
+
         val managingIds = mutableSetOf<String>()
         elderSlots.viceSectMaster?.let { managingIds.add(it) }
         elderSlots.outerElder?.let { managingIds.add(it) }
         elderSlots.innerElder?.let { managingIds.add(it) }
-        elderSlots.spiritMineDeaconDisciples.mapNotNull { it.discipleId }.forEach { managingIds.add(it) }
-
-        val forgingIds = mutableSetOf<String>()
-        elderSlots.forgeElder?.let { forgingIds.add(it) }
-
-        val alchemyIds = mutableSetOf<String>()
-        elderSlots.alchemyElder?.let { alchemyIds.add(it) }
-
-        val farmingIds = mutableSetOf<String>()
-        elderSlots.herbGardenElder?.let { farmingIds.add(it) }
+        elderSlots.forgeElder?.let { managingIds.add(it) }
+        elderSlots.alchemyElder?.let { managingIds.add(it) }
+        elderSlots.herbGardenElder?.let { managingIds.add(it) }
 
         val studyingIds = data.librarySlots.mapNotNull { it.discipleId }.toMutableSet()
 
         val miningIds = data.spiritMineSlots.mapNotNull { it.discipleId }.toMutableSet()
 
-        // Battle team
-        val battleIds = mutableSetOf<String>()
+        val inTeamIds = mutableSetOf<String>()
         val battleTeam = data.battleTeam
         if (battleTeam != null && battleTeam.status != "idle") {
-            battleTeam.slots.mapNotNull { it.discipleId }.forEach { battleIds.add(it) }
+            battleTeam.slots.mapNotNull { it.discipleId }.forEach { inTeamIds.add(it) }
         }
 
-        // Exploration teams
-        val exploringIds = mutableSetOf<String>()
-        // This would be populated from exploration service
+        _teams.value.filter { it.status == ExplorationStatus.TRAVELING || it.status == ExplorationStatus.EXPLORING }
+            .forEach { team -> inTeamIds.addAll(team.memberIds) }
+        _gameData.value.caveExplorationTeams.filter { it.status == CaveExplorationStatus.TRAVELING || it.status == CaveExplorationStatus.EXPLORING }
+            .forEach { team -> inTeamIds.addAll(team.memberIds) }
 
         _disciples.value = _disciples.value.map { disciple ->
             if (!disciple.isAlive) return@map disciple
             if (disciple.status == DiscipleStatus.REFLECTING) return@map disciple
+            if (disciple.status == DiscipleStatus.ON_MISSION) return@map disciple
 
             val newStatus = when {
-                battleIds.contains(disciple.id) -> DiscipleStatus.BATTLE
-                exploringIds.contains(disciple.id) -> DiscipleStatus.EXPLORING
+                inTeamIds.contains(disciple.id) -> DiscipleStatus.IN_TEAM
                 lawEnforcerIds.contains(disciple.id) -> DiscipleStatus.LAW_ENFORCING
                 preachingIds.contains(disciple.id) -> DiscipleStatus.PREACHING
+                deaconingIds.contains(disciple.id) -> DiscipleStatus.DEACONING
                 managingIds.contains(disciple.id) -> DiscipleStatus.MANAGING
-                forgingIds.contains(disciple.id) -> DiscipleStatus.FORGING
-                alchemyIds.contains(disciple.id) -> DiscipleStatus.ALCHEMY
-                farmingIds.contains(disciple.id) -> DiscipleStatus.FARMING
                 studyingIds.contains(disciple.id) -> DiscipleStatus.STUDYING
                 miningIds.contains(disciple.id) -> DiscipleStatus.MINING
-                disciple.realmLayer == 0 -> DiscipleStatus.GROWING
                 else -> DiscipleStatus.IDLE
             }
 
@@ -295,7 +283,15 @@ class DiscipleService constructor(
         val surname = surnames.random()
         val name = if (gender == "male") maleNames.random() else femaleNames.random()
 
-        val spiritRootType = listOf("metal", "wood", "water", "fire", "earth").random()
+        val allSpiritRootTypes = listOf("metal", "wood", "water", "fire", "earth")
+        val rootCount = when (Random.nextInt(100)) {
+            in 0..4 -> 1
+            in 5..24 -> 2
+            in 25..54 -> 3
+            in 55..84 -> 4
+            else -> 5
+        }
+        val spiritRootType = allSpiritRootTypes.shuffled().take(rootCount).joinToString(",")
 
         val hpVariance = Random.nextInt(-50, 51)
         val mpVariance = Random.nextInt(-50, 51)
@@ -305,15 +301,24 @@ class DiscipleService constructor(
         val magicDefenseVariance = Random.nextInt(-50, 51)
         val speedVariance = Random.nextInt(-50, 51)
 
+        val comprehension = when (rootCount) {
+            1 -> Random.nextInt(80, 101)
+            2 -> Random.nextInt(60, 101)
+            3 -> Random.nextInt(40, 101)
+            4 -> Random.nextInt(20, 101)
+            else -> Random.nextInt(1, 101)
+        }
+
         val disciple = Disciple(
             id = id,
             name = "$surname$name",
             gender = gender,
             age = Random.nextInt(16, 30),
-            realm = 9, // Start at Qi Refining
-            realmLayer = Random.nextInt(1, 10),
+            realm = 9,
+            realmLayer = 1,
             spiritRootType = spiritRootType,
             status = DiscipleStatus.IDLE,
+            talentIds = TalentDatabase.generateTalentsForDisciple().map { it.id },
             combat = com.xianxia.sect.core.model.CombatAttributes(
                 hpVariance = hpVariance,
                 mpVariance = mpVariance,
@@ -325,10 +330,15 @@ class DiscipleService constructor(
             ),
             social = com.xianxia.sect.core.model.SocialData(),
             skills = com.xianxia.sect.core.model.SkillStats(
-                intelligence = Random.nextInt(30, 81),
-                charm = Random.nextInt(30, 81),
-                loyalty = Random.nextInt(70, 101),
-                morality = Random.nextInt(30, 80)
+                intelligence = Random.nextInt(1, 101),
+                charm = Random.nextInt(1, 101),
+                loyalty = Random.nextInt(1, 101),
+                comprehension = comprehension,
+                morality = Random.nextInt(1, 101),
+                artifactRefining = Random.nextInt(1, 101),
+                pillRefining = Random.nextInt(1, 101),
+                spiritPlanting = Random.nextInt(1, 101),
+                teaching = Random.nextInt(1, 101)
             )
         ).apply {
             val baseStats = Disciple.calculateBaseStatsWithVariance(
@@ -371,47 +381,15 @@ class DiscipleService constructor(
         clearDiscipleFromAllSlots(discipleId)
 
         // Remove equipment
-        disciple.weaponId?.let { unequipEquipment(discipleId, it) }
-        disciple.armorId?.let { unequipEquipment(discipleId, it) }
-        disciple.bootsId?.let { unequipEquipment(discipleId, it) }
-        disciple.accessoryId?.let { unequipEquipment(discipleId, it) }
+        disciple.weaponId.takeIf { it.isNotEmpty() }?.let { unequipEquipment(discipleId, it) }
+        disciple.armorId.takeIf { it.isNotEmpty() }?.let { unequipEquipment(discipleId, it) }
+        disciple.bootsId.takeIf { it.isNotEmpty() }?.let { unequipEquipment(discipleId, it) }
+        disciple.accessoryId.takeIf { it.isNotEmpty() }?.let { unequipEquipment(discipleId, it) }
 
         // Remove disciple
         removeDisciple(discipleId)
 
         addEvent("已将 ${disciple.name} 逐出宗门", EventType.INFO)
-        return true
-    }
-
-    fun sendToReflection(discipleId: String): Boolean {
-        val disciple = getDiscipleById(discipleId) ?: return false
-
-        if (!disciple.isAlive) {
-            addEvent("${disciple.name} 已死亡，无法关押", EventType.WARNING)
-            return false
-        }
-
-        if (disciple.status == DiscipleStatus.REFLECTING) {
-            addEvent("${disciple.name} 已在思过崖中", EventType.WARNING)
-            return false
-        }
-
-        clearDiscipleFromAllSlots(discipleId)
-
-        val currentYear = _gameData.value.gameYear
-        val endYear = currentYear + 10
-
-        _disciples.value = _disciples.value.map {
-            if (it.id == discipleId) it.copy(
-                status = DiscipleStatus.REFLECTING,
-                statusData = it.statusData + mapOf(
-                    "reflectionStartYear" to currentYear.toString(),
-                    "reflectionEndYear" to endYear.toString()
-                )
-            ) else it
-        }
-
-        addEvent("执法堂已将 ${disciple.name} 关入思过崖，${endYear - currentYear}年后释放", EventType.INFO)
         return true
     }
 
@@ -436,19 +414,19 @@ class DiscipleService constructor(
         // Unequip existing equipment in same slot
         val updatedDisciple = when (equipment.slot) {
             EquipmentSlot.WEAPON -> {
-                disciple.weaponId?.let { unequipEquipment(discipleId, it) }
+                disciple.weaponId.takeIf { it.isNotEmpty() }?.let { unequipEquipment(discipleId, it) }
                 disciple.copyWith(weaponId = equipmentId)
             }
             EquipmentSlot.ARMOR -> {
-                disciple.armorId?.let { unequipEquipment(discipleId, it) }
+                disciple.armorId.takeIf { it.isNotEmpty() }?.let { unequipEquipment(discipleId, it) }
                 disciple.copyWith(armorId = equipmentId)
             }
             EquipmentSlot.BOOTS -> {
-                disciple.bootsId?.let { unequipEquipment(discipleId, it) }
+                disciple.bootsId.takeIf { it.isNotEmpty() }?.let { unequipEquipment(discipleId, it) }
                 disciple.copyWith(bootsId = equipmentId)
             }
             EquipmentSlot.ACCESSORY -> {
-                disciple.accessoryId?.let { unequipEquipment(discipleId, it) }
+                disciple.accessoryId.takeIf { it.isNotEmpty() }?.let { unequipEquipment(discipleId, it) }
                 disciple.copyWith(accessoryId = equipmentId)
             }
             else -> disciple
@@ -474,10 +452,10 @@ class DiscipleService constructor(
 
         val disciple = _disciples.value[discipleIndex]
         val updatedDisciple = when {
-            disciple.weaponId == equipmentId -> disciple.copyWith(weaponId = null)
-            disciple.armorId == equipmentId -> disciple.copyWith(armorId = null)
-            disciple.bootsId == equipmentId -> disciple.copyWith(bootsId = null)
-            disciple.accessoryId == equipmentId -> disciple.copyWith(accessoryId = null)
+            disciple.weaponId == equipmentId -> disciple.copyWith(weaponId = "")
+            disciple.armorId == equipmentId -> disciple.copyWith(armorId = "")
+            disciple.bootsId == equipmentId -> disciple.copyWith(bootsId = "")
+            disciple.accessoryId == equipmentId -> disciple.copyWith(accessoryId = "")
             else -> disciple
         }
 
@@ -508,12 +486,11 @@ class DiscipleService constructor(
 
             // Clear from spirit mine slots
             val updatedSpiritMineSlots = data.spiritMineSlots.map {
-                if (it.discipleId == discipleId) it.copy(discipleId = null, discipleName = "") else it
+                if (it.discipleId == discipleId) it.copy(discipleId = "", discipleName = "") else it
             }
 
-            // Clear from library slots
             val updatedLibrarySlots = data.librarySlots.map {
-                if (it.discipleId == discipleId) it.copy(discipleId = null, discipleName = "") else it
+                if (it.discipleId == discipleId) it.copy(discipleId = "", discipleName = "") else it
             }
 
             // Clear from elder slots
@@ -537,15 +514,15 @@ class DiscipleService constructor(
     private fun clearDiscipleFromElderSlots(slots: ElderSlots, discipleId: String): ElderSlots {
         var updated = slots
 
-        if (updated.viceSectMaster == discipleId) updated = updated.copy(viceSectMaster = null)
-        if (updated.herbGardenElder == discipleId) updated = updated.copy(herbGardenElder = null)
-        if (updated.alchemyElder == discipleId) updated = updated.copy(alchemyElder = null)
-        if (updated.forgeElder == discipleId) updated = updated.copy(forgeElder = null)
-        if (updated.outerElder == discipleId) updated = updated.copy(outerElder = null)
-        if (updated.preachingElder == discipleId) updated = updated.copy(preachingElder = null)
-        if (updated.lawEnforcementElder == discipleId) updated = updated.copy(lawEnforcementElder = null)
-        if (updated.innerElder == discipleId) updated = updated.copy(innerElder = null)
-        if (updated.qingyunPreachingElder == discipleId) updated = updated.copy(qingyunPreachingElder = null)
+        if (updated.viceSectMaster == discipleId) updated = updated.copy(viceSectMaster = "")
+        if (updated.herbGardenElder == discipleId) updated = updated.copy(herbGardenElder = "")
+        if (updated.alchemyElder == discipleId) updated = updated.copy(alchemyElder = "")
+        if (updated.forgeElder == discipleId) updated = updated.copy(forgeElder = "")
+        if (updated.outerElder == discipleId) updated = updated.copy(outerElder = "")
+        if (updated.preachingElder == discipleId) updated = updated.copy(preachingElder = "")
+        if (updated.lawEnforcementElder == discipleId) updated = updated.copy(lawEnforcementElder = "")
+        if (updated.innerElder == discipleId) updated = updated.copy(innerElder = "")
+        if (updated.qingyunPreachingElder == discipleId) updated = updated.copy(qingyunPreachingElder = "")
 
         // Clear from position slots
         updated = updated.copy(
@@ -555,16 +532,28 @@ class DiscipleService constructor(
             lawEnforcementDisciples = updated.lawEnforcementDisciples.mapNotNull { slot ->
                 if (slot.discipleId == discipleId) null else slot
             },
+            lawEnforcementReserveDisciples = updated.lawEnforcementReserveDisciples.mapNotNull { slot ->
+                if (slot.discipleId == discipleId) null else slot
+            },
             qingyunPreachingMasters = updated.qingyunPreachingMasters.mapNotNull { slot ->
                 if (slot.discipleId == discipleId) null else slot
             },
             herbGardenDisciples = updated.herbGardenDisciples.mapNotNull { slot ->
                 if (slot.discipleId == discipleId) null else slot
             },
+            herbGardenReserveDisciples = updated.herbGardenReserveDisciples.mapNotNull { slot ->
+                if (slot.discipleId == discipleId) null else slot
+            },
             alchemyDisciples = updated.alchemyDisciples.mapNotNull { slot ->
                 if (slot.discipleId == discipleId) null else slot
             },
+            alchemyReserveDisciples = updated.alchemyReserveDisciples.mapNotNull { slot ->
+                if (slot.discipleId == discipleId) null else slot
+            },
             forgeDisciples = updated.forgeDisciples.mapNotNull { slot ->
+                if (slot.discipleId == discipleId) null else slot
+            },
+            forgeReserveDisciples = updated.forgeReserveDisciples.mapNotNull { slot ->
                 if (slot.discipleId == discipleId) null else slot
             }
         )
@@ -594,15 +583,14 @@ class DiscipleService constructor(
 
         // 收集空缺槽位（仅处理前 8 个槽位）
         val emptySlotIndices = (0 until 8).filter { index ->
-            index >= activeSlots.size || activeSlots[index].discipleId == null
+            index >= activeSlots.size || activeSlots[index].discipleId.isEmpty()
         }
 
         if (emptySlotIndices.isEmpty()) return 0
 
-        // 从储备池中筛选有效候选人：存活且存在于 disciples 列表中
         val candidates = reserveSlots
             .mapNotNull { slot ->
-                val discipleId = slot.discipleId ?: return@mapNotNull null
+                val discipleId = slot.discipleId.ifEmpty { return@mapNotNull null }
                 val disciple = _disciples.value.find { it.id == discipleId }
                 if (disciple != null && disciple.isAlive) {
                     Triple(discipleId, slot.discipleName, disciple)
@@ -669,8 +657,10 @@ class DiscipleService constructor(
      * Check if disciple is in exploration team
      */
     private fun _isInExploration(discipleId: String): Boolean {
-        // Would check with exploration service
-        return false
+        return _teams.value.any { team ->
+            team.memberIds.contains(discipleId) &&
+            (team.status == ExplorationStatus.TRAVELING || team.status == ExplorationStatus.EXPLORING)
+        }
     }
 
     /**

@@ -45,6 +45,7 @@ import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.ItemCardData
 import com.xianxia.sect.ui.components.UnifiedItemCard
 import com.xianxia.sect.ui.theme.GameColors
+import java.util.Locale
 
 @Composable
 fun MerchantDialog(
@@ -54,9 +55,16 @@ fun MerchantDialog(
 ) {
     val merchantItems = gameData?.travelingMerchantItems ?: emptyList()
     var selectedItem by remember { mutableStateOf<MerchantItem?>(null) }
-    var buyQuantity by remember { mutableStateOf(1) }
+    var buyQuantity by remember { mutableIntStateOf(1) }
     var showDetailDialog by remember { mutableStateOf(false) }
     var showListingDialog by remember { mutableStateOf(false) }
+    var selectedFilter by remember { mutableStateOf(MerchantFilter.ALL) }
+
+    val filteredItems = remember(merchantItems, selectedFilter) {
+        val items = if (selectedFilter == MerchantFilter.ALL) merchantItems
+        else merchantItems.filter { it.type == selectedFilter.typeValue }
+        items.sortedWith(compareByDescending<MerchantItem> { it.rarity }.thenBy { it.name })
+    }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -88,42 +96,81 @@ fun MerchantDialog(
                         )
                     }
                 } else {
-                    LazyVerticalGrid(
-                        columns = GridCells.Adaptive(68.dp),
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(merchantItems) { item ->
-                            UnifiedItemCard(
-                                data = ItemCardData(
-                                    id = item.id,
-                                    name = item.name,
-                                    rarity = item.rarity,
-                                    quantity = item.quantity,
-                                    additionalInfo = "${item.price}灵石"
-                                ),
-                                isSelected = selectedItem?.id == item.id,
-                                showViewButton = true,
-                                onClick = {
-                                    if (selectedItem?.id == item.id) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(GameColors.PageBackground)
+                                .padding(horizontal = 8.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            MerchantFilter.entries.forEach { filter ->
+                                ListingFilterButton(
+                                    text = filter.displayName,
+                                    selected = selectedFilter == filter,
+                                    onClick = {
+                                        selectedFilter = filter
                                         selectedItem = null
                                         buyQuantity = 1
-                                    } else {
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+
+                        if (filteredItems.isEmpty()) {
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxWidth(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "该分类暂无物品",
+                                    fontSize = 12.sp,
+                                    color = GameColors.TextSecondary,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        } else {
+                            LazyVerticalGrid(
+                                columns = GridCells.Adaptive(56.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                items(filteredItems) { item ->
+                                UnifiedItemCard(
+                                    data = ItemCardData(
+                                        id = item.id,
+                                        name = item.name,
+                                        rarity = item.rarity,
+                                        quantity = item.quantity,
+                                        additionalInfo = "${item.price}灵石"
+                                    ),
+                                    isSelected = selectedItem?.id == item.id,
+                                    showViewButton = true,
+                                    onClick = {
+                                        if (selectedItem?.id == item.id) {
+                                            selectedItem = null
+                                            buyQuantity = 1
+                                        } else {
+                                            selectedItem = item
+                                            buyQuantity = 1
+                                        }
+                                    },
+                                    onViewDetail = {
                                         selectedItem = item
-                                        buyQuantity = 1
+                                        showDetailDialog = true
                                     }
-                                },
-                                onViewDetail = {
-                                    selectedItem = item
-                                    showDetailDialog = true
-                                }
-                            )
+                                )
+                            }
                         }
                     }
                 }
+            }
 
                 PurchasePanel(
                     item = selectedItem,
@@ -151,7 +198,7 @@ fun MerchantDialog(
 
     if (showDetailDialog) {
         selectedItem?.let { item ->
-            ItemDetailDialog(
+            com.xianxia.sect.ui.game.components.ItemDetailDialog(
                 item = item,
                 onDismiss = { showDetailDialog = false }
             )
@@ -355,201 +402,6 @@ private fun getRarityName(rarity: Int): String = when (rarity) {
     5 -> "地品"
     6 -> "天品"
     else -> "凡品"
-}
-
-@Composable
-private fun ItemDetailDialog(
-    item: MerchantItem,
-    onDismiss: () -> Unit
-) {
-    val rarityColor = getRarityColor(item.rarity)
-    val rarityName = getRarityName(item.rarity)
-    val typeName = when (item.type) {
-        "equipment" -> "装备"
-        "manual" -> "功法"
-        "pill" -> "丹药"
-        "material" -> "材料"
-        "herb" -> "灵草"
-        "seed" -> "种子"
-        else -> "物品"
-    }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
-        title = {
-            Column {
-                Text(
-                    text = item.name,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = rarityColor
-                )
-                Text(
-                    text = "$typeName · $rarityName",
-                    fontSize = 11.sp,
-                    color = GameColors.TextSecondary
-                )
-            }
-        },
-        text = {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                HorizontalDivider(color = GameColors.Background, thickness = 1.dp)
-                
-                Text(
-                    text = "道具效果",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-                
-                val effectText = getItemEffectText(item)
-                Text(
-                    text = effectText,
-                    fontSize = 11.sp,
-                    color = GameColors.TextSecondary,
-                    lineHeight = 16.sp
-                )
-            }
-        },
-        confirmButton = {
-            GameButton(
-                text = "关闭",
-                onClick = onDismiss
-            )
-        }
-    )
-}
-
-private fun getItemEffectText(item: MerchantItem): String {
-    val template = EquipmentDatabase.getTemplateByName(item.name)
-    if (template != null) {
-        val effects = mutableListOf<String>()
-        if (template.physicalAttack > 0) effects.add("物理攻击+${template.physicalAttack}")
-        if (template.magicAttack > 0) effects.add("法术攻击+${template.magicAttack}")
-        if (template.physicalDefense > 0) effects.add("物理防御+${template.physicalDefense}")
-        if (template.magicDefense > 0) effects.add("法术防御+${template.magicDefense}")
-        if (template.hp > 0) effects.add("生命值+${template.hp}")
-        if (template.mp > 0) effects.add("灵力值+${template.mp}")
-        if (template.speed > 0) effects.add("速度+${template.speed}")
-        if (template.critChance > 0) effects.add("暴击率+${String.format("%.1f", template.critChance * 100)}%")
-        return if (effects.isNotEmpty()) effects.joinToString("，") else template.description
-    }
-
-    val manualTemplate = ManualDatabase.getByName(item.name)
-    if (manualTemplate != null) {
-        val effects = mutableListOf<String>()
-        val stats = manualTemplate.stats
-        if (stats.containsKey("cultivationSpeedPercent")) effects.add("修炼速度+${stats["cultivationSpeedPercent"]}%")
-        if (stats.containsKey("breakthroughChance")) effects.add("突破概率+${stats["breakthroughChance"]}%")
-        if (stats.containsKey("physicalAttack")) effects.add("物攻+${stats["physicalAttack"]}")
-        if (stats.containsKey("magicAttack")) effects.add("法攻+${stats["magicAttack"]}")
-        if (stats.containsKey("physicalDefense")) effects.add("物防+${stats["physicalDefense"]}")
-        if (stats.containsKey("magicDefense")) effects.add("法防+${stats["magicDefense"]}")
-        if (stats.containsKey("hp")) effects.add("生命+${stats["hp"]}")
-        if (stats.containsKey("mp")) effects.add("灵力+${stats["mp"]}")
-        if (stats.containsKey("speed")) effects.add("速度+${stats["speed"]}")
-        if (stats.containsKey("critRate")) effects.add("暴击率+${stats["critRate"]}%")
-        
-        val skillInfo = buildString {
-            manualTemplate.skillName?.let { skillName ->
-                append("\n技能: $skillName")
-                manualTemplate.skillDescription?.let { desc ->
-                    if (desc.isNotEmpty()) append("\n  $desc")
-                }
-                if (manualTemplate.skillType == "attack") {
-                    append("\n  伤害类型: ${if (manualTemplate.skillDamageType == "physical") "物理" else "法术"}")
-                    if (manualTemplate.skillDamageMultiplier > 0) {
-                        append("\n  伤害倍率: ${(manualTemplate.skillDamageMultiplier * 100).toInt()}%")
-                    }
-                    append("\n  连击次数: ${manualTemplate.skillHits}")
-                }
-                if (manualTemplate.skillCooldown > 0) {
-                    append("\n  冷却回合: ${manualTemplate.skillCooldown}")
-                }
-                if (manualTemplate.skillMpCost > 0) {
-                    append("\n  灵力消耗: ${manualTemplate.skillMpCost}")
-                }
-                if (manualTemplate.skillHealPercent > 0) {
-                    val healType = if (manualTemplate.skillHealType == "mp") "灵力" else "生命"
-                    append("\n  治疗: ${(manualTemplate.skillHealPercent * 100).toInt()}% $healType")
-                }
-                manualTemplate.skillBuffs.forEach { (buffType, value, duration) ->
-                    val buffName = getBuffTypeNameFromString(buffType)
-                    append("\n  $buffName +${(value * 100).toInt()}% (${duration}回合)")
-                }
-                if (manualTemplate.skillBuffs.isEmpty() && manualTemplate.skillBuffType != null && manualTemplate.skillBuffValue > 0) {
-                    val buffName = getBuffTypeNameFromString(manualTemplate.skillBuffType)
-                    val durationText = if (manualTemplate.skillBuffDuration > 0) " (${manualTemplate.skillBuffDuration}回合)" else ""
-                    append("\n  $buffName +${(manualTemplate.skillBuffValue * 100).toInt()}%$durationText")
-                }
-            }
-        }
-        
-        val baseEffects = if (effects.isNotEmpty()) effects.joinToString("，") else manualTemplate.description
-        return baseEffects + skillInfo.toString()
-    }
-
-    val pillRecipe = PillRecipeDatabase.getRecipeByName(item.name)
-    if (pillRecipe != null) {
-        return pillRecipe.description
-    }
-
-    val herb = HerbDatabase.getHerbByName(item.name)
-    if (herb != null) {
-        val recipes = PillRecipeDatabase.getRecipesByHerb(herb.id)
-        return if (recipes.isNotEmpty()) {
-            val recipeNames = recipes.take(3).map { it.name }
-            val result = "可用于炼制: ${recipeNames.joinToString("、")}"
-            if (recipes.size > 3) "$result 等${recipes.size}种丹药" else result
-        } else {
-            "用于炼制丹药的材料"
-        }
-    }
-
-    val seed = HerbDatabase.getSeedByName(item.name)
-    if (seed != null) {
-        val herbFromSeed = HerbDatabase.getHerbFromSeed(seed.id)
-        val baseInfo = "种植后可获得${seed.yield}个${seed.name.removeSuffix("种")}"
-        return if (herbFromSeed != null) {
-            val recipes = PillRecipeDatabase.getRecipesByHerb(herbFromSeed.id)
-            if (recipes.isNotEmpty()) {
-                val recipeNames = recipes.take(2).map { it.name }
-                val pillInfo = "，可炼制${recipeNames.joinToString("、")}"
-                if (recipes.size > 2) {
-                    "$baseInfo$pillInfo 等${recipes.size}种丹药"
-                } else {
-                    "$baseInfo$pillInfo"
-                }
-            } else {
-                baseInfo
-            }
-        } else {
-            baseInfo
-        }
-    }
-
-    val material = BeastMaterialDatabase.getMaterialByName(item.name)
-    if (material != null) {
-        return "用于炼制装备的材料"
-    }
-
-    return "神秘的物品，用途未知"
-}
-
-private fun getBuffTypeNameFromString(buffType: String): String = when (buffType) {
-    "hp" -> "生命加成"
-    "mp" -> "灵力加成"
-    "speed" -> "速度加成"
-    "physical_attack" -> "物攻加成"
-    "magic_attack" -> "法攻加成"
-    "physical_defense" -> "物防加成"
-    "magic_defense" -> "法防加成"
-    "crit_rate" -> "暴击率加成"
-    else -> buffType
 }
 
 @Immutable
@@ -773,6 +625,16 @@ private enum class ListingFilter(val displayName: String) {
     HERB("灵药"),
     SEED("种子"),
     MATERIAL("材料")
+}
+
+private enum class MerchantFilter(val displayName: String, val typeValue: String?) {
+    ALL("全部", null),
+    EQUIPMENT("装备", "equipment"),
+    MANUAL("功法", "manual"),
+    PILL("丹药", "pill"),
+    MATERIAL("材料", "material"),
+    HERB("灵草", "herb"),
+    SEED("种子", "seed")
 }
 
 @Composable
@@ -1011,7 +873,7 @@ private fun <T> InventorySelectGrid(
         }
     } else {
         LazyVerticalGrid(
-            columns = GridCells.Fixed(4),
+            columns = GridCells.Adaptive(56.dp),
             modifier = Modifier
                 .fillMaxSize()
                 .padding(8.dp),
@@ -1151,7 +1013,7 @@ private fun AllItemsSelectGrid(
         }
     } else {
         LazyVerticalGrid(
-            columns = GridCells.Fixed(4),
+            columns = GridCells.Adaptive(56.dp),
             modifier = Modifier
                 .fillMaxSize()
                 .padding(8.dp),

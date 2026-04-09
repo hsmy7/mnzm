@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.xianxia.sect.core.engine.service
 
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -68,9 +70,8 @@ class ExplorationService constructor(
 
         _teams.value = _teams.value + team
 
-        // Update disciple statuses to EXPLORING
         memberIds.forEach { memberId ->
-            updateDiscipleStatus(memberId, DiscipleStatus.EXPLORING)
+            updateDiscipleStatus(memberId, DiscipleStatus.IN_TEAM)
         }
 
         addEvent("探索队伍【$name】出发前往 $dungeonName，预计 ${duration} 天后到达", EventType.INFO)
@@ -196,9 +197,8 @@ class ExplorationService constructor(
                 if (it.id == cave.id) updatedCave else it
             }
 
-            // Update disciple statuses
             selectedDisciples.forEach { disciple ->
-                updateDiscipleStatus(disciple.id, DiscipleStatus.EXPLORING)
+                updateDiscipleStatus(disciple.id, DiscipleStatus.IN_TEAM)
             }
 
             // Save changes
@@ -314,9 +314,8 @@ class ExplorationService constructor(
 
         _teams.value = _teams.value + team
 
-        // Update disciple statuses
         memberIds.forEach { memberId ->
-            updateDiscipleStatus(memberId, DiscipleStatus.SCOUTING)
+            updateDiscipleStatus(memberId, DiscipleStatus.IN_TEAM)
         }
 
         addEvent("探查队伍出发前往${targetSect.name}进行探查，预计${travelDays}天后到达", EventType.INFO)

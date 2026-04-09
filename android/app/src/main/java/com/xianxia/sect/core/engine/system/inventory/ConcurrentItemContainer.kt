@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION", "UNCHECKED_CAST")
+
 package com.xianxia.sect.core.engine.system.inventory
 
 import kotlinx.coroutines.flow.MutableStateFlow

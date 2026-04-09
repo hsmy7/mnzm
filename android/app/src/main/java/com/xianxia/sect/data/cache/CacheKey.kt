@@ -1,5 +1,8 @@
 package com.xianxia.sect.data.cache
 
+import kotlinx.serialization.Serializable
+
+@Serializable
 data class CacheKey(
     val type: String,
     val slot: Int,
@@ -79,4 +82,15 @@ data class CacheKey(
     fun matchesType(targetType: String): Boolean = type == targetType
     
     fun toSlotAwareKey(): SlotAwareCacheKey = SlotAwareCacheKey(type, slot, id, ttl)
+}
+
+data class SlotAwareCacheKey(
+    val type: String,
+    val slot: Int,
+    val id: String,
+    val ttl: Long = 3600_000L
+) {
+    override fun toString(): String = "$type:$slot:$id"
+
+    fun toCacheKey(): CacheKey = CacheKey(type, slot, id, ttl)
 }

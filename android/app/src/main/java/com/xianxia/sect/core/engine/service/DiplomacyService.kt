@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.xianxia.sect.core.engine.service
 
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -447,7 +449,7 @@ class DiplomacyService(
             return Pair(false, "未找到目标宗门")
         }
 
-        if (sect.allianceId == null) {
+        if (sect.allianceId.isEmpty()) {
             return Pair(false, "该宗门未与您结盟")
         }
 
@@ -473,7 +475,7 @@ class DiplomacyService(
         val newSpiritStones = (data.spiritStones - spiritStonePenalty).coerceAtLeast(0L)
 
         val updatedSects = data.worldMapSects.map { s ->
-            if (s.id == sectId) s.copy(allianceId = null, allianceStartYear = 0)
+            if (s.id == sectId) s.copy(allianceId = "", allianceStartYear = 0)
             else s
         }
 
@@ -532,7 +534,7 @@ class DiplomacyService(
             return Triple(false, "不能与自己的宗门结盟", 0)
         }
 
-        if (sect.allianceId != null) {
+        if (sect.allianceId.isNotEmpty()) {
             return Triple(false, "该宗门已有结盟", 0)
         }
 
@@ -751,6 +753,5 @@ class DiplomacyService(
      * 弟子列表（由 GameEngine 注入）
      * 注意：requestAlliance 和 checkAllianceConditions 需要访问弟子数据
      */
-    lateinit var _disciples: MutableStateFlow<List<Disciple>>
-        internal set
+    internal var _disciples: MutableStateFlow<List<Disciple>> = MutableStateFlow(emptyList())
 }

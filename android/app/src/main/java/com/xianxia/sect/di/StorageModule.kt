@@ -1,27 +1,39 @@
+@file:Suppress("DEPRECATION")
+
 package com.xianxia.sect.di
 
 import android.content.Context
+import com.xianxia.sect.data.archive.DataArchiver
 import com.xianxia.sect.data.cache.GameDataCacheManager
+import com.xianxia.sect.data.compression.DataCompressor
 import com.xianxia.sect.data.concurrent.SlotLockManager
+import com.xianxia.sect.data.concurrent.StorageCircuitBreaker
+import com.xianxia.sect.data.concurrent.StorageScopeManager
+import com.xianxia.sect.data.config.SaveLimitsConfig
 import com.xianxia.sect.data.config.StorageConfig
 import com.xianxia.sect.data.coordinator.SaveCoordinator
 import com.xianxia.sect.data.crypto.KeyRotationManager
+import com.xianxia.sect.data.engine.UnifiedStorageEngine
 import com.xianxia.sect.data.facade.RefactoredStorageFacade
 import com.xianxia.sect.data.facade.StorageHealthChecker
 import com.xianxia.sect.data.facade.StorageExporter
 import com.xianxia.sect.data.facade.StorageStatsCollector
 import com.xianxia.sect.data.incremental.IncrementalStorageManager
 import com.xianxia.sect.data.local.GameDatabase
+import com.xianxia.sect.data.memory.DynamicMemoryManager
+import com.xianxia.sect.data.memory.ProactiveMemoryGuard
+import com.xianxia.sect.data.orchestrator.StorageOrchestrator
+import com.xianxia.sect.data.pruning.DataPruningScheduler
 import com.xianxia.sect.data.recovery.DeltaChainRecovery
 import com.xianxia.sect.data.recovery.MultiLevelRecoveryManager
-import com.xianxia.sect.data.transaction.EnhancedTransactionalManager
 import com.xianxia.sect.data.transaction.RefactoredTransactionalSaveManager
 import com.xianxia.sect.data.unified.BackupManager
 import com.xianxia.sect.data.unified.MetadataManager
 import com.xianxia.sect.data.unified.SaveFileHandler
 import com.xianxia.sect.data.unified.SerializationHelper
 import com.xianxia.sect.data.unified.UnifiedSaveRepository
-import com.xianxia.sect.data.wal.EnhancedTransactionalWAL
+import com.xianxia.sect.data.wal.FunctionalWAL
+import com.xianxia.sect.data.wal.WALProvider
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -35,13 +47,13 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 object StorageModule {
-    
+
     @Provides
     @Singleton
     fun provideSlotLockManager(): SlotLockManager {
-        return SlotLockManager(maxSlots = 5)
+        return SlotLockManager(maxSlots = 6)
     }
-    
+
     @Provides
     @Singleton
     fun provideStorageConfig(
@@ -49,27 +61,27 @@ object StorageModule {
     ): StorageConfig {
         return StorageConfig(context)
     }
-    
+
     @Provides
     @Singleton
     fun provideCoroutineScope(): CoroutineScope {
         return CoroutineScope(Dispatchers.IO + SupervisorJob())
     }
-    
+
     @Provides
     @Singleton
-    fun provideEnhancedTransactionalWAL(
+    fun provideWAL(
         @ApplicationContext context: Context
-    ): EnhancedTransactionalWAL {
-        return EnhancedTransactionalWAL.getInstance(context)
+    ): WALProvider {
+        return FunctionalWAL(context)
     }
-    
+
     @Provides
     @Singleton
     fun provideRefactoredTransactionalSaveManager(
         @ApplicationContext context: Context,
         database: GameDatabase,
-        wal: EnhancedTransactionalWAL,
+        wal: WALProvider,
         lockManager: SlotLockManager,
         scope: CoroutineScope
     ): RefactoredTransactionalSaveManager {
@@ -81,33 +93,24 @@ object StorageModule {
             scope = scope
         )
     }
-    
+
     @Provides
     @Singleton
-    fun provideEnhancedTransactionalManager(
-        @ApplicationContext context: Context,
-        database: GameDatabase,
-        wal: EnhancedTransactionalWAL,
-        lockManager: SlotLockManager,
-        scope: CoroutineScope
-    ): EnhancedTransactionalManager {
-        return EnhancedTransactionalManager(
-            context = context,
-            database = database,
-            wal = wal,
-            lockManager = lockManager,
-            scope = scope
-        )
+    fun provideDynamicMemoryManager(
+        @ApplicationContext context: Context
+    ): DynamicMemoryManager {
+        return DynamicMemoryManager(context)
     }
-    
+
     @Provides
     @Singleton
     fun provideSaveFileHandler(
-        @ApplicationContext context: Context
+        @ApplicationContext context: Context,
+        memoryManager: DynamicMemoryManager
     ): SaveFileHandler {
-        return SaveFileHandler(context)
+        return SaveFileHandler(context, memoryManager)
     }
-    
+
     @Provides
     @Singleton
     fun provideSerializationHelper(
@@ -116,7 +119,7 @@ object StorageModule {
     ): SerializationHelper {
         return SerializationHelper(serializationEngine, saveDataConverter)
     }
-    
+
     @Provides
     @Singleton
     fun provideMetadataManager(
@@ -125,7 +128,7 @@ object StorageModule {
     ): MetadataManager {
         return MetadataManager(context, fileHandler)
     }
-    
+
     @Provides
     @Singleton
     fun provideBackupManager(
@@ -134,7 +137,31 @@ object StorageModule {
     ): BackupManager {
         return BackupManager(fileHandler, lockManager)
     }
-    
+
+    @Provides
+    @Singleton
+    fun provideDataCompressor(): DataCompressor {
+        return DataCompressor()
+    }
+
+    @Provides
+    @Singleton
+    fun provideDataArchiver(
+        @ApplicationContext context: Context,
+        dataCompressor: DataCompressor
+    ): DataArchiver {
+        return DataArchiver(context, dataCompressor)
+    }
+
+    @Provides
+    @Singleton
+    fun provideSaveLimitsConfig(
+        @ApplicationContext context: Context
+    ): SaveLimitsConfig {
+        return SaveLimitsConfig(context)
+    }
+
+    @Suppress("DEPRECATION")
     @Provides
     @Singleton
     fun provideUnifiedSaveRepository(
@@ -142,81 +169,87 @@ object StorageModule {
         database: GameDatabase,
         cacheManager: GameDataCacheManager,
         transactionalSaveManager: RefactoredTransactionalSaveManager,
-        wal: EnhancedTransactionalWAL,
+        incrementalStorageManager: IncrementalStorageManager,
+        wal: WALProvider,
         lockManager: SlotLockManager,
         fileHandler: SaveFileHandler,
         backupManager: BackupManager,
         serializationHelper: SerializationHelper,
-        metadataManager: MetadataManager
+        metadataManager: MetadataManager,
+        saveLimitsConfig: SaveLimitsConfig,
+        dataArchiver: DataArchiver
     ): UnifiedSaveRepository {
         return UnifiedSaveRepository(
             context = context,
             database = database,
             cacheManager = cacheManager,
             transactionalSaveManager = transactionalSaveManager,
+            incrementalStorageManager = incrementalStorageManager,
             wal = wal,
             lockManager = lockManager,
             fileHandler = fileHandler,
             backupManager = backupManager,
             serializationHelper = serializationHelper,
-            metadataManager = metadataManager
+            metadataManager = metadataManager,
+            saveLimitsConfig = saveLimitsConfig,
+            dataArchiver = dataArchiver
         )
     }
-    
+
+    @Suppress("DEPRECATION")
     @Provides
     @Singleton
     fun provideStorageHealthChecker(
         @ApplicationContext context: Context,
-        saveRepository: UnifiedSaveRepository,
+        storageGateway: com.xianxia.sect.data.StorageGateway,
+        unifiedSaveRepository: com.xianxia.sect.data.unified.UnifiedSaveRepository,
         lockManager: SlotLockManager
     ): StorageHealthChecker {
-        return StorageHealthChecker(context, saveRepository, lockManager)
+        return StorageHealthChecker(context, storageGateway, unifiedSaveRepository, lockManager)
     }
-    
+
     @Provides
     @Singleton
     fun provideStorageExporter(
         @ApplicationContext context: Context,
-        saveRepository: UnifiedSaveRepository,
+        storageGateway: com.xianxia.sect.data.StorageGateway,
         lockManager: SlotLockManager
     ): StorageExporter {
-        return StorageExporter(context, saveRepository, lockManager)
+        return StorageExporter(context, storageGateway, lockManager)
     }
-    
+
+    @Suppress("DEPRECATION")
     @Provides
     @Singleton
     fun provideStorageStatsCollector(
         @ApplicationContext context: Context,
-        saveRepository: UnifiedSaveRepository,
-        wal: EnhancedTransactionalWAL
+        storageGateway: com.xianxia.sect.data.StorageGateway,
+        unifiedSaveRepository: com.xianxia.sect.data.unified.UnifiedSaveRepository,
+        wal: WALProvider
     ): StorageStatsCollector {
-        return StorageStatsCollector(context, saveRepository, wal)
+        return StorageStatsCollector(context, storageGateway, unifiedSaveRepository, wal)
     }
-    
+
     @Provides
     @Singleton
     fun provideSaveCoordinator(
         @ApplicationContext context: Context,
-        saveRepository: UnifiedSaveRepository,
-        incrementalManager: IncrementalStorageManager,
+        engine: UnifiedStorageEngine,
         cacheManager: GameDataCacheManager,
-        wal: EnhancedTransactionalWAL,
         lockManager: SlotLockManager,
         config: StorageConfig,
         scope: CoroutineScope
     ): SaveCoordinator {
         return SaveCoordinator(
             context = context,
-            saveRepository = saveRepository,
-            incrementalManager = incrementalManager,
+            engine = engine,
             cacheManager = cacheManager,
-            wal = wal,
             lockManager = lockManager,
             config = config,
             scope = scope
         )
     }
-    
+
     @Provides
     @Singleton
     fun provideDeltaChainRecovery(
@@ -230,49 +263,87 @@ object StorageModule {
             config = config
         )
     }
-    
+
+    @Provides
+    @Singleton
+    fun provideUnifiedStorageEngine(
+        @ApplicationContext context: Context,
+        database: GameDatabase,
+        cacheManager: GameDataCacheManager,
+        lockManager: SlotLockManager,
+        wal: WALProvider,
+        saveLimitsConfig: SaveLimitsConfig,
+        serializationHelper: SerializationHelper,
+        scope: CoroutineScope
+    ): UnifiedStorageEngine {
+        return UnifiedStorageEngine(
+            context = context,
+            database = database,
+            cacheManager = cacheManager,
+            lockManager = lockManager,
+            wal = wal,
+            saveLimitsConfig = saveLimitsConfig,
+            serializationHelper = serializationHelper,
+            scope = scope
+        )
+    }
+
     @Provides
     @Singleton
     fun provideRefactoredStorageFacade(
         @ApplicationContext context: Context,
-        saveRepository: UnifiedSaveRepository,
-        transactionalSaveManager: RefactoredTransactionalSaveManager,
-        wal: EnhancedTransactionalWAL,
+        engine: UnifiedStorageEngine,
+        storageGateway: com.xianxia.sect.data.StorageGateway,
+        unifiedSaveRepository: com.xianxia.sect.data.unified.UnifiedSaveRepository,
         lockManager: SlotLockManager,
         healthChecker: StorageHealthChecker,
         exporter: StorageExporter,
         statsCollector: StorageStatsCollector,
-        incrementalStorageManager: IncrementalStorageManager
+        saveLimitsConfig: com.xianxia.sect.data.config.SaveLimitsConfig,
+        deleteCoordinator: com.xianxia.sect.data.coordinator.DeleteCoordinator,
+        orchestrator: com.xianxia.sect.data.orchestrator.StorageOrchestrator,
+        memoryGuard: com.xianxia.sect.data.memory.ProactiveMemoryGuard,
+        pruningScheduler: com.xianxia.sect.data.pruning.DataPruningScheduler,
+        scopeManager: StorageScopeManager
     ): RefactoredStorageFacade {
         return RefactoredStorageFacade(
             context = context,
-            saveRepository = saveRepository,
-            transactionalSaveManager = transactionalSaveManager,
-            wal = wal,
+            engine = engine,
+            storageGateway = storageGateway,
+            unifiedSaveRepository = unifiedSaveRepository,
             lockManager = lockManager,
             healthChecker = healthChecker,
             exporter = exporter,
             statsCollector = statsCollector,
-            incrementalStorageManager = incrementalStorageManager
+            saveLimitsConfig = saveLimitsConfig,
+            deleteCoordinator = deleteCoordinator,
+            orchestrator = orchestrator,
+            memoryGuard = memoryGuard,
+            pruningScheduler = pruningScheduler,
+            scopeManager = scopeManager
         )
     }
-    
+
+    @Suppress("DEPRECATION")
     @Provides
     @Singleton
     fun provideMultiLevelRecoveryManager(
         @ApplicationContext context: Context,
-        saveRepository: UnifiedSaveRepository,
-        wal: EnhancedTransactionalWAL,
+        storageGateway: com.xianxia.sect.data.StorageGateway,
+        unifiedSaveRepository: com.xianxia.sect.data.unified.UnifiedSaveRepository,
+        wal: WALProvider,
         lockManager: SlotLockManager
     ): MultiLevelRecoveryManager {
         return MultiLevelRecoveryManager(
             context = context,
-            saveRepository = saveRepository,
+            storageGateway = storageGateway,
+            unifiedSaveRepository = unifiedSaveRepository,
             wal = wal,
             lockManager = lockManager
         )
     }
-    
+
+    @Suppress("DEPRECATION")
     @Provides
     @Singleton
     fun provideKeyRotationManager(
@@ -280,5 +351,88 @@ object StorageModule {
         saveRepository: UnifiedSaveRepository
     ): KeyRotationManager {
         return KeyRotationManager(context, saveRepository)
+    }
+
+    @Suppress("DEPRECATION")
+    @Provides
+    @Singleton
+    fun provideSaveRepository(
+        unifiedSaveRepository: UnifiedSaveRepository
+    ): com.xianxia.sect.data.unified.SaveRepository {
+        return unifiedSaveRepository
+    }
+
+    @Provides
+    @Singleton
+    fun provideStorageGateway(
+        saveRepository: com.xianxia.sect.data.unified.SaveRepository,
+        gameRepository: com.xianxia.sect.data.GameRepository,
+        orchestrator: com.xianxia.sect.data.orchestrator.StorageOrchestrator
+    ): com.xianxia.sect.data.StorageGateway {
+        return com.xianxia.sect.data.StorageGateway(
+            saveRepository = saveRepository,
+            gameRepository = gameRepository,
+            orchestrator = orchestrator
+        )
+    }
+
+    @Provides
+    @Singleton
+    fun provideStorageScopeManager(): StorageScopeManager {
+        return StorageScopeManager()
+    }
+
+    @Provides
+    @Singleton
+    fun provideStorageCircuitBreaker(): StorageCircuitBreaker {
+        return StorageCircuitBreaker()
+    }
+
+    @Provides
+    @Singleton
+    fun provideStorageOrchestrator(
+        @ApplicationContext context: Context,
+        saveRepository: com.xianxia.sect.data.unified.SaveRepository,
+        gameRepository: com.xianxia.sect.data.GameRepository,
+        engine: UnifiedStorageEngine,
+        cacheManager: GameDataCacheManager,
+        database: GameDatabase,
+        wal: WALProvider,
+        memoryManager: DynamicMemoryManager,
+        scopeManager: StorageScopeManager,
+        circuitBreaker: StorageCircuitBreaker
+    ): StorageOrchestrator {
+        return StorageOrchestrator(
+            context = context,
+            saveRepository = saveRepository,
+            gameRepository = gameRepository,
+            engine = engine,
+            cacheManager = cacheManager,
+            database = database,
+            wal = wal,
+            memoryManager = memoryManager,
+            scopeManager = scopeManager,
+            circuitBreaker = circuitBreaker
+        )
+    }
+
+    @Provides
+    @Singleton
+    fun provideProactiveMemoryGuard(
+        memoryManager: DynamicMemoryManager,
+        cacheManager: GameDataCacheManager,
+        scopeManager: StorageScopeManager
+    ): ProactiveMemoryGuard {
+        return ProactiveMemoryGuard(memoryManager, cacheManager, scopeManager)
+    }
+
+    @Provides
+    @Singleton
+    fun provideDataPruningScheduler(
+        database: GameDatabase,
+        scopeManager: StorageScopeManager,
+        circuitBreaker: StorageCircuitBreaker
+    ): DataPruningScheduler {
+        return DataPruningScheduler(database, scopeManager, circuitBreaker)
     }
 }

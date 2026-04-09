@@ -5,6 +5,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -21,16 +24,18 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.MissionSystem
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.ui.components.discipleCardBorder
+import com.xianxia.sect.ui.components.DiscipleAttrText
+import com.xianxia.sect.ui.components.DiscipleCardStyles
 import com.xianxia.sect.ui.theme.GameColors
 
 @Composable
 fun MissionHallDialog(
     gameData: GameData?,
-    disciples: List<Disciple>,
+    disciples: List<DiscipleAggregate>,
     viewModel: GameViewModel,
     onDismiss: () -> Unit
 ) {
-    var selectedTab by remember { mutableStateOf(0) }
     var selectedMission by remember { mutableStateOf<Mission?>(null) }
     var selectedActiveMission by remember { mutableStateOf<ActiveMission?>(null) }
     var showDiscipleSelection by remember { mutableStateOf(false) }
@@ -45,16 +50,6 @@ fun MissionHallDialog(
         activeMissions.flatMap { it.discipleIds }.toSet()
     }
 
-    val currentCategory = if (selectedTab == 0) MissionCategory.SECT_AFFAIRS else MissionCategory.DISPATCH
-
-    val filteredAvailableMissions = remember(availableMissions, currentCategory) {
-        availableMissions.filter { it.type.category == currentCategory }
-    }
-
-    val filteredActiveMissions = remember(activeMissions, currentCategory) {
-        activeMissions.filter { it.missionType.category == currentCategory }
-    }
-
     CommonDialog(
         title = "任务阁",
         onDismiss = onDismiss
@@ -63,46 +58,14 @@ fun MissionHallDialog(
             verticalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
-            TabRow(
-                selectedTabIndex = selectedTab,
-                containerColor = Color.Transparent,
-                contentColor = GameColors.TextPrimary,
-                divider = {}
-            ) {
-                Tab(
-                    selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 },
-                    text = {
-                        Text(
-                            text = MissionCategory.SECT_AFFAIRS.displayName,
-                            fontSize = 12.sp,
-                            fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal
-                        )
-                    },
-                    selectedContentColor = GameColors.Primary,
-                    unselectedContentColor = GameColors.TextSecondary
-                )
-                Tab(
-                    selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
-                    text = {
-                        Text(
-                            text = MissionCategory.DISPATCH.displayName,
-                            fontSize = 12.sp,
-                            fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal
-                        )
-                    },
-                    selectedContentColor = GameColors.Primary,
-                    unselectedContentColor = GameColors.TextSecondary
-                )
-            }
-
-            if (filteredAvailableMissions.isEmpty() && filteredActiveMissions.isEmpty()) {
+            if (availableMissions.isEmpty() && activeMissions.isEmpty()) {
                 Text(
-                    text = "暂无外派任务，每月随机刷新",
+                    text = "暂无任务，每月概率刷新",
                     fontSize = 11.sp,
                     color = Color(0xFF999999),
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 40.dp),
                     textAlign = TextAlign.Center
                 )
             } else {
@@ -110,7 +73,7 @@ fun MissionHallDialog(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.heightIn(max = 400.dp)
                 ) {
-                    items(filteredActiveMissions, key = { it.id }) { activeMission ->
+                    items(activeMissions, key = { it.id }) { activeMission ->
                         ActiveMissionCard(
                             mission = activeMission,
                             currentYear = currentYear,
@@ -122,7 +85,7 @@ fun MissionHallDialog(
                         )
                     }
 
-                    items(filteredAvailableMissions, key = { it.id }) { mission ->
+                    items(availableMissions, key = { it.id }) { mission ->
                         AvailableMissionCard(
                             mission = mission,
                             onClick = {
@@ -159,6 +122,7 @@ fun MissionHallDialog(
         selectedActiveMission?.let { mission ->
             ActiveMissionDetailDialog(
                 mission = mission,
+                disciples = disciples,
                 currentYear = currentYear,
                 currentMonth = currentMonth,
                 onDismiss = {
@@ -212,7 +176,7 @@ private fun ActiveMissionCard(
                         color = Color(0xFF333333)
                     )
                     Text(
-                        text = "进行中",
+                        text = "执行中",
                         fontSize = 10.sp,
                         color = Color(0xFF2196F3),
                         fontWeight = FontWeight.Bold
@@ -240,14 +204,14 @@ private fun ActiveMissionCard(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = "进度：$progress%",
+                    text = "剩余：$remainingMonths 月",
                     fontSize = 10.sp,
                     color = Color(0xFF666666)
                 )
                 Text(
-                    text = "剩余：$remainingMonths 月",
+                    text = "奖励：${mission.rewards.spiritStones}灵石",
                     fontSize = 10.sp,
-                    color = Color(0xFF666666)
+                    color = Color(0xFFD4A017)
                 )
             }
         }
@@ -293,12 +257,18 @@ private fun AvailableMissionCard(
                 )
             }
 
+            Text(
+                text = mission.description,
+                fontSize = 10.sp,
+                color = Color(0xFF666666)
+            )
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
-                    text = "时长：${mission.duration}月",
+                    text = "耗时：${mission.duration}月",
                     fontSize = 10.sp,
                     color = Color(0xFF666666)
                 )
@@ -308,9 +278,9 @@ private fun AvailableMissionCard(
                     color = Color(0xFF666666)
                 )
                 Text(
-                    text = "最低境界：${mission.realmRequirement}",
+                    text = "奖励：${mission.rewards.spiritStones}灵石",
                     fontSize = 10.sp,
-                    color = Color(0xFF666666)
+                    color = Color(0xFFD4A017)
                 )
             }
         }
@@ -320,12 +290,17 @@ private fun AvailableMissionCard(
 @Composable
 private fun ActiveMissionDetailDialog(
     mission: ActiveMission,
+    disciples: List<DiscipleAggregate>,
     currentYear: Int,
     currentMonth: Int,
     onDismiss: () -> Unit
 ) {
     val progress = mission.getProgressPercent(currentYear, currentMonth)
     val remainingMonths = mission.getRemainingMonths(currentYear, currentMonth)
+
+    val discipleMap = remember(disciples) {
+        disciples.associateBy { it.id }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -357,11 +332,6 @@ private fun ActiveMissionDetailDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(
-                        text = "任务类型：${mission.missionType.displayName}",
-                        fontSize = 11.sp,
-                        color = Color(0xFF666666)
-                    )
                     Text(
                         text = "难度：${mission.difficulty.displayName}",
                         fontSize = 11.sp,
@@ -415,36 +385,48 @@ private fun ActiveMissionDetailDialog(
                 )
 
                 Text(
+                    text = "任务奖励",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF333333)
+                )
+
+                Text(
+                    text = "${mission.rewards.spiritStones} 灵石",
+                    fontSize = 11.sp,
+                    color = Color(0xFFD4A017)
+                )
+
+                HorizontalDivider(
+                    modifier = Modifier.padding(vertical = 4.dp),
+                    color = GameColors.Border,
+                    thickness = 1.dp
+                )
+
+                Text(
                     text = "执行弟子 (${mission.memberCount}人)",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF333333)
                 )
 
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(3),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.heightIn(max = 240.dp)
                 ) {
-                    mission.discipleNames.forEachIndexed { index, name ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(Color(0xFFF5F5F5))
-                                .padding(8.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "${index + 1}. $name",
-                                fontSize = 11.sp,
-                                color = Color(0xFF333333)
-                            )
-                            Text(
-                                text = "执行中",
-                                fontSize = 10.sp,
-                                color = Color(0xFF2196F3)
-                            )
-                        }
+                    items(mission.discipleIds, key = { it }) { discipleId ->
+                        val index = mission.discipleIds.indexOf(discipleId)
+                        val name = if (index < mission.discipleNames.size) mission.discipleNames[index] else "未知"
+                        val realm = if (index < mission.discipleRealms.size) mission.discipleRealms[index] else ""
+                        val disciple = discipleMap[discipleId]
+
+                        MissionDiscipleSlot(
+                            name = name,
+                            realm = realm,
+                            hpRatio = 1f
+                        )
                     }
                 }
             }
@@ -459,11 +441,65 @@ private fun ActiveMissionDetailDialog(
 }
 
 @Composable
+private fun MissionDiscipleSlot(
+    name: String,
+    realm: String,
+    hpRatio: Float
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(6.dp))
+            .background(Color(0xFFF5F5F5))
+            .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(6.dp))
+            .padding(8.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(6.dp)
+                .clip(RoundedCornerShape(3.dp))
+                .background(Color(0xFFE0E0E0))
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(hpRatio.coerceIn(0f, 1f))
+                    .height(6.dp)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(
+                        when {
+                            hpRatio > 0.6f -> Color(0xFF4CAF50)
+                            hpRatio > 0.3f -> Color(0xFFFF9800)
+                            else -> Color(0xFFF44336)
+                        }
+                    )
+            )
+        }
+
+        Text(
+            text = name,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF333333),
+            maxLines = 1
+        )
+
+        Text(
+            text = realm,
+            fontSize = 9.sp,
+            color = Color(0xFF666666)
+        )
+    }
+}
+
+@Composable
 private fun DiscipleSelectionDialog(
     mission: Mission,
-    disciples: List<Disciple>,
+    disciples: List<DiscipleAggregate>,
     busyDiscipleIds: Set<String>,
-    onConfirm: (List<Disciple>) -> Unit,
+    onConfirm: (List<DiscipleAggregate>) -> Unit,
     onDismiss: () -> Unit
 ) {
     val selectedDiscipleIds = remember { mutableStateListOf<String>() }
@@ -473,8 +509,7 @@ private fun DiscipleSelectionDialog(
         disciple.isAlive &&
         disciple.status == DiscipleStatus.IDLE &&
         disciple.id !in busyDiscipleIds &&
-        disciplePosition in mission.difficulty.allowedPositions &&
-        disciple.realm <= mission.minRealm
+        disciplePosition in mission.difficulty.allowedPositions
     }
 
     AlertDialog(
@@ -482,7 +517,7 @@ private fun DiscipleSelectionDialog(
         containerColor = GameColors.PageBackground,
         title = {
             Text(
-                text = "选择弟子 (${selectedDiscipleIds.size}/${MissionSystem.TEAM_SIZE})",
+                text = "选择弟子 (${selectedDiscipleIds.size}/${mission.memberCount})",
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.Black
@@ -498,7 +533,7 @@ private fun DiscipleSelectionDialog(
                     color = Color(0xFF666666)
                 )
                 Text(
-                    text = "要求：${mission.difficulty.allowedPositions.joinToString("/")}，${mission.realmRequirement}及以上",
+                    text = "要求：${mission.difficulty.allowedPositions.joinToString("/")}，空闲状态",
                     fontSize = 11.sp,
                     color = Color(0xFF666666)
                 )
@@ -514,61 +549,30 @@ private fun DiscipleSelectionDialog(
                         text = "没有符合条件的弟子",
                         fontSize = 11.sp,
                         color = Color(0xFF999999),
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 20.dp),
                         textAlign = TextAlign.Center
                     )
                 } else {
                     LazyColumn(
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
                         modifier = Modifier.heightIn(max = 300.dp)
                     ) {
                         items(eligibleDisciples, key = { it.id }) { disciple ->
                             val isSelected = selectedDiscipleIds.contains(disciple.id)
-                            
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(if (isSelected) Color(0xFFFFD700).copy(alpha = 0.2f) else Color(0xFFF5F5F5))
-                                    .border(
-                                        1.dp,
-                                        if (isSelected) Color(0xFFFFD700) else GameColors.Border,
-                                        RoundedCornerShape(4.dp)
-                                    )
-                                    .clickable {
-                                        if (isSelected) {
-                                            selectedDiscipleIds.remove(disciple.id)
-                                        } else if (selectedDiscipleIds.size < MissionSystem.TEAM_SIZE) {
-                                            selectedDiscipleIds.add(disciple.id)
-                                        }
-                                    }
-                                    .padding(8.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column {
-                                    Text(
-                                        text = disciple.name,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.Black
-                                    )
-                                    Text(
-                                        text = "${if (disciple.discipleType == "outer") "外门弟子" else "内门弟子"} | ${GameConfig.Realm.get(disciple.realm).name}",
-                                        fontSize = 9.sp,
-                                        color = Color(0xFF666666)
-                                    )
-                                }
 
-                                if (isSelected) {
-                                    Text(
-                                        text = "✓",
-                                        fontSize = 14.sp,
-                                        color = Color(0xFFFFD700),
-                                        fontWeight = FontWeight.Bold
-                                    )
+                            SelectionDiscipleCard(
+                                disciple = disciple,
+                                isSelected = isSelected,
+                                onClick = {
+                                    if (isSelected) {
+                                        selectedDiscipleIds.remove(disciple.id)
+                                    } else if (selectedDiscipleIds.size < mission.memberCount) {
+                                        selectedDiscipleIds.add(disciple.id)
+                                    }
                                 }
-                            }
+                            )
                         }
                     }
                 }
@@ -577,7 +581,7 @@ private fun DiscipleSelectionDialog(
         confirmButton = {
             GameButton(
                 text = "确认派遣",
-                enabled = selectedDiscipleIds.size == MissionSystem.TEAM_SIZE,
+                enabled = selectedDiscipleIds.size == mission.memberCount,
                 onClick = {
                     val selectedDisciples = eligibleDisciples.filter { it.id in selectedDiscipleIds }
                     onConfirm(selectedDisciples)
@@ -593,12 +597,112 @@ private fun DiscipleSelectionDialog(
     )
 }
 
+@Composable
+private fun SelectionDiscipleCard(
+    disciple: DiscipleAggregate,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    val borderColor = if (isSelected) Color(0xFFFFD700) else Color.Transparent
+    val backgroundColor = if (isSelected) Color(0xFFFFF8E1) else Color.White
+
+    val spiritRootColor = try {
+        Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))
+    } catch (e: Exception) {
+        Color(0xFF666666)
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .discipleCardBorder()
+            .then(
+                if (isSelected) {
+                    Modifier.border(
+                        width = 2.dp,
+                        color = Color(0xFFFFD700),
+                        shape = DiscipleCardStyles.mediumShape
+                    )
+                } else {
+                    Modifier
+                }
+            )
+            .background(backgroundColor, DiscipleCardStyles.mediumShape)
+            .clickable { onClick() }
+            .padding(DiscipleCardStyles.cardPadding)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = disciple.name,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+                    Text(
+                        text = if (disciple.discipleType == "outer") "外门弟子" else "内门弟子",
+                        fontSize = 11.sp,
+                        color = Color(0xFF666666)
+                    )
+                }
+                if (isSelected) {
+                    Text(
+                        text = "✓",
+                        fontSize = 14.sp,
+                        color = Color(0xFFFFD700),
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = disciple.spiritRootName,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = spiritRootColor,
+                    maxLines = 1
+                )
+                Text(
+                    text = disciple.realmNameOnly,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                DiscipleAttrText("悟性", disciple.comprehension, fontSize = 10.sp)
+                DiscipleAttrText("忠诚", disciple.loyalty, fontSize = 10.sp)
+            }
+        }
+    }
+}
+
 private fun getDifficultyColor(difficulty: MissionDifficulty): Color {
     return when (difficulty) {
-        MissionDifficulty.YELLOW -> Color(0xFFD4A017)
-        MissionDifficulty.MYSTERIOUS -> Color(0xFF6B4E9B)
-        MissionDifficulty.EARTH -> Color(0xFF8B4513)
-        MissionDifficulty.HEAVEN -> Color(0xFF1E90FF)
+        MissionDifficulty.SIMPLE -> Color(0xFF4CAF50)
+        MissionDifficulty.NORMAL -> Color(0xFF2196F3)
+        MissionDifficulty.HARD -> Color(0xFFFF9800)
+        MissionDifficulty.FORBIDDEN -> Color(0xFFF44336)
     }
 }
 

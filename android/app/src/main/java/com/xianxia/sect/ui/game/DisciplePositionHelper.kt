@@ -58,10 +58,10 @@ object DisciplePositionHelper {
     }
     
     fun getEligibleBattleDisciples(
-        disciples: List<Disciple>,
+        disciples: List<DiscipleAggregate>,
         currentSlotDiscipleIds: List<String>,
         gameData: GameData
-    ): List<Disciple> {
+    ): List<DiscipleAggregate> {
         return disciples.filter { disciple ->
             disciple.isAlive &&
             disciple.realmLayer > 0 &&

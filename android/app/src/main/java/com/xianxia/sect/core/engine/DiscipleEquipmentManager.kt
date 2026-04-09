@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.GameConfig
@@ -145,7 +147,7 @@ object DiscipleEquipmentManager {
     }
 
     fun canEquip(disciple: Disciple, equipment: Equipment): Boolean {
-        if (equipment.slot == null || equipment.ownerId != null) return false
+        if (equipment.ownerId != null) return false
         return disciple.realm <= equipment.minRealm
     }
     

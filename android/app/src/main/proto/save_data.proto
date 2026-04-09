@@ -5,40 +5,65 @@ package xianxia.save;
 option java_package = "com.xianxia.sect.proto";
 option java_multiple_files = true;
 
-message SaveManifestProto {
+// ============================================================================
+//  SCHEMA VERSION MAP
+// ============================================================================
+// Module              Version    Description
+// ---------------------------------------------------------------------------
+// SaveDataProto       2.0        Top-level entry, modular restructure
+// MetaDataProto       1.0        Save metadata (slot, device, build info)
+// CoreModuleProto     1.0        Sect core data (resources, time, policies)
+// DiscipleModuleProto 1.0        Disciple system (recruit, roster)
+// InventoryModuleProto 1.0        Item backpack (equipment, pills, materials)
+// WorldModuleProto    1.0        World map (sects, caves, alliances)
+// CombatModuleProto   1.0        Battle system (teams, logs, events)
+// MissionModuleProto  1.0        Mission system (active, available, codes)
+// ============================================================================
+
+// ============================================================================
+//  TOP-LEVEL ENTRY
+// ============================================================================
+
+message SaveDataProto {
     string version = 1;
     int64 timestamp = 2;
-    int32 slot = 3;
-    string sect_name = 4;
-    int32 game_year = 5;
-    int32 game_month = 6;
-    int64 spirit_stones = 7;
-    int32 disciple_count = 8;
-    map<string, ChunkInfoProto> chunks = 9;
-    int32 format_version = 10;
-    bytes merkle_root = 11;
+    MetaDataProto meta = 3;
+
+    // Modular shards
+    CoreModuleProto core = 4;               // Core sect data
+    DiscipleModuleProto disciples = 5;      // Disciple system
+    InventoryModuleProto inventory = 6;     // Item backpack
+    WorldModuleProto world = 7;             // World map
+    CombatModuleProto combat = 8;           // Battle system
+    MissionModuleProto missions = 9;        // Mission system
+
+    // Building & crafting slots (standalone, not belonging to any module above)
+    repeated BuildingSlotProto slots = 10;
+    reserved 11;
+    repeated AlchemySlotProto alchemy_slots = 12;
 }
 
-message ChunkInfoProto {
-    string path = 1;
-    int64 offset = 2;
-    int64 size = 3;
-    bytes checksum = 4;
-    int32 format_version = 5;
-    int64 modified_time = 6;
-    ChunkTypeProto type = 7;
+// ============================================================================
+//  META DATA MODULE
+//  Module version: 1.0
+// ============================================================================
+
+message MetaDataProto {
+    int32 current_slot = 1;
+    string save_format_version = 2;
+    int32 proto_schema_version = 3;
+    string device_id = 4;
+    string game_build = 5;
 }
 
-enum ChunkTypeProto {
-    CHUNK_TYPE_UNKNOWN = 0;
-    CHUNK_TYPE_CORE = 1;
-    CHUNK_TYPE_DISCIPLE = 2;
-    CHUNK_TYPE_ITEM = 3;
-    CHUNK_TYPE_WORLD = 4;
-    CHUNK_TYPE_LOG = 5;
-}
+// ============================================================================
+//  CORE MODULE
+//  Module version: 1.0
+//  Contains: Sect identity, time progression, resources, salaries,
+//            protection flags, policies, elder assignments, facility slots.
+// ============================================================================
 
-message GameDataProto {
+message CoreModuleProto {
     string id = 1;
     string sect_name = 2;
     int32 current_slot = 3;
@@ -50,44 +75,90 @@ message GameDataProto {
     int32 auto_save_interval_months = 9;
     map<int32, int32> monthly_salary = 10;
     map<int32, bool> monthly_salary_enabled = 11;
-    repeated WorldSectProto world_map_sects = 12;
-    map<string, ExploredSectInfoProto> explored_sects = 13;
-    map<string, SectScoutInfoProto> scout_info = 14;
-    repeated PlantSlotDataProto herb_garden_plant_slots = 15;
-    map<string, ManualProficiencyListProto> manual_proficiencies = 16;
-    repeated MerchantItemProto traveling_merchant_items = 17;
-    int32 merchant_last_refresh_year = 18;
-    int32 merchant_refresh_count = 19;
-    repeated MerchantItemProto player_listed_items = 20;
-    repeated TradingItemProto trading_sell_list = 21;
-    repeated TradingItemProto trading_buy_list = 22;
-    repeated DiscipleProto recruit_list = 23;
-    int32 last_recruit_year = 24;
-    repeated CultivatorCaveProto cultivator_caves = 25;
-    repeated CaveExplorationTeamProto cave_exploration_teams = 26;
-    repeated AICaveTeamProto ai_cave_teams = 27;
-    repeated string unlocked_dungeons = 28;
-    repeated string unlocked_recipes = 29;
-    repeated string unlocked_manuals = 30;
     int64 last_save_time = 31;
     ElderSlotsProto elder_slots = 32;
     repeated SpiritMineSlotProto spirit_mine_slots = 33;
     repeated LibrarySlotProto library_slots = 34;
-    repeated AllianceProto alliances = 35;
-    repeated SectRelationProto sect_relations = 36;
     int32 player_alliance_slots = 37;
     reserved 38;
     SectPoliciesProto sect_policies = 39;
-    BattleTeamProto battle_team = 40;
-    repeated AIBattleTeamProto ai_battle_teams = 41;
-    repeated string used_redeem_codes = 42;
     bool player_protection_enabled = 43;
     int32 player_protection_start_year = 44;
     bool player_has_attacked_ai = 45;
-    repeated ActiveMissionProto active_missions = 46;
-    repeated MissionProto available_missions = 47;
-    int32 last_mission_refresh_year = 48;
 }
+
+// --- Nested types for CoreModuleProto ---
+
+message ElderSlotsProto {
+    string vice_sect_master = 1;
+    string herb_garden_elder = 2;
+    string alchemy_elder = 3;
+    string forge_elder = 4;
+    string library_elder = 5;
+    string outer_elder = 6;
+    string preaching_elder = 7;
+    repeated DirectDiscipleSlotProto preaching_masters = 8;
+    string law_enforcement_elder = 9;
+    repeated DirectDiscipleSlotProto law_enforcement_disciples = 10;
+    repeated DirectDiscipleSlotProto law_enforcement_reserve_disciples = 11;
+    string inner_elder = 12;
+    string qingyun_preaching_elder = 13;
+    repeated DirectDiscipleSlotProto qingyun_preaching_masters = 14;
+    repeated DirectDiscipleSlotProto herb_garden_disciples = 15;
+    repeated DirectDiscipleSlotProto alchemy_disciples = 16;
+    repeated DirectDiscipleSlotProto forge_disciples = 17;
+    repeated DirectDiscipleSlotProto library_disciples = 18;
+    repeated DirectDiscipleSlotProto herb_garden_reserve_disciples = 19;
+    repeated DirectDiscipleSlotProto alchemy_reserve_disciples = 20;
+    repeated DirectDiscipleSlotProto forge_reserve_disciples = 21;
+    repeated DirectDiscipleSlotProto spirit_mine_deacon_disciples = 22;
+}
+
+message DirectDiscipleSlotProto {
+    int32 index = 1;
+    string disciple_id = 2;
+    string disciple_name = 3;
+    string disciple_realm = 4;
+    string disciple_spirit_root_color = 5;
+}
+
+message SpiritMineSlotProto {
+    int32 index = 1;
+    string disciple_id = 2;
+    string disciple_name = 3;
+    int32 output = 4;
+}
+
+message LibrarySlotProto {
+    int32 index = 1;
+    string disciple_id = 2;
+    string disciple_name = 3;
+    double efficiency = 4;
+}
+
+message SectPoliciesProto {
+    bool spirit_mine_boost = 1;
+    bool enhanced_security = 2;
+    bool alchemy_incentive = 3;
+    bool forge_incentive = 4;
+    bool herb_cultivation = 5;
+    bool cultivation_subsidy = 6;
+    bool manual_research = 7;
+}
+
+// ============================================================================
+//  DISCIPLE MODULE
+//  Module version: 1.0
+//  Contains: Recruit list, full disciple roster.
+// ============================================================================
+
+message DiscipleModuleProto {
+    repeated DiscipleProto recruit_list = 23;
+    int32 last_recruit_year = 24;
+    repeated DiscipleProto disciples = 4;          // from original SaveDataProto.disciples
+}
+
+// --- Disciple entity (shared reference type) ---
 
 message DiscipleProto {
     string id = 1;
@@ -169,6 +240,77 @@ message DiscipleProto {
     bool has_revive_effect = 77;
     bool has_clear_all_effect = 78;
 }
+
+// --- Supporting types for DiscipleProto ---
+
+message EquipmentNurtureProto {
+    string equipment_id = 1;
+    int32 rarity = 2;
+    int32 nurture_level = 3;
+    double nurture_progress = 4;
+}
+
+message StorageBagItemProto {
+    string item_id = 1;
+    string item_type = 2;
+    string name = 3;
+    int32 rarity = 4;
+    int32 quantity = 5;
+    int32 obtained_year = 6;
+    int32 obtained_month = 7;
+    ItemEffectProto effect = 8;
+}
+
+message ItemEffectProto {
+    double cultivation_speed = 1;
+    double cultivation_percent = 2;
+    double skill_exp_percent = 3;
+    double breakthrough_chance = 4;
+    int32 target_realm = 5;
+    int32 heal = 6;
+    double heal_percent = 7;
+    double heal_max_hp_percent = 8;
+    double hp_percent = 9;
+    double mp_percent = 10;
+    double mp_recover_percent = 11;
+    int32 extend_life = 12;
+    int32 battle_count = 13;
+    double physical_attack_percent = 14;
+    double magic_attack_percent = 15;
+    double physical_defense_percent = 16;
+    double magic_defense_percent = 17;
+    double speed_percent = 18;
+    bool revive = 19;
+    bool clear_all = 20;
+    int32 duration = 21;
+}
+
+// ============================================================================
+//  INVENTORY MODULE
+//  Module version: 1.0
+//  Contains: All item collections, merchant data, unlock states.
+// ============================================================================
+
+message InventoryModuleProto {
+    map<string, ManualProficiencyListProto> manual_proficiencies = 16;
+    repeated MerchantItemProto traveling_merchant_items = 17;
+    int32 merchant_last_refresh_year = 18;
+    int32 merchant_refresh_count = 19;
+    repeated MerchantItemProto player_listed_items = 20;
+    repeated TradingItemProto trading_sell_list = 21;
+    repeated TradingItemProto trading_buy_list = 22;
+    repeated EquipmentProto equipment = 5;         // from original SaveDataProto.equipment
+    repeated ManualProto manuals = 6;              // from original SaveDataProto.manuals
+    repeated PillProto pills = 7;                  // from original SaveDataProto.pills
+    repeated MaterialProto materials = 8;          // from original SaveDataProto.materials
+    repeated HerbProto herbs = 9;                  // from original SaveDataProto.herbs
+    repeated SeedProto seeds = 10;                 // from original SaveDataProto.seeds
+    repeated string unlocked_dungeons = 28;
+    repeated string unlocked_recipes = 29;
+    repeated string unlocked_manuals = 30;
+}
+
+// --- Item entity types ---
 
 message EquipmentProto {
     string id = 1;
@@ -252,6 +394,66 @@ message SeedProto {
     int32 quantity = 11;
 }
 
+// --- Merchant & trading types ---
+
+message MerchantItemProto {
+    string id = 1;
+    string name = 2;
+    string type = 3;
+    string item_id = 4;
+    int32 rarity = 5;
+    int32 price = 6;
+    int32 quantity = 7;
+    string description = 8;
+    int32 obtained_year = 9;
+    int32 obtained_month = 10;
+}
+
+message TradingItemProto {
+    string id = 1;
+    string item_id = 2;
+    string name = 3;
+    string type = 4;
+    int32 rarity = 5;
+    int32 price = 6;
+    int32 quantity = 7;
+}
+
+// --- Proficiency types ---
+
+message ManualProficiencyListProto {
+    repeated ManualProficiencyProto items = 1;
+}
+
+message ManualProficiencyProto {
+    string manual_id = 1;
+    string manual_name = 2;
+    double proficiency = 3;
+    int32 max_proficiency = 4;
+    int32 level = 5;
+    int32 mastery_level = 6;
+}
+
+// ============================================================================
+//  WORLD MODULE
+//  Module version: 1.0
+//  Contains: World map, exploration, caves, alliances, relations, garden.
+// ============================================================================
+
+message WorldModuleProto {
+    repeated WorldSectProto world_map_sects = 12;
+    map<string, ExploredSectInfoProto> explored_sects = 13;
+    map<string, SectScoutInfoProto> scout_info = 14;
+    repeated PlantSlotDataProto herb_garden_plant_slots = 15;
+    repeated CultivatorCaveProto cultivator_caves = 25;
+    repeated CaveExplorationTeamProto cave_exploration_teams = 26;
+    repeated AICaveTeamProto ai_cave_teams = 27;
+    repeated AllianceProto alliances = 35;
+    repeated SectRelationProto sect_relations = 36;
+}
+
+// --- World map types ---
+
 message WorldSectProto {
     string id = 1;
     string name = 2;
@@ -286,25 +488,52 @@ message WorldSectProto {
     string gift_preference = 31;
 }
 
-message BattleLogProto {
-    string id = 1;
-    int64 timestamp = 2;
-    string type = 3;
-    string result = 4;
-    repeated BattleParticipantProto participants = 5;
-    repeated BattleRoundProto rounds = 6;
-    BattleRewardsProto rewards = 7;
+message ExploredSectInfoProto {
+    string sect_id = 1;
+    string sect_name = 2;
+    int32 year = 3;
+    int32 month = 4;
+    int32 disciple_count = 5;
+    int32 max_realm = 6;
 }
 
-message GameEventProto {
-    string id = 1;
-    int64 timestamp = 2;
-    string type = 3;
-    string title = 4;
-    string description = 5;
-    map<string, string> data = 6;
-    bool is_read = 7;
+message SectScoutInfoProto {
+    string sect_id = 1;
+    string sect_name = 2;
+    int32 scout_year = 3;
+    int32 scout_month = 4;
+    int32 disciple_count = 5;
+    int32 max_realm = 6;
+    map<string, int32> resources = 7;
+    bool is_known = 8;
+    map<int32, int32> disciples = 9;
+    int32 expiry_year = 10;
+    int32 expiry_month = 11;
 }
+
+message MineSlotProto {
+    int32 index = 1;
+    string disciple_id = 2;
+    string disciple_name = 3;
+    int32 output = 4;
+    double efficiency = 5;
+    bool is_active = 6;
+}
+
+message SectWarehouseProto {
+    repeated WarehouseItemProto items = 1;
+    int64 spirit_stones = 2;
+}
+
+message WarehouseItemProto {
+    string item_id = 1;
+    string item_name = 2;
+    string item_type = 3;
+    int32 rarity = 4;
+    int32 quantity = 5;
+}
+
+// --- Alliance & relation types ---
 
 message AllianceProto {
     string id = 1;
@@ -313,6 +542,87 @@ message AllianceProto {
     string initiator_id = 4;
     string envoy_disciple_id = 5;
 }
+
+message SectRelationProto {
+    string sect_id1 = 1;
+    string sect_id2 = 2;
+    int32 favor = 3;
+    int32 last_interaction_year = 4;
+    int32 no_gift_years = 5;
+}
+
+// --- Cave types ---
+
+message CultivatorCaveProto {
+    string id = 1;
+    string name = 2;
+    int32 level = 3;
+    string owner_sect_id = 4;
+    repeated CaveFloorProto floors = 5;
+}
+
+message CaveFloorProto {
+    int32 floor = 1;
+    repeated CaveRoomProto rooms = 2;
+}
+
+message CaveRoomProto {
+    int32 index = 1;
+    string type = 2;
+    bool cleared = 3;
+    repeated string reward_ids = 4;
+}
+
+message CaveExplorationTeamProto {
+    string id = 1;
+    string name = 2;
+    repeated string member_ids = 3;
+    string cave_id = 4;
+    int32 current_floor = 5;
+    string status = 6;
+    int32 start_year = 7;
+    int32 start_month = 8;
+}
+
+message AICaveTeamProto {
+    string id = 1;
+    string sect_id = 2;
+    string cave_id = 3;
+    repeated DiscipleProto disciples = 4;
+    int32 current_floor = 5;
+    string status = 6;
+}
+
+// --- Garden type ---
+
+message PlantSlotDataProto {
+    int32 index = 1;
+    string status = 2;
+    string seed_id = 3;
+    string seed_name = 4;
+    int32 start_year = 5;
+    int32 start_month = 6;
+    int32 grow_time = 7;
+    int32 expected_yield = 8;
+    int32 harvest_amount = 9;
+    string harvest_herb_id = 10;
+}
+
+// ============================================================================
+//  COMBAT MODULE
+//  Module version: 1.0
+//  Contains: Battle teams, exploration teams, battle logs, game events.
+// ============================================================================
+
+message CombatModuleProto {
+    BattleTeamProto battle_team = 40;
+    repeated AIBattleTeamProto ai_battle_teams = 41;
+    repeated ExplorationTeamProto teams = 11;        // from original SaveDataProto.teams
+    repeated BattleLogProto battle_logs = 14;       // from original SaveDataProto.battle_logs
+    repeated GameEventProto events = 13;            // from original SaveDataProto.events
+}
+
+// --- Battle team types ---
 
 message BattleTeamProto {
     string id = 1;
@@ -332,6 +642,15 @@ message BattleTeamProto {
     bool is_occupying = 15;
     string occupied_sect_id = 16;
     bool is_returning = 17;
+}
+
+message BattleTeamSlotProto {
+    int32 index = 1;
+    string disciple_id = 2;
+    string disciple_name = 3;
+    string disciple_realm = 4;
+    string slot_type = 5;
+    bool is_alive = 6;
 }
 
 message AIBattleTeamProto {
@@ -354,6 +673,189 @@ message AIBattleTeamProto {
     int32 start_year = 17;
     int32 start_month = 18;
     bool is_player_defender = 19;
+}
+
+// --- Exploration team (standalone, used by combat module) ---
+
+message ExplorationTeamProto {
+    string id = 1;
+    string name = 2;
+    repeated string member_ids = 3;
+    string cave_id = 4;
+    int32 current_floor = 5;
+    string status = 6;
+    int32 start_year = 7;
+    int32 start_month = 8;
+}
+
+// --- Battle log types ---
+
+message BattleLogProto {
+    string id = 1;
+    int64 timestamp = 2;
+    string type = 3;
+    string result = 4;
+    repeated BattleParticipantProto participants = 5;
+    repeated BattleRoundProto rounds = 6;
+    BattleRewardsProto rewards = 7;
+}
+
+message BattleParticipantProto {
+    string id = 1;
+    string name = 2;
+    int32 team = 3;
+    int32 hp = 4;
+    int32 max_hp = 5;
+    bool is_alive = 6;
+}
+
+message BattleRoundProto {
+    int32 round = 1;
+    repeated BattleActionProto actions = 2;
+}
+
+message BattleActionProto {
+    string attacker_id = 1;
+    string target_id = 2;
+    string action_type = 3;
+    int32 damage = 4;
+    bool is_crit = 5;
+}
+
+message BattleRewardsProto {
+    int64 spirit_stones = 1;
+    repeated string item_ids = 2;
+    int32 experience = 3;
+}
+
+// --- Event type ---
+
+message GameEventProto {
+    string id = 1;
+    int64 timestamp = 2;
+    string type = 3;
+    string title = 4;
+    string description = 5;
+    map<string, string> data = 6;
+    bool is_read = 7;
+}
+
+// ============================================================================
+//  MISSION MODULE
+//  Module version: 1.0
+//  Contains: Active missions, available missions, redeem codes.
+// ============================================================================
+
+message MissionModuleProto {
+    repeated ActiveMissionProto active_missions = 46;
+    repeated MissionProto available_missions = 47;
+    int32 last_mission_refresh_year = 48;
+    repeated string used_redeem_codes = 42;
+}
+
+// --- Mission types ---
+
+message ActiveMissionProto {
+    string id = 1;
+    string mission_id = 2;
+    string name = 3;
+    string description = 4;
+    int32 start_year = 5;
+    int32 start_month = 6;
+    int32 deadline_year = 7;
+    int32 deadline_month = 8;
+    repeated MissionObjectiveProto objectives = 9;
+    MissionRewardsProto rewards = 10;
+    string status = 11;
+}
+
+message MissionProto {
+    string id = 1;
+    string name = 2;
+    string description = 3;
+    int32 min_year = 4;
+    int32 difficulty = 5;
+    repeated MissionObjectiveProto objectives = 6;
+    MissionRewardsProto rewards = 7;
+    repeated string required_sects = 8;
+}
+
+message MissionObjectiveProto {
+    string id = 1;
+    string type = 2;
+    string target = 3;
+    int32 required = 4;
+    int32 current = 5;
+    bool completed = 6;
+}
+
+message MissionRewardsProto {
+    int64 spirit_stones = 1;
+    repeated string item_ids = 2;
+    int32 reputation = 3;
+}
+
+// ============================================================================
+//  STANDALONE SLOT TYPES (not belonging to any module above)
+// ============================================================================
+
+message BuildingSlotProto {
+    string id = 1;
+    string building_id = 2;
+    string disciple_id = 3;
+    string disciple_name = 4;
+    string status = 5;
+    int64 start_time = 6;
+    int32 duration = 7;
+    int32 output = 8;
+}
+
+message AlchemySlotProto {
+    string id = 1;
+    string disciple_id = 2;
+    string disciple_name = 3;
+    string status = 4;
+    string recipe_id = 5;
+    int64 start_time = 6;
+    int32 duration = 7;
+    int32 quantity = 8;
+}
+
+// ============================================================================
+//  LEGACY / CHUNK INFRASTRUCTURE TYPES (preserved for chunked save system)
+// ============================================================================
+
+message SaveManifestProto {
+    string version = 1;
+    int64 timestamp = 2;
+    int32 slot = 3;
+    string sect_name = 4;
+    int32 game_year = 5;
+    int32 game_month = 6;
+    int64 spirit_stones = 7;
+    int32 disciple_count = 8;
+    map<string, ChunkInfoProto> chunks = 9;
+    int32 format_version = 10;
+    bytes merkle_root = 11;
+}
+
+message ChunkInfoProto {
+    string path = 1;
+    int64 offset = 2;
+    int64 size = 3;
+    bytes checksum = 4;
+    int32 format_version = 5;
+    int64 modified_time = 6;
+    ChunkTypeProto type = 7;
+}
+
+enum ChunkTypeProto {
+    CHUNK_TYPE_UNKNOWN = 0;
+    CHUNK_TYPE_CORE = 1;
+    CHUNK_TYPE_DISCIPLE = 2;
+    CHUNK_TYPE_ITEM = 3;
+    CHUNK_TYPE_WORLD = 4;
+    CHUNK_TYPE_LOG = 5;
 }
 
 message ChunkIndexProto {
@@ -400,376 +902,11 @@ message ChangeLogProto {
     bool synced = 8;
 }
 
-message ItemEffectProto {
-    double cultivation_speed = 1;
-    double cultivation_percent = 2;
-    double skill_exp_percent = 3;
-    double breakthrough_chance = 4;
-    int32 target_realm = 5;
-    int32 heal = 6;
-    double heal_percent = 7;
-    double heal_max_hp_percent = 8;
-    double hp_percent = 9;
-    double mp_percent = 10;
-    double mp_recover_percent = 11;
-    int32 extend_life = 12;
-    int32 battle_count = 13;
-    double physical_attack_percent = 14;
-    double magic_attack_percent = 15;
-    double physical_defense_percent = 16;
-    double magic_defense_percent = 17;
-    double speed_percent = 18;
-    bool revive = 19;
-    bool clear_all = 20;
-    int32 duration = 21;
-}
-
-message EquipmentNurtureProto {
-    string equipment_id = 1;
-    int32 rarity = 2;
-    int32 nurture_level = 3;
-    double nurture_progress = 4;
-}
-
-message StorageBagItemProto {
-    string item_id = 1;
-    string item_type = 2;
-    string name = 3;
-    int32 rarity = 4;
-    int32 quantity = 5;
-    int32 obtained_year = 6;
-    int32 obtained_month = 7;
-    ItemEffectProto effect = 8;
-}
-
-message PlantSlotDataProto {
-    int32 index = 1;
-    string status = 2;
-    string seed_id = 3;
-    string seed_name = 4;
-    int32 start_year = 5;
-    int32 start_month = 6;
-    int32 grow_time = 7;
-    int32 expected_yield = 8;
-    int32 harvest_amount = 9;
-    string harvest_herb_id = 10;
-}
-
-message MerchantItemProto {
-    string id = 1;
-    string name = 2;
-    string type = 3;
-    string item_id = 4;
-    int32 rarity = 5;
-    int32 price = 6;
-    int32 quantity = 7;
-    string description = 8;
-    int32 obtained_year = 9;
-    int32 obtained_month = 10;
-}
-
-message TradingItemProto {
-    string id = 1;
-    string item_id = 2;
-    string name = 3;
-    string type = 4;
-    int32 rarity = 5;
-    int32 price = 6;
-    int32 quantity = 7;
-}
-
-message CultivatorCaveProto {
-    string id = 1;
-    string name = 2;
-    int32 level = 3;
-    string owner_sect_id = 4;
-    repeated CaveFloorProto floors = 5;
-}
-
-message CaveFloorProto {
-    int32 floor = 1;
-    repeated CaveRoomProto rooms = 2;
-}
-
-message CaveRoomProto {
-    int32 index = 1;
-    string type = 2;
-    bool cleared = 3;
-    repeated string reward_ids = 4;
-}
-
-message CaveExplorationTeamProto {
-    string id = 1;
-    string name = 2;
-    repeated string member_ids = 3;
-    string cave_id = 4;
-    int32 current_floor = 5;
-    string status = 6;
-    int32 start_year = 7;
-    int32 start_month = 8;
-}
-
-message AICaveTeamProto {
-    string id = 1;
-    string sect_id = 2;
-    string cave_id = 3;
-    repeated DiscipleProto disciples = 4;
-    int32 current_floor = 5;
-    string status = 6;
-}
-
-message ElderSlotsProto {
-    string vice_sect_master = 1;
-    string herb_garden_elder = 2;
-    string alchemy_elder = 3;
-    string forge_elder = 4;
-    string library_elder = 5;
-    string outer_elder = 6;
-    string preaching_elder = 7;
-    repeated DirectDiscipleSlotProto preaching_masters = 8;
-    string law_enforcement_elder = 9;
-    repeated DirectDiscipleSlotProto law_enforcement_disciples = 10;
-    repeated DirectDiscipleSlotProto law_enforcement_reserve_disciples = 11;
-    string inner_elder = 12;
-    string qingyun_preaching_elder = 13;
-    repeated DirectDiscipleSlotProto qingyun_preaching_masters = 14;
-    repeated DirectDiscipleSlotProto herb_garden_disciples = 15;
-    repeated DirectDiscipleSlotProto alchemy_disciples = 16;
-    repeated DirectDiscipleSlotProto forge_disciples = 17;
-    repeated DirectDiscipleSlotProto library_disciples = 18;
-    repeated DirectDiscipleSlotProto herb_garden_reserve_disciples = 19;
-    repeated DirectDiscipleSlotProto alchemy_reserve_disciples = 20;
-    repeated DirectDiscipleSlotProto forge_reserve_disciples = 21;
-    repeated DirectDiscipleSlotProto spirit_mine_deacon_disciples = 22;
-}
-
-message DirectDiscipleSlotProto {
-    int32 index = 1;
-    string disciple_id = 2;
-    string disciple_name = 3;
-    string disciple_realm = 4;
-    string disciple_spirit_root_color = 5;
-}
-
-message SpiritMineSlotProto {
-    int32 index = 1;
-    string disciple_id = 2;
-    string disciple_name = 3;
-    int32 output = 4;
-}
-
-message LibrarySlotProto {
-    int32 index = 1;
-    string disciple_id = 2;
-    string disciple_name = 3;
-    double efficiency = 4;
-}
-
-message SectRelationProto {
-    string sect_id1 = 1;
-    string sect_id2 = 2;
-    int32 favor = 3;
-    int32 last_interaction_year = 4;
-    int32 no_gift_years = 5;
-}
-
-message SectPoliciesProto {
-    bool spirit_mine_boost = 1;
-    bool enhanced_security = 2;
-    bool alchemy_incentive = 3;
-    bool forge_incentive = 4;
-    bool herb_cultivation = 5;
-    bool cultivation_subsidy = 6;
-    bool manual_research = 7;
-}
-
-message BattleTeamSlotProto {
-    int32 index = 1;
-    string disciple_id = 2;
-    string disciple_name = 3;
-    string disciple_realm = 4;
-    string slot_type = 5;
-    bool is_alive = 6;
-}
-
-message MineSlotProto {
-    int32 index = 1;
-    string disciple_id = 2;
-    string disciple_name = 3;
-    int32 output = 4;
-    double efficiency = 5;
-    bool is_active = 6;
-}
-
-message SectWarehouseProto {
-    repeated WarehouseItemProto items = 1;
-    int64 spirit_stones = 2;
-}
-
-message WarehouseItemProto {
-    string item_id = 1;
-    string item_name = 2;
-    string item_type = 3;
-    int32 rarity = 4;
-    int32 quantity = 5;
-}
-
-message ExploredSectInfoProto {
-    string sect_id = 1;
-    string sect_name = 2;
-    int32 year = 3;
-    int32 month = 4;
-    int32 disciple_count = 5;
-    int32 max_realm = 6;
-}
-
-message SectScoutInfoProto {
-    string sect_id = 1;
-    string sect_name = 2;
-    int32 scout_year = 3;
-    int32 scout_month = 4;
-    int32 disciple_count = 5;
-    int32 max_realm = 6;
-    map<string, int32> resources = 7;
-    bool is_known = 8;
-    map<int32, int32> disciples = 9;
-    int32 expiry_year = 10;
-    int32 expiry_month = 11;
-}
-
-message ManualProficiencyListProto {
-    repeated ManualProficiencyProto items = 1;
-}
-
-message ManualProficiencyProto {
-    string manual_id = 1;
-    string manual_name = 2;
-    double proficiency = 3;
-    int32 max_proficiency = 4;
-    int32 level = 5;
-    int32 mastery_level = 6;
-}
-
-message ActiveMissionProto {
-    string id = 1;
-    string mission_id = 2;
-    string name = 3;
-    string description = 4;
-    int32 start_year = 5;
-    int32 start_month = 6;
-    int32 deadline_year = 7;
-    int32 deadline_month = 8;
-    repeated MissionObjectiveProto objectives = 9;
-    MissionRewardsProto rewards = 10;
-    string status = 11;
-}
-
-message MissionProto {
-    string id = 1;
-    string name = 2;
-    string description = 3;
-    int32 min_year = 4;
-    int32 difficulty = 5;
-    repeated MissionObjectiveProto objectives = 6;
-    MissionRewardsProto rewards = 7;
-    repeated string required_sects = 8;
-}
-
-message MissionObjectiveProto {
-    string id = 1;
-    string type = 2;
-    string target = 3;
-    int32 required = 4;
-    int32 current = 5;
-    bool completed = 6;
-}
-
-message MissionRewardsProto {
-    int64 spirit_stones = 1;
-    repeated string item_ids = 2;
-    int32 reputation = 3;
-}
-
-message BattleParticipantProto {
-    string id = 1;
-    string name = 2;
-    int32 team = 3;
-    int32 hp = 4;
-    int32 max_hp = 5;
-    bool is_alive = 6;
-}
-
-message BattleRoundProto {
-    int32 round = 1;
-    repeated BattleActionProto actions = 2;
-}
-
-message BattleActionProto {
-    string attacker_id = 1;
-    string target_id = 2;
-    string action_type = 3;
-    int32 damage = 4;
-    bool is_crit = 5;
-}
-
-message BattleRewardsProto {
-    int64 spirit_stones = 1;
-    repeated string item_ids = 2;
-    int32 experience = 3;
-}
-
-message SaveDataProto {
-    string version = 1;
-    int64 timestamp = 2;
-    GameDataProto game_data = 3;
-    repeated DiscipleProto disciples = 4;
-    repeated EquipmentProto equipment = 5;
-    repeated ManualProto manuals = 6;
-    repeated PillProto pills = 7;
-    repeated MaterialProto materials = 8;
-    repeated HerbProto herbs = 9;
-    repeated SeedProto seeds = 10;
-    repeated ExplorationTeamProto teams = 11;
-    repeated BuildingSlotProto slots = 12;
-    repeated GameEventProto events = 13;
-    repeated BattleLogProto battle_logs = 14;
-    repeated AllianceProto alliances = 15;
-    reserved 16;
-    repeated AlchemySlotProto alchemy_slots = 17;
-}
-
-message ExplorationTeamProto {
-    string id = 1;
-    string name = 2;
-    repeated string member_ids = 3;
-    string cave_id = 4;
-    int32 current_floor = 5;
-    string status = 6;
-    int32 start_year = 7;
-    int32 start_month = 8;
-}
-
-message BuildingSlotProto {
-    string id = 1;
-    string building_id = 2;
-    string disciple_id = 3;
-    string disciple_name = 4;
-    string status = 5;
-    int64 start_time = 6;
-    int32 duration = 7;
-    int32 output = 8;
-}
-
-message AlchemySlotProto {
-    string id = 1;
-    string disciple_id = 2;
-    string disciple_name = 3;
-    string status = 4;
-    string recipe_id = 5;
-    int64 start_time = 6;
-    int32 duration = 7;
-    int32 quantity = 8;
-}
+// ============================================================================
+//  LEGACY LIST WRAPPER TYPES (preserved for backward-compatible serialization)
+//  NOTE: These are convenience wrappers used by older code paths.
+//        New code should use the modular fields directly on SaveDataProto.
+// ============================================================================
 
 message DiscipleListProto {
     repeated DiscipleProto disciples = 1;

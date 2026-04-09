@@ -180,6 +180,7 @@ class GameMonitorManager @Inject constructor(
         Log.i(TAG, "==================================")
     }
     
+    @Suppress("DEPRECATION")
     private fun handleMemoryPressure(level: Int) {
         Log.w(TAG, "Memory pressure received: level=$level")
         

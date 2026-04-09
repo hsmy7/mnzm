@@ -47,7 +47,7 @@ fun GiftDialog(
     viewModel: GameViewModel,
     onDismiss: () -> Unit
 ) {
-    var selectedTab by remember { mutableStateOf(0) }
+    var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("灵石送礼", "物品送礼")
     
     val currentYear = gameData?.gameYear ?: 1
@@ -364,6 +364,7 @@ private fun GiftTierCard(
     }
 }
 
+@Suppress("UNUSED_PARAMETER")
 @Composable
 private fun ItemGiftTab(
     sect: WorldSect?,
@@ -376,7 +377,7 @@ private fun ItemGiftTab(
     onDismiss: () -> Unit
 ) {
     var selectedItem by remember { mutableStateOf<GiftableItem?>(null) }
-    var selectedQuantity by remember { mutableStateOf(1) }
+    var selectedQuantity by remember { mutableIntStateOf(1) }
     var selectedType by remember { mutableStateOf("manual") }
     var showDetailDialog by remember { mutableStateOf(false) }
     var detailItem by remember { mutableStateOf<Any?>(null) }
@@ -479,7 +480,7 @@ private fun ItemGiftTab(
             }
         } else {
             LazyVerticalGrid(
-                columns = GridCells.Fixed(4),
+                columns = GridCells.Adaptive(56.dp),
                 modifier = Modifier.weight(1f),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)

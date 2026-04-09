@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 @file:OptIn(InternalSerializationApi::class, ExperimentalSerializationApi::class)
 
 package com.xianxia.sect.data.incremental
@@ -98,7 +100,32 @@ class DeltaCompressor {
         const val COMPACTION_THRESHOLD = 10
         const val FORMAT_VERSION = 2
     }
-    
+
+    /**
+     * JSON 实例 - 专用于字段级 diff 操作的内部中间表示
+     *
+     * ## 为什么此处保留 JSON？
+     *
+     * ### 技术原因（核心判断点）
+     * Protobuf 是二进制格式，**不提供 tree manipulation API**：
+     * - ProtoBuf 字段由编号（field number）标识，而非字段名
+     * - 无法像 JsonObject 那样通过 toMutableMap() 按字段名修改单个字段
+     * - 要实现类似功能需要：完整反序列化 → 反射修改 → 重新序列化，或手写字节操作
+     *
+     * ### 使用范围（严格限制）
+     * 此 JSON 实例**仅**用于以下内部方法：
+     * 1. `applyFieldUpdates()` - 按字段名修改实体的单个字段（第316-352行）
+     * 2. `mergeCreateWithUpdate()` - 合并 Create 和 Update 操作（第497-528行）
+     * 3. `deserializeFieldValue()` - 反序列化字段值（第402-410行）
+     *
+     * ### 不用于
+     * - 实体持久化序列化（使用 protoBuf）
+     * - Delta 本身的序列化（使用自定义二进制格式）
+     * - 任何对外接口的数据交换
+     *
+     * @see applyFieldUpdates
+     * @see mergeCreateWithUpdate
+     */
     private val json = Json {
         ignoreUnknownKeys = true
         encodeDefaults = true
@@ -313,9 +340,43 @@ class DeltaCompressor {
         }
     }
     
+    /**
+     * 应用字段级更新到实体（使用 JSON 作为中间表示）
+     *
+     * ## 实现原理
+     * 此方法利用 JSON 的 **树形结构操作能力** 实现字段级更新：
+     * 1. 将 entity 序列化为 JsonObject（树形结构）
+     * 2. 通过 toMutableMap() 获取可变字段映射
+     * 3. 按字段名直接修改/删除目标字段
+     * 4. 从修改后的 JsonObject 反序列化回 entity
+     *
+     * ## 为什么使用 JSON 而非 Protobuf？
+     *
+     * **核心限制**：Protobuf 是二进制 wire format，不提供结构化树 API。
+     * - ProtoBuf 字段由 field number（整数编号）标识，不是字段名
+     * - 无法像 JsonObject 那样通过 `map[fieldName] = newValue` 修改单个字段
+     * - 要在 Protobuf 层面实现类似功能，需要：
+     *   a) 手动解析 protobuf 二进制格式（极度复杂且脆弱）
+     *   b) 使用反射 + copy（对嵌套对象支持差）
+     *   c) 完整反序列化 → Kotlin 对象修改 → 重新序列化（性能差）
+     *
+     * **JSON 的优势**：
+     * - JsonObject 天然支持 `toMutableMap()` 按字段名操作
+     * - 对于 data class 可以精确控制单个字段的更新
+     * - 避免了反射方案中构造函数参数匹配的复杂性
+     *
+     * ## 性能说明
+     * 此方法仅在 **增量更新场景** 调用（applyUpdate），不会成为性能瓶颈。
+     * 热路径上的实体持久化已统一使用 Protobuf（serializeEntity/deserializeEntity）。
+     *
+     * @param entity 原始实体
+     * @param fieldDeltas 字段变更映射（字段名 → 变更信息）
+     * @param targetClass 目标类型（用于反射回退）
+     * @return 更新后的实体，失败时返回 null
+     */
     private fun <T : Any> applyFieldUpdates(
-        entity: T, 
-        fieldDeltas: Map<String, FieldDelta>, 
+        entity: T,
+        fieldDeltas: Map<String, FieldDelta>,
         targetClass: Class<T>
     ): T? {
         if (fieldDeltas.isEmpty()) return entity
@@ -362,14 +423,18 @@ class DeltaCompressor {
                 !it.name.startsWith("$") && it.name != "serialVersionUID" 
             }
             
-            val constructor = klass.declaredConstructors.maxByOrNull { it.parameterCount } 
+            @Suppress("NewApi")
+            val constructor = klass.declaredConstructors.maxByOrNull { it.parameterCount }
                 ?: return entity
-            
+
             constructor.isAccessible = true
-            
+
+            @Suppress("NewApi")
             val params = constructor.parameters.map { param ->
+                @Suppress("NewApi")
                 val paramName = param.name
                 if (paramName == null) {
+                    @Suppress("NewApi")
                     val field = fields.find { it.type == param.type }
                     if (field != null) {
                         field.isAccessible = true
@@ -494,8 +559,30 @@ class DeltaCompressor {
         ) : CompactEntityState()
     }
     
+    /**
+     * 合并 Create 操作的序列化数据与 Update 操作的字段变更
+     *
+     * ## 使用场景
+     * 在 Delta 压缩（compaction）过程中，当先有 Create 后有 Update 时，
+     * 可以将两者合并为一个新的 Create（包含所有更新），减少 Delta 链长度。
+     *
+     * ## 实现原理
+     * 与 [applyFieldUpdates] 相同，使用 JSON 的树形结构操作能力：
+     * 1. 将 serializedData（JSON 格式）解析为 JsonObject
+     * 2. 通过 toMutableMap() 获取可变字段映射
+     * 3. 按 fieldDeltas 修改/删除字段
+     * 4. 将修改后的 JsonObject 重新序列化为 ByteArray
+     *
+     * ## 为什么使用 JSON？
+     * 同 [applyFieldUpdates] 的技术原因：Protobuf 不支持按字段名的 tree manipulation。
+     * 此方法是内部优化路径，不影响对外接口的 Protobuf 统一策略。
+     *
+     * @param serializedData Create 操作的序列化实体数据（JSON 格式）
+     * @param fieldDeltas Update 操作的字段变更映射
+     * @return 合并后的序列化数据，失败时返回 null
+     */
     private fun mergeCreateWithUpdate(
-        serializedData: ByteArray, 
+        serializedData: ByteArray,
         fieldDeltas: Map<String, FieldDelta>
     ): ByteArray? {
         return try {
@@ -562,6 +649,23 @@ class DeltaCompressor {
         }
     }
     
+    /**
+     * 序列化实体为字节数组（使用 Protobuf）
+     * ## 为什么使用 JSON？
+     *
+     * serializeEntity 的输出被以下内部方法消费，它们依赖 JSON 的树形结构操作：
+     * - [mergeCreateWithUpdate]: 解析为 JsonObject 后按字段名修改
+     * - [applyFieldUpdates]: 同样需要 JsonObject.toMutableMap() 操作
+     *
+     * Protobuf 不支持按字段名的 tree manipulation（字段由 number 标识而非 name），
+     * 因此实体在 Delta 压缩/合并路径上保持 JSON 格式。
+     *
+     * 对外持久化路径（Delta 序列化）通过 [serializeDelta] 使用独立的二进制协议，
+     * 不经过此方法，因此不影响整体的 Protobuf 统一策略。
+     *
+     * @param entity 要序列化的实体对象
+     * @return JSON 编码的 UTF-8 字节数组，失败时返回空数组
+     */
     private fun serializeEntity(entity: Any?): ByteArray {
         if (entity == null) return ByteArray(0)
         return try {
@@ -569,32 +673,44 @@ class DeltaCompressor {
             val serializer = entity::class.serializer() as KSerializer<Any>
             json.encodeToString(serializer, entity).toByteArray(Charsets.UTF_8)
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to serialize entity: ${e.message}")
+            Log.w(TAG, "Failed to serialize entity via JSON: ${e.message}")
             ByteArray(0)
         }
     }
     
+    /**
+     * 反序列化字节数组为实体（使用 JSON）
+     *
+     * 与 [serializeEntity] 配合，Delta 压缩/合并路径内部使用 JSON 格式。
+     * 对外持久化路径不经过此方法。
+     *
+     * @param data JSON 编码的 UTF-8 字节数组
+     * @param dataType 实体类型枚举
+     * @return 反序列化的实体对象，失败或未知类型返回 null
+     */
     private fun deserializeEntity(data: ByteArray, dataType: DataType): Any? {
         if (data.isEmpty()) return null
-        val jsonStr = String(data, Charsets.UTF_8)
+
         return try {
-            when (dataType) {
-                DataType.GAME_DATA -> json.decodeFromString<GameData>(jsonStr)
-                DataType.DISCIPLE -> json.decodeFromString<Disciple>(jsonStr)
-                DataType.EQUIPMENT -> json.decodeFromString<Equipment>(jsonStr)
-                DataType.MANUAL -> json.decodeFromString<Manual>(jsonStr)
-                DataType.PILL -> json.decodeFromString<Pill>(jsonStr)
-                DataType.MATERIAL -> json.decodeFromString<Material>(jsonStr)
-                DataType.HERB -> json.decodeFromString<Herb>(jsonStr)
-                DataType.SEED -> json.decodeFromString<Seed>(jsonStr)
-                DataType.TEAM -> json.decodeFromString<ExplorationTeam>(jsonStr)
-                DataType.EVENT -> json.decodeFromString<GameEvent>(jsonStr)
-                DataType.BATTLE_LOG -> json.decodeFromString<BattleLog>(jsonStr)
-                DataType.ALLIANCE -> json.decodeFromString<Alliance>(jsonStr)
-                else -> null
+            val jsonStr = String(data, Charsets.UTF_8)
+            val serializer = when (dataType) {
+                DataType.GAME_DATA -> GameData.serializer()
+                DataType.DISCIPLE -> Disciple.serializer()
+                DataType.EQUIPMENT -> Equipment.serializer()
+                DataType.MANUAL -> Manual.serializer()
+                DataType.PILL -> Pill.serializer()
+                DataType.MATERIAL -> Material.serializer()
+                DataType.HERB -> Herb.serializer()
+                DataType.SEED -> Seed.serializer()
+                DataType.TEAM -> ExplorationTeam.serializer()
+                DataType.EVENT -> GameEvent.serializer()
+                DataType.BATTLE_LOG -> BattleLog.serializer()
+                DataType.ALLIANCE -> Alliance.serializer()
+                else -> return null
             }
+            json.decodeFromString(serializer, jsonStr)
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to deserialize entity of type $dataType: ${e.message}")
+            Log.w(TAG, "Failed to deserialize entity of type $dataType via JSON: ${e.message}")
             null
         }
     }

@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.xianxia.sect.core.engine
 
 import android.util.Log
@@ -11,7 +13,7 @@ import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.util.GameUtils
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import org.json.JSONObject
+import kotlinx.serialization.protobuf.ProtoBuf
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.random.Random
@@ -158,26 +160,22 @@ object RedeemCodeManager {
         val playerId: String
     )
     
-    fun initializeFromConfig(configJson: String) {
+    fun initializeFromConfig(configData: ByteArray) {
         predefinedCodes.clear()
         try {
-            val json = JSONObject(configJson)
-            val codesArray = json.optJSONArray("codes") ?: return
-            for (i in 0 until codesArray.length()) {
-                val codeObj = codesArray.getJSONObject(i)
+            val config = ProtoBuf.decodeFromByteArray(RedeemCodeConfig.serializer(), configData)
+            for (codeProto in config.codes) {
                 val code = RedeemCode(
-                    code = codeObj.getString("code"),
-                    rewardType = RedeemRewardType.valueOf(
-                        codeObj.getString("rewardType").uppercase()
-                    ),
-                    quantity = codeObj.optInt("quantity", 1),
-                    maxUses = codeObj.optInt("maxUses", 1),
-                    rarity = codeObj.optInt("rarity", 1),
-                    expireYear = codeObj.optString("expireYear")?.toIntOrNull(),
-                    expireMonth = codeObj.optString("expireMonth")?.toIntOrNull(),
-                    isEnabled = codeObj.optBoolean("enabled", true)
+                    code = codeProto.code,
+                    rewardType = RedeemRewardType.valueOf(codeProto.rewardType.uppercase(java.util.Locale.getDefault())),
+                    quantity = codeProto.quantity,
+                    maxUses = codeProto.maxUses,
+                    rarity = codeProto.rarity,
+                    expireYear = codeProto.expireYear,
+                    expireMonth = codeProto.expireMonth,
+                    isEnabled = codeProto.isEnabled
                 )
-                predefinedCodes[code.code.uppercase()] = code
+                predefinedCodes[code.code.uppercase(java.util.Locale.getDefault())] = code
             }
             Log.i(TAG, "Loaded ${predefinedCodes.size} redeem codes from config")
         } catch (e: Exception) {
@@ -190,7 +188,7 @@ object RedeemCodeManager {
     }
 
     fun getRedeemCode(code: String): RedeemCode? {
-        return predefinedCodes[code.uppercase()]
+        return predefinedCodes[code.uppercase(java.util.Locale.getDefault())]
     }
 
     fun validateInput(code: String): RedeemResult? {
@@ -341,7 +339,7 @@ object RedeemCodeManager {
         val validator = remoteValidator
         if (validator != null) {
             try {
-                val remoteResult = validator.validateRemotely(code.uppercase(), playerId)
+                val remoteResult = validator.validateRemotely(code.uppercase(java.util.Locale.getDefault()), playerId)
                 if (!remoteResult.valid) {
                     return RedeemResult(
                         success = false,
@@ -352,7 +350,7 @@ object RedeemCodeManager {
                     return RedeemResult(success = false, message = "兑换码签名验证失败")
                 }
                 if (remoteResult.serverCode != null) {
-                    predefinedCodes[code.uppercase()] = remoteResult.serverCode
+                    predefinedCodes[code.uppercase(java.util.Locale.getDefault())] = remoteResult.serverCode
                 }
                 Log.d(TAG, "Server validation passed for code: $code")
             } catch (e: Exception) {
@@ -398,7 +396,7 @@ object RedeemCodeManager {
             return rateLimitError
         }
 
-        val upperCaseCode = code.uppercase()
+        val upperCaseCode = code.uppercase(java.util.Locale.getDefault())
 
         // ══════════════════════
         // 幂等性检查：全局已使用兑换码记录
@@ -472,11 +470,7 @@ object RedeemCodeManager {
     ): RedeemResult {
         Log.d(TAG, "Generating reward for code: ${redeemCode.code}, type: ${redeemCode.rewardType}")
 
-        // ══════════════════════
-        // 幂等性保证：立即标记为已使用
-        // ══════════════════════
-        val upperCaseCode = redeemCode.code.uppercase()
-        markCodeAsUsed(upperCaseCode, playerId, deviceId)
+        val upperCaseCode = redeemCode.code.uppercase(java.util.Locale.getDefault())
 
         lastRedeemTime = System.currentTimeMillis()
         
@@ -654,6 +648,11 @@ object RedeemCodeManager {
         }
 
         Log.i(TAG, "Redeem successful for code: ${redeemCode.code}, rewards: ${rewards.size}")
+
+        // 奖励全部生成成功后，再标记兑换码为已使用。
+        // 若在奖励生成过程中发生异常，兑换码不会被标记，玩家可重新尝试兑换。
+        markCodeAsUsed(upperCaseCode, playerId, deviceId)
+
         return RedeemResult(
             success = true,
             message = "兑换成功！",
@@ -741,7 +740,7 @@ object RedeemCodeManager {
                 speedVariance = speedVariance
             ),
             skills = SkillStats(
-                intelligence = cfg.intelligence ?: Random.nextInt(30, 81),
+                intelligence = cfg.intelligence ?: Random.nextInt(1, 101),
                 comprehension = cfg.comprehension ?: when (spiritRootType.split(",").size) {
                     1 -> Random.nextInt(80, 101)
                     2 -> Random.nextInt(60, 101)
@@ -749,13 +748,13 @@ object RedeemCodeManager {
                     4 -> Random.nextInt(20, 101)
                     else -> Random.nextInt(1, 101)
                 },
-                charm = cfg.charm ?: Random.nextInt(30, 81),
-                loyalty = cfg.loyalty ?: Random.nextInt(40, 71),
-                artifactRefining = cfg.artifactRefining ?: Random.nextInt(30, 81),
-                pillRefining = cfg.pillRefining ?: Random.nextInt(30, 81),
-                spiritPlanting = cfg.spiritPlanting ?: Random.nextInt(30, 81),
-                teaching = cfg.teaching ?: Random.nextInt(30, 81),
-                morality = cfg.morality ?: Random.nextInt(40, 81)
+                charm = cfg.charm ?: Random.nextInt(1, 101),
+                loyalty = cfg.loyalty ?: Random.nextInt(1, 101),
+                artifactRefining = cfg.artifactRefining ?: Random.nextInt(1, 101),
+                pillRefining = cfg.pillRefining ?: Random.nextInt(1, 101),
+                spiritPlanting = cfg.spiritPlanting ?: Random.nextInt(1, 101),
+                teaching = cfg.teaching ?: Random.nextInt(1, 101),
+                morality = cfg.morality ?: Random.nextInt(1, 101)
             )
         ).apply {
             val baseStats = Disciple.calculateBaseStatsWithVariance(
@@ -885,7 +884,7 @@ object RedeemCodeManager {
      * @return true 表示已被使用
      */
     fun isCodeUsedGlobally(code: String): Boolean {
-        return usedCodesRecord.containsKey(code.uppercase())
+        return usedCodesRecord.containsKey(code.uppercase(java.util.Locale.getDefault()))
     }
 
     /**
@@ -895,7 +894,7 @@ object RedeemCodeManager {
      * @return 使用记录，如果未使用过则返回 null
      */
     fun getCodeUsageRecord(code: String): UsedCodeRecord? {
-        return usedCodesRecord[code.uppercase()]
+        return usedCodesRecord[code.uppercase(java.util.Locale.getDefault())]
     }
 
     // ══════════════════════════════════

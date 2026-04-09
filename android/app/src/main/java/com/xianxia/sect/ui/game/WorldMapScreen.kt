@@ -56,6 +56,7 @@ data class FunctionButton(
     val onClick: () -> Unit
 )
 
+@Suppress("UNUSED_PARAMETER")
 @Composable
 fun WorldMapScreen(
     markers: List<MapMarker>,
@@ -143,7 +144,7 @@ fun WorldMapScreen(
                 )
             }
             .pointerInput(Unit) {
-                detectTransformGestures { centroid, pan, zoom, rotation ->
+                detectTransformGestures { centroid, pan, zoom, _rotation ->
                     val newScale = (scale * zoom).coerceIn(minScale, maxScale)
                     
                     if (newScale != scale) {
@@ -667,6 +668,7 @@ private fun CaveExplorationTeamMarker(
     }
 }
 
+@Suppress("UNUSED_PARAMETER")
 @Composable
 private fun BattleTeamMarker(
     battleTeam: BattleTeam,

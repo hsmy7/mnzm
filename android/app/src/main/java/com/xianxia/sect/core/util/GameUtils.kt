@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.util
 
 import com.xianxia.sect.core.GameConfig
+import java.util.Locale
 import java.util.UUID
 import kotlin.math.pow
 import kotlin.random.Random
@@ -117,14 +118,14 @@ object GameUtils {
     
     fun formatNumber(value: Long): String {
         return when {
-            value >= 1_000_000_000 -> String.format("%.1f亿", value / 1_000_000_000.0)
-            value >= 10_000 -> String.format("%.1f万", value / 10_000.0)
+            value >= 1_000_000_000 -> String.format(Locale.getDefault(), "%.1f亿", value / 1_000_000_000.0)
+            value >= 10_000 -> String.format(Locale.getDefault(), "%.1f万", value / 10_000.0)
             else -> value.toString()
         }
     }
     
     fun formatPercent(value: Double): String {
-        return String.format("%.1f%%", value * 100)
+        return String.format(Locale.getDefault(), "%.1f%%", value * 100)
     }
     
     fun formatTime(seconds: Long): String {
@@ -133,9 +134,9 @@ object GameUtils {
         val secs = seconds % 60
         
         return when {
-            hours > 0 -> String.format("%d时%d分%d秒", hours, minutes, secs)
-            minutes > 0 -> String.format("%d分%d秒", minutes, secs)
-            else -> String.format("%d秒", secs)
+            hours > 0 -> String.format(Locale.getDefault(), "%d时%d分%d秒", hours, minutes, secs)
+            minutes > 0 -> String.format(Locale.getDefault(), "%d分%d秒", minutes, secs)
+            else -> String.format(Locale.getDefault(), "%d秒", secs)
         }
     }
     
@@ -166,6 +167,13 @@ object GameUtils {
         return exp.coerceAtMost(Int.MAX_VALUE.toDouble()).toInt()
     }
     
+    fun applyPriceFluctuation(basePrice: Int, random: Random = Random): Int {
+        val fluctuationPercent = random.nextDouble(-20.0, 20.0)
+        val roundedPercent = (fluctuationPercent * 10).toInt() / 10.0
+        val result = basePrice * (1 + roundedPercent / 100.0)
+        return result.toInt().coerceAtLeast(1)
+    }
+
     fun generateRandomName(style: NameStyle = NameStyle.COMMON): String {
         val surnames = when (style) {
             NameStyle.COMMON -> commonSurnames

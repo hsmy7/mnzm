@@ -1,6 +1,8 @@
+@file:Suppress("DEPRECATION")
 package com.xianxia.sect.domain.usecase
 
 import com.xianxia.sect.core.engine.GameEngine
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.DirectDiscipleSlot
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.ElderSlots
@@ -65,11 +67,11 @@ class ElderManagementUseCase @Inject constructor(
         currentElderSlots: ElderSlots
     ): AssignElderResult {
         val currentDiscipleId = getElderDiscipleId(currentElderSlots, slotType)
-        if (currentDiscipleId.isNullOrEmpty()) {
+        if (currentDiscipleId.isEmpty()) {
             return AssignElderResult.Error("该职位当前空缺")
         }
         
-        val newElderSlots = updateElderSlot(currentElderSlots, slotType, null)
+        val newElderSlots = updateElderSlot(currentElderSlots, slotType, "")
         
         gameEngine.updateElderSlots(newElderSlots)
         gameEngine.syncAllDiscipleStatuses()
@@ -77,7 +79,7 @@ class ElderManagementUseCase @Inject constructor(
         return AssignElderResult.Success(newElderSlots)
     }
     
-    private fun updateElderSlot(elderSlots: ElderSlots, slotType: ElderSlotType, discipleId: String?): ElderSlots {
+    private fun updateElderSlot(elderSlots: ElderSlots, slotType: ElderSlotType, discipleId: String): ElderSlots {
         return when (slotType) {
             ElderSlotType.ViceSectMaster -> elderSlots.copy(viceSectMaster = discipleId)
             ElderSlotType.LawEnforcementElder -> elderSlots.copy(lawEnforcementElder = discipleId)
@@ -92,7 +94,7 @@ class ElderManagementUseCase @Inject constructor(
         }
     }
     
-    private fun getElderDiscipleId(elderSlots: ElderSlots, slotType: ElderSlotType): String? {
+    private fun getElderDiscipleId(elderSlots: ElderSlots, slotType: ElderSlotType): String {
         return when (slotType) {
             ElderSlotType.ViceSectMaster -> elderSlots.viceSectMaster
             ElderSlotType.LawEnforcementElder -> elderSlots.lawEnforcementElder
@@ -103,7 +105,7 @@ class ElderManagementUseCase @Inject constructor(
             ElderSlotType.AlchemyElder -> elderSlots.alchemyElder
             ElderSlotType.HerbGardenElder -> elderSlots.herbGardenElder
             ElderSlotType.ForgeElder -> elderSlots.forgeElder
-            ElderSlotType.SpiritMineDeacon -> null
+            ElderSlotType.SpiritMineDeacon -> ""
         }
     }
     
@@ -123,8 +125,7 @@ class ElderManagementUseCase @Inject constructor(
     }
     
     private fun getRealmName(realm: Int): String {
-        val realms = listOf("炼气", "筑基", "金丹", "元婴", "化神", "炼虚", "合体", "大乘", "渡劫", "真仙")
-        return if (realm in 0..9) realms[realm] else "未知"
+        return GameConfig.Realm.getName(realm)
     }
     
     private fun isAlreadyElder(discipleId: String, elderSlots: ElderSlots): Boolean {
@@ -141,6 +142,7 @@ class ElderManagementUseCase @Inject constructor(
         ).contains(discipleId)
     }
     
+    @Suppress("DEPRECATION")
     fun getElderDisciple(elderId: String, disciples: List<Disciple>): Disciple? {
         return disciples.find { it.id == elderId }
     }

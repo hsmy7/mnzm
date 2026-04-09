@@ -35,17 +35,6 @@ object UnifiedSerializationModule {
     
     @Provides
     @Singleton
-    fun provideUnifiedSaveManager(
-        @ApplicationContext context: Context,
-        serializationEngine: UnifiedSerializationEngine,
-        compressionLayer: UnifiedCompressionLayer,
-        integrityLayer: IntegrityLayer
-    ): UnifiedSaveManager {
-        return UnifiedSaveManager(context, serializationEngine, compressionLayer, integrityLayer)
-    }
-    
-    @Provides
-    @Singleton
     fun provideSaveDataConverter(): SaveDataConverter {
         return SaveDataConverter()
     }

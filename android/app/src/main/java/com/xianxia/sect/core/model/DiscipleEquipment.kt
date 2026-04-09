@@ -1,44 +1,37 @@
+@file:Suppress("DEPRECATION")
+
 package com.xianxia.sect.core.model
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
-import androidx.room.ForeignKey
-import androidx.room.Index
-import androidx.room.PrimaryKey
 
 @Entity(
     tableName = "disciples_equipment",
-    indices = [
-        Index(value = ["discipleId"], unique = true)
-    ],
-    foreignKeys = [
-        ForeignKey(
-            entity = DiscipleCore::class,
-            parentColumns = ["id"],
-            childColumns = ["discipleId"],
-            onDelete = ForeignKey.CASCADE,
-            onUpdate = ForeignKey.CASCADE
-        )
-    ]
+    primaryKeys = ["discipleId", "slot_id"]
 )
 data class DiscipleEquipment(
-    @PrimaryKey
+    @ColumnInfo(name = "discipleId")
     var discipleId: String = "",
-    var weaponId: String? = null,
-    var armorId: String? = null,
-    var bootsId: String? = null,
-    var accessoryId: String? = null,
-    var weaponNurture: EquipmentNurtureData? = null,
-    var armorNurture: EquipmentNurtureData? = null,
-    var bootsNurture: EquipmentNurtureData? = null,
-    var accessoryNurture: EquipmentNurtureData? = null,
+
+    @ColumnInfo(name = "slot_id")
+    var slotId: Int = 0,
+
+    var weaponId: String = "",
+    var armorId: String = "",
+    var bootsId: String = "",
+    var accessoryId: String = "",
+    var weaponNurture: EquipmentNurtureData = EquipmentNurtureData("", 0),
+    var armorNurture: EquipmentNurtureData = EquipmentNurtureData("", 0),
+    var bootsNurture: EquipmentNurtureData = EquipmentNurtureData("", 0),
+    var accessoryNurture: EquipmentNurtureData = EquipmentNurtureData("", 0),
     var storageBagItems: List<StorageBagItem> = emptyList(),
     var storageBagSpiritStones: Long = 0,
     var spiritStones: Int = 0,
     var soulPower: Int = 10
 ) {
-    val hasEquippedItems: Boolean get() = listOfNotNull(weaponId, armorId, bootsId, accessoryId).isNotEmpty()
-    
-    val equippedItemIds: List<String> get() = listOfNotNull(weaponId, armorId, bootsId, accessoryId)
+    val hasEquippedItems: Boolean get() = listOf(weaponId, armorId, bootsId, accessoryId).any { it.isNotEmpty() }
+
+    val equippedItemIds: List<String> get() = listOf(weaponId, armorId, bootsId, accessoryId).filter { it.isNotEmpty() }
     
     companion object {
         fun fromDisciple(disciple: Disciple): DiscipleEquipment {

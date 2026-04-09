@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.StateFlow
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.data.*
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.util.GameUtils
 
 import java.util.UUID
 import kotlin.random.Random
@@ -71,9 +72,15 @@ class EventService constructor(
     /**
      * Generate random trade items for sect merchant
      */
-    fun generateSectTradeItems(year: Int): List<MerchantItem> {
+    fun generateSectTradeItems(year: Int, sectId: String? = null): List<MerchantItem> {
         val items = mutableListOf<MerchantItem>()
-        val random = Random(System.currentTimeMillis() + year)
+        // Use sectId as differentiation factor for deterministic per-sect randomness,
+        // falling back to Random.Default when sectId is unavailable
+        val random = if (sectId != null) {
+            Random(sectId.hashCode().toLong() + year)
+        } else {
+            Random.Default
+        }
 
         val itemCount = 20
 
@@ -97,35 +104,58 @@ class EventService constructor(
             val type = listOf("equipment", "manual", "pill", "material", "herb", "seed").random(random)
             val rarity = generateRarityByProbability(adjustedProbabilities, random)
 
+            fun calcStock(t: String, r: Int): Int {
+                val isConsumable = t in listOf("herb", "seed", "material")
+                return if (isConsumable) {
+                    when (r) {
+                        6 -> random.nextInt(3, 8)
+                        5 -> random.nextInt(3, 8)
+                        4 -> random.nextInt(5, 11)
+                        3 -> random.nextInt(5, 13)
+                        2 -> random.nextInt(5, 16)
+                        else -> random.nextInt(7, 16)
+                    }
+                } else {
+                    when (r) {
+                        6 -> random.nextInt(1, 4)
+                        5 -> random.nextInt(1, 4)
+                        4 -> random.nextInt(1, 6)
+                        3 -> random.nextInt(1, 6)
+                        2 -> random.nextInt(1, 6)
+                        else -> random.nextInt(1, 6)
+                    }
+                }
+            }
+
             val item = when (type) {
                 "equipment" -> {
                     val equipment = EquipmentDatabase.generateRandom(rarity, rarity)
-                    val basePrice = GameConfig.Rarity.get(rarity).basePrice
-                    val price = (basePrice.toDouble() * random.nextInt(700, 1301) / 1000.0).toInt()
+                    val template = EquipmentDatabase.getTemplateByName(equipment.name)
+                    val basePrice = template?.price ?: GameConfig.Rarity.get(rarity).basePrice
                     MerchantItem(
                         id = UUID.randomUUID().toString(),
                         name = equipment.name,
                         type = "equipment",
                         itemId = equipment.id,
                         rarity = equipment.rarity,
-                        price = price,
-                        quantity = 1,
+                        price = GameUtils.applyPriceFluctuation(basePrice, random),
+                        quantity = calcStock(type, rarity),
                         obtainedYear = year,
                         obtainedMonth = 1
                     )
                 }
                 "manual" -> {
                     val manual = ManualDatabase.generateRandom(rarity, rarity)
-                    val basePrice = GameConfig.Rarity.get(rarity).basePrice
-                    val price = (basePrice.toDouble() * random.nextInt(700, 1301) / 1000.0).toInt()
+                    val template = ManualDatabase.getByName(manual.name)
+                    val basePrice = template?.price ?: GameConfig.Rarity.get(rarity).basePrice
                     MerchantItem(
                         id = UUID.randomUUID().toString(),
                         name = manual.name,
                         type = "manual",
                         itemId = manual.id,
                         rarity = manual.rarity,
-                        price = price,
-                        quantity = 1,
+                        price = GameUtils.applyPriceFluctuation(basePrice, random),
+                        quantity = calcStock(type, rarity),
                         obtainedYear = year,
                         obtainedMonth = 1
                     )
@@ -135,16 +165,15 @@ class EventService constructor(
                     if (pillTemplates.isEmpty()) continue
                     val template = pillTemplates.random(random)
                     val pill = ItemDatabase.createPillFromTemplate(template)
-                    val basePrice = (GameConfig.Rarity.get(rarity).basePrice * 0.8).toInt()
-                    val price = (basePrice.toDouble() * random.nextInt(700, 1301) / 1000.0).toInt()
+                    val basePrice = template.price
                     MerchantItem(
                         id = UUID.randomUUID().toString(),
                         name = pill.name,
                         type = "pill",
                         itemId = pill.id,
                         rarity = pill.rarity,
-                        price = price,
-                        quantity = random.nextInt(1, 4),
+                        price = GameUtils.applyPriceFluctuation(basePrice, random),
+                        quantity = calcStock(type, rarity),
                         obtainedYear = year,
                         obtainedMonth = 1
                     )
@@ -153,16 +182,15 @@ class EventService constructor(
                     val materials = BeastMaterialDatabase.getMaterialsByRarity(rarity)
                     if (materials.isEmpty()) continue
                     val material = materials.random(random)
-                    val basePrice = (GameConfig.Rarity.get(rarity).basePrice * 0.05).toInt()
-                    val price = (basePrice.toDouble() * random.nextInt(700, 1301) / 1000.0).toInt()
+                    val basePrice = material.price
                     MerchantItem(
                         id = UUID.randomUUID().toString(),
                         name = material.name,
                         type = "material",
                         itemId = material.id,
                         rarity = material.rarity,
-                        price = price,
-                        quantity = random.nextInt(1, 16),
+                        price = GameUtils.applyPriceFluctuation(basePrice, random),
+                        quantity = calcStock(type, rarity),
                         obtainedYear = year,
                         obtainedMonth = 1
                     )
@@ -171,16 +199,15 @@ class EventService constructor(
                     val herbs = HerbDatabase.getByRarity(rarity)
                     if (herbs.isEmpty()) continue
                     val herb = herbs.random(random)
-                    val basePrice = (GameConfig.Rarity.get(rarity).basePrice * 0.05).toInt()
-                    val price = (basePrice.toDouble() * random.nextInt(700, 1301) / 1000.0).toInt()
+                    val basePrice = herb.price
                     MerchantItem(
                         id = UUID.randomUUID().toString(),
                         name = herb.name,
                         type = "herb",
                         itemId = herb.id,
                         rarity = herb.rarity,
-                        price = price,
-                        quantity = random.nextInt(1, 16),
+                        price = GameUtils.applyPriceFluctuation(basePrice, random),
+                        quantity = calcStock(type, rarity),
                         obtainedYear = year,
                         obtainedMonth = 1
                     )
@@ -189,16 +216,15 @@ class EventService constructor(
                     val seeds = HerbDatabase.getSeedsByRarity(rarity)
                     if (seeds.isEmpty()) continue
                     val seed = seeds.random(random)
-                    val basePrice = (GameConfig.Rarity.get(rarity).basePrice * 0.05).toInt()
-                    val price = (basePrice.toDouble() * random.nextInt(700, 1301) / 1000.0).toInt()
+                    val basePrice = seed.price
                     MerchantItem(
                         id = UUID.randomUUID().toString(),
                         name = seed.name,
                         type = "seed",
                         itemId = seed.id,
                         rarity = seed.rarity,
-                        price = price,
-                        quantity = random.nextInt(1, 16),
+                        price = GameUtils.applyPriceFluctuation(basePrice, random),
+                        quantity = calcStock(type, rarity),
                         obtainedYear = year,
                         obtainedMonth = 1
                     )
@@ -228,7 +254,7 @@ class EventService constructor(
         val shouldRefresh = currentYear - sect.tradeLastRefreshYear >= 3 || sect.tradeItems.isEmpty()
 
         if (shouldRefresh) {
-            val newItems = generateSectTradeItems(currentYear)
+            val newItems = generateSectTradeItems(currentYear, sectId)
             val updatedSects = data.worldMapSects.map {
                 if (it.id == sectId) it.copy(
                     tradeItems = newItems,

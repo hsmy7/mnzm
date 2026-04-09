@@ -16,6 +16,9 @@ interface ProductionSlotDao {
     
     @Query("SELECT * FROM production_slots")
     suspend fun getAllSync(): List<ProductionSlot>
+
+    @Query("SELECT * FROM production_slots WHERE slot_id = :slotId ORDER BY buildingType, slotIndex")
+    suspend fun getBySlotSync(slotId: Int): List<ProductionSlot>
     
     @Query("SELECT * FROM production_slots WHERE buildingType = :buildingType")
     fun getByBuildingTypeSync(buildingType: BuildingType): Flow<List<ProductionSlot>>
@@ -69,16 +72,26 @@ interface ProductionSlotDao {
     
     @Update
     suspend fun updateAll(slots: List<ProductionSlot>)
-    
+
+    /** 获取指定槽位下已有的实体 ID 集合（用于 UPSERT 差量写入） */
+    @Query("SELECT id FROM production_slots WHERE slot_id = :slotId")
+    suspend fun getIdsBySlot(slotId: Int): List<String>
+
     @Delete
     suspend fun delete(slot: ProductionSlot)
     
     @Query("DELETE FROM production_slots WHERE id = :id")
     suspend fun deleteById(id: String)
-    
+
+    @Query("DELETE FROM production_slots WHERE slot_id = :slotId AND id = :id")
+    suspend fun deleteById(slotId: Int, id: String)
+
     @Query("DELETE FROM production_slots WHERE buildingType = :buildingType")
     suspend fun deleteByBuildingType(buildingType: BuildingType)
     
+    @Query("DELETE FROM production_slots WHERE slot_id = :slotId")
+    suspend fun deleteBySlot(slotId: Int)
+
     @Query("DELETE FROM production_slots")
     suspend fun deleteAll()
     

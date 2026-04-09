@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.xianxia.sect.core.state
 
 import com.xianxia.sect.core.model.*

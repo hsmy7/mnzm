@@ -2,10 +2,13 @@ package com.xianxia.sect.data.facade
 
 import android.content.Context
 import android.util.Log
-import com.xianxia.sect.data.GsonConfig
 import com.xianxia.sect.data.concurrent.SlotLockManager
 import com.xianxia.sect.data.model.SaveData
-import com.xianxia.sect.data.unified.UnifiedSaveRepository
+import com.xianxia.sect.data.serialization.NullSafeProtoBuf
+import com.xianxia.sect.data.serialization.unified.SaveDataConverter
+import com.xianxia.sect.data.serialization.unified.SerializableSaveData
+import com.xianxia.sect.data.StorageGateway
+import com.xianxia.sect.data.unified.SaveResult
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -32,39 +35,39 @@ data class ImportResult(
 @Singleton
 class StorageExporter @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val saveRepository: UnifiedSaveRepository,
+    private val storageGateway: StorageGateway,
     private val lockManager: SlotLockManager
 ) {
     companion object {
         private const val TAG = "StorageExporter"
         private const val EXPORT_VERSION = 1
     }
-    
+
     suspend fun exportSave(slot: Int, destFile: File): ExportResult {
         if (!lockManager.isValidSlot(slot)) {
             return ExportResult(false, error = "Invalid slot: $slot")
         }
-        
+
         return withContext(Dispatchers.IO) {
             try {
-                val result = saveRepository.load(slot)
-                if (result.isFailure) {
-                    return@withContext ExportResult(false, error = "No save data to export")
+                val result = storageGateway.loadSlot(slot)
+                val data = when (result) {
+                    is SaveResult.Success<*> -> result.data as SaveData
+                    is SaveResult.Failure -> return@withContext ExportResult(false, error = result.message ?: "Load failed")
                 }
-                
-                val data = result.getOrThrow()
-                
+
                 GZIPOutputStream(java.io.FileOutputStream(destFile)).use { output ->
                     val header = "XIAXIA_SAVE_V$EXPORT_VERSION\n"
                     output.write(header.toByteArray(Charsets.UTF_8))
-                    
-                    val json = GsonConfig.createGson().toJson(data)
-                    output.write(json.toByteArray(Charsets.UTF_8))
+
+                    val serializableData = SaveDataConverter().toSerializable(data)
+                    val protoBytes = NullSafeProtoBuf.protoBuf.encodeToByteArray(SerializableSaveData.serializer(), serializableData)
+                    output.write(protoBytes)
                 }
-                
+
                 val fileSize = destFile.length()
                 Log.i(TAG, "Exported slot $slot to ${destFile.absolutePath}, size: $fileSize bytes")
-                
+
                 ExportResult(true, destFile.absolutePath, fileSize)
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to export slot $slot", e)
@@ -72,34 +75,29 @@ class StorageExporter @Inject constructor(
             }
         }
     }
-    
+
     suspend fun importSave(slot: Int, sourceFile: File): ImportResult {
         if (!lockManager.isValidSlot(slot)) {
             return ImportResult(false, slot, error = "Invalid slot: $slot")
         }
-        
+
         return withContext(Dispatchers.IO) {
             try {
                 if (!sourceFile.exists()) {
                     return@withContext ImportResult(false, slot, error = "Source file not found")
                 }
-                
+
                 val rawData = GZIPInputStream(java.io.FileInputStream(sourceFile)).use { input ->
                     input.readBytes()
                 }
-                
-                val content = rawData.toString(Charsets.UTF_8)
-                
-                val json = if (content.startsWith("XIAXIA_SAVE_V")) {
-                    content.substringAfter('\n')
-                } else {
-                    content
-                }
-                
-                val gson = GsonConfig.createGson()
-                val data = gson.fromJson(json, SaveData::class.java)
-                
-                val saveResult = saveRepository.save(slot, data)
+
+                val headerEnd = rawData.indexOf('\n'.code.toByte()).takeIf { it >= 0 } ?: 0
+                val protoBytes = if (headerEnd > 0) rawData.copyOfRange(headerEnd + 1, rawData.size) else rawData
+
+                val serializableData = NullSafeProtoBuf.protoBuf.decodeFromByteArray(SerializableSaveData.serializer(), protoBytes)
+                val data = SaveDataConverter().fromSerializable(serializableData)
+
+                val saveResult = storageGateway.saveSlot(slot, data)
                 if (saveResult.isSuccess) {
                     Log.i(TAG, "Imported save to slot $slot from ${sourceFile.absolutePath}")
                     ImportResult(true, slot, data.gameData.sectName)
@@ -112,27 +110,27 @@ class StorageExporter @Inject constructor(
             }
         }
     }
-    
+
     suspend fun exportAllSlots(destDir: File): Map<Int, ExportResult> {
         val results = mutableMapOf<Int, ExportResult>()
-        
+
         if (!destDir.exists()) {
             destDir.mkdirs()
         }
-        
-        for (slot in 0..5) {
-            if (saveRepository.hasSave(slot)) {
+
+        for (slot in 0..6) {
+            if (storageGateway.hasSaveData(slot)) {
                 val destFile = File(destDir, "slot_$slot.xianxia")
                 results[slot] = exportSave(slot, destFile)
             }
         }
-        
+
         return results
     }
-    
+
     suspend fun clearBackups(slot: Int): Int {
         if (!lockManager.isValidSlot(slot)) return 0
-        
+
         var cleared = 0
         try {
             val backupDir = File(context.filesDir, "backups/slot_$slot")

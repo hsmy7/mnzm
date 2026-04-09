@@ -1,0 +1,3 @@
+
+w: file:///C:/Mnzm/XianxiaSectNative/android/app/src/main/java/com/xianxia/sect/di/StorageModule.kt:295:32 'class UnifiedSaveRepository : SaveRepository' is deprecated. Use StorageGateway instead. This class will be removed after migration.
+

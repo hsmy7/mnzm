@@ -1,7 +1,8 @@
 plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
-    id 'org.jetbrains.kotlin.plugin.serialization' version '1.9.22'
+    id 'org.jetbrains.kotlin.plugin.compose'
+    id 'org.jetbrains.kotlin.plugin.serialization' version '2.0.21'
     id 'com.google.devtools.ksp'
     id 'com.google.dagger.hilt.android'
     id 'com.google.protobuf' version '0.9.4'
@@ -41,14 +42,25 @@ android {
         }
     }
 
+    def keystoreFile = file(keystoreProperties.getProperty('storeFile', '../../../keystore/keystore.jks'))
+    def canSignRelease = keystoreFile.exists()
+        && keystoreProperties.getProperty('storePassword') != null
+        && !keystoreProperties.getProperty('storePassword').isEmpty()
+
+    if (!canSignRelease) {
+        logger.lifecycle("Warning: Keystore not available at ${keystoreFile.absolutePath}. Building without release signing.")
+    }
+
     signingConfigs {
-        release {
-            storeFile = file(keystoreProperties.getProperty('storeFile', '../../../keystore/keystore'))
-            storePassword = keystoreProperties.getProperty('storePassword', '')
-            keyAlias = keystoreProperties.getProperty('keyAlias', 'xianxia_sect')
-            keyPassword = keystoreProperties.getProperty('keyPassword', '')
-            v1SigningEnabled = true
-            v2SigningEnabled = true
+        if (keystoreFile.exists()) {
+            release {
+                storeFile = keystoreFile
+                storePassword = keystoreProperties.getProperty('storePassword', '')
+                keyAlias = keystoreProperties.getProperty('keyAlias', 'xianxia_sect')
+                keyPassword = keystoreProperties.getProperty('keyPassword', '')
+                v1SigningEnabled = true
+                v2SigningEnabled = true
+            }
         }
     }
 
@@ -57,14 +69,14 @@ android {
             minifyEnabled = true
             shrinkResources = true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            if (keystoreProperties.getProperty('storePassword') != null && !keystoreProperties.getProperty('storePassword').isEmpty()) {
+            if (canSignRelease) {
                 signingConfig = signingConfigs.release
             }
             buildConfigField "boolean", "DEBUG_MODE", "false"
         }
         debug {
             minifyEnabled = false
-            if (keystoreProperties.getProperty('storePassword') != null && !keystoreProperties.getProperty('storePassword').isEmpty()) {
+            if (canSignRelease) {
                 signingConfig = signingConfigs.release
             }
             buildConfigField "boolean", "DEBUG_MODE", "true"
@@ -74,6 +86,13 @@ android {
     lint {
         checkReleaseBuilds = false
         abortOnError = false
+    }
+
+    testOptions {
+        unitTests {
+            includeAndroidResources = true
+            returnDefaultValues = true
+        }
     }
 
     compileOptions {
@@ -92,7 +111,7 @@ android {
     tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile) {
         kotlinOptions {
             jvmTarget = '17'
-            freeCompilerArgs += ['-Xjsr305=strict']
+            freeCompilerArgs += ['-Xjsr305=strict', '-opt-in=kotlinx.serialization.ExperimentalSerializationApi']
         }
     }
 
@@ -118,12 +137,12 @@ android {
 
 dependencies {
     // AndroidX
-    implementation 'androidx.core:core-ktx:1.12.0'
+    implementation 'androidx.core:core-ktx:1.13.1'
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'com.google.android.material:material:1.11.0'
 
     // Jetpack Compose
-    def composeBom = platform('androidx.compose:compose-bom:2024.11.00')
+    def composeBom = platform('androidx.compose:compose-bom:2025.02.00')
     implementation composeBom
     implementation 'androidx.compose.ui:ui'
     implementation 'androidx.compose.ui:ui-graphics'
@@ -131,7 +150,7 @@ dependencies {
     implementation 'androidx.compose.material3:material3:1.3.1'
     implementation 'androidx.compose.material:material-icons-core'
     implementation 'androidx.compose.material:material-icons-extended'
-    implementation 'androidx.activity:activity-compose:1.9.3'
+    implementation 'androidx.activity:activity-compose:1.10.1'
     implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7'
     implementation 'androidx.navigation:navigation-compose:2.8.5'
     debugImplementation 'androidx.compose.ui:ui-tooling'
@@ -143,12 +162,12 @@ dependencies {
     ksp "androidx.room:room-compiler:$room_version"
 
     // DataStore
-    implementation "androidx.datastore:datastore-preferences:1.0.0"
+    implementation "androidx.datastore:datastore-preferences:1.1.3"
 
     // Hilt
-    implementation 'com.google.dagger:hilt-android:2.50'
-    ksp 'com.google.dagger:hilt-compiler:2.50'
-    implementation 'androidx.hilt:hilt-navigation-compose:1.1.0'
+    implementation 'com.google.dagger:hilt-android:2.56'
+    ksp 'com.google.dagger:hilt-compiler:2.56'
+    implementation 'androidx.hilt:hilt-navigation-compose:1.2.0'
 
     // Coroutines
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
@@ -167,7 +186,6 @@ dependencies {
     implementation 'com.taptap.sdk:tap-core:4.10.0'
     implementation 'com.taptap.sdk:tap-common:4.10.0'
     implementation 'com.taptap.sdk:tap-compliance:4.10.0'
-    implementation 'com.taptap.sdk:tap-cloudsave:4.10.0'
 
     // Network
     implementation 'com.squareup.retrofit2:retrofit:2.11.0'
@@ -178,20 +196,37 @@ dependencies {
     // Gson
     implementation 'com.google.code.gson:gson:2.12.1'
 
+    // AndroidX Security - EncryptedSharedPreferences
+    implementation 'androidx.security:security-crypto:1.1.0-alpha06'
+
     // MMKV - 高性能键值存储
-    implementation 'com.tencent:mmkv:1.3.9'
+    implementation 'com.tencent:mmkv:2.3.0'
 
     // LZ4 压缩 - 极速压缩
     implementation 'org.lz4:lz4-java:1.8.0'
 
+    // Zstd 压缩 - 高压缩比冷数据压缩
+    implementation 'com.github.luben:zstd-jni:1.5.6-6'
+
     // Protobuf
-    implementation 'com.google.protobuf:protobuf-java:3.25.3'
+    implementation 'com.google.protobuf:protobuf-java:4.27.2'
 
     // FlatBuffers - 零拷贝序列化
     implementation 'com.google.flatbuffers:flatbuffers-java:24.3.25'
 
     // Unit tests
     testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.mockito:mockito-core:5.14.2'
+    testImplementation 'org.mockito:mockito-inline:5.2.0'
+    testImplementation 'org.mockito.kotlin:mockito-kotlin:5.4.0'
+    testImplementation 'org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1'
+    testImplementation 'org.robolectric:robolectric:4.13'
+    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
+}
+
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
 }
 
 protobuf {
@@ -225,4 +260,162 @@ task generateFlatBuffers {
 afterEvaluate {
     tasks.findByName('compileDebugKotlin')?.dependsOn(generateFlatBuffers)
     tasks.findByName('compileReleaseKotlin')?.dependsOn(generateFlatBuffers)
+}
+
+def schemaDir = file("${projectDir}/schemas/com.xianxia.sect.data.local.GameDatabase")
+def hashFile = file("${projectDir}/schemas/.room_schema_hash")
+def gameDatabaseFile = file("${projectDir}/src/main/java/com/xianxia/sect/data/local/GameDatabase.kt")
+def migrationsFile = file("${projectDir}/src/main/java/com/xianxia/sect/data/local/DatabaseMigrations.kt")
+
+task validateRoomSchema(group: 'verification', description: '校验 Room schema identity hash，Entity 变更但 version 未 bump 时编译失败') {
+    doLast {
+        if (!schemaDir.exists()) {
+            println "WARN: Schema directory not found, skipping validation (run kspKotlin first to generate schemas)"
+            return
+        }
+        def schemaFiles = schemaDir.listFiles()?.findAll { it.name.endsWith('.json') && it.name =~ /^\d+\.json$/ } ?: []
+        if (schemaFiles.isEmpty()) {
+            println "WARN: No schema JSON files found in ${schemaDir}, skipping validation"
+            return
+        }
+        def latestSchema = schemaFiles.max { it.name.replaceAll('\\.json$', '').toInteger() }
+        def latestVersion = latestSchema.name.replaceAll('\\.json$', '').toInteger()
+        def schemaJson = new groovy.json.JsonSlurper().parse(latestSchema)
+        def currentHash = schemaJson.identityHash
+
+        def sourceContent = gameDatabaseFile.text
+        def versionMatch = sourceContent =~ /version\s*=\s*(\d+)/
+        if (!versionMatch) {
+            throw new GradleException("ERROR: Cannot find version number in ${gameDatabaseFile.name}")
+        }
+        def declaredVersion = versionMatch[0][1].toInteger()
+
+        if (hashFile.exists()) {
+            def storedHash = hashFile.text.trim()
+            if (currentHash != storedHash && declaredVersion == latestVersion) {
+                throw new GradleException("""
+============================================================
+  ROOM SCHEMA VALIDATION FAILED
+============================================================
+  Entity schema has changed but database version was NOT bumped.
+
+  Current declared version: ${declaredVersion}
+  Current schema hash:      ${currentHash}
+  Previously stored hash:    ${storedHash}
+
+  FIX: Run './gradlew bumpRoomVersion' to auto-fix, or manually:
+    1. Increment version in @Database annotation (${gameDatabaseFile.name})
+    2. Add Migration${declaredVersion}To${declaredVersion + 1} to DatabaseMigrations.kt
+    3. Register it in ALL_MIGRATIONS and MIGRATION_REGISTRY
+    4. Run this task again to update the stored hash
+============================================================
+""".stripIndent())
+            }
+        }
+
+        println "Room schema validation PASSED (version=${declaredVersion}, hash=${currentHash})"
+    }
+}
+
+task storeRoomSchemaHash(group: 'build', description: '将当前 Room schema identity hash 存储到 .room_schema_hash 文件') {
+    dependsOn 'kspDebugKotlin'
+    doLast {
+        if (!schemaDir.exists()) {
+            throw new GradleException("Schema directory not found: ${schemaDir}. Run kspKotlin first.")
+        }
+        def schemaFiles = schemaDir.listFiles()?.findAll { it.name.endsWith('.json') && it.name =~ /^\d+\.json$/ } ?: []
+        if (schemaFiles.isEmpty()) {
+            throw new GradleException("No schema JSON files found in ${schemaDir}")
+        }
+        def latestSchema = schemaFiles.max { it.name.replaceAll('\\.json$', '').toInteger() }
+        def schemaJson = new groovy.json.JsonSlurper().parse(latestSchema)
+        def currentHash = schemaJson.identityHash
+        hashFile.parentFile.mkdirs()
+        hashFile.text = currentHash
+        println "Stored room schema hash: ${currentHash}"
+    }
+}
+
+task bumpRoomVersion(group: 'room', description: '自动 bump Room 版本号并生成空操作 Migration 类（修复 schema hash 不匹配）') {
+    doFirst {
+        if (!schemaDir.exists()) {
+            throw new GradleException("Schema directory not found: ${schemaDir}. Run kspKotlin first to generate schemas.")
+        }
+    }
+    doLast {
+        def schemaFiles = schemaDir.listFiles()?.findAll { it.name.endsWith('.json') && it.name =~ /^\d+\.json$/ } ?: []
+        if (schemaFiles.isEmpty()) {
+            throw new GradleException("No schema JSON files found in ${schemaDir}")
+        }
+        def latestSchema = schemaFiles.max { it.name.replaceAll('\\.json$', '').toInteger() }
+        def latestVersion = latestSchema.name.replaceAll('\\.json$', '').toInteger()
+
+        def sourceContent = gameDatabaseFile.text
+        def versionMatch = sourceContent =~ /version\s*=\s*(\d+)/
+        if (!versionMatch) {
+            throw new GradleException("Cannot find version number in ${gameDatabaseFile.name}")
+        }
+        def oldVersion = versionMatch[0][1].toInteger()
+        def newVersion = oldVersion + 1
+
+        def commentMatch = sourceContent =~ /(\/\/\s*版本)\d+(:\s*.+?hash\s*同步)/
+        def newComment = commentMatch ? "${commentMatch[0][1]}${newVersion}${commentMatch[0][2]}" : "// 版本${newVersion}: schema identity hash 同步"
+
+        sourceContent = sourceContent.replaceFirst(/version\s*=\s*\d+/, "version = ${newVersion}")
+        sourceContent = sourceContent.replaceFirst(/\/\/\s*版本\d+:\s*schema identity hash\s*同步.*?不匹配/, newComment)
+        gameDatabaseFile.text = sourceContent
+        println "Bumped version: ${oldVersion} -> ${newVersion} in GameDatabase.kt"
+
+        def migrationsContent = migrationsFile.text
+        def lastMigrationClassMatch = migrationsContent =~ /(internal class Migration\d+To(\d+)\s*:\s*Migration\(\d+,\s*\d+\))/
+        def lastMigrationEntries = null
+        if (lastMigrationClassMatch) {
+            lastMigrationEntries = lastMigrationClassMatch[lastMigrationClassMatch.count - 1]
+        }
+        def prevClassEnd = migrationsContent.indexOf('}', migrationsContent.indexOf('internal class Migration63To64'))
+        while (prevClassEnd < migrationsContent.length() - 1 && migrationsContent.charAt(prevClassEnd + 1).trim() != '') {
+            def nextEnd = migrationsContent.indexOf('}', prevClassEnd + 1)
+            if (nextEnd == -1) break
+            prevClassEnd = nextEnd
+        }
+
+        def newMigrationCode = """
+
+    /**
+     * v${oldVersion} -> v${newVersion}: schema identity hash 同步 (自动生成)
+     *
+     * 触发原因：v${oldVersion} 设定后 Entity schema 发生变更，
+     * 导致编译后的 schema identity hash 与设备上已安装的 DB 不匹配。
+     * 此迁移为空操作（no-op）。
+     */
+    internal class Migration${oldVersion}To${newVersion} : Migration(${oldVersion}, ${newVersion}) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            Log.i(TAG, "Migration ${oldVersion} to ${newVersion} - schema identity hash sync (no-op)")
+        }
+    }
+"""
+
+        def insertPos = migrationsContent.indexOf('\n', migrationsContent.indexOf('val ALL_MIGRATIONS'))
+        migrationsContent = migrationsContent.substring(0, insertPos) + newMigrationCode + migrationsContent.substring(insertPos)
+
+        migrationsContent = migrationsContent.replace(
+            'Migration63To64()\n    )',
+            "Migration63To64(),\n        Migration${oldVersion}To${newVersion}()\n    )"
+        )
+
+        migrationsContent = migrationsContent.replace(
+            '63 to Migration63To64()\n    )',
+            "63 to Migration63To64(),\n        ${oldVersion} to Migration${oldVersion}To${newVersion}()\n    )"
+        )
+        migrationsFile.text = migrationsContent
+        println "Generated Migration${oldVersion}To${newVersion} in DatabaseMigrations.kt"
+        println ""
+        println "=== NEXT STEP ==="
+        println "Run './gradlew storeRoomSchemaHash' to update the stored schema hash"
+        println "Then rebuild the project"
+    }
+}
+
+tasks.matching { it.name == 'preBuild' }.configureEach {
+    dependsOn validateRoomSchema
 }

@@ -61,7 +61,7 @@ data class SerializableGameData(
     @ProtoNumber(39) val sectRelations: List<SerializableSectRelation> = emptyList(),
     @ProtoNumber(40) val playerAllianceSlots: Int = 3,
     @ProtoNumber(42) val sectPolicies: SerializableSectPolicies = SerializableSectPolicies(),
-    @ProtoNumber(43) val battleTeam: SerializableBattleTeam? = null,
+    @ProtoNumber(43) val battleTeam: SerializableBattleTeam = SerializableBattleTeam(id="", name="", slots = emptyList(), isAtSect=true, currentX=0f, currentY=0f, targetX=0f, targetY=0f, status="", targetSectId="", originSectId="", route = emptyList(), currentRouteIndex=0, moveProgress=0f, isOccupying=false, isReturning=false),
     @ProtoNumber(44) val aiBattleTeams: List<SerializableAIBattleTeam> = emptyList(),
     @ProtoNumber(45) val usedRedeemCodes: List<String> = emptyList(),
     @ProtoNumber(46) val playerProtectionEnabled: Boolean = true,
@@ -83,23 +83,23 @@ data class SerializableDisciple(
     @ProtoNumber(8) val lifespan: Int,
     @ProtoNumber(9) val isAlive: Boolean,
     @ProtoNumber(10) val gender: String,
-    @ProtoNumber(11) val partnerId: String? = null,
-    @ProtoNumber(12) val partnerSectId: String? = null,
-    @ProtoNumber(13) val parentId1: String? = null,
-    @ProtoNumber(14) val parentId2: String? = null,
+    @ProtoNumber(11) val partnerId: String = "",
+    @ProtoNumber(12) val partnerSectId: String = "",
+    @ProtoNumber(13) val parentId1: String = "",
+    @ProtoNumber(14) val parentId2: String = "",
     @ProtoNumber(15) val lastChildYear: Int,
-    @ProtoNumber(16) val griefEndYear: Int? = null,
-    @ProtoNumber(17) val weaponId: String? = null,
-    @ProtoNumber(18) val armorId: String? = null,
-    @ProtoNumber(19) val bootsId: String? = null,
-    @ProtoNumber(20) val accessoryId: String? = null,
+    @ProtoNumber(16) val griefEndYear: Int = -1,
+    @ProtoNumber(17) val weaponId: String = "",
+    @ProtoNumber(18) val armorId: String = "",
+    @ProtoNumber(19) val bootsId: String = "",
+    @ProtoNumber(20) val accessoryId: String = "",
     @ProtoNumber(21) val manualIds: List<String> = emptyList(),
     @ProtoNumber(22) val talentIds: List<String> = emptyList(),
     @ProtoNumber(23) val manualMasteries: Map<String, Int> = emptyMap(),
-    @ProtoNumber(24) val weaponNurture: SerializableEquipmentNurtureData? = null,
-    @ProtoNumber(25) val armorNurture: SerializableEquipmentNurtureData? = null,
-    @ProtoNumber(26) val bootsNurture: SerializableEquipmentNurtureData? = null,
-    @ProtoNumber(27) val accessoryNurture: SerializableEquipmentNurtureData? = null,
+    @ProtoNumber(24) val weaponNurture: SerializableEquipmentNurtureData = SerializableEquipmentNurtureData(equipmentId="", rarity=0),
+    @ProtoNumber(25) val armorNurture: SerializableEquipmentNurtureData = SerializableEquipmentNurtureData(equipmentId="", rarity=0),
+    @ProtoNumber(26) val bootsNurture: SerializableEquipmentNurtureData = SerializableEquipmentNurtureData(equipmentId="", rarity=0),
+    @ProtoNumber(27) val accessoryNurture: SerializableEquipmentNurtureData = SerializableEquipmentNurtureData(equipmentId="", rarity=0),
     @ProtoNumber(28) val spiritStones: Int,
     @ProtoNumber(29) val soulPower: Int,
     @ProtoNumber(30) val storageBagItems: List<SerializableStorageBagItem> = emptyList(),
@@ -119,7 +119,6 @@ data class SerializableDisciple(
     @ProtoNumber(44) val totalCultivation: Long,
     @ProtoNumber(45) val breakthroughCount: Int,
     @ProtoNumber(46) val breakthroughFailCount: Int,
-    @ProtoNumber(47) val battlesWon: Int,
     @ProtoNumber(48) val intelligence: Int,
     @ProtoNumber(49) val charm: Int,
     @ProtoNumber(50) val loyalty: Int,
@@ -150,7 +149,9 @@ data class SerializableDisciple(
     @ProtoNumber(75) val monthlyUsedPillIds: List<String> = emptyList(),
     @ProtoNumber(76) val usedExtendLifePillIds: List<String> = emptyList(),
     @ProtoNumber(77) val hasReviveEffect: Boolean,
-    @ProtoNumber(78) val hasClearAllEffect: Boolean
+    @ProtoNumber(78) val hasClearAllEffect: Boolean,
+    @ProtoNumber(79) val currentHp: Int = -1,
+    @ProtoNumber(80) val currentMp: Int = -1
 )
 
 @Serializable
@@ -166,9 +167,12 @@ data class SerializableEquipment(
     @ProtoNumber(9) val obtainedMonth: Int = 1,
     @ProtoNumber(10) val critChance: Double = 0.0,
     @ProtoNumber(11) val isEquipped: Boolean = false,
-    @ProtoNumber(12) val equippedBy: String? = null,
+    @ProtoNumber(12) val equippedBy: String = "",
     @ProtoNumber(13) val nurtureLevel: Int = 0,
-    @ProtoNumber(14) val nurtureProgress: Double = 0.0
+    @ProtoNumber(14) val nurtureProgress: Double = 0.0,
+    @ProtoNumber(15) val minRealm: Int = 9,
+    @ProtoNumber(16) val ownerId: String = "",
+    @ProtoNumber(17) val quantity: Int = 1
 )
 
 @Serializable
@@ -239,7 +243,7 @@ data class SerializableExplorationTeam(
     @ProtoNumber(2) val name: String,
     @ProtoNumber(3) val memberIds: List<String> = emptyList(),
     @ProtoNumber(4) val status: String = "idle",
-    @ProtoNumber(5) val targetSectId: String? = null,
+    @ProtoNumber(5) val targetSectId: String = "",
     @ProtoNumber(6) val startYear: Int = 0,
     @ProtoNumber(7) val startMonth: Int = 0,
     @ProtoNumber(8) val duration: Int = 0,
@@ -272,7 +276,11 @@ data class SerializableBattleLog(
     @ProtoNumber(10) val rounds: List<SerializableBattleLogRound> = emptyList(),
     @ProtoNumber(11) val attackerMembers: List<SerializableBattleLogMember> = emptyList(),
     @ProtoNumber(12) val defenderMembers: List<SerializableBattleLogMember> = emptyList(),
-    @ProtoNumber(13) val rewards: Map<String, Int> = emptyMap()
+    @ProtoNumber(13) val rewards: Map<String, Int> = emptyMap(),
+    @ProtoNumber(14) val type: String = "PVE",
+    @ProtoNumber(15) val details: String = "",
+    @ProtoNumber(16) val drops: List<String> = emptyList(),
+    @ProtoNumber(17) val dungeonName: String = ""
 )
 
 @Serializable
@@ -319,7 +327,7 @@ data class SerializableStorageBagItem(
     @ProtoNumber(5) val quantity: Int = 1,
     @ProtoNumber(6) val obtainedYear: Int = 1,
     @ProtoNumber(7) val obtainedMonth: Int = 1,
-    @ProtoNumber(8) val effect: SerializableItemEffect? = null
+    @ProtoNumber(8) val effect: SerializableItemEffect = SerializableItemEffect()
 )
 
 @Serializable
@@ -364,26 +372,26 @@ data class SerializableWorldSect(
     @ProtoNumber(13) val maxRealm: Int,
     @ProtoNumber(14) val connectedSectIds: List<String> = emptyList(),
     @ProtoNumber(15) val isOccupied: Boolean,
-    @ProtoNumber(16) val occupierTeamId: String? = null,
+    @ProtoNumber(16) val occupierTeamId: String = "",
     @ProtoNumber(17) val occupierTeamName: String,
     @ProtoNumber(18) val mineSlots: List<SerializableMineSlot> = emptyList(),
     @ProtoNumber(19) val occupationTime: Long,
     @ProtoNumber(20) val isOwned: Boolean,
     @ProtoNumber(21) val expiryYear: Int,
     @ProtoNumber(22) val expiryMonth: Int,
-    @ProtoNumber(23) val scoutInfo: SerializableSectScoutInfo? = null,
+    @ProtoNumber(23) val scoutInfo: SerializableSectScoutInfo = SerializableSectScoutInfo(sectId="", sectName="", scoutYear=0, scoutMonth=0, discipleCount=0, maxRealm=0, isKnown=false, expiryYear=0, expiryMonth=0),
     @ProtoNumber(24) val tradeItems: List<SerializableMerchantItem> = emptyList(),
     @ProtoNumber(25) val tradeLastRefreshYear: Int,
     @ProtoNumber(26) val lastGiftYear: Int,
-    @ProtoNumber(27) val allianceId: String? = null,
+    @ProtoNumber(27) val allianceId: String = "",
     @ProtoNumber(28) val allianceStartYear: Int,
     @ProtoNumber(29) val isRighteous: Boolean,
     @ProtoNumber(30) val aiDisciples: List<SerializableDisciple> = emptyList(),
     @ProtoNumber(31) val isPlayerOccupied: Boolean,
-    @ProtoNumber(32) val occupierBattleTeamId: String? = null,
+    @ProtoNumber(32) val occupierBattleTeamId: String = "",
     @ProtoNumber(33) val isUnderAttack: Boolean,
-    @ProtoNumber(34) val attackerSectId: String? = null,
-    @ProtoNumber(35) val occupierSectId: String? = null,
+    @ProtoNumber(34) val attackerSectId: String = "",
+    @ProtoNumber(35) val occupierSectId: String = "",
     @ProtoNumber(36) val warehouse: SerializableSectWarehouse = SerializableSectWarehouse(),
     @ProtoNumber(37) val giftPreference: String = "NONE"
 )
@@ -391,7 +399,7 @@ data class SerializableWorldSect(
 @Serializable
 data class SerializableMineSlot(
     @ProtoNumber(1) val index: Int,
-    @ProtoNumber(2) val discipleId: String? = null,
+    @ProtoNumber(2) val discipleId: String = "",
     @ProtoNumber(3) val discipleName: String,
     @ProtoNumber(4) val output: Int,
     @ProtoNumber(5) val efficiency: Double = 1.0,
@@ -463,14 +471,14 @@ data class SerializableMerchantItem(
 data class SerializablePlantSlotData(
     @ProtoNumber(1) val index: Int,
     @ProtoNumber(2) val status: String,
-    @ProtoNumber(3) val seedId: String? = null,
+    @ProtoNumber(3) val seedId: String = "",
     @ProtoNumber(4) val seedName: String,
     @ProtoNumber(5) val startYear: Int,
     @ProtoNumber(6) val startMonth: Int,
     @ProtoNumber(7) val growTime: Int,
     @ProtoNumber(8) val expectedYield: Int,
     @ProtoNumber(9) val harvestAmount: Int,
-    @ProtoNumber(10) val harvestHerbId: String? = null
+    @ProtoNumber(10) val harvestHerbId: String = ""
 )
 
 @Serializable
@@ -490,7 +498,7 @@ data class SerializableCultivatorCave(
     @ProtoNumber(3) val level: Int,
     @ProtoNumber(4) val x: Float,
     @ProtoNumber(5) val y: Float,
-    @ProtoNumber(6) val ownerSectId: String? = null,
+    @ProtoNumber(6) val ownerSectId: String = "",
     @ProtoNumber(7) val ownerSectName: String,
     @ProtoNumber(8) val disciples: List<SerializableDisciple> = emptyList(),
     @ProtoNumber(9) val resources: Map<String, Int> = emptyMap(),
@@ -523,18 +531,18 @@ data class SerializableAICaveTeam(
 
 @Serializable
 data class SerializableElderSlots(
-    @ProtoNumber(1) val viceSectMaster: String? = null,
-    @ProtoNumber(2) val herbGardenElder: String? = null,
-    @ProtoNumber(3) val alchemyElder: String? = null,
-    @ProtoNumber(4) val forgeElder: String? = null,
-    @ProtoNumber(6) val outerElder: String? = null,
-    @ProtoNumber(7) val preachingElder: String? = null,
+    @ProtoNumber(1) val viceSectMaster: String = "",
+    @ProtoNumber(2) val herbGardenElder: String = "",
+    @ProtoNumber(3) val alchemyElder: String = "",
+    @ProtoNumber(4) val forgeElder: String = "",
+    @ProtoNumber(6) val outerElder: String = "",
+    @ProtoNumber(7) val preachingElder: String = "",
     @ProtoNumber(8) val preachingMasters: List<SerializableDirectDiscipleSlot> = emptyList(),
-    @ProtoNumber(9) val lawEnforcementElder: String? = null,
+    @ProtoNumber(9) val lawEnforcementElder: String = "",
     @ProtoNumber(10) val lawEnforcementDisciples: List<SerializableDirectDiscipleSlot> = emptyList(),
     @ProtoNumber(11) val lawEnforcementReserveDisciples: List<SerializableDirectDiscipleSlot> = emptyList(),
-    @ProtoNumber(12) val innerElder: String? = null,
-    @ProtoNumber(13) val qingyunPreachingElder: String? = null,
+    @ProtoNumber(12) val innerElder: String = "",
+    @ProtoNumber(13) val qingyunPreachingElder: String = "",
     @ProtoNumber(14) val qingyunPreachingMasters: List<SerializableDirectDiscipleSlot> = emptyList(),
     @ProtoNumber(15) val herbGardenDisciples: List<SerializableDirectDiscipleSlot> = emptyList(),
     @ProtoNumber(16) val alchemyDisciples: List<SerializableDirectDiscipleSlot> = emptyList(),
@@ -548,7 +556,7 @@ data class SerializableElderSlots(
 @Serializable
 data class SerializableDirectDiscipleSlot(
     @ProtoNumber(1) val index: Int,
-    @ProtoNumber(2) val discipleId: String? = null,
+    @ProtoNumber(2) val discipleId: String = "",
     @ProtoNumber(3) val discipleName: String,
     @ProtoNumber(4) val discipleRealm: String,
     @ProtoNumber(5) val discipleSpiritRootColor: String
@@ -557,7 +565,7 @@ data class SerializableDirectDiscipleSlot(
 @Serializable
 data class SerializableSpiritMineSlot(
     @ProtoNumber(1) val index: Int,
-    @ProtoNumber(2) val discipleId: String? = null,
+    @ProtoNumber(2) val discipleId: String = "",
     @ProtoNumber(3) val discipleName: String,
     @ProtoNumber(4) val output: Int
 )
@@ -565,7 +573,7 @@ data class SerializableSpiritMineSlot(
 @Serializable
 data class SerializableLibrarySlot(
     @ProtoNumber(1) val index: Int,
-    @ProtoNumber(2) val discipleId: String? = null,
+    @ProtoNumber(2) val discipleId: String = "",
     @ProtoNumber(3) val discipleName: String
 )
 
@@ -573,30 +581,30 @@ data class SerializableLibrarySlot(
 data class SerializableBuildingSlot(
     @ProtoNumber(1) val id: String,
     @ProtoNumber(2) val type: String,
-    @ProtoNumber(3) val discipleId: String? = null,
+    @ProtoNumber(3) val discipleId: String = "",
     @ProtoNumber(4) val discipleName: String,
-    @ProtoNumber(5) val recipeId: String? = null,
+    @ProtoNumber(5) val recipeId: String = "",
     @ProtoNumber(6) val recipeName: String,
     @ProtoNumber(7) val progress: Double,
     @ProtoNumber(8) val status: String,
     @ProtoNumber(9) val startYear: Int,
     @ProtoNumber(10) val startMonth: Int,
-    @ProtoNumber(11) val resultItemId: String? = null,
+    @ProtoNumber(11) val resultItemId: String = "",
     @ProtoNumber(12) val resultQuantity: Int
 )
 
 @Serializable
 data class SerializableAlchemySlot(
     @ProtoNumber(1) val id: String,
-    @ProtoNumber(2) val discipleId: String? = null,
+    @ProtoNumber(2) val discipleId: String = "",
     @ProtoNumber(3) val discipleName: String,
-    @ProtoNumber(4) val recipeId: String? = null,
+    @ProtoNumber(4) val recipeId: String = "",
     @ProtoNumber(5) val recipeName: String,
     @ProtoNumber(6) val progress: Double,
     @ProtoNumber(7) val status: String,
     @ProtoNumber(8) val startYear: Int,
     @ProtoNumber(9) val startMonth: Int,
-    @ProtoNumber(10) val resultItemId: String? = null,
+    @ProtoNumber(10) val resultItemId: String = "",
     @ProtoNumber(11) val resultQuantity: Int
 )
 
@@ -607,15 +615,15 @@ data class SerializableProductionSlot(
     @ProtoNumber(3) val buildingType: String,
     @ProtoNumber(4) val buildingId: String,
     @ProtoNumber(5) val status: String,
-    @ProtoNumber(6) val recipeId: String? = null,
+    @ProtoNumber(6) val recipeId: String = "",
     @ProtoNumber(7) val recipeName: String,
     @ProtoNumber(8) val startYear: Int,
     @ProtoNumber(9) val startMonth: Int,
     @ProtoNumber(10) val duration: Int,
-    @ProtoNumber(11) val assignedDiscipleId: String? = null,
+    @ProtoNumber(11) val assignedDiscipleId: String = "",
     @ProtoNumber(12) val assignedDiscipleName: String,
     @ProtoNumber(13) val successRate: Double,
-    @ProtoNumber(14) val outputItemId: String? = null,
+    @ProtoNumber(14) val outputItemId: String = "",
     @ProtoNumber(15) val outputItemName: String,
     @ProtoNumber(16) val outputItemRarity: Int
 )
@@ -651,20 +659,20 @@ data class SerializableBattleTeam(
     @ProtoNumber(7) val targetX: Float,
     @ProtoNumber(8) val targetY: Float,
     @ProtoNumber(9) val status: String,
-    @ProtoNumber(10) val targetSectId: String? = null,
-    @ProtoNumber(11) val originSectId: String? = null,
+    @ProtoNumber(10) val targetSectId: String = "",
+    @ProtoNumber(11) val originSectId: String = "",
     @ProtoNumber(12) val route: List<String> = emptyList(),
     @ProtoNumber(13) val currentRouteIndex: Int,
     @ProtoNumber(14) val moveProgress: Float,
     @ProtoNumber(15) val isOccupying: Boolean,
-    @ProtoNumber(16) val occupiedSectId: String? = null,
+    @ProtoNumber(16) val occupiedSectId: String = "",
     @ProtoNumber(17) val isReturning: Boolean
 )
 
 @Serializable
 data class SerializableBattleTeamSlot(
     @ProtoNumber(1) val index: Int,
-    @ProtoNumber(2) val discipleId: String? = null,
+    @ProtoNumber(2) val discipleId: String = "",
     @ProtoNumber(3) val discipleName: String,
     @ProtoNumber(4) val discipleRealm: String,
     @ProtoNumber(5) val slotType: String,
@@ -720,7 +728,9 @@ data class SerializableBattleLogMember(
     @ProtoNumber(3) val realm: Int,
     @ProtoNumber(4) val isAlive: Boolean,
     @ProtoNumber(5) val remainingHp: Int,
-    @ProtoNumber(6) val maxHp: Int
+    @ProtoNumber(6) val maxHp: Int,
+    @ProtoNumber(7) val remainingMp: Int = 0,
+    @ProtoNumber(8) val maxMp: Int = 0
 )
 
 @Serializable
@@ -738,8 +748,10 @@ data class SerializableActiveMission(
     @ProtoNumber(11) val missionType: String = "ESCORT",
     @ProtoNumber(12) val difficulty: Int = 0,
     @ProtoNumber(13) val discipleNames: List<String> = emptyList(),
-    @ProtoNumber(14) val investigateOutcome: String? = null,
+    @ProtoNumber(35) val discipleRealms: List<String> = emptyList(),
+    @ProtoNumber(14) val investigateOutcome: String = "",
     @ProtoNumber(16) val spiritStones: Int = 0,
+    @ProtoNumber(34) val spiritStonesMax: Int = 0,
     @ProtoNumber(17) val extraItemChance: Double = 0.0,
     @ProtoNumber(18) val extraItemCountMin: Int = 0,
     @ProtoNumber(19) val extraItemCountMax: Int = 0,
@@ -775,6 +787,7 @@ data class SerializableMission(
     @ProtoNumber(12) val createdYear: Int = 1,
     @ProtoNumber(13) val createdMonth: Int = 1,
     @ProtoNumber(14) val spiritStones: Int = 0,
+    @ProtoNumber(33) val spiritStonesMax: Int = 0,
     @ProtoNumber(16) val extraItemChance: Double = 0.0,
     @ProtoNumber(17) val extraItemCountMin: Int = 0,
     @ProtoNumber(18) val extraItemCountMax: Int = 0,
@@ -799,3 +812,86 @@ data class MetadataFile(
     @ProtoNumber(1) val version: String,
     @ProtoNumber(2) val slots: Map<Int, SerializableSaveSlot>
 )
+
+/**
+ * 带完整性哈希的存档数据包装
+ * 序列化时自动计算并附加SHA-256哈希，反序列化时自动验证
+ */
+@Serializable
+data class HashedSaveData(
+    @ProtoNumber(1) val data: SerializableSaveData,
+    @ProtoNumber(2) val integrityHash: String = "",
+    @ProtoNumber(3) val hashAlgorithm: String = "SHA-256",
+    @ProtoNumber(4) val timestamp: Long = System.currentTimeMillis()
+) {
+    companion object {
+        const val DEFAULT_ALGORITHM = "SHA-256"
+
+        /**
+         * 创建带哈希的存档数据
+         * 自动计算数据的SHA-256哈希值
+         */
+        fun create(data: SerializableSaveData): HashedSaveData {
+            val hash = computeHash(data)
+            return HashedSaveData(
+                data = data,
+                integrityHash = hash,
+                hashAlgorithm = DEFAULT_ALGORITHM,
+                timestamp = System.currentTimeMillis()
+            )
+        }
+
+        /**
+         * 计算SerializableSaveData的SHA-256哈希
+         */
+        private fun computeHash(data: SerializableSaveData): String {
+            val digest = java.security.MessageDigest.getInstance(DEFAULT_ALGORITHM)
+
+            digest.update(data.version.toByteArray(Charsets.UTF_8))
+            digest.update(data.timestamp.toString().toByteArray(Charsets.UTF_8))
+
+            data.gameData?.let { gd ->
+                digest.update("gameData:".toByteArray(Charsets.UTF_8))
+                digest.update(gd.sectName.toByteArray(Charsets.UTF_8))
+                digest.update(gd.currentSlot.toString().toByteArray(Charsets.UTF_8))
+                digest.update(gd.spiritStones.toString().toByteArray(Charsets.UTF_8))
+            }
+
+            digest.update("|disciples:".toByteArray(Charsets.UTF_8))
+            digest.update(data.disciples.size.toString().toByteArray(Charsets.UTF_8))
+            data.disciples.forEach { d ->
+                digest.update(d.id.toByteArray(Charsets.UTF_8))
+                digest.update(d.name.toByteArray(Charsets.UTF_8))
+            }
+
+            digest.update("|equipment:".toByteArray(Charsets.UTF_8))
+            digest.update(data.equipment.size.toString().toByteArray(Charsets.UTF_8))
+
+            digest.update("|manuals:".toByteArray(Charsets.UTF_8))
+            digest.update(data.manuals.size.toString().toByteArray(Charsets.UTF_8))
+
+            val hashBytes = digest.digest()
+            return hashBytes.joinToString("") { "%02x".format(it) }
+        }
+
+        /**
+         * 验证数据完整性
+         * @return true 如果哈希匹配，false 如果数据被篡改
+         */
+        fun verifyIntegrity(hashedData: HashedSaveData): Boolean {
+            if (hashedData.integrityHash.isEmpty()) {
+                return false
+            }
+
+            val computedHash = computeHash(hashedData.data)
+            return computedHash == hashedData.integrityHash
+        }
+    }
+
+    /**
+     * 验证当前实例的数据完整性
+     */
+    fun isValid(): Boolean {
+        return verifyIntegrity(this)
+    }
+}

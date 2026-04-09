@@ -26,7 +26,7 @@ import com.xianxia.sect.ui.theme.GameColors
 @Composable
 fun LibraryDialog(
     manuals: List<Manual>,
-    disciples: List<Disciple>,
+    disciples: List<DiscipleAggregate>,
     gameData: GameData?,
     viewModel: GameViewModel,
     onDismiss: () -> Unit
@@ -92,7 +92,7 @@ fun LibraryDialog(
 @Composable
 private fun LibrarySlotItem(
     slot: LibrarySlot,
-    disciple: Disciple?,
+    disciple: DiscipleAggregate?,
     onAssign: () -> Unit,
     onRemove: () -> Unit
 ) {
@@ -128,7 +128,7 @@ private fun LibrarySlotItem(
                 .clickable { onAssign() },
             contentAlignment = Alignment.Center
         ) {
-            if (slot.discipleId != null && disciple != null) {
+            if (slot.discipleId.isNotEmpty() && disciple != null) {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
@@ -176,9 +176,9 @@ private fun LibrarySlotItem(
 
 @Composable
 private fun LibraryDiscipleSelectionDialog(
-    disciples: List<Disciple>,
+    disciples: List<DiscipleAggregate>,
     currentDiscipleId: String?,
-    onSelect: (Disciple) -> Unit,
+    onSelect: (DiscipleAggregate) -> Unit,
     onDismiss: () -> Unit
 ) {
     var selectedRealmFilter by remember { mutableStateOf<Int?>(null) }
@@ -202,7 +202,7 @@ private fun LibraryDiscipleSelectionDialog(
 
     val sortedDisciples = remember(disciples) {
         disciples.filter { it.realmLayer > 0 && it.age >= 5 }.sortedWith(
-            compareBy<Disciple> { it.realm }
+            compareBy<DiscipleAggregate> { it.realm }
                 .thenByDescending { it.realmLayer }
         )
     }

@@ -1,7 +1,8 @@
+@file:Suppress("DEPRECATION")
 package com.xianxia.sect.data.serialization.unified
 
 import android.util.Log
-import kotlinx.serialization.json.Json
+import com.xianxia.sect.data.serialization.NullSafeProtoBuf
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -31,6 +32,7 @@ private inline fun <reified T : Enum<T>> safeEnumValueOf(
         defaultValue
     }
 }
+
 
 private inline fun <reified T : Enum<T>> safeEnumValueOfIgnoreCase(
     value: String, 
@@ -154,7 +156,8 @@ class SaveDataConverter @Inject constructor() {
             teams = data.teams.map { convertBackTeam(it) },
             events = data.events.map { convertBackEvent(it) },
             battleLogs = data.battleLogs.map { convertBackBattleLog(it) },
-            alliances = data.alliances.map { convertBackAlliance(it) }
+            alliances = data.alliances.map { convertBackAlliance(it) },
+            productionSlots = data.gameData?.productionSlots?.map { convertBackProductionSlot(it) } ?: emptyList()
         )
     }
     
@@ -202,7 +205,8 @@ class SaveDataConverter @Inject constructor() {
             sectRelations = gameData.sectRelations?.map { convertSectRelation(it) } ?: emptyList(),
             playerAllianceSlots = gameData.playerAllianceSlots ?: 3,
             sectPolicies = convertSectPolicies(gameData.sectPolicies),
-            battleTeam = gameData.battleTeam?.let { convertBattleTeam(it) },
+            // 战斗队伍：使用 NullSafeProtoBuf 的专用方法
+            battleTeam = NullSafeProtoBuf.battleTeamToProto(gameData.battleTeam),
             aiBattleTeams = gameData.aiBattleTeams?.map { convertAIBattleTeam(it) } ?: emptyList(),
             usedRedeemCodes = gameData.usedRedeemCodes ?: emptyList(),
             playerProtectionEnabled = gameData.playerProtectionEnabled ?: true,
@@ -255,7 +259,8 @@ class SaveDataConverter @Inject constructor() {
             sectRelations = data.sectRelations.map { convertBackSectRelation(it) },
             playerAllianceSlots = data.playerAllianceSlots,
             sectPolicies = convertBackSectPolicies(data.sectPolicies),
-            battleTeam = data.battleTeam?.let { convertBackBattleTeam(it) },
+            // 战斗队伍：使用 NullSafeProtoBuf 的反向转换方法
+            battleTeam = NullSafeProtoBuf.battleTeamFromProto(data.battleTeam),
             aiBattleTeams = data.aiBattleTeams.map { convertBackAIBattleTeam(it) },
             usedRedeemCodes = data.usedRedeemCodes,
             playerProtectionEnabled = data.playerProtectionEnabled,
@@ -268,39 +273,45 @@ class SaveDataConverter @Inject constructor() {
     
     private fun convertDisciple(disciple: com.xianxia.sect.core.model.Disciple): SerializableDisciple {
         return SerializableDisciple(
-            id = disciple.id ?: "",
-            name = disciple.name ?: "",
+            id = NullSafeProtoBuf.stringToProto(disciple.id),
+            name = NullSafeProtoBuf.stringToProto(disciple.name),
             realm = disciple.realm ?: 0,
             realmLayer = disciple.realmLayer ?: 0,
             cultivation = disciple.cultivation ?: 0.0,
-            spiritRootType = disciple.spiritRootType ?: "",
+            spiritRootType = NullSafeProtoBuf.stringToProto(disciple.spiritRootType),
             age = disciple.age ?: 0,
             lifespan = disciple.lifespan ?: 0,
             isAlive = disciple.isAlive ?: true,
-            gender = disciple.gender ?: "男",
-            partnerId = disciple.partnerId,
-            partnerSectId = disciple.partnerSectId,
-            parentId1 = disciple.parentId1,
-            parentId2 = disciple.parentId2,
+            gender = NullSafeProtoBuf.stringToProto(disciple.gender, "男"),
+            // 关系字段：使用 relationIdToProto/relationIdFromProto
+            partnerId = NullSafeProtoBuf.relationIdToProto(disciple.partnerId),
+            partnerSectId = NullSafeProtoBuf.relationIdToProto(disciple.partnerSectId),
+            parentId1 = NullSafeProtoBuf.relationIdToProto(disciple.parentId1),
+            parentId2 = NullSafeProtoBuf.relationIdToProto(disciple.parentId2),
             lastChildYear = disciple.lastChildYear ?: 0,
-            griefEndYear = disciple.griefEndYear,
-            weaponId = disciple.weaponId,
-            armorId = disciple.armorId,
-            bootsId = disciple.bootsId,
-            accessoryId = disciple.accessoryId,
-            manualIds = disciple.manualIds ?: emptyList(),
-            talentIds = disciple.talentIds ?: emptyList(),
-            manualMasteries = disciple.manualMasteries ?: emptyMap(),
-            weaponNurture = disciple.weaponNurture?.let { convertEquipmentNurture(it) },
-            armorNurture = disciple.armorNurture?.let { convertEquipmentNurture(it) },
-            bootsNurture = disciple.bootsNurture?.let { convertEquipmentNurture(it) },
-            accessoryNurture = disciple.accessoryNurture?.let { convertEquipmentNurture(it) },
+            // 悲伤期结束年份：使用专用方法（哨兵值 -1）
+            griefEndYear = NullSafeProtoBuf.griefEndYearToProto(disciple.griefEndYear),
+            // 装备 ID 字段：使用 equipmentIdToProto/equipmentIdFromProto
+            weaponId = NullSafeProtoBuf.equipmentIdToProto(disciple.weaponId),
+            armorId = NullSafeProtoBuf.equipmentIdToProto(disciple.armorId),
+            bootsId = NullSafeProtoBuf.equipmentIdToProto(disciple.bootsId),
+            accessoryId = NullSafeProtoBuf.equipmentIdToProto(disciple.accessoryId),
+            // 列表和 Map 类型
+            manualIds = NullSafeProtoBuf.listToProto(disciple.manualIds),
+            talentIds = NullSafeProtoBuf.listToProto(disciple.talentIds),
+            manualMasteries = NullSafeProtoBuf.mapToProto(disciple.manualMasteries),
+            // 装备培养数据：使用专用方法
+            weaponNurture = NullSafeProtoBuf.nurtureDataToProto(disciple.weaponNurture),
+            armorNurture = NullSafeProtoBuf.nurtureDataToProto(disciple.armorNurture),
+            bootsNurture = NullSafeProtoBuf.nurtureDataToProto(disciple.bootsNurture),
+            accessoryNurture = NullSafeProtoBuf.nurtureDataToProto(disciple.accessoryNurture),
+            // 数值字段
             spiritStones = disciple.spiritStones ?: 0,
             soulPower = disciple.soulPower ?: 0,
-            storageBagItems = disciple.storageBagItems?.map { convertStorageBagItem(it) } ?: emptyList(),
+            storageBagItems = NullSafeProtoBuf.listToProto(disciple.storageBagItems)?.map { convertStorageBagItem(it) } ?: emptyList(),
             storageBagSpiritStones = disciple.storageBagSpiritStones ?: 0L,
             status = disciple.status.name,
-            statusData = disciple.statusData ?: emptyMap(),
+            statusData = NullSafeProtoBuf.mapToProto(disciple.statusData),
             cultivationSpeedBonus = disciple.cultivationSpeedBonus ?: 0.0,
             cultivationSpeedDuration = disciple.cultivationSpeedDuration ?: 0,
             pillPhysicalAttackBonus = disciple.pillPhysicalAttackBonus ?: 0.0,
@@ -314,7 +325,6 @@ class SaveDataConverter @Inject constructor() {
             totalCultivation = disciple.totalCultivation ?: 0L,
             breakthroughCount = disciple.breakthroughCount ?: 0,
             breakthroughFailCount = disciple.breakthroughFailCount ?: 0,
-            battlesWon = disciple.battlesWon ?: 0,
             intelligence = disciple.intelligence ?: 0,
             charm = disciple.charm ?: 0,
             loyalty = disciple.loyalty ?: 0,
@@ -341,15 +351,37 @@ class SaveDataConverter @Inject constructor() {
             basePhysicalDefense = disciple.basePhysicalDefense ?: 0,
             baseMagicDefense = disciple.baseMagicDefense ?: 0,
             baseSpeed = disciple.baseSpeed ?: 0,
-            discipleType = disciple.discipleType ?: "inner",
-            monthlyUsedPillIds = disciple.monthlyUsedPillIds ?: emptyList(),
-            usedExtendLifePillIds = disciple.usedExtendLifePillIds ?: emptyList(),
+            discipleType = NullSafeProtoBuf.stringToProto(disciple.discipleType, "inner"),
+            monthlyUsedPillIds = NullSafeProtoBuf.listToProto(disciple.monthlyUsedPillIds),
+            usedExtendLifePillIds = NullSafeProtoBuf.listToProto(disciple.usedExtendLifePillIds),
             hasReviveEffect = disciple.hasReviveEffect ?: false,
-            hasClearAllEffect = disciple.hasClearAllEffect ?: false
+            hasClearAllEffect = disciple.hasClearAllEffect ?: false,
+            currentHp = disciple.currentHp,
+            currentMp = disciple.currentMp
         )
     }
     
     private fun convertBackDisciple(data: SerializableDisciple): com.xianxia.sect.core.model.Disciple {
+        // 使用 NullSafeProtoBuf 的反向转换方法
+        val weaponId = NullSafeProtoBuf.equipmentIdFromProto(data.weaponId)
+        val armorId = NullSafeProtoBuf.equipmentIdFromProto(data.armorId)
+        val bootsId = NullSafeProtoBuf.equipmentIdFromProto(data.bootsId)
+        val accessoryId = NullSafeProtoBuf.equipmentIdFromProto(data.accessoryId)
+
+        val weaponNurture = NullSafeProtoBuf.nurtureDataFromProto(data.weaponNurture)
+        val armorNurture = NullSafeProtoBuf.nurtureDataFromProto(data.armorNurture)
+        val bootsNurture = NullSafeProtoBuf.nurtureDataFromProto(data.bootsNurture)
+        val accessoryNurture = NullSafeProtoBuf.nurtureDataFromProto(data.accessoryNurture)
+
+        // 关系字段：使用 relationIdFromProto
+        val partnerId = NullSafeProtoBuf.relationIdFromProto(data.partnerId)
+        val partnerSectId = NullSafeProtoBuf.relationIdFromProto(data.partnerSectId)
+        val parentId1 = NullSafeProtoBuf.relationIdFromProto(data.parentId1)
+        val parentId2 = NullSafeProtoBuf.relationIdFromProto(data.parentId2)
+
+        // 悲伤期结束年份：使用专用方法（哨兵值 -1）
+        val griefEndYear = NullSafeProtoBuf.griefEndYearFromProto(data.griefEndYear)
+
         return com.xianxia.sect.core.model.Disciple(
             id = data.id,
             name = data.name,
@@ -384,10 +416,11 @@ class SaveDataConverter @Inject constructor() {
                 physicalDefenseVariance = data.physicalDefenseVariance,
                 magicDefenseVariance = data.magicDefenseVariance,
                 speedVariance = data.speedVariance,
-                battlesWon = data.battlesWon,
                 totalCultivation = data.totalCultivation,
                 breakthroughCount = data.breakthroughCount,
-                breakthroughFailCount = data.breakthroughFailCount
+                breakthroughFailCount = data.breakthroughFailCount,
+                currentHp = data.currentHp,
+                currentMp = data.currentMp
             ),
             pillEffects = com.xianxia.sect.core.model.PillEffects(
                 pillPhysicalAttackBonus = data.pillPhysicalAttackBonus,
@@ -400,26 +433,26 @@ class SaveDataConverter @Inject constructor() {
                 pillEffectDuration = data.pillEffectDuration
             ),
             equipment = com.xianxia.sect.core.model.EquipmentSet(
-                weaponId = data.weaponId,
-                armorId = data.armorId,
-                bootsId = data.bootsId,
-                accessoryId = data.accessoryId,
-                weaponNurture = data.weaponNurture?.let { convertBackEquipmentNurture(it) },
-                armorNurture = data.armorNurture?.let { convertBackEquipmentNurture(it) },
-                bootsNurture = data.bootsNurture?.let { convertBackEquipmentNurture(it) },
-                accessoryNurture = data.accessoryNurture?.let { convertBackEquipmentNurture(it) },
+                weaponId = weaponId ?: "",
+                armorId = armorId ?: "",
+                bootsId = bootsId ?: "",
+                accessoryId = accessoryId ?: "",
+                weaponNurture = weaponNurture ?: com.xianxia.sect.core.model.EquipmentNurtureData("", 0),
+                armorNurture = armorNurture ?: com.xianxia.sect.core.model.EquipmentNurtureData("", 0),
+                bootsNurture = bootsNurture ?: com.xianxia.sect.core.model.EquipmentNurtureData("", 0),
+                accessoryNurture = accessoryNurture ?: com.xianxia.sect.core.model.EquipmentNurtureData("", 0),
                 storageBagItems = data.storageBagItems.map { convertBackStorageBagItem(it) },
                 storageBagSpiritStones = data.storageBagSpiritStones,
                 spiritStones = data.spiritStones,
                 soulPower = data.soulPower
             ),
             social = com.xianxia.sect.core.model.SocialData(
-                partnerId = data.partnerId,
-                partnerSectId = data.partnerSectId,
-                parentId1 = data.parentId1,
-                parentId2 = data.parentId2,
+                partnerId = partnerId,
+                partnerSectId = partnerSectId,
+                parentId1 = parentId1,
+                parentId2 = parentId2,
                 lastChildYear = data.lastChildYear,
-                griefEndYear = data.griefEndYear
+                griefEndYear = griefEndYear
             ),
             skills = com.xianxia.sect.core.model.SkillStats(
                 intelligence = data.intelligence,
@@ -471,11 +504,14 @@ class SaveDataConverter @Inject constructor() {
             quantity = item.quantity ?: 1,
             obtainedYear = item.obtainedYear ?: 1,
             obtainedMonth = item.obtainedMonth ?: 1,
-            effect = item.effect?.let { convertItemEffect(it) }
+            effect = item.effect?.let { convertItemEffect(it) } ?: SerializableItemEffect()
         )
     }
     
     private fun convertBackStorageBagItem(data: SerializableStorageBagItem): com.xianxia.sect.core.model.StorageBagItem {
+        // SerializableItemEffect 现在是非空的，需要检查是否为默认实例来判断原始值是否为 null
+        val effect = data.effect.takeIf { it.cultivationSpeed != 1.0 || it.cultivationPercent != 0.0 || it.skillExpPercent != 0.0 || it.breakthroughChance != 0.0 || it.targetRealm != 0 || it.heal != 0 || it.healPercent != 0.0 || it.healMaxHpPercent != 0.0 || it.hpPercent != 0.0 || it.mpPercent != 0.0 || it.mpRecoverPercent != 0.0 || it.extendLife != 0 || it.battleCount != 0 || it.physicalAttackPercent != 0.0 || it.magicAttackPercent != 0.0 || it.physicalDefensePercent != 0.0 || it.magicDefensePercent != 0.0 || it.speedPercent != 0.0 || it.revive || it.clearAll || it.duration != 0 }?.let { convertBackItemEffect(it) }
+
         return com.xianxia.sect.core.model.StorageBagItem(
             itemId = data.itemId,
             itemType = data.itemType,
@@ -484,7 +520,7 @@ class SaveDataConverter @Inject constructor() {
             quantity = data.quantity,
             obtainedYear = data.obtainedYear,
             obtainedMonth = data.obtainedMonth,
-            effect = data.effect?.let { convertBackItemEffect(it) }
+            effect = effect
         )
     }
     
@@ -547,26 +583,49 @@ class SaveDataConverter @Inject constructor() {
             type = equipment.slot.name,
             rarity = equipment.rarity,
             level = equipment.nurtureLevel,
-            stats = emptyMap(),
+            stats = mapOf(
+                "physicalAttack" to equipment.physicalAttack,
+                "magicAttack" to equipment.magicAttack,
+                "physicalDefense" to equipment.physicalDefense,
+                "magicDefense" to equipment.magicDefense,
+                "speed" to equipment.speed,
+                "hp" to equipment.hp,
+                "mp" to equipment.mp
+            ),
             description = equipment.description,
             critChance = equipment.critChance,
             isEquipped = equipment.isEquipped,
             nurtureLevel = equipment.nurtureLevel,
-            nurtureProgress = equipment.nurtureProgress
+            nurtureProgress = equipment.nurtureProgress,
+            minRealm = equipment.minRealm,
+            ownerId = equipment.ownerId ?: "",
+            quantity = equipment.quantity
         )
     }
     
     private fun convertBackEquipment(data: SerializableEquipment): com.xianxia.sect.core.model.Equipment {
+        val ownerId = data.ownerId.ifEmpty { null }
+
         return com.xianxia.sect.core.model.Equipment(
             id = data.id,
             name = data.name,
             rarity = data.rarity,
             slot = safeEnumValueOf(data.type, com.xianxia.sect.core.model.EquipmentSlot.WEAPON, "type", "Equipment"),
+            physicalAttack = data.stats["physicalAttack"] ?: 0,
+            magicAttack = data.stats["magicAttack"] ?: 0,
+            physicalDefense = data.stats["physicalDefense"] ?: 0,
+            magicDefense = data.stats["magicDefense"] ?: 0,
+            speed = data.stats["speed"] ?: 0,
+            hp = data.stats["hp"] ?: 0,
+            mp = data.stats["mp"] ?: 0,
             description = data.description,
             critChance = data.critChance,
-            isEquipped = data.isEquipped,
             nurtureLevel = data.nurtureLevel,
-            nurtureProgress = data.nurtureProgress
+            nurtureProgress = data.nurtureProgress,
+            minRealm = data.minRealm ?: 9,
+            ownerId = ownerId,
+            isEquipped = data.isEquipped,
+            quantity = data.quantity ?: 1
         )
     }
     
@@ -598,9 +657,33 @@ class SaveDataConverter @Inject constructor() {
             name = pill.name,
             type = pill.category.name,
             rarity = pill.rarity,
-            effects = emptyMap(),
+            effects = mapOf(
+                "breakthroughChance" to pill.breakthroughChance,
+                "targetRealm" to pill.targetRealm.toDouble(),
+                "isAscension" to if (pill.isAscension) 1.0 else 0.0,
+                "cultivationSpeed" to pill.cultivationSpeed,
+                "duration" to pill.duration.toDouble(),
+                "cannotStack" to if (pill.cannotStack) 1.0 else 0.0,
+                "cultivationPercent" to pill.cultivationPercent,
+                "skillExpPercent" to pill.skillExpPercent,
+                "extendLife" to pill.extendLife.toDouble(),
+                "physicalAttackPercent" to pill.physicalAttackPercent,
+                "magicAttackPercent" to pill.magicAttackPercent,
+                "physicalDefensePercent" to pill.physicalDefensePercent,
+                "magicDefensePercent" to pill.magicDefensePercent,
+                "hpPercent" to pill.hpPercent,
+                "mpPercent" to pill.mpPercent,
+                "speedPercent" to pill.speedPercent,
+                "healMaxHpPercent" to pill.healMaxHpPercent,
+                "healPercent" to pill.healPercent,
+                "heal" to pill.heal.toDouble(),
+                "battleCount" to pill.battleCount.toDouble(),
+                "revive" to if (pill.revive) 1.0 else 0.0,
+                "clearAll" to if (pill.clearAll) 1.0 else 0.0,
+                "mpRecoverMaxMpPercent" to pill.mpRecoverMaxMpPercent
+            ),
             description = pill.description,
-            quantity = 1
+            quantity = pill.quantity
         )
     }
     
@@ -610,7 +693,31 @@ class SaveDataConverter @Inject constructor() {
             name = data.name,
             rarity = data.rarity,
             category = safeEnumValueOf(data.type, com.xianxia.sect.core.model.PillCategory.CULTIVATION, "type", "Pill"),
-            description = data.description
+            breakthroughChance = data.effects["breakthroughChance"] ?: 0.0,
+            targetRealm = (data.effects["targetRealm"] ?: 0.0).toInt(),
+            isAscension = (data.effects["isAscension"] ?: 0.0) > 0.5,
+            cultivationSpeed = data.effects["cultivationSpeed"] ?: 1.0,
+            duration = (data.effects["duration"] ?: 0.0).toInt(),
+            cannotStack = (data.effects["cannotStack"] ?: 0.0) > 0.5,
+            cultivationPercent = data.effects["cultivationPercent"] ?: 0.0,
+            skillExpPercent = data.effects["skillExpPercent"] ?: 0.0,
+            extendLife = (data.effects["extendLife"] ?: 0.0).toInt(),
+            physicalAttackPercent = data.effects["physicalAttackPercent"] ?: 0.0,
+            magicAttackPercent = data.effects["magicAttackPercent"] ?: 0.0,
+            physicalDefensePercent = data.effects["physicalDefensePercent"] ?: 0.0,
+            magicDefensePercent = data.effects["magicDefensePercent"] ?: 0.0,
+            hpPercent = data.effects["hpPercent"] ?: 0.0,
+            mpPercent = data.effects["mpPercent"] ?: 0.0,
+            speedPercent = data.effects["speedPercent"] ?: 0.0,
+            healMaxHpPercent = data.effects["healMaxHpPercent"] ?: 0.0,
+            healPercent = data.effects["healPercent"] ?: 0.0,
+            heal = (data.effects["heal"] ?: 0.0).toInt(),
+            battleCount = (data.effects["battleCount"] ?: 0.0).toInt(),
+            revive = (data.effects["revive"] ?: 0.0) > 0.5,
+            clearAll = (data.effects["clearAll"] ?: 0.0) > 0.5,
+            mpRecoverMaxMpPercent = data.effects["mpRecoverMaxMpPercent"] ?: 0.0,
+            description = data.description,
+            quantity = data.quantity
         )
     }
     
@@ -688,7 +795,7 @@ class SaveDataConverter @Inject constructor() {
             name = team.name,
             memberIds = team.memberIds,
             status = team.status.name,
-            targetSectId = team.scoutTargetSectId,
+            targetSectId = team.scoutTargetSectId ?: "",
             startYear = team.startYear,
             startMonth = team.startMonth,
             duration = team.duration,
@@ -748,7 +855,11 @@ class SaveDataConverter @Inject constructor() {
             rounds = log.rounds.map { convertBattleLogRound(it) },
             attackerMembers = log.teamMembers.map { convertBattleLogMember(it) },
             defenderMembers = log.enemies.map { convertBattleLogEnemy(it) },
-            rewards = emptyMap()
+            rewards = emptyMap(),
+            type = log.type.name,
+            details = log.details,
+            drops = log.drops,
+            dungeonName = log.dungeonName
         )
     }
     
@@ -758,9 +869,13 @@ class SaveDataConverter @Inject constructor() {
             timestamp = data.timestamp,
             year = data.gameYear,
             month = data.gameMonth,
+            type = safeEnumValueOf(data.type, com.xianxia.sect.core.model.BattleType.PVE, "type", "BattleLog"),
             attackerName = data.attackerSectName,
             defenderName = data.defenderSectName,
             result = safeEnumValueOf(data.result, com.xianxia.sect.core.model.BattleResult.DRAW, "result", "BattleLog"),
+            details = data.details,
+            drops = data.drops,
+            dungeonName = data.dungeonName,
             rounds = data.rounds.map { convertBackBattleLogRound(it) },
             teamMembers = data.attackerMembers.map { convertBackBattleLogMember(it) },
             enemies = data.defenderMembers.map { convertBackBattleLogEnemy(it) }
@@ -814,7 +929,9 @@ class SaveDataConverter @Inject constructor() {
             realm = member.realm,
             isAlive = member.isAlive,
             remainingHp = member.hp,
-            maxHp = member.maxHp
+            maxHp = member.maxHp,
+            remainingMp = member.mp,
+            maxMp = member.maxMp
         )
     }
     
@@ -825,6 +942,8 @@ class SaveDataConverter @Inject constructor() {
             realm = data.realm,
             hp = data.remainingHp,
             maxHp = data.maxHp,
+            mp = data.remainingMp,
+            maxMp = data.maxMp,
             isAlive = data.isAlive
         )
     }
@@ -888,32 +1007,39 @@ class SaveDataConverter @Inject constructor() {
             maxRealm = sect.maxRealm ?: 0,
             connectedSectIds = sect.connectedSectIds ?: emptyList(),
             isOccupied = sect.isOccupied ?: false,
-            occupierTeamId = sect.occupierTeamId,
+            occupierTeamId = sect.occupierTeamId ?: "",
             occupierTeamName = sect.occupierTeamName ?: "",
             mineSlots = sect.mineSlots?.map { convertMineSlot(it) } ?: emptyList(),
             occupationTime = sect.occupationTime ?: 0L,
             isOwned = sect.isOwned ?: false,
             expiryYear = sect.expiryYear ?: 0,
             expiryMonth = sect.expiryMonth ?: 0,
-            scoutInfo = sect.scoutInfo?.let { convertSectScoutInfo(it) },
+            scoutInfo = sect.scoutInfo?.let { convertSectScoutInfo(it) } ?: SerializableSectScoutInfo(sectId="", sectName="", scoutYear=0, scoutMonth=0, discipleCount=0, maxRealm=0, isKnown=false, expiryYear=0, expiryMonth=0),
             tradeItems = sect.tradeItems?.map { convertMerchantItem(it) } ?: emptyList(),
             tradeLastRefreshYear = sect.tradeLastRefreshYear ?: 0,
             lastGiftYear = sect.lastGiftYear ?: 0,
-            allianceId = sect.allianceId,
+            allianceId = sect.allianceId ?: "",
             allianceStartYear = sect.allianceStartYear ?: 0,
             isRighteous = sect.isRighteous ?: true,
             aiDisciples = sect.aiDisciples?.map { convertDisciple(it) } ?: emptyList(),
             isPlayerOccupied = sect.isPlayerOccupied ?: false,
-            occupierBattleTeamId = sect.occupierBattleTeamId,
+            occupierBattleTeamId = sect.occupierBattleTeamId ?: "",
             isUnderAttack = sect.isUnderAttack ?: false,
-            attackerSectId = sect.attackerSectId,
-            occupierSectId = sect.occupierSectId,
+            attackerSectId = sect.attackerSectId ?: "",
+            occupierSectId = sect.occupierSectId ?: "",
             warehouse = convertSectWarehouse(sect.warehouse),
             giftPreference = sect.giftPreference?.name ?: "NONE"
         )
     }
     
     private fun convertBackWorldSect(data: SerializableWorldSect): com.xianxia.sect.core.model.WorldSect {
+        val occupierTeamId = data.occupierTeamId.ifEmpty { "" }
+        val allianceId = data.allianceId.ifEmpty { "" }
+        val occupierBattleTeamId = data.occupierBattleTeamId.ifEmpty { "" }
+        val attackerSectId = data.attackerSectId.ifEmpty { "" }
+        val occupierSectId = data.occupierSectId.ifEmpty { "" }
+        val scoutInfo = data.scoutInfo.takeIf { it.sectId.isNotEmpty() }?.let { convertBackSectScoutInfo(it) } ?: com.xianxia.sect.core.model.SectScoutInfo()
+
         return com.xianxia.sect.core.model.WorldSect(
             id = data.id,
             name = data.name,
@@ -930,26 +1056,26 @@ class SaveDataConverter @Inject constructor() {
             maxRealm = data.maxRealm,
             connectedSectIds = data.connectedSectIds,
             isOccupied = data.isOccupied,
-            occupierTeamId = data.occupierTeamId,
+            occupierTeamId = occupierTeamId,
             occupierTeamName = data.occupierTeamName,
             mineSlots = data.mineSlots.map { convertBackMineSlot(it) },
             occupationTime = data.occupationTime,
             isOwned = data.isOwned,
             expiryYear = data.expiryYear,
             expiryMonth = data.expiryMonth,
-            scoutInfo = data.scoutInfo?.let { convertBackSectScoutInfo(it) },
+            scoutInfo = scoutInfo,
             tradeItems = data.tradeItems.map { convertBackMerchantItem(it) },
             tradeLastRefreshYear = data.tradeLastRefreshYear,
             lastGiftYear = data.lastGiftYear,
-            allianceId = data.allianceId,
+            allianceId = allianceId,
             allianceStartYear = data.allianceStartYear,
             isRighteous = data.isRighteous,
             aiDisciples = data.aiDisciples.map { convertBackDisciple(it) },
             isPlayerOccupied = data.isPlayerOccupied,
-            occupierBattleTeamId = data.occupierBattleTeamId,
+            occupierBattleTeamId = occupierBattleTeamId,
             isUnderAttack = data.isUnderAttack,
-            attackerSectId = data.attackerSectId,
-            occupierSectId = data.occupierSectId,
+            attackerSectId = attackerSectId,
+            occupierSectId = occupierSectId,
             warehouse = convertBackSectWarehouse(data.warehouse),
             giftPreference = try {
                 com.xianxia.sect.core.model.GiftPreferenceType.valueOf(data.giftPreference)
@@ -962,7 +1088,7 @@ class SaveDataConverter @Inject constructor() {
     private fun convertMineSlot(slot: com.xianxia.sect.core.model.MineSlot): SerializableMineSlot {
         return SerializableMineSlot(
             index = slot.index ?: 0,
-            discipleId = slot.discipleId,
+            discipleId = slot.discipleId ?: "",
             discipleName = slot.discipleName ?: "",
             output = slot.output ?: 0,
             efficiency = slot.efficiency ?: 1.0,
@@ -1118,14 +1244,14 @@ class SaveDataConverter @Inject constructor() {
         return SerializablePlantSlotData(
             index = slot.index ?: 0,
             status = slot.status ?: "empty",
-            seedId = slot.seedId,
+            seedId = slot.seedId ?: "",
             seedName = slot.seedName ?: "",
             startYear = slot.startYear ?: 0,
             startMonth = slot.startMonth ?: 0,
             growTime = slot.growTime ?: 0,
             expectedYield = slot.expectedYield ?: 0,
             harvestAmount = slot.harvestAmount ?: 0,
-            harvestHerbId = slot.harvestHerbId
+            harvestHerbId = slot.harvestHerbId ?: ""
         )
     }
     
@@ -1173,7 +1299,7 @@ class SaveDataConverter @Inject constructor() {
             level = cave.ownerRealm,
             x = cave.x,
             y = cave.y,
-            ownerSectId = null,
+            ownerSectId = "",
             ownerSectName = cave.ownerRealmName,
             disciples = emptyList(),
             resources = emptyMap(),
@@ -1246,18 +1372,18 @@ class SaveDataConverter @Inject constructor() {
     private fun convertElderSlots(slots: com.xianxia.sect.core.model.ElderSlots?): SerializableElderSlots {
         if (slots == null) return SerializableElderSlots()
         return SerializableElderSlots(
-            viceSectMaster = slots.viceSectMaster,
-            herbGardenElder = slots.herbGardenElder,
-            alchemyElder = slots.alchemyElder,
-            forgeElder = slots.forgeElder,
-            outerElder = slots.outerElder,
-            preachingElder = slots.preachingElder,
+            viceSectMaster = slots.viceSectMaster ?: "",
+            herbGardenElder = slots.herbGardenElder ?: "",
+            alchemyElder = slots.alchemyElder ?: "",
+            forgeElder = slots.forgeElder ?: "",
+            outerElder = slots.outerElder ?: "",
+            preachingElder = slots.preachingElder ?: "",
             preachingMasters = slots.preachingMasters?.map { convertDirectDiscipleSlot(it) } ?: emptyList(),
-            lawEnforcementElder = slots.lawEnforcementElder,
+            lawEnforcementElder = slots.lawEnforcementElder ?: "",
             lawEnforcementDisciples = slots.lawEnforcementDisciples?.map { convertDirectDiscipleSlot(it) } ?: emptyList(),
             lawEnforcementReserveDisciples = slots.lawEnforcementReserveDisciples?.map { convertDirectDiscipleSlot(it) } ?: emptyList(),
-            innerElder = slots.innerElder,
-            qingyunPreachingElder = slots.qingyunPreachingElder,
+            innerElder = slots.innerElder ?: "",
+            qingyunPreachingElder = slots.qingyunPreachingElder ?: "",
             qingyunPreachingMasters = slots.qingyunPreachingMasters?.map { convertDirectDiscipleSlot(it) } ?: emptyList(),
             herbGardenDisciples = slots.herbGardenDisciples?.map { convertDirectDiscipleSlot(it) } ?: emptyList(),
             alchemyDisciples = slots.alchemyDisciples?.map { convertDirectDiscipleSlot(it) } ?: emptyList(),
@@ -1297,7 +1423,7 @@ class SaveDataConverter @Inject constructor() {
     private fun convertDirectDiscipleSlot(slot: com.xianxia.sect.core.model.DirectDiscipleSlot): SerializableDirectDiscipleSlot {
         return SerializableDirectDiscipleSlot(
             index = slot.index ?: 0,
-            discipleId = slot.discipleId,
+            discipleId = slot.discipleId ?: "",
             discipleName = slot.discipleName ?: "",
             discipleRealm = slot.discipleRealm ?: "",
             discipleSpiritRootColor = slot.discipleSpiritRootColor ?: ""
@@ -1317,7 +1443,7 @@ class SaveDataConverter @Inject constructor() {
     private fun convertSpiritMineSlot(slot: com.xianxia.sect.core.model.SpiritMineSlot): SerializableSpiritMineSlot {
         return SerializableSpiritMineSlot(
             index = slot.index ?: 0,
-            discipleId = slot.discipleId,
+            discipleId = slot.discipleId ?: "",
             discipleName = slot.discipleName ?: "",
             output = slot.output ?: 0
         )
@@ -1335,7 +1461,7 @@ class SaveDataConverter @Inject constructor() {
     private fun convertLibrarySlot(slot: com.xianxia.sect.core.model.LibrarySlot): SerializableLibrarySlot {
         return SerializableLibrarySlot(
             index = slot.index ?: 0,
-            discipleId = slot.discipleId,
+            discipleId = slot.discipleId ?: "",
             discipleName = slot.discipleName ?: ""
         )
     }
@@ -1352,15 +1478,15 @@ class SaveDataConverter @Inject constructor() {
         return SerializableBuildingSlot(
             id = slot.id,
             type = slot.type.name,
-            discipleId = slot.discipleId,
+            discipleId = slot.discipleId ?: "",
             discipleName = slot.discipleName,
-            recipeId = slot.recipeId,
+            recipeId = slot.recipeId ?: "",
             recipeName = slot.recipeName,
             progress = 0.0,
             status = slot.status.name,
             startYear = slot.startYear,
             startMonth = slot.startMonth,
-            resultItemId = null,
+            resultItemId = "",
             resultQuantity = 0
         )
     }
@@ -1382,15 +1508,15 @@ class SaveDataConverter @Inject constructor() {
     private fun convertAlchemySlot(slot: com.xianxia.sect.core.model.AlchemySlot): SerializableAlchemySlot {
         return SerializableAlchemySlot(
             id = slot.id,
-            discipleId = null,
+            discipleId = "",
             discipleName = "",
-            recipeId = slot.recipeId,
+            recipeId = slot.recipeId ?: "",
             recipeName = slot.recipeName,
             progress = 0.0,
             status = slot.status.name,
             startYear = slot.startYear,
             startMonth = slot.startMonth,
-            resultItemId = null,
+            resultItemId = "",
             resultQuantity = 0
         )
     }
@@ -1413,15 +1539,15 @@ class SaveDataConverter @Inject constructor() {
             buildingType = slot.buildingType.name,
             buildingId = slot.buildingId,
             status = slot.status.name,
-            recipeId = slot.recipeId,
+            recipeId = slot.recipeId ?: "",
             recipeName = slot.recipeName,
             startYear = slot.startYear,
             startMonth = slot.startMonth,
             duration = slot.duration,
-            assignedDiscipleId = slot.assignedDiscipleId,
+            assignedDiscipleId = slot.assignedDiscipleId ?: "",
             assignedDiscipleName = slot.assignedDiscipleName,
             successRate = slot.successRate,
-            outputItemId = slot.outputItemId,
+            outputItemId = slot.outputItemId ?: "",
             outputItemName = slot.outputItemName,
             outputItemRarity = slot.outputItemRarity
         )
@@ -1504,18 +1630,22 @@ class SaveDataConverter @Inject constructor() {
             targetX = team.targetX ?: 0f,
             targetY = team.targetY ?: 0f,
             status = team.status ?: "",
-            targetSectId = team.targetSectId,
-            originSectId = team.originSectId,
+            targetSectId = team.targetSectId ?: "",
+            originSectId = team.originSectId ?: "",
             route = team.route ?: emptyList(),
             currentRouteIndex = team.currentRouteIndex ?: 0,
             moveProgress = team.moveProgress ?: 0f,
             isOccupying = team.isOccupying ?: false,
-            occupiedSectId = team.occupiedSectId,
+            occupiedSectId = team.occupiedSectId ?: "",
             isReturning = team.isReturning ?: false
         )
     }
     
     private fun convertBackBattleTeam(data: SerializableBattleTeam): com.xianxia.sect.core.model.BattleTeam {
+        val targetSectId = data.targetSectId.ifEmpty { "" }
+        val originSectId = data.originSectId.ifEmpty { "" }
+        val occupiedSectId = data.occupiedSectId.ifEmpty { "" }
+
         return com.xianxia.sect.core.model.BattleTeam(
             id = data.id,
             name = data.name,
@@ -1526,13 +1656,13 @@ class SaveDataConverter @Inject constructor() {
             targetX = data.targetX,
             targetY = data.targetY,
             status = data.status,
-            targetSectId = data.targetSectId,
-            originSectId = data.originSectId,
+            targetSectId = targetSectId,
+            originSectId = originSectId,
             route = data.route,
             currentRouteIndex = data.currentRouteIndex,
             moveProgress = data.moveProgress,
             isOccupying = data.isOccupying,
-            occupiedSectId = data.occupiedSectId,
+            occupiedSectId = occupiedSectId,
             isReturning = data.isReturning
         )
     }
@@ -1540,7 +1670,7 @@ class SaveDataConverter @Inject constructor() {
     private fun convertBattleTeamSlot(slot: com.xianxia.sect.core.model.BattleTeamSlot): SerializableBattleTeamSlot {
         return SerializableBattleTeamSlot(
             index = slot.index,
-            discipleId = slot.discipleId,
+            discipleId = slot.discipleId ?: "",
             discipleName = slot.discipleName,
             discipleRealm = slot.discipleRealm,
             slotType = slot.slotType.name,
@@ -1619,84 +1749,51 @@ class SaveDataConverter @Inject constructor() {
             progress = 0,
             targetProgress = mission.duration,
             status = "ACTIVE",
-            missionType = mission.missionType.name,
+            missionType = mission.template.name,
             difficulty = mission.difficulty.ordinal,
             discipleNames = mission.discipleNames,
-            investigateOutcome = mission.investigateOutcome?.name,
+            discipleRealms = mission.discipleRealms,
             spiritStones = mission.rewards.spiritStones,
-            extraItemChance = mission.rewards.extraItemChance,
-            extraItemCountMin = mission.rewards.extraItemCountMin,
-            extraItemCountMax = mission.rewards.extraItemCountMax,
-            extraItemMinRarity = mission.rewards.extraItemMinRarity,
-            extraItemMaxRarity = mission.rewards.extraItemMaxRarity,
+            spiritStonesMax = mission.rewards.spiritStonesMax,
             materialCountMin = mission.rewards.materialCountMin,
             materialCountMax = mission.rewards.materialCountMax,
             materialMinRarity = mission.rewards.materialMinRarity,
-            materialMaxRarity = mission.rewards.materialMaxRarity,
-            herbCountMin = mission.rewards.herbCountMin,
-            herbCountMax = mission.rewards.herbCountMax,
-            herbMinRarity = mission.rewards.herbMinRarity,
-            herbMaxRarity = mission.rewards.herbMaxRarity,
-            seedCountMin = mission.rewards.seedCountMin,
-            seedCountMax = mission.rewards.seedCountMax,
-            seedMinRarity = mission.rewards.seedMinRarity,
-            seedMaxRarity = mission.rewards.seedMaxRarity
+            materialMaxRarity = mission.rewards.materialMaxRarity
         )
     }
-    
+
     private fun convertBackActiveMission(data: SerializableActiveMission): com.xianxia.sect.core.model.ActiveMission {
-        val missionType = try {
-            com.xianxia.sect.core.model.MissionType.valueOf(data.missionType)
-        } catch (e: Exception) {
-            com.xianxia.sect.core.model.MissionType.ESCORT
-        }
-        
         val difficulty = com.xianxia.sect.core.model.MissionDifficulty.entries.getOrNull(data.difficulty)
-            ?: com.xianxia.sect.core.model.MissionDifficulty.YELLOW
-        
-        val investigateOutcome = data.investigateOutcome?.let {
-            try {
-                com.xianxia.sect.core.model.InvestigateOutcome.valueOf(it)
-            } catch (e: Exception) {
-                null
-            }
+            ?: com.xianxia.sect.core.model.MissionDifficulty.SIMPLE
+        val template = try {
+            com.xianxia.sect.core.model.MissionTemplate.valueOf(data.missionType)
+        } catch (e: Exception) {
+            com.xianxia.sect.core.model.MissionTemplate.ESCORT
         }
-        
+
         return com.xianxia.sect.core.model.ActiveMission(
             id = data.id,
             missionId = data.missionId,
             missionName = data.name,
-            missionType = missionType,
+            template = template,
             difficulty = difficulty,
             discipleIds = data.assignedDisciples,
             discipleNames = data.discipleNames.ifEmpty { data.assignedDisciples.map { "" } },
+            discipleRealms = data.discipleRealms,
             startYear = data.startYear,
             startMonth = data.startMonth,
             duration = data.targetProgress,
             rewards = com.xianxia.sect.core.model.MissionRewardConfig(
                 spiritStones = data.spiritStones,
-                extraItemChance = data.extraItemChance,
-                extraItemCountMin = data.extraItemCountMin,
-                extraItemCountMax = data.extraItemCountMax,
-                extraItemMinRarity = data.extraItemMinRarity,
-                extraItemMaxRarity = data.extraItemMaxRarity,
+                spiritStonesMax = data.spiritStonesMax,
                 materialCountMin = data.materialCountMin,
                 materialCountMax = data.materialCountMax,
                 materialMinRarity = data.materialMinRarity,
-                materialMaxRarity = data.materialMaxRarity,
-                herbCountMin = data.herbCountMin,
-                herbCountMax = data.herbCountMax,
-                herbMinRarity = data.herbMinRarity,
-                herbMaxRarity = data.herbMaxRarity,
-                seedCountMin = data.seedCountMin,
-                seedCountMax = data.seedCountMax,
-                seedMinRarity = data.seedMinRarity,
-                seedMaxRarity = data.seedMaxRarity
-            ),
-            investigateOutcome = investigateOutcome
+                materialMaxRarity = data.materialMaxRarity
+            )
         )
     }
-    
+
     private fun convertMission(mission: com.xianxia.sect.core.model.Mission): SerializableMission {
         return SerializableMission(
             id = mission.id,
@@ -1708,71 +1805,45 @@ class SaveDataConverter @Inject constructor() {
             duration = mission.duration,
             rewards = emptyMap(),
             requirements = emptyMap(),
-            type = mission.type.name,
-            minRealm = mission.minRealm,
+            type = mission.template.name,
             createdYear = mission.createdYear,
             createdMonth = mission.createdMonth,
             spiritStones = mission.rewards.spiritStones,
-            extraItemChance = mission.rewards.extraItemChance,
-            extraItemCountMin = mission.rewards.extraItemCountMin,
-            extraItemCountMax = mission.rewards.extraItemCountMax,
-            extraItemMinRarity = mission.rewards.extraItemMinRarity,
-            extraItemMaxRarity = mission.rewards.extraItemMaxRarity,
+            spiritStonesMax = mission.rewards.spiritStonesMax,
             materialCountMin = mission.rewards.materialCountMin,
             materialCountMax = mission.rewards.materialCountMax,
             materialMinRarity = mission.rewards.materialMinRarity,
-            materialMaxRarity = mission.rewards.materialMaxRarity,
-            herbCountMin = mission.rewards.herbCountMin,
-            herbCountMax = mission.rewards.herbCountMax,
-            herbMinRarity = mission.rewards.herbMinRarity,
-            herbMaxRarity = mission.rewards.herbMaxRarity,
-            seedCountMin = mission.rewards.seedCountMin,
-            seedCountMax = mission.rewards.seedCountMax,
-            seedMinRarity = mission.rewards.seedMinRarity,
-            seedMaxRarity = mission.rewards.seedMaxRarity
+            materialMaxRarity = mission.rewards.materialMaxRarity
         )
     }
-    
+
     private fun convertBackMission(data: SerializableMission): com.xianxia.sect.core.model.Mission {
-        val missionType = try {
-            com.xianxia.sect.core.model.MissionType.valueOf(data.type)
-        } catch (e: Exception) {
-            com.xianxia.sect.core.model.MissionType.ESCORT
-        }
-        
         val difficulty = com.xianxia.sect.core.model.MissionDifficulty.entries.getOrNull(data.difficulty)
-            ?: com.xianxia.sect.core.model.MissionDifficulty.YELLOW
-        
+            ?: com.xianxia.sect.core.model.MissionDifficulty.SIMPLE
+        val template = try {
+            com.xianxia.sect.core.model.MissionTemplate.valueOf(data.type)
+        } catch (e: Exception) {
+            com.xianxia.sect.core.model.MissionTemplate.ESCORT
+        }
+
         return com.xianxia.sect.core.model.Mission(
             id = data.id,
-            type = missionType,
+            template = template,
             name = data.name,
             description = data.description,
             difficulty = difficulty,
-            minRealm = data.minRealm,
             duration = data.duration,
             rewards = com.xianxia.sect.core.model.MissionRewardConfig(
                 spiritStones = data.spiritStones,
-                extraItemChance = data.extraItemChance,
-                extraItemCountMin = data.extraItemCountMin,
-                extraItemCountMax = data.extraItemCountMax,
-                extraItemMinRarity = data.extraItemMinRarity,
-                extraItemMaxRarity = data.extraItemMaxRarity,
+                spiritStonesMax = data.spiritStonesMax,
                 materialCountMin = data.materialCountMin,
                 materialCountMax = data.materialCountMax,
                 materialMinRarity = data.materialMinRarity,
-                materialMaxRarity = data.materialMaxRarity,
-                herbCountMin = data.herbCountMin,
-                herbCountMax = data.herbCountMax,
-                herbMinRarity = data.herbMinRarity,
-                herbMaxRarity = data.herbMaxRarity,
-                seedCountMin = data.seedCountMin,
-                seedCountMax = data.seedCountMax,
-                seedMinRarity = data.seedMinRarity,
-                seedMaxRarity = data.seedMaxRarity
+                materialMaxRarity = data.materialMaxRarity
             ),
             createdYear = data.createdYear,
             createdMonth = data.createdMonth
         )
     }
 }
+

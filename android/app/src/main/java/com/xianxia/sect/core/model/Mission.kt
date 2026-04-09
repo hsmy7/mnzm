@@ -1,199 +1,95 @@
 package com.xianxia.sect.core.model
 
-import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.util.GameRandom
 import java.util.UUID
 import kotlinx.serialization.Serializable
 
 @Serializable
-enum class MissionCategory {
-    SECT_AFFAIRS,
-    DISPATCH;
-
-    val displayName: String get() = when (this) {
-        SECT_AFFAIRS -> "宗门事务"
-        DISPATCH -> "外派任务"
-    }
-}
-
-@Serializable
-enum class MissionType {
-    ESCORT,
-    HUNT,
-    PATROL,
-    INVESTIGATE,
-    GUARD_CITY;
-
-    val displayName: String get() = when (this) {
-        ESCORT -> "护送商队"
-        HUNT -> "讨伐妖兽"
-        PATROL -> "宗门巡逻"
-        INVESTIGATE -> "调查事件"
-        GUARD_CITY -> "镇守城池"
-    }
-
-    val description: String get() = when (this) {
-        ESCORT -> "护送商队前往目的地"
-        HUNT -> "讨伐作乱的妖兽"
-        PATROL -> "在宗门周边巡逻采集"
-        INVESTIGATE -> "调查异常事件"
-        GUARD_CITY -> "镇守占领的城池"
-    }
-
-    val category: MissionCategory get() = when (this) {
-        PATROL -> MissionCategory.SECT_AFFAIRS
-        else -> MissionCategory.DISPATCH
-    }
-}
-
-@Serializable
 enum class MissionDifficulty {
-    YELLOW,
-    MYSTERIOUS,
-    EARTH,
-    HEAVEN;
+    SIMPLE,
+    NORMAL,
+    HARD,
+    FORBIDDEN;
 
     val displayName: String get() = when (this) {
-        YELLOW -> "黄级"
-        MYSTERIOUS -> "玄级"
-        EARTH -> "地级"
-        HEAVEN -> "天级"
+        SIMPLE -> "简单"
+        NORMAL -> "普通"
+        HARD -> "困难"
+        FORBIDDEN -> "禁忌"
     }
 
     val spawnChance: Double get() = when (this) {
-        YELLOW -> 0.50
-        MYSTERIOUS -> 0.43
-        EARTH -> 0.06
-        HEAVEN -> 0.01
+        SIMPLE -> 0.25
+        NORMAL -> 0.12
+        HARD -> 0.03
+        FORBIDDEN -> 0.005
     }
 
     val durationMonths: Int get() = when (this) {
-        YELLOW -> 3
-        MYSTERIOUS -> 7
-        EARTH -> 36
-        HEAVEN -> 58
-    }
-
-    val minRealm: Int get() = when (this) {
-        YELLOW -> 9
-        MYSTERIOUS -> 7
-        EARTH -> 4
-        HEAVEN -> 2
+        SIMPLE -> 3
+        NORMAL -> 7
+        HARD -> 36
+        FORBIDDEN -> 58
     }
 
     val allowedPositions: List<String> get() = when (this) {
-        YELLOW -> listOf("外门弟子", "内门弟子")
-        MYSTERIOUS -> listOf("外门弟子", "内门弟子")
-        EARTH -> listOf("内门弟子")
-        HEAVEN -> listOf("内门弟子")
-    }
-
-    companion object {
-        fun fromSpawnChance(roll: Double): MissionDifficulty {
-            var cumulative = 0.0
-            for (difficulty in entries) {
-                cumulative += difficulty.spawnChance
-                if (roll < cumulative) return difficulty
-            }
-            return YELLOW
-        }
+        SIMPLE -> listOf("外门弟子")
+        NORMAL -> listOf("外门弟子", "内门弟子")
+        HARD -> listOf("内门弟子")
+        FORBIDDEN -> listOf("内门弟子")
     }
 }
 
 @Serializable
-enum class RewardItemType {
-    MANUAL,
-    EQUIPMENT,
-    PILL
-}
-
-@Serializable
-enum class InvestigateOutcome {
-    BEAST_RIOT,
-    SECT_CONFLICT,
-    DESTINED_CHILD,
-    NOTHING_FOUND;
+enum class MissionTemplate {
+    ESCORT,
+    SUPPRESS_BEASTS;
 
     val displayName: String get() = when (this) {
-        BEAST_RIOT -> "妖兽作乱"
-        SECT_CONFLICT -> "门派争斗"
-        DESTINED_CHILD -> "天命之子"
-        NOTHING_FOUND -> "一无所获"
+        ESCORT -> "护送商队"
+        SUPPRESS_BEASTS -> "妖兽作乱"
     }
 
-    companion object {
-        fun random(): InvestigateOutcome {
-            val roll = GameRandom.nextDouble()
-            return when {
-                roll < 0.40 -> BEAST_RIOT
-                roll < 0.75 -> SECT_CONFLICT
-                roll < 0.95 -> NOTHING_FOUND
-                else -> DESTINED_CHILD
-            }
-        }
+    val description: String get() = when (this) {
+        ESCORT -> "选择弟子护送商队前往目的地"
+        SUPPRESS_BEASTS -> "随机3到8名筑基期妖兽（小层随机）于民间作乱"
+    }
+
+    val difficulty: MissionDifficulty get() = when (this) {
+        ESCORT -> MissionDifficulty.SIMPLE
+        SUPPRESS_BEASTS -> MissionDifficulty.SIMPLE
+    }
+
+    val requiredMemberCount: Int get() = 6
+
+    val duration: Int get() = when (this) {
+        ESCORT -> difficulty.durationMonths
+        SUPPRESS_BEASTS -> 4
     }
 }
 
 @Serializable
 data class MissionRewardConfig(
     val spiritStones: Int = 0,
-    val extraItemChance: Double = 0.0,
-    val extraItemCountMin: Int = 0,
-    val extraItemCountMax: Int = 0,
-    val extraItemMinRarity: Int = 1,
-    val extraItemMaxRarity: Int = 2,
+    val spiritStonesMax: Int = 0,
     val materialCountMin: Int = 0,
     val materialCountMax: Int = 0,
     val materialMinRarity: Int = 1,
-    val materialMaxRarity: Int = 2,
-    val herbCountMin: Int = 0,
-    val herbCountMax: Int = 0,
-    val herbMinRarity: Int = 1,
-    val herbMaxRarity: Int = 1,
-    val seedCountMin: Int = 0,
-    val seedCountMax: Int = 0,
-    val seedMinRarity: Int = 1,
-    val seedMaxRarity: Int = 1
-)
-
-@Serializable
-data class InvestigateRewardConfig(
-    val outcome: InvestigateOutcome,
-    val spiritStones: Int = 0,
-    val materialCountMin: Int = 0,
-    val materialCountMax: Int = 0,
-    val materialMinRarity: Int = 1,
-    val materialMaxRarity: Int = 1,
-    val itemCountMin: Int = 0,
-    val itemCountMax: Int = 0,
-    val itemMinRarity: Int = 1,
-    val itemMaxRarity: Int = 2,
-    val discipleCount: Int = 0,
-    val discipleSpiritRootCount: Int = 2
+    val materialMaxRarity: Int = 2
 )
 
 @Serializable
 data class Mission(
     val id: String = UUID.randomUUID().toString(),
-    val type: MissionType,
+    val template: MissionTemplate,
     val name: String,
     val description: String,
     val difficulty: MissionDifficulty,
-    val minRealm: Int,
     val duration: Int,
     val rewards: MissionRewardConfig,
     val createdYear: Int = 1,
     val createdMonth: Int = 1
 ) {
-    val memberCount: Int = 5
-
-    val realmRequirement: String get() = GameConfig.Realm.get(minRealm).name
-
-    companion object {
-        fun generateName(type: MissionType, difficulty: MissionDifficulty): String {
-            return "${difficulty.displayName}${type.displayName}"
-        }
-    }
+    val memberCount: Int get() = template.requiredMemberCount
 }
 
 @Serializable
@@ -201,15 +97,15 @@ data class ActiveMission(
     val id: String = UUID.randomUUID().toString(),
     val missionId: String,
     val missionName: String,
-    val missionType: MissionType,
+    val template: MissionTemplate,
     val difficulty: MissionDifficulty,
     val discipleIds: List<String>,
     val discipleNames: List<String>,
+    val discipleRealms: List<String>,
     val startYear: Int,
     val startMonth: Int,
     val duration: Int,
-    val rewards: MissionRewardConfig,
-    val investigateOutcome: InvestigateOutcome? = null
+    val rewards: MissionRewardConfig
 ) {
     val memberCount: Int get() = discipleIds.size
 
@@ -231,13 +127,4 @@ data class ActiveMission(
     fun isComplete(currentYear: Int, currentMonth: Int): Boolean {
         return getRemainingMonths(currentYear, currentMonth) <= 0
     }
-}
-
-@Serializable
-data class MissionSlotData(
-    val index: Int = 0,
-    val missionId: String? = null,
-    val missionName: String = ""
-) {
-    val isInUse: Boolean get() = missionId != null
 }

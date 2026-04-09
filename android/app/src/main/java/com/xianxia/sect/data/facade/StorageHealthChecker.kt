@@ -3,7 +3,9 @@ package com.xianxia.sect.data.facade
 import android.content.Context
 import android.util.Log
 import com.xianxia.sect.data.concurrent.SlotLockManager
-import com.xianxia.sect.data.unified.UnifiedSaveRepository
+// 迁移说明：引入 StorageGateway 替代直接依赖 UnifiedSaveRepository（2026-04-07）
+// 原因：统一存储访问入口，遵循 Storage Gateway 模式
+import com.xianxia.sect.data.StorageGateway
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.*
 import java.io.File
@@ -29,15 +31,20 @@ data class SlotHealthReport(
     val lastVerified: Long = 0
 )
 
+@Suppress("DEPRECATION")
 @Singleton
 class StorageHealthChecker @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val saveRepository: UnifiedSaveRepository,
+    // 迁移说明：将 saveRepository: UnifiedSaveRepository 替换为 storageGateway: StorageGateway（2026-04-07）
+    // 原因：遵循 Storage Gateway 模式，统一存储访问入口
+    private val storageGateway: StorageGateway,
+    // 高级功能（integrity/backup/emergency）仍需通过 UnifiedSaveRepository 访问
+    private val unifiedSaveRepository: com.xianxia.sect.data.unified.UnifiedSaveRepository,
     private val lockManager: SlotLockManager
 ) {
     companion object {
         private const val TAG = "StorageHealthChecker"
-        private const val MAX_SLOTS = 5
+        private const val MAX_SLOTS = 6
     }
     
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -68,9 +75,10 @@ class StorageHealthChecker @Inject constructor(
         val issues = mutableListOf<String>()
         var canRecover = false
         var fileSize = 0L
-        
-        val hasSave = saveRepository.hasSave(slot)
-        
+
+        // 使用 unifiedSaveRepository.hasSave() 替代已删除的 storageGateway.unifiedHasSave()
+        val hasSave = unifiedSaveRepository.hasSave(slot)
+
         if (!hasSave) {
             return SlotHealthReport(
                 slot = slot,
@@ -81,34 +89,36 @@ class StorageHealthChecker @Inject constructor(
                 fileSize = 0
             )
         }
-        
+
         try {
             val saveFile = File(context.filesDir, "saves/slot_$slot.sav")
             if (saveFile.exists()) {
                 fileSize = saveFile.length()
-                
+
                 if (fileSize < 100) {
                     issues.add("File size suspiciously small")
                 }
             }
-            
-            val backups = saveRepository.getBackupVersions(slot)
+
+            // 使用 unifiedSaveRepository.getBackupVersions() 替代已删除的 storageGateway.getBackupVersions()
+            val backups = unifiedSaveRepository.getBackupVersions(slot)
             if (backups.isNotEmpty()) {
                 canRecover = true
             } else {
                 issues.add("No backup available")
             }
-            
-            val integrity = saveRepository.verifyIntegrity(slot)
+
+            // 使用 unifiedSaveRepository.verifyIntegrity() 替代已删除的 storageGateway.verifyIntegrity()
+            val integrity = unifiedSaveRepository.verifyIntegrity(slot)
             if (integrity is com.xianxia.sect.data.unified.IntegrityResult.Invalid) {
                 issues.add("Integrity check failed: ${integrity.errors.joinToString()}")
             }
-            
+
         } catch (e: Exception) {
             issues.add("Health check error: ${e.message}")
             Log.e(TAG, "Error checking slot $slot health", e)
         }
-        
+
         return SlotHealthReport(
             slot = slot,
             exists = true,
@@ -119,13 +129,16 @@ class StorageHealthChecker @Inject constructor(
             lastVerified = System.currentTimeMillis()
         )
     }
-    
-    suspend fun hasAutoSave(): Boolean = saveRepository.hasSave(0)
-    
-    fun hasEmergencySave(): Boolean = saveRepository.hasEmergencySave()
-    
+
+    // 使用 unifiedSaveRepository.hasSave() 替代已删除的 storageGateway.unifiedHasSave()
+    suspend fun hasAutoSave(): Boolean = unifiedSaveRepository.hasSave(0)
+
+    // 使用 unifiedSaveRepository.hasEmergencySave() 替代已删除的 storageGateway.hasEmergencySave()
+    fun hasEmergencySave(): Boolean = unifiedSaveRepository.hasEmergencySave()
+
     suspend fun isSaveCorrupted(slot: Int): Boolean {
-        val result = saveRepository.verifyIntegrity(slot)
+        // 使用 unifiedSaveRepository.verifyIntegrity() 替代已删除的 storageGateway.verifyIntegrity()
+        val result = unifiedSaveRepository.verifyIntegrity(slot)
         return result is com.xianxia.sect.data.unified.IntegrityResult.Invalid
     }
     

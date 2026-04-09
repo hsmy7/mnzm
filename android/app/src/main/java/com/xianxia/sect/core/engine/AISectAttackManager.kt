@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.GameConfig
@@ -68,7 +70,7 @@ object AISectAttackManager {
         val favor = relation?.favor ?: 0
         if (favor > 0) return false
         
-        if (attacker.allianceId != null && attacker.allianceId == defender.allianceId) return false
+        if (attacker.allianceId.isNotEmpty() && attacker.allianceId == defender.allianceId) return false
         
         if (!isRouteConnected(attacker, defender, gameData)) return false
         
@@ -143,7 +145,7 @@ object AISectAttackManager {
     fun createAttackTeam(attacker: WorldSect, defender: WorldSect, gameData: GameData): AIBattleTeam? {
         val availableDisciples = attacker.aiDisciples
             .filter { it.isAlive }
-            .sortedByDescending { it.realm }
+            .sortedBy { it.realm }
         
         if (availableDisciples.size < MIN_DISCIPLES_FOR_ATTACK) return null
         
@@ -175,7 +177,7 @@ object AISectAttackManager {
     fun createDefenseTeam(defender: WorldSect): List<Disciple> {
         return defender.aiDisciples
             .filter { it.isAlive }
-            .sortedByDescending { it.realm }
+            .sortedBy { it.realm }
             .take(TEAM_SIZE)
     }
     
@@ -225,7 +227,7 @@ object AISectAttackManager {
             val favor = relation?.favor ?: 0
             if (favor > 0) continue
             
-            if (attacker.allianceId != null && playerSect.allianceId == attacker.allianceId) continue
+            if (attacker.allianceId.isNotEmpty() && playerSect.allianceId == attacker.allianceId) continue
             
             return createAttackTeam(attacker, playerSect, gameData)
         }
@@ -580,7 +582,7 @@ object AISectAttackManager {
     ): List<AICombatant> {
         return disciples
             .filter { it.status == DiscipleStatus.IDLE }
-            .sortedByDescending { it.realm }
+            .sortedBy { it.realm }
             .take(TEAM_SIZE)
             .map { disciple ->
                 val discipleEquipment = buildMap {

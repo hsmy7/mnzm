@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.xianxia.sect.core.state
 
 import com.xianxia.sect.core.model.*
@@ -7,70 +9,18 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.withTimeout
+import android.util.Log
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.lang.ref.WeakReference
 import javax.inject.Inject
 import javax.inject.Singleton
-
-/**
- * 旧版游戏状态数据类
- * 
- * @deprecated 此类已废弃，请使用 [UnifiedGameState] 替代。
- *             UnifiedGameState 提供了更完善的状态管理和迁移方法。
- *             迁移指南：
- *             - 将 GameState 替换为 UnifiedGameState
- *             - 使用 UnifiedGameState.fromGameState() 进行转换
- *             - 使用 UnifiedGameState.toGameState() 如需向后兼容
- */
-@Deprecated(
-    message = "Use UnifiedGameState instead. This class is kept for backward compatibility only.",
-    replaceWith = ReplaceWith("UnifiedGameState", "com.xianxia.sect.core.state.UnifiedGameState")
-)
-data class GameState(
-    val gameData: GameData = GameData(),
-    val disciples: List<Disciple> = emptyList(),
-    val equipment: List<Equipment> = emptyList(),
-    val manuals: List<Manual> = emptyList(),
-    val pills: List<Pill> = emptyList(),
-    val materials: List<Material> = emptyList(),
-    val herbs: List<Herb> = emptyList(),
-    val seeds: List<Seed> = emptyList(),
-    val teams: List<ExplorationTeam> = emptyList(),
-    val events: List<GameEvent> = emptyList(),
-    val battleLogs: List<BattleLog> = emptyList(),
-    val alliances: List<Alliance> = emptyList(),
-    
-    val isPaused: Boolean = true,
-    val isLoading: Boolean = false,
-    val isSaving: Boolean = false,
-    val gameSpeed: Int = 1,
-    
-    val lastUpdateTime: Long = System.currentTimeMillis(),
-    val version: Int = 1
-) {
-    val isRunning: Boolean get() = !isPaused && !isLoading && !isSaving
-    
-    val aliveDisciples: List<Disciple> get() = disciples.filter { it.isAlive }
-    
-    val idleDisciples: List<Disciple> get() = disciples.filter { it.isAlive && it.status == DiscipleStatus.IDLE }
-    
-    val workingDisciples: List<Disciple> get() = disciples.filter { it.isAlive && it.status != DiscipleStatus.IDLE }
-    
-    fun getDiscipleById(id: String): Disciple? = disciples.find { it.id == id }
-    
-    fun getEquipmentById(id: String): Equipment? = equipment.find { it.id == id }
-    
-    fun getManualById(id: String): Manual? = manuals.find { it.id == id }
-    
-    fun getEquipmentByOwner(discipleId: String): List<Equipment> = 
-        equipment.filter { it.ownerId == discipleId }
-    
-    fun getManualsByOwner(discipleId: String): List<Manual> = 
-        manuals.filter { it.ownerId == discipleId }
-}
 
 data class UnifiedGameState(
     val gameData: GameData = GameData(),
@@ -113,66 +63,6 @@ data class UnifiedGameState(
     
     fun getManualsByOwner(discipleId: String): List<Manual> = 
         manuals.filter { it.ownerId == discipleId }
-    
-    /**
-     * 将 UnifiedGameState 转换为旧版 GameState
-     * 
-     * @deprecated 此方法仅用于向后兼容。新代码应直接使用 UnifiedGameState。
-     *             将在未来版本中移除。
-     */
-    @Deprecated(
-        message = "Use UnifiedGameState directly instead of converting to legacy GameState. " +
-                  "This method is kept for backward compatibility only and will be removed in a future version.",
-        level = DeprecationLevel.WARNING
-    )
-    fun toGameState(): GameState = GameState(
-        gameData = gameData,
-        disciples = disciples,
-        equipment = equipment,
-        manuals = manuals,
-        pills = pills,
-        materials = materials,
-        herbs = herbs,
-        seeds = seeds,
-        teams = teams,
-        events = events,
-        battleLogs = battleLogs,
-        alliances = alliances
-    )
-    
-    companion object {
-        /**
-         * 从旧版 GameState 创建 UnifiedGameState
-         * 
-         * @deprecated 此方法仅用于迁移旧数据。新代码应直接使用 UnifiedGameState。
-         *             将在未来版本中移除。
-         */
-        @Deprecated(
-            message = "Use UnifiedGameState directly instead of converting from legacy GameState. " +
-                      "This method is kept for migrating old save data only and will be removed in a future version.",
-            level = DeprecationLevel.WARNING
-        )
-        fun fromGameState(state: GameState): UnifiedGameState = UnifiedGameState(
-            gameData = state.gameData,
-            disciples = state.disciples,
-            equipment = state.equipment,
-            manuals = state.manuals,
-            pills = state.pills,
-            materials = state.materials,
-            herbs = state.herbs,
-            seeds = state.seeds,
-            teams = state.teams,
-            events = state.events,
-            battleLogs = state.battleLogs,
-            alliances = state.alliances,
-            isPaused = state.isPaused,
-            isLoading = state.isLoading,
-            isSaving = state.isSaving,
-            gameSpeed = state.gameSpeed,
-            lastUpdateTime = state.lastUpdateTime,
-            version = state.version
-        )
-    }
 }
 
 sealed class UnifiedStateChange {
@@ -275,30 +165,32 @@ class UnifiedGameStateManager @Inject constructor(
     private val stateMutex = Mutex()
     
     /**
-     * 同步桥接：用于在非协程环境中安全获取 stateMutex。
-     * 所有 *Sync 后缀方法均通过此方法统一走 stateMutex，消除双锁死锁风险。
-     *
-     * ⚠️ 线程安全警告：
-     * - 此方法使用 runBlocking，在主线程调用可能导致 ANR（Application Not Responding）
-     * - 已添加 5 秒超时保护，超时后将直接执行 block()（无锁保护）
-     * - 生产环境中应优先使用 suspend 版本的 updateStateSafe() 方法
-     * - 仅在无法使用协程的遗留代码中使用此方法
+     * 协程作用域 - 用于在非协程上下文中安全执行异步操作
      */
-    private fun <T> runBlockingWithStateLock(block: () -> T): T {
+    private val managerScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+    /**
+     * P0修复: 协程版本的状态锁访问方法
+     *
+     * 推荐在协程上下文中使用此方法替代已废弃的 runBlockingWithStateLock，
+     * 避免线程阻塞和 ANR 风险。
+     *
+     * 特性：
+     * - 5 秒超时保护
+     * - 超时抛出 IllegalStateException（不降级为无锁，保证数据一致性）
+     * - 完全非阻塞，适合协程环境
+     *
+     * @param block 状态转换函数，接收旧状态并返回新状态
+     * @return 状态变更对象
+     */
+    suspend fun <T> suspendFunWithStateLock(block: () -> T): T {
         return try {
-            // 使用带超时的 runBlocking，防止主线程阻塞导致 ANR
-            runBlocking {
-                withTimeoutOrNull(5000) {
-                    stateMutex.withLock { block() }
-                } ?: run {
-                    android.util.Log.e("UnifiedGameStateManager", "State lock acquisition timed out (5000ms), executing without lock")
-                    block()
-                }
+            withTimeout(5000) {
+                stateMutex.withLock { block() }
             }
-        } catch (e: java.util.concurrent.TimeoutException) {
-            android.util.Log.e("UnifiedGameStateManager", "State lock acquisition timed out", e)
-            // 超时降级：直接执行业务逻辑（无锁保护），避免应用卡死
-            block()
+        } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+            Log.e(TAG, "State lock acquisition timed out after 5000ms", e)
+            throw IllegalStateException("Game state lock timeout - possible deadlock detected", e)
         }
     }
 
@@ -428,23 +320,6 @@ class UnifiedGameStateManager @Inject constructor(
         }
         notifyObservers(pair.first)
         eventBus.emit(pair.second)
-    }
-    
-    fun updateGameDataSync(update: (GameData) -> GameData) {
-        val change = runBlockingWithStateLock {
-            val oldData = _state.value.gameData
-            val newData = update(oldData)
-            
-            _state.value = _state.value.copy(
-                gameData = newData,
-                lastUpdateTime = System.currentTimeMillis()
-            )
-            
-            val c = UnifiedStateChange.GameDataUpdate(oldData, newData)
-            recordChange(c)
-            c
-        }
-        notifyObservers(change)
     }
     
     suspend fun updateDisciple(discipleId: String, update: (Disciple) -> Disciple) {
@@ -590,20 +465,6 @@ class UnifiedGameStateManager @Inject constructor(
         notifyObservers(change)
     }
     
-    fun setPausedSync(paused: Boolean) {
-        val change = runBlockingWithStateLock {
-            _state.value = _state.value.copy(
-                isPaused = paused,
-                lastUpdateTime = System.currentTimeMillis()
-            )
-            
-            val c = UnifiedStateChange.PauseStateChange(paused)
-            recordChange(c)
-            c
-        }
-        notifyObservers(change)
-    }
-    
     suspend fun setLoading(loading: Boolean) {
         stateMutex.withLock {
             _state.value = _state.value.copy(
@@ -635,26 +496,10 @@ class UnifiedGameStateManager @Inject constructor(
         notifyObservers(change)
     }
     
-    fun loadStateSync(newState: UnifiedGameState) {
-        val change = runBlockingWithStateLock {
-            _state.value = newState.copy(
-                lastUpdateTime = System.currentTimeMillis()
-            )
-            val c = UnifiedStateChange.FullStateUpdate(newState)
-            recordChange(c)
-            c
-        }
-        notifyObservers(change)
-    }
-    
-    // ==================== 增量更新方法 ====================
-    // 以下方法用于细粒度状态同步，只更新指定的域，避免全量拷贝开销
-    
-    /**
-     * 仅更新弟子列表
-     */
-    fun updateDisciplesSync(newDisciples: List<Disciple>) {
-        val change = runBlockingWithStateLock {
+    // ==================== Suspend 增量更新方法 ====================
+
+    suspend fun updateDisciplesState(newDisciples: List<Disciple>) {
+        val change = stateMutex.withLock {
             _state.value = _state.value.copy(
                 disciples = newDisciples,
                 lastUpdateTime = System.currentTimeMillis()
@@ -665,28 +510,23 @@ class UnifiedGameStateManager @Inject constructor(
         }
         notifyObservers(change)
     }
-    
-    /**
-     * 仅更新游戏基础数据
-     */
-    fun updateGameDataSync(newGameData: GameData) {
-        val change = runBlockingWithStateLock {
+
+    suspend fun updateGameDataState(newGameData: GameData) {
+        val change = stateMutex.withLock {
+            val oldData = _state.value.gameData
             _state.value = _state.value.copy(
                 gameData = newGameData,
                 lastUpdateTime = System.currentTimeMillis()
             )
-            val c = UnifiedStateChange.GameDataUpdate(_state.value.gameData, newGameData)
+            val c = UnifiedStateChange.GameDataUpdate(oldData, newGameData)
             recordChange(c)
             c
         }
         notifyObservers(change)
     }
-    
-    /**
-     * 仅更新装备列表
-     */
-    fun updateEquipmentSync(newEquipment: List<Equipment>) {
-        val change = runBlockingWithStateLock {
+
+    suspend fun updateEquipmentState(newEquipment: List<Equipment>) {
+        val change = stateMutex.withLock {
             _state.value = _state.value.copy(
                 equipment = newEquipment,
                 lastUpdateTime = System.currentTimeMillis()
@@ -697,12 +537,9 @@ class UnifiedGameStateManager @Inject constructor(
         }
         notifyObservers(change)
     }
-    
-    /**
-     * 仅更新功法列表
-     */
-    fun updateManualsSync(newManuals: List<Manual>) {
-        val change = runBlockingWithStateLock {
+
+    suspend fun updateManualsState(newManuals: List<Manual>) {
+        val change = stateMutex.withLock {
             _state.value = _state.value.copy(
                 manuals = newManuals,
                 lastUpdateTime = System.currentTimeMillis()
@@ -713,12 +550,9 @@ class UnifiedGameStateManager @Inject constructor(
         }
         notifyObservers(change)
     }
-    
-    /**
-     * 仅更新丹药列表
-     */
-    fun updatePillsSync(newPills: List<Pill>) {
-        val change = runBlockingWithStateLock {
+
+    suspend fun updatePillsState(newPills: List<Pill>) {
+        val change = stateMutex.withLock {
             _state.value = _state.value.copy(
                 pills = newPills,
                 lastUpdateTime = System.currentTimeMillis()
@@ -729,12 +563,9 @@ class UnifiedGameStateManager @Inject constructor(
         }
         notifyObservers(change)
     }
-    
-    /**
-     * 仅更新材料列表
-     */
-    fun updateMaterialsSync(newMaterials: List<Material>) {
-        val change = runBlockingWithStateLock {
+
+    suspend fun updateMaterialsState(newMaterials: List<Material>) {
+        val change = stateMutex.withLock {
             _state.value = _state.value.copy(
                 materials = newMaterials,
                 lastUpdateTime = System.currentTimeMillis()
@@ -745,12 +576,9 @@ class UnifiedGameStateManager @Inject constructor(
         }
         notifyObservers(change)
     }
-    
-    /**
-     * 仅更新灵草列表
-     */
-    fun updateHerbsSync(newHerbs: List<Herb>) {
-        val change = runBlockingWithStateLock {
+
+    suspend fun updateHerbsState(newHerbs: List<Herb>) {
+        val change = stateMutex.withLock {
             _state.value = _state.value.copy(
                 herbs = newHerbs,
                 lastUpdateTime = System.currentTimeMillis()
@@ -761,12 +589,9 @@ class UnifiedGameStateManager @Inject constructor(
         }
         notifyObservers(change)
     }
-    
-    /**
-     * 仅更新种子列表
-     */
-    fun updateSeedsSync(newSeeds: List<Seed>) {
-        val change = runBlockingWithStateLock {
+
+    suspend fun updateSeedsState(newSeeds: List<Seed>) {
+        val change = stateMutex.withLock {
             _state.value = _state.value.copy(
                 seeds = newSeeds,
                 lastUpdateTime = System.currentTimeMillis()
@@ -777,12 +602,9 @@ class UnifiedGameStateManager @Inject constructor(
         }
         notifyObservers(change)
     }
-    
-    /**
-     * 仅更新探索队伍列表
-     */
-    fun updateTeamsSync(newTeams: List<ExplorationTeam>) {
-        val change = runBlockingWithStateLock {
+
+    suspend fun updateTeamsState(newTeams: List<ExplorationTeam>) {
+        val change = stateMutex.withLock {
             _state.value = _state.value.copy(
                 teams = newTeams,
                 lastUpdateTime = System.currentTimeMillis()
@@ -793,12 +615,9 @@ class UnifiedGameStateManager @Inject constructor(
         }
         notifyObservers(change)
     }
-    
-    /**
-     * 仅更新游戏事件列表
-     */
-    fun updateEventsSync(newEvents: List<GameEvent>) {
-        val change = runBlockingWithStateLock {
+
+    suspend fun updateEventsState(newEvents: List<GameEvent>) {
+        val change = stateMutex.withLock {
             _state.value = _state.value.copy(
                 events = newEvents,
                 lastUpdateTime = System.currentTimeMillis()
@@ -809,12 +628,9 @@ class UnifiedGameStateManager @Inject constructor(
         }
         notifyObservers(change)
     }
-    
-    /**
-     * 仅更新战斗日志列表
-     */
-    fun updateBattleLogsSync(newBattleLogs: List<BattleLog>) {
-        val change = runBlockingWithStateLock {
+
+    suspend fun updateBattleLogsState(newBattleLogs: List<BattleLog>) {
+        val change = stateMutex.withLock {
             _state.value = _state.value.copy(
                 battleLogs = newBattleLogs,
                 lastUpdateTime = System.currentTimeMillis()
@@ -825,12 +641,9 @@ class UnifiedGameStateManager @Inject constructor(
         }
         notifyObservers(change)
     }
-    
-    /**
-     * 仅更新联盟列表
-     */
-    fun updateAlliancesSync(newAlliances: List<Alliance>) {
-        val change = runBlockingWithStateLock {
+
+    suspend fun updateAlliancesState(newAlliances: List<Alliance>) {
+        val change = stateMutex.withLock {
             _state.value = _state.value.copy(
                 alliances = newAlliances,
                 lastUpdateTime = System.currentTimeMillis()
@@ -841,22 +654,7 @@ class UnifiedGameStateManager @Inject constructor(
         }
         notifyObservers(change)
     }
-    
-    /**
-     * 从旧版 GameState 加载状态
-     * 
-     * @deprecated 此方法仅用于加载旧版存档。新代码应使用 [loadState] 或 [loadStateSync]。
-     *             将在未来版本中移除。
-     */
-    @Deprecated(
-        message = "Use loadState() or loadStateSync() with UnifiedGameState instead. " +
-                  "This method is kept for loading old save files only and will be removed in a future version.",
-        level = DeprecationLevel.WARNING
-    )
-    suspend fun loadFromGameState(gameState: GameState) {
-        loadState(UnifiedGameState.fromGameState(gameState))
-    }
-    
+
     /**
      * 注册状态观察者（弱引用持有）
      *

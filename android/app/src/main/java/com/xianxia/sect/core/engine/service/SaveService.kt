@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.xianxia.sect.core.engine.service
 
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -143,6 +145,9 @@ class SaveService constructor(
      * Clears current state and prepares to receive loaded data
      */
     fun prepareForLoad() {
+        // Reset core GameData to default values first (atomic reset)
+        _gameData.value = GameData()
+
         // Clear all mutable state to prepare for loading
         _disciples.value = emptyList()
         _equipment.value = emptyList()

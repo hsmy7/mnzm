@@ -13,11 +13,12 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 object RepositoryModule {
-    
+
     @Provides
-    fun provideProductionSlotDao(database: GameDatabase): ProductionSlotDao = 
+    @Singleton
+    fun provideProductionSlotDao(database: GameDatabase): ProductionSlotDao =
         database.productionSlotDao()
-    
+
     @Provides
     @Singleton
     fun provideProductionSlotRepository(

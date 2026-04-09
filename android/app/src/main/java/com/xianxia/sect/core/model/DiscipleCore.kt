@@ -1,12 +1,15 @@
+@file:Suppress("DEPRECATION")
+
 package com.xianxia.sect.core.model
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
-import androidx.room.PrimaryKey
 import com.xianxia.sect.core.GameConfig
 
 @Entity(
     tableName = "disciples_core",
+    primaryKeys = ["id", "slot_id"],
     indices = [
         Index(value = ["name"]),
         Index(value = ["realm", "realmLayer"]),
@@ -17,8 +20,12 @@ import com.xianxia.sect.core.GameConfig
     ]
 )
 data class DiscipleCore(
-    @PrimaryKey
+    @ColumnInfo(name = "id")
     var id: String = java.util.UUID.randomUUID().toString(),
+
+    @ColumnInfo(name = "slot_id")
+    var slotId: Int = 0,
+
     var name: String = "",
     var realm: Int = 9,
     var realmLayer: Int = 1,

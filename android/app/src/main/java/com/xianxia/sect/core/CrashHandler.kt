@@ -57,8 +57,8 @@ class CrashHandler @Inject constructor(
     private val prefs: SharedPreferences =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-    private val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.getDefault())
-    private val fileDateFormat = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
+    private val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.CHINA)
+    private val fileDateFormat = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.CHINA)
 
     private var defaultExceptionHandler: Thread.UncaughtExceptionHandler? = null
     private var emergencySaveCallback: (() -> Boolean)? = null
@@ -177,6 +177,7 @@ class CrashHandler @Inject constructor(
                     try {
                         val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
                         printWriter.println("Version Name: ${packageInfo.versionName}")
+                        @Suppress("NewApi")
                         printWriter.println("Version Code: ${packageInfo.longVersionCode}")
                     } catch (e: Exception) {
                         printWriter.println("Version: Unknown")

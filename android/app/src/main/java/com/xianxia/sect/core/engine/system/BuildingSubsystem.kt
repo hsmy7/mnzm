@@ -25,15 +25,14 @@ import javax.inject.Singleton
  *   - 符箓 (BuildingType.TALISMAN)
  *   - 其他可扩展的建筑类型
  *
- * **架构优势（对比已弃用的子系统）：**
+ * **架构优势：**
  *
- * | 特性 | BuildingSubsystem (本类) | ProductionSubsystem (已弃用) | ForgingSubsystem (已弃用) |
- * |------|--------------------------|------------------------------|---------------------------|
- * | 数据源 | ProductionSlotRepository (统一) | 内部 MutableStateFlow (独立) | 内部 MutableStateFlow (独立) |
- * | 类型系统 | 统一使用 ProductionSlot | ProductionSlot | 旧版 BuildingSlot |
- * | 事务管理 | ProductionTransactionManager | 无 | 无 |
- * | DI 注入 | @Singleton + @Inject | @Singleton + @Inject | @Singleton + @Inject |
- * | Equipment 管理 | 待迁移 | 无 | 有（待迁移）|
+ * | 特性 | BuildingSubsystem (本类) |
+ * |------|--------------------------|
+ * | 数据源 | ProductionSlotRepository (统一) |
+ * | 类型系统 | 统一使用 ProductionSlot |
+ * | 事务管理 | ProductionTransactionManager |
+ * | DI 注入 | @Singleton + @Inject |
  *
  * **核心依赖：**
  * - [ProductionSlotRepository]: 持久化存储与状态流
@@ -47,8 +46,6 @@ import javax.inject.Singleton
  * - [productionSlots]: 所有生产槽位的 StateFlow
  * - [workingSlots]/[completedSlots]/[idleSlots]: 按状态分类的槽位流
  *
- * @see ProductionSubsystem 已弃用，功能已合并至此
- * @see ForgingSubsystem 已弃用，锻造功能已合并至此
  */
 @Singleton
 class BuildingSubsystem @Inject constructor(
@@ -163,7 +160,7 @@ class BuildingSubsystem @Inject constructor(
 
         return if (txResult.success) {
             txResult.slot?.let { ProductionResult.success(it, txResult.outcome) }
-                ?: ProductionResult.failure("Transaction succeeded but slot data is missing")
+                ?: ProductionResult.failure(ProductionResult.ProductionError.UnknownError("Transaction succeeded but slot data is missing"))
         } else {
             ProductionResult.failure(mapTransactionError(txResult.error))
         }

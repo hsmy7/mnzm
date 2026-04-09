@@ -27,7 +27,7 @@ import com.xianxia.sect.ui.theme.GameColors
 @Composable
 fun TianshuHallDialog(
     gameData: GameData?,
-    disciples: List<Disciple>,
+    disciples: List<DiscipleAggregate>,
     viewModel: GameViewModel,
     onDismiss: () -> Unit
 ) {
@@ -429,7 +429,7 @@ private fun PolicyItem(
     effect: String,
     cost: String,
     checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
+    onCheckedChange: (Boolean) -> Boolean
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -457,7 +457,11 @@ private fun PolicyItem(
 
         Checkbox(
             checked = checked,
-            onCheckedChange = onCheckedChange
+            onCheckedChange = { newChecked ->
+                if (!onCheckedChange(newChecked)) {
+                    return@Checkbox
+                }
+            }
         )
     }
     HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp), color = GameColors.Border)

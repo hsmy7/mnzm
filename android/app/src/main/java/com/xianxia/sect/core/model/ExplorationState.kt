@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.xianxia.sect.core.model
 
 import kotlinx.serialization.Serializable
@@ -19,5 +21,7 @@ data class ExplorationState(
     val unlockedDungeons: List<String> = emptyList(),
     val unlockedRecipes: List<String> = emptyList(),
     val unlockedManuals: List<String> = emptyList(),
-    val manualProficiencies: Map<String, List<ManualProficiencyData>> = emptyMap()
+    val manualProficiencies: Map<String, List<ManualProficiencyData>> = emptyMap(),
+    val pendingCompetitionResults: List<CompetitionRankResult> = emptyList(),
+    val lastCompetitionYear: Int = 0
 )

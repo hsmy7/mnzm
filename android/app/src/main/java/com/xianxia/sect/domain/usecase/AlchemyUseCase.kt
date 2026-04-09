@@ -7,21 +7,6 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-/**
- * ## AlchemyUseCase - 炼丹用例
- *
- * ### [H-09] 过度工程化评估
- *
- * **总体评价**: 部分有价值，部分为纯代理
- *
- * **保留的方法** (有验证逻辑):
- * - `startAlchemy()`: 槽位有效性检查 + 状态检查 + 结果封装
- * - `collectAlchemyResult()`: 槽位检查 + 完成状态验证
- *
- * **@Deprecated 的方法** (纯代理):
- * - `clearAlchemySlot()`: 直接转发
- * - `getAlchemySlots()`: 直接转发
- */
 class AlchemyUseCase @Inject constructor(
     private val gameEngine: GameEngine
 ) {
@@ -62,34 +47,6 @@ class AlchemyUseCase @Inject constructor(
     }
     
     fun collectAlchemyResult(slotIndex: Int, currentYear: Int, currentMonth: Int): CollectResult {
-        val slots = gameEngine.getAlchemySlots()
-        if (slotIndex < 0 || slotIndex >= slots.size) {
-            return CollectResult(false, message = "无效的炼丹槽位")
-        }
-        
-        val slot = slots[slotIndex]
-        if (slot.status != AlchemySlotStatus.FINISHED) {
-            return CollectResult(false, message = "炼丹尚未完成")
-        }
-        
-        val result = gameEngine.collectAlchemyResult(slotIndex)
-        return CollectResult(true, itemName = result?.pill?.name)
+        return CollectResult(false, message = "炼丹产物自动收取，无需手动操作")
     }
-
-    // H-09: 纯代理方法
-    @Deprecated(
-        "Pure proxy with no business logic. Use gameEngine.clearAlchemySlot() directly.",
-        ReplaceWith("gameEngine.clearAlchemySlot(slotIndex)", "com.xianxia.sect.core.engine.GameEngine")
-    )
-    fun clearAlchemySlot(slotIndex: Int): CollectResult {
-        gameEngine.clearAlchemySlot(slotIndex)
-        return CollectResult(true)
-    }
-
-    // H-09: 纯代理方法
-    @Deprecated(
-        "Pure proxy with no business logic. Use gameEngine.getAlchemySlots() directly.",
-        ReplaceWith("gameEngine.getAlchemySlots()", "com.xianxia.sect.core.engine.GameEngine")
-    )
-    fun getAlchemySlots(): List<AlchemySlot> = gameEngine.getAlchemySlots()
 }

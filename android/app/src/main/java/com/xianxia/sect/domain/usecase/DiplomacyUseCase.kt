@@ -1,32 +1,13 @@
+@file:Suppress("DEPRECATION")
+
 package com.xianxia.sect.domain.usecase
 
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.model.Disciple
-import com.xianxia.sect.core.model.GameData
-import kotlinx.coroutines.flow.StateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-/**
- * ## DiplomacyUseCase - 外交用例
- *
- * ### [H-09] 过度工程化评估
- *
- * **总体评价**: 核心方法有价值，部分简单查询为纯代理
- *
- * **保留的方法** (有业务逻辑):
- * - `giftSpiritStones()`: 灵石成本检查 + 结果封装
- * - `giftItem()`: 结果封装
- * - `requestAlliance()`: 复杂的条件验证 (使者、境界、灵石、联盟条件)
- * - `dissolveAlliance()`: 盟友检查
- *
- * **@Deprecated 的方法** (纯代理):
- * - `isAlly()`: 直接转发
- * - `getAllianceCost()`: 直接转发
- * - `getAllianceRemainingYears()`: 直接转发
- * - `getPlayerAllies()`: 简单的 map 操作
- */
 class DiplomacyUseCase @Inject constructor(
     private val gameEngine: GameEngine
 ) {
@@ -108,34 +89,6 @@ class DiplomacyUseCase @Inject constructor(
         gameEngine.dissolveAlliance(sectId)
         return AllianceResult.Success(allianceYears = 0)
     }
-
-    // H-09: 纯代理方法
-    @Deprecated(
-        "Pure proxy with no business logic. Use gameEngine.isAlly() directly.",
-        ReplaceWith("gameEngine.isAlly(sectId)", "com.xianxia.sect.core.engine.GameEngine")
-    )
-    fun isAlly(sectId: String): Boolean = gameEngine.isAlly(sectId)
-
-    // H-09: 纯代理方法
-    @Deprecated(
-        "Pure proxy with no business logic. Use gameEngine.getAllianceCost() directly.",
-        ReplaceWith("gameEngine.getAllianceCost(sectLevel)", "com.xianxia.sect.core.engine.GameEngine")
-    )
-    fun getAllianceCost(sectLevel: Int): Long = gameEngine.getAllianceCost(sectLevel)
-
-    // H-09: 纯代理方法
-    @Deprecated(
-        "Pure proxy with no business logic. Use gameEngine.getAllianceRemainingYears() directly.",
-        ReplaceWith("gameEngine.getAllianceRemainingYears(sectId)", "com.xianxia.sect.core.engine.GameEngine")
-    )
-    fun getAllianceRemainingYears(sectId: String): Int = gameEngine.getAllianceRemainingYears(sectId)
-
-    // H-09: 简单 map 操作
-    @Deprecated(
-        "Simple map operation. Use gameEngine.getPlayerAllies() directly.",
-        ReplaceWith("gameEngine.getPlayerAllies()", "com.xianxia.sect.core.engine.GameEngine")
-    )
-    fun getPlayerAllies(): List<String> = gameEngine.getPlayerAllies()
     
     private fun getSpiritStoneCost(tier: Int): Long {
         return when (tier) {

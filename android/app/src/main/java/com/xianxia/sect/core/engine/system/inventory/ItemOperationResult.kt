@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.xianxia.sect.core.engine.system.inventory
 
 sealed class ItemOperationResult<out T> {
@@ -61,11 +63,13 @@ sealed class ItemOperationResult<out T> {
         return this
     }
     
+@Suppress("NOTHING_TO_INLINE")
     inline fun recover(transform: (Failed<@UnsafeVariance T>) -> ItemOperationResult<@UnsafeVariance T>): ItemOperationResult<T> = when (this) {
         is Failed -> transform(this)
         else -> this
     }
     
+    @Suppress("NOTHING_TO_INLINE")
     inline fun recoverWith(default: @UnsafeVariance T): ItemOperationResult<T> = when (this) {
         is Failed -> Success(default)
         else -> this

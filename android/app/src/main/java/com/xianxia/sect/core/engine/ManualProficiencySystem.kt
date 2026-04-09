@@ -8,6 +8,15 @@ object ManualProficiencySystem {
     
     const val BASE_PROFICIENCY_GAIN = 1.0
     const val MASTERY_THRESHOLD = 100.0
+
+    /**
+     * 藏经阁功法熟练度修炼加成比例。
+     *
+     * 藏经阁仅对分配到3个槽位内的弟子提供加成效果：
+     * - 处于藏经阁槽位的弟子：修炼速度 = 基础速度 × (1.0 + 0.5)（即加快 50%）
+     * - 未在藏经阁中的弟子：无加成
+     */
+    const val LIBRARY_PROFICIENCY_BONUS_RATE = 0.5
     
     // 根据功法品阶获取熟练度阈值（品阶越高，需要的熟练度越多）
     fun getProficiencyThresholds(manualRarity: Int): Map<MasteryLevel, Double> {
@@ -168,16 +177,6 @@ object ManualProficiencySystem {
     ): Double {
         val mastery = MasteryLevel.fromLevel(masteryLevel)
         return baseMultiplier * mastery.bonus
-    }
-    
-    fun getLibraryStudyBonus(libraryLevel: Int, assignedDiscipleCount: Int): Double {
-        // Library level provides base bonus
-        val levelBonus = libraryLevel * 0.05
-        
-        // Assigned disciples provide additional bonus
-        val discipleBonus = assignedDiscipleCount * 0.02
-        
-        return (levelBonus + discipleBonus).coerceAtMost(0.5)
     }
     
     fun shouldAutoLearnManual(

@@ -1,7 +1,6 @@
 package com.xianxia.sect.data.unified
 
 import android.util.Log
-import com.xianxia.sect.data.GsonConfig
 import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.serialization.unified.CompressionType
 import com.xianxia.sect.data.serialization.unified.SaveDataConverter
@@ -9,11 +8,6 @@ import com.xianxia.sect.data.serialization.unified.SerializationContext
 import com.xianxia.sect.data.serialization.unified.SerializationFormat
 import com.xianxia.sect.data.serialization.unified.SerializableSaveData
 import com.xianxia.sect.data.serialization.unified.UnifiedSerializationEngine
-import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
-import java.io.InputStreamReader
-import java.util.zip.GZIPInputStream
-import java.util.zip.GZIPOutputStream
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -25,11 +19,18 @@ class SerializationHelper @Inject constructor(
     
     companion object {
         private const val TAG = "SerializationHelper"
-        private const val GZIP_BUFFER_SIZE = 64 * 1024
     }
     
-    private val gson = GsonConfig.createGson()
-    
+    /**
+     * 将 SaveData 序列化为 Protobuf 格式的字节数组。
+     *
+     * 统一使用 Protobuf + LZ4 压缩路径，不再支持 JSON/GZIP 回退。
+     * 序列化失败时直接抛出 [SerializationException]，不做静默降级。
+     *
+     * @param data 待序列化的存档数据
+     * @return 序列化并压缩后的字节数组
+     * @throws SerializationException 序列化过程中发生不可恢复的错误
+     */
     fun serializeAndCompressSaveData(data: SaveData): ByteArray {
         return try {
             val serializableData = saveDataConverter.toSerializable(data)
@@ -46,56 +47,21 @@ class SerializationHelper @Inject constructor(
             )
             result.data
         } catch (e: Exception) {
-            Log.w(TAG, "Protobuf serialization failed, falling back to GZIP", e)
-            serializeAndCompressSaveDataLegacy(data)
+            Log.e(TAG, "Protobuf serialization failed", e)
+            throw SerializationException("Failed to serialize save data via Protobuf", e)
         }
     }
     
-    fun serializeAndCompressSaveDataLegacy(data: SaveData): ByteArray {
-        val jsonBytes = gson.toJson(data).toByteArray(Charsets.UTF_8)
-        val baos = ByteArrayOutputStream()
-        GZIPOutputStream(baos, GZIP_BUFFER_SIZE).use { gzip ->
-            gzip.write(jsonBytes)
-        }
-        return baos.toByteArray()
-    }
-    
-    fun decompressData(data: ByteArray): ByteArray? {
+    fun deserializeSaveData(data: ByteArray): SaveData {
         return try {
-            if (isGzipCompressed(data)) {
-                GZIPInputStream(ByteArrayInputStream(data), GZIP_BUFFER_SIZE).use { input ->
-                    input.readBytes()
-                }
-            } else {
-                data
-            }
+            deserializeProtobufData(data)
+                ?: throw SerializationException("Protobuf deserialization returned null (data may be corrupted or checksum invalid)")
+        } catch (e: SerializationException) {
+            throw e
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to decompress data", e)
-            null
+            Log.e(TAG, "Failed to deserialize save data via Protobuf", e)
+            throw SerializationException("Failed to deserialize save data via Protobuf", e)
         }
-    }
-    
-    fun deserializeSaveData(data: ByteArray): SaveData? {
-        return try {
-            if (isProtobufFormat(data)) {
-                deserializeProtobufData(data)
-            } else {
-                deserializeJsonData(data)
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to deserialize save data", e)
-            null
-        }
-    }
-    
-    fun isGzipCompressed(data: ByteArray): Boolean {
-        return data.size >= 2 && data[0] == 0x1f.toByte() && data[1] == 0x8b.toByte()
-    }
-    
-    fun isProtobufFormat(data: ByteArray): Boolean {
-        if (data.size < 8) return false
-        val magic = ((data[0].toInt() and 0xFF) shl 8) or (data[1].toInt() and 0xFF)
-        return magic == 0x5853
     }
     
     fun deserializeProtobufData(data: ByteArray): SaveData? {
@@ -113,7 +79,7 @@ class SerializationHelper @Inject constructor(
             if (result.isSuccess && result.data != null) {
                 saveDataConverter.fromSerializable(result.data)
             } else {
-                Log.w(TAG, "Protobuf deserialization failed, checksum valid: ${result.checksumValid}")
+                Log.w(TAG, "Protobuf deserialization returned invalid result, checksum valid: ${result.checksumValid}")
                 null
             }
         } catch (e: Exception) {
@@ -121,46 +87,12 @@ class SerializationHelper @Inject constructor(
             null
         }
     }
-    
-    fun deserializeJsonData(data: ByteArray): SaveData? {
-        return try {
-            gson.fromJson(String(data, Charsets.UTF_8), SaveData::class.java)
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to deserialize JSON data", e)
-            null
-        }
-    }
-    
-    suspend fun tryLoadLegacyFormat(
-        data: ByteArray,
-        decryptData: suspend (ByteArray) -> ByteArray?
-    ): SaveData? {
-        return try {
-            if (isGzipCompressed(data)) {
-                GZIPInputStream(ByteArrayInputStream(data), GZIP_BUFFER_SIZE).use { input ->
-                    InputStreamReader(input, Charsets.UTF_8).use { reader ->
-                        gson.fromJson(reader, SaveData::class.java)
-                    }
-                }
-            } else {
-                val decrypted = decryptData(data)
-                if (decrypted != null) {
-                    if (isGzipCompressed(decrypted)) {
-                        GZIPInputStream(ByteArrayInputStream(decrypted), GZIP_BUFFER_SIZE).use { input ->
-                            InputStreamReader(input, Charsets.UTF_8).use { reader ->
-                                gson.fromJson(reader, SaveData::class.java)
-                            }
-                        }
-                    } else {
-                        gson.fromJson(String(decrypted, Charsets.UTF_8), SaveData::class.java)
-                    }
-                } else {
-                    gson.fromJson(String(data, Charsets.UTF_8), SaveData::class.java)
-                }
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to load legacy format: ${e.message}")
-            null
-        }
-    }
 }
+
+/**
+ * 序列化过程中的不可恢复异常。
+ *
+ * 当 Protobuf 序列化/反序列化流程发生错误且无法通过重试解决时抛出。
+ * 替代了原有的静默回退到 JSON/GZIP 的行为。
+ */
+class SerializationException(message: String, cause: Throwable? = null) : Exception(message, cause)

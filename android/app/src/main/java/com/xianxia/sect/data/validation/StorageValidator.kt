@@ -1,5 +1,6 @@
 package com.xianxia.sect.data.validation
 
+import android.annotation.SuppressLint
 import android.util.Log
 import com.xianxia.sect.data.crypto.IntegrityValidator
 import com.xianxia.sect.data.crypto.SaveCrypto
@@ -18,12 +19,190 @@ import java.security.MessageDigest
  * 职责：集中管理所有存储层的数据完整性验证逻辑，消除各模块中的重复验证代码。
  * 关注点：文件完整性、数据一致性、加密校验、Delta链有效性等存储层关注点。
  *
+ * 架构：采用可扩展规则引擎模式，ValidationRule 接口定义验证契约，
+ * RuleEngine 负责编排规则的执行，内置预定义规则覆盖常见校验场景。
+ *
  * 与 InputValidator 的区别：
  * - InputValidator: 面向UI层的用户输入验证（名称合法性、格式检查等）
  * - StorageValidator: 面向存储层的数据完整性验证（文件存在性、checksum、签名等）
  */
 object StorageValidator {
     private const val TAG = "StorageValidator"
+
+    // ===== 规则引擎定义 =====
+
+    /**
+     * 验证规则接口。
+     * 每个规则负责校验 SaveData 的某个特定维度，返回发现的问题列表。
+     */
+    interface ValidationRule {
+        /** 规则唯一标识，用于动态增删 */
+        val ruleId: String
+
+        /**
+         * 执行验证逻辑。
+         * @param data 待验证的存档数据
+         * @return 发现的问题列表（空列表表示通过）
+         */
+        fun validate(data: SaveData): List<ValidationIssue>
+    }
+
+    /**
+     * 可扩展的验证规则引擎。
+     * 管理一组 ValidationRule，提供统一的 validate 入口，
+     * 支持运行时动态添加/移除规则。
+     */
+    class RuleEngine(private val rules: MutableList<ValidationRule> = mutableListOf()) {
+
+        /** 添加验证规则（幂等：若 ruleId 已存在则替换） */
+        fun addRule(rule: ValidationRule) {
+            removeAll { it.ruleId == rule.ruleId }
+            rules.add(rule)
+        }
+
+        /** 按 ruleId 移除规则 */
+        fun removeRule(ruleId: String) {
+            removeAll { it.ruleId == ruleId }
+        }
+
+        /** 按条件移除规则 */
+        private fun removeAll(predicate: (ValidationRule) -> Boolean) {
+            rules.removeAll(predicate)
+        }
+
+        /** 获取当前已注册的规则列表（只读视图） */
+        fun getRules(): List<ValidationRule> = rules.toList()
+
+        /**
+         * 使用所有已注册规则执行完整验证。
+         * 按规则顺序依次执行，收集所有问题和警告。
+         */
+        fun validate(data: SaveData): ValidationResult {
+            val allErrors = mutableListOf<ValidationIssue>()
+            val allWarnings = mutableListOf<ValidationIssue>()
+
+            for (rule in rules) {
+                try {
+                    val issues = rule.validate(data)
+                    for (issue in issues) {
+                        when (issue.severity) {
+                            Severity.ERROR -> allErrors.add(issue)
+                            Severity.WARNING, Severity.INFO -> allWarnings.add(issue)
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Rule ${rule.ruleId} threw exception during validation", e)
+                    allErrors.add(ValidationIssue(
+                        code = "RULE_EXCEPTION",
+                        message = "Rule ${rule.ruleId} failed: ${e.message}",
+                        severity = Severity.ERROR,
+                        context = mapOf("ruleId" to rule.ruleId, "error" to e.message)
+                    ))
+                }
+            }
+
+            return when {
+                allErrors.isNotEmpty() -> ValidationResult.errorWithErrorsAndWarnings(allErrors, allWarnings)
+                allWarnings.isNotEmpty() -> ValidationResult.validWithWarnings(allWarnings)
+                else -> ValidationResult.valid()
+            }
+        }
+    }
+
+    // ===== 内置预定义规则 =====
+
+    /** 校验 version 非空 */
+    object VersionRule : ValidationRule {
+        override val ruleId: String = "version_check"
+        override fun validate(data: SaveData): List<ValidationIssue> =
+            if (data.version.isBlank()) {
+                listOf(ValidationIssue("EMPTY_VERSION", "SaveData version is blank"))
+            } else emptyList()
+    }
+
+    /** 校验 timestamp > 0 */
+    object TimestampRule : ValidationRule {
+        override val ruleId: String = "timestamp_check"
+        override fun validate(data: SaveData): List<ValidationIssue> =
+            if (data.timestamp <= 0) {
+                listOf(ValidationIssue("INVALID_TIMESTAMP", "SaveData timestamp is invalid: ${data.timestamp}"))
+            } else emptyList()
+    }
+
+    /**
+     * 校验弟子数量在合理范围内 [0, MAX_DISCIPLE_COUNT]。
+     * 上限设为 10000 以防止异常数据导致性能问题。
+     */
+    object DiscipleCountRule : ValidationRule {
+        private const val MAX_DISCIPLE_COUNT = 10_000
+        override val ruleId: String = "disciple_count_check"
+        override fun validate(data: SaveData): List<ValidationIssue> {
+            val count = data.disciples.size
+            return when {
+                count < 0 -> listOf(ValidationIssue(
+                    code = "NEGATIVE_DISCIPLE_COUNT",
+                    message = "Disciple count is negative: $count"
+                ))
+                count > MAX_DISCIPLE_COUNT -> listOf(ValidationIssue(
+                    code = "EXCESSIVE_DISCIPLE_COUNT",
+                    message = "Disciple count $count exceeds reasonable limit ($MAX_DISCIPLE_COUNT)",
+                    severity = Severity.WARNING,
+                    context = mapOf("count" to count, "limit" to MAX_DISCIPLE_COUNT)
+                ))
+                else -> emptyList()
+            }
+        }
+    }
+
+    /** 校验灵石数量 >= 0 */
+    object ResourceRule : ValidationRule {
+        override val ruleId: String = "resource_check"
+        override fun validate(data: SaveData): List<ValidationIssue> =
+            if (data.gameData.spiritStones < 0) {
+                listOf(ValidationIssue(
+                    code = "NEGATIVE_SPIRIT_STONES",
+                    message = "Spirit stones is negative: ${data.gameData.spiritStones}",
+                    severity = Severity.WARNING,
+                    context = mapOf("spiritStones" to data.gameData.spiritStones)
+                ))
+            } else emptyList()
+    }
+
+    /**
+     * 校验跨字段一致性。
+     * 例如：确保关键列表不为 null（Kotlin 序列化后理论上不会，但防御性检查）。
+     */
+    object CrossFieldConsistencyRule : ValidationRule {
+        override val ruleId: String = "cross_field_consistency"
+        override fun validate(data: SaveData): List<ValidationIssue> {
+            val issues = mutableListOf<ValidationIssue>()
+
+            // gameData 不为 null 的基本检查
+            if (data.gameData.sectName.isBlank()) {
+                issues.add(ValidationIssue(
+                    code = "EMPTY_SECT_NAME",
+                    message = "Sect name is blank",
+                    severity = Severity.WARNING
+                ))
+            }
+
+            return issues
+        }
+    }
+
+    // ===== 规则引擎实例 =====
+
+    /**
+     * 内置规则引擎，预加载所有标准验证规则。
+     * 外部可通过 engine.addRule / engine.removeRule 动态扩展。
+     */
+    val engine: RuleEngine = RuleEngine(mutableListOf(
+        VersionRule,
+        TimestampRule,
+        DiscipleCountRule,
+        ResourceRule,
+        CrossFieldConsistencyRule
+    ))
 
     // ===== 数据类定义 =====
 
@@ -41,6 +220,8 @@ object StorageValidator {
             fun errors(issues: List<ValidationIssue>): ValidationResult =
                 ValidationResult(false, issues)
             fun errorWithWarnings(errors: List<ValidationIssue>, warnings: List<ValidationIssue>): ValidationResult =
+                ValidationResult(false, errors, warnings)
+            fun errorWithErrorsAndWarnings(errors: List<ValidationIssue>, warnings: List<ValidationIssue>): ValidationResult =
                 ValidationResult(false, errors, warnings)
         }
     }
@@ -123,6 +304,7 @@ object StorageValidator {
     /**
      * 验证磁盘空间是否充足
      */
+    @SuppressLint("UsableSpace")
     fun validateDiskSpace(requiredBytes: Long, directory: File): ValidationResult {
         return try {
             val freeSpace = directory.usableSpace
@@ -148,33 +330,12 @@ object StorageValidator {
     // ===== 数据级验证 =====
 
     /**
-     * 验证SaveData的基本完整性
+     * 验证SaveData的基本完整性。
+     *
+     * 委托给内部规则引擎执行，按注册顺序依次运行所有 ValidationRule。
+     * 可通过 engine.addRule / engine.removeRule 动态调整验证策略。
      */
-    fun validateSaveData(data: SaveData): ValidationResult {
-        val issues = mutableListOf<ValidationIssue>()
-
-        if (data.version.isBlank()) {
-            issues.add(ValidationIssue("EMPTY_VERSION", "SaveData version is blank"))
-        }
-
-        if (data.timestamp <= 0) {
-            issues.add(ValidationIssue("INVALID_TIMESTAMP", "SaveData timestamp is invalid: ${data.timestamp}"))
-        }
-
-        if (data.gameData == null) {
-            issues.add(ValidationIssue("NULL_GAME_DATA", "SaveData gameData is null"))
-        }
-
-        if (data.disciples == null) {
-            issues.add(ValidationIssue("NULL_DISCIPLES", "SaveData disciples is null"))
-        }
-
-        return if (issues.isEmpty()) {
-            ValidationResult.valid()
-        } else {
-            ValidationResult.errors(issues)
-        }
-    }
+    fun validateSaveData(data: SaveData): ValidationResult = engine.validate(data)
 
     /**
      * 验证槽位编号是否在有效范围内
@@ -598,11 +759,5 @@ object StorageValidator {
     private fun collectIssues(result: ValidationResult, errors: MutableList<ValidationIssue>, warnings: MutableList<ValidationIssue>) {
         errors.addAll(result.errors)
         warnings.addAll(result.warnings)
-    }
-
-    // ===== 扩展ValidationResult以支持errors+warnings构造 =====
-
-    private fun ValidationResult.Companion.errorWithErrorsAndWarnings(errors: List<ValidationIssue>, warnings: List<ValidationIssue>): ValidationResult {
-        return ValidationResult(false, errors, warnings)
     }
 }

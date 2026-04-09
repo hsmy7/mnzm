@@ -1,13 +1,15 @@
 package com.xianxia.sect.ui.game
 
+import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.ui.components.ElderBonusInfoProvider
 
 @Composable
 fun WenDaoPeakDialog(
-    disciples: List<Disciple>,
+    disciples: List<DiscipleAggregate>,
     gameData: GameData?,
     viewModel: GameViewModel,
     onDismiss: () -> Unit

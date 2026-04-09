@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.GameConfig
@@ -50,7 +52,7 @@ object AISectDiscipleManager {
         val physicalDefenseVariance = Random.nextInt(-50, 51)
         val magicDefenseVariance = Random.nextInt(-50, 51)
         val speedVariance = Random.nextInt(-50, 51)
-        val talents = generateTalents()
+        val talents = TalentDatabase.generateTalentsForDisciple().map { it.id }
         val manuals = generateManuals(maxRealm)
         val equipments = generateEquipments(maxRealm)
         
@@ -83,13 +85,21 @@ object AISectDiscipleManager {
                 speedVariance = speedVariance
             ),
             equipment = EquipmentSet(
-                weaponId = equipments.firstOrNull { it.second == EquipmentSlot.WEAPON }?.first,
-                armorId = equipments.firstOrNull { it.second == EquipmentSlot.ARMOR }?.first,
-                bootsId = equipments.firstOrNull { it.second == EquipmentSlot.BOOTS }?.first,
-                accessoryId = equipments.firstOrNull { it.second == EquipmentSlot.ACCESSORY }?.first
+                weaponId = equipments.firstOrNull { it.second == EquipmentSlot.WEAPON }?.first ?: "",
+                armorId = equipments.firstOrNull { it.second == EquipmentSlot.ARMOR }?.first ?: "",
+                bootsId = equipments.firstOrNull { it.second == EquipmentSlot.BOOTS }?.first ?: "",
+                accessoryId = equipments.firstOrNull { it.second == EquipmentSlot.ACCESSORY }?.first ?: ""
             ),
             skills = SkillStats(
-                comprehension = comprehension
+                intelligence = Random.nextInt(1, 101),
+                charm = Random.nextInt(1, 101),
+                loyalty = Random.nextInt(1, 101),
+                comprehension = comprehension,
+                morality = Random.nextInt(1, 101),
+                artifactRefining = Random.nextInt(1, 101),
+                pillRefining = Random.nextInt(1, 101),
+                spiritPlanting = Random.nextInt(1, 101),
+                teaching = Random.nextInt(1, 101)
             )
         ).apply {
             val baseStats = Disciple.calculateBaseStatsWithVariance(
@@ -119,22 +129,16 @@ object AISectDiscipleManager {
     }
     
     private fun generateSpiritRoot(): String {
-        val count = when (Random.nextDouble()) {
-            in 0.0..0.01 -> 1
-            in 0.01..0.07 -> 2
-            in 0.07..0.30 -> 3
-            in 0.30..0.60 -> 4
+        val count = when (Random.nextInt(100)) {
+            in 0..4 -> 1
+            in 5..24 -> 2
+            in 25..54 -> 3
+            in 55..84 -> 4
             else -> 5
         }
         
         val shuffled = spiritRootTypes.shuffled()
         return shuffled.take(count).joinToString(",")
-    }
-    
-    private fun generateTalents(): List<String> {
-        val count = Random.nextInt(1, 4)
-        val talents = TalentDatabase.generateRandomTalents(count)
-        return talents.map { it.id }
     }
     
     private fun generateManuals(maxRealm: Int): List<Pair<String, Int>> {
@@ -185,7 +189,12 @@ object AISectDiscipleManager {
         }
         
         val allDisciples = sect.aiDisciples + newDisciples
-        return sect.copy(aiDisciples = allDisciples)
+        val trimmed = if (allDisciples.size > PlantSlotData.MAX_AI_DISCIPLES_PER_SECT) {
+            allDisciples.sortedByDescending { it.combat.basePhysicalAttack + it.combat.baseMagicAttack + it.combat.baseHp }.take(PlantSlotData.MAX_AI_DISCIPLES_PER_SECT)
+        } else {
+            allDisciples
+        }
+        return sect.copy(aiDisciples = trimmed)
     }
     
     fun processMonthlyCultivation(sect: WorldSect): WorldSect {
@@ -313,16 +322,16 @@ object AISectDiscipleManager {
     
     private fun updateEquipmentNurture(
         disciple: Disciple,
-        equipmentId: String?,
-        currentNurture: EquipmentNurtureData?,
-        nurtureSetter: (Disciple, EquipmentNurtureData?) -> Disciple
+        equipmentId: String,
+        currentNurture: EquipmentNurtureData,
+        nurtureSetter: (Disciple, EquipmentNurtureData) -> Disciple
     ): Disciple {
-        if (equipmentId == null) return disciple
-        
+        if (equipmentId.isEmpty()) return disciple
+
         val template = EquipmentDatabase.getById(equipmentId) ?: return disciple
         val rarity = template.rarity
-        
-        val nurture = if (currentNurture == null || currentNurture.equipmentId != equipmentId) {
+
+        val nurture = if (currentNurture.equipmentId != equipmentId) {
             EquipmentNurtureData(
                 equipmentId = equipmentId,
                 rarity = rarity,
@@ -402,7 +411,11 @@ object AISectDiscipleManager {
         }
         
         return sect.copy(
-            aiDisciples = disciples,
+            aiDisciples = if (disciples.size > PlantSlotData.MAX_AI_DISCIPLES_PER_SECT) {
+                disciples.sortedByDescending { it.combat.basePhysicalAttack + it.combat.baseMagicAttack + it.combat.baseHp }.take(PlantSlotData.MAX_AI_DISCIPLES_PER_SECT)
+            } else {
+                disciples
+            },
             maxRealm = maxRealm
         )
     }
@@ -443,14 +456,14 @@ object AISectDiscipleManager {
         newDisciple = newDisciple.copyWith(
             manualIds = manuals.map { it.first },
             manualMasteries = manuals.associate { it.first to it.second },
-            weaponId = equipments.firstOrNull { it.second == EquipmentSlot.WEAPON }?.first,
-            armorId = equipments.firstOrNull { it.second == EquipmentSlot.ARMOR }?.first,
-            bootsId = equipments.firstOrNull { it.second == EquipmentSlot.BOOTS }?.first,
-            accessoryId = equipments.firstOrNull { it.second == EquipmentSlot.ACCESSORY }?.first,
-            weaponNurture = null,
-            armorNurture = null,
-            bootsNurture = null,
-            accessoryNurture = null
+            weaponId = equipments.firstOrNull { it.second == EquipmentSlot.WEAPON }?.first ?: "",
+            armorId = equipments.firstOrNull { it.second == EquipmentSlot.ARMOR }?.first ?: "",
+            bootsId = equipments.firstOrNull { it.second == EquipmentSlot.BOOTS }?.first ?: "",
+            accessoryId = equipments.firstOrNull { it.second == EquipmentSlot.ACCESSORY }?.first ?: "",
+            weaponNurture = EquipmentNurtureData("", 0),
+            armorNurture = EquipmentNurtureData("", 0),
+            bootsNurture = EquipmentNurtureData("", 0),
+            accessoryNurture = EquipmentNurtureData("", 0)
         )
         
         return newDisciple

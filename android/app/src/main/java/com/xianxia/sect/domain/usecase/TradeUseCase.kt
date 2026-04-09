@@ -106,9 +106,8 @@ class TradeUseCase @Inject constructor(
                     return@withContext TradeResult(false, "装备已被装备，请先卸下")
                 }
                 
+                val price = (equipment.basePrice * 0.8).toLong()
                 gameEngine.sellEquipment(equipmentId)
-                
-                val price = calculateEquipmentPrice(equipment.rarity)
                 
                 eventBus.emit(NotificationEvent(
                     title = "出售成功",
@@ -134,9 +133,8 @@ class TradeUseCase @Inject constructor(
                     return@withContext TradeResult(false, "功法数量不足")
                 }
                 
+                val price = (manual.basePrice * quantity * 0.8).toLong()
                 gameEngine.sellManual(manualId, quantity)
-                
-                val price = calculateManualPrice(manual.rarity) * quantity
                 
                 eventBus.emit(NotificationEvent(
                     title = "出售成功",
@@ -162,9 +160,8 @@ class TradeUseCase @Inject constructor(
                     return@withContext TradeResult(false, "丹药数量不足")
                 }
                 
+                val price = (pill.basePrice * quantity * 0.8).toLong()
                 gameEngine.sellPill(pillId, quantity)
-                
-                val price = calculatePillPrice(pill.rarity) * quantity
                 
                 eventBus.emit(NotificationEvent(
                     title = "出售成功",
@@ -220,36 +217,4 @@ class TradeUseCase @Inject constructor(
         return getSpiritStones() >= price
     }
     
-    private fun calculateEquipmentPrice(rarity: Int): Long {
-        return when (rarity) {
-            1 -> 100L
-            2 -> 500L
-            3 -> 2000L
-            4 -> 10000L
-            5 -> 50000L
-            else -> 100L
-        }
-    }
-    
-    private fun calculateManualPrice(rarity: Int): Long {
-        return when (rarity) {
-            1 -> 50L
-            2 -> 200L
-            3 -> 1000L
-            4 -> 5000L
-            5 -> 25000L
-            else -> 50L
-        }
-    }
-    
-    private fun calculatePillPrice(rarity: Int): Long {
-        return when (rarity) {
-            1 -> 30L
-            2 -> 150L
-            3 -> 800L
-            4 -> 4000L
-            5 -> 20000L
-            else -> 30L
-        }
-    }
 }

@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.xianxia.sect.data.local
 
 import androidx.room.*
@@ -89,15 +91,7 @@ interface BatchUpdateDao {
         WHERE discipleId IN (:discipleIds)
     """)
     suspend fun batchAddCultivation(discipleIds: List<String>, amount: Long): Int
-    
-    @Transaction
-    @Query("""
-        UPDATE disciples_combat 
-        SET battlesWon = battlesWon + 1
-        WHERE discipleId IN (:discipleIds)
-    """)
-    suspend fun batchIncrementBattlesWon(discipleIds: List<String>): Int
-    
+
     @Transaction
     @Query("""
         UPDATE disciples_attributes 
@@ -268,10 +262,11 @@ fun Disciple.toSplitEntities(): SplitDiscipleEntities {
         pillMpBonus = pillMpBonus,
         pillSpeedBonus = pillSpeedBonus,
         pillEffectDuration = pillEffectDuration,
-        battlesWon = battlesWon,
         totalCultivation = totalCultivation,
         breakthroughCount = breakthroughCount,
-        breakthroughFailCount = breakthroughFailCount
+        breakthroughFailCount = breakthroughFailCount,
+        currentHp = currentHp,
+        currentMp = currentMp
     )
     
     val equipment = DiscipleEquipment(

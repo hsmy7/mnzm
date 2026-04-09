@@ -67,6 +67,14 @@ class SlotValidationInterceptor(
     val stats: StateFlow<SlotValidationStats> = _stats.asStateFlow()
     
     init {
+        slotStates[AUTO_SAVE_SLOT] = SlotState(
+            slot = AUTO_SAVE_SLOT,
+            isActive = false,
+            isLocked = false,
+            isCorrupted = false,
+            lastAccessTime = 0L,
+            accessCount = 0L
+        )
         for (slot in MIN_USER_SLOT..maxSlots) {
             slotStates[slot] = SlotState(
                 slot = slot,

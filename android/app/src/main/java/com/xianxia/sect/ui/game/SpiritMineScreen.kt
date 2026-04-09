@@ -21,7 +21,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.DirectDiscipleSlot
-import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.SpiritMineSlot
 import com.xianxia.sect.ui.theme.GameColors
@@ -34,7 +34,7 @@ fun SpiritMineDialog(
     viewModel: GameViewModel,
     onDismiss: () -> Unit
 ) {
-    val disciples by viewModel.disciples.collectAsState()
+    val disciples by viewModel.discipleAggregates.collectAsState()
     val gameData by viewModel.gameData.collectAsState()
     
     var showDiscipleSelection by remember { mutableStateOf(false) }
@@ -45,7 +45,7 @@ fun SpiritMineDialog(
     }
     
     val mineSlots = gameData?.spiritMineSlots ?: emptyList()
-    val slots = (0 until 6).map { index ->
+    val slots = (0 until 12).map { index ->
         mineSlots.find { it.index == index } ?: SpiritMineSlot(index = index)
     }
     
@@ -64,28 +64,15 @@ fun SpiritMineDialog(
     }
     
     val baseOutput = slots.map { slot ->
-        if (slot.discipleId == null) {
+        if (slot.discipleId.isEmpty()) {
             0L
         } else {
-            val disciple = disciples.find { it.id == slot.discipleId }
-            val baseOutput = when (disciple?.realm) {
-                0 -> 250000L
-                1 -> 90000L
-                2 -> 35000L
-                3 -> 13000L
-                4 -> 5000L
-                5 -> 2000L
-                6 -> 800L
-                7 -> 300L
-                8 -> 120L
-                9 -> 50L
-                else -> 50L
-            }
-            baseOutput
+            60L
         }
     }.sum()
-    
-    val totalOutput = (baseOutput * (1 + deaconBonus)).toLong()
+
+    val boostEffect = if (gameData?.sectPolicies?.spiritMineBoost == true) 1.2 else 1.0
+    val totalOutput = (baseOutput * (1 + deaconBonus) * boostEffect).toLong()
 
     CommonDialog(
         title = "灵矿场",
@@ -110,12 +97,35 @@ fun SpiritMineDialog(
                 thickness = 1.dp
             )
             
-            Text(
-                text = "矿工槽位 ($emptySlotCount/6 空闲)",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFF666666)
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "矿工槽位 ($emptySlotCount/12 空闲)",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF666666)
+                )
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(if (emptySlotCount > 0) Color(0xFF4CAF50) else Color(0xFFCCCCCC))
+                        .clickable(enabled = emptySlotCount > 0) {
+                            viewModel.autoAssignSpiritMineMiners()
+                        }
+                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "一键任命",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+            }
             
             slots.chunked(3).forEach { rowSlots ->
                 Row(
@@ -166,7 +176,7 @@ fun SpiritMineDialog(
 @Composable
 private fun SpiritMineDeaconSection(
     deaconSlots: List<DirectDiscipleSlot>,
-    disciples: List<Disciple>,
+    disciples: List<DiscipleAggregate>,
     onDeaconClick: (Int) -> Unit,
     onDeaconRemove: (Int) -> Unit
 ) {
@@ -209,7 +219,7 @@ private fun SpiritMineDeaconSection(
 private fun SpiritMineDeaconSlotItem(
     index: Int,
     deaconSlot: DirectDiscipleSlot,
-    disciple: Disciple?,
+    disciple: DiscipleAggregate?,
     onClick: () -> Unit,
     onRemove: () -> Unit
 ) {
@@ -299,7 +309,7 @@ private fun SpiritMineDeaconSlotItem(
 @Composable
 private fun SpiritMineSlotItem(
     slot: SpiritMineSlot,
-    disciple: Disciple?,
+    disciple: DiscipleAggregate?,
     onAssign: () -> Unit,
     onRemove: () -> Unit
 ) {
@@ -332,10 +342,10 @@ private fun SpiritMineSlotItem(
                     borderColor,
                     RoundedCornerShape(8.dp)
                 )
-                .clickable { if (slot.discipleId == null) onAssign() else onRemove() },
+                .clickable { if (slot.discipleId.isEmpty()) onAssign() else onRemove() },
             contentAlignment = Alignment.Center
         ) {
-            if (slot.discipleId != null && disciple != null) {
+            if (slot.discipleId.isNotEmpty() && disciple != null) {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
@@ -381,9 +391,9 @@ private fun SpiritMineSlotItem(
 
 @Composable
 private fun SpiritMineDiscipleSelectionDialog(
-    disciples: List<Disciple>,
+    disciples: List<DiscipleAggregate>,
     maxSelectCount: Int,
-    onConfirm: (List<Disciple>) -> Unit,
+    onConfirm: (List<DiscipleAggregate>) -> Unit,
     onDismiss: () -> Unit
 ) {
     var selectedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
@@ -400,7 +410,7 @@ private fun SpiritMineDiscipleSelectionDialog(
 
     val sortedDisciples = remember(disciples) {
         disciples.sortedWith(
-            compareBy<Disciple> { it.realm }.thenByDescending { it.realmLayer }
+            compareBy<DiscipleAggregate> { it.realm }.thenByDescending { it.realmLayer }
         )
     }
 
@@ -594,9 +604,9 @@ private fun SpiritMineDiscipleSelectionDialog(
 
 @Composable
 private fun SpiritMineDeaconSelectionDialog(
-    disciples: List<Disciple>,
+    disciples: List<DiscipleAggregate>,
     currentDeaconId: String?,
-    onSelect: (Disciple) -> Unit,
+    onSelect: (DiscipleAggregate) -> Unit,
     onDismiss: () -> Unit
 ) {
     var selectedRealmFilter by remember { mutableStateOf<Int?>(null) }
@@ -612,7 +622,7 @@ private fun SpiritMineDeaconSelectionDialog(
 
     val sortedDisciples = remember(disciples) {
         disciples.sortedWith(
-            compareBy<Disciple> { it.realm }.thenByDescending { it.realmLayer }
+            compareBy<DiscipleAggregate> { it.realm }.thenByDescending { it.realmLayer }
         )
     }
 

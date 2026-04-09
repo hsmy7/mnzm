@@ -2,11 +2,22 @@ package com.xianxia.sect.data.crypto
 
 import android.content.Context
 import android.util.Log
-import com.google.gson.Gson
-import com.google.gson.JsonElement
-import com.google.gson.JsonObject
-import com.google.gson.JsonParser
-import com.xianxia.sect.data.GsonConfig
+import com.xianxia.sect.data.serialization.NullSafeProtoBuf
+import com.xianxia.sect.data.serialization.unified.SaveDataConverter
+import com.xianxia.sect.data.serialization.unified.SerializableSaveData
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
+import java.math.BigDecimal
+import java.math.RoundingMode
 import java.security.MessageDigest
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
@@ -17,18 +28,22 @@ object IntegrityValidator {
     private const val SIGNATURE_VERSION = 1
     private const val SIGNATURE_LENGTH = 64
     
-    private val gson: Gson by lazy { GsonConfig.createGson() }
+    internal val json = Json { encodeDefaults = true; ignoreUnknownKeys = true }
     
     fun computeFullDataSignature(data: Any, key: ByteArray): String {
-        val fullJson = gson.toJson(data)
-        val canonicalJson = canonicalizeJson(fullJson)
-        return computeHmacHex(canonicalJson.toByteArray(Charsets.UTF_8), key)
+        val dataJson = dataToJsonString(data)
+        val canonicalJson = canonicalizeJson(dataJson)
+        // 在签名 payload 前添加版本号前缀，防止跨版本 kotlinx.serialization 不兼容
+        val payloadWithVersion = "${SIGNATURE_VERSION}|${canonicalJson}"
+        return computeHmacHex(payloadWithVersion.toByteArray(Charsets.UTF_8), key)
     }
     
     fun computeFullDataSignatureBytes(data: Any, key: ByteArray): ByteArray {
-        val fullJson = gson.toJson(data)
-        val canonicalJson = canonicalizeJson(fullJson)
-        return computeHmac(canonicalJson.toByteArray(Charsets.UTF_8), key)
+        val dataJson = dataToJsonString(data)
+        val canonicalJson = canonicalizeJson(dataJson)
+        // 在签名 payload 前添加版本号前缀，与 computeFullDataSignature() 保持一致
+        val payloadWithVersion = "${SIGNATURE_VERSION}|${canonicalJson}"
+        return computeHmac(payloadWithVersion.toByteArray(Charsets.UTF_8), key)
     }
     
     fun verifyFullDataSignature(data: Any, expectedSignature: String, key: ByteArray): Boolean {
@@ -37,25 +52,32 @@ object IntegrityValidator {
     }
     
     fun computeMerkleRoot(data: Any): String {
-        val json = gson.toJson(data)
-        val jsonElement = JsonParser.parseString(json)
+        val dataJson = dataToJsonString(data)
+        val jsonElement = json.parseToJsonElement(dataJson)
         
-        return when {
-            jsonElement.isJsonObject -> computeObjectMerkleRoot(jsonElement.asJsonObject)
-            jsonElement.isJsonArray -> computeArrayMerkleRoot(jsonElement.asJsonArray)
-            else -> sha256Hex(json.toByteArray(Charsets.UTF_8))
+        return when (jsonElement) {
+            is JsonObject -> computeObjectMerkleRoot(jsonElement)
+            is JsonArray -> computeArrayMerkleRoot(jsonElement)
+            else -> sha256Hex(dataJson.toByteArray(Charsets.UTF_8))
         }
     }
     
+    private fun dataToJsonString(data: Any): String {
+        return try {
+            json.encodeToString(data)
+        } catch (e: Exception) {
+            data.toString()
+        }
+    }
+
     private fun computeObjectMerkleRoot(obj: JsonObject): String {
-        val hashes = obj.entrySet()
+        val hashes = obj.entries
             .sortedBy { it.key }
             .map { (key, value) ->
-                val valueHash = when {
-                    value.isJsonObject -> computeObjectMerkleRoot(value.asJsonObject)
-                    value.isJsonArray -> computeArrayMerkleRoot(value.asJsonArray)
-                    value.isJsonPrimitive -> sha256Hex(value.toString().toByteArray(Charsets.UTF_8))
-                    else -> sha256Hex("null".toByteArray(Charsets.UTF_8))
+                val valueHash = when (value) {
+                    is JsonObject -> computeObjectMerkleRoot(value)
+                    is JsonArray -> computeArrayMerkleRoot(value)
+                    else -> sha256Hex(value.toString().toByteArray(Charsets.UTF_8))
                 }
                 sha256Hex((key + ":" + valueHash).toByteArray(Charsets.UTF_8))
             }
@@ -67,13 +89,12 @@ object IntegrityValidator {
         }
     }
     
-    private fun computeArrayMerkleRoot(array: com.google.gson.JsonArray): String {
+    private fun computeArrayMerkleRoot(array: JsonArray): String {
         val hashes = array.map { element ->
-            when {
-                element.isJsonObject -> computeObjectMerkleRoot(element.asJsonObject)
-                element.isJsonArray -> computeArrayMerkleRoot(element.asJsonArray)
-                element.isJsonPrimitive -> sha256Hex(element.toString().toByteArray(Charsets.UTF_8))
-                else -> sha256Hex("null".toByteArray(Charsets.UTF_8))
+            when (element) {
+                is JsonObject -> computeObjectMerkleRoot(element)
+                is JsonArray -> computeArrayMerkleRoot(element)
+                else -> sha256Hex(element.toString().toByteArray(Charsets.UTF_8))
             }
         }
         
@@ -88,7 +109,7 @@ object IntegrityValidator {
         val timestamp = System.currentTimeMillis()
         val version = SIGNATURE_VERSION
         
-        val dataJson = gson.toJson(data)
+        val dataJson = dataToJsonString(data)
         val dataHash = sha256Hex(dataJson.toByteArray(Charsets.UTF_8))
         val merkleRoot = computeMerkleRoot(data)
         
@@ -135,7 +156,7 @@ object IntegrityValidator {
             return VerificationResult.Expired(payload.timestamp, currentTime)
         }
         
-        val dataJson = gson.toJson(data)
+        val dataJson = dataToJsonString(data)
         val currentDataHash = sha256Hex(dataJson.toByteArray(Charsets.UTF_8))
         
         if (currentDataHash != payload.dataHash) {
@@ -199,30 +220,61 @@ object IntegrityValidator {
         return digest.digest(data).joinToString("") { "%02x".format(it) }
     }
     
-    private fun canonicalizeJson(json: String): String {
+    private fun canonicalizeJson(jsonStr: String): String {
         return try {
-            val element = JsonParser.parseString(json)
+            val element = json.parseToJsonElement(jsonStr)
             canonicalizeElement(element)
         } catch (e: Exception) {
-            json
+            jsonStr
         }
     }
     
     private fun canonicalizeElement(element: JsonElement): String {
-        return when {
-            element.isJsonObject -> {
-                val obj = element.asJsonObject
-                val entries = obj.entrySet().sortedBy { it.key }
+        return when (element) {
+            is JsonObject -> {
+                val entries = element.entries.sortedBy { it.key }
                 val parts = entries.map { "\"${it.key}\":${canonicalizeElement(it.value)}" }
                 "{${parts.joinToString(",")}}"
             }
-            element.isJsonArray -> {
-                val arr = element.asJsonArray
-                val parts = arr.map { canonicalizeElement(it) }
+            is JsonArray -> {
+                val parts = element.map { canonicalizeElement(it) }
                 "[${parts.joinToString(",")}]"
             }
-            element.isJsonPrimitive -> element.toString()
-            else -> "null"
+            is JsonPrimitive -> {
+                // 对数值类型使用 BigDecimal 统一格式化，确保跨版本确定性
+                // 问题：kotlinx.serialization 的 JsonPrimitive.toString() 对浮点数的格式化
+                //       在不同版本可能不一致（如 1.0 vs 1.00 vs 1E0）
+                // 解决：使用 BigDecimal 强制统一为固定精度格式
+                if (element.isString) {
+                    // 字符串：保留原始 JSON 转义
+                    "\"${element.content}\""
+                } else if (element.contentOrNull != null) {
+                    val content = element.content
+                    // 尝试解析为数值并统一格式
+                    try {
+                        if (content.contains(".") || content.contains("e") || content.contains("E")) {
+                            // 浮点数：使用 BigDecimal 格式化，去除尾随零
+                            val bd = BigDecimal(content)
+                            // 如果是整数（如 1.0），格式化为整数；否则保留必要小数位
+                            if (bd.scale() <= 0 || bd.stripTrailingZeros().scale() <= 0) {
+                                bd.toBigInteger().toString()
+                            } else {
+                                bd.stripTrailingZeros().toPlainString()
+                            }
+                        } else {
+                            // 整数：直接返回（已经是确定性的）
+                            content
+                        }
+                    } catch (e: NumberFormatException) {
+                        // 非数值内容（布尔值或 null）：直接返回
+                        content
+                    }
+                } else {
+                    // null 值
+                    "null"
+                }
+            }
+            else -> element.toString()
         }
     }
     
@@ -238,6 +290,7 @@ object IntegrityValidator {
     }
 }
 
+@Serializable
 data class SignedPayload(
     val version: Int,
     val timestamp: Long,
@@ -247,13 +300,13 @@ data class SignedPayload(
     val metadata: Map<String, String> = emptyMap()
 ) {
     fun toJson(): String {
-        return com.xianxia.sect.data.GsonConfig.createGson().toJson(this)
+        return com.xianxia.sect.data.crypto.IntegrityValidator.json.encodeToString(this)
     }
     
     companion object {
         fun fromJson(json: String): SignedPayload? {
             return try {
-                com.xianxia.sect.data.GsonConfig.createGson().fromJson(json, SignedPayload::class.java)
+                com.xianxia.sect.data.crypto.IntegrityValidator.json.decodeFromString<SignedPayload>(json)
             } catch (e: Exception) {
                 null
             }

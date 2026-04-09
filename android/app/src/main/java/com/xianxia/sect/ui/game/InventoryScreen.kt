@@ -2,6 +2,7 @@ package com.xianxia.sect.ui.game
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.lazy.LazyColumn
@@ -40,7 +41,7 @@ fun InventoryDialog(
     viewModel: GameViewModel,
     onDismiss: () -> Unit
 ) {
-    var selectedTab by remember { mutableStateOf(0) }
+    var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("装备", "功法", "丹药", "材料", "灵药", "种子")
     var showBulkSellDialog by remember { mutableStateOf(false) }
 
@@ -263,34 +264,72 @@ private fun <T> InventoryGrid(
 ) {
     var selectedItem by remember { mutableStateOf<T?>(null) }
     var showDetailDialog by remember { mutableStateOf(false) }
+    var currentPage by remember { mutableIntStateOf(0) }
+
+    val pageSize = 28
+    val totalPages = remember(items) {
+        maxOf(1, (items.size + pageSize - 1) / pageSize)
+    }
+
+    LaunchedEffect(totalPages) {
+        val corrected = currentPage.coerceIn(0, totalPages - 1)
+        if (corrected != currentPage) currentPage = corrected
+    }
+
+    val pageItems = remember(items, currentPage) {
+        val start = currentPage * pageSize
+        val end = minOf(start + pageSize, items.size)
+        if (start < items.size) items.subList(start, end) else emptyList()
+    }
 
     if (items.isEmpty()) {
         EmptyListMessage(emptyMessage)
     } else {
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(4),
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            items(items) { item ->
-                val isSelected = selectedItem == item
-                itemContent(
-                    item,
-                    isSelected,
-                    {
-                        // 点击卡片选中/取消选中
-                        selectedItem = if (isSelected) null else item
-                    },
-                    {
-                        // 点击查看按钮显示详情
-                        selectedItem = item
-                        showDetailDialog = true
+        Column(modifier = Modifier.fillMaxSize()) {
+            LazyVerticalGrid(
+                columns = GridCells.Adaptive(56.dp),
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(pageItems, key = {
+                    when (it) {
+                        is Equipment -> "eq_${it.id}"
+                        is Manual -> "ma_${it.id}"
+                        is Pill -> "pi_${it.id}"
+                        is Material -> "mt_${it.id}"
+                        is Herb -> "hb_${it.id}"
+                        is Seed -> "sd_${it.id}"
+                        else -> "${it?.let { obj -> obj::class.simpleName } ?: "Unknown"}_${it.hashCode()}"
                     }
-                )
+                }) { item ->
+                    val isSelected = selectedItem == item
+                    itemContent(
+                        item,
+                        isSelected,
+                        {
+                            selectedItem = if (isSelected) null else item
+                        },
+                        {
+                            selectedItem = item
+                            showDetailDialog = true
+                        }
+                    )
+                }
             }
+
+            Spacer(modifier = Modifier.height(6.dp))
+            InventoryPagination(
+                currentPage = currentPage + 1,
+                totalPages = totalPages,
+                onPreviousPage = { if (currentPage > 0) currentPage-- },
+                onNextPage = { if (currentPage < totalPages - 1) currentPage++ },
+                onFirstPage = { currentPage = 0 },
+                onLastPage = { currentPage = totalPages - 1 }
+            )
         }
     }
 
@@ -582,11 +621,10 @@ internal fun BulkSellDialog(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     LazyVerticalGrid(
-                        columns = GridCells.Fixed(4),
+                        columns = GridCells.Adaptive(56.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(max = 280.dp)
-                            .weight(1f, fill = false),
+                            .weight(1f),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
@@ -797,6 +835,75 @@ internal fun calculateBulkSellValue(
     }
 
     return items to totalValue
+}
+
+@Composable
+private fun InventoryPagination(
+    currentPage: Int,
+    totalPages: Int,
+    onPreviousPage: () -> Unit,
+    onNextPage: () -> Unit,
+    onFirstPage: () -> Unit,
+    onLastPage: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(28.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .background(if (currentPage > 1) Color(0xFF3498DB) else Color(0xFFCCCCCC))
+                .clickable(enabled = currentPage > 1) { onFirstPage() },
+            contentAlignment = Alignment.Center
+        ) {
+            Text("<<", fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Bold)
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        Box(
+            modifier = Modifier
+                .size(28.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .background(if (currentPage > 1) Color(0xFF3498DB) else Color(0xFFCCCCCC))
+                .clickable(enabled = currentPage > 1) { onPreviousPage() },
+            contentAlignment = Alignment.Center
+        ) {
+            Text("<", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Bold)
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            text = "第 $currentPage/$totalPages 页",
+            fontSize = 12.sp,
+            color = Color(0xFF333333),
+            fontWeight = FontWeight.Medium
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Box(
+            modifier = Modifier
+                .size(28.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .background(if (currentPage < totalPages) Color(0xFF3498DB) else Color(0xFFCCCCCC))
+                .clickable(enabled = currentPage < totalPages) { onNextPage() },
+            contentAlignment = Alignment.Center
+        ) {
+            Text(">", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Bold)
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        Box(
+            modifier = Modifier
+                .size(28.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .background(if (currentPage < totalPages) Color(0xFF3498DB) else Color(0xFFCCCCCC))
+                .clickable(enabled = currentPage < totalPages) { onLastPage() },
+            contentAlignment = Alignment.Center
+        ) {
+            Text(">>", fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Bold)
+        }
+    }
 }
 
 // FlowRow 组件（简化版）

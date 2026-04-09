@@ -2,12 +2,14 @@ package com.xianxia.sect.core.data
 
 import android.content.Context
 import android.util.Log
-import com.google.gson.Gson
-import com.google.protobuf.InvalidProtocolBufferException
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.Manual
 import com.xianxia.sect.core.model.ManualType
 import com.xianxia.sect.proto.templates.*
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.decodeFromString
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import kotlin.random.Random
@@ -16,7 +18,7 @@ object ManualDatabase {
     
     private const val TAG = "ManualDatabase"
     
-    private val gson = Gson()
+    private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     
     // ==================== Proto 校验配置 ====================
     
@@ -32,12 +34,38 @@ object ManualDatabase {
      */
     var enableProtoValidation: Boolean = true
     
-    /**
-     * 上次校验结果缓存（避免重复校验）
-     */
     @Volatile
     private var lastValidationResult: ValidationResult? = null
     
+    // ==================== 类型转换扩展函数 ====================
+    
+    private fun ManualType.toProtoType(): ManualTypeProto = when (this) {
+        ManualType.ATTACK -> ManualTypeProto.MANUAL_TYPE_ATTACK
+        ManualType.DEFENSE -> ManualTypeProto.MANUAL_TYPE_DEFENSE
+        ManualType.SUPPORT -> ManualTypeProto.MANUAL_TYPE_SUPPORT
+        ManualType.MIND -> ManualTypeProto.MANUAL_TYPE_MIND
+    }
+    
+    /**
+     * 将 Protobuf 枚举 ManualTypeProto 转换为领域模型 ManualType。
+     *
+     * **默认值策略**：
+     * - 对于无法识别的 Proto 值（如 MANUAL_TYPE_UNKNOWN=0 或未来新增的枚举值）
+     * - 安全降级为 ManualType.ATTACK，避免运行时异常
+     *
+     * **设计考量**：
+     * - Proto 枚举不支持 Kotlin 的 exhaustive when 编译时检查
+     * - 使用 else 分支确保所有可能的值都有明确的处理路径
+     */
+    private fun ManualTypeProto.toManualType(): ManualType = when (this) {
+        ManualTypeProto.MANUAL_TYPE_ATTACK -> ManualType.ATTACK
+        ManualTypeProto.MANUAL_TYPE_DEFENSE -> ManualType.DEFENSE
+        ManualTypeProto.MANUAL_TYPE_SUPPORT -> ManualType.SUPPORT
+        ManualTypeProto.MANUAL_TYPE_MIND -> ManualType.MIND
+        else -> ManualType.ATTACK
+    }
+    
+    @Serializable
     data class BuffInfo(
         val type: String,
         val value: Double,
@@ -66,7 +94,9 @@ object ManualDatabase {
         val skillBuffDuration: Int = 0,
         val skillBuffs: List<BuffInfo> = emptyList(),
         val price: Int = 0,
-        val minRealm: Int = 9
+        val minRealm: Int = 9,
+        val skillIsAoe: Boolean = false,
+        val skillTargetScope: String = "self"
     )
     
     @Volatile
@@ -88,12 +118,18 @@ object ManualDatabase {
     
     private fun buildLegacyMapping(): Map<String, String> {
         return mapOf(
-            "commonMovement" to "support_common_speed_crit_buff",
-            "uncommonMovement" to "support_uncommon_speed_crit_buff",
-            "rareMovement" to "support_rare_speed_crit_buff",
-            "epicMovement" to "support_epic_speed_crit_buff",
-            "legendaryMovement" to "support_legendary_speed_crit_buff",
-            "mythicMovement" to "support_mythic_speed_crit_buff"
+            "commonMovement" to "support_r1_speed",
+            "uncommonMovement" to "support_r2_speed",
+            "rareMovement" to "support_r3_speed",
+            "epicMovement" to "support_r4_speed",
+            "legendaryMovement" to "support_r5_speed",
+            "mythicMovement" to "support_r6_speed",
+            "support_common_speed_crit_buff" to "support_r1_speed",
+            "support_uncommon_speed_crit_buff" to "support_r2_speed",
+            "support_rare_speed_crit_buff" to "support_r3_speed",
+            "support_epic_speed_crit_buff" to "support_r4_speed",
+            "support_legendary_speed_crit_buff" to "support_r5_speed",
+            "support_mythic_speed_crit_buff" to "support_r6_speed"
         )
     }
     
@@ -180,14 +216,7 @@ object ManualDatabase {
                     .setPrice(template.price.toLong())
                     .setMinRealm(template.minRealm)
                 
-                // 设置类型枚举
-                protoBuilder.type = when (template.type) {
-                    ManualType.ATTACK -> ManualTypeProto.MANUAL_TYPE_ATTACK
-                    ManualType.DEFENSE -> ManualTypeProto.MANUAL_TYPE_DEFENSE
-                    ManualType.SUPPORT -> ManualTypeProto.MANUAL_TYPE_SUPPORT
-                    ManualType.MIND -> ManualTypeProto.MANUAL_TYPE_MIND
-                    ManualType.PRODUCTION -> ManualTypeProto.MANUAL_TYPE_SUPPORT  // PRODUCTION 映射到 SUPPORT（向后兼容）
-                }
+                protoBuilder.type = template.type.toProtoType()
                 
                 // 设置属性 map
                 template.stats.forEach { (key, value) ->
@@ -329,6 +358,7 @@ object ManualDatabase {
         supportManuals.forEach { builder.addSupportManuals(convertToProto(it)) }
         mindManuals.forEach { builder.addMindManuals(convertToProto(it)) }
         
+        @Suppress("NewApi")
         return java.util.Base64.getEncoder().encodeToString(builder.build().toByteArray())
     }
     
@@ -344,13 +374,7 @@ object ManualDatabase {
             .setPrice(template.price.toLong())
             .setMinRealm(template.minRealm)
         
-        builder.type = when (template.type) {
-            ManualType.ATTACK -> ManualTypeProto.MANUAL_TYPE_ATTACK
-            ManualType.DEFENSE -> ManualTypeProto.MANUAL_TYPE_DEFENSE
-            ManualType.SUPPORT -> ManualTypeProto.MANUAL_TYPE_SUPPORT
-            ManualType.MIND -> ManualTypeProto.MANUAL_TYPE_MIND
-            ManualType.PRODUCTION -> ManualTypeProto.MANUAL_TYPE_SUPPORT  // PRODUCTION 映射到 SUPPORT（向后兼容）
-        }
+        builder.type = template.type.toProtoType()
         
         template.stats.forEach { (k, v) -> builder.putStats(k, v) }
         
@@ -387,18 +411,73 @@ object ManualDatabase {
     }
     
     private fun loadManualTemplatesSync(context: Context): Map<String, ManualTemplate> {
-        val jsonString = loadJsonFromAssetsSync(context, "data/manuals.json")
-        val dataFile = gson.fromJson<ManualJsonDataFile>(jsonString, ManualJsonDataFile::class.java)
-        
+        return try {
+            val bytes = context.assets.open("data/manuals.pb").use { it.readBytes() }
+            val proto = ManualDataFileProto.parseFrom(bytes)
+            convertProtoToManualMap(proto)
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to load manuals.pb, falling back to JSON", e)
+            val jsonString = loadJsonFromAssetsSync(context, "data/manuals.json")
+            val dataFile = json.decodeFromString<ManualJsonDataFile>(jsonString)
+
+            val allManuals = mutableMapOf<String, ManualTemplate>()
+            dataFile.attackManuals.forEach { allManuals[it.id] = it.toManualTemplate() }
+            dataFile.defenseManuals.forEach { allManuals[it.id] = it.toManualTemplate() }
+            dataFile.supportManuals.forEach { allManuals[it.id] = it.toManualTemplate() }
+            dataFile.mindManuals.forEach { allManuals[it.id] = it.toManualTemplate() }
+
+            allManuals
+        }
+    }
+
+    private fun convertProtoToManualMap(proto: ManualDataFileProto): Map<String, ManualTemplate> {
         val allManuals = mutableMapOf<String, ManualTemplate>()
-        dataFile.attackManuals.forEach { allManuals[it.id] = it.toManualTemplate() }
-        dataFile.defenseManuals.forEach { allManuals[it.id] = it.toManualTemplate() }
-        dataFile.supportManuals.forEach { allManuals[it.id] = it.toManualTemplate() }
-        dataFile.mindManuals.forEach { allManuals[it.id] = it.toManualTemplate() }
-        
+
+        proto.attackManualsList.forEach { allManuals[it.id] = protoToManualTemplate(it) }
+        proto.defenseManualsList.forEach { allManuals[it.id] = protoToManualTemplate(it) }
+        proto.supportManualsList.forEach { allManuals[it.id] = protoToManualTemplate(it) }
+        proto.mindManualsList.forEach { allManuals[it.id] = protoToManualTemplate(it) }
+
         return allManuals
     }
+
+    private fun protoToManualTemplate(proto: ManualTemplateProto): ManualTemplate {
+        var template = ManualTemplate(
+            id = proto.id,
+            name = proto.name,
+            type = proto.type.toManualType(),
+            rarity = proto.rarity,
+            description = proto.description,
+            stats = proto.statsMap,
+            price = proto.price.toInt(),
+            minRealm = proto.minRealm
+        )
+
+        if (proto.hasSkill()) {
+            val skill = proto.skill
+            val buffs = skill.buffsList.map { BuffInfo(type = it.type, value = it.value, duration = it.duration) }
+            template = template.copy(
+                skillName = skill.name.ifEmpty { null },
+                skillDescription = skill.description.ifEmpty { null },
+                skillType = skill.type.ifEmpty { "attack" },
+                skillDamageType = skill.damageType.ifEmpty { "physical" },
+                skillHits = skill.hits,
+                skillDamageMultiplier = skill.damageMultiplier,
+                skillCooldown = skill.cooldown,
+                skillMpCost = skill.mpCost,
+                skillHealPercent = skill.healPercent,
+                skillHealType = skill.healType.ifEmpty { "hp" },
+                skillBuffType = if (skill.buffType.isNotEmpty()) skill.buffType else null,
+                skillBuffValue = skill.buffValue,
+                skillBuffDuration = skill.buffDuration,
+                skillBuffs = buffs
+            )
+        }
+
+        return template
+    }
     
+    @Serializable
     private data class ManualJsonDataFile(
         val attackManuals: List<ManualJsonDataSync> = emptyList(),
         val defenseManuals: List<ManualJsonDataSync> = emptyList(),
@@ -406,6 +485,7 @@ object ManualDatabase {
         val mindManuals: List<ManualJsonDataSync> = emptyList()
     )
     
+    @Serializable
     private data class ManualJsonDataSync(
         val id: String,
         val name: String,
@@ -428,7 +508,9 @@ object ManualDatabase {
         val skillBuffDuration: Int? = null,
         val skillBuffs: List<BuffInfo>? = null,
         val price: Int? = null,
-        val minRealm: Int? = null
+        val minRealm: Int? = null,
+        val skillIsAoe: Boolean? = null,
+        val skillTargetScope: String? = null
     ) {
         fun toManualTemplate(): ManualTemplate = ManualTemplate(
             id = id,
@@ -452,7 +534,9 @@ object ManualDatabase {
             skillBuffDuration = skillBuffDuration ?: 0,
             skillBuffs = skillBuffs ?: emptyList(),
             price = price ?: 0,
-            minRealm = minRealm ?: 9
+            minRealm = minRealm ?: 9,
+            skillIsAoe = skillIsAoe ?: false,
+            skillTargetScope = skillTargetScope ?: "self"
         )
     }
     
@@ -520,6 +604,8 @@ object ManualDatabase {
             skillBuffValue = template.skillBuffValue,
             skillBuffDuration = template.skillBuffDuration,
             skillBuffsJson = skillBuffsJson,
+            skillIsAoe = template.skillIsAoe,
+            skillTargetScope = template.skillTargetScope,
             minRealm = GameConfig.Realm.getMinRealmForRarity(template.rarity)
         )
     }

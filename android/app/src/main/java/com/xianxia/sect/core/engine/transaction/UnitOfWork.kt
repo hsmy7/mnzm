@@ -65,18 +65,26 @@ class UnitOfWork @Inject constructor() {
                         )
                     }
                 }
-                
+
                 var lastResult: T? = null
                 for (op in operations) {
                     @Suppress("UNCHECKED_CAST")
                     lastResult = (op as TransactionOperation<T>).execute()
                     executedOperations.add(op)
                 }
-                
+
                 isActive = false
                 TransactionResult(success = true, data = lastResult)
             } catch (e: Exception) {
-                rollbackAll()
+                try {
+                    rollbackAll()
+                } catch (rollbackEx: Exception) {
+                    Log.e("UnitOfWork", "RollbackAll itself failed during exception recovery", rollbackEx)
+                } finally {
+                    // 防御性保证：无论 rollbackAll() 是否成功，都必须重置 isActive，
+                    // 否则后续所有 begin() 调用都会被 ConcurrencyConflict 拒绝。
+                    isActive = false
+                }
                 TransactionResult(
                     success = false,
                     error = TransactionError.SystemError(e.message ?: "Unknown error", e)

@@ -1,4 +1,8 @@
+@file:Suppress("DEPRECATION")
+
 package com.xianxia.sect.core.model
+
+import com.xianxia.sect.core.engine.DiscipleStatCalculator
 
 data class DiscipleAggregate(
     val core: DiscipleCore,
@@ -23,8 +27,20 @@ data class DiscipleAggregate(
     val spiritRootType: String get() = core.spiritRootType
     val recruitedMonth: Int get() = core.recruitedMonth
     
+    // 计算属性 - 与旧 Disciple 类保持 API 一致性
+    val spiritRoot: SpiritRoot get() = SpiritRoot(spiritRootType)
+    val spiritRootName: String get() = spiritRoot.name
+    val realmName: String get() {
+        if (age < 5 || realmLayer == 0) return "无境界"
+        // 仙人境界不显示层数
+        if (realm == 0) return com.xianxia.sect.core.GameConfig.Realm.getName(realm)
+        return "${com.xianxia.sect.core.GameConfig.Realm.getName(realm)}${realmLayer}层"
+    }
+    
     val baseHp: Int get() = combatStats?.baseHp ?: 100
     val baseMp: Int get() = combatStats?.baseMp ?: 50
+    val maxHp: Int get() = baseHp  // 保持与旧 Disciple 类 API 一致性
+    val maxMp: Int get() = baseMp  // 保持与旧 Disciple 类 API 一致性
     val basePhysicalAttack: Int get() = combatStats?.basePhysicalAttack ?: 7
     val baseMagicAttack: Int get() = combatStats?.baseMagicAttack ?: 7
     val basePhysicalDefense: Int get() = combatStats?.basePhysicalDefense ?: 5
@@ -47,19 +63,20 @@ data class DiscipleAggregate(
     val pillMpBonus: Double get() = combatStats?.pillMpBonus ?: 0.0
     val pillSpeedBonus: Double get() = combatStats?.pillSpeedBonus ?: 0.0
     val pillEffectDuration: Int get() = combatStats?.pillEffectDuration ?: 0
-    val battlesWon: Int get() = combatStats?.battlesWon ?: 0
     val totalCultivation: Long get() = combatStats?.totalCultivation ?: 0
     val breakthroughCount: Int get() = combatStats?.breakthroughCount ?: 0
     val breakthroughFailCount: Int get() = combatStats?.breakthroughFailCount ?: 0
+    val currentHp: Int get() = combatStats?.currentHp ?: -1
+    val currentMp: Int get() = combatStats?.currentMp ?: -1
     
-    val weaponId: String? get() = equipment?.weaponId
-    val armorId: String? get() = equipment?.armorId
-    val bootsId: String? get() = equipment?.bootsId
-    val accessoryId: String? get() = equipment?.accessoryId
-    val weaponNurture: EquipmentNurtureData? get() = equipment?.weaponNurture
-    val armorNurture: EquipmentNurtureData? get() = equipment?.armorNurture
-    val bootsNurture: EquipmentNurtureData? get() = equipment?.bootsNurture
-    val accessoryNurture: EquipmentNurtureData? get() = equipment?.accessoryNurture
+    val weaponId: String get() = equipment?.weaponId ?: ""
+    val armorId: String get() = equipment?.armorId ?: ""
+    val bootsId: String get() = equipment?.bootsId ?: ""
+    val accessoryId: String get() = equipment?.accessoryId ?: ""
+    val weaponNurture: EquipmentNurtureData get() = equipment?.weaponNurture ?: EquipmentNurtureData("", 0)
+    val armorNurture: EquipmentNurtureData get() = equipment?.armorNurture ?: EquipmentNurtureData("", 0)
+    val bootsNurture: EquipmentNurtureData get() = equipment?.bootsNurture ?: EquipmentNurtureData("", 0)
+    val accessoryNurture: EquipmentNurtureData get() = equipment?.accessoryNurture ?: EquipmentNurtureData("", 0)
     val storageBagItems: List<StorageBagItem> get() = equipment?.storageBagItems ?: emptyList()
     val storageBagSpiritStones: Long get() = equipment?.storageBagSpiritStones ?: 0
     val spiritStones: Int get() = equipment?.spiritStones ?: 0
@@ -93,6 +110,123 @@ data class DiscipleAggregate(
     val morality: Int get() = attributes?.morality ?: 50
     val salaryPaidCount: Int get() = attributes?.salaryPaidCount ?: 0
     val salaryMissedCount: Int get() = attributes?.salaryMissedCount ?: 0
+    
+    // ==================== 从 DiscipleCore 委托的便捷属性 ====================
+    val canCultivate: Boolean get() = core.canCultivate
+    val realmNameOnly: String get() = core.realmNameOnly
+    val maxCultivation: Double get() = core.maxCultivation
+    val cultivationProgress: Double get() = core.cultivationProgress
+    val genderName: String get() = core.genderName
+    val genderSymbol: String get() = core.genderSymbol
+    
+    // ==================== 计算属性（与旧 Disciple 类保持一致）====================
+    
+    /**
+     * 物理攻击（基础值，不含装备/功法加成）
+     * 与旧 Disciple.physicalAttack 保持一致：通过 getBaseStats() 计算
+     */
+    val physicalAttack: Int get() = getBaseStats().physicalAttack
+    
+    /** 物理防御 */
+    val physicalDefense: Int get() = getBaseStats().physicalDefense
+    
+    /** 法术攻击 */
+    val magicAttack: Int get() = getBaseStats().magicAttack
+    
+    /** 法术防御 */
+    val magicDefense: Int get() = getBaseStats().magicDefense
+    
+    /** 速度 */
+    val speed: Int get() = getBaseStats().speed
+    
+    /** 最大生命值（通过完整计算）*/
+    val maxHpFinal: Int get() = getBaseStats().maxHp
+    
+    /** 最大灵力值（通过完整计算）*/
+    val maxMpFinal: Int get() = getBaseStats().maxMp
+    
+    /** 当前生命百分比 */
+    val hpPercent: Double get() = if (maxHpFinal > 0) baseHp.toDouble() / maxHpFinal * 100 else 100.0
+    
+    /** 当前灵力百分比 */
+    val mpPercent: Double get() = if (maxMpFinal > 0) baseMp.toDouble() / maxMpFinal * 100 else 100.0
+    
+    /** 是否有道侣 */
+    val hasPartner: Boolean get() = partnerId != null
+    
+    /** 悟性速度加成 */
+    val comprehensionSpeedBonus: Double get() = comprehension / 100.0
+    
+    // 已装备的物品映射（简化版，返回空map）
+    val equippedItems: Map<EquipmentSlot, Equipment?> get() = emptyMap()
+    
+    // ==================== 计算方法（委托给 DiscipleStatCalculator）====================
+    
+    /**
+     * 计算弟子的基础属性（不含装备和功法加成）
+     * 与旧 Disciple.getBaseStats() 保持完全一致
+     */
+    fun getBaseStats(): DiscipleStats {
+        // 将 DiscipleAggregate 转换为 Disciple 后调用计算器
+        return DiscipleStatCalculator.getBaseStats(this.toDisciple())
+    }
+    
+    /**
+     * 获取弟子所有天赋的效果汇总
+     */
+    fun getTalentEffects(): Map<String, Double> {
+        return DiscipleStatCalculator.getTalentEffects(this.toDisciple())
+    }
+    
+    /**
+     * 计算弟子穿戴装备后的属性（不含功法和丹药）
+     */
+    fun getStatsWithEquipment(equipments: Map<String, Equipment>): DiscipleStats {
+        return DiscipleStatCalculator.getStatsWithEquipment(this.toDisciple(), equipments)
+    }
+    
+    /**
+     * 计算弟子的最终完整属性
+     * 与旧 Disciple.getFinalStats() 保持完全一致
+     */
+    fun getFinalStats(
+        equipments: Map<String, Equipment>,
+        manuals: Map<String, Manual>,
+        manualProficiencies: Map<String, ManualProficiencyData> = emptyMap()
+    ): DiscipleStats {
+        return DiscipleStatCalculator.getFinalStats(
+            this.toDisciple(), equipments, manuals, manualProficiencies
+        )
+    }
+    
+    /**
+     * 计算修炼速度（支持外部传入功法和熟练度数据）
+     */
+    fun calculateCultivationSpeed(
+        manuals: Map<String, Manual> = emptyMap(),
+        manualProficiencies: Map<String, ManualProficiencyData> = emptyMap(),
+        additionalBonus: Double = 0.0
+    ): Double {
+        return DiscipleStatCalculator.calculateCultivationSpeed(
+            this.toDisciple(), manuals, manualProficiencies, additionalBonus = additionalBonus
+        )
+    }
+    
+    /** 判断弟子是否可以突破 */
+    fun canBreakthrough(): Boolean = core.canBreakthrough()
+    
+    /**
+     * 计算突破成功率
+     */
+    fun getBreakthroughChance(
+        pillBonus: Double = 0.0,
+        innerElderComprehension: Int = 0,
+        outerElderComprehensionBonus: Double = 0.0
+    ): Double {
+        return DiscipleStatCalculator.getBreakthroughChance(
+            this.toDisciple(), pillBonus, innerElderComprehension, outerElderComprehensionBonus
+        )
+    }
     
     fun toDisciple(): Disciple {
         return Disciple(
@@ -129,10 +263,11 @@ data class DiscipleAggregate(
                 physicalDefenseVariance = physicalDefenseVariance,
                 magicDefenseVariance = magicDefenseVariance,
                 speedVariance = speedVariance,
-                battlesWon = battlesWon,
                 totalCultivation = totalCultivation,
                 breakthroughCount = breakthroughCount,
-                breakthroughFailCount = breakthroughFailCount
+                breakthroughFailCount = breakthroughFailCount,
+                currentHp = currentHp,
+                currentMp = currentMp
             ),
             pillEffects = PillEffects(
                 pillPhysicalAttackBonus = pillPhysicalAttackBonus,

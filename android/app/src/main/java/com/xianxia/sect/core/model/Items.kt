@@ -1,8 +1,8 @@
 package com.xianxia.sect.core.model
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
-import androidx.room.PrimaryKey
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.CombatSkill
 import com.xianxia.sect.core.engine.DamageType
@@ -26,6 +26,7 @@ sealed class GameItem {
 @Serializable
 @Entity(
     tableName = "equipment",
+    primaryKeys = ["id", "slot_id"],
     indices = [
         Index(value = ["name"]),
         Index(value = ["rarity"]),
@@ -37,8 +38,12 @@ sealed class GameItem {
     ]
 )
 data class Equipment(
-    @PrimaryKey
+    @ColumnInfo(name = "id")
     override val id: String = java.util.UUID.randomUUID().toString(),
+
+    @ColumnInfo(name = "slot_id")
+    var slotId: Int = 0,
+
     override val name: String = "",
     override val rarity: Int = 1,
     override val description: String = "",
@@ -169,6 +174,7 @@ data class EquipmentStats(
 @Serializable
 @Entity(
     tableName = "manuals",
+    primaryKeys = ["id", "slot_id"],
     indices = [
         Index(value = ["name"]),
         Index(value = ["rarity"]),
@@ -180,8 +186,12 @@ data class EquipmentStats(
     ]
 )
 data class Manual(
-    @PrimaryKey
+    @ColumnInfo(name = "id")
     override val id: String = java.util.UUID.randomUUID().toString(),
+
+    @ColumnInfo(name = "slot_id")
+    var slotId: Int = 0,
+
     override val name: String = "",
     override val rarity: Int = 1,
     override val description: String = "",
@@ -203,7 +213,9 @@ data class Manual(
     val skillBuffValue: Double = 0.0,
     val skillBuffDuration: Int = 0,
     val skillBuffsJson: String = "",
-    
+    val skillIsAoe: Boolean = false,
+    val skillTargetScope: String = "self",
+
     val minRealm: Int = 9,
     
     var ownerId: String? = null,
@@ -257,7 +269,9 @@ data class Manual(
             buffType = skillBuffType?.let { bt -> parseBuffType(bt) },
             buffValue = skillBuffValue,
             buffDuration = skillBuffDuration,
-            buffs = buffs
+            buffs = buffs,
+            isAoe = skillIsAoe,
+            targetScope = skillTargetScope
         )
     }
     
@@ -267,14 +281,13 @@ data class Manual(
 
 @Serializable
 enum class ManualType {
-    ATTACK, DEFENSE, SUPPORT, MIND, PRODUCTION;
+    ATTACK, DEFENSE, SUPPORT, MIND;
     
     val displayName: String get() = when (this) {
         ATTACK -> "攻击型"
         DEFENSE -> "防御型"
         SUPPORT -> "辅助型"
         MIND -> "心法型"
-        PRODUCTION -> "功能型"
     }
 }
 
@@ -293,7 +306,9 @@ data class ManualSkill(
     val buffType: BuffType? = null,
     val buffValue: Double = 0.0,
     val buffDuration: Int = 0,
-    val buffs: List<Triple<BuffType, Double, Int>> = emptyList()
+    val buffs: List<Triple<BuffType, Double, Int>> = emptyList(),
+    val isAoe: Boolean = false,
+    val targetScope: String = "self"
 ) {
     fun toCombatSkill(manualName: String = ""): CombatSkill = CombatSkill(
         name = name,
@@ -309,6 +324,8 @@ data class ManualSkill(
         buffValue = buffValue,
         buffDuration = buffDuration,
         buffs = buffs,
+        isAoe = isAoe,
+        targetScope = targetScope,
         skillDescription = description,
         manualName = manualName
     )
@@ -317,6 +334,7 @@ data class ManualSkill(
 @Serializable
 @Entity(
     tableName = "pills",
+    primaryKeys = ["id", "slot_id"],
     indices = [
         Index(value = ["name"]),
         Index(value = ["rarity"]),
@@ -326,8 +344,12 @@ data class ManualSkill(
     ]
 )
 data class Pill(
-    @PrimaryKey
+    @ColumnInfo(name = "id")
     override val id: String = java.util.UUID.randomUUID().toString(),
+
+    @ColumnInfo(name = "slot_id")
+    var slotId: Int = 0,
+
     override val name: String = "",
     override val rarity: Int = 1,
     override val description: String = "",
@@ -438,6 +460,7 @@ data class PillEffect(
 @Serializable
 @Entity(
     tableName = "materials",
+    primaryKeys = ["id", "slot_id"],
     indices = [
         Index(value = ["name"]),
         Index(value = ["rarity"]),
@@ -446,8 +469,12 @@ data class PillEffect(
     ]
 )
 data class Material(
-    @PrimaryKey
+    @ColumnInfo(name = "id")
     override val id: String = java.util.UUID.randomUUID().toString(),
+
+    @ColumnInfo(name = "slot_id")
+    var slotId: Int = 0,
+
     override val name: String = "",
     override val rarity: Int = 1,
     override val description: String = "",
@@ -494,6 +521,7 @@ enum class MaterialCategory {
 @Serializable
 @Entity(
     tableName = "herbs",
+    primaryKeys = ["id", "slot_id"],
     indices = [
         Index(value = ["name"]),
         Index(value = ["rarity"]),
@@ -502,8 +530,12 @@ enum class MaterialCategory {
     ]
 )
 data class Herb(
-    @PrimaryKey
+    @ColumnInfo(name = "id")
     override val id: String = java.util.UUID.randomUUID().toString(),
+
+    @ColumnInfo(name = "slot_id")
+    var slotId: Int = 0,
+
     override val name: String = "",
     override val rarity: Int = 1,
     override val description: String = "",
@@ -521,6 +553,7 @@ data class Herb(
 @Serializable
 @Entity(
     tableName = "seeds",
+    primaryKeys = ["id", "slot_id"],
     indices = [
         Index(value = ["name"]),
         Index(value = ["rarity"]),
@@ -528,8 +561,12 @@ data class Herb(
     ]
 )
 data class Seed(
-    @PrimaryKey
+    @ColumnInfo(name = "id")
     override val id: String = java.util.UUID.randomUUID().toString(),
+
+    @ColumnInfo(name = "slot_id")
+    var slotId: Int = 0,
+
     override val name: String = "",
     override val rarity: Int = 1,
     override val description: String = "",

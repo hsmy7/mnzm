@@ -115,7 +115,7 @@ class MainActivity : ComponentActivity() {
     lateinit var crashHandler: CrashHandler
     
     public var complianceDialogState = mutableStateOf<ComplianceDialogState?>(null)
-    internal val loadingProgress = mutableStateOf(0f)
+    internal val loadingProgress = mutableFloatStateOf(0f)
     internal var isLoadComplete = false
     internal val loadHandler = android.os.Handler(android.os.Looper.getMainLooper())
     
@@ -262,7 +262,7 @@ class MainActivity : ComponentActivity() {
     }
     
     internal fun showSaveSelectScreen() {
-        val saveSlots = storageFacade.getSaveSlots()
+        val saveSlots = storageFacade.getSaveSlots().filter { !it.isAutoSave }
         setContent {
             XianxiaTheme {
                 Surface(

@@ -151,8 +151,8 @@ interface DomainEventSubscriber {
 class EventBus @Inject constructor() {
     
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    
-    private val eventChannel = Channel<DomainEvent>(capacity = Channel.UNLIMITED)
+
+    private val eventChannel = Channel<DomainEvent>(capacity = 256)
     val events: Flow<DomainEvent> = eventChannel.receiveAsFlow()
     
     private val _latestNotifications = MutableStateFlow<List<NotificationEvent>>(emptyList())
@@ -163,6 +163,9 @@ class EventBus @Inject constructor() {
     private val maxNotificationHistory = 50
     
     private var isProcessing = false
+
+    private var droppedEventCount = 0L
+    private var lastDropLogTime = 0L
     
     init {
         startProcessing()
@@ -183,18 +186,28 @@ class EventBus @Inject constructor() {
     }
     
     suspend fun emit(event: DomainEvent) {
-        eventChannel.send(event)
+        val result = eventChannel.trySend(event)
+        if (!result.isSuccess) {
+            droppedEventCount++
+            val now = System.currentTimeMillis()
+            if (now - lastDropLogTime > 5000) {
+                android.util.Log.w("EventBus", "Event dropped (total: $droppedEventCount), type=${event.type}. Consider reducing event frequency.")
+                lastDropLogTime = now
+            }
+        }
     }
     
     fun emitSync(event: DomainEvent): Boolean {
-        return eventChannel.trySend(event).isSuccess
+        val result = eventChannel.trySend(event)
+        if (!result.isSuccess) {
+            droppedEventCount++
+        }
+        return result.isSuccess
     }
     
     fun emitAll(events: List<DomainEvent>) {
-        events.forEach { event ->
-            scope.launch {
-                eventChannel.send(event)
-            }
+        for (event in events) {
+            eventChannel.trySend(event)
         }
     }
     

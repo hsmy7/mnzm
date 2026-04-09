@@ -18,13 +18,23 @@ class SectViewModel @Inject constructor(
     
     companion object {
         private const val TAG = "SectViewModel"
+        private const val REALM_VICE_SECT_MASTER = 4
+        private const val REALM_ELDER = 6
     }
     
     val gameData: StateFlow<GameData> = gameEngine.gameData
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), gameEngine.gameData.value)
-    
-    val disciples: StateFlow<List<Disciple>> = gameEngine.disciples
+
+    /**
+     * 转换后的弟子列表（使用新的 DiscipleAggregate 模型）
+     * 用于 UI 层展示，避免使用废弃的 Disciple 类
+     */
+    val disciplesAggregates: StateFlow<List<DiscipleAggregate>> = gameEngine.disciples
+        .map { list -> list.map { DiscipleAggregate.fromDisciple(it) } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // 使用 DiscipleAggregate 作为 UI 层的标准类型
+    val disciples: StateFlow<List<DiscipleAggregate>> = disciplesAggregates
     
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
@@ -40,61 +50,70 @@ class SectViewModel @Inject constructor(
         _successMessage.value = null
     }
     
-    fun getViceSectMaster(): Disciple? {
-        val viceSectMasterId = gameEngine.gameData.value.elderSlots.viceSectMaster
+    fun getViceSectMaster(): DiscipleAggregate? {
+        val viceSectMasterId = gameEngine.gameData.value?.elderSlots?.viceSectMaster
         return getElderDisciple(viceSectMasterId)
     }
-    
-    fun getElderDisciple(elderId: String?): Disciple? {
+
+    fun getElderDisciple(elderId: String?): DiscipleAggregate? {
         if (elderId == null) return null
         return disciples.value.find { it.id == elderId }
     }
     
     fun setViceSectMaster(discipleId: String) {
-        val disciple = disciples.value.find { it.id == discipleId }
-        if (disciple == null) {
-            _errorMessage.value = "弟子不存在"
-            return
-        }
-        
-        if (disciple.realm > 4) {
-            _errorMessage.value = "副宗主需要达到炼虚境界"
-            return
-        }
-        
-        val currentSlots = gameEngine.gameData.value.elderSlots
-        val allElderIds = listOf(
-            currentSlots.herbGardenElder,
-            currentSlots.alchemyElder,
-            currentSlots.forgeElder,
-            currentSlots.outerElder,
-            currentSlots.preachingElder,
-            currentSlots.lawEnforcementElder,
-            currentSlots.innerElder,
-            currentSlots.qingyunPreachingElder
-        ).filterNotNull()
-        
-        if (!allElderIds.contains(discipleId)) {
-            _errorMessage.value = "副宗主需要由长老担任"
-            return
-        }
-        
         viewModelScope.launch {
-            gameEngine.updateGameData { 
-                it.copy(elderSlots = currentSlots.copy(viceSectMaster = discipleId))
+            try {
+                val disciple = disciples.value.find { it.id == discipleId }
+                if (disciple == null) {
+                    _errorMessage.value = "弟子不存在"
+                    return@launch
+                }
+                if (disciple.realm > REALM_VICE_SECT_MASTER) {
+                    _errorMessage.value = "副宗主需要达到炼虚境界"
+                    return@launch
+                }
+
+                val currentGameData = gameEngine.gameData.value
+                val elderSlots = currentGameData.elderSlots
+                val allElderIds = listOf(
+                    elderSlots.viceSectMaster,
+                    elderSlots.herbGardenElder,
+                    elderSlots.alchemyElder,
+                    elderSlots.forgeElder,
+                    elderSlots.outerElder,
+                    elderSlots.preachingElder,
+                    elderSlots.lawEnforcementElder,
+                    elderSlots.innerElder,
+                    elderSlots.qingyunPreachingElder
+                ).filterNotNull().filter { it.isNotBlank() }
+
+                if (!allElderIds.contains(discipleId)) {
+                    _errorMessage.value = "副宗主需要由长老担任"
+                    return@launch
+                }
+
+                gameEngine.updateGameData {
+                    it.copy(elderSlots = it.elderSlots.copy(viceSectMaster = discipleId))
+                }
+                _successMessage.value = "副宗主任命成功"
+            } catch (e: Exception) {
+                _errorMessage.value = e.message ?: "任命失败"
             }
         }
-        _successMessage.value = "副宗主任命成功"
     }
-    
+
     fun removeViceSectMaster() {
-        val currentSlots = gameEngine.gameData.value.elderSlots
         viewModelScope.launch {
-            gameEngine.updateGameData { 
-                it.copy(elderSlots = currentSlots.copy(viceSectMaster = null))
+            try {
+                val currentGameData = gameEngine.gameData.value
+                gameEngine.updateGameData {
+                    it.copy(elderSlots = it.elderSlots.copy(viceSectMaster = ""))
+                }
+                _successMessage.value = "副宗主已卸任"
+            } catch (e: Exception) {
+                _errorMessage.value = e.message ?: "卸任失败"
             }
         }
-        _successMessage.value = "副宗主已卸任"
     }
     
     fun assignElder(slotType: String, discipleId: String) {
@@ -107,13 +126,13 @@ class SectViewModel @Inject constructor(
                 }
                 
                 val minRealm = when (slotType) {
-                    "viceSectMaster" -> 4
-                    else -> 6
+                    "viceSectMaster" -> REALM_VICE_SECT_MASTER
+                    else -> REALM_ELDER
                 }
                 if (disciple.realm > minRealm) {
                     val realmName = when (minRealm) {
-                        4 -> "炼虚"
-                        6 -> "元婴"
+                        REALM_VICE_SECT_MASTER -> "炼虚"
+                        REALM_ELDER -> "元婴"
                         else -> "元婴"
                     }
                     val positionName = when (slotType) {
@@ -137,7 +156,7 @@ class SectViewModel @Inject constructor(
                     elderSlots.lawEnforcementElder,
                     elderSlots.innerElder,
                     elderSlots.qingyunPreachingElder
-                )
+                ).filter { it.isNotBlank() }
                 val allDirectDiscipleIds = listOf(
                     elderSlots.herbGardenDisciples,
                     elderSlots.alchemyDisciples,
@@ -147,7 +166,7 @@ class SectViewModel @Inject constructor(
                     elderSlots.lawEnforcementReserveDisciples,
                     elderSlots.qingyunPreachingMasters,
                     elderSlots.spiritMineDeaconDisciples
-                ).flatten().mapNotNull { it.discipleId }
+                ).flatten().mapNotNull { it.discipleId }.filter { it.isNotBlank() }
 
                 if (allElderIds.contains(discipleId)) {
                     _errorMessage.value = "该弟子已担任长老职位"
@@ -211,36 +230,36 @@ class SectViewModel @Inject constructor(
                 val elderSlots = currentGameData.elderSlots
                 val newElderSlots = when (slotType) {
                     "herbGarden" -> elderSlots.copy(
-                        herbGardenElder = null,
+                        herbGardenElder = "",
                         herbGardenDisciples = emptyList()
                     )
                     "alchemy" -> elderSlots.copy(
-                        alchemyElder = null,
+                        alchemyElder = "",
                         alchemyDisciples = emptyList()
                     )
                     "forge" -> elderSlots.copy(
-                        forgeElder = null,
+                        forgeElder = "",
                         forgeDisciples = emptyList()
                     )
                     "viceSectMaster" -> elderSlots.copy(
-                        viceSectMaster = null
+                        viceSectMaster = ""
                     )
                     "outerElder" -> elderSlots.copy(
-                        outerElder = null
+                        outerElder = ""
                     )
                     "preachingElder" -> elderSlots.copy(
-                        preachingElder = null,
+                        preachingElder = "",
                         preachingMasters = emptyList()
                     )
                     "lawEnforcementElder" -> elderSlots.copy(
-                        lawEnforcementElder = null,
+                        lawEnforcementElder = "",
                         lawEnforcementDisciples = emptyList()
                     )
                     "innerElder" -> elderSlots.copy(
-                        innerElder = null
+                        innerElder = ""
                     )
                     "qingyunPreachingElder" -> elderSlots.copy(
-                        qingyunPreachingElder = null,
+                        qingyunPreachingElder = "",
                         qingyunPreachingMasters = emptyList()
                     )
                     else -> elderSlots
@@ -314,35 +333,41 @@ class SectViewModel @Inject constructor(
         }
     }
     
-    fun getOuterElder(): Disciple? {
-        val outerElderId = gameEngine.gameData.value.elderSlots.outerElder
+    @Suppress("DEPRECATION")
+    // TODO: 迁移到 DiscipleAggregate
+    fun getOuterElder(): DiscipleAggregate? {
+        val outerElderId = gameEngine.gameData.value?.elderSlots?.outerElder
         return getElderDisciple(outerElderId)
     }
-    
-    fun getPreachingElder(): Disciple? {
-        val preachingElderId = gameEngine.gameData.value.elderSlots.preachingElder
+
+    @Suppress("DEPRECATION")
+    // TODO: 迁移到 DiscipleAggregate
+    fun getPreachingElder(): DiscipleAggregate? {
+        val preachingElderId = gameEngine.gameData.value?.elderSlots?.preachingElder
         return getElderDisciple(preachingElderId)
     }
-    
+
     fun getPreachingMasters(): List<DirectDiscipleSlot> {
-        return gameEngine.gameData.value.elderSlots.preachingMasters
+        return gameEngine.gameData.value?.elderSlots?.preachingMasters ?: emptyList()
     }
-    
-    fun getLawEnforcementElder(): Disciple? {
-        val elderId = gameEngine.gameData.value.elderSlots.lawEnforcementElder
+
+    fun getLawEnforcementElder(): DiscipleAggregate? {
+        val elderId = gameEngine.gameData.value?.elderSlots?.lawEnforcementElder
         return getElderDisciple(elderId)
     }
-    
+
     fun getLawEnforcementDisciples(): List<DirectDiscipleSlot> {
-        return gameEngine.gameData.value.elderSlots.lawEnforcementDisciples
+        return gameEngine.gameData.value?.elderSlots?.lawEnforcementDisciples ?: emptyList()
     }
-    
+
     fun getLawEnforcementReserveDisciples(): List<DirectDiscipleSlot> {
-        return gameEngine.gameData.value.elderSlots.lawEnforcementReserveDisciples
+        return gameEngine.gameData.value?.elderSlots?.lawEnforcementReserveDisciples ?: emptyList()
     }
-    
-    fun getLawEnforcementReserveDisciplesWithInfo(): List<Disciple> {
-        val reserveSlots = gameEngine.gameData.value.elderSlots.lawEnforcementReserveDisciples
+
+    @Suppress("DEPRECATION")
+    // TODO: 迁移到 DiscipleAggregate
+    fun getLawEnforcementReserveDisciplesWithInfo(): List<DiscipleAggregate> {
+        val reserveSlots = gameEngine.gameData.value?.elderSlots?.lawEnforcementReserveDisciples ?: emptyList()
         val reserveIds = reserveSlots.mapNotNull { it.discipleId }.toSet()
         return disciples.value
             .filter { it.id in reserveIds }
@@ -412,125 +437,206 @@ class SectViewModel @Inject constructor(
         }
     }
     
-    fun toggleSpiritMineBoost() {
-        val currentPolicies = gameEngine.gameData.value.sectPolicies
-        gameEngine.updateGameDataSync { it.copy(sectPolicies = currentPolicies.copy(spiritMineBoost = !currentPolicies.spiritMineBoost)) }
+    fun toggleSpiritMineBoost(): Boolean {
+        val currentGameData = gameEngine.gameData.value ?: return false
+        viewModelScope.launch {
+            gameEngine.updateGameData { it.copy(sectPolicies = it.sectPolicies.copy(spiritMineBoost = !it.sectPolicies.spiritMineBoost)) }
+        }
+        return true
     }
-    
+
     fun isSpiritMineBoostEnabled(): Boolean {
-        return gameEngine.gameData.value.sectPolicies.spiritMineBoost
+        return gameEngine.gameData.value?.sectPolicies?.spiritMineBoost ?: false
     }
     
     fun getSpiritMineBoostEffect(): Double = GameConfig.PolicyConfig.SPIRIT_MINE_BOOST_BASE_EFFECT
     
     fun toggleEnhancedSecurity(): Boolean {
-        val currentPolicies = gameEngine.gameData.value.sectPolicies
-        val currentStones = gameEngine.gameData.value.spiritStones
+        val currentGameData = gameEngine.gameData.value ?: return false
+        val currentPolicies = currentGameData.sectPolicies
         val requiredStones = GameConfig.PolicyConfig.ENHANCED_SECURITY_COST
-        
-        if (!currentPolicies.enhancedSecurity && currentStones < requiredStones) {
-            _errorMessage.value = "灵石不足${requiredStones}，无法开启增强治安政策"
-            return false
+
+        if (!currentPolicies.enhancedSecurity) {
+            viewModelScope.launch {
+                gameEngine.updateGameData {
+                    if (it.spiritStones < requiredStones) {
+                        _errorMessage.value = "灵石不足${requiredStones}，无法开启增强治安政策"
+                        it
+                    } else {
+                        it.copy(
+                            spiritStones = it.spiritStones - requiredStones,
+                            sectPolicies = it.sectPolicies.copy(enhancedSecurity = true)
+                        )
+                    }
+                }
+            }
+        } else {
+            viewModelScope.launch {
+                gameEngine.updateGameData { it.copy(sectPolicies = it.sectPolicies.copy(enhancedSecurity = false)) }
+            }
         }
-        
-        gameEngine.updateGameDataSync { it.copy(sectPolicies = currentPolicies.copy(enhancedSecurity = !currentPolicies.enhancedSecurity)) }
         return true
     }
-    
+
     fun isEnhancedSecurityEnabled(): Boolean {
-        return gameEngine.gameData.value.sectPolicies.enhancedSecurity
+        return gameEngine.gameData.value?.sectPolicies?.enhancedSecurity ?: false
     }
     
     fun getEnhancedSecurityBaseBonus(): Double = GameConfig.PolicyConfig.ENHANCED_SECURITY_BASE_EFFECT
     
     fun toggleAlchemyIncentive(): Boolean {
-        val currentPolicies = gameEngine.gameData.value.sectPolicies
-        val currentStones = gameEngine.gameData.value.spiritStones
+        val currentGameData = gameEngine.gameData.value ?: return false
+        val currentPolicies = currentGameData.sectPolicies
         val requiredStones = GameConfig.PolicyConfig.ALCHEMY_INCENTIVE_COST
-        
-        if (!currentPolicies.alchemyIncentive && currentStones < requiredStones) {
-            _errorMessage.value = "灵石不足${requiredStones}，无法开启丹道激励政策"
-            return false
+
+        if (!currentPolicies.alchemyIncentive) {
+            viewModelScope.launch {
+                gameEngine.updateGameData {
+                    if (it.spiritStones < requiredStones) {
+                        _errorMessage.value = "灵石不足${requiredStones}，无法开启丹道激励政策"
+                        it
+                    } else {
+                        it.copy(
+                            spiritStones = it.spiritStones - requiredStones,
+                            sectPolicies = it.sectPolicies.copy(alchemyIncentive = true)
+                        )
+                    }
+                }
+            }
+        } else {
+            viewModelScope.launch {
+                gameEngine.updateGameData { it.copy(sectPolicies = it.sectPolicies.copy(alchemyIncentive = false)) }
+            }
         }
-        
-        gameEngine.updateGameDataSync { it.copy(sectPolicies = currentPolicies.copy(alchemyIncentive = !currentPolicies.alchemyIncentive)) }
         return true
     }
-    
+
     fun isAlchemyIncentiveEnabled(): Boolean {
-        return gameEngine.gameData.value.sectPolicies.alchemyIncentive
+        return gameEngine.gameData.value?.sectPolicies?.alchemyIncentive ?: false
     }
-    
+
     fun toggleForgeIncentive(): Boolean {
-        val currentPolicies = gameEngine.gameData.value.sectPolicies
-        val currentStones = gameEngine.gameData.value.spiritStones
+        val currentGameData = gameEngine.gameData.value ?: return false
+        val currentPolicies = currentGameData.sectPolicies
         val requiredStones = GameConfig.PolicyConfig.FORGE_INCENTIVE_COST
-        
-        if (!currentPolicies.forgeIncentive && currentStones < requiredStones) {
-            _errorMessage.value = "灵石不足${requiredStones}，无法开启锻造激励政策"
-            return false
+
+        if (!currentPolicies.forgeIncentive) {
+            viewModelScope.launch {
+                gameEngine.updateGameData {
+                    if (it.spiritStones < requiredStones) {
+                        _errorMessage.value = "灵石不足${requiredStones}，无法开启锻造激励政策"
+                        it
+                    } else {
+                        it.copy(
+                            spiritStones = it.spiritStones - requiredStones,
+                            sectPolicies = it.sectPolicies.copy(forgeIncentive = true)
+                        )
+                    }
+                }
+            }
+        } else {
+            viewModelScope.launch {
+                gameEngine.updateGameData { it.copy(sectPolicies = it.sectPolicies.copy(forgeIncentive = false)) }
+            }
         }
-        
-        gameEngine.updateGameDataSync { it.copy(sectPolicies = currentPolicies.copy(forgeIncentive = !currentPolicies.forgeIncentive)) }
         return true
     }
-    
+
     fun isForgeIncentiveEnabled(): Boolean {
-        return gameEngine.gameData.value.sectPolicies.forgeIncentive
+        return gameEngine.gameData.value?.sectPolicies?.forgeIncentive ?: false
     }
-    
+
     fun toggleHerbCultivation(): Boolean {
-        val currentPolicies = gameEngine.gameData.value.sectPolicies
-        val currentStones = gameEngine.gameData.value.spiritStones
+        val currentGameData = gameEngine.gameData.value ?: return false
+        val currentPolicies = currentGameData.sectPolicies
         val requiredStones = GameConfig.PolicyConfig.HERB_CULTIVATION_COST
-        
-        if (!currentPolicies.herbCultivation && currentStones < requiredStones) {
-            _errorMessage.value = "灵石不足${requiredStones}，无法开启灵药培育政策"
-            return false
+
+        if (!currentPolicies.herbCultivation) {
+            viewModelScope.launch {
+                gameEngine.updateGameData {
+                    if (it.spiritStones < requiredStones) {
+                        _errorMessage.value = "灵石不足${requiredStones}，无法开启灵药培育政策"
+                        it
+                    } else {
+                        it.copy(
+                            spiritStones = it.spiritStones - requiredStones,
+                            sectPolicies = it.sectPolicies.copy(herbCultivation = true)
+                        )
+                    }
+                }
+            }
+        } else {
+            viewModelScope.launch {
+                gameEngine.updateGameData { it.copy(sectPolicies = it.sectPolicies.copy(herbCultivation = false)) }
+            }
         }
-        
-        gameEngine.updateGameDataSync { it.copy(sectPolicies = currentPolicies.copy(herbCultivation = !currentPolicies.herbCultivation)) }
         return true
     }
-    
+
     fun isHerbCultivationEnabled(): Boolean {
-        return gameEngine.gameData.value.sectPolicies.herbCultivation
+        return gameEngine.gameData.value?.sectPolicies?.herbCultivation ?: false
     }
-    
+
     fun toggleCultivationSubsidy(): Boolean {
-        val currentPolicies = gameEngine.gameData.value.sectPolicies
-        val currentStones = gameEngine.gameData.value.spiritStones
+        val currentGameData = gameEngine.gameData.value ?: return false
+        val currentPolicies = currentGameData.sectPolicies
         val requiredStones = GameConfig.PolicyConfig.CULTIVATION_SUBSIDY_COST
-        
-        if (!currentPolicies.cultivationSubsidy && currentStones < requiredStones) {
-            _errorMessage.value = "灵石不足${requiredStones}，无法开启修行津贴政策"
-            return false
+
+        if (!currentPolicies.cultivationSubsidy) {
+            viewModelScope.launch {
+                gameEngine.updateGameData {
+                    if (it.spiritStones < requiredStones) {
+                        _errorMessage.value = "灵石不足${requiredStones}，无法开启修行津贴政策"
+                        it
+                    } else {
+                        it.copy(
+                            spiritStones = it.spiritStones - requiredStones,
+                            sectPolicies = it.sectPolicies.copy(cultivationSubsidy = true)
+                        )
+                    }
+                }
+            }
+        } else {
+            viewModelScope.launch {
+                gameEngine.updateGameData { it.copy(sectPolicies = it.sectPolicies.copy(cultivationSubsidy = false)) }
+            }
         }
-        
-        gameEngine.updateGameDataSync { it.copy(sectPolicies = currentPolicies.copy(cultivationSubsidy = !currentPolicies.cultivationSubsidy)) }
         return true
     }
-    
+
     fun isCultivationSubsidyEnabled(): Boolean {
-        return gameEngine.gameData.value.sectPolicies.cultivationSubsidy
+        return gameEngine.gameData.value?.sectPolicies?.cultivationSubsidy ?: false
     }
-    
+
     fun toggleManualResearch(): Boolean {
-        val currentPolicies = gameEngine.gameData.value.sectPolicies
-        val currentStones = gameEngine.gameData.value.spiritStones
+        val currentGameData = gameEngine.gameData.value ?: return false
+        val currentPolicies = currentGameData.sectPolicies
         val requiredStones = GameConfig.PolicyConfig.MANUAL_RESEARCH_COST
-        
-        if (!currentPolicies.manualResearch && currentStones < requiredStones) {
-            _errorMessage.value = "灵石不足${requiredStones}，无法开启功法研习政策"
-            return false
+
+        if (!currentPolicies.manualResearch) {
+            viewModelScope.launch {
+                gameEngine.updateGameData {
+                    if (it.spiritStones < requiredStones) {
+                        _errorMessage.value = "灵石不足${requiredStones}，无法开启功法研习政策"
+                        it
+                    } else {
+                        it.copy(
+                            spiritStones = it.spiritStones - requiredStones,
+                            sectPolicies = it.sectPolicies.copy(manualResearch = true)
+                        )
+                    }
+                }
+            }
+        } else {
+            viewModelScope.launch {
+                gameEngine.updateGameData { it.copy(sectPolicies = it.sectPolicies.copy(manualResearch = false)) }
+            }
         }
-        
-        gameEngine.updateGameDataSync { it.copy(sectPolicies = currentPolicies.copy(manualResearch = !currentPolicies.manualResearch)) }
         return true
     }
-    
+
     fun isManualResearchEnabled(): Boolean {
-        return gameEngine.gameData.value.sectPolicies.manualResearch
+        return gameEngine.gameData.value?.sectPolicies?.manualResearch ?: false
     }
     
     fun getViceSectMasterIntelligenceBonus(): Double {
@@ -543,14 +649,17 @@ class SectViewModel @Inject constructor(
     }
     
     fun getDisciplePosition(discipleId: String): String? {
-        return DisciplePositionHelper.getDisciplePosition(discipleId, gameEngine.gameData.value)
+        val gameData = gameEngine.gameData.value ?: return null
+        return DisciplePositionHelper.getDisciplePosition(discipleId, gameData)
     }
-    
+
     fun hasDisciplePosition(discipleId: String): Boolean {
-        return DisciplePositionHelper.hasDisciplePosition(discipleId, gameEngine.gameData.value)
+        val gameData = gameEngine.gameData.value ?: return false
+        return DisciplePositionHelper.hasDisciplePosition(discipleId, gameData)
     }
-    
+
     fun isReserveDisciple(discipleId: String): Boolean {
-        return DisciplePositionHelper.isReserveDisciple(discipleId, gameEngine.gameData.value)
+        val gameData = gameEngine.gameData.value ?: return false
+        return DisciplePositionHelper.isReserveDisciple(discipleId, gameData)
     }
 }

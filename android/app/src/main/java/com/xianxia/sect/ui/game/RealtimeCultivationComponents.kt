@@ -14,13 +14,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.service.HighFrequencyData
-import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.ui.theme.GameColors
+import java.util.Locale
 import kotlinx.coroutines.flow.StateFlow
 
 @Composable
 fun RealtimeCultivationProgress(
-    disciple: Disciple,
+    disciple: DiscipleAggregate,
     realtimeCultivation: Map<String, Double>,
     modifier: Modifier = Modifier
 ) {
@@ -30,10 +31,10 @@ fun RealtimeCultivationProgress(
         }
     }
     
-    val progress by remember(currentCultivation, disciple.maxCultivation) {
+    val progress by remember(currentCultivation, disciple.core.maxCultivation) {
         derivedStateOf {
-            if (disciple.maxCultivation > 0) {
-                (currentCultivation / disciple.maxCultivation).coerceIn(0.0, 1.0).toFloat()
+            if (disciple.core.maxCultivation > 0) {
+                (currentCultivation / disciple.core.maxCultivation).coerceIn(0.0, 1.0).toFloat()
             } else 0f
         }
     }
@@ -61,16 +62,17 @@ fun RealtimeCultivationProgress(
                 color = Color(0xFF666666)
             )
             Text(
-                text = "${String.format("%.1f", currentCultivation)} / ${disciple.maxCultivation}",
+                text = "${String.format(Locale.getDefault(), "%.1f", currentCultivation)} / ${disciple.core.maxCultivation}",
                 fontSize = 10.sp,
                 color = Color(0xFF999999)
             )
         }
         
         Spacer(modifier = Modifier.height(4.dp))
-        
+
+        @Suppress("DEPRECATION")
         LinearProgressIndicator(
-            progress = progress,
+            progress = { progress },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(6.dp)
@@ -83,7 +85,7 @@ fun RealtimeCultivationProgress(
 
 @Composable
 fun RealtimeDiscipleCard(
-    disciple: Disciple,
+    disciple: DiscipleAggregate,
     realtimeCultivation: Map<String, Double>,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -94,10 +96,10 @@ fun RealtimeDiscipleCard(
         }
     }
     
-    val cultivationProgress by remember(currentCultivation, disciple.maxCultivation) {
+    val cultivationProgress by remember(currentCultivation, disciple.core.maxCultivation) {
         derivedStateOf {
-            if (disciple.maxCultivation > 0) {
-                (currentCultivation / disciple.maxCultivation).coerceIn(0.0, 1.0).toFloat()
+            if (disciple.core.maxCultivation > 0) {
+                (currentCultivation / disciple.core.maxCultivation).coerceIn(0.0, 1.0).toFloat()
             } else 0f
         }
     }

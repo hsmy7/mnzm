@@ -22,7 +22,8 @@ class DiscipleViewModel @Inject constructor(
     val gameData: StateFlow<GameData> = gameEngine.gameData
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), gameEngine.gameData.value)
     
-    val disciples: StateFlow<List<Disciple>> = gameEngine.disciples
+    val disciples: StateFlow<List<DiscipleAggregate>> = gameEngine.disciples
+        .map { discipleList -> discipleList.map { it.toAggregate() } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     
     private val _errorMessage = MutableStateFlow<String?>(null)
@@ -46,36 +47,80 @@ class DiscipleViewModel @Inject constructor(
         _selectedDiscipleId.value = discipleId
     }
     
-    fun getSelectedDisciple(): Disciple? {
-        return _selectedDiscipleId.value?.let { id ->
+    /**
+     * 获取当前选中的弟子
+     *
+     * @return 当前选中的弟子对象，如果未选中任何弟子或选中的弟子ID不存在则返回null
+     *
+     * 注意事项：
+     * - 如果用户尚未选择任何弟子（selectedDiscipleId 为 null），返回 null
+     * - 如果选择的弟子ID在弟子列表中不存在（例如弟子已被删除），返回 null
+     * - 调用方必须检查返回值是否为 null 后再使用
+     *
+     * 使用示例：
+     * ```kotlin
+     * val disciple = viewModel.getSelectedDisciple()
+     * if (disciple != null) {
+     *     // 安全使用 disciple
+     * } else {
+     *     // 处理未选中或弟子不存在的情况
+     * }
+     * ```
+     */
+    fun getSelectedDisciple(): DiscipleAggregate? {
+        return try {
+            _selectedDiscipleId.value?.let { id ->
+                disciples.value.find { it.id == id }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting selected disciple", e)
+            _errorMessage.value = "获取选中弟子信息失败"
+            null
+        }
+    }
+
+    /**
+     * 根据ID获取弟子信息
+     *
+     * @param id 弟子ID
+     * @return 弟子对象，如果ID不存在则返回null
+     *
+     * @throws IllegalArgumentException 如果id为空字符串
+     */
+    fun getDiscipleById(id: String): DiscipleAggregate? {
+        if (id.isBlank()) {
+            Log.w(TAG, "getDiscipleById called with blank id")
+            return null
+        }
+
+        return try {
             disciples.value.find { it.id == id }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting disciple by id: $id", e)
+            null
         }
     }
     
-    fun getDiscipleById(id: String): Disciple? {
-        return disciples.value.find { it.id == id }
-    }
-    
-    val aliveDisciples: List<Disciple>
+    val aliveDisciples: List<DiscipleAggregate>
         get() = disciples.value.filter { it.isAlive }
-    
-    val idleDisciples: List<Disciple>
+
+    val idleDisciples: List<DiscipleAggregate>
         get() = disciples.value.filter { it.isAlive && it.status == DiscipleStatus.IDLE }
-    
-    val workingDisciples: List<Disciple>
+
+    val workingDisciples: List<DiscipleAggregate>
         get() = disciples.value.filter { it.isAlive && it.status != DiscipleStatus.IDLE }
     
-    fun getDisciplesByStatus(status: DiscipleStatus): List<Disciple> {
+    fun getDisciplesByStatus(status: DiscipleStatus): List<DiscipleAggregate> {
         return disciples.value.filter { it.isAlive && it.status == status }
     }
     
-    fun getDisciplesByRealm(minRealm: Int, maxRealm: Int = 0): List<Disciple> {
+    fun getDisciplesByRealm(minRealm: Int, maxRealm: Int = 0): List<DiscipleAggregate> {
         return disciples.value.filter { 
             it.isAlive && it.realm >= minRealm && (maxRealm == 0 || it.realm <= maxRealm)
         }
     }
     
-    fun getDisciplesForBattleTeamSlot(slotIndex: Int, currentSlotDiscipleIds: List<String>): List<Disciple> {
+    fun getDisciplesForBattleTeamSlot(slotIndex: Int, currentSlotDiscipleIds: List<String>): List<DiscipleAggregate> {
         return disciples.value.filter { disciple ->
             disciple.isAlive &&
             disciple.realmLayer > 0 &&
@@ -85,13 +130,13 @@ class DiscipleViewModel @Inject constructor(
         }.sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
     
-    fun getEligibleScoutDisciples(): List<Disciple> {
+    fun getEligibleScoutDisciples(): List<DiscipleAggregate> {
         return disciples.value.filter { 
             it.isAlive && it.status == DiscipleStatus.IDLE 
         }
     }
     
-    fun getEligibleEnvoyDisciples(sectLevel: Int): List<Disciple> {
+    fun getEligibleEnvoyDisciples(sectLevel: Int): List<DiscipleAggregate> {
         val requiredRealm = gameEngine.getEnvoyRealmRequirement(sectLevel)
         return disciples.value.filter { 
             it.isAlive && 
@@ -100,7 +145,7 @@ class DiscipleViewModel @Inject constructor(
         }
     }
     
-    fun getEligibleRequestDisciples(): List<Disciple> {
+    fun getEligibleRequestDisciples(): List<DiscipleAggregate> {
         return disciples.value.filter { 
             it.isAlive && 
             it.status == DiscipleStatus.IDLE &&
@@ -202,11 +247,11 @@ class DiscipleViewModel @Inject constructor(
         }
     }
     
-    fun startBreakthrough(discipleId: String) {
+    fun startBreakthrough(discipleId: String, pillId: String) {
         viewModelScope.launch {
             try {
                 val disciple = getDiscipleById(discipleId) ?: return@launch
-                gameEngine.usePill(discipleId, discipleId)
+                gameEngine.usePill(discipleId, pillId)
                 _successMessage.value = "${disciple.name}尝试突破"
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "突破失败"

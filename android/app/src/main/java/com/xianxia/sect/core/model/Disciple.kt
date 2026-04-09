@@ -1,10 +1,12 @@
+@file:Suppress("DEPRECATION")
+
 package com.xianxia.sect.core.model
 
+import androidx.room.ColumnInfo
 import androidx.room.Embedded
 import androidx.room.Entity
 import androidx.room.Ignore
 import androidx.room.Index
-import androidx.room.PrimaryKey
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.DiscipleStatCalculator
 import com.xianxia.sect.core.util.GameRandom
@@ -47,6 +49,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 @Entity(
     tableName = "disciples",
+    primaryKeys = ["id", "slot_id"],
     indices = [
         Index(value = ["name"]),
         Index(value = ["realm", "realmLayer"]),
@@ -62,8 +65,12 @@ import kotlinx.serialization.Serializable
     replaceWith = ReplaceWith("DiscipleAggregate", "com.xianxia.sect.core.model.DiscipleAggregate")
 )
 data class Disciple(
-    @PrimaryKey
+    @ColumnInfo(name = "id")
     var id: String = java.util.UUID.randomUUID().toString(),
+
+    @ColumnInfo(name = "slot_id")
+    var slotId: Int = 0,
+
     var name: String = "",
     var realm: Int = 9,
     var realmLayer: Int = 1,
@@ -143,14 +150,17 @@ data class Disciple(
     /** @deprecated 请改用 [combat.speedVariance] */
     var speedVariance: Int get() = combat.speedVariance; set(value) { combat.speedVariance = value }
 
-    /** @deprecated 请改用 [combat.battlesWon] */
-    var battlesWon: Int get() = combat.battlesWon; set(value) { combat.battlesWon = value }
     /** @deprecated 请改用 [combat.totalCultivation] */
     var totalCultivation: Long get() = combat.totalCultivation; set(value) { combat.totalCultivation = value }
     /** @deprecated 请改用 [combat.breakthroughCount] */
     var breakthroughCount: Int get() = combat.breakthroughCount; set(value) { combat.breakthroughCount = value }
     /** @deprecated 请改用 [combat.breakthroughFailCount] */
     var breakthroughFailCount: Int get() = combat.breakthroughFailCount; set(value) { combat.breakthroughFailCount = value }
+
+    /** @deprecated 请改用 [combat.currentHp] */
+    var currentHp: Int get() = combat.currentHp; set(value) { combat.currentHp = value }
+    /** @deprecated 请改用 [combat.currentMp] */
+    var currentMp: Int get() = combat.currentMp; set(value) { combat.currentMp = value }
 
     // --- PillEffects 委托 ---
     /** @deprecated 请改用 [pillEffects.pillPhysicalAttackBonus] */
@@ -172,22 +182,22 @@ data class Disciple(
 
     // --- EquipmentSet 委托 ---
     /** @deprecated 请改用 [equipment.weaponId] */
-    var weaponId: String? get() = equipment.weaponId; set(value) { equipment.weaponId = value }
+    var weaponId: String get() = equipment.weaponId; set(value) { equipment.weaponId = value }
     /** @deprecated 请改用 [equipment.armorId] */
-    var armorId: String? get() = equipment.armorId; set(value) { equipment.armorId = value }
+    var armorId: String get() = equipment.armorId; set(value) { equipment.armorId = value }
     /** @deprecated 请改用 [equipment.bootsId] */
-    var bootsId: String? get() = equipment.bootsId; set(value) { equipment.bootsId = value }
+    var bootsId: String get() = equipment.bootsId; set(value) { equipment.bootsId = value }
     /** @deprecated 请改用 [equipment.accessoryId] */
-    var accessoryId: String? get() = equipment.accessoryId; set(value) { equipment.accessoryId = value }
+    var accessoryId: String get() = equipment.accessoryId; set(value) { equipment.accessoryId = value }
 
     /** @deprecated 请改用 [equipment.weaponNurture] */
-    var weaponNurture: EquipmentNurtureData? get() = equipment.weaponNurture; set(value) { equipment.weaponNurture = value }
+    var weaponNurture: EquipmentNurtureData get() = equipment.weaponNurture; set(value) { equipment.weaponNurture = value }
     /** @deprecated 请改用 [equipment.armorNurture] */
-    var armorNurture: EquipmentNurtureData? get() = equipment.armorNurture; set(value) { equipment.armorNurture = value }
+    var armorNurture: EquipmentNurtureData get() = equipment.armorNurture; set(value) { equipment.armorNurture = value }
     /** @deprecated 请改用 [equipment.bootsNurture] */
-    var bootsNurture: EquipmentNurtureData? get() = equipment.bootsNurture; set(value) { equipment.bootsNurture = value }
+    var bootsNurture: EquipmentNurtureData get() = equipment.bootsNurture; set(value) { equipment.bootsNurture = value }
     /** @deprecated 请改用 [equipment.accessoryNurture] */
-    var accessoryNurture: EquipmentNurtureData? get() = equipment.accessoryNurture; set(value) { equipment.accessoryNurture = value }
+    var accessoryNurture: EquipmentNurtureData get() = equipment.accessoryNurture; set(value) { equipment.accessoryNurture = value }
 
     /** @deprecated 请改用 [equipment.storageBagItems] */
     var storageBagItems: List<StorageBagItem> get() = equipment.storageBagItems; set(value) { equipment.storageBagItems = value }
@@ -333,10 +343,11 @@ data class Disciple(
         physicalDefenseVariance: Int = this.physicalDefenseVariance,
         magicDefenseVariance: Int = this.magicDefenseVariance,
         speedVariance: Int = this.speedVariance,
-        battlesWon: Int = this.battlesWon,
         totalCultivation: Long = this.totalCultivation,
         breakthroughCount: Int = this.breakthroughCount,
         breakthroughFailCount: Int = this.breakthroughFailCount,
+        currentHp: Int = this.currentHp,
+        currentMp: Int = this.currentMp,
 
         // PillEffects
         pillPhysicalAttackBonus: Double = this.pillPhysicalAttackBonus,
@@ -349,14 +360,14 @@ data class Disciple(
         pillEffectDuration: Int = this.pillEffectDuration,
 
         // EquipmentSet
-        weaponId: String? = this.weaponId,
-        armorId: String? = this.armorId,
-        bootsId: String? = this.bootsId,
-        accessoryId: String? = this.accessoryId,
-        weaponNurture: EquipmentNurtureData? = this.weaponNurture,
-        armorNurture: EquipmentNurtureData? = this.armorNurture,
-        bootsNurture: EquipmentNurtureData? = this.bootsNurture,
-        accessoryNurture: EquipmentNurtureData? = this.accessoryNurture,
+        weaponId: String = this.weaponId,
+        armorId: String = this.armorId,
+        bootsId: String = this.bootsId,
+        accessoryId: String = this.accessoryId,
+        weaponNurture: EquipmentNurtureData = this.weaponNurture,
+        armorNurture: EquipmentNurtureData = this.armorNurture,
+        bootsNurture: EquipmentNurtureData = this.bootsNurture,
+        accessoryNurture: EquipmentNurtureData = this.accessoryNurture,
         storageBagItems: List<StorageBagItem> = this.storageBagItems,
         storageBagSpiritStones: Long = this.storageBagSpiritStones,
         spiritStones: Int = this.spiritStones,
@@ -424,10 +435,11 @@ data class Disciple(
                 physicalDefenseVariance = physicalDefenseVariance,
                 magicDefenseVariance = magicDefenseVariance,
                 speedVariance = speedVariance,
-                battlesWon = battlesWon,
                 totalCultivation = totalCultivation,
                 breakthroughCount = breakthroughCount,
-                breakthroughFailCount = breakthroughFailCount
+                breakthroughFailCount = breakthroughFailCount,
+                currentHp = currentHp,
+                currentMp = currentMp
             ),
             pillEffects = PillEffects(
                 pillPhysicalAttackBonus = pillPhysicalAttackBonus,
@@ -611,26 +623,19 @@ data class Disciple(
 
 @Serializable
 enum class DiscipleStatus {
-    IDLE, CULTIVATING, EXPLORING, ALCHEMY, FORGING, FARMING, STUDYING, BATTLE, WORKING, SCOUTING, MINING, REFLECTING, LAW_ENFORCING, PREACHING, MANAGING, GROWING, ON_MISSION, DEAD;
+    IDLE, DEACONING, MINING, STUDYING, PREACHING, MANAGING, LAW_ENFORCING, ON_MISSION, REFLECTING, IN_TEAM, DEAD;
 
     val displayName: String get() = when (this) {
         IDLE -> "空闲中"
-        CULTIVATING -> "修炼中"
-        EXPLORING -> "探索中"
-        ALCHEMY -> "炼丹中"
-        FORGING -> "炼器中"
-        FARMING -> "种植中"
-        STUDYING -> "研习中"
-        BATTLE -> "战斗中"
-        WORKING -> "工作中"
-        SCOUTING -> "探查中"
+        DEACONING -> "执事中"
         MINING -> "采矿中"
-        REFLECTING -> "思过中"
-        LAW_ENFORCING -> "执法中"
+        STUDYING -> "学习中"
         PREACHING -> "传道中"
         MANAGING -> "管理中"
-        GROWING -> "成长中"
-        ON_MISSION -> "执行任务中"
+        LAW_ENFORCING -> "执法中"
+        ON_MISSION -> "任务中"
+        REFLECTING -> "思过中"
+        IN_TEAM -> "队伍中"
         DEAD -> "已死亡"
     }
 }
@@ -704,7 +709,10 @@ data class DiscipleStats(
     val critRate: Double = 0.0,
     val intelligence: Int = 0,
     val charm: Int = 0,
-    val loyalty: Int = 0
+    val loyalty: Int = 0,
+    val comprehension: Int = 0,
+    val teaching: Int = 0,
+    val morality: Int = 0
 ) {
     operator fun plus(other: DiscipleStats): DiscipleStats {
         return DiscipleStats(
@@ -720,7 +728,10 @@ data class DiscipleStats(
             critRate = critRate + other.critRate,
             intelligence = intelligence + other.intelligence,
             charm = charm + other.charm,
-            loyalty = loyalty + other.loyalty
+            loyalty = loyalty + other.loyalty,
+            comprehension = comprehension + other.comprehension,
+            teaching = teaching + other.teaching,
+            morality = morality + other.morality
         )
     }
 }

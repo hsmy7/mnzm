@@ -2,8 +2,6 @@ package com.xianxia.sect.di
 
 import android.app.ActivityManager
 import android.content.Context
-import androidx.room.Room
-import androidx.room.RoomDatabase
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.data.local.*
 import com.xianxia.sect.data.GameRepository
@@ -14,9 +12,9 @@ import com.xianxia.sect.data.incremental.ChangeTracker
 import com.xianxia.sect.data.incremental.DeltaCompressor
 import com.xianxia.sect.data.incremental.IncrementalStorageManager
 import com.xianxia.sect.data.incremental.IncrementalStorageCoordinator
+import com.xianxia.sect.data.engine.UnifiedStorageEngine
 import com.xianxia.sect.data.serialization.unified.SaveDataConverter
 import com.xianxia.sect.data.serialization.unified.UnifiedSerializationEngine
-import com.xianxia.sect.data.unified.UnifiedSaveRepository
 import com.xianxia.sect.domain.usecase.*
 import com.xianxia.sect.ui.state.DialogStateManager
 import dagger.Module
@@ -36,18 +34,20 @@ object AppModule {
         return SessionManager(context)
     }
     
+    /**
+     * GameDatabase 单例提供者 — 使用统一实例创建方法
+     * 
+     * 路由改造说明：
+     * - 原路径可能使用 per-slot 数据库（已废弃）
+     * - 新路径：统一单实例 DB (xianxia_sect.db)，所有 slot 共享同一数据库文件
+     * - transactionalSaveManager 通过 slot 字段区分不同存档的数据行
+     *
+     * @see GameDatabase.create 统一实例工厂方法
+     */
     @Provides
     @Singleton
     fun provideGameDatabase(@ApplicationContext context: Context): GameDatabase {
-        return Room.databaseBuilder(
-            context,
-            GameDatabase::class.java,
-            "xianxia_sect_db"
-        )
-            .addMigrations(*DatabaseMigrations.ALL_MIGRATIONS)
-            .fallbackToDestructiveMigrationOnDowngrade()
-            .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
-            .build()
+        return GameDatabase.create(context.applicationContext)
     }
     
     @Provides
@@ -102,6 +102,21 @@ object AppModule {
     
     @Provides
     fun provideAlchemySlotDao(database: GameDatabase): AlchemySlotDao = database.alchemySlotDao()
+
+    @Provides
+    fun provideDiscipleCoreDao(database: GameDatabase): DiscipleCoreDao = database.discipleCoreDao()
+
+    @Provides
+    fun provideDiscipleCombatStatsDao(database: GameDatabase): DiscipleCombatStatsDao = database.discipleCombatStatsDao()
+
+    @Provides
+    fun provideDiscipleEquipmentDao(database: GameDatabase): DiscipleEquipmentDao = database.discipleEquipmentDao()
+
+    @Provides
+    fun provideDiscipleExtendedDao(database: GameDatabase): DiscipleExtendedDao = database.discipleExtendedDao()
+
+    @Provides
+    fun provideDiscipleAttributesDao(database: GameDatabase): DiscipleAttributesDao = database.discipleAttributesDao()
     
     @Provides
     @Singleton
@@ -109,6 +124,11 @@ object AppModule {
         database: GameDatabase,
         gameDataDao: GameDataDao,
         discipleDao: DiscipleDao,
+        discipleCoreDao: DiscipleCoreDao,
+        discipleCombatStatsDao: DiscipleCombatStatsDao,
+        discipleEquipmentDao: DiscipleEquipmentDao,
+        discipleExtendedDao: DiscipleExtendedDao,
+        discipleAttributesDao: DiscipleAttributesDao,
         equipmentDao: EquipmentDao,
         manualDao: ManualDao,
         pillDao: PillDao,
@@ -121,12 +141,19 @@ object AppModule {
         dungeonDao: DungeonDao,
         recipeDao: RecipeDao,
         battleLogDao: BattleLogDao,
-        forgeSlotDao: ForgeSlotDao
+        forgeSlotDao: ForgeSlotDao,
+        alchemySlotDao: AlchemySlotDao,
+        productionSlotDao: ProductionSlotDao
     ): GameRepository {
         return GameRepository(
             database,
             gameDataDao,
             discipleDao,
+            discipleCoreDao,
+            discipleCombatStatsDao,
+            discipleEquipmentDao,
+            discipleExtendedDao,
+            discipleAttributesDao,
             equipmentDao,
             manualDao,
             pillDao,
@@ -139,7 +166,9 @@ object AppModule {
             dungeonDao,
             recipeDao,
             battleLogDao,
-            forgeSlotDao
+            forgeSlotDao,
+            alchemySlotDao,
+            productionSlotDao
         )
     }
 
@@ -215,19 +244,17 @@ object AppModule {
         @ApplicationContext context: Context,
         database: GameDatabase,
         cacheManager: GameDataCacheManager,
-        saveRepository: UnifiedSaveRepository,
         changeTracker: ChangeTracker,
         deltaCompressor: DeltaCompressor,
-        incrementalStorageManager: IncrementalStorageManager
+        engine: UnifiedStorageEngine
     ): IncrementalStorageCoordinator {
         return IncrementalStorageCoordinator(
-            context,
-            database,
-            cacheManager,
-            saveRepository,
-            changeTracker,
-            deltaCompressor,
-            incrementalStorageManager
+            context = context,
+            database = database,
+            cacheManager = cacheManager,
+            changeTracker = changeTracker,
+            deltaCompressor = deltaCompressor,
+            engine = engine
         )
     }
 }

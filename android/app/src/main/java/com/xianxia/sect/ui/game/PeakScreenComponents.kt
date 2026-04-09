@@ -18,6 +18,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.*
@@ -28,7 +29,7 @@ import com.xianxia.sect.ui.components.ElderBonusInfoProvider
 
 data class PeakElderSlotConfig(
     val title: String,
-    val elder: Disciple?,
+    val elder: DiscipleAggregate?,
     val bonusInfo: ElderBonusInfo,
     val onClick: () -> Unit,
     val onRemove: () -> Unit
@@ -350,7 +351,7 @@ private fun PeakPreachingMasterSlotItem(
 fun PeakDiscipleListSection(
     sectionTitle: String,
     emptyText: String,
-    disciples: List<Disciple>,
+    disciples: List<DiscipleAggregate>,
     maxHeightDp: Dp = 180.dp,
     truncateAt: Int? = 10
 ) {
@@ -426,7 +427,7 @@ fun PeakDiscipleListSection(
 }
 
 @Composable
-private fun PeakDiscipleItem(disciple: Disciple) {
+private fun PeakDiscipleItem(disciple: DiscipleAggregate) {
     val borderColor = try {
         Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))
     } catch (e: Exception) {
@@ -475,10 +476,10 @@ private fun PeakDiscipleItem(disciple: Disciple) {
 @Composable
 fun PeakDiscipleSelectionDialog(
     title: String,
-    disciples: List<Disciple>,
+    disciples: List<DiscipleAggregate>,
     currentDiscipleId: String?,
     requirementText: String,
-    onSelect: (Disciple) -> Unit,
+    onSelect: (DiscipleAggregate) -> Unit,
     onDismiss: () -> Unit
 ) {
     var selectedRealmFilter by remember { mutableStateOf<Int?>(null) }
@@ -494,7 +495,7 @@ fun PeakDiscipleSelectionDialog(
 
     val sortedDisciples = remember(disciples) {
         disciples.filter { it.realmLayer > 0 }.sortedWith(
-            compareBy<Disciple> { it.realm }.thenByDescending { it.realmLayer }
+            compareBy<DiscipleAggregate> { it.realm }.thenByDescending { it.realmLayer }
         )
     }
 

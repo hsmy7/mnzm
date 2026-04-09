@@ -27,7 +27,7 @@ import com.xianxia.sect.ui.components.ElderBonusInfoProvider
 
 @Composable
 fun LawEnforcementHallDialog(
-    disciples: List<Disciple>,
+    disciples: List<DiscipleAggregate>,
     gameData: GameData?,
     viewModel: GameViewModel,
     onDismiss: () -> Unit
@@ -161,7 +161,7 @@ fun LawEnforcementHallDialog(
 
 @Composable
 private fun LawElderSection(
-    elder: Disciple?,
+    elder: DiscipleAggregate?,
     onElderClick: () -> Unit,
     onElderRemove: () -> Unit
 ) {
@@ -205,12 +205,18 @@ private fun LawDisciplesSection(
             .padding(12.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(
-            text = "执法弟子",
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.Black
-        )
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "执法弟子",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black
+            )
+            ElderBonusInfoButton(bonusInfo = ElderBonusInfoProvider.getLawEnforcementDiscipleInfo())
+        }
         Spacer(modifier = Modifier.height(8.dp))
 
         Row(
@@ -245,7 +251,7 @@ private fun LawDisciplesSection(
 
 @Composable
 private fun ReserveDiscipleCard(
-    disciple: Disciple,
+    disciple: DiscipleAggregate,
     onRemove: () -> Unit
 ) {
     val spiritRootColor = try {
@@ -328,7 +334,7 @@ private fun ReserveDiscipleCard(
 @Composable
 private fun ElderSlotItem(
     title: String,
-    elder: Disciple?,
+    elder: DiscipleAggregate?,
     bonusInfo: com.xianxia.sect.ui.components.ElderBonusInfo,
     onClick: () -> Unit,
     onRemove: () -> Unit
@@ -504,10 +510,10 @@ private fun LawDiscipleSlotItem(
 @Composable
 private fun DiscipleSelectionDialog(
     title: String,
-    disciples: List<Disciple>,
+    disciples: List<DiscipleAggregate>,
     currentDiscipleId: String?,
     requirementText: String,
-    onSelect: (Disciple) -> Unit,
+    onSelect: (DiscipleAggregate) -> Unit,
     onDismiss: () -> Unit
 ) {
     var selectedRealmFilter by remember { mutableStateOf<Int?>(null) }
@@ -801,7 +807,7 @@ private fun CommonDialog(
 
 @Composable
 private fun ReserveDiscipleListDialog(
-    reserveDisciples: List<Disciple>,
+    reserveDisciples: List<DiscipleAggregate>,
     viewModel: GameViewModel,
     onDismiss: () -> Unit
 ) {
@@ -1057,7 +1063,7 @@ private fun InnerDiscipleSelectionDialog(
 
 @Composable
 private fun SelectableDiscipleCard(
-    disciple: Disciple,
+    disciple: DiscipleAggregate,
     isSelected: Boolean,
     onClick: () -> Unit
 ) {

@@ -7,8 +7,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,6 +26,7 @@ import com.xianxia.sect.core.data.ForgeRecipeDatabase
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.theme.GameColors
+import java.util.Locale
 
 @Composable
 fun ForgeDialog(
@@ -39,13 +41,13 @@ fun ForgeDialog(
     var showEquipmentSelection by remember { mutableStateOf(false) }
     var selectedSlotIndex by remember { mutableStateOf<Int?>(null) }
 
-    val disciples by viewModel.disciples.collectAsState()
+    val disciples by viewModel.discipleAggregates.collectAsState()
     var showElderSelection by remember { mutableStateOf(false) }
     var showDirectDiscipleSelection by remember { mutableStateOf<Int?>(null) }
 
-    val elderSlots = gameData?.elderSlots
-    val forgeElder = elderSlots?.forgeElder?.let { viewModel.getElderDisciple(it) }
-    val forgeDisciples = elderSlots?.forgeDisciples ?: emptyList()
+    val elderSlots = gameData?.elderSlots ?: ElderSlots()
+    val forgeElder = elderSlots.forgeElder?.let { viewModel.getElderDisciple(it) }
+    val forgeDisciples = elderSlots.forgeDisciples
 
     var showReserveDiscipleDialog by remember { mutableStateOf(false) }
     var showAddReserveDialog by remember { mutableStateOf(false) }
@@ -54,6 +56,7 @@ fun ForgeDialog(
         title = theme.displayName,
         theme = theme,
         onDismiss = onDismiss,
+        enableScroll = false,
         titleActions = {
             Box(
                 modifier = Modifier
@@ -65,6 +68,7 @@ fun ForgeDialog(
                 Text(
                     text = "储备弟子",
                     fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
                     color = theme.reserveButtonTextColor
                 )
             }
@@ -95,12 +99,32 @@ fun ForgeDialog(
                 thickness = 1.dp
             )
 
-            Text(
-                text = theme.slotLabelPrefix + "位",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFF666666)
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = theme.slotLabelPrefix + "位",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF666666)
+                )
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(theme.reserveButtonBackgroundColor)
+                        .clickable { viewModel.autoForgeAllSlots() }
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "自动炼器",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = theme.reserveButtonTextColor
+                    )
+                }
+            }
 
             (0 until theme.slotCount).chunked(3).forEach { rowIndexes ->
                 Row(
@@ -111,7 +135,7 @@ fun ForgeDialog(
                         val slot = forgeSlots.getOrNull(index)
                         val isIdle = slot?.status == ForgeSlotStatus.IDLE || slot == null
                         val isWorking = slot?.status == ForgeSlotStatus.WORKING
-                        val remainingMonths = if (isWorking && slot != null && gameData != null)
+                        val remainingMonths = if (isWorking && gameData != null)
                             slot.getRemainingMonths(gameData.gameYear, gameData.gameMonth) else 0
 
                         ProductionSlotItem(
@@ -230,7 +254,8 @@ private fun EquipmentSelectionDialog(
     ProductionCommonDialog(
         title = FORGE_THEME.selectionDialogTitle,
         theme = FORGE_THEME,
-        onDismiss = onDismiss
+        onDismiss = onDismiss,
+        enableScroll = false
     ) {
         data class RecipeWithStatus(
             val recipe: ForgeRecipeDatabase.ForgeRecipe,
@@ -246,9 +271,10 @@ private fun EquipmentSelectionDialog(
             allRecipes.map { recipe ->
                 val canCraft = recipe.materials.all { (materialId, requiredQuantity) ->
                     val materialData = com.xianxia.sect.core.data.BeastMaterialDatabase.getMaterialById(materialId)
-                    if (materialData == null) return@all false
-                    val available = materialIndex[materialData.name to materialData.rarity] ?: 0
-                    available >= requiredQuantity
+                    materialData != null && run {
+                        val available = materialIndex[materialData.name to materialData.rarity] ?: 0
+                        available >= requiredQuantity
+                    }
                 }
                 RecipeWithStatus(recipe, canCraft)
             }
@@ -259,12 +285,11 @@ private fun EquipmentSelectionDialog(
             craftable.sortedByDescending { it.recipe.rarity } + uncraftable
         }
 
-        Column {
+        Column(modifier = Modifier.weight(1f)) {
             LazyVerticalGrid(
-                columns = GridCells.Fixed(4),
+                columns = GridCells.Adaptive(56.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.height(300.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(sortedRecipes) { recipeWithStatus ->
                     val recipe = recipeWithStatus.recipe
@@ -400,7 +425,7 @@ private fun EquipmentDetailDialog(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text(text = materialName ?: materialId, fontSize = 11.sp, color = if (hasEnough) Color.Black else Color(0xFFE74C3C))
+                            Text(text = material?.name ?: materialName ?: materialId, fontSize = 11.sp, color = if (hasEnough) Color.Black else Color(0xFFE74C3C))
                             Text(text = "${material?.quantity ?: 0}/$requiredQuantity", fontSize = 11.sp, color = if (hasEnough) Color(0xFF4CAF50) else Color(0xFFE74C3C))
                         }
                     }
@@ -420,7 +445,7 @@ private fun EquipmentDetailDialog(
                         if (template.speed > 0) Text(text = "身法 +${template.speed}", fontSize = 11.sp, color = Color(0xFF666666))
                         if (template.hp > 0) Text(text = "生命 +${template.hp}", fontSize = 11.sp, color = Color(0xFF666666))
                         if (template.mp > 0) Text(text = "法力 +${template.mp}", fontSize = 11.sp, color = Color(0xFF666666))
-                        if (template.critChance > 0) Text(text = "暴击率 +${String.format("%.1f", template.critChance * 100)}%", fontSize = 11.sp, color = Color(0xFF666666))
+                        if (template.critChance > 0) Text(text = "暴击率 +${String.format(Locale.getDefault(), "%.1f", template.critChance * 100)}%", fontSize = 11.sp, color = Color(0xFF666666))
                     }
                 }
 

@@ -1,29 +1,25 @@
+@file:Suppress("DEPRECATION")
+
 package com.xianxia.sect.core.model
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
-import androidx.room.ForeignKey
 import androidx.room.Index
-import androidx.room.PrimaryKey
 
 @Entity(
     tableName = "disciples_attributes",
+    primaryKeys = ["discipleId", "slot_id"],
     indices = [
-        Index(value = ["discipleId"], unique = true),
         Index(value = ["loyalty"])
-    ],
-    foreignKeys = [
-        ForeignKey(
-            entity = DiscipleCore::class,
-            parentColumns = ["id"],
-            childColumns = ["discipleId"],
-            onDelete = ForeignKey.CASCADE,
-            onUpdate = ForeignKey.CASCADE
-        )
     ]
 )
 data class DiscipleAttributes(
-    @PrimaryKey
+    @ColumnInfo(name = "discipleId")
     var discipleId: String = "",
+
+    @ColumnInfo(name = "slot_id")
+    var slotId: Int = 0,
+
     var intelligence: Int = 50,
     var charm: Int = 50,
     var loyalty: Int = 50,

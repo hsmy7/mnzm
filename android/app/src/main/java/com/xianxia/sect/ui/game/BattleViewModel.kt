@@ -18,13 +18,22 @@ class BattleViewModel @Inject constructor(
     
     companion object {
         private const val TAG = "BattleViewModel"
+        const val BATTLE_TEAM_FORMATION_COST = 1000L
     }
     
     val gameData: StateFlow<GameData> = gameEngine.gameData
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), gameEngine.gameData.value)
-    
-    val disciples: StateFlow<List<Disciple>> = gameEngine.disciples
+
+    /**
+     * 转换后的弟子列表（使用新的 DiscipleAggregate 模型）
+     * 用于 UI 层展示，避免使用废弃的 Disciple 类
+     */
+    val disciplesAggregates: StateFlow<List<DiscipleAggregate>> = gameEngine.disciples
+        .map { list -> list.map { DiscipleAggregate.fromDisciple(it) } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // 使用 DiscipleAggregate 作为 UI 层的标准类型
+    val disciples: StateFlow<List<DiscipleAggregate>> = disciplesAggregates
     
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
@@ -66,7 +75,7 @@ class BattleViewModel @Inject constructor(
         return gameEngine.gameData.value.battleTeam
     }
     
-    fun getAvailableDisciplesForBattleTeamSlot(slotIndex: Int): List<Disciple> {
+    fun getAvailableDisciplesForBattleTeamSlot(slotIndex: Int): List<DiscipleAggregate> {
         val battleTeam = gameEngine.gameData.value.battleTeam ?: return emptyList()
         val currentSlotDiscipleIds = battleTeam.slots.mapNotNull { it.discipleId }
         
@@ -80,21 +89,21 @@ class BattleViewModel @Inject constructor(
     }
     
     fun formBattleTeam(elderIds: List<String>, discipleIds: List<String>): Boolean {
-        val currentStones = gameEngine.gameData.value.spiritStones
-        val cost = 1000L
-        
-        if (currentStones < cost) {
-            _errorMessage.value = "灵石不足1000，无法组建战斗队伍"
-            return false
-        }
-        
         if (elderIds.isEmpty() && discipleIds.isEmpty()) {
             _errorMessage.value = "请至少选择一名成员"
             return false
         }
-        
+
         viewModelScope.launch {
             try {
+                val currentStones = gameEngine.gameData.value.spiritStones
+                val cost = BATTLE_TEAM_FORMATION_COST
+
+                if (currentStones < cost) {
+                    _errorMessage.value = "灵石不足1000，无法组建战斗队伍"
+                    return@launch
+                }
+
                 val allMemberIds = elderIds + discipleIds
                 val slots = mutableListOf<BattleTeamSlot>()
                 
@@ -144,7 +153,7 @@ class BattleViewModel @Inject constructor(
                 }
                 
                 allMemberIds.forEach { memberId ->
-                    gameEngine.updateDiscipleStatus(memberId, DiscipleStatus.BATTLE)
+                    gameEngine.updateDiscipleStatus(memberId, DiscipleStatus.IN_TEAM)
                 }
                 
                 _battleTeamSlots.value = slots
@@ -196,49 +205,59 @@ class BattleViewModel @Inject constructor(
     }
     
     fun addDiscipleToBattleTeamSlot(slotIndex: Int, discipleId: String) {
-        val battleTeam = gameEngine.gameData.value.battleTeam ?: return
-        val disciple = disciples.value.find { it.id == discipleId } ?: return
-        
-        val updatedSlots = battleTeam.slots.map { slot ->
-            if (slot.index == slotIndex) {
-                slot.copy(
-                    discipleId = disciple.id,
-                    discipleName = disciple.name,
-                    discipleRealm = disciple.realmName,
-                    isAlive = true
-                )
-            } else {
-                slot
-            }
-        }
-        
         viewModelScope.launch {
-            gameEngine.updateGameData { it.copy(battleTeam = battleTeam.copy(slots = updatedSlots)) }
-            gameEngine.updateDiscipleStatus(discipleId, DiscipleStatus.BATTLE)
+            val disciple = disciples.value.find { it.id == discipleId }
+            if (disciple == null) return@launch
+
+            gameEngine.updateGameData {
+                val battleTeam = it.battleTeam ?: return@updateGameData it
+                val updatedSlots = battleTeam.slots.map { slot ->
+                    if (slot.index == slotIndex) {
+                        slot.copy(
+                            discipleId = disciple.id,
+                            discipleName = disciple.name,
+                            discipleRealm = disciple.realmName,
+                            isAlive = true
+                        )
+                    } else {
+                        slot
+                    }
+                }
+                it.copy(battleTeam = battleTeam.copy(slots = updatedSlots))
+            }
+            gameEngine.updateDiscipleStatus(discipleId, DiscipleStatus.IN_TEAM)
         }
     }
     
     fun removeDiscipleFromBattleTeamSlot(slotIndex: Int) {
-        val battleTeam = gameEngine.gameData.value.battleTeam ?: return
-        val slot = battleTeam.slots.find { it.index == slotIndex } ?: return
-        val discipleId = slot.discipleId ?: return
-        
-        val updatedSlots = battleTeam.slots.map { s ->
-            if (s.index == slotIndex) {
-                s.copy(
-                    discipleId = null,
-                    discipleName = "",
-                    discipleRealm = "",
-                    isAlive = true
-                )
-            } else {
-                s
-            }
-        }
-        
         viewModelScope.launch {
-            gameEngine.updateGameData { it.copy(battleTeam = battleTeam.copy(slots = updatedSlots)) }
-            gameEngine.updateDiscipleStatus(discipleId, DiscipleStatus.IDLE)
+            var removedDiscipleId: String? = null
+
+            gameEngine.updateGameData {
+                val battleTeam = it.battleTeam ?: return@updateGameData it
+                val slot = battleTeam.slots.find { s -> s.index == slotIndex }
+                    ?: return@updateGameData it
+                removedDiscipleId = slot.discipleId
+                if (removedDiscipleId.isNullOrEmpty()) return@updateGameData it
+
+                val updatedSlots = battleTeam.slots.map { s ->
+                    if (s.index == slotIndex) {
+                        s.copy(
+                            discipleId = "",
+                            discipleName = "",
+                            discipleRealm = "",
+                            isAlive = true
+                        )
+                    } else {
+                        s
+                    }
+                }
+                it.copy(battleTeam = battleTeam.copy(slots = updatedSlots))
+            }
+
+            removedDiscipleId?.takeIf { it.isNotEmpty() }?.let { id ->
+                gameEngine.updateDiscipleStatus(id, DiscipleStatus.IDLE)
+            }
         }
     }
     

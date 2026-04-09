@@ -1,15 +1,17 @@
+@file:Suppress("DEPRECATION")
+
 package com.xianxia.sect.data.local
 
 import androidx.room.TypeConverter
+import android.util.Log
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.model.production.ProductionSlot
-import kotlinx.serialization.ExperimentalSerializationApi
+import com.xianxia.sect.data.serialization.NullSafeProtoBuf
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.nullable
 import kotlinx.serialization.builtins.serializer
-import kotlinx.serialization.protobuf.ProtoBuf
 import java.util.Base64
 
 /**
@@ -29,10 +31,15 @@ import java.util.Base64
  */
 object ProtobufConverters {
 
-    @OptIn(ExperimentalSerializationApi::class)
-    private val protoBuf = ProtoBuf {
-        encodeDefaults = true
-    }
+    private const val TAG = "ProtobufConverters"
+
+    /**
+     * 统一的 ProtoBuf 实例（来自 NullSafeProtoBuf 工具类）
+     *
+     * 配置：encodeDefaults = true
+     * 确保所有字段都被序列化，即使值为默认值
+     */
+    private val protoBuf = NullSafeProtoBuf.protoBuf
 
     // ==================== Serializer 实例（避免重复创建）====================
 
@@ -51,10 +58,12 @@ object ProtobufConverters {
     // ==================== 工具方法 ====================
 
     private fun bytesToBase64(data: ByteArray): String =
+        @Suppress("NewApi")
         Base64.getEncoder().encodeToString(data)
 
     private fun base64ToBytes(encoded: String): ByteArray =
         try {
+            @Suppress("NewApi")
             Base64.getDecoder().decode(encoded)
         } catch (e: IllegalArgumentException) {
             ByteArray(0)
@@ -68,6 +77,7 @@ object ProtobufConverters {
             val bytes = protoBuf.encodeToByteArray(serializer, value)
             return bytesToBase64(bytes)
         } catch (e: Exception) {
+            Log.w(TAG, "Protobuf serialization failed for ${serializer.descriptor.serialName}, data will be lost", e)
             return ""
         }
     }
@@ -81,6 +91,7 @@ object ProtobufConverters {
             val bytes = protoBuf.encodeToByteArray(serializer, value)
             return bytesToBase64(bytes)
         } catch (e: Exception) {
+            Log.w(TAG, "Protobuf nullable serialization failed for ${serializer.descriptor.serialName}, data will be lost", e)
             return ""
         }
     }
@@ -95,6 +106,7 @@ object ProtobufConverters {
             if (bytes.isEmpty()) return default()
             return protoBuf.decodeFromByteArray(serializer, bytes)
         } catch (e: Exception) {
+            Log.w(TAG, "Protobuf deserialization failed for ${serializer.descriptor.serialName}, returning default value", e)
             return default()
         }
     }
@@ -193,6 +205,7 @@ object ProtobufConverters {
     @JvmStatic
     fun toManualType(value: String): ManualType = when (value) {
         "MOVEMENT" -> ManualType.SUPPORT
+        "PRODUCTION" -> ManualType.SUPPORT
         else -> ManualType.entries.find { it.name == value } ?: ManualType.MIND
     }
 
@@ -349,7 +362,7 @@ object ProtobufConverters {
     @TypeConverter
     @JvmStatic
     fun toEquipmentNurtureData(value: String): EquipmentNurtureData? =
-        decodeFromBase64(EquipmentNurtureData.serializer().nullable, value) { null }
+        decodeFromBase64(EquipmentNurtureData.serializer(), value) { EquipmentNurtureData("", 0) }
 
     // ==================== 复杂列表转换器（纯 Protobuf）====================
 
@@ -636,4 +649,14 @@ object ProtobufConverters {
     @JvmStatic
     fun toBattleLogResult(value: String): BattleLogResult =
         decodeFromBase64(BattleLogResult.serializer(), value) { BattleLogResult() }
+
+    @TypeConverter
+    @JvmStatic
+    fun fromCompetitionRankResultList(value: List<CompetitionRankResult>): String =
+        encodeToBase64(ListSerializer(CompetitionRankResult.serializer()), value)
+
+    @TypeConverter
+    @JvmStatic
+    fun toCompetitionRankResultList(value: String): List<CompetitionRankResult> =
+        decodeFromBase64(ListSerializer(CompetitionRankResult.serializer()), value) { emptyList() }
 }

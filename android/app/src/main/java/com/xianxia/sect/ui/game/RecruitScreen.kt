@@ -1,6 +1,8 @@
+@file:Suppress("DEPRECATION")
 package com.xianxia.sect.ui.game
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -15,16 +17,21 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.data.TalentDatabase
+import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.Talent
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.theme.getSpiritRootColor
 import com.xianxia.sect.ui.components.discipleCardBorder
+import com.xianxia.sect.ui.components.DiscipleAttrText
 import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.ui.components.TalentDetailDialog
+import com.xianxia.sect.ui.components.getTalentRarityColor
 
 @Composable
 fun RecruitDialog(
-    recruitList: List<Disciple>,
+    recruitList: List<DiscipleAggregate>,
     gameData: GameData?,
     viewModel: GameViewModel,
     onDismiss: () -> Unit
@@ -116,7 +123,7 @@ private fun RecruitHeader(
 
 @Composable
 private fun RecruitDiscipleCard(
-    disciple: Disciple,
+    disciple: DiscipleAggregate,
     onAccept: () -> Unit,
     onReject: () -> Unit
 ) {
@@ -168,9 +175,9 @@ private fun RecruitDiscipleCard(
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    RecruitStatItem("悟性", "${disciple.comprehension}")
-                    RecruitStatItem("忠诚", "${disciple.loyalty}")
-                    RecruitStatItem("道德", "${disciple.morality}")
+                    DiscipleAttrText("悟性", disciple.comprehension)
+                    DiscipleAttrText("忠诚", disciple.loyalty)
+                    DiscipleAttrText("道德", disciple.morality)
                 }
                 
                 Row(
@@ -186,23 +193,44 @@ private fun RecruitDiscipleCard(
                     )
                 }
             }
-        }
-    }
-}
 
-@Composable
-private fun RecruitStatItem(label: String, value: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text = value,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            color = GameColors.Primary
-        )
-        Text(
-            text = label,
-            fontSize = 11.sp,
-            color = GameColors.TextTertiary
-        )
+            val talents = remember(disciple.talentIds) {
+                TalentDatabase.getTalentsByIds(disciple.talentIds)
+            }
+            if (talents.isNotEmpty()) {
+                var selectedTalent by remember { mutableStateOf<Talent?>(null) }
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    talents.forEach { talent ->
+                        val rarityColor = getTalentRarityColor(talent.rarity)
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(rarityColor.copy(alpha = 0.15f))
+                                .clickable { selectedTalent = talent }
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = talent.name,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = rarityColor,
+                                maxLines = 1
+                            )
+                        }
+                    }
+                }
+                selectedTalent?.let { talent ->
+                    TalentDetailDialog(
+                        talent = talent,
+                        onDismiss = { selectedTalent = null }
+                    )
+                }
+            }
+        }
     }
 }

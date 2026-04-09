@@ -29,18 +29,23 @@ import com.xianxia.sect.core.engine.EquipmentNurtureSystem
 import com.xianxia.sect.core.engine.ManualProficiencySystem
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.ui.game.components.getBuffTypeName
+import com.xianxia.sect.ui.game.components.ItemDetailDialog
 import com.xianxia.sect.core.util.GameUtils
+import com.xianxia.sect.ui.components.DiscipleAttrText
 import com.xianxia.sect.ui.components.EmptyListMessage
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.ItemCardData
+import com.xianxia.sect.ui.components.TalentDetailDialog
 import com.xianxia.sect.ui.components.UnifiedItemCard
 import com.xianxia.sect.ui.components.getRarityColor
+import com.xianxia.sect.ui.components.getTalentRarityColor
 import com.xianxia.sect.ui.theme.GameColors
+import java.util.Locale
 
 @Composable
 fun DiscipleDetailDialog(
-    disciple: Disciple,
-    allDisciples: List<Disciple> = emptyList(),
+    disciple: DiscipleAggregate,
+    allDisciples: List<DiscipleAggregate> = emptyList(),
     allEquipment: List<Equipment> = emptyList(),
     allManuals: List<Manual> = emptyList(),
     manualProficiencies: Map<String, List<ManualProficiencyData>> = emptyMap(),
@@ -229,6 +234,7 @@ fun DiscipleDetailDialog(
     }
 
     if (showStorageBagDialog) {
+        @Suppress("StateFlowValueCalledInComposition")
         StorageBagDialog(
             items = disciple.storageBagItems,
             spiritStones = disciple.storageBagSpiritStones,
@@ -372,8 +378,8 @@ fun DiscipleDetailDialog(
 
 @Composable
 private fun RelationsDialog(
-    disciple: Disciple,
-    allDisciples: List<Disciple>,
+    disciple: DiscipleAggregate,
+    allDisciples: List<DiscipleAggregate>,
     onDismiss: () -> Unit
 ) {
     val partner = remember(disciple.partnerId, allDisciples) {
@@ -1002,7 +1008,7 @@ private fun ManualDetailDialog(
 private fun EquipmentDetailDialog(
     equipment: Equipment,
     allEquipment: List<Equipment>,
-    disciple: Disciple,
+    disciple: DiscipleAggregate,
     onUnequip: () -> Unit,
     onReplace: (String) -> Unit,
     onDismiss: () -> Unit
@@ -1018,9 +1024,9 @@ private fun EquipmentDetailDialog(
     }
 
     val availableEquipment = remember(allEquipment, equipment, disciple.id) {
-        val slotType = equipment.slot.name.lowercase()
+        val slotType = equipment.slot.name.lowercase(java.util.Locale.getDefault())
         allEquipment.filter {
-            it.slot.name.lowercase() == slotType &&
+            it.slot.name.lowercase(java.util.Locale.getDefault()) == slotType &&
             it.id != equipment.id &&
             (!it.isEquipped || it.ownerId == disciple.id)
         }.sortedByDescending { it.rarity }
@@ -1524,7 +1530,7 @@ private fun EquipmentSelectionDialog(
     
     val availableEquipment = remember(allEquipment, slotType, currentEquipmentId, currentDiscipleId) {
         val filtered = allEquipment.filter { 
-            it.slot.name.lowercase() == slotType.lowercase() && 
+            it.slot.name.lowercase(java.util.Locale.getDefault()) == slotType.lowercase(java.util.Locale.getDefault()) && 
             it.id != currentEquipmentId &&
             (!it.isEquipped || it.ownerId == currentDiscipleId)
         }
@@ -1573,7 +1579,7 @@ private fun EquipmentSelectionDialog(
                 )
             } else {
                 LazyVerticalGrid(
-                    columns = GridCells.Fixed(4),
+                    columns = GridCells.Fixed(5),
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(320.dp),
@@ -1802,7 +1808,7 @@ private fun ManualSelectionDialog(
                 )
             } else {
                 LazyVerticalGrid(
-                    columns = GridCells.Fixed(4),
+                    columns = GridCells.Fixed(5),
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(max = 400.dp)
@@ -2177,7 +2183,7 @@ private fun RelationCategory(
 }
 
 @Composable
-private fun RelationItem(relation: String, disciple: Disciple) {
+private fun RelationItem(relation: String, disciple: DiscipleAggregate) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -2202,7 +2208,7 @@ private fun RelationItem(relation: String, disciple: Disciple) {
 
 @Composable
 private fun BasicInfoSection(
-    disciple: Disciple,
+    disciple: DiscipleAggregate,
     allManuals: List<Manual> = emptyList(),
     manualProficiencies: Map<String, List<ManualProficiencyData>> = emptyMap(),
     position: String? = null,
@@ -2291,7 +2297,7 @@ private fun BasicInfoSection(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "${String.format("%.1f", cultivationSpeed)}/秒",
+                            text = "${String.format(Locale.getDefault(), "%.1f", cultivationSpeed)}/秒",
                             fontSize = 10.sp,
                             color = Color(0xFF4CAF50)
                         )
@@ -2368,15 +2374,7 @@ private fun TalentsSection(talents: List<Talent>) {
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     rowTalents.forEach { talent ->
-                        val rarityColor = when (talent.rarity) {
-                            1 -> Color(0xFF95A5A6)
-                            2 -> Color(0xFF27AE60)
-                            3 -> Color(0xFF3498DB)
-                            4 -> Color(0xFF9B59B6)
-                            5 -> Color(0xFFF39C12)
-                            6 -> Color(0xFFE74C3C)
-                            else -> Color(0xFF95A5A6)
-                        }
+                        val rarityColor = getTalentRarityColor(talent.rarity)
                         
                         Box(
                             modifier = Modifier
@@ -2413,148 +2411,7 @@ private fun TalentsSection(talents: List<Talent>) {
 }
 
 @Composable
-private fun TalentDetailDialog(talent: Talent, onDismiss: () -> Unit) {
-    val rarityColor = when (talent.rarity) {
-        1 -> Color(0xFF95A5A6)
-        2 -> Color(0xFF27AE60)
-        3 -> Color(0xFF3498DB)
-        4 -> Color(0xFF9B59B6)
-        5 -> Color(0xFFF39C12)
-        6 -> Color(0xFFE74C3C)
-        else -> Color(0xFF95A5A6)
-    }
-    
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
-        title = {
-            Text(
-                text = talent.name,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                color = rarityColor
-            )
-        },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(
-                    text = "天赋效果",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-                
-                if (talent.effects.isEmpty()) {
-                    Text(
-                        text = talent.description,
-                        fontSize = 12.sp,
-                        color = Color(0xFF666666)
-                    )
-                } else {
-                    talent.effects.forEach { (key, value) ->
-                        val effectText = formatTalentEffectText(key, value)
-                        
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Text(
-                                text = "•",
-                                fontSize = 12.sp,
-                                color = Color(0xFF999999)
-                            )
-                            Text(
-                                text = effectText,
-                                fontSize = 12.sp,
-                                color = Color(0xFF666666)
-                            )
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            GameButton(
-                text = "关闭",
-                onClick = onDismiss
-            )
-        }
-    )
-}
-
-private fun formatTalentEffectText(key: String, value: Any): String {
-    val keyName = formatEffectKey(key)
-    val doubleValue = value.toString().toDoubleOrNull() ?: 0.0
-
-    if (key == "winBattleRandomAttrPlus") {
-        val point = kotlin.math.abs(doubleValue).toInt().coerceAtLeast(1)
-        return "$keyName +$point"
-    }
-
-    val flatKeys = setOf(
-        "manualSlot",
-        "comprehensionFlat",
-        "intelligenceFlat",
-        "teachingFlat",
-        "artifactRefiningFlat",
-        "pillRefiningFlat",
-        "spiritPlantingFlat",
-        "charmFlat",
-        "loyaltyFlat",
-        "moralityFlat"
-    )
-
-    val valueText = if (key in flatKeys) {
-        kotlin.math.abs(doubleValue).toInt().toString()
-    } else {
-        val percentValue = kotlin.math.abs(doubleValue) * 100
-        if (percentValue % 1 == 0.0) {
-            String.format("%d%%", percentValue.toLong())
-        } else {
-            String.format("%.1f%%", percentValue)
-        }
-    }
-
-    val sign = if (doubleValue >= 0) "+" else "-"
-    return "$keyName $sign$valueText"
-}
-
-private fun formatEffectKey(key: String): String {
-    return when (key) {
-        "cultivationSpeed" -> "修炼速度"
-        "breakthroughChance" -> "突破概率"
-        "physicalAttack" -> "物攻"
-        "magicAttack" -> "法攻"
-        "physicalDefense" -> "物防"
-        "magicDefense" -> "法防"
-        "speed" -> "速度"
-        "critRate" -> "暴击率"
-        "maxHp" -> "生命上限"
-        "maxMp" -> "法力上限"
-        "alchemySuccess" -> "炼丹成功率"
-        "forgeSuccess" -> "炼器成功率"
-        "miningOutput" -> "挖矿产量"
-        "herbYield" -> "草药产量"
-        "rareDropRate" -> "稀有掉落率"
-        "manualLearnSpeed" -> "功法学习速度"
-        "lifespan" -> "寿命"
-        "partnerChance" -> "结侣概率"
-        "manualSlot" -> "功法槽位"
-        "comprehensionFlat" -> "悟性"
-        "intelligenceFlat" -> "智力"
-        "teachingFlat" -> "教导"
-        "artifactRefiningFlat" -> "炼器"
-        "pillRefiningFlat" -> "炼丹"
-        "spiritPlantingFlat" -> "种植"
-        "charmFlat" -> "魅力"
-        "loyaltyFlat" -> "忠诚"
-        "moralityFlat" -> "道德"
-        "winBattleRandomAttrPlus" -> "胜利后随机属性成长（无上限）"
-        else -> key
-    }
-}
-@Composable
-private fun AttributesSection(disciple: Disciple) {
+private fun AttributesSection(disciple: DiscipleAggregate) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             text = "属性",
@@ -2567,55 +2424,34 @@ private fun AttributesSection(disciple: Disciple) {
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            AttributeItem("悟性", disciple.comprehension, Modifier.weight(1f))
-            AttributeItem("智力", disciple.intelligence, Modifier.weight(1f))
-            AttributeItem("魅力", disciple.charm, Modifier.weight(1f))
+            DiscipleAttrText("悟性", disciple.comprehension, Modifier.weight(1f))
+            DiscipleAttrText("智力", disciple.intelligence, Modifier.weight(1f))
+            DiscipleAttrText("魅力", disciple.charm, Modifier.weight(1f))
         }
         
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            AttributeItem("忠诚", disciple.loyalty, Modifier.weight(1f))
-            AttributeItem("炼器", disciple.artifactRefining, Modifier.weight(1f))
-            AttributeItem("炼丹", disciple.pillRefining, Modifier.weight(1f))
+            DiscipleAttrText("忠诚", disciple.loyalty, Modifier.weight(1f))
+            DiscipleAttrText("炼器", disciple.artifactRefining, Modifier.weight(1f))
+            DiscipleAttrText("炼丹", disciple.pillRefining, Modifier.weight(1f))
         }
         
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            AttributeItem("灵植", disciple.spiritPlanting, Modifier.weight(1f))
-            AttributeItem("传道", disciple.teaching, Modifier.weight(1f))
-            AttributeItem("道德", disciple.morality, Modifier.weight(1f))
+            DiscipleAttrText("灵植", disciple.spiritPlanting, Modifier.weight(1f))
+            DiscipleAttrText("传道", disciple.teaching, Modifier.weight(1f))
+            DiscipleAttrText("道德", disciple.morality, Modifier.weight(1f))
         }
-    }
-}
-
-@Composable
-private fun AttributeItem(name: String, value: Int, modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = name,
-            fontSize = 11.sp,
-            color = Color(0xFF999999)
-        )
-        Text(
-            text = value.toString(),
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.Black
-        )
     }
 }
 
 @Composable
 private fun CombatStatsSection(
-    disciple: Disciple,
+    disciple: DiscipleAggregate,
     weapon: Equipment?,
     armor: Equipment?,
     boots: Equipment?,
@@ -2660,8 +2496,12 @@ private fun CombatStatsSection(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            StatItemWithBonus("气血", baseStats.maxHp, finalStats.maxHp, Modifier.weight(1f))
-            StatItemWithBonus("灵力", baseStats.maxMp, finalStats.maxMp, Modifier.weight(1f))
+            val currentHp = disciple.currentHp
+            val currentMp = disciple.currentMp
+            val hpDisplay = if (currentHp < 0) "${finalStats.maxHp}" else "$currentHp/${finalStats.maxHp}"
+            val mpDisplay = if (currentMp < 0) "${finalStats.maxMp}" else "$currentMp/${finalStats.maxMp}"
+            StatItemWithBonus("气血", baseStats.maxHp, finalStats.maxHp, Modifier.weight(1f), currentDisplay = hpDisplay)
+            StatItemWithBonus("灵力", baseStats.maxMp, finalStats.maxMp, Modifier.weight(1f), currentDisplay = mpDisplay)
         }
         
         Row(
@@ -2843,8 +2683,8 @@ private fun ManualsSection(
 @Composable
 private fun ManualSlot(
     manual: Manual?,
-    proficiencyData: ManualProficiencyData? = null,
     modifier: Modifier = Modifier,
+    proficiencyData: ManualProficiencyData? = null,
     onSlotClick: () -> Unit,
     onManualClick: (Manual) -> Unit
 ) {
@@ -2939,7 +2779,7 @@ private fun StatItem(name: String, value: Int, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun StatItemWithBonus(name: String, baseValue: Int, finalValue: Int, modifier: Modifier = Modifier) {
+private fun StatItemWithBonus(name: String, baseValue: Int, finalValue: Int, modifier: Modifier = Modifier, currentDisplay: String? = null) {
     val bonus = finalValue - baseValue
     Row(
         modifier = modifier,
@@ -2952,7 +2792,7 @@ private fun StatItemWithBonus(name: String, baseValue: Int, finalValue: Int, mod
             color = Color(0xFF666666)
         )
         Text(
-            text = finalValue.toString(),
+            text = currentDisplay ?: finalValue.toString(),
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
             color = Color.Black
@@ -3003,7 +2843,7 @@ private fun getRarityText(rarity: Int): String {
 private fun StorageBagDialog(
     items: List<StorageBagItem>,
     spiritStones: Long,
-    disciple: Disciple,
+    disciple: DiscipleAggregate,
     viewModel: GameViewModel?,
     gameData: GameData?,
     onDismiss: () -> Unit
@@ -3095,10 +2935,10 @@ private fun StorageBagDialog(
                     Spacer(modifier = Modifier.height(8.dp))
                     
                     LazyVerticalGrid(
-                        columns = GridCells.Fixed(4),
+                        columns = GridCells.Adaptive(56.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(max = 350.dp),
+                            .weight(1f),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
@@ -3129,7 +2969,7 @@ private fun StorageBagDialog(
 
     if (showDetailDialog) {
         selectedItem?.let { item ->
-            StorageBagItemDetailDialog(
+            ItemDetailDialog(
                 item = item,
                 onDismiss = { showDetailDialog = false }
             )
@@ -3146,82 +2986,6 @@ private fun StorageBagDialog(
     }
 }
 
-@Composable
-private fun StorageBagItemDetailDialog(
-    item: StorageBagItem,
-    onDismiss: () -> Unit
-) {
-    val rarityColor = getRarityColor(item.rarity)
-    
-    val effects = buildList {
-        add("类型：${item.itemType}")
-        add("数量：${item.quantity}")
-        add("获得时间：第${item.obtainedYear}年${item.obtainedMonth}月")
-        
-        item.effect?.let { effect ->
-            add("")
-            add("效果:")
-            if (effect.cultivationSpeed > 1.0) add("  修炼速度 x${effect.cultivationSpeed}")
-            if (effect.cultivationPercent > 0) add("  修为 +${GameUtils.formatPercent(effect.cultivationPercent)}")
-            if (effect.breakthroughChance > 0) add("  突破概率 +${GameUtils.formatPercent(effect.breakthroughChance)}")
-            if (effect.heal > 0) add("  恢复生命 ${effect.heal}")
-            if (effect.healPercent > 0) add("  恢复生命 ${GameUtils.formatPercent(effect.healPercent)}")
-            if (effect.hpPercent > 0) add("  生命 +${GameUtils.formatPercent(effect.hpPercent)}")
-            if (effect.mpPercent > 0) add("  灵力 +${GameUtils.formatPercent(effect.mpPercent)}")
-            if (effect.mpRecoverPercent > 0) add("  恢复灵力 ${GameUtils.formatPercent(effect.mpRecoverPercent)}")
-            if (effect.extendLife > 0) add("  延寿 ${effect.extendLife} 年")
-            if (effect.battleCount > 0) add("  持续 ${effect.battleCount} 场战斗")
-            if (effect.physicalAttackPercent > 0) add("  物理攻击 +${GameUtils.formatPercent(effect.physicalAttackPercent)}")
-            if (effect.magicAttackPercent > 0) add("  法术攻击 +${GameUtils.formatPercent(effect.magicAttackPercent)}")
-            if (effect.physicalDefensePercent > 0) add("  物理防御 +${GameUtils.formatPercent(effect.physicalDefensePercent)}")
-            if (effect.magicDefensePercent > 0) add("  法术防御 +${GameUtils.formatPercent(effect.magicDefensePercent)}")
-            if (effect.speedPercent > 0) add("  速度 +${GameUtils.formatPercent(effect.speedPercent)}")
-        }
-    }
-    
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
-        title = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = item.name,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = rarityColor
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = item.rarityName,
-                    fontSize = 10.sp,
-                    color = rarityColor
-                )
-            }
-        },
-        text = {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                effects.forEach { effect ->
-                    Text(
-                        text = effect,
-                        fontSize = 11.sp,
-                        color = Color.Black,
-                        lineHeight = 16.sp
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            GameButton(
-                text = "关闭",
-                onClick = onDismiss
-            )
-        }
-    )
-}
-
 private enum class RewardFilter(val displayName: String) {
     ALL("全部"),
     EQUIPMENT("装备"),
@@ -3234,7 +2998,7 @@ private enum class RewardFilter(val displayName: String) {
 
 @Composable
 private fun RewardItemsDialog(
-    disciple: Disciple,
+    disciple: DiscipleAggregate,
     gameData: GameData,
     viewModel: GameViewModel,
     onDismiss: () -> Unit
@@ -3454,7 +3218,7 @@ private fun RewardItemsDialog(
 
     if (showDetailDialog) {
         detailItem?.let { item ->
-            RewardItemDetailDialog(
+            ItemDetailDialog(
                 item = item,
                 onDismiss = { showDetailDialog = false }
             )
@@ -3507,7 +3271,7 @@ private fun <T> RewardItemGrid(
         EmptyListMessage("暂无道具")
     } else {
         LazyVerticalGrid(
-            columns = GridCells.Fixed(4),
+            columns = GridCells.Adaptive(56.dp),
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(8.dp),
@@ -3577,7 +3341,7 @@ private fun RewardAllItemsGrid(
         EmptyListMessage("暂无道具")
     } else {
         LazyVerticalGrid(
-            columns = GridCells.Fixed(4),
+            columns = GridCells.Adaptive(56.dp),
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(8.dp),
@@ -3739,268 +3503,4 @@ private fun RewardBottomPanel(
             )
         }
     }
-}
-
-@Composable
-private fun RewardItemDetailDialog(
-    item: Any,
-    onDismiss: () -> Unit
-) {
-    val name: String
-    val rarity: Int
-    val description: String
-    val effects: List<String>
-    
-    when (item) {
-        is Equipment -> {
-            name = item.name
-            rarity = item.rarity
-            description = item.description
-            effects = buildList {
-                add("部位：${item.slot.displayName}")
-                if (item.nurtureLevel > 0) {
-                    add("孕养等级：Lv.${item.nurtureLevel}")
-                }
-                add("")
-                add("属性:")
-                val finalStats = item.getFinalStats()
-                if (finalStats.physicalAttack > 0) add("  物理攻击 +${finalStats.physicalAttack}")
-                if (finalStats.magicAttack > 0) add("  法术攻击 +${finalStats.magicAttack}")
-                if (finalStats.physicalDefense > 0) add("  物理防御 +${finalStats.physicalDefense}")
-                if (finalStats.magicDefense > 0) add("  法术防御 +${finalStats.magicDefense}")
-                if (finalStats.speed > 0) add("  速度 +${finalStats.speed}")
-                if (finalStats.hp > 0) add("  生命 +${finalStats.hp}")
-                if (finalStats.mp > 0) add("  灵力 +${finalStats.mp}")
-                if (item.critChance > 0) add("  暴击率 +${GameUtils.formatPercent(item.critChance)}")
-            }
-        }
-        is Manual -> {
-            name = item.name
-            rarity = item.rarity
-            description = item.description
-            effects = buildList {
-                add("类型：${item.type.displayName}")
-                if (item.minRealm < 9) {
-                    add("需求境界：${com.xianxia.sect.core.GameConfig.Realm.getName(item.minRealm)}")
-                }
-                add("")
-                val stats = item.stats
-                if (stats.isNotEmpty()) {
-                    add("属性加成:")
-                    stats.forEach { (key, value) ->
-                        val statName = when (key) {
-                            "cultivationSpeedPercent" -> "修炼速度"
-                            "physicalAttack" -> "物理攻击"
-                            "magicAttack" -> "法术攻击"
-                            "physicalDefense" -> "物理防御"
-                            "magicDefense" -> "法术防御"
-                            "hp" -> "生命"
-                            "mp" -> "灵力"
-                            "speed" -> "速度"
-                            "critRate" -> "暴击率"
-                            else -> key
-                        }
-                        if (key.contains("Percent")) {
-                            add("  $statName +$value%")
-                        } else {
-                            add("  $statName +$value")
-                        }
-                    }
-                }
-                item.skill?.let { skill ->
-                    add("")
-                    add("技能：${skill.name}")
-                    if (skill.description.isNotEmpty()) {
-                        add("  ${skill.description}")
-                    }
-                    add("  伤害类型：${if (skill.damageType == com.xianxia.sect.core.engine.DamageType.PHYSICAL) "物理" else "法术"}")
-                    add("  伤害倍率：${GameUtils.formatPercent(skill.damageMultiplier)}")
-                    add("  连击次数：${skill.hits}")
-                    add("  冷却回合：${skill.cooldown}")
-                    add("  灵力消耗：${skill.mpCost}")
-                }
-            }
-        }
-        is Pill -> {
-            name = item.name
-            rarity = item.rarity
-            description = item.description
-            effects = buildList {
-                add("类型：${item.category.displayName}")
-                add("数量：${item.quantity}")
-                add("")
-                add("效果:")
-                when (item.category) {
-                    com.xianxia.sect.core.model.PillCategory.BREAKTHROUGH -> {
-                        if (item.breakthroughChance > 0) {
-                            add("  突破概率 +${GameUtils.formatPercent(item.breakthroughChance)}")
-                        }
-                        if (item.targetRealm > 0) {
-                            add("  目标境界：${com.xianxia.sect.core.GameConfig.Realm.getName(item.targetRealm)}")
-                        }
-                        if (item.isAscension) {
-                            add("  可用于渡劫")
-                        }
-                    }
-                    com.xianxia.sect.core.model.PillCategory.CULTIVATION -> {
-                        if (item.cultivationPercent > 0) {
-                            add("  修为 +${GameUtils.formatPercent(item.cultivationPercent)}")
-                        }
-                        if (item.cultivationSpeed > 1.0) {
-                            add("  修炼速度 x${item.cultivationSpeed}")
-                        }
-                        if (item.skillExpPercent > 0) {
-                            add("  功法熟练度 +${GameUtils.formatPercent(item.skillExpPercent)}")
-                        }
-                        if (item.extendLife > 0) {
-                            add("  延寿 ${item.extendLife} 年")
-                        }
-                    }
-                    com.xianxia.sect.core.model.PillCategory.BATTLE_PHYSICAL, com.xianxia.sect.core.model.PillCategory.BATTLE_MAGIC, com.xianxia.sect.core.model.PillCategory.BATTLE_STATUS -> {
-                        if (item.physicalAttackPercent > 0) add("  物理攻击 +${GameUtils.formatPercent(item.physicalAttackPercent)}")
-                        if (item.magicAttackPercent > 0) add("  法术攻击 +${GameUtils.formatPercent(item.magicAttackPercent)}")
-                        if (item.physicalDefensePercent > 0) add("  物理防御 +${GameUtils.formatPercent(item.physicalDefensePercent)}")
-                        if (item.magicDefensePercent > 0) add("  法术防御 +${GameUtils.formatPercent(item.magicDefensePercent)}")
-                        if (item.hpPercent > 0) add("  生命 +${GameUtils.formatPercent(item.hpPercent)}")
-                        if (item.mpPercent > 0) add("  灵力 +${GameUtils.formatPercent(item.mpPercent)}")
-                        if (item.speedPercent > 0) add("  速度 +${GameUtils.formatPercent(item.speedPercent)}")
-                        if (item.battleCount > 0) add("  持续 ${item.battleCount} 场战斗")
-                    }
-                    com.xianxia.sect.core.model.PillCategory.HEALING -> {
-                        if (item.heal > 0) add("  恢复生命 ${item.heal}")
-                        if (item.healPercent > 0) add("  恢复生命 ${GameUtils.formatPercent(item.healPercent)}")
-                        if (item.healMaxHpPercent > 0) add("  恢复生命 ${GameUtils.formatPercent(item.healMaxHpPercent)} 最大生命")
-                        if (item.mpRecoverMaxMpPercent > 0) add("  恢复灵力 ${GameUtils.formatPercent(item.mpRecoverMaxMpPercent)} 最大灵力")
-                        if (item.revive) add("  可复活弟子")
-                        if (item.clearAll) add("  清除所有负面状态")
-                    }
-                }
-                if (item.duration > 0 && !item.category.isBattlePill) {
-                    add("  持续 ${item.duration} 月")
-                }
-            }
-        }
-        is Material -> {
-            name = item.name
-            rarity = item.rarity
-            description = item.description
-            effects = buildList {
-                add("类型：${item.category.displayName}")
-                add("数量：${item.quantity}")
-                
-                val recipes = com.xianxia.sect.core.data.ForgeRecipeDatabase.getRecipesByMaterial(item.id)
-                if (recipes.isNotEmpty()) {
-                    add("")
-                    add("可用于锻造：")
-                    recipes.forEach { recipe ->
-                        add("  • ${recipe.name}")
-                    }
-                }
-            }
-        }
-        is Herb -> {
-            name = item.name
-            rarity = item.rarity
-            description = item.description
-            effects = buildList {
-                if (item.category.isNotEmpty()) {
-                    add("类型：${item.category}")
-                }
-                add("数量：${item.quantity}")
-                
-                val recipes = com.xianxia.sect.core.data.PillRecipeDatabase.getRecipesByHerb(item.id)
-                if (recipes.isNotEmpty()) {
-                    add("")
-                    add("可用于炼制：")
-                    recipes.forEach { recipe ->
-                        add("  • ${recipe.name}")
-                    }
-                }
-            }
-        }
-        is Seed -> {
-            name = item.name
-            rarity = item.rarity
-            description = item.description
-            effects = buildList {
-                add("数量：${item.quantity}")
-                add("成熟时间：${item.growTime}月")
-                add("预计收获：${item.yield}个")
-                
-                val herb = com.xianxia.sect.core.data.HerbDatabase.getHerbFromSeed(item.id)
-                if (herb != null) {
-                    add("")
-                    add("长成后：${herb.name}")
-                    add("  类型：${herb.category}")
-                }
-            }
-        }
-        else -> {
-            name = "未知物品"
-            rarity = 1
-            description = ""
-            effects = emptyList()
-        }
-    }
-    
-    val rarityColor = getRarityColor(rarity)
-    
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
-        title = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = name,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = rarityColor
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = when (rarity) {
-                        1 -> "凡品"
-                        2 -> "灵品"
-                        3 -> "宝品"
-                        4 -> "仙品"
-                        5 -> "神品"
-                        6 -> "圣品"
-                        else -> "凡品"
-                    },
-                    fontSize = 10.sp,
-                    color = rarityColor
-                )
-            }
-        },
-        text = {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                if (description.isNotEmpty()) {
-                    Text(
-                        text = description,
-                        fontSize = 12.sp,
-                        color = GameColors.TextSecondary
-                    )
-                    HorizontalDivider(color = GameColors.Background, thickness = 1.dp)
-                }
-                
-                effects.forEach { effect ->
-                    Text(
-                        text = effect,
-                        fontSize = 11.sp,
-                        color = Color.Black,
-                        lineHeight = 16.sp
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            GameButton(
-                text = "关闭",
-                onClick = onDismiss
-            )
-        }
-    )
 }

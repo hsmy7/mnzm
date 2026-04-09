@@ -26,7 +26,7 @@ import com.xianxia.sect.core.data.HerbDatabase
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.PlantSlotData
 import com.xianxia.sect.core.model.Seed
-import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DirectDiscipleSlot
 import com.xianxia.sect.core.model.ElderSlots
 import com.xianxia.sect.core.model.DiscipleStatus
@@ -41,7 +41,7 @@ fun HerbGardenDialog(
     plantSlots: List<PlantSlotData>,
     seeds: List<Seed>,
     gameData: GameData?,
-    disciples: List<Disciple>,
+    disciples: List<DiscipleAggregate>,
     viewModel: GameViewModel,
     onDismiss: () -> Unit
 ) {
@@ -87,12 +87,32 @@ fun HerbGardenDialog(
                 thickness = 1.dp
             )
 
-            Text(
-                text = "种植槽",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFF666666)
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "种植槽",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF666666)
+                )
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(GameColors.ButtonBackground)
+                        .clickable { viewModel.autoPlantAllSlots() }
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "自动种植",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+                }
+            }
 
             plantSlots.chunked(3).forEach { rowSlots ->
                 Row(
@@ -240,7 +260,7 @@ private fun getOccupiedIds(elderSlots: ElderSlots): Pair<List<String>, List<Stri
 
 @Composable
 private fun HerbGardenElderSection(
-    elder: Disciple?,
+    elder: DiscipleAggregate?,
     onElderClick: () -> Unit,
     onElderRemove: () -> Unit
 ) {
@@ -453,7 +473,7 @@ private fun HerbGardenDirectDiscipleSlotItem(
 
 @Composable
 private fun HerbGardenElderSelectionDialog(
-    disciples: List<Disciple>,
+    disciples: List<DiscipleAggregate>,
     currentElderId: String?,
     elderSlots: ElderSlots,
     onDismiss: () -> Unit,
@@ -494,7 +514,7 @@ private fun HerbGardenElderSelectionDialog(
 
     val sortedDisciples = remember(filteredDisciplesBase) {
         filteredDisciplesBase.sortedWith(
-            compareByDescending<Disciple> { disciple ->
+            compareByDescending<DiscipleAggregate> { disciple ->
                 disciple.spiritPlanting
             }.thenBy { it.realm }
                 .thenByDescending { it.realmLayer }
@@ -628,7 +648,7 @@ private fun HerbGardenElderSelectionDialog(
                     }
                 } else {
                     LazyVerticalGrid(
-                        columns = GridCells.Fixed(4),
+                        columns = GridCells.Fixed(5),
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f),
@@ -654,7 +674,7 @@ private fun HerbGardenElderSelectionDialog(
 
 @Composable
 private fun HerbGardenDiscipleSelectionCard(
-    disciple: Disciple,
+    disciple: DiscipleAggregate,
     onClick: () -> Unit
 ) {
     val spiritRootColor = try {
@@ -699,7 +719,7 @@ private fun HerbGardenDiscipleSelectionCard(
 
 @Composable
 private fun HerbGardenDirectDiscipleSelectionDialog(
-    disciples: List<Disciple>,
+    disciples: List<DiscipleAggregate>,
     elderSlots: ElderSlots,
     onDismiss: () -> Unit,
     onSelect: (String) -> Unit
@@ -738,7 +758,7 @@ private fun HerbGardenDirectDiscipleSelectionDialog(
 
     val sortedDisciples = remember(filteredDisciplesBase) {
         filteredDisciplesBase.sortedWith(
-            compareByDescending<Disciple> { disciple ->
+            compareByDescending<DiscipleAggregate> { disciple ->
                 disciple.spiritPlanting
             }.thenBy { it.realm }
                 .thenByDescending { it.realmLayer }
@@ -872,7 +892,7 @@ private fun HerbGardenDirectDiscipleSelectionDialog(
                     }
                 } else {
                     LazyVerticalGrid(
-                        columns = GridCells.Fixed(4),
+                        columns = GridCells.Fixed(5),
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f),

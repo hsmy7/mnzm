@@ -164,9 +164,16 @@ fun ElderBonusInfoDialog(
 object ElderBonusInfoProvider {
     fun getLawEnforcementElderInfo(): ElderBonusInfo = ElderBonusInfo(
         title = "执法长老",
-        requiredAttribute = "道心",
-        effectDescription = "提升弟子修炼速度和降低叛逃概率",
-        bonusFormula = "道心以50为基准，每高5点增加1%修炼速度加成，\n每低5点减少1%修炼速度。\n同时影响弟子忠诚度，降低叛逃概率。"
+        requiredAttribute = "智力",
+        effectDescription = "提升执法堂抓捕偷盗弟子的概率",
+        bonusFormula = "智力以50为基准，每多1点增加1%抓捕概率。\n智力低于50时无加成效果。\n抓捕概率影响偷盗和叛逃的截获率。"
+    )
+
+    fun getLawEnforcementDiscipleInfo(): ElderBonusInfo = ElderBonusInfo(
+        title = "执法弟子",
+        requiredAttribute = "智力",
+        effectDescription = "提升执法堂抓捕偷盗弟子的概率",
+        bonusFormula = "智力以50为基准，每多5点增加1%抓捕概率。\n智力低于50时无加成效果。\n多名执法弟子加成可叠加。"
     )
     
     fun getAlchemyElderInfo(): ElderBonusInfo = ElderBonusInfo(
@@ -234,8 +241,8 @@ object ElderBonusInfoProvider {
     
     fun getSpiritMineDeaconInfo(): ElderBonusInfo = ElderBonusInfo(
         title = "灵矿执事",
-        requiredAttribute = "道心",
+        requiredAttribute = "道德",
         effectDescription = "提升灵矿产出效率",
-        bonusFormula = "道心以50为基准，每高5点增加2%产出效率，\n每低5点减少2%产出效率。\n道心属性越高，灵矿产出越多。"
+        bonusFormula = "道德以50为基准，每高5点增加2%产出效率，\n每低5点减少2%产出效率。\n道德属性越高，灵矿产出越多。"
     )
 }

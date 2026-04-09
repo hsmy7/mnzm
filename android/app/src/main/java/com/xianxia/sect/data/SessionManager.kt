@@ -1,6 +1,10 @@
 package com.xianxia.sect.data
 
 import android.content.Context
+import android.content.SharedPreferences
+import android.util.Log
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -9,7 +13,21 @@ import javax.inject.Singleton
 class SessionManager @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
-    private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private val prefs: SharedPreferences = try {
+        val masterKey = MasterKey.Builder(context)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
+        EncryptedSharedPreferences.create(
+            context,
+            PREFS_NAME,
+            masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
+    } catch (e: Exception) {
+        Log.w(TAG, "EncryptedSharedPreferences creation failed, falling back to plain SharedPreferences", e)
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    }
     
     var isLoggedIn: Boolean
         get() = prefs.getBoolean(KEY_LOGGED_IN, false)
@@ -79,6 +97,7 @@ class SessionManager @Inject constructor(
     }
     
     companion object {
+        private const val TAG = "SessionManager"
         private const val PREFS_NAME = "xianxia_session"
         private const val KEY_LOGGED_IN = "logged_in"
         private const val KEY_USER_ID = "user_id"

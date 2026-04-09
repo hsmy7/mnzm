@@ -160,6 +160,15 @@ class CertificatePinnerProvider @Inject constructor() {
         val pinner = builder.build()
         Log.i(TAG, "CertificatePinner 构建完成，覆盖 ${NetworkSecurityConfig.pinnedHosts.size} 个主机，共 $totalValidPins 个有效 pin")
 
+        if (totalValidPins == 0 && NetworkSecurityConfig.pinnedHosts.isNotEmpty()) {
+            if (!BuildConfig.DEBUG) {
+                throw IllegalStateException(
+                    "[SECURITY] Release build has placeholder certificate pins! " +
+                    "Replace placeholder SPKI hashes in CertificatePinnerProvider before release."
+                )
+            }
+        }
+
         return pinner
     }
 

@@ -147,8 +147,8 @@ fun SaveSlotCard(
     onNewGame: () -> Unit,
     onDelete: () -> Unit
 ) {
-    val borderColor = if (slot.isEmpty) Color(0xFFDDDDDD) else Color(0xFF4A90E2)
-    val bgColor = if (slot.isEmpty) GameColors.CardBackground else Color(0xFFF0F7FF)
+    val borderColor = if (slot.isAutoSave) Color(0xFF4CAF50) else if (slot.isEmpty) Color(0xFFDDDDDD) else Color(0xFF4A90E2)
+    val bgColor = if (slot.isAutoSave) Color(0xFFF0FFF0) else if (slot.isEmpty) GameColors.CardBackground else Color(0xFFF0F7FF)
 
     Box(
         modifier = Modifier
@@ -156,7 +156,7 @@ fun SaveSlotCard(
             .clip(RoundedCornerShape(8.dp))
             .background(bgColor)
             .border(2.dp, borderColor, RoundedCornerShape(8.dp))
-            .clickable { if (!slot.isEmpty) onLoad() else onNewGame() }
+            .clickable { if (!slot.isEmpty) onLoad() else if (!slot.isAutoSave) onNewGame() }
             .padding(16.dp)
     ) {
         Row(
@@ -172,11 +172,11 @@ fun SaveSlotCard(
                     modifier = Modifier
                         .size(40.dp)
                         .clip(RoundedCornerShape(4.dp))
-                        .background(if (slot.isEmpty) Color(0xFFCCCCCC) else Color(0xFF4A90E2)),
+                        .background(if (slot.isAutoSave) Color(0xFF4CAF50) else if (slot.isEmpty) Color(0xFFCCCCCC) else Color(0xFF4A90E2)),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = slot.slot.toString(),
+                        text = if (slot.isAutoSave) "自" else slot.slot.toString(),
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
@@ -185,12 +185,28 @@ fun SaveSlotCard(
 
                 if (!slot.isEmpty) {
                     Column {
-                        Text(
-                            text = slot.sectName.ifEmpty { "存档 ${slot.slot}" },
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = Color(0xFF333333)
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            if (slot.isAutoSave) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(Color(0xFF4CAF50))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "自动",
+                                        fontSize = 10.sp,
+                                        color = Color.White
+                                    )
+                                }
+                            }
+                            Text(
+                                text = slot.displayName.ifEmpty { slot.sectName.ifEmpty { "存档 ${slot.slot}" } },
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Color(0xFF333333)
+                            )
+                        }
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = "第${slot.gameYear}年 ${slot.gameMonth}月",
@@ -214,7 +230,7 @@ fun SaveSlotCard(
                     }
                 } else {
                     Text(
-                        text = "空槽位 - 点击创建新游戏",
+                        text = if (slot.isAutoSave) "自动存档 - 暂无数据" else "空槽位 - 点击创建新游戏",
                         fontSize = 16.sp,
                         color = Color(0xFF999999)
                     )
@@ -225,7 +241,7 @@ fun SaveSlotCard(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                if (!slot.isEmpty) {
+                if (!slot.isEmpty && !slot.isAutoSave) {
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(4.dp))
@@ -241,7 +257,9 @@ fun SaveSlotCard(
                             fontWeight = FontWeight.Medium
                         )
                     }
+                }
 
+                if (!slot.isEmpty) {
                     Text(
                         text = "读取",
                         fontSize = 12.sp,

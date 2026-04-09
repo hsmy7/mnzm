@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.xianxia.sect.data.incremental
 
 import android.util.Log
@@ -113,7 +115,7 @@ class ChangeTracker {
     fun trackUpdate(dataType: DataType, entityId: String, oldValue: Any?, newValue: Any) {
         val key = buildKey(dataType, entityId)
         
-        val fieldChanges = if (oldValue != null && newValue != null) {
+        val fieldChanges = if (oldValue != null) {
             computeFieldChanges(oldValue, newValue)
         } else {
             emptyMap()

@@ -8,6 +8,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -114,7 +115,7 @@ class GCOptimizer @Inject constructor(
         }
         
         if (gcType != GCType.NONE) {
-            Log.i(TAG, "GC triggered by memory threshold: ${String.format("%.1f", usedPercent * 100)}% (${gcType.name})")
+            Log.i(TAG, "GC triggered by memory threshold: ${String.format(Locale.getDefault(), "%.1f", usedPercent * 100)}% (${gcType.name})")
             performGC(gcType)
         }
     }
@@ -225,9 +226,9 @@ class GCOptimizer @Inject constructor(
             |=== GC Status ===
             |Total GC Count: ${stats.totalGCCount}
             |Total GC Time: ${stats.totalGCTimeMs}ms
-            |Average GC Time: ${String.format("%.2f", stats.averageGCTimeMs)}ms
+            |Average GC Time: ${String.format(Locale.getDefault(), "%.2f", stats.averageGCTimeMs)}ms
             |Time Since Last GC: ${stats.timeSinceLastGC}ms
-            |Memory Usage: ${if (memoryInfo != null) String.format("%.1f", memoryInfo.usedPercent * 100) + "%" else "N/A"}
+            |Memory Usage: ${if (memoryInfo != null) String.format(Locale.getDefault(), "%.1f", memoryInfo.usedPercent * 100) + "%" else "N/A"}
             |Recommended GC: ${getRecommendedGCType().name}
             |=================
         """.trimMargin())
@@ -275,9 +276,9 @@ class GCOptimizer @Inject constructor(
     private fun formatMemory(bytes: Long): String {
         return when {
             bytes < 1024 -> "$bytes B"
-            bytes < 1024 * 1024 -> String.format("%.1f KB", bytes / 1024.0)
-            bytes < 1024 * 1024 * 1024 -> String.format("%.1f MB", bytes / (1024.0 * 1024.0))
-            else -> String.format("%.2f GB", bytes / (1024.0 * 1024.0 * 1024.0))
+            bytes < 1024 * 1024 -> String.format(Locale.getDefault(), "%.1f KB", bytes / 1024.0)
+            bytes < 1024 * 1024 * 1024 -> String.format(Locale.getDefault(), "%.1f MB", bytes / (1024.0 * 1024.0))
+            else -> String.format(Locale.getDefault(), "%.2f GB", bytes / (1024.0 * 1024.0 * 1024.0))
         }
     }
     

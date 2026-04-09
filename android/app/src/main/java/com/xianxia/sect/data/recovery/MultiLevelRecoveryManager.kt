@@ -1,14 +1,24 @@
+@file:Suppress("UNUSED_VARIABLE", "DEPRECATION")
 package com.xianxia.sect.data.recovery
 
 import android.content.Context
 import android.util.Log
 import com.xianxia.sect.data.concurrent.SlotLockManager
 import com.xianxia.sect.data.model.SaveData
+import com.xianxia.sect.data.serialization.NullSafeProtoBuf
+import com.xianxia.sect.data.serialization.unified.SaveDataConverter
+import com.xianxia.sect.data.serialization.unified.SerializableSaveData
+// 迁移说明：引入 StorageGateway 替代直接依赖 UnifiedSaveRepository（2026-04-07）
+// 原因：统一存储访问入口，遵循 Storage Gateway 模式
+import com.xianxia.sect.data.StorageGateway
 import com.xianxia.sect.data.unified.*
-import com.xianxia.sect.data.wal.EnhancedTransactionalWAL
+import com.xianxia.sect.data.wal.WALProvider
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.protobuf.ProtoBuf
 import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -62,18 +72,41 @@ interface RecoveryStrategyBase {
     suspend fun recover(slot: Int): SaveResult<SaveData>
 }
 
+@Suppress("DEPRECATION")
 @Singleton
 class MultiLevelRecoveryManager @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val saveRepository: UnifiedSaveRepository,
-    private val wal: EnhancedTransactionalWAL,
+    // 迁移说明：将 saveRepository: UnifiedSaveRepository 替换为 storageGateway: StorageGateway（2026-04-07）
+    // 原因：遵循 Storage Gateway 模式，统一存储访问入口
+    // 影响范围：内部策略类（LocalBackupStrategy/AutoSaveStrategy/EmergencySaveStrategy）同步迁移
+    private val storageGateway: StorageGateway,
+    // 高级功能（backup/integrity/emergency/load）仍需通过 UnifiedSaveRepository 访问
+    private val unifiedSaveRepository: com.xianxia.sect.data.unified.UnifiedSaveRepository,
+    private val wal: WALProvider,
     private val lockManager: SlotLockManager
 ) {
     companion object {
         private const val TAG = "MultiLevelRecovery"
         private const val RECOVERY_DIR = "recovery"
-        private const val RECOVERY_LOG_FILE = "recovery_log.json"
+        private const val RECOVERY_LOG_FILE = "recovery_log.pb"
+        private val protoBuf = NullSafeProtoBuf.protoBuf
     }
+
+    @Serializable
+    data class RecoveryLogEntry(
+        val timestamp: Long = 0L,
+        val slot: Int = 0,
+        val status: String = "",
+        val attempts: List<RecoveryAttemptEntry> = emptyList()
+    )
+
+    @Serializable
+    data class RecoveryAttemptEntry(
+        val level: String = "",
+        val status: String = "",
+        val message: String = "",
+        val durationMs: Long = 0L
+    )
     
     private val recoveryDir: File by lazy {
         File(context.filesDir, RECOVERY_DIR).apply {
@@ -83,9 +116,10 @@ class MultiLevelRecoveryManager @Inject constructor(
     
     private val strategies: List<RecoveryStrategyBase> = listOf(
         WALSnapshotStrategy(wal),
-        LocalBackupStrategy(saveRepository),
-        AutoSaveStrategy(saveRepository),
-        EmergencySaveStrategy(saveRepository)
+        // 策略类构造参数从仅 StorageGateway 改为同时传入 StorageGateway 和 UnifiedSaveRepository（2026-04-07）
+        LocalBackupStrategy(storageGateway, unifiedSaveRepository),
+        AutoSaveStrategy(unifiedSaveRepository),
+        EmergencySaveStrategy(unifiedSaveRepository)
     )
     
     suspend fun recover(
@@ -227,15 +261,16 @@ class MultiLevelRecoveryManager @Inject constructor(
     
     suspend fun fullRecoveryCheck(): Map<Int, RecoveryReport> {
         val reports = mutableMapOf<Int, RecoveryReport>()
-        
+
         for (slot in 1..lockManager.getMaxSlots()) {
-            val integrity = saveRepository.verifyIntegrity(slot)
+            // 使用 unifiedSaveRepository.verifyIntegrity() 替代已删除的 storageGateway.verifyIntegrity()
+            val integrity = unifiedSaveRepository.verifyIntegrity(slot)
             if (integrity is IntegrityResult.Invalid) {
                 Log.w(TAG, "Slot $slot has integrity issues, attempting recovery")
                 reports[slot] = recover(slot)
             }
         }
-        
+
         return reports
     }
     
@@ -251,12 +286,14 @@ class MultiLevelRecoveryManager @Inject constructor(
     
     private suspend fun createRecoveryBackup(slot: Int) {
         try {
-            val result = saveRepository.load(slot)
+            // 使用 unifiedSaveRepository.load() 替代已删除的 storageGateway.unifiedLoad()
+            val result = unifiedSaveRepository.load(slot)
             if (result.isSuccess) {
                 val data = result.getOrNull() ?: return
-                val backupFile = File(recoveryDir, "pre_recovery_slot_${slot}_${System.currentTimeMillis()}.json")
-                val json = com.xianxia.sect.data.GsonConfig.createGson().toJson(data)
-                backupFile.writeText(json)
+                val backupFile = File(recoveryDir, "pre_recovery_slot_${slot}_${System.currentTimeMillis()}.pb")
+                val serializableData = SaveDataConverter().toSerializable(data)
+                val bytes = NullSafeProtoBuf.protoBuf.encodeToByteArray(SerializableSaveData.serializer(), serializableData)
+                backupFile.writeBytes(bytes)
                 Log.d(TAG, "Created recovery backup for slot $slot")
             }
         } catch (e: Exception) {
@@ -268,26 +305,27 @@ class MultiLevelRecoveryManager @Inject constructor(
         try {
             val logFile = File(recoveryDir, RECOVERY_LOG_FILE)
             val entries = if (logFile.exists()) {
-                com.xianxia.sect.data.GsonConfig.createGson().fromJson(
-                    logFile.readText(),
-                    List::class.java
-                ) as? List<Map<String, Any>> ?: emptyList()
+                try {
+                    protoBuf.decodeFromByteArray(kotlinx.serialization.builtins.ListSerializer(RecoveryLogEntry.serializer()), logFile.readBytes())
+                } catch (e: Exception) {
+                    emptyList()
+                }
             } else emptyList()
-            
-            val newEntry = mapOf(
-                "timestamp" to System.currentTimeMillis(),
-                "slot" to slot,
-                "status" to status.name,
-                "attempts" to attempts.map { mapOf(
-                    "level" to it.level.name,
-                    "status" to it.status.name,
-                    "message" to it.message,
-                    "durationMs" to it.durationMs
+
+            val newEntry = RecoveryLogEntry(
+                timestamp = System.currentTimeMillis(),
+                slot = slot,
+                status = status.name,
+                attempts = attempts.map { RecoveryAttemptEntry(
+                    level = it.level.name,
+                    status = it.status.name,
+                    message = it.message,
+                    durationMs = it.durationMs
                 )}
             )
-            
+
             val updated = (entries + newEntry).takeLast(100)
-            logFile.writeText(com.xianxia.sect.data.GsonConfig.createGson().toJson(updated))
+            logFile.writeBytes(protoBuf.encodeToByteArray(kotlinx.serialization.builtins.ListSerializer(RecoveryLogEntry.serializer()), updated))
         } catch (e: Exception) {
             Log.w(TAG, "Failed to log recovery attempt", e)
         }
@@ -297,21 +335,33 @@ class MultiLevelRecoveryManager @Inject constructor(
         return try {
             val logFile = File(recoveryDir, RECOVERY_LOG_FILE)
             if (logFile.exists()) {
-                com.xianxia.sect.data.GsonConfig.createGson().fromJson(
-                    logFile.readText(),
-                    List::class.java
-                ) as? List<Map<String, Any>> ?: emptyList()
+                val entries: List<RecoveryLogEntry> = protoBuf.decodeFromByteArray(kotlinx.serialization.builtins.ListSerializer(RecoveryLogEntry.serializer()), logFile.readBytes())
+                entries.map { entry ->
+                    mapOf(
+                        "timestamp" to entry.timestamp,
+                        "slot" to entry.slot,
+                        "status" to entry.status,
+                        "attempts" to entry.attempts.map { attempt ->
+                            mapOf(
+                                "level" to attempt.level,
+                                "status" to attempt.status,
+                                "message" to attempt.message,
+                                "durationMs" to attempt.durationMs
+                            )
+                        }
+                    )
+                }
             } else emptyList()
         } catch (e: Exception) {
             emptyList()
         }
     }
-    
+
     fun clearRecoveryHistory() {
         try {
             val logFile = File(recoveryDir, RECOVERY_LOG_FILE)
             if (logFile.exists()) logFile.delete()
-            recoveryDir.listFiles()?.filter { it.extension == "json" }?.forEach { it.delete() }
+            recoveryDir.listFiles()?.filter { it.extension == "pb" }?.forEach { it.delete() }
             Log.i(TAG, "Cleared recovery history")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to clear recovery history", e)
@@ -320,21 +370,23 @@ class MultiLevelRecoveryManager @Inject constructor(
 }
 
 class WALSnapshotStrategy(
-    private val wal: EnhancedTransactionalWAL
+    private val wal: WALProvider
 ) : RecoveryStrategyBase {
+    private val protoBuf = ProtoBuf
+
     override val level = RecoveryLevel.WAL_SNAPSHOT
-    
+
     override suspend fun canRecover(slot: Int): Boolean {
         return wal.hasActiveTransactions()
     }
-    
+
     override suspend fun recover(slot: Int): SaveResult<SaveData> {
         var recoveredData: SaveData? = null
-        
+
         val result = wal.restoreFromSnapshot(slot) { data ->
             try {
-                recoveredData = com.xianxia.sect.data.GsonConfig.createGson()
-                    .fromJson(String(data, Charsets.UTF_8), SaveData::class.java)
+                val serialized = protoBuf.decodeFromByteArray(com.xianxia.sect.data.serialization.unified.SerializableSaveData.serializer(), data)
+                recoveredData = com.xianxia.sect.data.serialization.unified.SaveDataConverter().fromSerializable(serialized)
                 true
             } catch (e: Exception) {
                 Log.w("WALSnapshotStrategy", "Failed to parse snapshot data", e)
@@ -350,50 +402,57 @@ class WALSnapshotStrategy(
     }
 }
 
+@Suppress("DEPRECATION")
 class LocalBackupStrategy(
-    private val saveRepository: UnifiedSaveRepository
+    // 同时接收 StorageGateway（用于基本操作）和 UnifiedSaveRepository（用于高级操作）
+    private val storageGateway: StorageGateway,
+    private val unifiedSaveRepository: com.xianxia.sect.data.unified.UnifiedSaveRepository
 ) : RecoveryStrategyBase {
     override val level = RecoveryLevel.LOCAL_BACKUP
     
     override suspend fun canRecover(slot: Int): Boolean {
-        return saveRepository.getBackupVersions(slot).isNotEmpty()
+        return unifiedSaveRepository.getBackupVersions(slot).isNotEmpty()
     }
     
     override suspend fun recover(slot: Int): SaveResult<SaveData> {
-        val backups = saveRepository.getBackupVersions(slot)
+        val backups = unifiedSaveRepository.getBackupVersions(slot)
         if (backups.isEmpty()) {
             return SaveResult.failure(SaveError.SLOT_EMPTY, "No backup versions available")
         }
         
-        return saveRepository.restoreFromBackup(slot, backups.first().id)
+        return unifiedSaveRepository.restoreFromBackup(slot, backups.first().id)
     }
 }
 
+@Suppress("DEPRECATION")
 class AutoSaveStrategy(
-    private val saveRepository: UnifiedSaveRepository
+    // 使用 UnifiedSaveRepository 替代 StorageGateway（2026-04-07）
+    private val unifiedSaveRepository: com.xianxia.sect.data.unified.UnifiedSaveRepository
 ) : RecoveryStrategyBase {
     override val level = RecoveryLevel.AUTO_SAVE
     
     override suspend fun canRecover(slot: Int): Boolean {
-        return saveRepository.hasSave(0)
+        return unifiedSaveRepository.hasSave(0)
     }
     
     override suspend fun recover(slot: Int): SaveResult<SaveData> {
-        return saveRepository.load(0)
+        return unifiedSaveRepository.load(0)
     }
 }
 
+@Suppress("DEPRECATION")
 class EmergencySaveStrategy(
-    private val saveRepository: UnifiedSaveRepository
+    // 使用 UnifiedSaveRepository 替代 StorageGateway（2026-04-07）
+    private val unifiedSaveRepository: com.xianxia.sect.data.unified.UnifiedSaveRepository
 ) : RecoveryStrategyBase {
     override val level = RecoveryLevel.EMERGENCY_SAVE
     
     override suspend fun canRecover(slot: Int): Boolean {
-        return saveRepository.hasEmergencySave()
+        return unifiedSaveRepository.hasEmergencySave()
     }
     
     override suspend fun recover(slot: Int): SaveResult<SaveData> {
-        val data = saveRepository.loadEmergencySave()
+        val data = unifiedSaveRepository.loadEmergencySave()
         return if (data != null) {
             SaveResult.success(data)
         } else {

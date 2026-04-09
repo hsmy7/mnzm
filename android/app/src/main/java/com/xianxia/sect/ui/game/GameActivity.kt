@@ -22,6 +22,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.xianxia.sect.XianxiaApplication
 import com.xianxia.sect.core.CrashHandler
+import com.xianxia.sect.core.util.VivoGCJITOptimizer
 import com.xianxia.sect.data.facade.RefactoredStorageFacade
 import com.xianxia.sect.data.SessionManager
 import com.xianxia.sect.ui.MainActivity
@@ -73,7 +74,7 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
         val isNewGame = intent.getBooleanExtra(MainActivity.EXTRA_NEW_GAME, false)
         val sectName = intent.getStringExtra(MainActivity.EXTRA_SECT_NAME) ?: "青云宗"
         
-        val slot = if (savedSlot > 0) savedSlot else intentSlot
+        val slot = if (savedSlot >= 0) savedSlot else intentSlot
         
         Log.d(TAG, "Slot info: savedSlot=$savedSlot, intentSlot=$intentSlot, finalSlot=$slot, isNewGame=$isNewGame, sectName=$sectName")
         Log.d(TAG, "ViewModel game loaded: ${viewModel.isGameAlreadyLoaded()}")
@@ -139,15 +140,21 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
         }
 
         if (!viewModel.isGameAlreadyLoaded()) {
+            viewModel.resetSaveLoadStateAsync()
+            Log.d(TAG, "onCreate: Game not loaded, will initialize on STARTED. slot=$slot, isNewGame=$isNewGame")
             lifecycleScope.launch {
-                repeatOnLifecycle(Lifecycle.State.CREATED) {
-                    try {
+                Log.d(TAG, "lifecycleScope.launch: inside coroutine, about to enter repeatOnLifecycle(STARTED)")
+                repeatOnLifecycle(Lifecycle.State.STARTED) {
+                    Log.d(TAG, "repeatOnLifecycle(STARTED): ENTERED - executing game initialization")
+                    // runWithJitPaused 签名: (block: () -> Unit, tag: String = "block")
+                    // block 为第一个参数，必须显式指定（非尾随 lambda 位置）
+                    VivoGCJITOptimizer.runWithJitPaused(block = {
                         when {
-                            isNewGame && slot > 0 -> {
+                            isNewGame && slot >= 0 -> {
                                 Log.d(TAG, "Starting new game: sectName=$sectName, slot=$slot")
                                 viewModel.startNewGame(sectName, slot)
                             }
-                            slot > 0 -> {
+                            slot >= 0 -> {
                                 Log.d(TAG, "Loading game from slot: $slot")
                                 viewModel.loadGameFromSlot(slot)
                             }
@@ -160,9 +167,7 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
                                 finish()
                             }
                         }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Error starting game", e)
-                    }
+                    }, tag = "GameActivity_Init")
                 }
             }
         } else {
@@ -174,15 +179,15 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
-        outState.putInt(KEY_CURRENT_SLOT, viewModel.gameData.value.currentSlot)
-        Log.d(TAG, "onSaveInstanceState: currentSlot=${viewModel.gameData.value.currentSlot}")
+        val currentSlot = viewModel.gameData.value?.currentSlot ?: -1
+        outState.putInt(KEY_CURRENT_SLOT, currentSlot)
+        Log.d(TAG, "onSaveInstanceState: currentSlot=$currentSlot")
     }
 
     override fun onPause() {
         super.onPause()
         try {
-            viewModel.pauseGame()
-            viewModel.performAutoSave()
+            viewModel.pauseAndSaveForBackground()
         } catch (e: Exception) {
             Log.e(TAG, "Error during onPause", e)
         }
@@ -190,6 +195,7 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
 
     override fun onResume() {
         super.onResume()
+        Log.d(TAG, "onResume: isGameLoaded=${viewModel.isGameAlreadyLoaded()}, isLoading=${viewModel.isLoading.value}")
         try {
             viewModel.resumeGame()
         } catch (e: Exception) {
@@ -213,11 +219,17 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
         performEmergencySaveWithDebounce()
     }
 
+    @Suppress("DEPRECATION")
     override fun onTrimMemory(level: Int) {
         super.onTrimMemory(level)
         when (level) {
             ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN -> {
                 Log.d(TAG, "UI已隐藏，可释放UI相关资源")
+            }
+            ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW,
+            ComponentCallbacks2.TRIM_MEMORY_RUNNING_MODERATE,
+            ComponentCallbacks2.TRIM_MEMORY_BACKGROUND -> {
+                Log.w(TAG, "运行时内存压力(level=$level)")
             }
             ComponentCallbacks2.TRIM_MEMORY_MODERATE -> {
                 Log.w(TAG, "内存适中压力，建议释放部分资源")
@@ -284,8 +296,8 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
             if (gameData.sectName.isNotEmpty()) {
                 Log.i(TAG, "Attempting emergency save for sect: ${gameData.sectName}")
                 val saveData = viewModel.createSaveDataSync()
-                kotlinx.coroutines.runBlocking {
-                    kotlinx.coroutines.withTimeoutOrNull(5_000L) {
+                kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) {
+                    kotlinx.coroutines.withTimeoutOrNull(2_000L) {
                         storageFacade.emergencySave(saveData)
                     } ?: false
                 }

@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.xianxia.sect.core.engine.system
 
 import android.util.Log
@@ -35,7 +37,7 @@ class CultivationSystem @Inject constructor() : GameSystem {
     
     override suspend fun clear() {
     }
-    
+
     data class CultivationResult(
         val disciple: Disciple,
         val cultivationGain: Double,
@@ -197,12 +199,10 @@ class CultivationSystem @Inject constructor() : GameSystem {
         }
         
         for (pill in cultivationPills) {
-            if (currentDisciple.cultivationSpeedDuration <= 0 && pill.cultivationSpeed > 0) {
+            if (pill.cultivationSpeed > 0) {
                 currentDisciple = currentDisciple.copyWith(
-                cultivationSpeedBonus = currentDisciple.cultivationSpeedBonus + pill.cultivationSpeed / 100.0,
-                cultivationSpeedDuration = pill.duration,
-                monthlyUsedPillIds = currentDisciple.monthlyUsedPillIds + pill.id
-            )
+                    monthlyUsedPillIds = currentDisciple.monthlyUsedPillIds + pill.id
+                )
                 cultivationBonus += pill.cultivationSpeed / 100.0
             }
         }

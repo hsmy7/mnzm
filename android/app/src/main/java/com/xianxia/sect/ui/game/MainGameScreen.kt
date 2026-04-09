@@ -1,3 +1,4 @@
+@file:Suppress("DEPRECATION")
 package com.xianxia.sect.ui.game
 
 import androidx.compose.animation.*
@@ -33,6 +34,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.window.Dialog
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import kotlinx.coroutines.delay
@@ -44,7 +46,7 @@ import com.xianxia.sect.core.data.HerbDatabase
 import com.xianxia.sect.core.data.ManualDatabase
 import com.xianxia.sect.core.data.PillRecipeDatabase
 import com.xianxia.sect.core.model.DirectDiscipleSlot
-import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.ElderSlots
 import com.xianxia.sect.core.model.Equipment
@@ -76,8 +78,10 @@ import com.xianxia.sect.core.model.RewardSelectedItem
 import com.xianxia.sect.core.util.sortedByFollowAndRealm
 import com.xianxia.sect.core.util.sortedByFollowAttributeAndRealm
 import com.xianxia.sect.data.model.SaveSlot
+import com.xianxia.sect.ui.state.DialogStateManager.DialogType
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.components.discipleCardBorder
+import com.xianxia.sect.ui.components.DiscipleAttrText
 import com.xianxia.sect.ui.components.DiscipleCardStyles
 import com.xianxia.sect.ui.theme.XianxiaColorScheme
 import com.xianxia.sect.ui.components.GameButton
@@ -87,6 +91,9 @@ import com.xianxia.sect.ui.game.components.GiftDialog
 import com.xianxia.sect.ui.game.components.AllianceDialog
 import com.xianxia.sect.ui.game.components.EnvoyDiscipleSelectDialog
 import com.xianxia.sect.ui.game.components.ScoutDiscipleSelectDialog
+import com.xianxia.sect.ui.game.components.ItemDetailDialog
+import com.xianxia.sect.ui.game.OuterTournamentResultDialog
+import java.util.Locale
 
 enum class MainTab {
     OVERVIEW, DISCIPLES, BUILDINGS, WAREHOUSE, SETTINGS
@@ -137,7 +144,7 @@ fun MainGameScreen(
 
     // [M7-OPT-2] 弟子列表 - 高频变化（修炼进度每 tick 更新）
     // 使用 derivedStateOf 缓存过滤结果，避免每次重组都重新计算
-    val disciples by viewModel.disciples.collectAsState()
+    val disciples by viewModel.discipleAggregates.collectAsState()
     val aliveDisciples = remember(disciples) {
         derivedStateOf { disciples.filter { it.isAlive } }
     }
@@ -162,13 +169,15 @@ fun MainGameScreen(
     // 这些 Boolean 状态控制 Dialog 显示/隐藏
     // Compose 编译器会自动跳过未变化的读取，开销较小
     // 如需进一步优化，可考虑合并为单个 StateFlow<DialogState>
-    val showRecruitDialog by viewModel.showRecruitDialog.collectAsState()
-    val showDiplomacyDialog by viewModel.showDiplomacyDialog.collectAsState()
-    val showMerchantDialog by viewModel.showMerchantDialog.collectAsState()
-    val showEventLogDialog by viewModel.showEventLogDialog.collectAsState()
-    val showSalaryConfigDialog by viewModel.showSalaryConfigDialog.collectAsState()
-    val showWorldMapDialog by viewModel.showWorldMapDialog.collectAsState()
-    val showSecretRealmDialog by viewModel.showSecretRealmDialog.collectAsState()
+    val currentDialog by viewModel.dialogStateManager.currentDialog.collectAsState()
+
+    val showRecruitDialog = currentDialog?.type == DialogType.Recruit
+    val showDiplomacyDialog = currentDialog?.type == DialogType.Diplomacy
+    val showMerchantDialog = currentDialog?.type == DialogType.Merchant
+    val showEventLogDialog = currentDialog?.type == DialogType.EventLog
+    val showSalaryConfigDialog = currentDialog?.type == DialogType.SalaryConfig
+    val showWorldMapDialog = currentDialog?.type == DialogType.WorldMap
+    val showSecretRealmDialog = currentDialog?.type == DialogType.SecretRealm
     val showSectTradeDialog by viewModel.showSectTradeDialog.collectAsState()
     val selectedTradeSectId by viewModel.selectedTradeSectId.collectAsState()
     val sectTradeItems by viewModel.sectTradeItems.collectAsState()
@@ -181,15 +190,23 @@ fun MainGameScreen(
 
     val showScoutDialog by viewModel.showScoutDialog.collectAsState()
     val selectedScoutSectId by viewModel.selectedScoutSectId.collectAsState()
-    val showTianshuHallDialog by viewModel.showTianshuHallDialog.collectAsState()
+    val showOuterTournamentDialog by viewModel.showOuterTournamentDialog.collectAsState()
+    val showTianshuHallDialog = currentDialog?.type == DialogType.TianshuHall
 
-    val showBattleTeamDialog by viewModel.showBattleTeamDialog.collectAsState()
+    val showBattleTeamDialog = currentDialog?.type == DialogType.BattleTeam
     val battleTeamSlots by viewModel.battleTeamSlots.collectAsState()
     var selectedBattleTeamSlotIndex by remember { mutableStateOf<Int?>(null) }
     val battleTeamMoveMode by viewModel.battleTeamMoveMode.collectAsState()
 
-    val showBattleLogDialog by viewModel.showBattleLogDialog.collectAsState()
+    val showBattleLogDialog = currentDialog?.type == DialogType.BattleLog
     val battleLogs by viewModel.battleLogs.collectAsState()
+
+    LaunchedEffect(gameData?.pendingCompetitionResults) {
+        if (!gameData?.pendingCompetitionResults.isNullOrEmpty()) {
+            viewModel.resetOuterTournamentClosedFlag()
+            viewModel.openOuterTournamentDialog()
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
@@ -224,8 +241,9 @@ fun MainGameScreen(
         }
 
         if (showRecruitDialog) {
+            val recruitList by viewModel.recruitListAggregates.collectAsState()
             RecruitDialog(
-                recruitList = gameData?.recruitList ?: emptyList(),
+                recruitList = recruitList,
                 gameData = gameData,
                 viewModel = viewModel,
                 onDismiss = { viewModel.closeRecruitDialog() }
@@ -338,6 +356,16 @@ fun MainGameScreen(
                 onDismiss = { viewModel.closeScoutDialog() }
             )
         }
+
+        if (showOuterTournamentDialog) {
+            OuterTournamentResultDialog(
+                competitionResults = gameData?.pendingCompetitionResults ?: emptyList(),
+                allDisciples = aliveDisciples.value,
+                gameData = gameData ?: GameData(),
+                viewModel = viewModel,
+                onDismiss = { viewModel.closeOuterTournamentDialog() }
+            )
+        }
         
         if (showBattleTeamDialog) {
             val hasExistingTeam = viewModel.hasBattleTeam()
@@ -384,405 +412,6 @@ fun MainGameScreen(
                 onDismiss = { viewModel.closeBattleLogDialog() }
             )
         }
-    }
-}
-
-@Composable
-private fun WarehouseItemDetailDialog(
-    item: Any,
-    viewModel: GameViewModel,
-    onDismiss: () -> Unit
-) {
-    val name: String
-    val rarity: Int
-    val description: String
-    val effects: List<String>
-    val itemId: String
-    val itemType: String
-    val itemQuantity: Int
-    
-    when (item) {
-        is Equipment -> {
-            name = item.name
-            rarity = item.rarity
-            description = item.description
-            itemId = item.id
-            itemType = "equipment"
-            itemQuantity = 1
-            effects = buildList {
-                add("部位：${item.slot.displayName}")
-                add("")
-                add("属性:")
-                if (item.physicalAttack > 0) add("  物理攻击 +${item.physicalAttack}")
-                if (item.magicAttack > 0) add("  法术攻击 +${item.magicAttack}")
-                if (item.physicalDefense > 0) add("  物理防御 +${item.physicalDefense}")
-                if (item.magicDefense > 0) add("  法术防御 +${item.magicDefense}")
-                if (item.speed > 0) add("  速度 +${item.speed}")
-                if (item.hp > 0) add("  生命 +${item.hp}")
-                if (item.mp > 0) add("  灵力 +${item.mp}")
-                if (item.critChance > 0) add("  暴击率 +${String.format("%.1f%%", item.critChance * 100)}")
-            }
-        }
-        is Manual -> {
-            name = item.name
-            rarity = item.rarity
-            description = item.description
-            itemId = item.id
-            itemType = "manual"
-            itemQuantity = 1
-            effects = emptyList()
-        }
-        is Pill -> {
-            name = item.name
-            rarity = item.rarity
-            description = item.description
-            itemId = item.id
-            itemType = "pill"
-            itemQuantity = item.quantity
-            effects = buildList {
-                add("类型：${item.category.displayName}")
-                add("数量：${item.quantity}")
-                add("")
-                add("效果:")
-                when (item.category) {
-                    com.xianxia.sect.core.model.PillCategory.BREAKTHROUGH -> {
-                        if (item.breakthroughChance > 0) {
-                            add("  突破概率 +${String.format("%.1f%%", item.breakthroughChance * 100)}")
-                        }
-                        if (item.targetRealm > 0) {
-                            add("  目标境界：${com.xianxia.sect.core.GameConfig.Realm.getName(item.targetRealm)}")
-                        }
-                        if (item.isAscension) {
-                            add("  可用于渡劫")
-                        }
-                    }
-                    com.xianxia.sect.core.model.PillCategory.CULTIVATION -> {
-                        if (item.cultivationPercent > 0) {
-                            add("  修为 +${String.format("%.1f%%", item.cultivationPercent * 100)}")
-                        }
-                        if (item.cultivationSpeed > 1.0) {
-                            add("  修炼速度 x${item.cultivationSpeed}")
-                        }
-                        if (item.skillExpPercent > 0) {
-                            add("  功法熟练度 +${String.format("%.1f%%", item.skillExpPercent * 100)}")
-                        }
-                        if (item.extendLife > 0) {
-                            add("  延寿 ${item.extendLife} 年")
-                        }
-                    }
-                    com.xianxia.sect.core.model.PillCategory.BATTLE_PHYSICAL, com.xianxia.sect.core.model.PillCategory.BATTLE_MAGIC, com.xianxia.sect.core.model.PillCategory.BATTLE_STATUS -> {
-                        if (item.physicalAttackPercent > 0) add("  物理攻击 +${String.format("%.1f%%", item.physicalAttackPercent * 100)}")
-                        if (item.magicAttackPercent > 0) add("  法术攻击 +${String.format("%.1f%%", item.magicAttackPercent * 100)}")
-                        if (item.physicalDefensePercent > 0) add("  物理防御 +${String.format("%.1f%%", item.physicalDefensePercent * 100)}")
-                        if (item.magicDefensePercent > 0) add("  法术防御 +${String.format("%.1f%%", item.magicDefensePercent * 100)}")
-                        if (item.hpPercent > 0) add("  生命 +${String.format("%.1f%%", item.hpPercent * 100)}")
-                        if (item.mpPercent > 0) add("  灵力 +${String.format("%.1f%%", item.mpPercent * 100)}")
-                        if (item.speedPercent > 0) add("  速度 +${String.format("%.1f%%", item.speedPercent * 100)}")
-                        if (item.battleCount > 0) add("  持续 ${item.battleCount} 场战斗")
-                    }
-                    com.xianxia.sect.core.model.PillCategory.HEALING -> {
-                        if (item.heal > 0) add("  恢复生命 ${item.heal}")
-                        if (item.healPercent > 0) add("  恢复生命 ${String.format("%.1f%%", item.healPercent * 100)}")
-                        if (item.healMaxHpPercent > 0) add("  恢复生命 ${String.format("%.1f%%", item.healMaxHpPercent * 100)} 最大生命")
-                        if (item.mpRecoverMaxMpPercent > 0) add("  恢复灵力 ${String.format("%.1f%%", item.mpRecoverMaxMpPercent * 100)} 最大灵力")
-                        if (item.revive) add("  可复活弟子")
-                        if (item.clearAll) add("  清除所有负面状态")
-                    }
-                }
-                if (item.duration > 0 && !item.category.isBattlePill) {
-                    add("  持续 ${item.duration} 月")
-                }
-            }
-        }
-        is Material -> {
-            name = item.name
-            rarity = item.rarity
-            description = item.description
-            itemId = item.id
-            itemType = "material"
-            itemQuantity = item.quantity
-            effects = buildList {
-                add("类型：${item.category.displayName}")
-                add("数量：${item.quantity}")
-                
-                val recipes = com.xianxia.sect.core.data.ForgeRecipeDatabase.getRecipesByMaterial(item.id)
-                if (recipes.isNotEmpty()) {
-                    add("")
-                    add("可用于锻造：")
-                    recipes.forEach { recipe ->
-                        add("  • ${recipe.name}")
-                    }
-                }
-            }
-        }
-        is Herb -> {
-            name = item.name
-            rarity = item.rarity
-            description = item.description
-            itemId = item.id
-            itemType = "herb"
-            itemQuantity = item.quantity
-            effects = buildList {
-                if (item.category.isNotEmpty()) {
-                    add("类型：${item.category}")
-                }
-                add("数量：${item.quantity}")
-                
-                val recipes = com.xianxia.sect.core.data.PillRecipeDatabase.getRecipesByHerb(item.id)
-                if (recipes.isNotEmpty()) {
-                    add("")
-                    add("可用于炼制：")
-                    recipes.forEach { recipe ->
-                        add("  • ${recipe.name}")
-                    }
-                }
-            }
-        }
-        is com.xianxia.sect.core.model.Seed -> {
-            name = item.name
-            rarity = item.rarity
-            description = item.description
-            itemId = item.id
-            itemType = "seed"
-            itemQuantity = item.quantity
-            effects = buildList {
-                add("数量：${item.quantity}")
-                add("成熟时间：${item.growTime}月")
-                add("预计收获：${item.yield}个")
-                
-                val herb = com.xianxia.sect.core.data.HerbDatabase.getHerbFromSeed(item.id)
-                if (herb != null) {
-                    add("")
-                    add("长成后：${herb.name}")
-                    add("  类型：${herb.category}")
-                }
-            }
-        }
-        else -> {
-            name = "未知物品"
-            rarity = 1
-            description = ""
-            effects = emptyList()
-            itemId = ""
-            itemType = ""
-            itemQuantity = 0
-        }
-    }
-    
-    val rarityColor = when (rarity) {
-        1 -> Color(0xFF95A5A6)
-        2 -> Color(0xFF27AE60)
-        3 -> Color(0xFF3498DB)
-        4 -> Color(0xFF9B59B6)
-        5 -> Color(0xFFF39C12)
-        6 -> Color(0xFFE74C3C)
-        else -> Color(0xFF95A5A6)
-    }
-    
-    var showDiscipleSelectDialog by remember { mutableStateOf(false) }
-    
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
-        title = {
-            Text(
-                text = name,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = rarityColor
-            )
-        },
-        text = {
-            Column(
-                modifier = Modifier
-                    .verticalScroll(rememberScrollState())
-                    .fillMaxWidth()
-            ) {
-                if (item is Manual) {
-                    WarehouseManualDetailContent(item)
-                } else {
-                    Text(
-                        text = when (rarity) {
-                            1 -> "普通"
-                            2 -> "灵品"
-                            3 -> "宝品"
-                            4 -> "玄品"
-                            5 -> "地品"
-                            6 -> "天品"
-                            else -> "普通"
-                        },
-                        fontSize = 11.sp,
-                        color = Color(0xFF666666)
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    effects.forEach { effect ->
-                        if (effect.isEmpty()) {
-                            Spacer(modifier = Modifier.height(4.dp))
-                        } else {
-                            Text(
-                                text = effect,
-                                fontSize = 12.sp,
-                                color = if (effect.startsWith("属性") || effect.startsWith("效果") || effect.startsWith("技能")) {
-                                    Color(0xFF3498DB)
-                                } else {
-                                    Color(0xFF333333)
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                    }
-                    
-                    if (description.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = description,
-                            fontSize = 11.sp,
-                            color = Color(0xFF666666)
-                        )
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                GameButton(
-                    text = "赏赐",
-                    onClick = { showDiscipleSelectDialog = true }
-                )
-                GameButton(
-                    text = "关闭",
-                    onClick = onDismiss
-                )
-            }
-        }
-    )
-    
-    if (showDiscipleSelectDialog) {
-        DiscipleSelectForRewardDialog(
-            itemName = name,
-            itemId = itemId,
-            itemType = itemType,
-            itemQuantity = itemQuantity,
-            itemRarity = rarity,
-            viewModel = viewModel,
-            onDismiss = { showDiscipleSelectDialog = false }
-        )
-    }
-}
-
-@Composable
-private fun WarehouseManualDetailContent(manual: Manual) {
-    val rarityName = when (manual.rarity) {
-        1 -> "普通"
-        2 -> "灵品"
-        3 -> "宝品"
-        4 -> "玄品"
-        5 -> "地品"
-        6 -> "天品"
-        else -> "普通"
-    }
-    
-    Text(
-        text = "$rarityName · ${manual.type.displayName}",
-        fontSize = 11.sp,
-        color = Color(0xFF666666)
-    )
-    
-    if (manual.minRealm < 9) {
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = "需求境界：${com.xianxia.sect.core.GameConfig.Realm.getName(manual.minRealm)}",
-            fontSize = 11.sp,
-            color = Color(0xFF666666)
-        )
-    }
-    
-    Spacer(modifier = Modifier.height(8.dp))
-    HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
-    Spacer(modifier = Modifier.height(8.dp))
-    
-    val stats = manual.stats.map { (key, value) ->
-        val label = when (key) {
-            "cultivationSpeedPercent" -> "修炼速度"
-            "physicalAttack" -> "物攻"
-            "magicAttack" -> "法攻"
-            "physicalDefense" -> "物防"
-            "magicDefense" -> "法防"
-            "maxHp" -> "生命"
-            "maxMp" -> "法力"
-            "speed" -> "速度"
-            "critRate" -> "暴击率"
-            else -> key
-        }
-        Pair(label, value.toString())
-    }
-    if (stats.isNotEmpty()) {
-        Text(
-            text = "属性加成",
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color(0xFF3498DB)
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        
-        com.xianxia.sect.ui.game.components.TwoColumnStatsDisplay(
-            stats = stats
-        )
-    }
-    
-    manual.skill?.let { skill ->
-        Spacer(modifier = Modifier.height(8.dp))
-        HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
-        Spacer(modifier = Modifier.height(8.dp))
-        
-        Text(
-            text = "技能：${skill.name}",
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color(0xFF3498DB)
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        
-        if (skill.description.isNotEmpty()) {
-            Text(
-                text = skill.description,
-                fontSize = 11.sp,
-                color = Color(0xFF333333),
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-        }
-        
-        val skillAttrs = mutableMapOf<String, Int>()
-        skillAttrs["伤害倍率"] = (skill.damageMultiplier * 100).toInt()
-        skillAttrs["冷却回合"] = skill.cooldown
-        skillAttrs["法力消耗"] = skill.mpCost
-        skillAttrs["攻击次数"] = skill.hits
-        if (skill.healPercent > 0) {
-            skillAttrs["治疗比例"] = (skill.healPercent * 100).toInt()
-        }
-        
-        com.xianxia.sect.ui.game.components.TwoColumnSkillAttrsDisplay(
-            attrs = skillAttrs.toMap()
-        )
-    }
-    
-    if (manual.description.isNotEmpty()) {
-        Spacer(modifier = Modifier.height(8.dp))
-        HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = manual.description,
-            fontSize = 11.sp,
-            color = Color(0xFF666666)
-        )
     }
 }
 
@@ -1076,13 +705,13 @@ private fun BottomNavigationBar(
 @Composable
 private fun DisciplesTab(
     gameData: GameData?,
-    disciples: List<Disciple>,
+    disciples: List<DiscipleAggregate>,
     equipment: List<Equipment>,
     manuals: List<Manual>,
     viewModel: GameViewModel
 ) {
     var selectedRealmFilter by remember { mutableStateOf<Int?>(null) }
-    var selectedDisciple by remember { mutableStateOf<Disciple?>(null) }
+    var selectedDisciple by remember { mutableStateOf<DiscipleAggregate?>(null) }
 
     val realmFilters = listOf(
         0 to "仙人",
@@ -1247,7 +876,7 @@ private fun FilterChip(
 
 @Composable
 private fun DiscipleCard(
-    disciple: Disciple,
+    disciple: DiscipleAggregate,
     onClick: () -> Unit
 ) {
     Box(
@@ -1311,21 +940,9 @@ private fun DiscipleCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Text(
-                    text = "悟性:${disciple.comprehension}",
-                    fontSize = 11.sp,
-                    color = Color(0xFF666666)
-                )
-                Text(
-                    text = "忠诚:${disciple.loyalty}",
-                    fontSize = 11.sp,
-                    color = Color(0xFF666666)
-                )
-                Text(
-                    text = "道德:${disciple.morality}",
-                    fontSize = 11.sp,
-                    color = Color(0xFF666666)
-                )
+                DiscipleAttrText("悟性", disciple.comprehension)
+                DiscipleAttrText("忠诚", disciple.loyalty)
+                DiscipleAttrText("道德", disciple.morality)
             }
         }
     }
@@ -1335,7 +952,7 @@ private fun DiscipleCard(
 private fun ElderSlotWithDisciples(
     slotName: String,
     slotType: String,
-    elder: Disciple?,
+    elder: DiscipleAggregate?,
     directDisciples: List<DirectDiscipleSlot>,
     onElderClick: () -> Unit,
     onElderRemove: () -> Unit,
@@ -1503,7 +1120,7 @@ private fun DirectDiscipleSlotItem(
 
 @Composable
 private fun DirectDiscipleSelectionDialog(
-    disciples: List<Disciple>,
+    disciples: List<DiscipleAggregate>,
     requiredAttribute: Pair<String, String>?,
     elderSlots: ElderSlots,
     onDismiss: () -> Unit,
@@ -1754,7 +1371,7 @@ private fun RedeemCodeDialog(
             ) {
                 OutlinedTextField(
                     value = codeInput,
-                    onValueChange = { codeInput = it.uppercase() },
+                    onValueChange = { codeInput = it.uppercase(java.util.Locale.getDefault()) },
                     label = { Text("请输入兑换码", fontSize = 12.sp) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
@@ -1878,21 +1495,9 @@ private fun RedeemCodeDialog(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                                     ) {
-                                        Text(
-                                            text = "悟性 ${disciple.comprehension}",
-                                            fontSize = 10.sp,
-                                            color = Color(0xFF666666)
-                                        )
-                                        Text(
-                                            text = "智力 ${disciple.intelligence}",
-                                            fontSize = 10.sp,
-                                            color = Color(0xFF666666)
-                                        )
-                                        Text(
-                                            text = "魅力 ${disciple.charm}",
-                                            fontSize = 10.sp,
-                                            color = Color(0xFF666666)
-                                        )
+                                        DiscipleAttrText("悟性", disciple.comprehension, fontSize = 10.sp)
+                                        DiscipleAttrText("智力", disciple.intelligence, fontSize = 10.sp)
+                                        DiscipleAttrText("魅力", disciple.charm, fontSize = 10.sp)
                                     }
                                     if (disciple.talentIds.isNotEmpty()) {
                                         Text(
@@ -1932,7 +1537,7 @@ private fun RedeemCodeDialog(
 
 @Composable
 fun SecretRealmDialog(
-    disciples: List<Disciple>,
+    disciples: List<DiscipleAggregate>,
     viewModel: GameViewModel,
     onDismiss: () -> Unit
 ) {
@@ -2131,7 +1736,7 @@ private fun SecretRealmCard(
 @Composable
 private fun DispatchTeamDialog(
     realm: GameConfig.DungeonConfig,
-    disciples: List<Disciple>,
+    disciples: List<DiscipleAggregate>,
     viewModel: GameViewModel,
     onDismiss: () -> Unit
 ) {
@@ -2434,12 +2039,12 @@ private fun ExplorationTeamDialog(
     onDismiss: () -> Unit
 ) {
     val teams by viewModel.teams.collectAsState()
-    val disciples by viewModel.disciples.collectAsState()
+    val disciples by viewModel.discipleAggregates.collectAsState()
     val equipment by viewModel.equipment.collectAsState()
     val manuals by viewModel.manuals.collectAsState()
     val gameData by viewModel.gameData.collectAsState()
     val battleLogs by viewModel.battleLogs.collectAsState()
-    var selectedDisciple by remember { mutableStateOf<Disciple?>(null) }
+    var selectedDisciple by remember { mutableStateOf<DiscipleAggregate?>(null) }
     var selectedBattleLog by remember { mutableStateOf<BattleLog?>(null) }
 
     val activeTeam = teams.find {
@@ -2661,7 +2266,7 @@ private fun ExplorationTeamDialog(
 
 @Composable
 private fun TeamMemberSlot(
-    disciple: Disciple,
+    disciple: DiscipleAggregate,
     onClick: () -> Unit
 ) {
     val isDead = !disciple.isAlive
@@ -3298,7 +2903,7 @@ private fun BattleLogListItem(
 
 @Composable
 private fun ElderDiscipleSelectionDialog(
-    disciples: List<Disciple>,
+    disciples: List<DiscipleAggregate>,
     currentElderId: String?,
     requiredAttribute: Pair<String, String>?,
     elderSlots: ElderSlots,
@@ -3530,22 +3135,24 @@ private fun BuildingsTab(viewModel: GameViewModel) {
     val herbs by viewModel.herbs.collectAsState()
     val seeds by viewModel.seeds.collectAsState()
     val manuals by viewModel.manuals.collectAsState()
-    val disciples by viewModel.disciples.collectAsState()
+    val disciples by viewModel.discipleAggregates.collectAsState()
     val equipment by viewModel.equipment.collectAsState()
     val pills by viewModel.pills.collectAsState()
     
-    val showAlchemyDialog by viewModel.showAlchemyDialog.collectAsState()
-    val showForgeDialog by viewModel.showForgeDialog.collectAsState()
-    val showHerbGardenDialog by viewModel.showHerbGardenDialog.collectAsState()
-    val showSpiritMineDialog by viewModel.showSpiritMineDialog.collectAsState()
-    val showLibraryDialog by viewModel.showLibraryDialog.collectAsState()
-    val showWenDaoPeakDialog by viewModel.showWenDaoPeakDialog.collectAsState()
-    val showQingyunPeakDialog by viewModel.showQingyunPeakDialog.collectAsState()
-    val showTianshuHallDialog by viewModel.showTianshuHallDialog.collectAsState()
-    val showLawEnforcementHallDialog by viewModel.showLawEnforcementHallDialog.collectAsState()
-    val showMissionHallDialog by viewModel.showMissionHallDialog.collectAsState()
+    val currentDialog by viewModel.dialogStateManager.currentDialog.collectAsState()
 
-    val buildings = listOf(
+    val showAlchemyDialog = currentDialog?.type == DialogType.Alchemy
+    val showForgeDialog = currentDialog?.type == DialogType.Forge
+    val showHerbGardenDialog = currentDialog?.type == DialogType.HerbGarden
+    val showSpiritMineDialog = currentDialog?.type == DialogType.SpiritMine
+    val showLibraryDialog = currentDialog?.type == DialogType.Library
+    val showWenDaoPeakDialog = currentDialog?.type == DialogType.WenDaoPeak
+    val showQingyunPeakDialog = currentDialog?.type == DialogType.QingyunPeak
+    val showTianshuHallDialog = currentDialog?.type == DialogType.TianshuHall
+    val showLawEnforcementHallDialog = currentDialog?.type == DialogType.LawEnforcementHall
+    val showMissionHallDialog = currentDialog?.type == DialogType.MissionHall
+
+    val buildings: List<Triple<String, String, () -> Unit>> = listOf(
         Triple("灵矿场", "开采灵石资源") { viewModel.openSpiritMineDialog() },
         Triple("灵药宛", "种植灵药材料") { viewModel.openHerbGardenDialog() },
         Triple("丹鼎殿", "炼制丹药") { viewModel.openAlchemyDialog() },
@@ -3581,7 +3188,10 @@ private fun BuildingsTab(viewModel: GameViewModel) {
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    rowBuildings.forEach { (name, desc, onClick) ->
+                    rowBuildings.forEach { building ->
+                        val name = building.first
+                        val desc = building.second
+                        val onClick = building.third
                         Box(
                             modifier = Modifier
                                 .weight(1f)
@@ -3618,7 +3228,7 @@ private fun BuildingsTab(viewModel: GameViewModel) {
     if (showSpiritMineDialog) {
         SpiritMineDialog(
             viewModel = viewModel,
-            onDismiss = { viewModel.closeSpiritMineDialog() }
+            onDismiss = { viewModel.closeCurrentDialog() }
         )
     }
 
@@ -3629,7 +3239,7 @@ private fun BuildingsTab(viewModel: GameViewModel) {
             gameData = gameData,
             disciples = disciples.filter { it.isAlive },
             viewModel = viewModel,
-            onDismiss = { viewModel.closeHerbGardenDialog() }
+            onDismiss = { viewModel.closeCurrentDialog() }
         )
     }
 
@@ -3642,7 +3252,7 @@ private fun BuildingsTab(viewModel: GameViewModel) {
             disciples = disciples.filter { it.isAlive },
             viewModel = viewModel,
             colors = XianxiaColorScheme(),
-            onDismiss = { viewModel.closeAlchemyDialog() }
+            onDismiss = { viewModel.closeCurrentDialog() }
         )
     }
 
@@ -3653,7 +3263,7 @@ private fun BuildingsTab(viewModel: GameViewModel) {
             gameData = gameData,
             viewModel = viewModel,
             colors = XianxiaColorScheme(),
-            onDismiss = { viewModel.closeForgeDialog() }
+            onDismiss = { viewModel.closeCurrentDialog() }
         )
     }
 
@@ -3663,7 +3273,7 @@ private fun BuildingsTab(viewModel: GameViewModel) {
             disciples = disciples.filter { it.isAlive },
             gameData = gameData,
             viewModel = viewModel,
-            onDismiss = { viewModel.closeLibraryDialog() }
+            onDismiss = { viewModel.closeCurrentDialog() }
         )
     }
 
@@ -3672,7 +3282,7 @@ private fun BuildingsTab(viewModel: GameViewModel) {
             disciples = disciples.filter { it.isAlive },
             gameData = gameData,
             viewModel = viewModel,
-            onDismiss = { viewModel.closeWenDaoPeakDialog() }
+            onDismiss = { viewModel.closeCurrentDialog() }
         )
     }
 
@@ -3681,7 +3291,7 @@ private fun BuildingsTab(viewModel: GameViewModel) {
             disciples = disciples.filter { it.isAlive },
             gameData = gameData,
             viewModel = viewModel,
-            onDismiss = { viewModel.closeQingyunPeakDialog() }
+            onDismiss = { viewModel.closeCurrentDialog() }
         )
     }
 
@@ -3690,7 +3300,7 @@ private fun BuildingsTab(viewModel: GameViewModel) {
             gameData = gameData,
             disciples = disciples.filter { it.isAlive },
             viewModel = viewModel,
-            onDismiss = { viewModel.closeTianshuHallDialog() }
+            onDismiss = { viewModel.closeCurrentDialog() }
         )
     }
 
@@ -3699,7 +3309,7 @@ private fun BuildingsTab(viewModel: GameViewModel) {
             disciples = disciples.filter { it.isAlive },
             gameData = gameData,
             viewModel = viewModel,
-            onDismiss = { viewModel.closeLawEnforcementHallDialog() }
+            onDismiss = { viewModel.closeCurrentDialog() }
         )
     }
 
@@ -3708,16 +3318,16 @@ private fun BuildingsTab(viewModel: GameViewModel) {
             gameData = gameData,
             disciples = disciples.filter { it.isAlive },
             viewModel = viewModel,
-            onDismiss = { viewModel.closeMissionHallDialog() }
+            onDismiss = { viewModel.closeCurrentDialog() }
         )
     }
 
-    val showReflectionCliffDialog by viewModel.showReflectionCliffDialog.collectAsState()
+    val showReflectionCliffDialog = currentDialog?.type == DialogType.ReflectionCliff
     if (showReflectionCliffDialog) {
         ReflectionCliffDialog(
             disciples = disciples.filter { it.isAlive },
             gameData = gameData,
-            onDismiss = { viewModel.closeReflectionCliffDialog() },
+            onDismiss = { viewModel.closeCurrentDialog() },
             onExpelDisciple = { discipleId -> viewModel.expelDisciple(discipleId) }
         )
     }
@@ -3789,7 +3399,7 @@ private fun WarehouseTab(viewModel: GameViewModel) {
     var showDetailDialog by remember { mutableStateOf(false) }
     var selectedItemId by remember { mutableStateOf<String?>(null) }
     var showBulkSellDialog by remember { mutableStateOf(false) }
-    var currentPage by remember { mutableStateOf(0) }
+    var currentPage by remember { mutableIntStateOf(0) }
     
     val currentFilterItems = when (selectedFilter) {
         WarehouseFilter.ALL -> allSortedItems
@@ -3802,7 +3412,7 @@ private fun WarehouseTab(viewModel: GameViewModel) {
     }
     
     val totalPages = remember(currentFilterItems) {
-        (currentFilterItems.size + WarehousePager.DEFAULT_PAGE_SIZE - 1) / WarehousePager.DEFAULT_PAGE_SIZE
+        maxOf(1, (currentFilterItems.size + WarehousePager.DEFAULT_PAGE_SIZE - 1) / WarehousePager.DEFAULT_PAGE_SIZE)
     }
     
     LaunchedEffect(totalPages) {
@@ -3957,12 +3567,12 @@ private fun WarehouseTab(viewModel: GameViewModel) {
             EmptyWarehouseMessage()
         } else {
             LazyVerticalGrid(
-                columns = GridCells.Fixed(6),
+                columns = GridCells.Adaptive(56.dp),
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(pageItems, key = { "${it.item.javaClass.simpleName}_${it.id}_${currentPage}" }) { warehouseItem ->
                     UnifiedItemCard(
@@ -3988,9 +3598,8 @@ private fun WarehouseTab(viewModel: GameViewModel) {
                 }
             }
             
-            if (totalPages > 1) {
-                Spacer(modifier = Modifier.height(8.dp))
-                WarehousePagination(
+            Spacer(modifier = Modifier.height(8.dp))
+            WarehousePagination(
                     currentPage = currentPage + 1,
                     totalPages = totalPages,
                     onPreviousPage = { 
@@ -4002,20 +3611,83 @@ private fun WarehouseTab(viewModel: GameViewModel) {
                     onFirstPage = { currentPage = 0 },
                     onLastPage = { currentPage = totalPages - 1 }
                 )
-            }
         }
     }
     
     if (showDetailDialog) {
         selectedItem?.let { item ->
-            WarehouseItemDetailDialog(
+            val itemId = when (item) {
+                is Equipment -> item.id
+                is Manual -> item.id
+                is Pill -> item.id
+                is Material -> item.id
+                is Herb -> item.id
+                is Seed -> item.id
+                else -> ""
+            }
+            val itemType = when (item) {
+                is Equipment -> "equipment"
+                is Manual -> "manual"
+                is Pill -> "pill"
+                is Material -> "material"
+                is Herb -> "herb"
+                is Seed -> "seed"
+                else -> ""
+            }
+            val itemQuantity = when (item) {
+                is Equipment -> 1
+                is Manual -> 1
+                is Pill -> item.quantity
+                is Material -> item.quantity
+                is Herb -> item.quantity
+                is Seed -> item.quantity
+                else -> 0
+            }
+            val itemRarity = when (item) {
+                is Equipment -> item.rarity
+                is Manual -> item.rarity
+                is Pill -> item.rarity
+                is Material -> item.rarity
+                is Herb -> item.rarity
+                is Seed -> item.rarity
+                else -> 1
+            }
+            val itemName = when (item) {
+                is Equipment -> item.name
+                is Manual -> item.name
+                is Pill -> item.name
+                is Material -> item.name
+                is Herb -> item.name
+                is Seed -> item.name
+                else -> ""
+            }
+            var showDiscipleSelectDialog by remember { mutableStateOf(false) }
+
+            ItemDetailDialog(
                 item = item,
-                viewModel = viewModel,
                 onDismiss = {
                     showDetailDialog = false
                     selectedItemId = null
+                },
+                extraActions = {
+                    GameButton(
+                        text = "赏赐",
+                        onClick = { showDiscipleSelectDialog = true }
+                    )
                 }
             )
+
+            if (showDiscipleSelectDialog) {
+                DiscipleSelectForRewardDialog(
+                    itemName = itemName,
+                    itemId = itemId,
+                    itemType = itemType,
+                    itemQuantity = itemQuantity,
+                    itemRarity = itemRarity,
+                    viewModel = viewModel,
+                    onDismiss = { showDiscipleSelectDialog = false }
+                )
+            }
         }
     }
     
@@ -4037,7 +3709,7 @@ private fun DiscipleSelectForRewardDialog(
     viewModel: GameViewModel,
     onDismiss: () -> Unit
 ) {
-    val disciples by viewModel.disciples.collectAsState()
+    val disciples by viewModel.discipleAggregates.collectAsState()
     val pills by viewModel.pills.collectAsState()
     val materials by viewModel.materials.collectAsState()
     val herbs by viewModel.herbs.collectAsState()
@@ -4909,23 +4581,111 @@ private fun SettingsTab(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    listOf(3, 6, 12).forEach { interval ->
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(if (gameData.autoSaveIntervalMonths == interval) Color.Black else GameColors.PageBackground)
-                                .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
-                                .clickable { viewModel.setAutoSaveIntervalMonths(interval) }
-                                .padding(vertical = 12.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "${interval}月",
-                                fontSize = 12.sp,
-                                color = if (gameData.autoSaveIntervalMonths == interval) Color.White else Color.Black
-                            )
-                        }
+                    val isAutoSaveActive = gameData.autoSaveIntervalMonths > 0
+                    
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(if (!isAutoSaveActive) Color(0xFFE74C3C) else GameColors.PageBackground)
+                            .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
+                            .clickable { viewModel.setAutoSaveIntervalMonths(0) }
+                            .padding(vertical = 12.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "停止",
+                            fontSize = 12.sp,
+                            color = if (!isAutoSaveActive) Color.White else Color.Black
+                        )
+                    }
+                    
+                    var showEditIntervalDialog by remember { mutableStateOf(false) }
+                    var editIntervalValue by remember { mutableStateOf("") }
+                    
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(if (isAutoSaveActive) Color.Black else GameColors.PageBackground)
+                            .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
+                            .clickable {
+                                if (!isAutoSaveActive) {
+                                    viewModel.setAutoSaveIntervalMonths(3)
+                                } else {
+                                    editIntervalValue = gameData.autoSaveIntervalMonths.toString()
+                                    showEditIntervalDialog = true
+                                }
+                            }
+                            .padding(vertical = 12.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = if (isAutoSaveActive) "${gameData.autoSaveIntervalMonths}月" else "3月",
+                            fontSize = 12.sp,
+                            color = if (isAutoSaveActive) Color.White else Color.Black
+                        )
+                    }
+                    
+                    if (showEditIntervalDialog) {
+                        AlertDialog(
+                            onDismissRequest = { showEditIntervalDialog = false },
+                            containerColor = GameColors.PageBackground,
+                            title = {
+                                Text(
+                                    text = "设置自动存档间隔",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.Black
+                                )
+                            },
+                            text = {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    OutlinedTextField(
+                                        value = editIntervalValue,
+                                        onValueChange = { input ->
+                                            val filtered = input.filter { it.isDigit() }
+                                            editIntervalValue = filtered
+                                        },
+                                        modifier = Modifier.width(80.dp),
+                                        singleLine = true,
+                                        textStyle = androidx.compose.ui.text.TextStyle(
+                                            fontSize = 14.sp,
+                                            textAlign = TextAlign.Center
+                                        ),
+                                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                                        )
+                                    )
+                                    Text(
+                                        text = "月",
+                                        fontSize = 14.sp,
+                                        color = Color.Black
+                                    )
+                                }
+                            },
+                            confirmButton = {
+                                GameButton(
+                                    text = "确认",
+                                    onClick = {
+                                        val months = editIntervalValue.toIntOrNull()
+                                        if (months != null && months in 1..12) {
+                                            viewModel.setAutoSaveIntervalMonths(months)
+                                        }
+                                        showEditIntervalDialog = false
+                                    }
+                                )
+                            },
+                            dismissButton = {
+                                GameButton(
+                                    text = "取消",
+                                    onClick = { showEditIntervalDialog = false }
+                                )
+                            }
+                        )
                     }
                 }
             }
@@ -5175,30 +4935,27 @@ private fun SaveSlotDialog(
     val isBusy = saveLoadState.isBusy
     val isSaving = saveLoadState.isSaving
     val isLoading = saveLoadState.isLoading
-    val pendingAction = saveLoadState.pendingAction
     val pendingSlot = saveLoadState.pendingSlot
     var selectedSlot by remember { mutableStateOf<Int?>(null) }
-    var showBusyHint by remember { mutableStateOf(false) }
-    
-    LaunchedEffect(isBusy, pendingAction) {
-        if (!isBusy && pendingAction != null) {
-            onDismiss()
-        }
+    var saveCompleted by remember { mutableStateOf(false) }
+
+    val selectedSlotInfo = remember(saveSlots, selectedSlot) {
+        saveSlots.find { it.slot == selectedSlot }
     }
-    
-    LaunchedEffect(showBusyHint) {
-        if (showBusyHint) {
-            delay(2000)
-            showBusyHint = false
+    val isAutoSaveSlot = selectedSlotInfo?.isAutoSave == true
+
+    LaunchedEffect(isBusy) {
+        if (!isBusy && saveCompleted) {
+            saveCompleted = false
+            onDismiss()
         }
     }
     
     Dialog(onDismissRequest = { 
-        if (!isBusy) {
-            onDismiss()
-        } else {
-            showBusyHint = true
+        if (isBusy) {
+            viewModel.cancelSaveLoad()
         }
+        onDismiss()
     }) {
         Surface(
             modifier = Modifier
@@ -5235,13 +4992,17 @@ private fun SaveSlotDialog(
                         }
                         GameButton(
                             text = "关闭",
-                            enabled = !isBusy,
-                            onClick = onDismiss
+                            onClick = {
+                                if (isBusy) {
+                                    viewModel.cancelSaveLoad()
+                                }
+                                onDismiss()
+                            }
                         )
                     }
                 }
                 
-                if (showBusyHint || isBusy) {
+                if (isBusy) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -5252,18 +5013,15 @@ private fun SaveSlotDialog(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            if (isBusy) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(16.dp),
-                                    strokeWidth = 2.dp,
-                                    color = Color(0xFFFF9800)
-                                )
-                            }
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                                color = Color(0xFFFF9800)
+                            )
                             Text(
                                 text = when {
-                                    isSaving -> "正在保存到槽位 ${pendingSlot}..."
-                                    isLoading -> "正在读取槽位 ${pendingSlot}..."
-                                    showBusyHint -> "请等待当前操作完成"
+                                    isSaving -> "正在保存到槽位 ${if (pendingSlot == 0) "自动存档" else pendingSlot}..."
+                                    isLoading -> "正在读取槽位 ${if (pendingSlot == 0) "自动存档" else pendingSlot}..."
                                     else -> ""
                                 },
                                 fontSize = 12.sp,
@@ -5279,7 +5037,7 @@ private fun SaveSlotDialog(
                         .padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(saveSlots) { slot ->
+                    items(saveSlots, key = { it.slot }) { slot ->
                         SaveSlotCard(
                             slot = slot,
                             isSelected = selectedSlot == slot.slot,
@@ -5298,10 +5056,11 @@ private fun SaveSlotDialog(
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(6.dp))
-                            .background(if (selectedSlot != null && !isBusy) Color.Black else Color(0xFFCCCCCC))
+                            .background(if (selectedSlot != null && !isBusy && !isAutoSaveSlot) Color.Black else Color(0xFFCCCCCC))
                             .then(
-                                if (selectedSlot != null && !isBusy) {
+                                if (selectedSlot != null && !isBusy && !isAutoSaveSlot) {
                                     Modifier.clickable {
+                                        saveCompleted = true
                                         viewModel.saveGame(selectedSlot.toString())
                                     }
                                 } else {
@@ -5319,7 +5078,7 @@ private fun SaveSlotDialog(
                             )
                         } else {
                             Text(
-                                text = "保存",
+                                text = if (isAutoSaveSlot) "自动存档不可保存" else "保存",
                                 fontSize = 12.sp,
                                 color = Color.White
                             )
@@ -5376,14 +5135,17 @@ private fun SaveSlotCard(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
+    val borderColor = if (slot.isAutoSave) Color(0xFF4CAF50) else if (isSelected) Color.Black else GameColors.Border
+    val borderWidth = if (slot.isAutoSave) 2.dp else if (isSelected) 2.dp else 1.dp
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
             .background(if (isSelected) Color(0xFFF0F0F0) else GameColors.PageBackground)
             .border(
-                width = if (isSelected) 2.dp else 1.dp,
-                color = if (isSelected) Color.Black else GameColors.Border,
+                width = borderWidth,
+                color = borderColor,
                 shape = RoundedCornerShape(8.dp)
             )
             .clickable { onClick() }
@@ -5394,12 +5156,28 @@ private fun SaveSlotCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text(
-                    text = "槽位 ${slot.slot}",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    if (slot.isAutoSave) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(Color(0xFF4CAF50))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "自动",
+                                fontSize = 10.sp,
+                                color = Color.White
+                            )
+                        }
+                    }
+                    Text(
+                        text = slot.displayName,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+                }
                 Text(
                     text = if (slot.isEmpty) "空" else slot.saveTime,
                     fontSize = 12.sp,
@@ -5775,7 +5553,7 @@ private fun WorldMapDialog(
     worldSects: List<WorldSect>,
     scoutTeams: List<ExplorationTeam> = emptyList(),
     gameData: GameData?,
-    disciples: List<Disciple>,
+    disciples: List<DiscipleAggregate>,
     viewModel: GameViewModel,
     battleTeamMoveMode: Boolean = false,
     onDismiss: () -> Unit
@@ -6077,13 +5855,13 @@ private fun WorldMapSectDetailDialog(
                     ) {
                         (0..4).forEach { realmIndex ->
                             val realmName = GameConfig.Realm.getName(realmIndex)
-                            val count = scoutInfo?.disciples?.get(realmIndex) ?: 0
-                            val displayText = if (scoutInfo != null && scoutInfo.disciples.containsKey(realmIndex)) {
+                            val count = scoutInfo.disciples.get(realmIndex) ?: 0
+                            val displayText = if (scoutInfo.sectId.isNotEmpty() && scoutInfo.disciples.containsKey(realmIndex)) {
                                 if (count > 0) "$count" else "0"
                             } else {
                                 "?"
                             }
-                            val textColor = if (scoutInfo != null && scoutInfo.disciples.containsKey(realmIndex)) {
+                            val textColor = if (scoutInfo.sectId.isNotEmpty() && scoutInfo.disciples.containsKey(realmIndex)) {
                                 if (count > 0) Color(0xFF4CAF50) else Color(0xFF999999)
                             } else {
                                 Color(0xFFFF9800)
@@ -6116,13 +5894,13 @@ private fun WorldMapSectDetailDialog(
                     ) {
                         (5..9).forEach { realmIndex ->
                             val realmName = GameConfig.Realm.getName(realmIndex)
-                            val count = scoutInfo?.disciples?.get(realmIndex) ?: 0
-                            val displayText = if (scoutInfo != null && scoutInfo.disciples.containsKey(realmIndex)) {
+                            val count = scoutInfo.disciples.get(realmIndex) ?: 0
+                            val displayText = if (scoutInfo.sectId.isNotEmpty() && scoutInfo.disciples.containsKey(realmIndex)) {
                                 if (count > 0) "$count" else "0"
                             } else {
                                 "?"
                             }
-                            val textColor = if (scoutInfo != null && scoutInfo.disciples.containsKey(realmIndex)) {
+                            val textColor = if (scoutInfo.sectId.isNotEmpty() && scoutInfo.disciples.containsKey(realmIndex)) {
                                 if (count > 0) Color(0xFF4CAF50) else Color(0xFF999999)
                             } else {
                                 Color(0xFFFF9800)
@@ -6353,7 +6131,7 @@ fun DiplomacyDialog(
 private fun CaveDetailDialog(
     cave: CultivatorCave,
     gameData: GameData?,
-    disciples: List<Disciple>,
+    disciples: List<DiscipleAggregate>,
     viewModel: GameViewModel,
     onDismiss: () -> Unit
 ) {
@@ -6362,7 +6140,7 @@ private fun CaveDetailDialog(
     val remainingMonths = cave.getRemainingMonths(currentYear, currentMonth)
     
     var showDiscipleSelection by remember { mutableStateOf(false) }
-    var selectedDisciples by remember { mutableStateOf<List<Disciple>>(emptyList()) }
+    var selectedDisciples by remember { mutableStateOf<List<DiscipleAggregate>>(emptyList()) }
     
     val statusColor = when (cave.status) {
         CaveStatus.AVAILABLE -> Color(0xFF9C27B0)
@@ -6575,15 +6353,15 @@ private fun CaveDetailDialog(
 
 @Composable
 private fun CaveDiscipleSelectionDialog(
-    disciples: List<Disciple>,
-    selectedDisciples: List<Disciple>,
+    disciples: List<DiscipleAggregate>,
+    selectedDisciples: List<DiscipleAggregate>,
     maxSelection: Int,
     caveRealm: Int,
-    onConfirm: (List<Disciple>) -> Unit,
+    onConfirm: (List<DiscipleAggregate>) -> Unit,
     onDismiss: () -> Unit
 ) {
     var selectedRealmFilter by remember { mutableStateOf<Int?>(null) }
-    var currentSelected by remember(selectedDisciples) { mutableStateOf(selectedDisciples.toMutableList()) }
+    var currentSelected by remember(selectedDisciples) { @Suppress("MutableCollectionMutableState") mutableStateOf(selectedDisciples.toMutableList()) }
 
     val allRealmFilters = listOf(
         0 to "仙人",
@@ -6951,8 +6729,8 @@ private fun GiftedMessageToast(
     message: String,
     onDismiss: () -> Unit
 ) {
-    var offsetY by remember { mutableStateOf(0f) }
-    var alpha by remember { mutableStateOf(1f) }
+    var offsetY by remember { mutableFloatStateOf(0f) }
+    var alpha by remember { mutableFloatStateOf(1f) }
     
     LaunchedEffect(Unit) {
         kotlinx.coroutines.delay(100)
@@ -6967,7 +6745,7 @@ private fun GiftedMessageToast(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .offset(y = offsetY.dp),
+            .offset { IntOffset(x = 0, y = offsetY.dp.roundToPx()) },
         contentAlignment = Alignment.Center
     ) {
         Text(
@@ -6989,7 +6767,7 @@ fun SectTradeDialog(
     onDismiss: () -> Unit
 ) {
     var selectedItem by remember { mutableStateOf<MerchantItem?>(null) }
-    var buyQuantity by remember { mutableStateOf(1) }
+    var buyQuantity by remember { mutableIntStateOf(1) }
     var showDetailDialog by remember { mutableStateOf(false) }
     var showRelationWarning by remember { mutableStateOf(false) }
     
@@ -7082,13 +6860,13 @@ fun SectTradeDialog(
                                         fontWeight = FontWeight.Bold
                                     )
                                     Text(
-                                        text = "(${String.format("%.1f%%", (1 - priceMultiplier) * 100)}折扣)",
+                                        text = "(${String.format(Locale.getDefault(), "%.1f%%", (1 - priceMultiplier) * 100)}折扣)",
                                         fontSize = 10.sp,
                                         color = Color(0xFF4CAF50)
                                     )
                                 } else if (relation >= 70) {
                                     Text(
-                                        text = "(${String.format("%.1f%%", (1 - priceMultiplier) * 100)}折扣)",
+                                        text = "(${String.format(Locale.getDefault(), "%.1f%%", (1 - priceMultiplier) * 100)}折扣)",
                                         fontSize = 10.sp,
                                         color = Color(0xFF4CAF50)
                                     )
@@ -7129,7 +6907,7 @@ fun SectTradeDialog(
                         }
                     } else {
                         LazyVerticalGrid(
-                            columns = GridCells.Adaptive(68.dp),
+                            columns = GridCells.Fixed(5),
                             modifier = Modifier
                                 .weight(1f)
                                 .padding(8.dp),
@@ -7396,138 +7174,12 @@ fun SectTradeDialog(
 
     if (showDetailDialog) {
         selectedItem?.let { item ->
-            val rarityColor = when (item.rarity) {
-                1 -> GameColors.RarityCommon
-                2 -> GameColors.RaritySpirit
-                3 -> GameColors.RarityTreasure
-                4 -> GameColors.RarityMystic
-                5 -> GameColors.RarityEarth
-                6 -> GameColors.RarityHeaven
-                else -> GameColors.RarityCommon
-            }
-            val rarityName = when (item.rarity) {
-                1 -> "凡品"
-                2 -> "灵品"
-                3 -> "宝品"
-                4 -> "玄品"
-                5 -> "地品"
-                6 -> "天品"
-                else -> "凡品"
-            }
-            val typeName = when (item.type) {
-                "equipment" -> "装备"
-                "manual" -> "功法"
-                "pill" -> "丹药"
-                "material" -> "材料"
-                "herb" -> "灵草"
-                "seed" -> "种子"
-                else -> "物品"
-            }
-
-            AlertDialog(
-                onDismissRequest = { showDetailDialog = false },
-                containerColor = GameColors.PageBackground,
-                title = {
-                    Column {
-                        Text(
-                            text = item.name,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = rarityColor
-                        )
-                        Text(
-                            text = "$typeName · $rarityName",
-                            fontSize = 11.sp,
-                            color = GameColors.TextSecondary
-                        )
-                    }
-                },
-                text = {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        HorizontalDivider(color = GameColors.Background, thickness = 1.dp)
-                        
-                        Text(
-                            text = "道具效果",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.Black
-                        )
-                        
-                        Text(
-                            text = getItemEffectTextForSectTrade(item),
-                            fontSize = 11.sp,
-                            color = GameColors.TextSecondary,
-                            lineHeight = 16.sp
-                        )
-                    }
-                },
-                confirmButton = {
-                    GameButton(
-                        text = "关闭",
-                        onClick = { showDetailDialog = false }
-                    )
-                }
+            ItemDetailDialog(
+                item = item,
+                onDismiss = { showDetailDialog = false }
             )
         }
     }
-}
-
-private fun getItemEffectTextForSectTrade(item: MerchantItem): String {
-    val template = EquipmentDatabase.getTemplateByName(item.name)
-    if (template != null) {
-        val effects = mutableListOf<String>()
-        if (template.physicalAttack > 0) effects.add("物理攻击+${template.physicalAttack}")
-        if (template.magicAttack > 0) effects.add("法术攻击+${template.magicAttack}")
-        if (template.physicalDefense > 0) effects.add("物理防御+${template.physicalDefense}")
-        if (template.magicDefense > 0) effects.add("法术防御+${template.magicDefense}")
-        if (template.hp > 0) effects.add("生命值+${template.hp}")
-        if (template.mp > 0) effects.add("灵力值+${template.mp}")
-        if (template.speed > 0) effects.add("速度+${template.speed}")
-        if (template.critChance > 0) effects.add("暴击率+${String.format("%.1f%%", template.critChance * 100)}")
-        return if (effects.isNotEmpty()) effects.joinToString("，") else template.description
-    }
-
-    val manualTemplate = ManualDatabase.getByName(item.name)
-    if (manualTemplate != null) {
-        val effects = mutableListOf<String>()
-        val stats = manualTemplate.stats
-        if (stats.containsKey("cultivationSpeedPercent")) effects.add("修炼速度+${stats["cultivationSpeedPercent"]}%")
-        if (stats.containsKey("breakthroughChance")) effects.add("突破概率+${stats["breakthroughChance"]}%")
-        if (stats.containsKey("physicalAttack")) effects.add("物攻+${stats["physicalAttack"]}")
-        if (stats.containsKey("magicAttack")) effects.add("法攻+${stats["magicAttack"]}")
-        if (stats.containsKey("physicalDefense")) effects.add("物防+${stats["physicalDefense"]}")
-        if (stats.containsKey("magicDefense")) effects.add("法防+${stats["magicDefense"]}")
-        if (stats.containsKey("hp")) effects.add("生命+${stats["hp"]}")
-        if (stats.containsKey("mp")) effects.add("灵力+${stats["mp"]}")
-        if (stats.containsKey("speed")) effects.add("速度+${stats["speed"]}")
-        if (stats.containsKey("critRate")) effects.add("暴击率+${stats["critRate"]}%")
-        return if (effects.isNotEmpty()) effects.joinToString("，") else manualTemplate.description
-    }
-
-    val pillRecipe = PillRecipeDatabase.getRecipeByName(item.name)
-    if (pillRecipe != null) {
-        return pillRecipe.description
-    }
-
-    val herb = HerbDatabase.getHerbByName(item.name)
-    if (herb != null) {
-        return "用于炼制丹药的材料"
-    }
-
-    val seed = HerbDatabase.getSeedByName(item.name)
-    if (seed != null) {
-        return "种植后可获得${seed.yield}个${seed.name.removeSuffix("种")}"
-    }
-
-    val material = BeastMaterialDatabase.getMaterialByName(item.name)
-    if (material != null) {
-        return "用于炼制装备的材料"
-    }
-
-    return "神秘的物品，用途未知"
 }
 
 @Composable
@@ -7684,7 +7336,7 @@ private fun BattleTeamDialog(
                 Spacer(modifier = Modifier.height(8.dp))
                 
                 Text(
-                    text = "已选择 ${slots.count { it.discipleId != null }}/10 名弟子",
+                    text = "已选择 ${slots.count { it.discipleId.isNotEmpty() }}/10 名弟子",
                     fontSize = 11.sp,
                     color = Color(0xFF666666)
                 )
@@ -7751,13 +7403,13 @@ private fun RowScope.BattleTeamSlotItem(
                 .aspectRatio(1f)
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(6.dp))
-                .background(if (slot.discipleId != null) Color(0xFFFFF8E1) else GameColors.CardBackground)
+                .background(if (slot.discipleId.isNotEmpty()) Color(0xFFFFF8E1) else GameColors.CardBackground)
                 .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
                 .clickable { onClick() }
                 .padding(8.dp),
             contentAlignment = Alignment.Center
         ) {
-            if (slot.discipleId != null) {
+            if (slot.discipleId.isNotEmpty()) {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
@@ -7784,7 +7436,7 @@ private fun RowScope.BattleTeamSlotItem(
             }
         }
         
-        if (slot.discipleId != null) {
+        if (slot.discipleId.isNotEmpty()) {
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = "卸任",
@@ -7798,9 +7450,9 @@ private fun RowScope.BattleTeamSlotItem(
 
 @Composable
 private fun BattleTeamDiscipleSelectionDialog(
-    disciples: List<Disciple>,
+    disciples: List<DiscipleAggregate>,
     isElderSlot: Boolean = false,
-    onSelect: (Disciple) -> Unit,
+    onSelect: (DiscipleAggregate) -> Unit,
     onDismiss: () -> Unit
 ) {
     var selectedRealmFilter by remember { mutableStateOf<Int?>(null) }

@@ -120,7 +120,7 @@ class StorageConfig @Inject constructor(
     }
 
     companion object {
-        const val DEFAULT_MAX_SLOTS = 10
+        const val DEFAULT_MAX_SLOTS = 6
         const val DEFAULT_MAX_BATTLE_LOGS = 500
         const val DEFAULT_MAX_GAME_EVENTS = 1000
         const val DEFAULT_MAX_SAVE_SIZE = 50L * 1024 * 1024L

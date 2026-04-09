@@ -9,7 +9,10 @@ import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
+import okhttp3.RequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.ResponseBody
+import okhttp3.ResponseBody.Companion.toResponseBody
 import java.io.IOException
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.TimeUnit
@@ -255,6 +258,7 @@ class SecureHttpClient @Inject constructor(
             val packageInfo = context.packageManager.getPackageInfo(
                 context.packageName, 0
             )
+            @Suppress("DEPRECATION")
             "${packageInfo.versionName}(${packageInfo.versionCode})"
         } catch (e: Exception) {
             "unknown"
@@ -370,10 +374,7 @@ class SecureHttpClient @Inject constructor(
                 val decrypted = decryptResponse(ciphertext, ivHeader)
 
                 // 构造新的响应体（替换为明文内容）
-                val newResponseBody = ResponseBody.create(
-                    response.body?.contentType(),
-                    decrypted
-                )
+                val newResponseBody = decrypted.toResponseBody(response.body?.contentType())
 
                 return response.newBuilder()
                     .body(newResponseBody)

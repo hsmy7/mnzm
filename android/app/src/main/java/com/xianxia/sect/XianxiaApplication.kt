@@ -6,7 +6,16 @@ import android.content.res.Configuration
 import android.util.Log
 import com.xianxia.sect.core.data.ManualDatabase
 import com.xianxia.sect.core.util.GameMonitorManager
+import com.xianxia.sect.core.util.VivoGCJITOptimizer
+import com.xianxia.sect.data.concurrent.StorageScopeManager
+import com.xianxia.sect.data.memory.ProactiveMemoryGuard
+import com.xianxia.sect.data.orchestrator.StorageOrchestrator
+import com.xianxia.sect.data.pruning.DataPruningScheduler
+import com.xianxia.sect.data.recovery.StartupRecoveryCoordinator
+import com.xianxia.sect.data.wal.FunctionalWAL
 import dagger.hilt.android.HiltAndroidApp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.util.concurrent.CopyOnWriteArrayList
 import javax.inject.Inject
 
@@ -28,6 +37,18 @@ class XianxiaApplication : Application() {
     @Inject
     lateinit var applicationScopeProvider: com.xianxia.sect.di.ApplicationScopeProvider
 
+    @Inject
+    lateinit var storageOrchestrator: StorageOrchestrator
+
+    @Inject
+    lateinit var memoryGuard: ProactiveMemoryGuard
+
+    @Inject
+    lateinit var pruningScheduler: DataPruningScheduler
+
+    @Inject
+    lateinit var storageScopeManager: StorageScopeManager
+
     private val memoryPressureListeners = CopyOnWriteArrayList<MemoryPressureListener>()
 
     interface MemoryPressureListener {
@@ -48,7 +69,13 @@ class XianxiaApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         instance = this
-        
+
+        VivoGCJITOptimizer.initialize()
+
+        if (VivoGCJITOptimizer.isOptimizationActive()) {
+            VivoGCJITOptimizer.extendGcDelayForMs(10_000L)
+        }
+
         gameMonitorManager.initialize(this)
         gameMonitorManager.startMonitoring()
         
@@ -60,8 +87,28 @@ class XianxiaApplication : Application() {
             }
         
         Log.i(TAG, "Application initialized with monitoring systems")
+
+        applicationScopeProvider.ioScope.launch(Dispatchers.IO) {
+            try {
+                val coordinator = StartupRecoveryCoordinator(
+                    applicationContext,
+                    FunctionalWAL(applicationContext),
+                    null,
+                    null,
+                    null
+                )
+                val report = coordinator.quickRecovery()
+                if (report.recoveredSlots.isNotEmpty()) {
+                    Log.i("AppStartup", "Crash recovery: recovered slots=${report.recoveredSlots}")
+                }
+                coordinator.scheduleDeferredWarmup(applicationScopeProvider.scope)
+            } catch (e: Exception) {
+                Log.e(TAG, "Startup recovery failed", e)
+            }
+        }
     }
 
+    @Suppress("DEPRECATION")
     override fun onTrimMemory(level: Int) {
         super.onTrimMemory(level)
         when (level) {
@@ -119,12 +166,31 @@ class XianxiaApplication : Application() {
     override fun onTerminate() {
         super.onTerminate()
         try {
+            pruningScheduler.stop()
+            memoryGuard.stopMonitoring()
+            storageOrchestrator.shutdown()
+            storageScopeManager.shutdown()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error shutting down storage subsystems", e)
+        }
+
+        try {
+            memoryPressureListeners.clear()
+            Log.i(TAG, "Memory pressure listeners cleared")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error clearing memory pressure listeners", e)
+        }
+
+        try {
             applicationScopeProvider.close()
         } catch (e: Exception) {
             Log.e(TAG, "Error closing ApplicationScopeProvider", e)
         }
+
         gameMonitorManager.cleanup()
+
         instance = null
-        Log.i(TAG, "Application terminated, monitoring systems cleaned up")
+
+        Log.i(TAG, "Application terminated, all resources cleaned up successfully")
     }
 }

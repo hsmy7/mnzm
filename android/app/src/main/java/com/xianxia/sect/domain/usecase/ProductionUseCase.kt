@@ -66,26 +66,7 @@ class ProductionUseCase @Inject constructor(
     
     suspend fun collectAlchemyResult(slotIndex: Int): ProductionResult {
         return withContext(Dispatchers.Default) {
-            try {
-                val state = stateManager.currentState
-                val slot = state.gameData.alchemySlots.getOrNull(slotIndex)
-                
-                if (slot == null || slot.status != AlchemySlotStatus.FINISHED) {
-                    return@withContext ProductionResult(false, "炼丹尚未完成")
-                }
-                
-                gameEngine.collectAlchemyResult(slotIndex)
-                
-                eventBus.emit(NotificationEvent(
-                    title = "炼丹完成",
-                    message = "成功收取炼丹产物",
-                    severity = NotificationSeverity.SUCCESS
-                ))
-                
-                ProductionResult(success = true)
-            } catch (e: Exception) {
-                ProductionResult(false, e.message ?: "收取失败")
-            }
+            ProductionResult(false, "炼丹产物自动收取，无需手动操作")
         }
     }
     
@@ -137,19 +118,7 @@ class ProductionUseCase @Inject constructor(
     
     suspend fun collectForgeResult(slotIndex: Int): ProductionResult {
         return withContext(Dispatchers.Default) {
-            try {
-                gameEngine.collectForgeResult(slotIndex)
-                
-                eventBus.emit(NotificationEvent(
-                    title = "锻造完成",
-                    message = "成功收取锻造产物",
-                    severity = NotificationSeverity.SUCCESS
-                ))
-                
-                ProductionResult(success = true)
-            } catch (e: Exception) {
-                ProductionResult(false, e.message ?: "收取失败")
-            }
+            ProductionResult(false, "锻造产物自动收取，无需手动操作")
         }
     }
     

@@ -27,10 +27,13 @@ data class CombatAttributes(
     var speedVariance: Int = 0,
 
     // 战斗统计
-    var battlesWon: Int = 0,
     var totalCultivation: Long = 0,
     var breakthroughCount: Int = 0,
-    var breakthroughFailCount: Int = 0
+    var breakthroughFailCount: Int = 0,
+
+    // 当前血量/灵力（-1表示满血，用于向后兼容）
+    var currentHp: Int = -1,
+    var currentMp: Int = -1
 ) {
     companion object {
         fun calculateBaseStatsWithVariance(
@@ -79,26 +82,23 @@ data class PillEffects(
  */
 @Serializable
 data class EquipmentSet(
-    // 装备ID
-    var weaponId: String? = null,
-    var armorId: String? = null,
-    var bootsId: String? = null,
-    var accessoryId: String? = null,
+    var weaponId: String = "",
+    var armorId: String = "",
+    var bootsId: String = "",
+    var accessoryId: String = "",
 
-    // 装备培养数据
-    var weaponNurture: EquipmentNurtureData? = null,
-    var armorNurture: EquipmentNurtureData? = null,
-    var bootsNurture: EquipmentNurtureData? = null,
-    var accessoryNurture: EquipmentNurtureData? = null,
+    var weaponNurture: EquipmentNurtureData = EquipmentNurtureData("", 0),
+    var armorNurture: EquipmentNurtureData = EquipmentNurtureData("", 0),
+    var bootsNurture: EquipmentNurtureData = EquipmentNurtureData("", 0),
+    var accessoryNurture: EquipmentNurtureData = EquipmentNurtureData("", 0),
 
-    // 储物袋与资源
     var storageBagItems: List<StorageBagItem> = emptyList(),
     var storageBagSpiritStones: Long = 0,
     var spiritStones: Int = 0,
     var soulPower: Int = 10
 ) {
-    val hasEquippedItems: Boolean get() = listOfNotNull(weaponId, armorId, bootsId, accessoryId).isNotEmpty()
-    val equippedItemIds: List<String> get() = listOfNotNull(weaponId, armorId, bootsId, accessoryId)
+    val hasEquippedItems: Boolean get() = listOf(weaponId, armorId, bootsId, accessoryId).any { it.isNotEmpty() }
+    val equippedItemIds: List<String> get() = listOf(weaponId, armorId, bootsId, accessoryId).filter { it.isNotEmpty() }
 }
 
 /**
