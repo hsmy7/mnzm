@@ -11,8 +11,8 @@ class StorageConstantsTest {
     // ==================== Slot constants ====================
 
     @Test
-    fun `DEFAULT_MAX_SLOTS is 5`() {
-        assertEquals(5, StorageConstants.DEFAULT_MAX_SLOTS)
+    fun `DEFAULT_MAX_SLOTS is 6`() {
+        assertEquals(6, StorageConstants.DEFAULT_MAX_SLOTS)
     }
 
     @Test

@@ -2,9 +2,6 @@ package com.xianxia.sect.data.recovery
 
 import android.content.Context
 import android.util.Log
-import com.xianxia.sect.data.incremental.IncrementalStorageConfig
-import com.xianxia.sect.data.incremental.IncrementalStorageManager
-import com.xianxia.sect.data.incremental.ChainHealthStatus
 import com.xianxia.sect.data.wal.WALProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -20,13 +17,11 @@ class StartupRecoveryCoordinator(
     private val context: Context,
     private val wal: WALProvider,
     private val eventStore: Any? = null,
-    private val incrementalManager: IncrementalStorageManager? = null,
     private val partitionManager: Any? = null
 ) {
     sealed class RecoveryPhase {
         object WAL_RECOVERY : RecoveryPhase()
         object EVENT_STORE_REPAIR : RecoveryPhase()
-        object DELTA_CHAIN_REPAIR : RecoveryPhase()
         object CACHE_WARMUP : RecoveryPhase()
         object INTEGRITY_CHECK : RecoveryPhase()
         object COMPLETED : RecoveryPhase()
@@ -38,7 +33,6 @@ class StartupRecoveryCoordinator(
         val completedPhases: Int,
         val failedPhases: List<PhaseResult>,
         val recoveredSlots: Set<Int>,
-        val repairedDeltas: Int,
         val warmupEntries: Int,
         val integrityPassed: Boolean,
         val totalElapsedMs: Long
@@ -71,9 +65,7 @@ class StartupRecoveryCoordinator(
                 Log.w(TAG, "Recovery attempt ${attempt + 1}/$maxRetries failed: ${e.message}")
 
                 if (attempt < maxRetries - 1) {
-                    val delayMs = retryDelays[attempt]
-                    Log.i(TAG, "Retrying in ${delayMs}ms...")
-                    delay(delayMs)
+                    delay(retryDelays[attempt])
                 }
             }
         }
@@ -86,7 +78,6 @@ class StartupRecoveryCoordinator(
         val startTime = System.currentTimeMillis()
         val results = mutableListOf<PhaseResult>()
         var recoveredSlots = emptySet<Int>()
-        var repairedDeltas = 0
         var warmupEntries = 0
         var integrityPassed = false
 
@@ -108,31 +99,8 @@ class StartupRecoveryCoordinator(
             }
         } ?: results.add(PhaseResult(RecoveryPhase.EVENT_STORE_REPAIR, true, 0, "EventStore not available"))
 
-        incrementalManager?.let { manager ->
-            results += runPhase(RecoveryPhase.DELTA_CHAIN_REPAIR) {
-                var repairCount = 0
-                for (slot in 1..IncrementalStorageConfig.MAX_SLOTS) {
-                    try {
-                        manager.hasSave(slot)
-                        val healthStatus = manager.validateDeltaChainPublic(slot)
-                        if (healthStatus == ChainHealthStatus.WARNING ||
-                            healthStatus == ChainHealthStatus.CRITICAL ||
-                            healthStatus == ChainHealthStatus.BROKEN) {
-                            val repaired = manager.repairDeltaChainPublic(slot)
-                            if (repaired) repairCount++
-                        }
-                    } catch (e: Exception) {
-                        Log.w(TAG, "Delta chain check skipped for slot $slot: ${e.message}")
-                    }
-                }
-                repairedDeltas = repairCount
-                "Delta chains verified, repaired $repairCount slots"
-            }
-        } ?: results.add(PhaseResult(RecoveryPhase.DELTA_CHAIN_REPAIR, true, 0, "IncrementalStorageManager not available"))
-
         partitionManager?.let { pm ->
             results += runPhase(RecoveryPhase.CACHE_WARMUP) {
-                // partitionManager is typed as Any? pending migration; skip stats extraction
                 warmupEntries = 0
                 "Cache warm-up completed (partition manager pending migration)"
             }
@@ -144,16 +112,13 @@ class StartupRecoveryCoordinator(
         }
 
         val totalElapsed = System.currentTimeMillis() - startTime
-        val failedPhases = results.filter { !it.success }
-
         logRecoveryReport(results, totalElapsed)
 
         return RecoveryReport(
             totalPhases = results.size,
             completedPhases = results.count { it.success },
-            failedPhases = failedPhases,
+            failedPhases = results.filter { !it.success },
             recoveredSlots = recoveredSlots,
-            repairedDeltas = repairedDeltas,
             warmupEntries = warmupEntries,
             integrityPassed = integrityPassed,
             totalElapsedMs = totalElapsed
@@ -179,9 +144,7 @@ class StartupRecoveryCoordinator(
                 }
 
                 if (attempt < maxRetries - 1) {
-                    val delayMs = retryDelays[attempt]
-                    Log.i(TAG, "Retrying quick recovery in ${delayMs}ms...")
-                    delay(delayMs)
+                    delay(retryDelays[attempt])
                 }
             }
         }
@@ -194,32 +157,20 @@ class StartupRecoveryCoordinator(
         val startTime = System.currentTimeMillis()
         val results = mutableListOf<PhaseResult>()
         var recoveredSlots = emptySet<Int>()
-        var repairedDeltas = 0
         var warmupEntries = 0
         var integrityPassed = false
 
         results += runPhase(RecoveryPhase.WAL_RECOVERY) {
             val recoveryResult = wal.recover()
             recoveredSlots = recoveryResult.recoveredSlots
-            if (recoveryResult.failedSlots.isNotEmpty()) {
-                "Recovered ${recoveredSlots.size} slots, failed: ${recoveryResult.failedSlots}"
-            } else if (recoveredSlots.isNotEmpty()) {
-                "Successfully recovered slots: $recoveredSlots"
+            if (recoveredSlots.isNotEmpty()) {
+                "Recovered slots: $recoveredSlots"
             } else {
                 "No pending recovery needed"
             }
         }
 
-        incrementalManager?.let { manager ->
-            results += runPhase(RecoveryPhase.DELTA_CHAIN_REPAIR) {
-                for (slot in 1..IncrementalStorageConfig.MAX_SLOTS) {
-                    manager.hasSave(slot)
-                }
-                "Delta chains quick scan completed"
-            }
-        } ?: results.add(PhaseResult(RecoveryPhase.DELTA_CHAIN_REPAIR, true, 0, "IncrementalStorageManager not available"))
-
-        partitionManager?.let { pm ->
+        partitionManager?.let {
             results.add(PhaseResult(RecoveryPhase.CACHE_WARMUP, true, 0, "Cache warm-up deferred to background"))
         } ?: results.add(PhaseResult(RecoveryPhase.CACHE_WARMUP, true, 0, "DataPartitionManager not available"))
 
@@ -227,16 +178,13 @@ class StartupRecoveryCoordinator(
         results.add(PhaseResult(RecoveryPhase.EVENT_STORE_REPAIR, true, 0, "EventStore repair skipped in quick mode"))
 
         val totalElapsed = System.currentTimeMillis() - startTime
-        val failedPhases = results.filter { !it.success }
-
         logRecoveryReport(results, totalElapsed)
 
         return RecoveryReport(
             totalPhases = results.size,
             completedPhases = results.count { it.success },
-            failedPhases = failedPhases,
+            failedPhases = results.filter { !it.success },
             recoveredSlots = recoveredSlots,
-            repairedDeltas = repairedDeltas,
             warmupEntries = warmupEntries,
             integrityPassed = integrityPassed,
             totalElapsedMs = totalElapsed
@@ -249,9 +197,8 @@ class StartupRecoveryCoordinator(
                 delay(3000L)
                 if (!isActive) return@launch
 
-                partitionManager?.let { pm ->
+                partitionManager?.let {
                     val warmupTime = measureTimeMillis {
-                        // partitionManager is typed as Any? pending migration; skip stats extraction
                         Log.i(TAG, "[Deferred Warm-up] Cache status: partition manager pending migration")
                     }
                     Log.i(TAG, "[Deferred Warm-up] Completed in ${warmupTime}ms")
@@ -283,7 +230,7 @@ class StartupRecoveryCoordinator(
         Log.i(TAG, "Phases executed: ${results.size}")
 
         results.forEach { result ->
-            val status = if (result.success) "✓" else "✗"
+            val status = if (result.success) "OK" else "FAIL"
             Log.i(TAG, "$status [${result.phase::class.simpleName}] ${result.elapsedMs}ms - ${result.details}")
             result.error?.let { Log.w(TAG, "  Error: ${it.message}") }
         }
@@ -303,7 +250,6 @@ class StartupRecoveryCoordinator(
                 error = error
             )),
             recoveredSlots = emptySet(),
-            repairedDeltas = 0,
             warmupEntries = 0,
             integrityPassed = false,
             totalElapsedMs = 0

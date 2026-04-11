@@ -38,7 +38,7 @@ object DiscipleManualManager {
             .filter { it.itemType == "manual" && !disciple.manualIds.contains(it.itemId) }
             .mapNotNull { manuals[it.itemId] }
             .filter { manual -> 
-                val canLearnByRealm = disciple.realm <= manual.minRealm
+                val canLearnByRealm = GameConfig.Realm.meetsRealmRequirement(disciple.realm, manual.minRealm)
                 if (hasMindManual) manual.type != ManualType.MIND && canLearnByRealm else canLearnByRealm
             }
         
@@ -75,7 +75,7 @@ object DiscipleManualManager {
     private fun calculateMaxManualSlots(disciple: Disciple): Int {
         val talentEffects = TalentDatabase.calculateTalentEffects(disciple.talentIds)
         val manualSlotBonus = talentEffects["manualSlot"]?.toInt() ?: 0
-        return 5 + manualSlotBonus
+        return 6 + manualSlotBonus
     }
     
     private fun learnNewManual(
@@ -124,7 +124,7 @@ object DiscipleManualManager {
             return ManualLearnResult(disciple, events)
         }
         
-        if (hasMindManual && highestBag.type == ManualType.MIND) {
+        if (hasMindManual && highestBag.type == ManualType.MIND && lowestLearned.type != ManualType.MIND) {
             return ManualLearnResult(disciple, events)
         }
         
@@ -166,7 +166,7 @@ object DiscipleManualManager {
         val hasMindManual = disciple.manualIds.any { allManuals[it]?.type == ManualType.MIND }
         
         return !disciple.manualIds.contains(manual.id) &&
-               disciple.realm <= manual.minRealm &&
+               GameConfig.Realm.meetsRealmRequirement(disciple.realm, manual.minRealm) &&
                (manual.type != ManualType.MIND || !hasMindManual) &&
                disciple.manualIds.size < maxSlots
     }

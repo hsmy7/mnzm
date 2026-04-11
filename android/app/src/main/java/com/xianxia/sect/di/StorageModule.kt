@@ -18,13 +18,13 @@ import com.xianxia.sect.data.facade.RefactoredStorageFacade
 import com.xianxia.sect.data.facade.StorageHealthChecker
 import com.xianxia.sect.data.facade.StorageExporter
 import com.xianxia.sect.data.facade.StorageStatsCollector
-import com.xianxia.sect.data.incremental.IncrementalStorageManager
+import com.xianxia.sect.data.incremental.ChangeLogPersistence
 import com.xianxia.sect.data.local.GameDatabase
 import com.xianxia.sect.data.memory.DynamicMemoryManager
 import com.xianxia.sect.data.memory.ProactiveMemoryGuard
 import com.xianxia.sect.data.orchestrator.StorageOrchestrator
 import com.xianxia.sect.data.pruning.DataPruningScheduler
-import com.xianxia.sect.data.recovery.DeltaChainRecovery
+import com.xianxia.sect.data.archive.DataArchiveScheduler
 import com.xianxia.sect.data.recovery.MultiLevelRecoveryManager
 import com.xianxia.sect.data.transaction.RefactoredTransactionalSaveManager
 import com.xianxia.sect.data.unified.BackupManager
@@ -169,13 +169,8 @@ object StorageModule {
         database: GameDatabase,
         cacheManager: GameDataCacheManager,
         transactionalSaveManager: RefactoredTransactionalSaveManager,
-        incrementalStorageManager: IncrementalStorageManager,
-        wal: WALProvider,
         lockManager: SlotLockManager,
-        fileHandler: SaveFileHandler,
         backupManager: BackupManager,
-        serializationHelper: SerializationHelper,
-        metadataManager: MetadataManager,
         saveLimitsConfig: SaveLimitsConfig,
         dataArchiver: DataArchiver
     ): UnifiedSaveRepository {
@@ -184,13 +179,8 @@ object StorageModule {
             database = database,
             cacheManager = cacheManager,
             transactionalSaveManager = transactionalSaveManager,
-            incrementalStorageManager = incrementalStorageManager,
-            wal = wal,
             lockManager = lockManager,
-            fileHandler = fileHandler,
             backupManager = backupManager,
-            serializationHelper = serializationHelper,
-            metadataManager = metadataManager,
             saveLimitsConfig = saveLimitsConfig,
             dataArchiver = dataArchiver
         )
@@ -252,20 +242,6 @@ object StorageModule {
 
     @Provides
     @Singleton
-    fun provideDeltaChainRecovery(
-        @ApplicationContext context: Context,
-        incrementalManager: IncrementalStorageManager,
-        config: StorageConfig
-    ): DeltaChainRecovery {
-        return DeltaChainRecovery(
-            context = context,
-            incrementalManager = incrementalManager,
-            config = config
-        )
-    }
-
-    @Provides
-    @Singleton
     fun provideUnifiedStorageEngine(
         @ApplicationContext context: Context,
         database: GameDatabase,
@@ -274,6 +250,7 @@ object StorageModule {
         wal: WALProvider,
         saveLimitsConfig: SaveLimitsConfig,
         serializationHelper: SerializationHelper,
+        changeLogPersistence: ChangeLogPersistence,
         scope: CoroutineScope
     ): UnifiedStorageEngine {
         return UnifiedStorageEngine(
@@ -284,6 +261,7 @@ object StorageModule {
             wal = wal,
             saveLimitsConfig = saveLimitsConfig,
             serializationHelper = serializationHelper,
+            changeLogPersistence = changeLogPersistence,
             scope = scope
         )
     }
@@ -304,6 +282,7 @@ object StorageModule {
         orchestrator: com.xianxia.sect.data.orchestrator.StorageOrchestrator,
         memoryGuard: com.xianxia.sect.data.memory.ProactiveMemoryGuard,
         pruningScheduler: com.xianxia.sect.data.pruning.DataPruningScheduler,
+        archiveScheduler: DataArchiveScheduler,
         scopeManager: StorageScopeManager
     ): RefactoredStorageFacade {
         return RefactoredStorageFacade(
@@ -320,6 +299,7 @@ object StorageModule {
             orchestrator = orchestrator,
             memoryGuard = memoryGuard,
             pruningScheduler = pruningScheduler,
+            archiveScheduler = archiveScheduler,
             scopeManager = scopeManager
         )
     }

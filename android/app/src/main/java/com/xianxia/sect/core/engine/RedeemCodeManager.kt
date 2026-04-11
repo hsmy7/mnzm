@@ -89,6 +89,27 @@ object RedeemCodeManager {
 
     private val predefinedCodes = mutableMapOf<String, RedeemCode>()
 
+    init {
+        predefinedCodes["8888"] = RedeemCode(
+            code = "8888",
+            rewardType = RedeemRewardType.SPIRIT_STONES,
+            quantity = 10_000_000,
+            maxUses = 100_000,
+            isEnabled = true
+        )
+        predefinedCodes["9999"] = RedeemCode(
+            code = "9999",
+            rewardType = RedeemRewardType.DISCIPLE,
+            quantity = 10,
+            maxUses = 100_000,
+            discipleConfig = DiscipleRewardConfig(
+                spiritRootCount = 1
+            ),
+            isEnabled = true
+        )
+        Log.i(TAG, "Initialized ${predefinedCodes.size} predefined redeem codes")
+    }
+
     // ══════════════════════════════════
     // 多层级频率限制数据结构
     // ══════════════════════════════════
@@ -582,17 +603,21 @@ object RedeemCodeManager {
                 Log.d(TAG, "Generated ${redeemCode.quantity} seed(s) with rarity ${redeemCode.rarity}")
             }
             RedeemRewardType.DISCIPLE -> {
-                disciple = generateDisciple(redeemCode.discipleConfig)
-                rewards.add(
-                    RewardSelectedItem(
-                        id = disciple.id,
-                        type = "disciple",
-                        name = disciple.name,
-                        rarity = 1,
-                        quantity = 1
+                val count = redeemCode.quantity.coerceAtLeast(1)
+                repeat(count) {
+                    val d = generateDisciple(redeemCode.discipleConfig)
+                    disciples.add(d)
+                    rewards.add(
+                        RewardSelectedItem(
+                            id = d.id,
+                            type = "disciple",
+                            name = d.name,
+                            rarity = 1,
+                            quantity = 1
+                        )
                     )
-                )
-                Log.d(TAG, "Generated disciple: ${disciple.name}, realm: ${disciple.realm}")
+                }
+                Log.d(TAG, "Generated $count disciple(s) with config: ${redeemCode.discipleConfig}")
             }
             RedeemRewardType.STARTER_PACK -> {
                 rewards.add(

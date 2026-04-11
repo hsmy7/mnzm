@@ -6,8 +6,6 @@ import com.xianxia.sect.data.crypto.IntegrityValidator
 import com.xianxia.sect.data.crypto.SaveCrypto
 import com.xianxia.sect.data.crypto.SignedPayload
 import com.xianxia.sect.data.crypto.VerificationResult as CryptoVerificationResult
-import com.xianxia.sect.data.incremental.DeltaMetadata
-import com.xianxia.sect.data.incremental.SnapshotInfo
 import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.unified.SlotMetadata
 import java.io.File
@@ -479,111 +477,6 @@ object StorageValidator {
      */
     fun validateSignedData(data: Any, payload: SignedPayload, key: ByteArray): ValidationResult {
         return validateSignature(payload, key, data)
-    }
-
-    // ===== Delta链验证 =====
-
-    /**
-     * 验证单个Delta文件的完整性
-     */
-    fun validateDeltaFile(deltaFile: File, metadata: DeltaMetadata): ValidationResult {
-        val existenceResult = validateFileExists(deltaFile, "Delta file")
-        if (!existenceResult.isValid) return existenceResult
-
-        val errors = mutableListOf<ValidationIssue>()
-
-        // 检查文件大小
-        val actualSize = deltaFile.length()
-        if (actualSize != metadata.size) {
-            errors.add(ValidationIssue(
-                code = "DELTA_SIZE_MISMATCH",
-                message = "Delta file size mismatch: expected ${metadata.size}, actual $actualSize",
-                context = mapOf("version" to metadata.version, "expected" to metadata.size, "actual" to actualSize)
-            ))
-        }
-
-        // 检查checksum
-        if (errors.isEmpty()) {
-            try {
-                val data = deltaFile.readBytes()
-                val actualChecksum = computeSha256Hex(data)
-                if (actualChecksum != metadata.checksum) {
-                    errors.add(ValidationIssue(
-                        code = "DELTA_CHECKSUM_MISMATCH",
-                        message = "Delta checksum mismatch for version ${metadata.version}",
-                        context = mapOf("version" to metadata.version, "expected" to metadata.checksum, "actual" to actualChecksum)
-                    ))
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to read delta file for checksum validation", e)
-                errors.add(ValidationIssue(
-                    code = "DELTA_READ_ERROR",
-                    message = "Failed to read delta file for validation: ${e.message}",
-                    context = mapOf("version" to metadata.version, "error" to e.message)
-                ))
-            }
-        }
-
-        return if (errors.isEmpty()) ValidationResult.valid() else ValidationResult.errors(errors)
-    }
-
-    /**
-     * 验证整个Delta链的完整性和连续性
-     */
-    fun validateDeltaChain(
-        deltas: List<DeltaMetadata>,
-        snapshots: List<SnapshotInfo>
-    ): ValidationResult {
-        val errors = mutableListOf<ValidationIssue>()
-        val warnings = mutableListOf<ValidationIssue>()
-
-        if (deltas.isEmpty() && snapshots.isEmpty()) {
-            warnings.add(ValidationIssue(
-                code = "EMPTY_DELTA_CHAIN",
-                message = "No deltas or snapshots found in chain",
-                severity = Severity.INFO
-            ))
-        }
-
-        // 检查delta版本连续性
-        if (deltas.size > 1) {
-            val sortedDeltas = deltas.sortedBy { it.version }
-            for (i in 1 until sortedDeltas.size) {
-                val prev = sortedDeltas[i - 1]
-                val curr = sortedDeltas[i]
-                // 注意：版本号不一定是严格连续的，但应该是递增的
-                if (curr.version <= prev.version) {
-                    errors.add(ValidationIssue(
-                        code = "NON_MONOTONIC_VERSIONS",
-                        message = "Delta versions are not monotonically increasing: ${prev.version} -> ${curr.version}",
-                        context = mapOf("prevVersion" to prev.version, "currentVersion" to curr.version)
-                    ))
-                }
-            }
-        }
-
-        // 检查快照时间顺序
-        if (snapshots.size > 1) {
-            val sortedSnapshots = snapshots.sortedBy { it.version }
-            for (i in 1 until sortedSnapshots.size) {
-                val prev = sortedSnapshots[i - 1]
-                val curr = sortedSnapshots[i]
-                if (curr.timestamp < prev.timestamp) {
-                    warnings.add(ValidationIssue(
-                        code = "SNAPSHOT_TIME_ORDER",
-                        message = "Snapshot timestamps are out of order",
-                        severity = Severity.WARNING,
-                        context = mapOf("prevVersion" to prev.version, "currentVersion" to curr.version)
-                    ))
-                }
-            }
-        }
-
-        return if (errors.isEmpty()) {
-            if (warnings.isEmpty()) ValidationResult.valid() else ValidationResult.validWithWarnings(warnings)
-        } else {
-            ValidationResult.errorWithErrorsAndWarnings(errors, warnings)
-        }
     }
 
     // ===== 内存/资源验证 =====

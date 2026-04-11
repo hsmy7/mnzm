@@ -15,7 +15,8 @@ import javax.inject.Singleton
 class ProductionUseCase @Inject constructor(
     private val gameEngine: GameEngine,
     private val stateManager: UnifiedGameStateManager,
-    private val eventBus: EventBus
+    private val eventBus: EventBus,
+    private val productionSlotRepository: com.xianxia.sect.core.repository.ProductionSlotRepository
 ) {
     data class ProductionResult(
         val success: Boolean,
@@ -38,25 +39,20 @@ class ProductionUseCase @Inject constructor(
     ): ProductionResult {
         return withContext(Dispatchers.Default) {
             try {
-                val state = stateManager.currentState
-                val slot = state.gameData.alchemySlots.getOrNull(slotIndex)
-                
-                if (slot == null) {
-                    return@withContext ProductionResult(false, "炼丹槽位不存在")
-                }
-                
-                if (slot.status != AlchemySlotStatus.IDLE) {
+                val slot = productionSlotRepository.getSlotByBuildingId("alchemy", slotIndex)
+
+                if (slot != null && slot.isWorking) {
                     return@withContext ProductionResult(false, "炼丹槽位正在使用中")
                 }
-                
+
                 gameEngine.startAlchemy(slotIndex, recipeId)
-                
+
                 eventBus.emit(NotificationEvent(
                     title = "炼丹开始",
                     message = "开始在槽位${slotIndex + 1}炼丹",
                     severity = NotificationSeverity.SUCCESS
                 ))
-                
+
                 ProductionResult(success = true)
             } catch (e: Exception) {
                 ProductionResult(false, e.message ?: "炼丹启动失败")
@@ -87,28 +83,20 @@ class ProductionUseCase @Inject constructor(
     ): ProductionResult {
         return withContext(Dispatchers.Default) {
             try {
-                val state = stateManager.currentState
-                val forgeSlots = state.gameData.forgeSlots.filter { 
-                    it.buildingId == "forge" 
-                }
-                val slot = forgeSlots.getOrNull(slotIndex)
-                
-                if (slot == null) {
-                    return@withContext ProductionResult(false, "锻造槽位不存在")
-                }
-                
-                if (slot.status != SlotStatus.IDLE) {
+                val slot = productionSlotRepository.getSlotByBuildingId("forge", slotIndex)
+
+                if (slot != null && slot.isWorking) {
                     return@withContext ProductionResult(false, "锻造槽位正在使用中")
                 }
-                
+
                 gameEngine.startForging(slotIndex, recipeId)
-                
+
                 eventBus.emit(NotificationEvent(
                     title = "锻造开始",
                     message = "开始在槽位${slotIndex + 1}锻造",
                     severity = NotificationSeverity.SUCCESS
                 ))
-                
+
                 ProductionResult(success = true)
             } catch (e: Exception) {
                 ProductionResult(false, e.message ?: "锻造启动失败")
@@ -153,44 +141,57 @@ class ProductionUseCase @Inject constructor(
             }
         }
     }
-    
-    suspend fun harvestHerb(slotIndex: Int): ProductionResult {
-        return withContext(Dispatchers.Default) {
-            try {
-                gameEngine.harvestHerb(slotIndex)
-                
-                eventBus.emit(NotificationEvent(
-                    title = "收获完成",
-                    message = "成功收获灵草",
-                    severity = NotificationSeverity.SUCCESS
-                ))
-                
-                ProductionResult(success = true)
-            } catch (e: Exception) {
-                ProductionResult(false, e.message ?: "收获失败")
-            }
-        }
-    }
-    
+
     fun getAlchemySlots(): List<AlchemySlot> {
-        return stateManager.currentState.gameData.alchemySlots
+        return productionSlotRepository.getSlotsByType(com.xianxia.sect.core.model.production.BuildingType.ALCHEMY).map { slot ->
+            AlchemySlot(
+                id = slot.id,
+                slotIndex = slot.slotIndex,
+                recipeId = slot.recipeId,
+                recipeName = slot.recipeName,
+                pillName = slot.outputItemName,
+                pillRarity = slot.outputItemRarity,
+                startYear = slot.startYear,
+                startMonth = slot.startMonth,
+                duration = slot.duration,
+                status = when (slot.status) {
+                    com.xianxia.sect.core.model.production.ProductionSlotStatus.IDLE -> AlchemySlotStatus.IDLE
+                    com.xianxia.sect.core.model.production.ProductionSlotStatus.WORKING -> AlchemySlotStatus.WORKING
+                    com.xianxia.sect.core.model.production.ProductionSlotStatus.COMPLETED -> AlchemySlotStatus.FINISHED
+                },
+                successRate = slot.successRate,
+                requiredMaterials = slot.requiredMaterials
+            )
+        }
     }
-    
+
     fun getForgeSlots(): List<BuildingSlot> {
-        return stateManager.currentState.gameData.forgeSlots.filter { 
-            it.buildingId == "forge" 
+        return productionSlotRepository.getSlotsByBuildingId("forge").map { slot ->
+            BuildingSlot(
+                id = slot.id,
+                buildingId = slot.buildingId,
+                slotIndex = slot.slotIndex,
+                discipleId = slot.assignedDiscipleId,
+                discipleName = slot.assignedDiscipleName,
+                startYear = slot.startYear,
+                startMonth = slot.startMonth,
+                duration = slot.duration,
+                recipeId = slot.recipeId,
+                recipeName = slot.recipeName,
+                status = when (slot.status) {
+                    com.xianxia.sect.core.model.production.ProductionSlotStatus.IDLE -> SlotStatus.IDLE
+                    com.xianxia.sect.core.model.production.ProductionSlotStatus.WORKING -> SlotStatus.WORKING
+                    com.xianxia.sect.core.model.production.ProductionSlotStatus.COMPLETED -> SlotStatus.COMPLETED
+                }
+            )
         }
     }
-    
+
     fun getIdleAlchemySlots(): List<AlchemySlot> {
-        return stateManager.currentState.gameData.alchemySlots.filter { 
-            it.status == AlchemySlotStatus.IDLE 
-        }
+        return getAlchemySlots().filter { it.status == AlchemySlotStatus.IDLE }
     }
-    
+
     fun getIdleForgeSlots(): List<BuildingSlot> {
-        return stateManager.currentState.gameData.forgeSlots.filter { 
-            it.buildingId == "forge" && it.status == SlotStatus.IDLE 
-        }
+        return getForgeSlots().filter { it.status == SlotStatus.IDLE }
     }
 }

@@ -1,9 +1,7 @@
 package com.xianxia.sect.ui.game
 
-import android.app.Application
 import android.content.ComponentCallbacks2
 import android.content.Intent
-import android.content.res.Configuration
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -17,9 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.repeatOnLifecycle
 import com.xianxia.sect.XianxiaApplication
 import com.xianxia.sect.core.CrashHandler
 import com.xianxia.sect.core.util.VivoGCJITOptimizer
@@ -141,34 +137,28 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
 
         if (!viewModel.isGameAlreadyLoaded()) {
             viewModel.resetSaveLoadStateAsync()
-            Log.d(TAG, "onCreate: Game not loaded, will initialize on STARTED. slot=$slot, isNewGame=$isNewGame")
+            Log.d(TAG, "onCreate: Game not loaded, will initialize. slot=$slot, isNewGame=$isNewGame")
             lifecycleScope.launch {
-                Log.d(TAG, "lifecycleScope.launch: inside coroutine, about to enter repeatOnLifecycle(STARTED)")
-                repeatOnLifecycle(Lifecycle.State.STARTED) {
-                    Log.d(TAG, "repeatOnLifecycle(STARTED): ENTERED - executing game initialization")
-                    // runWithJitPaused 签名: (block: () -> Unit, tag: String = "block")
-                    // block 为第一个参数，必须显式指定（非尾随 lambda 位置）
-                    VivoGCJITOptimizer.runWithJitPaused(block = {
-                        when {
-                            isNewGame && slot >= 0 -> {
-                                Log.d(TAG, "Starting new game: sectName=$sectName, slot=$slot")
-                                viewModel.startNewGame(sectName, slot)
-                            }
-                            slot >= 0 -> {
-                                Log.d(TAG, "Loading game from slot: $slot")
-                                viewModel.loadGameFromSlot(slot)
-                            }
-                            isNewGame -> {
-                                Log.d(TAG, "Starting new game with default slot: sectName=$sectName")
-                                viewModel.startNewGame(sectName = sectName)
-                            }
-                            else -> {
-                                Log.e(TAG, "Invalid game start parameters: slot=$slot, isNewGame=$isNewGame")
-                                finish()
-                            }
+                VivoGCJITOptimizer.runWithJitPaused(block = {
+                    when {
+                        isNewGame && slot >= 0 -> {
+                            Log.d(TAG, "Starting new game: sectName=$sectName, slot=$slot")
+                            viewModel.startNewGame(sectName, slot)
                         }
-                    }, tag = "GameActivity_Init")
-                }
+                        slot >= 0 -> {
+                            Log.d(TAG, "Loading game from slot: $slot")
+                            viewModel.loadGameFromSlot(slot)
+                        }
+                        isNewGame -> {
+                            Log.d(TAG, "Starting new game with default slot: sectName=$sectName")
+                            viewModel.startNewGame(sectName = sectName)
+                        }
+                        else -> {
+                            Log.e(TAG, "Invalid game start parameters: slot=$slot, isNewGame=$isNewGame")
+                            finish()
+                        }
+                    }
+                }, tag = "GameActivity_Init")
             }
         } else {
             Log.d(TAG, "Game already loaded in ViewModel, skipping initialization")
@@ -186,10 +176,14 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
 
     override fun onPause() {
         super.onPause()
+    }
+
+    override fun onStop() {
+        super.onStop()
         try {
             viewModel.pauseAndSaveForBackground()
         } catch (e: Exception) {
-            Log.e(TAG, "Error during onPause", e)
+            Log.e(TAG, "Error during onStop", e)
         }
     }
 

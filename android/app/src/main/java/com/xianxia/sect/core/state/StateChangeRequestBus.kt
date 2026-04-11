@@ -244,28 +244,6 @@ class StateChangeRequestBus @Inject constructor(
             is StateChangeRequest.RemoveDisciple -> {
                 unifiedStateManager.removeDisciple(request.discipleId)
             }
-            is StateChangeRequest.UpdateBuildingSlot -> {
-                unifiedStateManager.updateState { state ->
-                    val slots = state.gameData.forgeSlots.toMutableList()
-                    if (request.slotIndex in slots.indices) {
-                        slots[request.slotIndex] = request.slot
-                        state.copy(gameData = state.gameData.copy(forgeSlots = slots))
-                    } else {
-                        state
-                    }
-                }
-            }
-            is StateChangeRequest.UpdateAlchemySlot -> {
-                unifiedStateManager.updateState { state ->
-                    val slots = state.gameData.alchemySlots.toMutableList()
-                    if (request.slotIndex in slots.indices) {
-                        slots[request.slotIndex] = request.slot
-                        state.copy(gameData = state.gameData.copy(alchemySlots = slots))
-                    } else {
-                        state
-                    }
-                }
-            }
             is StateChangeRequest.AddEquipment -> {
                 unifiedStateManager.updateState { state ->
                     state.copy(equipment = state.equipment + request.equipment)
@@ -489,8 +467,6 @@ class StateChangeRequestBus @Inject constructor(
                 "UpdateDiscipleStatus:${request.discipleId}:${request.newStatus}"
             is StateChangeRequest.AddDisciple -> "AddDisciple:${request.disciple.id}"
             is StateChangeRequest.RemoveDisciple -> "RemoveDisciple:${request.discipleId}"
-            is StateChangeRequest.UpdateBuildingSlot -> "UpdateBuildingSlot:${request.slotIndex}"
-            is StateChangeRequest.UpdateAlchemySlot -> "UpdateAlchemySlot:${request.slotIndex}"
             is StateChangeRequest.AddEquipment -> "AddEquipment:${request.equipment.id}"
             is StateChangeRequest.AddPill -> "AddPill:${request.pill.id}"
             is StateChangeRequest.RemoveItem -> "RemoveItem:${request.itemId}:${request.itemType}"

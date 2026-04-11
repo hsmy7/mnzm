@@ -235,42 +235,4 @@ class SlotLockManagerTest {
         assertEquals(3, stats.queuedRequests)
     }
 
-    // ==================== StripedLockManager ====================
-
-    @Test
-    fun `StripedLockManager - withReadLockSuspend executes block`() = runTest {
-        val striped = StripedLockManager(stripes = 4)
-        val result = striped.withReadLockSuspend("key1") { "striped_read" }
-        assertEquals("striped_read", result)
-    }
-
-    @Test
-    fun `StripedLockManager - withWriteLockSuspend executes block`() = runTest {
-        val striped = StripedLockManager(stripes = 4)
-        val result = striped.withWriteLockSuspend("key2") { "striped_write" }
-        assertEquals("striped_write", result)
-    }
-
-    @Test
-    fun `StripedLockManager - different keys can be locked concurrently`() = runTest {
-        val striped = StripedLockManager(stripes = 16)
-        val result1 = striped.withReadLockSuspend("abc") { 1 }
-        val result2 = striped.withWriteLockSuspend("xyz") { 2 }
-        assertEquals(1, result1)
-        assertEquals(2, result2)
-    }
-
-    @Test
-    fun `StripedLockManager - withAllStripesReadLockSuspend executes block`() = runTest {
-        val striped = StripedLockManager(stripes = 4)
-        val result = striped.withAllStripesReadLockSuspend { "all_stripes" }
-        assertEquals("all_stripes", result)
-    }
-
-    @Test
-    fun `StripedLockManager - withAllStripesWriteLockSuspend executes block`() = runTest {
-        val striped = StripedLockManager(stripes = 4)
-        val result = striped.withAllStripesWriteLockSuspend { "all_stripes_write" }
-        assertEquals("all_stripes_write", result)
-    }
 }

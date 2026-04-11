@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.performance
 
+import java.util.Locale
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.DoubleAdder
@@ -22,7 +23,7 @@ data class MetricStats(
     
     fun toFormattedString(): String {
         if (isEmpty) return "No data"
-        return "count=$count, avg=${String.format("%.2f", avg)}, min=$min, max=$max, p50=$p50, p95=$p95, p99=$p99"
+        return "count=$count, avg=${String.format(Locale.ROOT, "%.2f", avg)}, min=$min, max=$max, p50=$p50, p95=$p95, p99=$p99"
     }
 }
 
@@ -152,7 +153,7 @@ data class Trace(
     
     fun toFormattedString(): String {
         val status = if (isCompleted) "completed" else "running"
-        return "Trace[$name]: ${String.format("%.3f", durationMs())}ms ($status)"
+        return "Trace[$name]: ${String.format(Locale.ROOT, "%.3f", durationMs())}ms ($status)"
     }
 }
 

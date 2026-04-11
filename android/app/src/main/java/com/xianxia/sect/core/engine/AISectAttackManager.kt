@@ -10,12 +10,7 @@ import com.xianxia.sect.core.model.AIBattleTeam
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.GameData
-import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualProficiencyData
-import com.xianxia.sect.core.model.Material
-import com.xianxia.sect.core.model.Pill
-import com.xianxia.sect.core.model.SectRelation
-import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.model.WorldSect
 import kotlin.math.sqrt
 import kotlin.random.Random
@@ -31,12 +26,14 @@ object AISectAttackManager {
         val existingAttacks = gameData.aiBattleTeams.filter { it.status == "moving" || it.status == "battling" }
         val attackingSectIds = existingAttacks.map { it.attackerSectId }.toSet()
         val underAttackSectIds = existingAttacks.map { it.defenderSectId }.toSet()
+        val aiDisciplesMap = gameData.aiSectDisciples
         
         val aiSects = gameData.worldMapSects.filter { !it.isPlayerSect && !it.isPlayerOccupied }
         
         for (attacker in aiSects) {
             if (attacker.id in attackingSectIds) continue
-            if (attacker.aiDisciples.filter { it.isAlive }.size < MIN_DISCIPLES_FOR_ATTACK) continue
+            val attackerDisciples = aiDisciplesMap[attacker.id] ?: emptyList()
+            if (attackerDisciples.filter { it.isAlive }.size < MIN_DISCIPLES_FOR_ATTACK) continue
             
             val connectedTargets = getConnectedTargets(attacker, gameData)
             
@@ -44,9 +41,9 @@ object AISectAttackManager {
                 if (defender.id in underAttackSectIds) continue
                 if (defender.id == attacker.id) continue
                 
-                if (!checkAttackConditions(attacker, defender, gameData)) continue
+                if (!checkAttackConditions(attacker, defender, gameData, aiDisciplesMap)) continue
                 
-                val battleTeam = createAttackTeam(attacker, defender, gameData)
+                val battleTeam = createAttackTeam(attacker, defender, gameData, attackerDisciples)
                 if (battleTeam != null) {
                     newBattles.add(battleTeam)
                     break
@@ -57,10 +54,15 @@ object AISectAttackManager {
         return newBattles
     }
     
-    fun checkAttackConditions(attacker: WorldSect, defender: WorldSect, gameData: GameData): Boolean {
+    fun checkAttackConditions(
+        attacker: WorldSect,
+        defender: WorldSect,
+        gameData: GameData,
+        aiDisciplesMap: Map<String, List<Disciple>> = emptyMap()
+    ): Boolean {
         if (attacker.id == defender.id) return false
         
-        val attackerDisciples = attacker.aiDisciples.filter { it.isAlive }
+        val attackerDisciples = (aiDisciplesMap[attacker.id] ?: emptyList()).filter { it.isAlive }
         if (attackerDisciples.size < MIN_DISCIPLES_FOR_ATTACK) return false
         
         val relation = gameData.sectRelations.find { 
@@ -74,8 +76,9 @@ object AISectAttackManager {
         
         if (!isRouteConnected(attacker, defender, gameData)) return false
         
-        val attackerPower = calculatePowerScore(attacker)
-        val defenderPower = calculatePowerScore(defender)
+        val attackerPower = calculatePowerScore(attackerDisciples)
+        val defenderDisciples = (aiDisciplesMap[defender.id] ?: emptyList()).filter { it.isAlive }
+        val defenderPower = calculatePowerScore(defenderDisciples)
         if (attackerPower < defenderPower * POWER_RATIO_THRESHOLD) return false
         
         return true
@@ -95,13 +98,13 @@ object AISectAttackManager {
         return false
     }
     
-    fun calculatePowerScore(sect: WorldSect): Double {
-        val disciples = sect.aiDisciples.filter { it.isAlive }
-        if (disciples.isEmpty()) return 0.0
+    fun calculatePowerScore(disciples: List<Disciple>): Double {
+        val aliveDisciples = disciples.filter { it.isAlive }
+        if (aliveDisciples.isEmpty()) return 0.0
         
         if (!ManualDatabase.isInitialized || !EquipmentDatabase.isInitialized || !TalentDatabase.isInitialized) {
             var totalPower = 0.0
-            for (disciple in disciples) {
+            for (disciple in aliveDisciples) {
                 totalPower += (10 - disciple.realm) * GameConfig.AI.PowerWeights.REALM_BASE
             }
             return totalPower
@@ -110,7 +113,7 @@ object AISectAttackManager {
         val weights = GameConfig.AI.PowerWeights
         var totalPower = 0.0
         
-        for (disciple in disciples) {
+        for (disciple in aliveDisciples) {
             val realmPower = (10 - disciple.realm) * weights.REALM_BASE
             
             val equipmentPower = buildMap {
@@ -142,8 +145,13 @@ object AISectAttackManager {
         return totalPower
     }
     
-    fun createAttackTeam(attacker: WorldSect, defender: WorldSect, gameData: GameData): AIBattleTeam? {
-        val availableDisciples = attacker.aiDisciples
+    fun createAttackTeam(
+        attacker: WorldSect,
+        defender: WorldSect,
+        gameData: GameData,
+        attackerDisciples: List<Disciple>
+    ): AIBattleTeam? {
+        val availableDisciples = attackerDisciples
             .filter { it.isAlive }
             .sortedBy { it.realm }
         
@@ -174,8 +182,8 @@ object AISectAttackManager {
         )
     }
     
-    fun createDefenseTeam(defender: WorldSect): List<Disciple> {
-        return defender.aiDisciples
+    fun createDefenseTeam(defenderDisciples: List<Disciple>): List<Disciple> {
+        return defenderDisciples
             .filter { it.isAlive }
             .sortedBy { it.realm }
             .take(TEAM_SIZE)
@@ -209,6 +217,7 @@ object AISectAttackManager {
         
         val existingAttacks = gameData.aiBattleTeams.filter { it.status == "moving" || it.status == "battling" }
         val attackingSectIds = existingAttacks.map { it.attackerSectId }.toSet()
+        val aiDisciplesMap = gameData.aiSectDisciples
         
         val playerSect = gameData.worldMapSects.find { it.isPlayerSect } ?: return null
         
@@ -216,7 +225,8 @@ object AISectAttackManager {
         
         for (attacker in aiSects) {
             if (attacker.id in attackingSectIds) continue
-            if (attacker.aiDisciples.filter { it.isAlive }.size < MIN_DISCIPLES_FOR_ATTACK) continue
+            val attackerDisciples = aiDisciplesMap[attacker.id] ?: emptyList()
+            if (attackerDisciples.filter { it.isAlive }.size < MIN_DISCIPLES_FOR_ATTACK) continue
             
             if (!isRouteConnected(attacker, playerSect, gameData)) continue
             
@@ -229,7 +239,7 @@ object AISectAttackManager {
             
             if (attacker.allianceId.isNotEmpty() && playerSect.allianceId == attacker.allianceId) continue
             
-            return createAttackTeam(attacker, playerSect, gameData)
+            return createAttackTeam(attacker, playerSect, gameData, attackerDisciples)
         }
         
         return null
@@ -275,10 +285,11 @@ object AISectAttackManager {
     
     fun executeAISectBattle(
         attackTeam: AIBattleTeam,
-        defenderSect: WorldSect
+        defenderSect: WorldSect,
+        defenderDisciples: List<Disciple>
     ): AIBattleResult {
         val attackers = attackTeam.disciples.map { convertToCombatant(it, true) }
-        val defenders = createDefenseTeam(defenderSect).map { convertToCombatant(it, false) }
+        val defenders = createDefenseTeam(defenderDisciples).map { convertToCombatant(it, false) }
         
         var currentBattle = AIBattle(
             attackers = attackers,
@@ -312,13 +323,13 @@ object AISectAttackManager {
             }
             .map { it.id }
         
-        val deadDefenderIds = defenderSect.aiDisciples
+        val deadDefenderIds = defenderDisciples
             .filter { disciple ->
                 finalBattle.defenders.find { it.id == disciple.id }?.isDead == true
             }
             .map { it.id }
         
-        val highRealmDefendersAlive = defenderSect.aiDisciples
+        val highRealmDefendersAlive = defenderDisciples
             .filter { it.isAlive && it.realm <= 5 }
             .none { it.id !in deadDefenderIds }
         
@@ -490,156 +501,77 @@ object AISectAttackManager {
             if (currentCombatant.isAttacker) {
                 val targetIndex = defenders.indexOfFirst { it.id == target.id }
                 if (targetIndex >= 0) {
-                    defenders[targetIndex] = target.copy(hp = newHp)
-                }
-                
-                val combatantIndex = attackers.indexOfFirst { it.id == currentCombatant.id }
-                if (combatantIndex >= 0) {
-                    val updatedSkills = if (availableSkill != null) {
-                        currentCombatant.skills.map { skill ->
-                            if (skill.name == availableSkill.name) {
-                                skill.copy(currentCooldown = skill.cooldown)
-                            } else {
-                                skill.copy(currentCooldown = maxOf(0, skill.currentCooldown - 1))
-                            }
-                        }
-                    } else {
-                        currentCombatant.skills.map { it.copy(currentCooldown = maxOf(0, it.currentCooldown - 1)) }
-                    }
-                    
-                    val updatedBuffs = currentCombatant.buffs.map { it.copy(remainingDuration = maxOf(0, it.remainingDuration - 1)) }.filter { it.remainingDuration > 0 }
-                    
-                    attackers[combatantIndex] = currentCombatant.copy(
-                        mp = currentCombatant.mp - (availableSkill?.mpCost ?: 0),
-                        skills = updatedSkills,
-                        buffs = updatedBuffs
-                    )
-                    currentCombatant = attackers[combatantIndex]
+                    defenders[targetIndex] = defenders[targetIndex].copy(hp = newHp)
                 }
             } else {
                 val targetIndex = attackers.indexOfFirst { it.id == target.id }
                 if (targetIndex >= 0) {
-                    attackers[targetIndex] = target.copy(hp = newHp)
-                }
-                
-                val combatantIndex = defenders.indexOfFirst { it.id == currentCombatant.id }
-                if (combatantIndex >= 0) {
-                    val updatedSkills = if (availableSkill != null) {
-                        currentCombatant.skills.map { skill ->
-                            if (skill.name == availableSkill.name) {
-                                skill.copy(currentCooldown = skill.cooldown)
-                            } else {
-                                skill.copy(currentCooldown = maxOf(0, skill.currentCooldown - 1))
-                            }
-                        }
-                    } else {
-                        currentCombatant.skills.map { it.copy(currentCooldown = maxOf(0, it.currentCooldown - 1)) }
-                    }
-                    
-                    val updatedBuffs = currentCombatant.buffs.map { it.copy(remainingDuration = maxOf(0, it.remainingDuration - 1)) }.filter { it.remainingDuration > 0 }
-                    
-                    defenders[combatantIndex] = currentCombatant.copy(
-                        mp = currentCombatant.mp - (availableSkill?.mpCost ?: 0),
-                        skills = updatedSkills,
-                        buffs = updatedBuffs
-                    )
+                    attackers[targetIndex] = attackers[targetIndex].copy(hp = newHp)
                 }
             }
+            
+            availableSkill?.let { skill ->
+                val skillIndex = currentCombatant.skills.indexOfFirst { it.name == skill.name }
+                if (skillIndex >= 0) {
+                    val updatedSkill = currentCombatant.skills[skillIndex].copy(
+                        currentCooldown = skill.cooldown
+                    )
+                    val updatedSkills = currentCombatant.skills.toMutableList()
+                    updatedSkills[skillIndex] = updatedSkill
+                    
+                    if (currentCombatant.isAttacker) {
+                        val idx = attackers.indexOfFirst { it.id == currentCombatant.id }
+                        if (idx >= 0) {
+                            attackers[idx] = attackers[idx].copy(
+                                skills = updatedSkills,
+                                mp = currentCombatant.mp - skill.mpCost
+                            )
+                        }
+                    } else {
+                        val idx = defenders.indexOfFirst { it.id == currentCombatant.id }
+                        if (idx >= 0) {
+                            defenders[idx] = defenders[idx].copy(
+                                skills = updatedSkills,
+                                mp = currentCombatant.mp - skill.mpCost
+                            )
+                        }
+                    }
+                }
+            }
+            
+            attackers = attackers.map { it.copy(skills = it.skills.map { s -> s.copy(currentCooldown = maxOf(0, s.currentCooldown - 1)) }) }.toMutableList()
+            defenders = defenders.map { it.copy(skills = it.skills.map { s -> s.copy(currentCooldown = maxOf(0, s.currentCooldown - 1)) }) }.toMutableList()
         }
+        
+        val aliveAttackers = attackers.count { !it.isDead }
+        val aliveDefenders = defenders.count { !it.isDead }
         
         return battle.copy(
             attackers = attackers,
             defenders = defenders,
-            turn = battle.turn + 1
+            turn = battle.turn + 1,
+            isFinished = aliveAttackers == 0 || aliveDefenders == 0
         )
     }
     
     private fun selectTarget(attacker: AICombatant, targets: List<AICombatant>): AICombatant {
-        val lowHpTargets = targets.filter { it.hp.toDouble() / it.maxHp < 0.3 }
+        val aliveTargets = targets.filter { !it.isDead }
+        if (aliveTargets.isEmpty()) return targets.first()
+        
+        val lowHpTargets = aliveTargets.filter { it.hp < it.maxHp * 0.3 }
         if (lowHpTargets.isNotEmpty() && Random.nextDouble() < 0.7) {
             return lowHpTargets.random()
         }
         
-        val highThreatTargets = targets.filter { 
-            it.skills.isNotEmpty() && it.effectivePhysicalAttack > attacker.effectivePhysicalDefense
-        }
-        if (highThreatTargets.isNotEmpty() && Random.nextDouble() < 0.5) {
-            return highThreatTargets.random()
-        }
-        
-        return targets.random()
+        return aliveTargets.random()
     }
     
-    fun generateSectDestroyedEvent(attackerName: String, defenderName: String): String {
-        return "【宗门灭亡】${defenderName}被${attackerName}吞并！"
-    }
-    
-    fun createPlayerDefenseTeam(
-        disciples: List<Disciple>,
-        equipmentMap: Map<String, com.xianxia.sect.core.model.Equipment>,
-        manualMap: Map<String, com.xianxia.sect.core.model.Manual>,
-        manualProficiencies: Map<String, Map<String, ManualProficiencyData>>
-    ): List<AICombatant> {
-        return disciples
-            .filter { it.status == DiscipleStatus.IDLE }
-            .sortedBy { it.realm }
-            .take(TEAM_SIZE)
-            .map { disciple ->
-                val discipleEquipment = buildMap {
-                    disciple.weaponId?.let { id -> equipmentMap[id]?.let { put(id, it) } }
-                    disciple.armorId?.let { id -> equipmentMap[id]?.let { put(id, it) } }
-                    disciple.bootsId?.let { id -> equipmentMap[id]?.let { put(id, it) } }
-                    disciple.accessoryId?.let { id -> equipmentMap[id]?.let { put(id, it) } }
-                }
-                val discipleManuals = disciple.manualIds.mapNotNull { id -> manualMap[id]?.let { id to it } }.toMap()
-                val discipleProficiencies = manualProficiencies[disciple.id] ?: emptyMap()
-                val stats = disciple.getFinalStats(discipleEquipment, discipleManuals, discipleProficiencies)
-                
-                val skills = disciple.manualIds.mapNotNull { manualId ->
-                    val manual = discipleManuals[manualId] ?: return@mapNotNull null
-                    val skill = manual.skill ?: return@mapNotNull null
-                    val proficiencyData = discipleProficiencies[manualId]
-                    val masteryLevel = proficiencyData?.masteryLevel ?: 0
-                    val adjustedMultiplier = ManualProficiencySystem.calculateSkillDamageMultiplier(
-                        skill.damageMultiplier,
-                        masteryLevel
-                    )
-                    AICombatSkill(
-                        name = skill.name,
-                        damageType = if (skill.damageType == com.xianxia.sect.core.engine.DamageType.PHYSICAL) AIDamageType.PHYSICAL else AIDamageType.MAGIC,
-                        damageMultiplier = adjustedMultiplier,
-                        mpCost = skill.mpCost,
-                        cooldown = skill.cooldown,
-                        currentCooldown = 0,
-                        hits = skill.hits
-                    )
-                }
-                
-                AICombatant(
-                    id = disciple.id,
-                    name = disciple.name,
-                    hp = stats.maxHp,
-                    maxHp = stats.maxHp,
-                    mp = stats.maxMp,
-                    maxMp = stats.maxMp,
-                    physicalAttack = stats.physicalAttack,
-                    magicAttack = stats.magicAttack,
-                    physicalDefense = stats.physicalDefense,
-                    magicDefense = stats.magicDefense,
-                    speed = stats.speed,
-                    critRate = stats.critRate,
-                    realm = disciple.realm,
-                    realmName = disciple.realmName,
-                    isAttacker = false,
-                    skills = skills,
-                    buffs = emptyList()
-                )
-            }
-    }
-    
-    fun executePlayerSectBattle(attackTeam: AIBattleTeam, playerDefenders: List<AICombatant>): AIBattleResult {
+    fun executePlayerSectBattle(
+        attackTeam: AIBattleTeam,
+        playerDefenseTeam: List<Disciple>
+    ): AIBattleResult {
         val attackers = attackTeam.disciples.map { convertToCombatant(it, true) }
-        val defenders = playerDefenders
+        val defenders = playerDefenseTeam.map { convertToCombatant(it, false) }
         
         var currentBattle = AIBattle(
             attackers = attackers,
@@ -673,9 +605,9 @@ object AISectAttackManager {
             }
             .map { it.id }
         
-        val deadDefenderIds = playerDefenders
-            .filter { defender ->
-                finalBattle.defenders.find { it.id == defender.id }?.isDead == true
+        val deadDefenderIds = playerDefenseTeam
+            .filter { disciple ->
+                finalBattle.defenders.find { it.id == disciple.id }?.isDead == true
             }
             .map { it.id }
         
@@ -684,56 +616,77 @@ object AISectAttackManager {
             winner = winner,
             deadAttackerIds = deadAttackerIds,
             deadDefenderIds = deadDefenderIds,
-            canOccupy = false
+            canOccupy = winner == AIBattleWinner.ATTACKER
         )
     }
     
+    fun createPlayerDefenseTeam(
+        disciples: List<Disciple>,
+        equipmentMap: Map<String, com.xianxia.sect.core.model.Equipment>,
+        manualMap: Map<String, com.xianxia.sect.core.model.Manual>,
+        manualProficiencies: Map<String, Map<String, ManualProficiencyData>>
+    ): List<Disciple> {
+        return disciples
+            .filter { it.isAlive && it.status == DiscipleStatus.IDLE }
+            .sortedBy { it.realm }
+            .take(TEAM_SIZE)
+    }
+    
+    fun generateSectDestroyedEvent(attackerName: String, defenderName: String): String {
+        return "⚔️ $attackerName 攻破了 $defenderName！"
+    }
+
     fun calculatePlayerLootLoss(
         spiritStones: Long,
-        materials: List<Material>,
-        herbs: List<Herb>,
-        seeds: List<Seed>,
-        pills: List<Pill>
-    ): LootLossResult {
-        val lootItems = mutableListOf<String>()
-        var remainingSpiritStones = spiritStones
-        
-        val spiritStoneCount = (spiritStones / 10000).toInt()
-        repeat(spiritStoneCount) { lootItems.add("灵石×10000") }
-        remainingSpiritStones = spiritStones % 10000
-        
-        materials.forEach { material ->
-            repeat(material.quantity) { lootItems.add(material.name) }
+        materials: List<com.xianxia.sect.core.model.Material>,
+        herbs: List<com.xianxia.sect.core.model.Herb>,
+        seeds: List<com.xianxia.sect.core.model.Seed>,
+        pills: List<com.xianxia.sect.core.model.Pill>
+    ): PlayerLootLossResult {
+        val lostSpiritStones = (spiritStones * 0.1).toLong().coerceAtLeast(0)
+        val lostMaterials = mutableMapOf<String, Int>()
+        val allItems = materials + herbs + seeds + pills
+        allItems.filter { it.quantity > 0 }.shuffled().take(3).forEach { item ->
+            val loss = (item.quantity * 0.2).toInt().coerceAtLeast(1)
+            lostMaterials[item.name] = loss
         }
-        herbs.forEach { herb ->
-            repeat(herb.quantity) { lootItems.add(herb.name) }
-        }
-        seeds.forEach { seed ->
-            repeat(seed.quantity) { lootItems.add(seed.name) }
-        }
-        pills.forEach { pill ->
-            repeat(pill.quantity) { lootItems.add(pill.name) }
-        }
-        
-        if (lootItems.size < 30 && remainingSpiritStones > 0) {
-            lootItems.add("灵石×$remainingSpiritStones")
-        }
-        
-        val lootCount = if (lootItems.isEmpty()) 0 else minOf((30..50).random(), lootItems.size)
-        val selectedItems = lootItems.shuffled().take(lootCount)
-        
-        val lostSpiritStones = selectedItems.mapNotNull { item ->
-            if (item.startsWith("灵石×")) {
-                item.removePrefix("灵石×").toLongOrNull()
-            } else null
-        }.sum()
-        
-        return LootLossResult(
-            lostSpiritStones = lostSpiritStones,
-            lostMaterials = selectedItems.filter { !it.startsWith("灵石") }.groupBy { it }.mapValues { it.value.size }
-        )
+        return PlayerLootLossResult(lostSpiritStones, lostMaterials)
     }
 }
+
+enum class AIBattleWinner {
+    ATTACKER, DEFENDER, DRAW
+}
+
+data class AIBattleResult(
+    val battle: AIBattle,
+    val winner: AIBattleWinner,
+    val deadAttackerIds: List<String>,
+    val deadDefenderIds: List<String>,
+    val canOccupy: Boolean
+)
+
+data class AIBattle(
+    val attackers: List<AICombatant>,
+    val defenders: List<AICombatant>,
+    val turn: Int,
+    val isFinished: Boolean,
+    val winner: AIBattleWinner?
+)
+
+enum class AIDamageType {
+    PHYSICAL, MAGIC
+}
+
+data class AICombatSkill(
+    val name: String,
+    val damageType: AIDamageType,
+    val damageMultiplier: Double,
+    val mpCost: Int,
+    val cooldown: Int,
+    val currentCooldown: Int,
+    val hits: Int = 1
+)
 
 data class AICombatant(
     val id: String,
@@ -751,88 +704,27 @@ data class AICombatant(
     val realm: Int,
     val realmName: String,
     val isAttacker: Boolean,
-    val skills: List<AICombatSkill> = emptyList(),
-    val buffs: List<AICombatBuff> = emptyList()
+    val skills: List<AICombatSkill>,
+    val buffs: List<AICombatBuff>
 ) {
     val isDead: Boolean get() = hp <= 0
-    
-    val effectivePhysicalAttack: Int get() {
-        val attackBoost = buffs.filter { it.type == AIBuffType.PHYSICAL_ATTACK_BOOST }.sumOf { it.value }
-        return (physicalAttack * (1 + attackBoost)).toInt()
-    }
-    
-    val effectiveMagicAttack: Int get() {
-        val attackBoost = buffs.filter { it.type == AIBuffType.MAGIC_ATTACK_BOOST }.sumOf { it.value }
-        return (magicAttack * (1 + attackBoost)).toInt()
-    }
-    
-    val effectivePhysicalDefense: Int get() {
-        val defenseBoost = buffs.filter { it.type == AIBuffType.PHYSICAL_DEFENSE_BOOST }.sumOf { it.value }
-        return (physicalDefense * (1 + defenseBoost)).toInt()
-    }
-    
-    val effectiveMagicDefense: Int get() {
-        val defenseBoost = buffs.filter { it.type == AIBuffType.MAGIC_DEFENSE_BOOST }.sumOf { it.value }
-        return (magicDefense * (1 + defenseBoost)).toInt()
-    }
-    
-    val effectiveSpeed: Int get() {
-        val speedBoost = buffs.filter { it.type == AIBuffType.SPEED_BOOST }.sumOf { it.value }
-        return (speed * (1 + speedBoost)).toInt()
-    }
-    
-    val effectiveCritRate: Double get() {
-        val critBoost = buffs.filter { it.type == AIBuffType.CRIT_RATE_BOOST }.sumOf { it.value }
-        return critRate + critBoost
-    }
-}
-
-data class AICombatSkill(
-    val name: String,
-    val damageType: AIDamageType,
-    val damageMultiplier: Double,
-    val mpCost: Int,
-    val cooldown: Int,
-    val currentCooldown: Int = 0,
-    val hits: Int = 1
-)
-
-enum class AIDamageType {
-    PHYSICAL, MAGIC
-}
-
-enum class AIBuffType {
-    PHYSICAL_ATTACK_BOOST, MAGIC_ATTACK_BOOST, PHYSICAL_DEFENSE_BOOST, MAGIC_DEFENSE_BOOST,
-    SPEED_BOOST, CRIT_RATE_BOOST
+    val effectiveSpeed: Int get() = speed + buffs.sumOf { it.speedBonus }
+    val effectivePhysicalAttack: Int get() = physicalAttack + buffs.sumOf { it.attackBonus }
+    val effectiveMagicAttack: Int get() = magicAttack + buffs.sumOf { it.attackBonus }
+    val effectivePhysicalDefense: Int get() = physicalDefense + buffs.sumOf { it.defenseBonus }
+    val effectiveMagicDefense: Int get() = magicDefense + buffs.sumOf { it.defenseBonus }
+    val effectiveCritRate: Double get() = critRate + buffs.sumOf { it.speedBonus } * 0.01
 }
 
 data class AICombatBuff(
-    val type: AIBuffType,
-    val value: Double,
-    var remainingDuration: Int
+    val name: String,
+    val turnsRemaining: Int,
+    val attackBonus: Int = 0,
+    val defenseBonus: Int = 0,
+    val speedBonus: Int = 0
 )
 
-data class AIBattle(
-    val attackers: List<AICombatant>,
-    val defenders: List<AICombatant>,
-    val turn: Int = 0,
-    val isFinished: Boolean = false,
-    val winner: AIBattleWinner? = null
-)
-
-enum class AIBattleWinner {
-    ATTACKER, DEFENDER, DRAW
-}
-
-data class AIBattleResult(
-    val battle: AIBattle,
-    val winner: AIBattleWinner,
-    val deadAttackerIds: List<String>,
-    val deadDefenderIds: List<String>,
-    val canOccupy: Boolean
-)
-
-data class LootLossResult(
+data class PlayerLootLossResult(
     val lostSpiritStones: Long,
     val lostMaterials: Map<String, Int>
 )

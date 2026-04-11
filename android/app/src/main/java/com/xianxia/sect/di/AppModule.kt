@@ -9,9 +9,8 @@ import com.xianxia.sect.data.SessionManager
 import com.xianxia.sect.data.cache.CacheConfig
 import com.xianxia.sect.data.cache.GameDataCacheManager
 import com.xianxia.sect.data.incremental.ChangeTracker
-import com.xianxia.sect.data.incremental.DeltaCompressor
-import com.xianxia.sect.data.incremental.IncrementalStorageManager
-import com.xianxia.sect.data.incremental.IncrementalStorageCoordinator
+import com.xianxia.sect.data.incremental.ChangeLogPersistence
+import com.xianxia.sect.data.archive.DataArchiveScheduler
 import com.xianxia.sect.data.engine.UnifiedStorageEngine
 import com.xianxia.sect.data.serialization.unified.SaveDataConverter
 import com.xianxia.sect.data.serialization.unified.UnifiedSerializationEngine
@@ -213,48 +212,16 @@ object AppModule {
     fun provideChangeTracker(): ChangeTracker {
         return ChangeTracker()
     }
-    
+
     @Provides
     @Singleton
-    fun provideDeltaCompressor(): DeltaCompressor {
-        return DeltaCompressor()
+    fun provideChangeLogPersistence(database: GameDatabase): ChangeLogPersistence {
+        return ChangeLogPersistence(database)
     }
-    
+
     @Provides
     @Singleton
-    fun provideIncrementalStorageManager(
-        @ApplicationContext context: Context,
-        changeTracker: ChangeTracker,
-        deltaCompressor: DeltaCompressor,
-        saveDataConverter: SaveDataConverter,
-        serializationEngine: UnifiedSerializationEngine
-    ): IncrementalStorageManager {
-        return IncrementalStorageManager(
-            context,
-            changeTracker,
-            deltaCompressor,
-            saveDataConverter,
-            serializationEngine
-        )
-    }
-    
-    @Provides
-    @Singleton
-    fun provideIncrementalStorageCoordinator(
-        @ApplicationContext context: Context,
-        database: GameDatabase,
-        cacheManager: GameDataCacheManager,
-        changeTracker: ChangeTracker,
-        deltaCompressor: DeltaCompressor,
-        engine: UnifiedStorageEngine
-    ): IncrementalStorageCoordinator {
-        return IncrementalStorageCoordinator(
-            context = context,
-            database = database,
-            cacheManager = cacheManager,
-            changeTracker = changeTracker,
-            deltaCompressor = deltaCompressor,
-            engine = engine
-        )
+    fun provideDataArchiveScheduler(database: GameDatabase): DataArchiveScheduler {
+        return DataArchiveScheduler(database)
     }
 }

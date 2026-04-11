@@ -492,48 +492,48 @@ class GameConfigTest {
     // ============================================================
 
     @Test
-    fun `炼气的突破概率应为0点90`() {
-        assertEquals(0.90, GameConfig.Realm.getBreakthroughChance(9), 0.001)
+    fun `炼气的突破概率应为0点80`() {
+        assertEquals(0.80, GameConfig.Realm.getBreakthroughChance(9), 0.001)
     }
 
     @Test
-    fun `筑基的突破概率应为0点50`() {
-        assertEquals(0.50, GameConfig.Realm.getBreakthroughChance(8), 0.001)
+    fun `筑基的突破概率应为0点60`() {
+        assertEquals(0.60, GameConfig.Realm.getBreakthroughChance(8), 0.001)
     }
 
     @Test
-    fun `金丹的突破概率应为0点25`() {
-        assertEquals(0.25, GameConfig.Realm.getBreakthroughChance(7), 0.001)
+    fun `金丹的突破概率应为0点46`() {
+        assertEquals(0.46, GameConfig.Realm.getBreakthroughChance(7), 0.001)
     }
 
     @Test
-    fun `元婴的突破概率应为0点10`() {
-        assertEquals(0.10, GameConfig.Realm.getBreakthroughChance(6), 0.001)
+    fun `元婴的突破概率应为0点32`() {
+        assertEquals(0.32, GameConfig.Realm.getBreakthroughChance(6), 0.001)
     }
 
     @Test
-    fun `化神的突破概率应为0点03`() {
-        assertEquals(0.03, GameConfig.Realm.getBreakthroughChance(5), 0.001)
+    fun `化神的突破概率应为0点24`() {
+        assertEquals(0.24, GameConfig.Realm.getBreakthroughChance(5), 0.001)
     }
 
     @Test
-    fun `炼虚的突破概率应为0点01`() {
-        assertEquals(0.01, GameConfig.Realm.getBreakthroughChance(4), 0.001)
+    fun `炼虚的突破概率应为0点12`() {
+        assertEquals(0.12, GameConfig.Realm.getBreakthroughChance(4), 0.001)
     }
 
     @Test
-    fun `合体的突破概率应为0点005`() {
-        assertEquals(0.005, GameConfig.Realm.getBreakthroughChance(3), 0.0001)
+    fun `合体的突破概率应为0点06`() {
+        assertEquals(0.06, GameConfig.Realm.getBreakthroughChance(3), 0.0001)
     }
 
     @Test
-    fun `大乘的突破概率应为0点002`() {
-        assertEquals(0.002, GameConfig.Realm.getBreakthroughChance(2), 0.0001)
+    fun `大乘的突破概率应为0点03`() {
+        assertEquals(0.03, GameConfig.Realm.getBreakthroughChance(2), 0.0001)
     }
 
     @Test
-    fun `渡劫的突破概率应为0点001`() {
-        assertEquals(0.001, GameConfig.Realm.getBreakthroughChance(1), 0.0001)
+    fun `渡劫的突破概率应为0点01`() {
+        assertEquals(0.01, GameConfig.Realm.getBreakthroughChance(1), 0.0001)
     }
 
     @Test

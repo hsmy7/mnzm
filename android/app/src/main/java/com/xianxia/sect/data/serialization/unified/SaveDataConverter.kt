@@ -178,7 +178,6 @@ class SaveDataConverter @Inject constructor() {
             worldMapSects = gameData.worldMapSects?.map { convertWorldSect(it) } ?: emptyList(),
             exploredSects = gameData.exploredSects?.mapValues { convertExploredSectInfo(it.value) } ?: emptyMap(),
             scoutInfo = gameData.scoutInfo?.mapValues { convertSectScoutInfo(it.value) } ?: emptyMap(),
-            herbGardenPlantSlots = gameData.herbGardenPlantSlots?.map { convertPlantSlot(it) } ?: emptyList(),
             manualProficiencies = gameData.manualProficiencies?.mapValues { 
                 it.value.map { prof -> convertManualProficiency(prof) } 
             } ?: emptyMap(),
@@ -198,8 +197,6 @@ class SaveDataConverter @Inject constructor() {
             elderSlots = convertElderSlots(gameData.elderSlots),
             spiritMineSlots = gameData.spiritMineSlots?.map { convertSpiritMineSlot(it) } ?: emptyList(),
             librarySlots = gameData.librarySlots?.map { convertLibrarySlot(it) } ?: emptyList(),
-            forgeSlots = gameData.forgeSlots?.map { convertBuildingSlot(it) } ?: emptyList(),
-            alchemySlots = gameData.alchemySlots?.map { convertAlchemySlot(it) } ?: emptyList(),
             productionSlots = gameData.productionSlots?.map { convertProductionSlot(it) } ?: emptyList(),
             alliances = gameData.alliances?.map { convertAlliance(it) } ?: emptyList(),
             sectRelations = gameData.sectRelations?.map { convertSectRelation(it) } ?: emptyList(),
@@ -213,7 +210,13 @@ class SaveDataConverter @Inject constructor() {
             playerProtectionStartYear = gameData.playerProtectionStartYear ?: 1,
             playerHasAttackedAI = gameData.playerHasAttackedAI ?: false,
             activeMissions = gameData.activeMissions?.map { convertActiveMission(it) } ?: emptyList(),
-            availableMissions = gameData.availableMissions?.map { convertMission(it) } ?: emptyList()
+            availableMissions = gameData.availableMissions?.map { convertMission(it) } ?: emptyList(),
+            aiSectDisciples = gameData.aiSectDisciples?.map { (sectId, disciples) ->
+                SerializableAiSectDiscipleEntry(
+                    sectId = sectId,
+                    disciples = disciples.map { convertDisciple(it) }
+                )
+            } ?: emptyList()
         )
     }
     
@@ -232,7 +235,6 @@ class SaveDataConverter @Inject constructor() {
             worldMapSects = data.worldMapSects.map { convertBackWorldSect(it) },
             exploredSects = data.exploredSects.mapValues { convertBackExploredSectInfo(it.value) },
             scoutInfo = data.scoutInfo.mapValues { convertBackSectScoutInfo(it.value) },
-            herbGardenPlantSlots = data.herbGardenPlantSlots.map { convertBackPlantSlot(it) },
             manualProficiencies = data.manualProficiencies.mapValues { 
                 it.value.map { prof -> convertBackManualProficiency(prof) } 
             },
@@ -252,8 +254,6 @@ class SaveDataConverter @Inject constructor() {
             elderSlots = convertBackElderSlots(data.elderSlots),
             spiritMineSlots = data.spiritMineSlots.map { convertBackSpiritMineSlot(it) },
             librarySlots = data.librarySlots.map { convertBackLibrarySlot(it) },
-            forgeSlots = data.forgeSlots.map { convertBackBuildingSlot(it) },
-            alchemySlots = data.alchemySlots.map { convertBackAlchemySlot(it) },
             productionSlots = data.productionSlots.map { convertBackProductionSlot(it) },
             alliances = data.alliances.map { convertBackAlliance(it) },
             sectRelations = data.sectRelations.map { convertBackSectRelation(it) },
@@ -267,7 +267,10 @@ class SaveDataConverter @Inject constructor() {
             playerProtectionStartYear = data.playerProtectionStartYear,
             playerHasAttackedAI = data.playerHasAttackedAI,
             activeMissions = data.activeMissions.map { convertBackActiveMission(it) },
-            availableMissions = data.availableMissions.map { convertBackMission(it) }
+            availableMissions = data.availableMissions.map { convertBackMission(it) },
+            aiSectDisciples = data.aiSectDisciples.associate { entry ->
+                entry.sectId to entry.disciples.map { convertBackDisciple(it) }
+            }
         )
     }
     
@@ -680,7 +683,8 @@ class SaveDataConverter @Inject constructor() {
                 "battleCount" to pill.battleCount.toDouble(),
                 "revive" to if (pill.revive) 1.0 else 0.0,
                 "clearAll" to if (pill.clearAll) 1.0 else 0.0,
-                "mpRecoverMaxMpPercent" to pill.mpRecoverMaxMpPercent
+                "mpRecoverMaxMpPercent" to pill.mpRecoverMaxMpPercent,
+                "minRealm" to pill.minRealm.toDouble()
             ),
             description = pill.description,
             quantity = pill.quantity
@@ -716,6 +720,7 @@ class SaveDataConverter @Inject constructor() {
             revive = (data.effects["revive"] ?: 0.0) > 0.5,
             clearAll = (data.effects["clearAll"] ?: 0.0) > 0.5,
             mpRecoverMaxMpPercent = data.effects["mpRecoverMaxMpPercent"] ?: 0.0,
+            minRealm = (data.effects["minRealm"] ?: 9.0).toInt(),
             description = data.description,
             quantity = data.quantity
         )
@@ -1021,7 +1026,6 @@ class SaveDataConverter @Inject constructor() {
             allianceId = sect.allianceId ?: "",
             allianceStartYear = sect.allianceStartYear ?: 0,
             isRighteous = sect.isRighteous ?: true,
-            aiDisciples = sect.aiDisciples?.map { convertDisciple(it) } ?: emptyList(),
             isPlayerOccupied = sect.isPlayerOccupied ?: false,
             occupierBattleTeamId = sect.occupierBattleTeamId ?: "",
             isUnderAttack = sect.isUnderAttack ?: false,
@@ -1070,7 +1074,6 @@ class SaveDataConverter @Inject constructor() {
             allianceId = allianceId,
             allianceStartYear = data.allianceStartYear,
             isRighteous = data.isRighteous,
-            aiDisciples = data.aiDisciples.map { convertBackDisciple(it) },
             isPlayerOccupied = data.isPlayerOccupied,
             occupierBattleTeamId = occupierBattleTeamId,
             isUnderAttack = data.isUnderAttack,

@@ -209,7 +209,7 @@ private fun ActiveMissionCard(
                     color = Color(0xFF666666)
                 )
                 Text(
-                    text = "奖励：${mission.rewards.spiritStones}灵石",
+                    text = "奖励：${formatSpiritStoneReward(mission.rewards)}",
                     fontSize = 10.sp,
                     color = Color(0xFFD4A017)
                 )
@@ -278,7 +278,7 @@ private fun AvailableMissionCard(
                     color = Color(0xFF666666)
                 )
                 Text(
-                    text = "奖励：${mission.rewards.spiritStones}灵石",
+                    text = "奖励：${formatSpiritStoneReward(mission.rewards)}",
                     fontSize = 10.sp,
                     color = Color(0xFFD4A017)
                 )
@@ -392,7 +392,7 @@ private fun ActiveMissionDetailDialog(
                 )
 
                 Text(
-                    text = "${mission.rewards.spiritStones} 灵石",
+                    text = formatSpiritStoneReward(mission.rewards),
                     fontSize = 11.sp,
                     color = Color(0xFFD4A017)
                 )
@@ -694,6 +694,14 @@ private fun SelectionDiscipleCard(
                 DiscipleAttrText("忠诚", disciple.loyalty, fontSize = 10.sp)
             }
         }
+    }
+}
+
+private fun formatSpiritStoneReward(rewards: MissionRewardConfig): String {
+    return if (rewards.spiritStonesMax > 0) {
+        "${rewards.spiritStones}~${rewards.spiritStonesMax}灵石"
+    } else {
+        "${rewards.spiritStones}灵石"
     }
 }
 

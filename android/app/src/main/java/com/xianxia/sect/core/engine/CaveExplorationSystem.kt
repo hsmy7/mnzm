@@ -61,6 +61,19 @@ object CaveExplorationSystem {
             val stats = disciple.getFinalStats(discipleEquipment, discipleManuals, discipleProficiencies)
             val effectiveHp = if (disciple.currentHp < 0) stats.maxHp else disciple.currentHp.coerceAtMost(stats.maxHp)
             val effectiveMp = if (disciple.currentMp < 0) stats.maxMp else disciple.currentMp.coerceAtMost(stats.maxMp)
+            val skills = disciple.manualIds.mapNotNull { manualId ->
+                val manual = discipleManuals[manualId] ?: return@mapNotNull null
+                val proficiencyData = discipleProficiencies[manualId]
+                val masteryLevel = proficiencyData?.masteryLevel ?: 0
+                val baseSkill = manual.skill ?: return@mapNotNull null
+                val adjustedMultiplier = ManualProficiencySystem.calculateSkillDamageMultiplier(
+                    baseSkill.damageMultiplier,
+                    masteryLevel
+                )
+                baseSkill.copy(
+                    damageMultiplier = adjustedMultiplier
+                ).toCombatSkill(manualName = manual.name)
+            }
             Combatant(
                 id = disciple.id,
                 name = disciple.name,
@@ -75,7 +88,7 @@ object CaveExplorationSystem {
                 magicDefense = stats.magicDefense,
                 speed = stats.speed,
                 critRate = stats.critRate,
-                skills = emptyList(),
+                skills = skills,
                 realm = disciple.realm,
                 realmName = disciple.realmName
             )
@@ -130,6 +143,19 @@ object CaveExplorationSystem {
             val stats = disciple.getFinalStats(discipleEquipment, discipleManuals, discipleProficiencies)
             val effectiveHp = if (disciple.currentHp < 0) stats.maxHp else disciple.currentHp.coerceAtMost(stats.maxHp)
             val effectiveMp = if (disciple.currentMp < 0) stats.maxMp else disciple.currentMp.coerceAtMost(stats.maxMp)
+            val skills = disciple.manualIds.mapNotNull { manualId ->
+                val manual = discipleManuals[manualId] ?: return@mapNotNull null
+                val proficiencyData = discipleProficiencies[manualId]
+                val masteryLevel = proficiencyData?.masteryLevel ?: 0
+                val baseSkill = manual.skill ?: return@mapNotNull null
+                val adjustedMultiplier = ManualProficiencySystem.calculateSkillDamageMultiplier(
+                    baseSkill.damageMultiplier,
+                    masteryLevel
+                )
+                baseSkill.copy(
+                    damageMultiplier = adjustedMultiplier
+                ).toCombatSkill(manualName = manual.name)
+            }
             Combatant(
                 id = disciple.id,
                 name = disciple.name,
@@ -144,7 +170,7 @@ object CaveExplorationSystem {
                 magicDefense = stats.magicDefense,
                 speed = stats.speed,
                 critRate = stats.critRate,
-                skills = emptyList(),
+                skills = skills,
                 realm = disciple.realm,
                 realmName = disciple.realmName
             )

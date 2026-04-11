@@ -15,6 +15,7 @@ import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Singleton
+import com.xianxia.sect.data.serialization.unified.SerializationQuota
 
 data class CompressionResult(
     val data: ByteArray,
@@ -231,7 +232,7 @@ class UnifiedCompressionLayer @Inject constructor() {
         if (data.isEmpty()) {
             throw SerializationException("Cannot decompress empty data")
         }
-        if (originalSize <= 0 || originalSize > SerializationConstants.MAX_DATA_SIZE) {
+        if (originalSize <= 0 || originalSize > SerializationQuota.STRICT.totalMaxBytes) {
             throw SerializationException("Invalid originalSize for decompression: $originalSize")
         }
 

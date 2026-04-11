@@ -211,9 +211,6 @@ dependencies {
     // Protobuf
     implementation 'com.google.protobuf:protobuf-java:4.27.2'
 
-    // FlatBuffers - 零拷贝序列化
-    implementation 'com.google.flatbuffers:flatbuffers-java:24.3.25'
-
     // Unit tests
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.mockito:mockito-core:5.14.2'
@@ -241,25 +238,6 @@ protobuf {
             }
         }
     }
-}
-
-task generateFlatBuffers {
-    description = 'Generate FlatBuffers Java classes from schema files (optional)'
-    group = 'build'
-    
-    doLast {
-        println "FlatBuffers schema files are located at src/main/flatbuffers/"
-        println "To generate Java classes, install flatc and run: flatc --java -o src/main/java src/main/flatbuffers/*.fbs"
-    }
-    
-    onlyIf {
-        false
-    }
-}
-
-afterEvaluate {
-    tasks.findByName('compileDebugKotlin')?.dependsOn(generateFlatBuffers)
-    tasks.findByName('compileReleaseKotlin')?.dependsOn(generateFlatBuffers)
 }
 
 def schemaDir = file("${projectDir}/schemas/com.xianxia.sect.data.local.GameDatabase")

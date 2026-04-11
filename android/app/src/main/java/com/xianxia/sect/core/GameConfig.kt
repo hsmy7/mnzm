@@ -37,8 +37,6 @@ object GameConfig {
         const val BASE_SPEED = 8.0
         const val REALM_SPEED_BONUS_THRESHOLD = 3
         const val REALM_SPEED_BONUS = 1.5
-        const val BREAKTHROUGH_LAYER_PENALTY = 0.9
-        const val SPIRIT_ROOT_QUALITY_BONUS_PER_LEVEL = 0.15
     }
     
     object Rarity {
@@ -60,16 +58,16 @@ object GameConfig {
     
     object Realm {
         val CONFIGS = mapOf(
-            9 to RealmConfig(9, "炼气", 225, 10, 0.90, 1.0, 80, 9),
-            8 to RealmConfig(8, "筑基", 450, 30, 0.50, 2.5, 120, 9),
-            7 to RealmConfig(7, "金丹", 900, 50, 0.25, 6.5, 200, 9),
-            6 to RealmConfig(6, "元婴", 1800, 80, 0.10, 17.0, 300, 9),
-            5 to RealmConfig(5, "化神", 3600, 110, 0.03, 45.0, 500, 9),
-            4 to RealmConfig(4, "炼虚", 16000, 180, 0.01, 110.0, 800, 9),
-            3 to RealmConfig(3, "合体", 32000, 220, 0.005, 260.0, 1500, 9),
-            2 to RealmConfig(2, "大乘", 64000, 280, 0.002, 580.0, 3000, 9),
-            1 to RealmConfig(1, "渡劫", 128000, 360, 0.001, 1200.0, 5000, 9),
-            0 to RealmConfig(0, "仙人", 256000, 500, 0.0, 2500.0, 9999, 9)
+            9 to RealmConfig(9, "炼气", 225, 10, 0.80, 1.0, 80, 9),
+            8 to RealmConfig(8, "筑基", 450, 30, 0.60, 2.5, 120, 9),
+            7 to RealmConfig(7, "金丹", 900, 50, 0.46, 6.5, 200, 9),
+            6 to RealmConfig(6, "元婴", 1800, 80, 0.32, 17.0, 300, 9),
+            5 to RealmConfig(5, "化神", 3600, 110, 0.24, 45.0, 500, 9, 60),
+            4 to RealmConfig(4, "炼虚", 16000, 180, 0.12, 110.0, 800, 9, 100),
+            3 to RealmConfig(3, "合体", 32000, 220, 0.06, 260.0, 1500, 9, 160),
+            2 to RealmConfig(2, "大乘", 64000, 280, 0.03, 580.0, 3000, 9, 240),
+            1 to RealmConfig(1, "渡劫", 128000, 360, 0.01, 1200.0, 5000, 9, 340),
+            0 to RealmConfig(0, "仙人", 256000, 500, 0.0, 2500.0, 9999, 9, 500)
         )
         
         fun get(realm: Int): RealmConfig = CONFIGS[realm] ?: CONFIGS.getValue(9)
@@ -79,6 +77,8 @@ object GameConfig {
         fun getCultivationBase(realm: Int): Int = get(realm).cultivationBase
         
         fun getBreakthroughChance(realm: Int): Double = get(realm).breakthroughChance
+        
+        fun getSoulPowerRequirement(realm: Int): Int = get(realm).soulPowerRequirement
         
         fun getMaxRarity(realm: Int): Int = when (realm) {
             9, 8 -> 1
@@ -99,6 +99,8 @@ object GameConfig {
             6 -> 2
             else -> 9
         }
+
+        fun meetsRealmRequirement(discipleRealm: Int, minRealm: Int): Boolean = discipleRealm <= minRealm
     }
     
     object SpiritRoot {
@@ -306,8 +308,8 @@ object GameConfig {
     
     object Battle {
         const val MAX_TEAM_SIZE = 7
-        const val MIN_BEAST_COUNT = 1
-        const val MAX_BEAST_COUNT = 10
+        const val MIN_BEAST_COUNT = 3
+        const val MAX_BEAST_COUNT = 11
         const val MAX_TURNS = 25
         const val CRIT_MULTIPLIER: Double = 2.0
         const val MAX_DODGE_CHANCE: Double = 0.5
@@ -387,7 +389,8 @@ object GameConfig {
         val breakthroughChance: Double,
         val multiplier: Double = 1.0,
         val maxAge: Int = 100,
-        val maxLayers: Int = 10
+        val maxLayers: Int = 10,
+        val soulPowerRequirement: Int = 0
     )
     
     data class SpiritRootConfig(
@@ -456,17 +459,20 @@ object GameConfig {
         const val MAP_WIDTH = 4000
         const val MAP_HEIGHT = 3500
         const val SECT_RADIUS = 70
-        const val MIN_DISTANCE = 80
+        const val MIN_DISTANCE = 120
         const val MAX_CONNECTION_DISTANCE = 500.0
         const val BORDER_PADDING = 150
         const val TARGET_SECT_COUNT = 55
         const val MAX_ATTEMPTS = 50000
         const val INITIAL_SECT_FAVOR = 50
         const val SAME_ALIGNMENT_BONUS = 10
-        const val CONNECTION_DISTANCE_LIMIT = 800.0
-        const val TARGET_CONNECTIONS_PER_SECT = 2
-        const val MAX_CONNECTIONS_PER_SECT = 3
+        const val CONNECTION_DISTANCE_LIMIT = 700.0
+        const val TARGET_CONNECTIONS_PER_SECT = 3
+        const val MAX_CONNECTIONS_PER_SECT = 5
         const val MIN_CONNECTIONS_PER_SECT = 2
+        const val RELAXATION_ITERATIONS = 3
+        const val RELAXATION_STRENGTH = 0.4
+        const val K_NEAREST_NEIGHBORS = 6
     }
     
     object Diplomacy {

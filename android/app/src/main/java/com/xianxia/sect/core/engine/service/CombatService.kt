@@ -8,10 +8,6 @@ import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.engine.BattleSystem
 import com.xianxia.sect.core.engine.CaveExplorationSystem
 import com.xianxia.sect.core.engine.BattleSystemResult
-import com.xianxia.sect.core.engine.EquipmentNurtureSystem
-import com.xianxia.sect.core.engine.ManualProficiencySystem
-import com.xianxia.sect.core.data.TalentDatabase
-import kotlin.random.Random
 
 /**
  * 战斗服务 - 负责战斗系统管理
@@ -29,6 +25,7 @@ class CombatService constructor(
     private val _manuals: MutableStateFlow<List<Manual>>,
     private val _battleLogs: MutableStateFlow<List<BattleLog>>,
     private val battleSystem: BattleSystem,
+    private val productionSlotRepository: com.xianxia.sect.core.repository.ProductionSlotRepository,
     private val addEvent: (String, EventType) -> Unit,
     private val transactionMutex: Any
 ) {
@@ -98,158 +95,6 @@ class CombatService constructor(
     }
 
     // ==================== 战斗结果处理 ====================
-
-    /**
-     * Process battle victory - apply bonuses to survivors
-     */
-    fun applyBattleVictoryBonuses(memberIds: List<String>, addSoulPower: Boolean) {
-        synchronized(transactionMutex) {
-            val data = _gameData.value
-            val equipmentMap = _equipment.value.associateBy { it.id }
-            val manualMap = _manuals.value.associateBy { it.id }
-            var updatedManualProficiencies = data.manualProficiencies.toMutableMap()
-            val discipleUpdates = mutableMapOf<Int, Disciple>()
-
-            memberIds.forEach { memberId ->
-                val discipleIndex = _disciples.value.indexOfFirst { it.id == memberId }
-                if (discipleIndex < 0) return@forEach
-
-                val disciple = _disciples.value[discipleIndex]
-                if (!disciple.isAlive) return@forEach
-
-                val newSoulPower = if (addSoulPower) disciple.soulPower + 1 else disciple.soulPower
-
-                val talentEffects = TalentDatabase.calculateTalentEffects(disciple.talentIds)
-                val winGrowthAttr = if (talentEffects["winBattleRandomAttrPlus"] != null) {
-                    listOf("maxHp", "maxMp", "physicalAttack", "magicAttack", "physicalDefense", "magicDefense", "speed").random()
-                } else null
-
-                var updatedDisciple = disciple.copyWith(
-                    soulPower = newSoulPower
-                )
-
-                if (winGrowthAttr != null) {
-                    val currentGrowth = updatedDisciple.statusData["winGrowth.$winGrowthAttr"]?.toIntOrNull() ?: 0
-                    val newStatusData = updatedDisciple.statusData.toMutableMap().apply {
-                        put("winGrowth.$winGrowthAttr", (currentGrowth + 1).toString())
-                    }
-                    updatedDisciple = when (winGrowthAttr) {
-                        "maxHp" -> updatedDisciple.copyWith(baseHp = updatedDisciple.baseHp + 1, statusData = newStatusData)
-                        "maxMp" -> updatedDisciple.copyWith(baseMp = updatedDisciple.baseMp + 1, statusData = newStatusData)
-                        "physicalAttack" -> updatedDisciple.copyWith(basePhysicalAttack = updatedDisciple.basePhysicalAttack + 1, statusData = newStatusData)
-                        "magicAttack" -> updatedDisciple.copyWith(baseMagicAttack = updatedDisciple.baseMagicAttack + 1, statusData = newStatusData)
-                        "physicalDefense" -> updatedDisciple.copyWith(basePhysicalDefense = updatedDisciple.basePhysicalDefense + 1, statusData = newStatusData)
-                        "magicDefense" -> updatedDisciple.copyWith(baseMagicDefense = updatedDisciple.baseMagicDefense + 1, statusData = newStatusData)
-                        "speed" -> updatedDisciple.copyWith(baseSpeed = updatedDisciple.baseSpeed + 1, statusData = newStatusData)
-                        else -> updatedDisciple
-                    }
-                }
-
-                disciple.manualIds.forEach { manualId ->
-                    val manual = manualMap[manualId] ?: return@forEach
-                    val proficiencyList = updatedManualProficiencies.getOrPut(memberId) { mutableListOf<ManualProficiencyData>() } as MutableList<ManualProficiencyData>
-                    val existingIndex = proficiencyList.indexOfFirst { it.manualId == manualId }
-                    val existing = if (existingIndex >= 0) proficiencyList[existingIndex] else null
-                    val maxProf = ManualProficiencySystem.getMaxProficiency(manual.rarity)
-                    val gain03pct = maxProf * 0.03
-                    val newProficiency = if (existing != null) {
-                        (existing.proficiency + gain03pct).coerceAtMost(maxProf)
-                    } else {
-                        gain03pct.coerceAtMost(maxProf)
-                    }
-                    val newMasteryLevel = ManualProficiencySystem.MasteryLevel.fromProficiency(newProficiency, manual.rarity).level
-                    val updated = ManualProficiencyData(
-                        manualId = manualId,
-                        manualName = manual.name,
-                        proficiency = newProficiency,
-                        maxProficiency = maxProf.toInt(),
-                        level = newMasteryLevel,
-                        masteryLevel = newMasteryLevel
-                    )
-                    if (existingIndex >= 0) {
-                        proficiencyList[existingIndex] = updated
-                    } else {
-                        proficiencyList.add(updated)
-                    }
-                }
-
-                var eqSet = updatedDisciple.equipment
-
-                updatedDisciple.weaponId?.let { eqId ->
-                    val eq = equipmentMap[eqId] ?: return@let
-                    val nurture = eqSet.weaponNurture?.takeIf { it.equipmentId == eqId }
-                        ?: EquipmentNurtureData(equipmentId = eqId, rarity = eq.rarity)
-                    val expRequired = EquipmentNurtureSystem.getExpRequiredForLevelUp(nurture.nurtureLevel, eq.rarity)
-                    val result = EquipmentNurtureSystem.updateNurtureExp(
-                        eq.copy(nurtureLevel = nurture.nurtureLevel, nurtureProgress = nurture.nurtureProgress),
-                        expRequired * 0.03
-                    )
-                    eqSet = eqSet.copy(weaponNurture = EquipmentNurtureData(
-                        equipmentId = eqId, rarity = eq.rarity,
-                        nurtureLevel = result.equipment.nurtureLevel,
-                        nurtureProgress = result.equipment.nurtureProgress
-                    ))
-                }
-                updatedDisciple.armorId?.let { eqId ->
-                    val eq = equipmentMap[eqId] ?: return@let
-                    val nurture = eqSet.armorNurture?.takeIf { it.equipmentId == eqId }
-                        ?: EquipmentNurtureData(equipmentId = eqId, rarity = eq.rarity)
-                    val expRequired = EquipmentNurtureSystem.getExpRequiredForLevelUp(nurture.nurtureLevel, eq.rarity)
-                    val result = EquipmentNurtureSystem.updateNurtureExp(
-                        eq.copy(nurtureLevel = nurture.nurtureLevel, nurtureProgress = nurture.nurtureProgress),
-                        expRequired * 0.03
-                    )
-                    eqSet = eqSet.copy(armorNurture = EquipmentNurtureData(
-                        equipmentId = eqId, rarity = eq.rarity,
-                        nurtureLevel = result.equipment.nurtureLevel,
-                        nurtureProgress = result.equipment.nurtureProgress
-                    ))
-                }
-                updatedDisciple.bootsId?.let { eqId ->
-                    val eq = equipmentMap[eqId] ?: return@let
-                    val nurture = eqSet.bootsNurture?.takeIf { it.equipmentId == eqId }
-                        ?: EquipmentNurtureData(equipmentId = eqId, rarity = eq.rarity)
-                    val expRequired = EquipmentNurtureSystem.getExpRequiredForLevelUp(nurture.nurtureLevel, eq.rarity)
-                    val result = EquipmentNurtureSystem.updateNurtureExp(
-                        eq.copy(nurtureLevel = nurture.nurtureLevel, nurtureProgress = nurture.nurtureProgress),
-                        expRequired * 0.03
-                    )
-                    eqSet = eqSet.copy(bootsNurture = EquipmentNurtureData(
-                        equipmentId = eqId, rarity = eq.rarity,
-                        nurtureLevel = result.equipment.nurtureLevel,
-                        nurtureProgress = result.equipment.nurtureProgress
-                    ))
-                }
-                updatedDisciple.accessoryId?.let { eqId ->
-                    val eq = equipmentMap[eqId] ?: return@let
-                    val nurture = eqSet.accessoryNurture?.takeIf { it.equipmentId == eqId }
-                        ?: EquipmentNurtureData(equipmentId = eqId, rarity = eq.rarity)
-                    val expRequired = EquipmentNurtureSystem.getExpRequiredForLevelUp(nurture.nurtureLevel, eq.rarity)
-                    val result = EquipmentNurtureSystem.updateNurtureExp(
-                        eq.copy(nurtureLevel = nurture.nurtureLevel, nurtureProgress = nurture.nurtureProgress),
-                        expRequired * 0.03
-                    )
-                    eqSet = eqSet.copy(accessoryNurture = EquipmentNurtureData(
-                        equipmentId = eqId, rarity = eq.rarity,
-                        nurtureLevel = result.equipment.nurtureLevel,
-                        nurtureProgress = result.equipment.nurtureProgress
-                    ))
-                }
-
-                discipleUpdates[discipleIndex] = updatedDisciple.copy(equipment = eqSet)
-            }
-
-            if (discipleUpdates.isNotEmpty()) {
-                _disciples.value = _disciples.value.toMutableList().also { list ->
-                    discipleUpdates.forEach { (index, d) -> list[index] = d }
-                }
-            }
-
-            if (updatedManualProficiencies != data.manualProficiencies) {
-                _gameData.value = data.copy(manualProficiencies = updatedManualProficiencies)
-            }
-        }
-    }
 
     /**
      * Process battle casualties - update disciples status and handle deaths
@@ -335,11 +180,6 @@ class CombatService constructor(
                     updated
                 }
 
-                // 清理锻造槽位
-                val updatedForgeSlots = data.forgeSlots.filter { slot ->
-                    slot.discipleId?.isEmpty() == true || slot.discipleId !in deadMemberIds
-                }
-
                 val updatedSpiritMineSlots = data.spiritMineSlots.map { slot ->
                     if (slot.discipleId in deadMemberIds) slot.copy(discipleId = "", discipleName = "") else slot
                 }
@@ -350,10 +190,20 @@ class CombatService constructor(
 
                 _gameData.value = data.copy(
                     elderSlots = updatedElderSlots,
-                    forgeSlots = updatedForgeSlots,
                     spiritMineSlots = updatedSpiritMineSlots,
                     librarySlots = updatedLibrarySlots
                 )
+
+                kotlinx.coroutines.runBlocking {
+                    val forgeSlots = productionSlotRepository.getSlotsByBuildingId("forge")
+                    for (slot in forgeSlots) {
+                        if (slot.assignedDiscipleId in deadMemberIds && !slot.isWorking) {
+                            productionSlotRepository.updateSlotByBuildingId("forge", slot.slotIndex) { s ->
+                                s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
+                            }
+                        }
+                    }
+                }
             }
         }
 

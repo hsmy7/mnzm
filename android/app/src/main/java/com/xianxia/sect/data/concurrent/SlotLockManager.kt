@@ -1,14 +1,9 @@
 package com.xianxia.sect.data.concurrent
 
 import android.util.Log
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExecutorCoroutineDispatcher
-import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.Executors
 
 data class LockStats(
     val totalAcquisitions: Long,
@@ -27,8 +22,8 @@ data class LockStats(
  * 3. 调用方必须使用协程（如 viewModelScope、lifecycleScope 等）
  *
  * 迁移指南：
- * - 旧代码：lockManager.withReadLock(slot) { ... }
- * - 新代码：suspend fun myFunc() = lockManager.withReadLockSuspend(slot) { ... }
+ * - 所有锁操作均使用 withXxxLockLight() 系列方法
+ * - 调用方必须在协程上下文中调用（viewModelScope、lifecycleScope 等）
  */
 class SlotLockManager(
     private val maxSlots: Int = 6
@@ -43,13 +38,6 @@ class SlotLockManager(
         Array(maxSlots + 2) { Mutex() }
     
     private val globalMutex = Mutex()
-
-    /** 内部使用的 IO 调度器（仅用于旧版 withContext 切换） */
-    internal val lockDispatcher: ExecutorCoroutineDispatcher by lazy {
-        Executors.newFixedThreadPool(maxSlots) { r ->  // 优化：从 maxSlots+2 缩减为 maxSlots
-            Thread(r, "SlotLock-Worker-${System.nanoTime()}").also { it.isDaemon = true }
-        }.asCoroutineDispatcher()
-    }
 
     private val acquisitionCount = ConcurrentHashMap<Int, Long>()
     private val holdCounts = ConcurrentHashMap<Int, Int>()
@@ -71,10 +59,8 @@ class SlotLockManager(
     /**
      * 轻量级读锁（无额外 Dispatcher 切换）
      *
-     * 与 [withReadLockSuspend] 的区别：
-     * - 不在锁内执行 `withContext(Dispatchers.IO)` 切换
-     * - 调用方若已在 IO 调度器上，可避免不必要的线程跳转开销
-     * - 推荐在新代码中使用此方法
+     * 不在锁内执行 `withContext(Dispatchers.IO)` 切换，
+     * 调用方若已在 IO 调度器上，可避免不必要的线程跳转开销。
      *
      * @param slot 槽位编号
      * @param block 在持有读锁期间执行的挂起代码块
@@ -94,10 +80,8 @@ class SlotLockManager(
     /**
      * 轻量级写锁（无额外 Dispatcher 切换）
      *
-     * 与 [withWriteLockSuspend] 的区别：
-     * - 不在锁内执行 `withContext(Dispatchers.IO)` 切换
-     * - 调用方若已在 IO 调度器上，可避免不必要的线程跳转开销
-     * - 推荐在新代码中使用此方法
+     * 不在锁内执行 `withContext(Dispatchers.IO)` 切换，
+     * 调用方若已在 IO 调度器上，可避免不必要的线程跳转开销。
      *
      * @param slot 槽位编号
      * @param block 在持有写锁期间执行的挂起代码块
@@ -115,58 +99,6 @@ class SlotLockManager(
     }
 
     /**
-     * 读锁（协程版本）- 已废弃
-     *
-     * **问题**：锁内存在双重线程跳转（mutex.withLock + withContext(IO)），
-     * 当调用方已在 IO 调度器时造成不必要的开销。
-     *
-     * 请改用 [withReadLockLight] 以避免额外的 Dispatcher 切换。
-     */
-    @Deprecated(
-        message = "Use withReadLockLight() to avoid unnecessary dispatcher switch inside lock",
-        replaceWith = ReplaceWith("withReadLockLight(slot, block)", imports = emptyArray()),
-        level = DeprecationLevel.WARNING
-    )
-    suspend fun <T> withReadLockSuspend(slot: Int, block: suspend () -> T): T {
-        val mutex = getMutex(slot)
-        acquisitionCount.compute(slot) { _, count -> (count ?: 0) + 1 }
-        holdCounts.compute(slot) { _, count -> (count ?: 0) + 1 }
-        try {
-            return mutex.withLock {
-                withContext(Dispatchers.IO) { block() }
-            }
-        } finally {
-            holdCounts.compute(slot) { _, count -> ((count ?: 1) - 1).coerceAtLeast(0) }
-        }
-    }
-
-    /**
-     * 写锁（协程版本）- 已废弃
-     *
-     * **问题**：锁内存在双重线程跳转（mutex.withLock + withContext(IO)），
-     * 当调用方已在 IO 调度器时造成不必要的开销。
-     *
-     * 请改用 [withWriteLockLight] 以避免额外的 Dispatcher 切换。
-     */
-    @Deprecated(
-        message = "Use withWriteLockLight() to avoid unnecessary dispatcher switch inside lock",
-        replaceWith = ReplaceWith("withWriteLockLight(slot, block)", imports = emptyArray()),
-        level = DeprecationLevel.WARNING
-    )
-    suspend fun <T> withWriteLockSuspend(slot: Int, block: suspend () -> T): T {
-        val mutex = getMutex(slot)
-        acquisitionCount.compute(slot) { _, count -> (count ?: 0) + 1 }
-        holdCounts.compute(slot) { _, count -> (count ?: 0) + 1 }
-        try {
-            return mutex.withLock {
-                withContext(Dispatchers.IO) { block() }
-            }
-        } finally {
-            holdCounts.compute(slot) { _, count -> ((count ?: 1) - 1).coerceAtLeast(0) }
-        }
-    }
-
-    /**
      * 全局轻量级读锁（无额外 Dispatcher 切换）
      */
     suspend fun <T> withGlobalReadLockLight(block: suspend () -> T): T {
@@ -178,36 +110,6 @@ class SlotLockManager(
      */
     suspend fun <T> withGlobalWriteLockLight(block: suspend () -> T): T {
         return globalMutex.withLock { block() }
-    }
-
-    /**
-     * 全局读锁（协程版本）- 已废弃
-     *
-     * 请改用 [withGlobalReadLockLight]
-     */
-    @Deprecated(
-        message = "Use withGlobalReadLockLight() to avoid unnecessary dispatcher switch",
-        replaceWith = ReplaceWith("withGlobalReadLockLight(block)")
-    )
-    suspend fun <T> withGlobalReadLockSuspend(block: suspend () -> T): T {
-        return globalMutex.withLock {
-            withContext(Dispatchers.IO) { block() }
-        }
-    }
-
-    /**
-     * 全局写锁（协程版本）- 已废弃
-     *
-     * 请改用 [withGlobalWriteLockLight]
-     */
-    @Deprecated(
-        message = "Use withGlobalWriteLockLight() to avoid unnecessary dispatcher switch",
-        replaceWith = ReplaceWith("withGlobalWriteLockLight(block)")
-    )
-    suspend fun <T> withGlobalWriteLockSuspend(block: suspend () -> T): T {
-        return globalMutex.withLock {
-            withContext(Dispatchers.IO) { block() }
-        }
     }
 
     /**
@@ -277,62 +179,7 @@ class SlotLockManager(
     }
 
     fun shutdown() {
-        lockDispatcher.close()
-    }
-}
-
-/**
- * 条纹锁管理器（v3 重构版）
- *
- * 【P1#4 修复】同样删除了所有 runBlocking 方法。
- */
-class StripedLockManager(
-    private val stripes: Int = 16
-) {
-    private val mutexes: Array<Mutex> =
-        Array(stripes) { Mutex() }
-
-    internal val lockDispatcher: ExecutorCoroutineDispatcher by lazy {
-        Executors.newFixedThreadPool(stripes) { r ->
-            Thread(r, "StripedLock-Worker-${System.nanoTime()}").also { it.isDaemon = true }
-        }.asCoroutineDispatcher()
-    }
-
-    private fun getStripe(key: Any): Int {
-        val hash = key.hashCode()
-        return ((hash and 0x7FFFFFFF) % stripes)
-    }
-
-    suspend fun <T> withReadLockSuspend(key: Any, block: suspend () -> T): T {
-        return withContext(lockDispatcher) {
-            mutexes[getStripe(key)].withLock {
-                withContext(Dispatchers.IO) { block() }
-            }
-        }
-    }
-
-    suspend fun <T> withWriteLockSuspend(key: Any, block: suspend () -> T): T {
-        return withContext(lockDispatcher) {
-            mutexes[getStripe(key)].withLock {
-                withContext(Dispatchers.IO) { block() }
-            }
-        }
-    }
-
-    suspend fun <T> withAllStripesReadLockSuspend(block: suspend () -> T): T {
-        return acquireAllStripesLocked(0, block)
-    }
-
-    suspend fun <T> withAllStripesWriteLockSuspend(block: suspend () -> T): T {
-        return acquireAllStripesLocked(0, block)
-    }
-
-    private suspend fun <T> acquireAllStripesLocked(index: Int, block: suspend () -> T): T {
-        if (index >= mutexes.size) return block()
-        return mutexes[index].withLock { acquireAllStripesLocked(index + 1, block) }
-    }
-
-    fun shutdown() {
-        lockDispatcher.close()
+        holdCounts.clear()
+        acquisitionCount.clear()
     }
 }

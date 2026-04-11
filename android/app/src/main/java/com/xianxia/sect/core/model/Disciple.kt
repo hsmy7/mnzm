@@ -603,8 +603,8 @@ data class Disciple(
      * @deprecated 建议直接使用 [DiscipleStatCalculator.getBreakthroughChance]
      * 计算突破成功率
      */
-    fun getBreakthroughChance(pillBonus: Double = 0.0, innerElderComprehension: Int = 0, outerElderComprehensionBonus: Double = 0.0): Double =
-        DiscipleStatCalculator.getBreakthroughChance(this, pillBonus, innerElderComprehension, outerElderComprehensionBonus)
+    fun getBreakthroughChance(): Double =
+        DiscipleStatCalculator.getBreakthroughChance(this)
 
     // ==================== 转换方法（用于迁移到 DiscipleAggregate）====================
 

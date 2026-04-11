@@ -10,6 +10,7 @@ import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.Equipment
 import com.xianxia.sect.core.model.Manual
 import com.xianxia.sect.core.model.ManualProficiencyData
+import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.core.util.ListenerManager
 import com.xianxia.sect.core.util.PerformanceMonitor
 import javax.inject.Inject
@@ -78,7 +79,11 @@ class BattleCoordinator @Inject constructor(
         val context = BattleContext(
             battleType = battleType,
             teamSize = disciples.size,
-            averageTeamRealm = disciples.map { it.realm + it.realmLayer / 10.0 }.average(),
+            averageTeamRealm = GameUtils.calculateTeamAverageRealm(
+                disciples,
+                realmExtractor = { it.realm },
+                layerExtractor = { it.realmLayer }
+            ),
             beastCount = beastCount ?: 1
         )
         
@@ -161,7 +166,11 @@ class BattleCoordinator @Inject constructor(
             return BattleFeasibility.TEAM_TOO_LARGE
         }
         
-        val teamAvgRealm = aliveDisciples.map { it.realm + it.realmLayer / 10.0 }.average()
+        val teamAvgRealm = GameUtils.calculateTeamAverageRealm(
+            aliveDisciples,
+            realmExtractor = { it.realm },
+            layerExtractor = { it.realmLayer }
+        )
         val difficultyGap = beastLevel - teamAvgRealm
         
         return when {

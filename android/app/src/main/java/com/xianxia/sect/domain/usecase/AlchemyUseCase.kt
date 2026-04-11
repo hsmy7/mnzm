@@ -8,7 +8,8 @@ import javax.inject.Singleton
 
 @Singleton
 class AlchemyUseCase @Inject constructor(
-    private val gameEngine: GameEngine
+    private val gameEngine: GameEngine,
+    private val productionSlotRepository: com.xianxia.sect.core.repository.ProductionSlotRepository
 ) {
     data class StartAlchemyParams(
         val slotIndex: Int,
@@ -28,13 +29,8 @@ class AlchemyUseCase @Inject constructor(
     )
     
     suspend fun startAlchemy(params: StartAlchemyParams): AlchemyResult {
-        val slots = gameEngine.getAlchemySlots()
-        if (params.slotIndex < 0 || params.slotIndex >= slots.size) {
-            return AlchemyResult.Error("无效的炼丹槽位")
-        }
-        
-        val slot = slots[params.slotIndex]
-        if (slot.status != AlchemySlotStatus.IDLE) {
+        val slot = productionSlotRepository.getSlotByBuildingId("alchemy", params.slotIndex)
+        if (slot != null && slot.isWorking) {
             return AlchemyResult.Error("该槽位正在使用中")
         }
         

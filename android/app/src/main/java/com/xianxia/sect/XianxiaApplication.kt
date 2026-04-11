@@ -82,8 +82,7 @@ class XianxiaApplication : Application() {
         val result = ManualDatabase.initializeSync(this)
         result.onSuccess { Log.i(TAG, "ManualDatabase 初始化成功") }
             .onFailure { 
-                Log.e(TAG, "ManualDatabase 初始化失败", it)
-                throw RuntimeException("ManualDatabase initialization failed", it)
+                Log.e(TAG, "ManualDatabase 初始化失败，将以空功法库继续运行", it)
             }
         
         Log.i(TAG, "Application initialized with monitoring systems")
@@ -93,7 +92,6 @@ class XianxiaApplication : Application() {
                 val coordinator = StartupRecoveryCoordinator(
                     applicationContext,
                     FunctionalWAL(applicationContext),
-                    null,
                     null,
                     null
                 )

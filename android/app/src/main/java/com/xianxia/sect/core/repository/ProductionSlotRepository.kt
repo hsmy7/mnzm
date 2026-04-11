@@ -350,6 +350,16 @@ class ProductionSlotRepository @Inject constructor(
         }
     }
 
+    suspend fun restoreSlots(slots: List<ProductionSlot>) {
+        globalMutex.withLock {
+            _slots.value = slots
+            cache.invalidate()
+            dao.deleteAll()
+            dao.insertAll(slots)
+            Log.d(TAG, "Restored ${slots.size} slots from save data")
+        }
+    }
+
     fun getStatistics(): SlotCacheStatistics {
         return cache.getStatistics(_slots.value)
     }

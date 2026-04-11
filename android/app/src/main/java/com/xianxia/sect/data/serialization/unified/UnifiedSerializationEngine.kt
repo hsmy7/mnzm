@@ -1,5 +1,3 @@
-@file:Suppress("DEPRECATION")
-
 package com.xianxia.sect.data.serialization.unified
 
 import android.util.Log
@@ -19,15 +17,6 @@ object SerializationConstants {
     const val FORMAT_VERSION: Byte = 3
     const val HEADER_SIZE = 10
     const val CHECKSUM_SIZE = 32
-
-    /**
-     * 全局硬上限：单次序列化数据不允许超过此值。
-     *
-     * @deprecated 已被 [SerializationQuota.totalMaxBytes] 替代。
-     *             此常量保留仅用于向后兼容，新代码应使用 [SerializationQuota.validateAgainstQuota]。
-     */
-    @Deprecated("Replaced by SerializationQuota.totalMaxBytes. Use validateAgainstQuota() instead.")
-    const val MAX_DATA_SIZE = 200 * 1024 * 1024
 
     /** statsCache 默认 TTL：10 分钟 */
     const val STATS_CACHE_TTL_MS = 10 * 60 * 1000L
@@ -277,7 +266,7 @@ class UnifiedSerializationEngine @Inject constructor(
         val serializationTime = System.currentTimeMillis() - serializationStart
 
         // 使用分级配额检查替代单一 MAX_DATA_SIZE
-        val sizeLimit = SerializationConstants.MAX_DATA_SIZE
+        val sizeLimit = SerializationQuota.STRICT.totalMaxBytes
         if (rawData.size > sizeLimit) {
             throw SerializationException(
                 "Data too large: ${rawData.size} bytes (limit: $sizeLimit bytes). " +
@@ -701,10 +690,6 @@ class UnifiedSerializationEngine @Inject constructor(
         // scoutInfo: 每个 Scout 约 150B
         size += gameData.scoutInfo.size * 150L
 
-        // herbGardenPlantSlots: 每个 Slot 约 120B
-        size += gameData.herbGardenPlantSlots.size * 120L
-
-        // manualProficiencies: 粗略估计
         size += gameData.manualProficiencies.values.sumOf { it.size * 80L }
 
         // travelingMerchantItems: 每个 Item 约 100B
@@ -728,8 +713,6 @@ class UnifiedSerializationEngine @Inject constructor(
         // building slots
         size += (gameData.spiritMineSlots.size * 60L +
             gameData.librarySlots.size * 40L +
-            gameData.forgeSlots.size * 80L +
-            gameData.alchemySlots.size * 80L +
             gameData.productionSlots.size * 100L)
 
         // alliances / sectRelations

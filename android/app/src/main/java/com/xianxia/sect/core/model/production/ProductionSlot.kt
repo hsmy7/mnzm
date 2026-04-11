@@ -42,7 +42,11 @@ data class ProductionSlot(
     val outputItemId: String? = null,
     val outputItemName: String = "",
     val outputItemRarity: Int = 1,
-    val outputItemSlot: String = ""
+    val outputItemSlot: String = "",
+    @ColumnInfo(defaultValue = "0")
+    val expectedYield: Int = 0,
+    @ColumnInfo(defaultValue = "0")
+    val harvestAmount: Int = 0
 ) {
     val isIdle: Boolean get() = status == ProductionSlotStatus.IDLE
     val isWorking: Boolean get() = status == ProductionSlotStatus.WORKING
@@ -87,14 +91,16 @@ data class ProductionSlot(
             status = ProductionSlotStatus.IDLE
         )
 
+        fun resolveBuildingType(buildingId: String): BuildingType = when (buildingId.lowercase()) {
+            "forge", "forging" -> BuildingType.FORGE
+            "alchemy", "alchemyroom" -> BuildingType.ALCHEMY
+            "mine", "mining" -> BuildingType.MINING
+            "herb", "herbgarden", "herb_garden" -> BuildingType.HERB_GARDEN
+            else -> BuildingType.ALCHEMY
+        }
+
         fun fromBuildingSlot(buildingSlot: com.xianxia.sect.core.model.BuildingSlot): ProductionSlot {
-            val bType = when (buildingSlot.buildingId.lowercase(java.util.Locale.getDefault())) {
-                "forge", "forging" -> BuildingType.FORGE
-                "alchemy", "alchemyroom" -> BuildingType.ALCHEMY
-                "mine", "mining" -> BuildingType.MINING
-                "herb", "herbgarden", "herb_garden" -> BuildingType.HERB_GARDEN
-                else -> BuildingType.ALCHEMY
-            }
+            val bType = resolveBuildingType(buildingSlot.buildingId)
             return ProductionSlot(
                 id = buildingSlot.id,
                 slotIndex = buildingSlot.slotIndex,
@@ -162,6 +168,28 @@ data class ProductionSlot(
             outputItemName = forgeSlot.equipmentName,
             outputItemRarity = forgeSlot.equipmentRarity,
             outputItemSlot = forgeSlot.equipmentSlot.name
+        )
+
+        fun fromPlantSlot(plantSlot: com.xianxia.sect.core.model.PlantSlotData): ProductionSlot = ProductionSlot(
+            id = java.util.UUID.randomUUID().toString(),
+            slotIndex = plantSlot.index,
+            buildingType = BuildingType.HERB_GARDEN,
+            buildingId = "herbGarden",
+            status = when (plantSlot.status) {
+                "idle" -> ProductionSlotStatus.IDLE
+                "growing" -> ProductionSlotStatus.WORKING
+                "mature" -> ProductionSlotStatus.COMPLETED
+                else -> ProductionSlotStatus.IDLE
+            },
+            recipeId = plantSlot.seedId.ifEmpty { null },
+            recipeName = plantSlot.seedName,
+            startYear = plantSlot.startYear,
+            startMonth = plantSlot.startMonth,
+            duration = plantSlot.growTime,
+            outputItemId = plantSlot.harvestHerbId.ifEmpty { null },
+            outputItemName = plantSlot.seedName,
+            expectedYield = plantSlot.expectedYield,
+            harvestAmount = plantSlot.harvestAmount
         )
     }
 }

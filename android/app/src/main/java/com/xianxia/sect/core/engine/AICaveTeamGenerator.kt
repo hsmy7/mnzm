@@ -6,6 +6,7 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.data.EquipmentDatabase
 import com.xianxia.sect.core.data.ManualDatabase
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.util.GameUtils
 import kotlin.math.sqrt
 import kotlin.random.Random
 
@@ -14,14 +15,15 @@ object AICaveTeamGenerator {
     fun generateAITeam(
         cave: CultivatorCave,
         nearbySects: List<WorldSect>,
-        existingTeams: List<AICaveTeam>
+        existingTeams: List<AICaveTeam>,
+        aiDisciplesMap: Map<String, List<Disciple>>
     ): AICaveTeam? {
         val usedSectIds = existingTeams.map { it.sectId }.toSet()
         
         val eligibleSects = nearbySects.filter { sect ->
             sect.id !in usedSectIds &&
-            sect.aiDisciples.any { disciple -> 
-                disciple.realm >= cave.ownerRealm && disciple.isAlive
+            (aiDisciplesMap[sect.id] ?: emptyList()).any { disciple -> 
+                disciple.realm <= cave.ownerRealm && disciple.isAlive
             }
         }
         
@@ -34,8 +36,9 @@ object AICaveTeamGenerator {
             )
         } ?: return null
         
-        val eligibleDisciples = targetSect.aiDisciples
-            .filter { it.realm >= cave.ownerRealm && it.isAlive }
+        val sectDisciples = aiDisciplesMap[targetSect.id] ?: emptyList()
+        val eligibleDisciples = sectDisciples
+            .filter { it.realm <= cave.ownerRealm && it.isAlive }
             .sortedBy { it.realm }
         
         if (eligibleDisciples.isEmpty()) return null
@@ -48,7 +51,11 @@ object AICaveTeamGenerator {
         
         if (aiDisciples.isEmpty()) return null
         
-        val avgRealm = aiDisciples.map { it.realm }.average().toInt()
+        val avgRealm = GameUtils.calculateBeastRealm(
+            aiDisciples,
+            realmExtractor = { it.realm },
+            layerExtractor = { null }
+        )
         
         return AICaveTeam(
             id = "ai_team_${cave.id}_${System.currentTimeMillis()}_${Random.nextInt(1000)}",

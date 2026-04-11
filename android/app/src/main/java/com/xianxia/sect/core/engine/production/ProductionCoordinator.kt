@@ -25,10 +25,16 @@ data class MaterialSource(
     fun toMaterialMap(): Map<String, Int> {
         val result = mutableMapOf<String, Int>()
         herbs.forEach { herb ->
-            result["herb_${herb.name}_${herb.rarity}"] = herb.quantity
+            val herbData = HerbDatabase.getHerbByName(herb.name)
+            if (herbData != null) {
+                result[herbData.id] = herb.quantity
+            }
         }
         materials.forEach { material ->
-            result["material_${material.name}_${material.rarity}"] = material.quantity
+            val materialData = BeastMaterialDatabase.getMaterialByName(material.name)
+            if (materialData != null) {
+                result[materialData.id] = material.quantity
+            }
         }
         return result
     }
@@ -95,7 +101,7 @@ data class ProductionCompleteResult(
 
 @Singleton
 class ProductionCoordinator @Inject constructor(
-    private val repository: ProductionSlotRepository,
+    val repository: ProductionSlotRepository,
     private val transactionManager: ProductionTransactionManager
 ) {
     companion object {
@@ -149,7 +155,12 @@ class ProductionCoordinator @Inject constructor(
         
         val availableMaterials = mutableMapOf<String, Int>()
         herbs.forEach { herb ->
-            availableMaterials["herb_${herb.name}_${herb.rarity}"] = herb.quantity
+            val herbData = HerbDatabase.getHerbByName(herb.name)
+            if (herbData != null) {
+                availableMaterials[herbData.id] = herb.quantity
+            } else {
+                Log.w(TAG, "Herb not found in database: ${herb.name}, skipping")
+            }
         }
         
         val txResult = transactionManager.executeStartProductionByBuildingId(
@@ -236,7 +247,12 @@ class ProductionCoordinator @Inject constructor(
         
         val availableMaterials = mutableMapOf<String, Int>()
         materials.forEach { material ->
-            availableMaterials["material_${material.name}_${material.rarity}"] = material.quantity
+            val materialData = BeastMaterialDatabase.getMaterialByName(material.name)
+            if (materialData != null) {
+                availableMaterials[materialData.id] = material.quantity
+            } else {
+                Log.w(TAG, "Material not found in database: ${material.name}, skipping")
+            }
         }
         
         val duration = ForgeRecipeDatabase.getDurationByTier(recipe.tier)

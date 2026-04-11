@@ -7,7 +7,6 @@ import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.util.GameUtils
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlin.math.ceil
 import kotlin.math.roundToInt
 import kotlin.random.Random
 
@@ -71,7 +70,7 @@ class BattleSystem @Inject constructor() {
             )
         }
         
-        val teamAvgRealm = GameUtils.calculateTeamAverageRealm(
+        val beastRealm = GameUtils.calculateBeastRealm(
             disciples,
             realmExtractor = { it.realm },
             layerExtractor = { it.realmLayer }
@@ -80,7 +79,7 @@ class BattleSystem @Inject constructor() {
         val actualBeastCount = beastCount ?: Random.nextInt(GameConfig.Battle.MIN_BEAST_COUNT, GameConfig.Battle.MAX_BEAST_COUNT + 1)
         
         val beasts = (1..actualBeastCount).map { index ->
-            createBeast(teamAvgRealm, index, beastType)
+            createBeast(beastRealm, index, beastType)
         }
         
         return Battle(
@@ -92,8 +91,8 @@ class BattleSystem @Inject constructor() {
         )
     }
     
-    private fun createBeast(teamAvgRealm: Double, index: Int, beastType: String? = null): Combatant {
-        val realmIndex = ceil(teamAvgRealm).toInt().coerceIn(0, 9)
+    private fun createBeast(beastRealm: Int, index: Int, beastType: String? = null): Combatant {
+        val realmIndex = beastRealm.coerceIn(0, 9)
 
         val realmConfig = GameConfig.Realm.get(realmIndex)
         val realmMultiplier = realmConfig.multiplier
@@ -104,7 +103,7 @@ class BattleSystem @Inject constructor() {
             GameConfig.Beast.getType(Random.nextInt(GameConfig.Beast.TYPES.size))
         }
 
-        val realmLayer = ((teamAvgRealm - realmIndex) * 10).toInt().coerceIn(1, 9)
+        val realmLayer = Random.nextInt(1, 10) // 1-9层
         val layerBonus = 1.0 + (realmLayer - 1) * 0.1
 
         // 妖兽基础属性（微高于弟子，确保裸装弟子打不过妖兽）
@@ -180,12 +179,16 @@ class BattleSystem @Inject constructor() {
         }.toMutableList()
         val enemies = battle.beasts.map { combatant ->
             BattleEnemyData(
+                id = combatant.id,
                 name = combatant.name,
                 realm = combatant.realm,
                 realmName = combatant.realmName,
-                realmLayer = combatant.realmLayer
+                realmLayer = combatant.realmLayer,
+                hp = combatant.hp,
+                maxHp = combatant.maxHp,
+                isAlive = true
             )
-        }
+        }.toMutableList()
         
         var timedOut = false
         
@@ -214,6 +217,27 @@ class BattleSystem @Inject constructor() {
                         isAlive = !combatant.isDead,
                         hp = combatant.hp,
                         mp = combatant.mp
+                    )
+                } else {
+                    teamMembers[index] = member.copy(
+                        isAlive = false,
+                        hp = 0,
+                        mp = 0
+                    )
+                }
+            }
+
+            enemies.forEachIndexed { index, enemy ->
+                val beast = currentBattle.beasts.find { it.id == enemy.id }
+                if (beast != null) {
+                    enemies[index] = enemy.copy(
+                        isAlive = !beast.isDead,
+                        hp = beast.hp
+                    )
+                } else {
+                    enemies[index] = enemy.copy(
+                        isAlive = false,
+                        hp = 0
                     )
                 }
             }
@@ -873,10 +897,14 @@ data class BattleMemberData(
 )
 
 data class BattleEnemyData(
+    val id: String = "",
     val name: String = "",
     val realm: Int = 9,
     val realmName: String = "",
-    val realmLayer: Int = 0
+    val realmLayer: Int = 0,
+    val hp: Int = 0,
+    val maxHp: Int = 0,
+    var isAlive: Boolean = true
 )
 
 data class BattleEnemy(

@@ -112,7 +112,7 @@ fun LawEnforcementHallDialog(
                 LawDisciplesSection(
                     lawDisciples = lawDisciples,
                     onDiscipleClick = { index -> showDiscipleSelection = index },
-                    onDiscipleRemove = { index -> viewModel.removeDirectDisciple("lawEnforcementDisciples", index) }
+                    onDiscipleRemove = { index -> viewModel.removeDirectDisciple("lawEnforcement", index) }
                 )
             }
         },
@@ -143,7 +143,7 @@ fun LawEnforcementHallDialog(
             currentDiscipleId = currentDisciple?.discipleId,
             requirementText = "需要内门弟子及以上",
             onSelect = { disciple ->
-                viewModel.assignDirectDisciple("lawEnforcementDisciples", slotIndex, disciple.id)
+                viewModel.assignDirectDisciple("lawEnforcement", slotIndex, disciple.id)
                 showDiscipleSelection = null
             },
             onDismiss = { showDiscipleSelection = null }

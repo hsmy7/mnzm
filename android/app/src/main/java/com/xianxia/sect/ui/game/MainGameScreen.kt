@@ -37,6 +37,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.window.Dialog
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.activity.compose.BackHandler
+import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.xianxia.sect.core.GameConfig
@@ -59,13 +61,14 @@ import com.xianxia.sect.core.model.MerchantItem
 import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.warehouse.WarehousePager
+import com.xianxia.sect.core.model.WorldMapRenderData
 import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.model.BattleTeam
 import com.xianxia.sect.core.model.BattleTeamSlot
 import com.xianxia.sect.core.model.BattleSlotType
 import com.xianxia.sect.core.model.ExplorationTeam
-import com.xianxia.sect.core.model.MapMarker
-import com.xianxia.sect.core.model.MapMarkerType
+
+import com.xianxia.sect.core.model.CaveExplorationTeam
 import com.xianxia.sect.core.model.CultivatorCave
 import com.xianxia.sect.core.model.CaveStatus
 import com.xianxia.sect.core.model.BattleLog
@@ -80,6 +83,10 @@ import com.xianxia.sect.core.util.sortedByFollowAttributeAndRealm
 import com.xianxia.sect.data.model.SaveSlot
 import com.xianxia.sect.ui.state.DialogStateManager.DialogType
 import com.xianxia.sect.ui.theme.GameColors
+import com.xianxia.sect.ui.game.map.MapItem
+import com.xianxia.sect.ui.game.map.MapItemMapper
+import com.xianxia.sect.ui.game.map.CaveExplorationPathData
+import com.xianxia.sect.ui.game.map.WorldMapScreen
 import com.xianxia.sect.ui.components.discipleCardBorder
 import com.xianxia.sect.ui.components.DiscipleAttrText
 import com.xianxia.sect.ui.components.DiscipleCardStyles
@@ -141,6 +148,7 @@ fun MainGameScreen(
     // gameData 包含资源、日期等，每 tick (200ms) 都可能变化
     // derivedStateOf 确保：只有当 UI 实际读取的字段变化时才触发重组
     val gameData by viewModel.gameData.collectAsState()
+    val mapRenderData by viewModel.worldMapRenderData.collectAsState()
 
     // [M7-OPT-2] 弟子列表 - 高频变化（修炼进度每 tick 更新）
     // 使用 derivedStateOf 缓存过滤结果，避免每次重组都重新计算
@@ -283,8 +291,9 @@ fun MainGameScreen(
 
         if (showWorldMapDialog) {
             WorldMapDialog(
-                worldSects = gameData?.worldMapSects ?: emptyList(),
+                worldSects = mapRenderData.worldMapSects,
                 scoutTeams = teams,
+                mapRenderData = mapRenderData,
                 gameData = gameData,
                 disciples = disciples,
                 viewModel = viewModel,
@@ -3138,6 +3147,7 @@ private fun BuildingsTab(viewModel: GameViewModel) {
     val disciples by viewModel.discipleAggregates.collectAsState()
     val equipment by viewModel.equipment.collectAsState()
     val pills by viewModel.pills.collectAsState()
+    val productionSlots by viewModel.productionSlots.collectAsState()
     
     val currentDialog by viewModel.dialogStateManager.currentDialog.collectAsState()
 
@@ -3234,7 +3244,26 @@ private fun BuildingsTab(viewModel: GameViewModel) {
 
     if (showHerbGardenDialog) {
         HerbGardenDialog(
-            plantSlots = gameData?.herbGardenPlantSlots ?: emptyList(),
+            plantSlots = productionSlots.filter {
+                it.buildingType == com.xianxia.sect.core.model.production.BuildingType.HERB_GARDEN
+            }.map { slot ->
+                com.xianxia.sect.core.model.PlantSlotData(
+                    index = slot.slotIndex,
+                    status = when (slot.status) {
+                        com.xianxia.sect.core.model.production.ProductionSlotStatus.IDLE -> "idle"
+                        com.xianxia.sect.core.model.production.ProductionSlotStatus.WORKING -> "growing"
+                        com.xianxia.sect.core.model.production.ProductionSlotStatus.COMPLETED -> "mature"
+                    },
+                    seedId = slot.recipeId ?: "",
+                    seedName = slot.recipeName,
+                    startYear = slot.startYear,
+                    startMonth = slot.startMonth,
+                    growTime = slot.duration,
+                    expectedYield = slot.expectedYield,
+                    harvestAmount = slot.harvestAmount,
+                    harvestHerbId = slot.outputItemId ?: ""
+                )
+            },
             seeds = seeds,
             gameData = gameData,
             disciples = disciples.filter { it.isAlive },
@@ -5552,6 +5581,7 @@ private fun CommonDialog(
 private fun WorldMapDialog(
     worldSects: List<WorldSect>,
     scoutTeams: List<ExplorationTeam> = emptyList(),
+    mapRenderData: WorldMapRenderData,
     gameData: GameData?,
     disciples: List<DiscipleAggregate>,
     viewModel: GameViewModel,
@@ -5562,60 +5592,59 @@ private fun WorldMapDialog(
     var showSectDetail by remember { mutableStateOf(false) }
     var selectedCave by remember { mutableStateOf<CultivatorCave?>(null) }
     var showCaveDetail by remember { mutableStateOf(false) }
-    
-    val caves = gameData?.cultivatorCaves?.filter { it.status != CaveStatus.EXPIRED && it.status != CaveStatus.EXPLORED } ?: emptyList()
-    
-    val playerSect = gameData?.worldMapSects?.find { it.isPlayerSect }
+
+    val caves: List<CultivatorCave> = mapRenderData.cultivatorCaves.filter { it.status != CaveStatus.EXPIRED && it.status != CaveStatus.EXPLORED }
+    val playerSect = mapRenderData.worldMapSects.find { it.isPlayerSect }
     val playerSectX = playerSect?.x ?: 2000f
     val playerSectY = playerSect?.y ?: 1750f
-    
-    val caveExplorationTeams = gameData?.caveExplorationTeams ?: emptyList()
-    
-    val markers = remember(worldSects) {
-        worldSects.map { sect ->
-            com.xianxia.sect.core.model.MapMarker(
-                id = sect.id,
-                name = sect.name,
-                type = com.xianxia.sect.core.model.MapMarkerType.SECT,
-                x = (sect.x / 4000f).coerceIn(0f, 1f),
-                y = (sect.y / 3500f).coerceIn(0f, 1f),
-                level = sect.level,
-                ownerId = if (sect.isPlayerSect) "player" else sect.id,
-                isCapital = sect.isPlayerSect,
-                description = if (sect.isPlayerSect) "" else sect.levelName,
-                displayState = com.xianxia.sect.core.model.SectDisplayState(
-                    isPlayerSect = sect.isPlayerSect,
-                    isPlayerOccupied = sect.isPlayerOccupied,
-                    occupierSectId = sect.occupierSectId,
-                    isRighteous = sect.isRighteous
-                )
-            )
-        }
+    val caveExplorationTeams: List<CaveExplorationTeam> = mapRenderData.caveExplorationTeams
+    val movableTargetIds = if (battleTeamMoveMode) viewModel.getMovableTargetSectIds().toSet() else emptySet()
+
+    val sectItems = remember(worldSects, movableTargetIds) {
+        MapItemMapper.fromWorldSects(worldSects, movableTargetIds)
     }
-    
+
+    val dynamicItems = remember(scoutTeams, caves, caveExplorationTeams, mapRenderData.battleTeam, mapRenderData.aiBattleTeams, playerSect) {
+        val items = mutableListOf<MapItem>()
+        items.addAll(MapItemMapper.fromScoutTeams(scoutTeams))
+        items.addAll(MapItemMapper.fromCaves(caves))
+        items.addAll(MapItemMapper.fromCaveExplorationTeams(caveExplorationTeams))
+        items.addAll(MapItemMapper.fromBattleTeam(mapRenderData.battleTeam, playerSect))
+        val (aiTeams, battleIndicators) = MapItemMapper.fromAIBattleTeams(
+            mapRenderData.aiBattleTeams, worldSects
+        )
+        items.addAll(aiTeams)
+        items.addAll(battleIndicators)
+        items
+    }
+
+    val mapItems = remember(sectItems, dynamicItems) {
+        sectItems + dynamicItems
+    }
+
     val paths = remember(worldSects) {
-        val sectIds = worldSects.map { it.id }.toSet()
-        val pathSet = mutableSetOf<Pair<String, String>>()
-        worldSects.forEach { sect ->
-            (sect.connectedSectIds ?: emptyList()).forEach { connectedId ->
-                if (connectedId in sectIds) {
-                    val (id1, id2) = if (sect.id < connectedId) {
-                        sect.id to connectedId
-                    } else {
-                        connectedId to sect.id
-                    }
-                    pathSet.add(id1 to id2)
-                }
-            }
-        }
-        pathSet.map { (from, to) -> com.xianxia.sect.core.model.MapPath(from, to) }
+        MapItemMapper.fromPaths(worldSects)
     }
-    
-    val window = androidx.compose.ui.platform.LocalContext.current.let {
+
+    val caveExplorationPaths = remember(caveExplorationTeams, caves) {
+        caveExplorationTeams.filter { it.isMoving }.mapNotNull { team ->
+            val cave = caves.find { it.id == team.caveId }
+            if (cave != null) {
+                CaveExplorationPathData(
+                    startWorldX = team.startX,
+                    startWorldY = team.startY,
+                    endWorldX = team.targetX,
+                    endWorldY = team.targetY
+                )
+            } else null
+        }
+    }
+
+    val window = LocalContext.current.let {
         (it as? android.app.Activity)?.window
     }
-    
-    androidx.compose.runtime.LaunchedEffect(Unit) {
+
+    LaunchedEffect(Unit) {
         window?.let { w ->
             androidx.core.view.WindowCompat.setDecorFitsSystemWindows(w, false)
             androidx.core.view.WindowInsetsControllerCompat(w, w.decorView).let { controller ->
@@ -5625,77 +5654,67 @@ private fun WorldMapDialog(
             }
         }
     }
-    
-    androidx.compose.runtime.DisposableEffect(Unit) {
+
+    DisposableEffect(Unit) {
         onDispose {
+            window?.let { w ->
+                androidx.core.view.WindowCompat.setDecorFitsSystemWindows(w, true)
+                val controller = androidx.core.view.WindowInsetsControllerCompat(w, w.decorView)
+                controller.show(androidx.core.view.WindowInsetsCompat.Type.statusBars())
+                controller.show(androidx.core.view.WindowInsetsCompat.Type.navigationBars())
+            }
         }
     }
-    
-    androidx.compose.ui.window.Popup(
-        alignment = Alignment.TopStart,
-        offset = androidx.compose.ui.unit.IntOffset(0, 0),
-        onDismissRequest = onDismiss,
-        properties = androidx.compose.ui.window.PopupProperties(
-            focusable = true,
-            dismissOnBackPress = true,
-            dismissOnClickOutside = false,
-            usePlatformDefaultWidth = false,
-            clippingEnabled = false
-        )
-    ) {
-        Box(
-            modifier = androidx.compose.ui.Modifier
-                .fillMaxSize()
-                .background(Color(0xFFA8B878))
-        ) {
-            WorldMapScreen(
-                markers = markers,
-                paths = paths,
-                scoutTeams = scoutTeams,
-                caves = caves,
-                caveExplorationTeams = caveExplorationTeams,
-                battleTeam = gameData?.battleTeam,
-                aiBattleTeams = gameData?.aiBattleTeams ?: emptyList(),
-                worldSects = worldSects,
-                playerSectX = playerSectX,
-                playerSectY = playerSectY,
-                movableTargetSectIds = if (battleTeamMoveMode) viewModel.getMovableTargetSectIds() else emptyList(),
-                onBack = onDismiss,
-                onMarkerClick = { marker ->
-                    val sect = worldSects.find { it.id == marker.id }
-                    if (sect != null) {
-                        selectedSect = sect
-                        showSectDetail = true
-                    }
-                },
-                onCaveClick = { cave ->
-                    selectedCave = cave
-                    showCaveDetail = true
-                },
-                onCreateTeamClick = { viewModel.openBattleTeamDialog() },
-                onManageTeamClick = { viewModel.openBattleTeamDialog() },
-                onBattleTeamMarkerClick = { viewModel.openBattleTeamDialog() },
-                onMovableTargetClick = { targetSectId ->
-                    viewModel.selectBattleTeamTarget(targetSectId)
-                }
-            )
-        }
-    }
-    
+
+    BackHandler(onBack = onDismiss)
+
+    WorldMapScreen(
+        items = mapItems,
+        paths = paths,
+        caveExplorationPaths = caveExplorationPaths,
+        hasBattleTeam = mapRenderData.battleTeam != null,
+        isBattleTeamAtSect = mapRenderData.battleTeam?.isAtSect == true,
+        focusWorldX = playerSectX,
+        focusWorldY = playerSectY,
+        onBack = onDismiss,
+        onSectClick = { sectItem ->
+            val sect = worldSects.find { it.id == sectItem.id }
+            if (sect != null) {
+                selectedSect = sect
+                showSectDetail = true
+            }
+        },
+        onCaveClick = { caveItem ->
+            val cave = caves.find { it.id == caveItem.id }
+            if (cave != null) {
+                selectedCave = cave
+                showCaveDetail = true
+            }
+        },
+        onBattleTeamClick = {
+            viewModel.openBattleTeamDialog()
+        },
+        onMovableTargetClick = { targetSectId ->
+            viewModel.selectBattleTeamTarget(targetSectId)
+        },
+        onCreateTeamClick = { viewModel.openBattleTeamDialog() },
+        onManageTeamClick = { viewModel.openBattleTeamDialog() }
+    )
+
     if (showSectDetail) {
         selectedSect?.let { sect ->
             WorldMapSectDetailDialog(
                 sect = sect,
                 gameData = gameData,
                 viewModel = viewModel,
-                onDismiss = { 
+                onDismiss = {
                     showSectDetail = false
                     selectedSect = null
                 }
             )
         }
     }
-    
+
     if (showCaveDetail) {
         selectedCave?.let { cave ->
             CaveDetailDialog(
@@ -6376,8 +6395,9 @@ private fun CaveDiscipleSelectionDialog(
         9 to "炼气"
     )
     
+    // realm越小境界越高，只显示境界不低于洞府等级的筛选选项
     val realmFilters = remember(allRealmFilters, caveRealm) {
-        allRealmFilters.filter { it.first >= caveRealm }
+        allRealmFilters.filter { it.first <= caveRealm }
     }
 
     val availableDisciples = remember(disciples, caveRealm) {
@@ -6385,7 +6405,8 @@ private fun CaveDiscipleSelectionDialog(
             disciple.status == DiscipleStatus.IDLE &&
             disciple.realmLayer > 0 &&
             disciple.age >= 5 &&
-            disciple.realm >= caveRealm
+            // realm越小境界越高，disciple.realm <= caveRealm 表示弟子境界不低于洞府等级
+            disciple.realm <= caveRealm
         }.sortedByFollowAndRealm()
     }
 

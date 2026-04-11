@@ -161,13 +161,27 @@ class ProductionTransactionManager @Inject constructor(
     ): ProductionTransactionResult {
         Log.d(TAG, "Starting production by buildingId: $buildingId[$slotIndex] recipe=$recipeId")
         
-        val slot = repository.getSlotByBuildingId(buildingId, slotIndex)
+        var slot = repository.getSlotByBuildingId(buildingId, slotIndex)
         if (slot == null) {
-            Log.w(TAG, "Slot not found: $buildingId[$slotIndex]")
-            return ProductionTransactionResult(
-                success = false,
-                error = ProductionTransactionError.SlotNotFound(BuildingType.ALCHEMY, slotIndex)
+            val buildingType = ProductionSlot.resolveBuildingType(buildingId)
+            slot = ProductionSlot.createIdle(
+                slotIndex = slotIndex,
+                buildingType = buildingType,
+                buildingId = buildingId
             )
+            val addResult = repository.addSlot(slot)
+            if (addResult.isFailure) {
+                slot = repository.getSlotByBuildingId(buildingId, slotIndex)
+                if (slot == null) {
+                    Log.e(TAG, "Failed to create slot for $buildingId[$slotIndex]: ${addResult.exceptionOrNull()?.message}")
+                    return ProductionTransactionResult(
+                        success = false,
+                        error = ProductionTransactionError.SlotNotFound(buildingType, slotIndex)
+                    )
+                }
+            } else {
+                Log.d(TAG, "Created idle slot for $buildingId[$slotIndex]")
+            }
         }
         
         if (slot.status == ProductionSlotStatus.WORKING) {

@@ -2,6 +2,7 @@ package com.xianxia.sect.core.data
 
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.Talent
+import java.util.Locale
 import kotlin.math.abs
 import kotlin.random.Random
 
@@ -138,7 +139,7 @@ object TalentDatabase {
             add(TalentData(
                 id = "r${cfg.rarity}_cult_speed",
                 name = "灵脉流转",
-                description = "修炼速度+${String.format("%.0f", cfg.value * 100)}%",
+                description = "修炼速度+${String.format(Locale.ROOT, "%.0f", cfg.value * 100)}%",
                 rarity = cfg.rarity,
                 effects = mapOf("cultivationSpeed" to cfg.value),
                 isNegative = false,
@@ -150,7 +151,7 @@ object TalentDatabase {
             add(TalentData(
                 id = "r${cfg.rarity}_break_chance",
                 name = "悟道通玄",
-                description = "突破概率+${String.format("%.1f", cfg.value * 100)}%",
+                description = "突破概率+${String.format(Locale.ROOT, "%.1f", cfg.value * 100)}%",
                 rarity = cfg.rarity,
                 effects = mapOf("breakthroughChance" to cfg.value),
                 isNegative = false,
@@ -162,7 +163,7 @@ object TalentDatabase {
             add(TalentData(
                 id = "r${cfg.rarity}_lifespan",
                 name = "寿元绵长",
-                description = "寿命+${String.format("%.0f", cfg.value * 100)}%",
+                description = "寿命+${String.format(Locale.ROOT, "%.0f", cfg.value * 100)}%",
                 rarity = cfg.rarity,
                 effects = mapOf("lifespan" to cfg.value),
                 isNegative = false,
@@ -174,7 +175,7 @@ object TalentDatabase {
             add(TalentData(
                 id = "r${cfg.rarity}_bat_phy_atk",
                 name = "力破千军",
-                description = "物理攻击+${String.format("%.0f", cfg.value * 100)}%",
+                description = "物理攻击+${String.format(Locale.ROOT, "%.0f", cfg.value * 100)}%",
                 rarity = cfg.rarity,
                 effects = mapOf("physicalAttack" to cfg.value),
                 isNegative = false,
@@ -186,7 +187,7 @@ object TalentDatabase {
             add(TalentData(
                 id = "r${cfg.rarity}_bat_mag_atk",
                 name = "法贯长虹",
-                description = "法术攻击+${String.format("%.0f", cfg.value * 100)}%",
+                description = "法术攻击+${String.format(Locale.ROOT, "%.0f", cfg.value * 100)}%",
                 rarity = cfg.rarity,
                 effects = mapOf("magicAttack" to cfg.value),
                 isNegative = false,
@@ -198,7 +199,7 @@ object TalentDatabase {
             add(TalentData(
                 id = "r${cfg.rarity}_bat_phy_def",
                 name = "铁壁铜墙",
-                description = "物理防御+${String.format("%.0f", cfg.value * 100)}%",
+                description = "物理防御+${String.format(Locale.ROOT, "%.0f", cfg.value * 100)}%",
                 rarity = cfg.rarity,
                 effects = mapOf("physicalDefense" to cfg.value),
                 isNegative = false,
@@ -210,7 +211,7 @@ object TalentDatabase {
             add(TalentData(
                 id = "r${cfg.rarity}_bat_mag_def",
                 name = "灵护元神",
-                description = "法术防御+${String.format("%.0f", cfg.value * 100)}%",
+                description = "法术防御+${String.format(Locale.ROOT, "%.0f", cfg.value * 100)}%",
                 rarity = cfg.rarity,
                 effects = mapOf("magicDefense" to cfg.value),
                 isNegative = false,
@@ -222,7 +223,7 @@ object TalentDatabase {
             add(TalentData(
                 id = "r${cfg.rarity}_bat_hp",
                 name = "气血充盈",
-                description = "生命上限+${String.format("%.0f", cfg.value * 100)}%",
+                description = "生命上限+${String.format(Locale.ROOT, "%.0f", cfg.value * 100)}%",
                 rarity = cfg.rarity,
                 effects = mapOf("maxHp" to cfg.value),
                 isNegative = false,
@@ -234,7 +235,7 @@ object TalentDatabase {
             add(TalentData(
                 id = "r${cfg.rarity}_bat_mp",
                 name = "灵海浩瀚",
-                description = "法力上限+${String.format("%.0f", cfg.value * 100)}%",
+                description = "法力上限+${String.format(Locale.ROOT, "%.0f", cfg.value * 100)}%",
                 rarity = cfg.rarity,
                 effects = mapOf("maxMp" to cfg.value),
                 isNegative = false,
@@ -246,7 +247,7 @@ object TalentDatabase {
             add(TalentData(
                 id = "r${cfg.rarity}_bat_speed",
                 name = "身轻如燕",
-                description = "速度+${String.format("%.0f", cfg.value * 100)}%",
+                description = "速度+${String.format(Locale.ROOT, "%.0f", cfg.value * 100)}%",
                 rarity = cfg.rarity,
                 effects = mapOf("speed" to cfg.value),
                 isNegative = false,
@@ -258,7 +259,7 @@ object TalentDatabase {
             add(TalentData(
                 id = "r${cfg.rarity}_bat_crit",
                 name = "杀意凛然",
-                description = "暴击率+${String.format("%.1f", cfg.value * 100)}%",
+                description = "暴击率+${String.format(Locale.ROOT, "%.1f", cfg.value * 100)}%",
                 rarity = cfg.rarity,
                 effects = mapOf("critRate" to cfg.value),
                 isNegative = false,

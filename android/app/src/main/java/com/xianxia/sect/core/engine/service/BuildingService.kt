@@ -2,37 +2,23 @@
 
 package com.xianxia.sect.core.engine.service
 
+import com.xianxia.sect.core.GameConfig
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.data.*
 import com.xianxia.sect.core.engine.production.ProductionCoordinator
 import com.xianxia.sect.core.engine.HerbGardenSystem
 import com.xianxia.sect.core.model.production.ProductionError
+import com.xianxia.sect.core.model.production.ProductionSlot
+import com.xianxia.sect.core.model.production.ProductionSlotStatus
 import com.xianxia.sect.core.model.production.BuildingType
+import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.core.util.BuildingNames
 import kotlin.random.Random
 
-/**
- * 建筑槽位服务 - 主要服务于锻造(forge)建筑槽位的弟子分配与生产管理
- *
- * ## 类名说明
- * 类名为 `BuildingService`（保留原名以兼容构造函数调用方），但当前实际职责范围
- * 集中于 **锻造(forge)建筑槽位** 的管理。炼丹(alchemy)和灵药园(herbGarden)的
- * 生产逻辑分别由独立的 `startAlchemy`/`collectAlchemyResult` 和
- * `harvestHerb`/`clearPlantSlot` 方法处理。
- *
- * ## 核心职责域（forge 槽位）
- * - [assignDiscipleToBuilding] - 分配/移除弟子到锻造槽位
- * - [removeDiscipleFromBuilding] - 从锻造槽位移除弟子
- * - [getBuildingSlots] / [getBuildingSlotsForBuilding] - 查询 forgeSlots
- * - [startBuildingWork] - 启动锻造槽位的生产工作
- * - [collectBuildingResult] - 收集锻造槽位的生产结果
- *
- * ## 附加职责（非 forge 槽位，独立方法组）
- * - 炼丹生产: [startAlchemy], [collectAlchemyResult], [checkAndCollectCompletedAlchemySlots]
- * - 灵药园: [harvestHerb], [clearPlantSlot]
- */
 class BuildingService constructor(
     private val _gameData: MutableStateFlow<GameData>,
     private val _disciples: MutableStateFlow<List<Disciple>>,
@@ -41,39 +27,29 @@ class BuildingService constructor(
     private val _equipment: MutableStateFlow<List<Equipment>>,
     private val _pills: MutableStateFlow<List<Pill>>,
     private val productionCoordinator: ProductionCoordinator,
+    private val productionSlotRepository: ProductionSlotRepository,
     private val addEvent: (String, EventType) -> Unit,
-    private val transactionMutex: Any
+    private val transactionMutex: Any,
+    private val scope: CoroutineScope
 ) {
     companion object {
         private const val TAG = "BuildingService"
     }
 
-    // ==================== StateFlow 暴露 ====================
-
-    /**
-     * Get building slots (forge) StateFlow via GameData
-     */
     fun getBuildingSlots(): List<BuildingSlot> {
-        return _gameData.value.forgeSlots
+        return productionSlotRepository.getSlotsByBuildingId("forge").map { it.toBuildingSlot() }
     }
 
-    /**
-     * Get alchemy slots StateFlow via GameData
-     */
     fun getAlchemySlots(): List<AlchemySlot> {
-        return _gameData.value.alchemySlots
+        return productionSlotRepository.getSlotsByType(BuildingType.ALCHEMY).map { it.toAlchemySlot() }
     }
 
-    // ==================== 建筑槽位管理 ====================
+    fun getPlantSlots(): List<PlantSlotData> {
+        return productionSlotRepository.getSlotsByType(BuildingType.HERB_GARDEN).map { it.toPlantSlotData() }
+    }
 
-    /**
-     * Assign disciple to building slot
-     */
     fun assignDiscipleToBuilding(buildingId: String, slotIndex: Int, discipleId: String) {
         synchronized(transactionMutex) {
-            val data = _gameData.value
-
-            // Handle removal case (empty string means remove)
             if (discipleId.isEmpty()) {
                 removeDiscipleFromBuildingInternal(buildingId, slotIndex)
                 return
@@ -85,88 +61,71 @@ class BuildingService constructor(
                 return
             }
 
-            // Age check
             if (disciple.age < 5) {
                 addEvent("${disciple.name}年龄太小，无法工作", EventType.WARNING)
                 return
             }
 
-            val existingSlot = data.forgeSlots.find {
-                it.buildingId == buildingId && it.slotIndex == slotIndex
-            }
+            val existingSlot = productionSlotRepository.getSlotByBuildingId(buildingId, slotIndex)
 
-            // Check if slot is working
-            if (existingSlot != null && existingSlot.status == SlotStatus.WORKING) {
+            if (existingSlot != null && existingSlot.isWorking) {
                 addEvent("该槽位正在工作中，无法更换弟子", EventType.WARNING)
                 return
             }
 
-            // Clear old disciple from slot
-            existingSlot?.discipleId?.let { oldDiscipleId ->
+            existingSlot?.assignedDiscipleId?.let { oldDiscipleId ->
                 updateDiscipleStatus(oldDiscipleId, DiscipleStatus.IDLE)
             }
 
-            // Create or update slot
-            val newSlot = existingSlot?.copy(discipleId = discipleId) ?: BuildingSlot(
-                buildingId = buildingId,
-                slotIndex = slotIndex,
-                discipleId = discipleId,
-                status = SlotStatus.IDLE
-            )
-
-            _gameData.value = data.copy(forgeSlots = data.forgeSlots
-                .filter { !(it.buildingId == buildingId && it.slotIndex == slotIndex) } + newSlot)
+            scope.launch {
+                if (existingSlot != null) {
+                    productionSlotRepository.updateSlotByBuildingId(buildingId, slotIndex) { slot ->
+                        slot.copy(assignedDiscipleId = discipleId, assignedDiscipleName = disciple.name)
+                    }
+                } else {
+                    val buildingType = ProductionSlot.resolveBuildingType(buildingId)
+                    productionSlotRepository.addSlot(ProductionSlot.createIdle(
+                        slotIndex = slotIndex,
+                        buildingType = buildingType,
+                        buildingId = buildingId
+                    ).copy(assignedDiscipleId = discipleId, assignedDiscipleName = disciple.name))
+                }
+            }
         }
     }
 
-    /**
-     * Remove disciple from building slot
-     */
     fun removeDiscipleFromBuilding(buildingId: String, slotIndex: Int) {
         synchronized(transactionMutex) {
             removeDiscipleFromBuildingInternal(buildingId, slotIndex)
         }
     }
 
-    /**
-     * Internal implementation for removing disciple from building
-     */
     private fun removeDiscipleFromBuildingInternal(buildingId: String, slotIndex: Int) {
-        val data = _gameData.value
-        val existingSlot = data.forgeSlots.find {
-            it.buildingId == buildingId && it.slotIndex == slotIndex
-        } ?: return
+        val existingSlot = productionSlotRepository.getSlotByBuildingId(buildingId, slotIndex) ?: return
 
-        // Check if working
-        if (existingSlot.status == SlotStatus.WORKING) {
+        if (existingSlot.isWorking) {
             addEvent("该槽位正在工作中，无法移除弟子", EventType.WARNING)
             return
         }
 
-        existingSlot.discipleId?.let { oldDiscipleId ->
+        existingSlot.assignedDiscipleId?.let { oldDiscipleId ->
             val disciple = _disciples.value.find { it.id == oldDiscipleId }
             disciple?.let {
                 addEvent("${it.name}从${getBuildingName(buildingId)}移除", EventType.INFO)
             }
         }
 
-        // Remove slot
-        _gameData.value = data.copy(forgeSlots = data.forgeSlots
-            .filter { !(it.buildingId == buildingId && it.slotIndex == slotIndex) })
+        scope.launch {
+            productionSlotRepository.updateSlotByBuildingId(buildingId, slotIndex) { slot ->
+                slot.copy(assignedDiscipleId = null, assignedDiscipleName = "")
+            }
+        }
     }
 
-    /**
-     * Get all slots for a specific building
-     */
     fun getBuildingSlotsForBuilding(buildingId: String): List<BuildingSlot> {
-        return _gameData.value.forgeSlots.filter { it.buildingId == buildingId }
+        return productionSlotRepository.getSlotsByBuildingId(buildingId).map { it.toBuildingSlot() }
     }
 
-    // ==================== 生产操作 ====================
-
-    /**
-     * Start alchemy work in a slot
-     */
     suspend fun startAlchemy(slotIndex: Int, recipeId: String): Boolean {
         val maxSlotCount = 3
         if (slotIndex < 0 || slotIndex >= maxSlotCount) {
@@ -175,6 +134,12 @@ class BuildingService constructor(
         }
 
         val data = _gameData.value
+
+        val alchemySlot = productionSlotRepository.getSlotByBuildingId("alchemy", slotIndex)
+        if (alchemySlot != null && alchemySlot.isWorking) {
+            addEvent("该炼丹槽位正在工作中", EventType.WARNING)
+            return false
+        }
 
         val result = productionCoordinator.startAlchemyAtomic(
             slotIndex = slotIndex,
@@ -190,7 +155,6 @@ class BuildingService constructor(
             !result.success -> {
                 val error = result.error
                 when (error) {
-                    is ProductionError.SlotBusy -> addEvent("该炼丹槽位正在工作中", EventType.WARNING)
                     is ProductionError.InsufficientMaterials -> addEvent("草药材料不足，无法开始炼丹", EventType.WARNING)
                     is ProductionError.RecipeNotFound -> addEvent("配方不存在", EventType.ERROR)
                     else -> addEvent("无法开始炼丹", EventType.WARNING)
@@ -201,35 +165,47 @@ class BuildingService constructor(
                 _herbs.value = result.materialUpdate.herbs
 
                 val recipe = PillRecipeDatabase.getRecipeById(recipeId) ?: return false
+                val actualDuration = calculateWorkDurationWithAllDisciples(recipe.duration, "alchemy")
 
-                val newAlchemySlot = AlchemySlot(
-                    slotIndex = slotIndex,
-                    recipeId = recipeId,
-                    recipeName = recipe.name,
-                    pillName = recipe.name,
-                    pillRarity = recipe.rarity,
-                    startYear = data.gameYear,
-                    startMonth = data.gameMonth,
-                    duration = recipe.duration,
-                    status = AlchemySlotStatus.WORKING,
-                    successRate = recipe.successRate,
-                    requiredMaterials = recipe.materials
-                )
-
-                val currentAlchemySlots = data.alchemySlots
-                _gameData.value = if (slotIndex < currentAlchemySlots.size) {
-                    data.copy(alchemySlots = currentAlchemySlots.mapIndexed { index, s ->
-                        if (index == slotIndex) newAlchemySlot else s
-                    })
-                } else {
-                    val filledSlots = currentAlchemySlots.toMutableList()
-                    while (filledSlots.size < slotIndex) {
-                        filledSlots.add(AlchemySlot(slotIndex = filledSlots.size))
+                scope.launch {
+                    val existingSlot = productionSlotRepository.getSlotByBuildingId("alchemy", slotIndex)
+                    if (existingSlot != null) {
+                        productionSlotRepository.updateSlotByBuildingId("alchemy", slotIndex) { slot ->
+                            slot.copy(
+                                status = ProductionSlotStatus.WORKING,
+                                recipeId = recipeId,
+                                recipeName = recipe.name,
+                                startYear = data.gameYear,
+                                startMonth = data.gameMonth,
+                                duration = actualDuration,
+                                successRate = recipe.successRate,
+                                requiredMaterials = recipe.materials,
+                                outputItemId = recipeId,
+                                outputItemName = recipe.name,
+                                outputItemRarity = recipe.rarity
+                            )
+                        }
+                    } else {
+                        productionSlotRepository.addSlot(ProductionSlot(
+                            slotIndex = slotIndex,
+                            buildingType = BuildingType.ALCHEMY,
+                            buildingId = "alchemy",
+                            status = ProductionSlotStatus.WORKING,
+                            recipeId = recipeId,
+                            recipeName = recipe.name,
+                            startYear = data.gameYear,
+                            startMonth = data.gameMonth,
+                            duration = actualDuration,
+                            successRate = recipe.successRate,
+                            requiredMaterials = recipe.materials,
+                            outputItemId = recipeId,
+                            outputItemName = recipe.name,
+                            outputItemRarity = recipe.rarity
+                        ))
                     }
-                    filledSlots.add(newAlchemySlot)
-                    data.copy(alchemySlots = filledSlots)
                 }
 
+                addEvent("开始在炼丹炉工作", EventType.INFO)
                 return true
             }
         }
@@ -237,11 +213,14 @@ class BuildingService constructor(
         return false
     }
 
-    /**
-     * Start forging work in a slot
-     */
     suspend fun startForging(slotIndex: Int, recipeId: String): Boolean {
         val data = _gameData.value
+
+        val forgeSlot = productionSlotRepository.getSlotByBuildingId("forge", slotIndex)
+        if (forgeSlot != null && forgeSlot.isWorking) {
+            addEvent("该锻造槽位正在工作中", EventType.WARNING)
+            return false
+        }
 
         val result = productionCoordinator.startForgingAtomic(
             slotIndex = slotIndex,
@@ -257,7 +236,6 @@ class BuildingService constructor(
             !result.success -> {
                 val error = result.error
                 when (error) {
-                    is ProductionError.SlotBusy -> addEvent("该锻造槽位正在工作中", EventType.WARNING)
                     is ProductionError.InsufficientMaterials -> addEvent("材料不足，无法开始锻造", EventType.WARNING)
                     is ProductionError.RecipeNotFound -> addEvent("配方不存在", EventType.ERROR)
                     else -> addEvent("无法开始锻造", EventType.WARNING)
@@ -268,8 +246,48 @@ class BuildingService constructor(
                 _materials.value = result.materialUpdate.materials
 
                 val recipe = ForgeRecipeDatabase.getRecipeById(recipeId) ?: return false
-                val duration = ForgeRecipeDatabase.getDurationByTier(recipe.tier)
-                startBuildingWork("forge", slotIndex, recipeId, duration)
+                val baseDuration = ForgeRecipeDatabase.getDurationByTier(recipe.tier)
+                val actualDuration = calculateWorkDurationWithAllDisciples(baseDuration, "forge")
+
+                scope.launch {
+                    val existingSlot = productionSlotRepository.getSlotByBuildingId("forge", slotIndex)
+                    if (existingSlot != null) {
+                        productionSlotRepository.updateSlotByBuildingId("forge", slotIndex) { slot ->
+                            slot.copy(
+                                status = ProductionSlotStatus.WORKING,
+                                recipeId = recipeId,
+                                recipeName = recipe.name,
+                                startYear = data.gameYear,
+                                startMonth = data.gameMonth,
+                                duration = actualDuration,
+                                outputItemId = recipeId,
+                                outputItemName = recipe.name,
+                                outputItemRarity = recipe.rarity,
+                                outputItemSlot = recipe.type.name
+                            )
+                        }
+                    } else {
+                        productionSlotRepository.addSlot(ProductionSlot(
+                            slotIndex = slotIndex,
+                            buildingType = BuildingType.FORGE,
+                            buildingId = "forge",
+                            status = ProductionSlotStatus.WORKING,
+                            recipeId = recipeId,
+                            recipeName = recipe.name,
+                            startYear = data.gameYear,
+                            startMonth = data.gameMonth,
+                            duration = actualDuration,
+                            outputItemId = recipeId,
+                            outputItemName = recipe.name,
+                            outputItemRarity = recipe.rarity,
+                            outputItemSlot = recipe.type.name,
+                            assignedDiscipleId = existingSlot?.assignedDiscipleId,
+                            assignedDiscipleName = existingSlot?.assignedDiscipleName ?: ""
+                        ))
+                    }
+                }
+
+                addEvent("开始在锻造坊工作", EventType.INFO)
                 return true
             }
         }
@@ -277,91 +295,53 @@ class BuildingService constructor(
         return false
     }
 
-    /**
-     * Start work on a building slot
-     */
-    fun startBuildingWork(buildingId: String, slotIndex: Int, recipeId: String, baseDuration: Int) {
-        val data = _gameData.value
-        val existingSlot = data.forgeSlots.find {
-            it.buildingId == buildingId && it.slotIndex == slotIndex
-        }
-
-        // Check if already working
-        if (existingSlot?.status == SlotStatus.WORKING) {
-            addEvent("该槽位已经在工作中", EventType.WARNING)
-            return
-        }
-
-        // Calculate actual duration with bonuses
-        val actualDuration = calculateWorkDurationWithAllDisciples(baseDuration, buildingId)
-
-        // Create or update slot
-        val updatedSlot = existingSlot?.copy(
-            recipeId = recipeId,
-            startYear = data.gameYear,
-            startMonth = data.gameMonth,
-            duration = actualDuration,
-            status = SlotStatus.WORKING
-        ) ?: BuildingSlot(
-            buildingId = buildingId,
-            slotIndex = slotIndex,
-            recipeId = recipeId,
-            startYear = data.gameYear,
-            startMonth = data.gameMonth,
-            duration = actualDuration,
-            status = SlotStatus.WORKING
-        )
-
-        // Update game data
-        _gameData.value = if (existingSlot != null) {
-            data.copy(forgeSlots = data.forgeSlots.map {
-                if (it.id == existingSlot.id) updatedSlot else it
-            })
-        } else {
-            data.copy(forgeSlots = data.forgeSlots + updatedSlot)
-        }
-
-        val workName = getBuildingName(buildingId)
-        addEvent("开始在${workName}工作", EventType.INFO)
-    }
-
-    /**
-     * Collect completed building result
-     */
     fun collectBuildingResult(slotId: String) {
-        val data = _gameData.value
-        val slot = data.forgeSlots.find { it.id == slotId } ?: return
+        val slot = productionSlotRepository.getSlotById(slotId) ?: return
 
-        if (slot.status != SlotStatus.COMPLETED) {
+        if (slot.status != ProductionSlotStatus.COMPLETED) {
             addEvent("工作尚未完成", EventType.WARNING)
             return
         }
 
-        // Process completion (would delegate to appropriate service based on building type)
-        completeBuildingTask(slot)
+        completeBuildingTaskFromProductionSlot(slot)
 
-        // Reset disciple status
-        slot.discipleId?.let { discipleId ->
+        slot.assignedDiscipleId?.let { discipleId ->
             updateDiscipleStatus(discipleId, DiscipleStatus.IDLE)
         }
 
-        // Remove completed slot
-        _gameData.value = data.copy(forgeSlots = data.forgeSlots.filter { it.id != slotId })
+        scope.launch {
+            productionCoordinator.resetSlotByBuildingIdAtomic(slot.buildingId, slot.slotIndex)
+        }
     }
 
-    /**
-     * Collect alchemy result from slot
-     */
+    fun collectForgeResult(slotIndex: Int) {
+        val slot = productionSlotRepository.getSlotByBuildingId("forge", slotIndex) ?: return
+
+        if (slot.status != ProductionSlotStatus.COMPLETED) {
+            addEvent("工作尚未完成", EventType.WARNING)
+            return
+        }
+
+        completeBuildingTaskFromProductionSlot(slot)
+
+        slot.assignedDiscipleId?.let { discipleId ->
+            updateDiscipleStatus(discipleId, DiscipleStatus.IDLE)
+        }
+
+        scope.launch {
+            productionCoordinator.resetSlotByBuildingIdAtomic("forge", slotIndex)
+        }
+    }
+
     fun collectAlchemyResult(slotIndex: Int): AlchemyResult? {
         synchronized(transactionMutex) {
             val data = _gameData.value
-            val currentSlots = data.alchemySlots
-            val slot = currentSlots.getOrNull(slotIndex) ?: run {
+            val slot = productionSlotRepository.getSlotByBuildingId("alchemy", slotIndex) ?: run {
                 addEvent("无效的炼丹槽位索引: $slotIndex", EventType.WARNING)
                 return null
             }
 
-            if (slot.status != AlchemySlotStatus.WORKING) {
+            if (!slot.isWorking) {
                 addEvent("该槽位没有正在炼制的丹药", EventType.WARNING)
                 return null
             }
@@ -376,34 +356,23 @@ class BuildingService constructor(
             var pill: Pill? = null
             if (success) {
                 pill = Pill(
-                    name = slot.pillName,
-                    rarity = slot.pillRarity,
+                    name = slot.outputItemName,
+                    rarity = slot.outputItemRarity,
                     description = "通过炼丹炉炼制而成",
+                    minRealm = GameConfig.Realm.getMinRealmForRarity(slot.outputItemRarity),
                     quantity = 1
                 )
                 val currentPills = _pills.value.toMutableList()
                 currentPills.add(pill)
                 _pills.value = currentPills
-                addEvent("炼制成功！获得${slot.pillName}，已放入宗门仓库", EventType.INFO)
+                addEvent("炼制成功！获得${slot.outputItemName}，已放入宗门仓库", EventType.INFO)
             } else {
                 addEvent("炼制失败，材料损毁", EventType.ERROR)
             }
 
-            _gameData.value = data.copy(alchemySlots = currentSlots.mapIndexed { index, s ->
-                if (index == slotIndex) {
-                    s.copy(
-                        status = AlchemySlotStatus.IDLE,
-                        recipeId = null,
-                        recipeName = "",
-                        pillName = "",
-                        startYear = 0,
-                        startMonth = 0,
-                        duration = 0
-                    )
-                } else {
-                    s
-                }
-            })
+            scope.launch {
+                productionCoordinator.resetSlotByBuildingIdAtomic("alchemy", slotIndex)
+            }
 
             return AlchemyResult(
                 success = success,
@@ -417,132 +386,51 @@ class BuildingService constructor(
         synchronized(transactionMutex) {
             val data = _gameData.value
             val results = mutableListOf<AlchemyResult>()
-            data.alchemySlots.forEachIndexed { index, slot ->
-                if (slot.status == AlchemySlotStatus.WORKING && slot.isFinished(data.gameYear, data.gameMonth)) {
-                    collectAlchemyResult(index)?.let { results.add(it) }
+            val alchemySlots = productionSlotRepository.getSlotsByType(BuildingType.ALCHEMY)
+            alchemySlots.forEach { slot ->
+                if (slot.isWorking && slot.isFinished(data.gameYear, data.gameMonth)) {
+                    collectAlchemyResult(slot.slotIndex)?.let { results.add(it) }
                 }
             }
             return results
         }
     }
 
-    // ==================== 灵药园操作 ====================
-
-    /**
-     * Harvest herb from garden slot
-     */
-    fun harvestHerb(slotIndex: Int) {
-        val data = _gameData.value
-        val currentSlots = data.herbGardenPlantSlots
-
-        if (slotIndex < 0 || slotIndex >= currentSlots.size) {
-            addEvent("无效的种植槽位", EventType.WARNING)
-            return
-        }
-
-        val slot = currentSlots[slotIndex]
-
-        if (slot.status != "mature") {
-            addEvent("该槽位没有成熟的草药", EventType.WARNING)
-            return
-        }
-
-        // Get herb info and calculate yield
-        val herbId = slot.harvestHerbId ?: slot.seedId?.let { HerbDatabase.getHerbIdFromSeedId(it) }
-        if (herbId == null) {
-            addEvent("草药数据错误", EventType.ERROR)
-            return
-        }
-
-        val herb = HerbDatabase.getHerbById(herbId)
-        if (herb == null) {
-            addEvent("草药数据错误", EventType.ERROR)
-            return
-        }
-
-        // Calculate yield with bonuses
-        val actualYield = HerbGardenSystem.calculateIncreasedYield(slot.harvestAmount, 0.0)
-
-        // Add to warehouse (would delegate to InventoryService)
-        val currentHerbs = _herbs.value.toMutableList()
-        val existingHerbIndex = currentHerbs.indexOfFirst {
-            it.name == herb.name && it.rarity == herb.rarity
-        }
-
-        if (existingHerbIndex >= 0) {
-            val existingHerb = currentHerbs[existingHerbIndex]
-            currentHerbs[existingHerbIndex] = existingHerb.copy(
-                quantity = existingHerb.quantity + actualYield
-            )
-        } else {
-            currentHerbs.add(Herb(
-                id = java.util.UUID.randomUUID().toString(),
-                name = herb.name,
-                rarity = herb.rarity,
-                description = herb.description,
-                category = herb.category,
-                quantity = actualYield
-            ))
-        }
-
-        _herbs.value = currentHerbs.toList()
-
-        // Reset slot
-        val updatedSlots = currentSlots.toMutableList()
-        updatedSlots[slotIndex] = PlantSlotData(index = slotIndex)
-        _gameData.value = data.copy(herbGardenPlantSlots = updatedSlots)
-
-        addEvent("收获${herb.name} x$actualYield", EventType.SUCCESS)
-    }
-
-    /**
-     * Clear plant slot
-     */
     fun clearPlantSlot(slotIndex: Int) {
-        val data = _gameData.value
-        val currentSlots = data.herbGardenPlantSlots.toMutableList()
-
-        if (slotIndex < 0 || slotIndex >= currentSlots.size) {
-            return
+        scope.launch {
+            val slot = productionSlotRepository.getSlotByBuildingId("herbGarden", slotIndex)
+            if (slot != null) {
+                productionSlotRepository.updateSlotByBuildingId("herbGarden", slotIndex) { s ->
+                    ProductionSlot.createIdle(
+                        id = s.id,
+                        slotIndex = slotIndex,
+                        buildingType = BuildingType.HERB_GARDEN,
+                        buildingId = "herbGarden"
+                    )
+                }
+            }
         }
-
-        currentSlots[slotIndex] = PlantSlotData(index = slotIndex)
-        _gameData.value = data.copy(herbGardenPlantSlots = currentSlots)
         addEvent("已移除种植任务", EventType.INFO)
     }
 
-    // ==================== 辅助方法 ====================
-
-    /**
-     * Update disciple status
-     */
     private fun updateDiscipleStatus(discipleId: String, status: DiscipleStatus) {
         _disciples.value = _disciples.value.map {
             if (it.id == discipleId) it.copy(status = status) else it
         }
     }
 
-    /**
-     * Get building display name
-     */
     private fun getBuildingName(buildingId: String): String = BuildingNames.getDisplayName(buildingId)
 
-    /**
-     * Calculate work duration with all disciple bonuses
-     * Delegates bonus calculation logic (elder position + disciple speed bonuses)
-     */
     private fun calculateWorkDurationWithAllDisciples(baseDuration: Int, buildingId: String): Int {
         var totalSpeedBonus = 0.0
         val data = _gameData.value
 
-        // Elder position bonus
         totalSpeedBonus += getElderPositionBonusLocal(buildingId)
 
-        // Disciple speed bonus from assigned disciples
         when (buildingId) {
             "forge", "alchemy", "herbGarden" -> {
                 val assignedDiscipleIds = when (buildingId) {
-                    "forge" -> data.forgeSlots.mapNotNull { it.discipleId }
+                    "forge" -> productionSlotRepository.getSlotsByBuildingId("forge").mapNotNull { it.assignedDiscipleId }
                     "alchemy" -> emptyList()
                     else -> emptyList()
                 }
@@ -556,14 +444,10 @@ class BuildingService constructor(
         return calculateReducedDurationLocal(baseDuration, totalSpeedBonus)
     }
 
-    /**
-     * Get elder position bonus for a specific building (local implementation)
-     */
     private fun getElderPositionBonusLocal(buildingId: String): Double {
         val data = _gameData.value
         val elderSlots = data.elderSlots
 
-        // Find the elder disciple ID for this building type
         val elderDiscipleId = when (buildingId) {
             "forge" -> elderSlots.forgeElder
             "alchemy" -> elderSlots.alchemyElder
@@ -576,25 +460,23 @@ class BuildingService constructor(
         return when (buildingId) {
             "forge" -> {
                 val baseline = 80
-                val maxBonus = 0.20
                 val diff = (elderDisciple.artifactRefining - baseline).coerceAtLeast(0)
-                (diff * 0.01).coerceAtMost(maxBonus)
+                diff * 0.01
             }
             "alchemy" -> {
-                val diff = elderDisciple.pillRefining - 50
-                (diff * 0.02).coerceIn(-0.10, 0.30)
+                val baseline = 80
+                val diff = (elderDisciple.pillRefining - baseline).coerceAtLeast(0)
+                diff * 0.01
             }
             "herbGarden" -> {
-                val diff = elderDisciple.spiritPlanting - 50
-                (diff * 0.02).coerceIn(-0.10, 0.30)
+                val baseline = 80
+                val diff = (elderDisciple.spiritPlanting - baseline).coerceAtLeast(0)
+                diff * 0.01
             }
             else -> 0.0
         }
     }
 
-    /**
-     * Calculate reduced duration based on speed bonus (local implementation)
-     */
     private fun calculateReducedDurationLocal(baseDuration: Int, speedBonus: Double): Int {
         if (speedBonus <= 0) return baseDuration
         val reductionPercent = speedBonus / 4.0
@@ -602,10 +484,7 @@ class BuildingService constructor(
         return (baseDuration - reducedMonths).coerceAtLeast(1)
     }
 
-    /**
-     * Complete building task - produce items based on slot recipe and add to inventory
-     */
-    private fun completeBuildingTask(slot: BuildingSlot) {
+    private fun completeBuildingTaskFromProductionSlot(slot: ProductionSlot) {
         val recipeId = slot.recipeId
         if (recipeId == null) {
             addEvent("${BuildingNames.getDisplayName(slot.buildingId)}工作已完成，但无配方信息", EventType.WARNING)
@@ -638,6 +517,7 @@ class BuildingService constructor(
                         name = recipe.name,
                         rarity = recipe.rarity,
                         description = "通过炼丹炉炼制而成",
+                        minRealm = GameConfig.Realm.getMinRealmForRarity(recipe.rarity),
                         quantity = 1
                     )
                     val currentPills = _pills.value.toMutableList()
@@ -653,4 +533,61 @@ class BuildingService constructor(
             }
         }
     }
+
+    @Deprecated("Use ProductionSlot directly")
+    private fun ProductionSlot.toBuildingSlot(): BuildingSlot = BuildingSlot(
+        id = id,
+        buildingId = buildingId,
+        slotIndex = slotIndex,
+        discipleId = assignedDiscipleId,
+        discipleName = assignedDiscipleName,
+        startYear = startYear,
+        startMonth = startMonth,
+        duration = duration,
+        recipeId = recipeId,
+        recipeName = recipeName,
+        status = when (status) {
+            ProductionSlotStatus.IDLE -> SlotStatus.IDLE
+            ProductionSlotStatus.WORKING -> SlotStatus.WORKING
+            ProductionSlotStatus.COMPLETED -> SlotStatus.COMPLETED
+        }
+    )
+
+    @Deprecated("Use ProductionSlot directly")
+    private fun ProductionSlot.toAlchemySlot(): AlchemySlot = AlchemySlot(
+        id = id,
+        slotIndex = slotIndex,
+        recipeId = recipeId,
+        recipeName = recipeName,
+        pillName = outputItemName,
+        pillRarity = outputItemRarity,
+        startYear = startYear,
+        startMonth = startMonth,
+        duration = duration,
+        status = when (status) {
+            ProductionSlotStatus.IDLE -> AlchemySlotStatus.IDLE
+            ProductionSlotStatus.WORKING -> AlchemySlotStatus.WORKING
+            ProductionSlotStatus.COMPLETED -> AlchemySlotStatus.FINISHED
+        },
+        successRate = successRate,
+        requiredMaterials = requiredMaterials
+    )
+
+    @Deprecated("Use ProductionSlot directly")
+    private fun ProductionSlot.toPlantSlotData(): PlantSlotData = PlantSlotData(
+        index = slotIndex,
+        status = when (status) {
+            ProductionSlotStatus.IDLE -> "idle"
+            ProductionSlotStatus.WORKING -> "growing"
+            ProductionSlotStatus.COMPLETED -> "mature"
+        },
+        seedId = recipeId ?: "",
+        seedName = recipeName,
+        startYear = startYear,
+        startMonth = startMonth,
+        growTime = duration,
+        expectedYield = expectedYield,
+        harvestAmount = harvestAmount,
+        harvestHerbId = outputItemId ?: ""
+    )
 }

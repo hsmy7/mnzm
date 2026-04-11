@@ -1,4 +1,4 @@
-@file:Suppress("DEPRECATION", "UNCHECKED_CAST")
+@file:Suppress("UNCHECKED_CAST")
 
 package com.xianxia.sect.data.engine
 
@@ -9,14 +9,15 @@ import com.xianxia.sect.data.cache.CacheKey
 import com.xianxia.sect.data.cache.GameDataCacheManager
 import com.xianxia.sect.data.config.SaveLimitsConfig
 import com.xianxia.sect.data.concurrent.SlotLockManager
+import com.xianxia.sect.data.incremental.ChangeLogPersistence
+import com.xianxia.sect.data.incremental.ChangeLogOperation
 import com.xianxia.sect.data.local.GameDatabase
+import com.xianxia.sect.data.local.SaveSlotMetadata
 import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.result.StorageError
 import com.xianxia.sect.data.result.StorageResult
 import com.xianxia.sect.data.unified.SerializationHelper
 import com.xianxia.sect.data.wal.WALProvider
-import com.xianxia.sect.data.pipeline.AtomicSavePipeline
-import com.xianxia.sect.data.incremental.IncrementalStorageManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -67,14 +68,12 @@ class UnifiedStorageEngine @Inject constructor(
     private val wal: WALProvider,
     private val saveLimitsConfig: SaveLimitsConfig,
     private val serializationHelper: SerializationHelper,
-    private val eventStore: Any? = null,
-    private val incrementalManager: IncrementalStorageManager? = null,
+    private val changeLogPersistence: ChangeLogPersistence,
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 ) {
     companion object {
         private const val TAG = "UnifiedStorageEngine"
         private const val MAX_BATCH_SIZE = 200
-        private const val INCREMENTAL_THRESHOLD_BYTES = 50 * 1024
 
         fun estimateSaveSize(data: SaveData): Long {
             val discipleBytesPerEntity = 800L
@@ -112,73 +111,39 @@ class UnifiedStorageEngine @Inject constructor(
     private val _progress = MutableStateFlow(EngineProgress(EngineProgress.Stage.IDLE, 0f))
     val progress: StateFlow<EngineProgress> = _progress.asStateFlow()
 
-    @Volatile
-    var useAtomicPipeline: Boolean = false
-
-    // 紧急写入并发保护：防止多个emergencySave同时执行
     private val isEmergencySaving = AtomicBoolean(false)
-
-    private val atomicSavePipeline: AtomicSavePipeline? by lazy {
-        if (incrementalManager != null) {
-            AtomicSavePipeline(
-                context = context,
-                wal = wal,
-                incrementalManager = incrementalManager,
-                cacheManager = cacheManager,
-                engine = this,
-                scope = scope
-            )
-        } else {
-            Log.w(TAG, "AtomicSavePipeline not available: incrementalManager=$incrementalManager")
-            null
-        }
-    }
 
     suspend fun save(slot: Int, data: SaveData, priority: SavePriority = SavePriority.NORMAL): StorageResult<SaveOperationStats> {
         if (!lockManager.isValidSlot(slot)) {
             return StorageResult.failure(StorageError.INVALID_SLOT, "Invalid slot: $slot")
         }
 
-        val estimatedSize = estimateSaveSize(data)
-
-        return lockManager.withWriteLockSuspend(slot) {
+        return lockManager.withWriteLockLight(slot) {
             try {
                 val startTime = System.currentTimeMillis()
 
-                if (useAtomicPipeline && atomicSavePipeline != null) {
-                    Log.d(TAG, "Using atomic pipeline path for slot $slot")
-                    executeAtomicSavePath(slot, data, priority)
-                } else {
-                    val shouldUseIncremental = estimatedSize < INCREMENTAL_THRESHOLD_BYTES && hasBaselineSnapshot(slot)
+                _progress.value = EngineProgress(EngineProgress.Stage.SAVING_CORE, 0.1f, "Saving core data")
 
-                    if (shouldUseIncremental) {
-                        Log.d(TAG, "Using incremental path for slot $slot (estimated ${estimatedSize} bytes)")
-                        performIncrementalSave(slot, data).also { result ->
-                            if (result.isSuccess) {
-                                updateCacheAfterSave(slot, data)
-                                if (priority == SavePriority.CRITICAL) {
-                                    createCriticalSnapshot(slot, data)
-                                }
-                            }
-                        }
-                    } else {
-                        Log.d(TAG, "Using full transaction path for slot $slot (estimated ${estimatedSize} bytes)")
-                        performFullTransactionSave(slot, data).also { result ->
-                            if (result.isSuccess) {
-                                updateCacheAfterSave(slot, data)
-                                if (priority == SavePriority.CRITICAL) {
-                                    createCriticalSnapshot(slot, data)
-                                }
-                            }
-                        }
-                    }.map { stats ->
-                        val elapsed = System.currentTimeMillis() - startTime
-                        stats.copy(timeMs = elapsed)
+                val result = performFullTransactionSave(slot, data)
+
+                if (result.isSuccess) {
+                    updateCacheAfterSave(slot, data)
+                    logSaveChanges(slot, data)
+
+                    if (priority == SavePriority.CRITICAL) {
+                        createCriticalSnapshot(slot, data)
                     }
+
+                    _progress.value = EngineProgress(EngineProgress.Stage.COMPLETED, 1.0f, "Save completed")
                 }
 
+                result.map { stats ->
+                    val elapsed = System.currentTimeMillis() - startTime
+                    stats.copy(timeMs = elapsed)
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Save failed for slot $slot", e)
+                _progress.value = EngineProgress(EngineProgress.Stage.FAILED, 0f, e.message ?: "Unknown error")
                 val error = when (e) {
                     is OutOfMemoryError -> StorageError.OUT_OF_MEMORY
                     is java.io.IOException -> StorageError.IO_ERROR
@@ -189,60 +154,12 @@ class UnifiedStorageEngine @Inject constructor(
         }
     }
 
-    private suspend fun executeAtomicSavePath(slot: Int, data: SaveData, priority: SavePriority): StorageResult<SaveOperationStats> {
-        return try {
-            val startTime = System.currentTimeMillis()
-
-            _progress.value = EngineProgress(EngineProgress.Stage.SAVING_CORE, 0.1f, "Serializing data for atomic pipeline")
-
-            val saveDataBytes = serializationHelper.serializeAndCompressSaveData(data)
-
-            _progress.value = EngineProgress(EngineProgress.Stage.SAVING_CORE, 0.3f, "Executing atomic pipeline Phase 1")
-
-            val pipeline = atomicSavePipeline ?: run {
-                Log.e(TAG, "Atomic pipeline is null, falling back to legacy path")
-                return performFullTransactionSave(slot, data)
-            }
-
-            val atomicResult = pipeline.executeAtomicSave(
-                slot = slot,
-                saveData = saveDataBytes,
-                gameEvent = if (priority == SavePriority.CRITICAL) "CRITICAL_SAVE" else null
-            )
-
-            if (atomicResult.success) {
-                _progress.value = EngineProgress(EngineProgress.Stage.UPDATING_CACHE, 0.8f, "Updating cache after atomic save")
-                updateCacheAfterSave(slot, data)
-
-                if (priority == SavePriority.CRITICAL) {
-                    createCriticalSnapshot(slot, data)
-                }
-
-                _progress.value = EngineProgress(EngineProgress.Stage.COMPLETED, 1.0f, "Atomic save completed")
-                StorageResult.success(SaveOperationStats(
-                    bytesWritten = saveDataBytes.size.toLong(),
-                    timeMs = System.currentTimeMillis() - startTime,
-                    wasIncremental = false
-                ))
-            } else {
-                Log.e(TAG, "[slot=$slot] Atomic pipeline failed at phase=${atomicResult.phase}, error=${atomicResult.error}")
-                _progress.value = EngineProgress(EngineProgress.Stage.FAILED, 0f, atomicResult.error ?: "Atomic save failed")
-                StorageResult.failure(StorageError.SAVE_FAILED, atomicResult.error ?: "Atomic save failed")
-            }
-
-        } catch (e: Exception) {
-            Log.e(TAG, "[slot=$slot] Atomic save path exception", e)
-            _progress.value = EngineProgress(EngineProgress.Stage.FAILED, 0f, e.message ?: "Unknown error in atomic path")
-            StorageResult.failure(StorageError.SAVE_FAILED, e.message ?: "Atomic path failed", e)
-        }
-    }
-
     suspend fun load(slot: Int): StorageResult<SaveData> {
         if (!lockManager.isValidSlot(slot)) {
             return StorageResult.failure(StorageError.INVALID_SLOT, "Invalid slot: $slot")
         }
 
-        return lockManager.withReadLockSuspend(slot) {
+        return lockManager.withReadLockLight(slot) {
             try {
                 _progress.value = EngineProgress(EngineProgress.Stage.SAVING_CORE, 0.1f, "Loading from cache")
 
@@ -250,14 +167,13 @@ class UnifiedStorageEngine @Inject constructor(
                 if (cachedData != null) {
                     Log.d(TAG, "Cache hit for slot $slot")
                     _progress.value = EngineProgress(EngineProgress.Stage.COMPLETED, 1.0f, "Load completed (cache)")
-                    return@withReadLockSuspend StorageResult.success(cachedData)
+                    return@withReadLockLight StorageResult.success(cachedData)
                 }
 
                 _progress.value = EngineProgress(EngineProgress.Stage.SAVING_CORE, 0.2f, "Loading from database")
                 val dbData = loadFromDatabase(slot)
 
                 if (dbData != null) {
-                    // 先使旧缓存失效，再更新为新数据，确保一致性
                     clearCacheForSlot(slot)
                     updateCacheAfterSave(slot, dbData)
                     _progress.value = EngineProgress(EngineProgress.Stage.COMPLETED, 1.0f, "Load completed (database)")
@@ -280,7 +196,7 @@ class UnifiedStorageEngine @Inject constructor(
             return StorageResult.failure(StorageError.INVALID_SLOT, "Invalid slot: $slot")
         }
 
-        return lockManager.withWriteLockSuspend(slot) {
+        return lockManager.withWriteLockLight(slot) {
             try {
                 clearCacheForSlot(slot)
 
@@ -309,7 +225,6 @@ class UnifiedStorageEngine @Inject constructor(
                     database.gameEventDao().deleteAll(slot)
                 }
 
-                // 事务成功后再次确保缓存完全失效（防御性编程）
                 clearCacheForSlot(slot)
 
                 Log.i(TAG, "Deleted all data for slot $slot")
@@ -338,13 +253,13 @@ class UnifiedStorageEngine @Inject constructor(
             return StorageResult.failure(StorageError.INVALID_SLOT, "Invalid slot: $slot")
         }
 
-        return lockManager.withReadLockSuspend(slot) {
+        return lockManager.withReadLockLight(slot) {
             try {
                 val loadResult = load(slot)
                 if (loadResult.isFailure) {
-                    return@withReadLockSuspend StorageResult.failure(
+                    return@withReadLockLight StorageResult.failure(
                         StorageError.LOAD_FAILED,
-                        "Failed to load data for export: ${loadResult.getOrNull()}"
+                        "Failed to load data for export"
                     )
                 }
 
@@ -369,14 +284,13 @@ class UnifiedStorageEngine @Inject constructor(
     suspend fun emergencySave(data: SaveData): StorageResult<SaveOperationStats> {
         val emergencySlot = SlotLockManager.EMERGENCY_SLOT
 
-        // 并发保护：如果已有紧急写入在进行中，直接返回失败
         if (!isEmergencySaving.compareAndSet(false, true)) {
             Log.w(TAG, "Emergency save already in progress, skipping duplicate request")
             return StorageResult.failure(StorageError.SAVE_FAILED, "Emergency save already in progress")
         }
 
         return try {
-            lockManager.withWriteLockSuspend(emergencySlot) {
+            lockManager.withWriteLockLight(emergencySlot) {
                 try {
                     val startTime = System.currentTimeMillis()
 
@@ -384,28 +298,26 @@ class UnifiedStorageEngine @Inject constructor(
                         writeAllDataToDatabase(emergencySlot, data)
                     }
 
-                val elapsed = System.currentTimeMillis() - startTime
-                Log.i(TAG, "Emergency save completed in ${elapsed}ms")
+                    val elapsed = System.currentTimeMillis() - startTime
+                    Log.i(TAG, "Emergency save completed in ${elapsed}ms")
 
-                StorageResult.success(SaveOperationStats(
-                    bytesWritten = estimateSaveSize(data),
-                    timeMs = elapsed,
-                    wasIncremental = false
-                ))
+                    StorageResult.success(SaveOperationStats(
+                        bytesWritten = estimateSaveSize(data),
+                        timeMs = elapsed,
+                        wasIncremental = false
+                    ))
 
-            } catch (e: Exception) {
-                Log.e(TAG, "Emergency save failed", e)
-                StorageResult.failure(StorageError.SAVE_FAILED, e.message ?: "Emergency save failed", e)
-            }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Emergency save failed", e)
+                    StorageResult.failure(StorageError.SAVE_FAILED, e.message ?: "Emergency save failed", e)
+                }
             }
         } finally {
-            // 确保并发保护标志被清除（无论成功或失败）
             isEmergencySaving.set(false)
         }
     }
 
     fun shutdown() {
-        atomicSavePipeline?.shutdown()
         cacheManager.shutdown()
         wal.shutdown()
         lockManager.shutdown()
@@ -465,12 +377,6 @@ class UnifiedStorageEngine @Inject constructor(
         database.alchemySlotDao().deleteAll(slot)
         database.productionSlotDao().deleteBySlot(slot)
 
-        data.gameData.forgeSlots?.map { it.copy(slotId = slot) }?.let { slots ->
-            database.buildingSlotDao().insertAll(slots)
-        }
-        data.gameData.alchemySlots?.map { it.copy(slotId = slot) }?.let { slots ->
-            database.alchemySlotDao().insertAll(slots)
-        }
         val productionSlotsToSave = data.productionSlots.ifEmpty {
             data.gameData.productionSlots ?: emptyList()
         }
@@ -486,6 +392,26 @@ class UnifiedStorageEngine @Inject constructor(
         data.gameData.unlockedRecipes?.map { Recipe(it, slotId = slot) }?.let { recipes ->
             database.recipeDao().insertAll(recipes)
         }
+
+        syncSlotMetadata(slot, data)
+    }
+
+    private suspend fun syncSlotMetadata(slot: Int, data: SaveData) {
+        val gd = data.gameData
+        val metadata = SaveSlotMetadata(
+            slotId = slot,
+            sectName = gd.sectName,
+            gameYear = gd.gameYear,
+            gameMonth = gd.gameMonth,
+            gameDay = gd.gameDay,
+            spiritStones = gd.spiritStones,
+            spiritHerbs = gd.spiritHerbs,
+            sectCultivation = gd.sectCultivation,
+            isGameStarted = gd.isGameStarted,
+            lastSaveTime = gd.lastSaveTime,
+            discipleCount = data.disciples.count { it.isAlive }
+        )
+        database.saveSlotMetadataDao().upsert(metadata)
     }
 
     private suspend fun performFullTransactionSave(slot: Int, data: SaveData): StorageResult<SaveOperationStats> {
@@ -502,180 +428,15 @@ class UnifiedStorageEngine @Inject constructor(
         ))
     }
 
-    private suspend fun performIncrementalSave(slot: Int, data: SaveData): StorageResult<SaveOperationStats> {
-        val baseData = loadFromDatabase(slot)
-        if (baseData == null) {
-            Log.w(TAG, "No baseline for incremental save, falling back to full save")
-            return performFullTransactionSave(slot, data)
-        }
-
-        val changes = computeDelta(baseData, data)
-        if (changes.isEmpty()) {
-            Log.d(TAG, "No changes detected for incremental save")
-            return StorageResult.success(SaveOperationStats(
-                bytesWritten = 0,
-                timeMs = 0,
-                wasIncremental = true
-            ))
-        }
-
-        database.withTransaction {
-            applyDeltaToDatabase(slot, changes)
-        }
-
-        val bytesWritten = estimateSaveSize(data)
-
-        return StorageResult.success(SaveOperationStats(
-            bytesWritten = bytesWritten,
-            timeMs = 0,
-            wasIncremental = true
-        ))
-    }
-
-    private fun computeDelta(baseData: SaveData, newData: SaveData): Map<String, Any> {
-        val changes = mutableMapOf<String, Any>()
-
-        if (baseData.gameData != newData.gameData) {
-            changes["gameData"] = newData.gameData
-        }
-
-        if (baseData.disciples != newData.disciples) {
-            changes["disciples"] = newData.disciples
-        }
-
-        if (baseData.equipment != newData.equipment) {
-            changes["equipment"] = newData.equipment
-        }
-
-        if (baseData.manuals != newData.manuals) {
-            changes["manuals"] = newData.manuals
-        }
-
-        if (baseData.pills != newData.pills) {
-            changes["pills"] = newData.pills
-        }
-
-        if (baseData.materials != newData.materials) {
-            changes["materials"] = newData.materials
-        }
-
-        if (baseData.herbs != newData.herbs) {
-            changes["herbs"] = newData.herbs
-        }
-
-        if (baseData.seeds != newData.seeds) {
-            changes["seeds"] = newData.seeds
-        }
-
-        if (baseData.teams != newData.teams) {
-            changes["teams"] = newData.teams
-        }
-
-        if (baseData.events != newData.events) {
-            changes["events"] = newData.events
-        }
-
-        if (baseData.battleLogs != newData.battleLogs) {
-            changes["battleLogs"] = newData.battleLogs
-        }
-
-        return changes
-    }
-
-    private suspend fun applyDeltaToDatabase(slot: Int, changes: Map<String, Any>) {
-        changes["gameData"]?.let {
-            val gameDataWithSlot = (it as GameData).copy(slotId = slot, id = "game_data_$slot")
-            database.gameDataDao().insert(gameDataWithSlot)
-        }
-
-        @Suppress("UNCHECKED_CAST")
-        val disciples = changes["disciples"] as? List<*>
-        if (disciples != null) {
-            database.discipleDao().deleteAll(slot)
-            (disciples as List<Disciple>).chunked(MAX_BATCH_SIZE).forEach { batch ->
-                database.discipleDao().insertAll(batch.map { d -> d.copy(slotId = slot) })
-            }
-        }
-
-        @Suppress("UNCHECKED_CAST")
-        val equipment = changes["equipment"] as? List<*>
-        if (equipment != null) {
-            database.equipmentDao().deleteAll(slot)
-            (equipment as List<Equipment>).chunked(MAX_BATCH_SIZE).forEach { batch ->
-                database.equipmentDao().insertAll(batch.map { e -> e.copy(slotId = slot) })
-            }
-        }
-
-        @Suppress("UNCHECKED_CAST")
-        val manuals = changes["manuals"] as? List<*>
-        if (manuals != null) {
-            database.manualDao().deleteAll(slot)
-            (manuals as List<Manual>).chunked(MAX_BATCH_SIZE).forEach { batch ->
-                database.manualDao().insertAll(batch.map { m -> m.copy(slotId = slot) })
-            }
-        }
-
-        @Suppress("UNCHECKED_CAST")
-        val pills = changes["pills"] as? List<*>
-        if (pills != null) {
-            database.pillDao().deleteAll(slot)
-            (pills as List<Pill>).chunked(MAX_BATCH_SIZE).forEach { batch ->
-                database.pillDao().insertAll(batch.map { p -> p.copy(slotId = slot) })
-            }
-        }
-
-        @Suppress("UNCHECKED_CAST")
-        val materials = changes["materials"] as? List<*>
-        if (materials != null) {
-            database.materialDao().deleteAll(slot)
-            (materials as List<Material>).chunked(MAX_BATCH_SIZE).forEach { batch ->
-                database.materialDao().insertAll(batch.map { m -> m.copy(slotId = slot) })
-            }
-        }
-
-        @Suppress("UNCHECKED_CAST")
-        val herbs = changes["herbs"] as? List<*>
-        if (herbs != null) {
-            database.herbDao().deleteAll(slot)
-            (herbs as List<Herb>).chunked(MAX_BATCH_SIZE).forEach { batch ->
-                database.herbDao().insertAll(batch.map { h -> h.copy(slotId = slot) })
-            }
-        }
-
-        @Suppress("UNCHECKED_CAST")
-        val seeds = changes["seeds"] as? List<*>
-        if (seeds != null) {
-            database.seedDao().deleteAll(slot)
-            (seeds as List<Seed>).chunked(MAX_BATCH_SIZE).forEach { batch ->
-                database.seedDao().insertAll(batch.map { s -> s.copy(slotId = slot) })
-            }
-        }
-
-        @Suppress("UNCHECKED_CAST")
-        val teams = changes["teams"] as? List<*>
-        if (teams != null) {
-            database.explorationTeamDao().deleteAll(slot)
-            (teams as List<ExplorationTeam>).chunked(MAX_BATCH_SIZE).forEach { batch ->
-                database.explorationTeamDao().insertAll(batch.map { t -> t.copy(slotId = slot) })
-            }
-        }
-
-        @Suppress("UNCHECKED_CAST")
-        val events = changes["events"] as? List<*>
-        if (events != null) {
-            database.gameEventDao().deleteAll(slot)
-            (events as List<GameEvent>).chunked(MAX_BATCH_SIZE).forEach { batch ->
-                database.gameEventDao().insertAll(batch.map { e -> e.copy(slotId = slot) })
-            }
-        }
-
-        @Suppress("UNCHECKED_CAST")
-        val battleLogs = changes["battleLogs"] as? List<*>
-        if (battleLogs != null) {
-            database.battleLogDao().deleteAll(slot)
-            (battleLogs as List<BattleLog>).chunked(MAX_BATCH_SIZE).forEach { batch ->
-                database.battleLogDao().insertAll(batch.map { b -> b.copy(slotId = slot) })
-            }
+    private suspend fun logSaveChanges(slot: Int, data: SaveData) {
+        try {
+            changeLogPersistence.logChange(
+                tableName = "game_data",
+                recordId = "game_data_$slot",
+                operation = ChangeLogOperation.UPDATE
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to log save change for slot $slot", e)
         }
     }
 
@@ -745,15 +506,6 @@ class UnifiedStorageEngine @Inject constructor(
         }
     }
 
-    private suspend fun hasBaselineSnapshot(slot: Int): Boolean {
-        return try {
-            database.gameDataDao().getGameDataSync(slot) != null
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to check baseline for slot $slot", e)
-            false
-        }
-    }
-
     private suspend fun createCriticalSnapshot(slot: Int, data: SaveData) {
         try {
             val snapshotData = serializationHelper.serializeAndCompressSaveData(data)
@@ -768,22 +520,6 @@ class UnifiedStorageEngine @Inject constructor(
         }
     }
 
-    /**
-     * 直接写入数据到 Room Database（供 AtomicSavePipeline 调用）
-     *
-     * 【P0#2 修复】此方法专门为 AtomicSavePipeline.phase2Commit() 提供，
-     * 允许 pipeline 在 commit 阶段将数据写入 Room Database，
-     * 解决 atomic save 不写 DB 导致加载失败的问题。
-     *
-     * 与 save() 不同，此方法：
-     * - 不触发缓存更新（由 pipeline 统一管理）
-     * - 不创建快照（由 WAL 子系统管理）
-     * - 不更新进度（由 pipeline 管理）
-     *
-     * @param slot 目标槽位
-     * @param data 要写入的存档数据
-     * @return true 表示写入成功
-     */
     internal suspend fun writeDataToDatabaseDirectly(slot: Int, data: SaveData): Boolean {
         return try {
             database.withTransaction {

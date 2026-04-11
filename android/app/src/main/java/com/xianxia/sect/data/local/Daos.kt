@@ -15,23 +15,41 @@ interface GameDataDao {
     @Query("SELECT * FROM game_data WHERE slot_id = :slotId LIMIT 1")
     suspend fun getGameDataSync(slotId: Int): GameData?
 
+    @Query("SELECT slot_id, sectName, gameYear, gameMonth, gameDay, spiritStones, spiritHerbs, sectCultivation, isGameStarted, lastSaveTime FROM game_data WHERE slot_id = :slotId LIMIT 1")
+    suspend fun getMetadataBySlot(slotId: Int): GameDataMetadataProjection?
+
+    @Query("SELECT slot_id, sectName, gameYear, gameMonth, gameDay, spiritStones, spiritHerbs, sectCultivation, isGameStarted, lastSaveTime FROM game_data ORDER BY slot_id ASC")
+    suspend fun getAllMetadata(): List<GameDataMetadataProjection>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(gameData: GameData)
 
     @Update
     suspend fun update(gameData: GameData)
 
-    /** 获取指定槽位下已有的实体 ID 集合（用于 UPSERT 差量写入） */
     @Query("SELECT id FROM game_data WHERE slot_id = :slotId")
     suspend fun getIdsBySlot(slotId: Int): List<String>
 
     @Query("DELETE FROM game_data WHERE slot_id = :slotId")
     suspend fun deleteAll(slotId: Int)
 
-    // 全局删除（管理员操作用，如卸载清理）
     @Query("DELETE FROM game_data")
     suspend fun deleteAllGlobal()
 }
+
+data class GameDataMetadataProjection(
+    @ColumnInfo(name = "slot_id")
+    val slotId: Int,
+    val sectName: String,
+    val gameYear: Int,
+    val gameMonth: Int,
+    val gameDay: Int,
+    val spiritStones: Long,
+    val spiritHerbs: Int,
+    val sectCultivation: Double,
+    val isGameStarted: Boolean,
+    val lastSaveTime: Long
+)
 
 @Dao
 interface DiscipleDao {
@@ -106,6 +124,12 @@ interface DiscipleDao {
 
     @Query("DELETE FROM disciples WHERE slot_id = :slotId AND isAlive = 0")
     suspend fun deleteDeadDisciples(slotId: Int): Int
+
+    @Query("SELECT * FROM disciples WHERE slot_id = :slotId AND isAlive = 0")
+    suspend fun getDeadBySlotSync(slotId: Int): List<Disciple>
+
+    @Query("DELETE FROM disciples WHERE slot_id = :slotId AND isAlive = 0")
+    suspend fun deleteDeadBySlot(slotId: Int)
 
     @Query("DELETE FROM disciples WHERE slot_id = :slotId")
     suspend fun deleteAll(slotId: Int)
@@ -642,11 +666,15 @@ interface GameEventDao {
     @Query("SELECT * FROM game_events WHERE slot_id = :slotId ORDER BY timestamp DESC")
     suspend fun getAllSync(slotId: Int): List<GameEvent>
 
-    // 通过主键ID查询，全局唯一，但建议也加 slotId 用于安全校验
     @Query("SELECT * FROM game_events WHERE slot_id = :slotId AND id = :id")
     suspend fun getById(slotId: Int, id: String): GameEvent?
 
-    // Insert 操作基于实体，实体层负责设置正确的 slot_id
+    @Query("SELECT COUNT(*) FROM game_events WHERE slot_id = :slotId")
+    suspend fun countBySlot(slotId: Int): Int
+
+    @Query("SELECT * FROM game_events WHERE slot_id = :slotId ORDER BY timestamp ASC LIMIT :limit")
+    suspend fun getOldestBySlot(slotId: Int, limit: Int): List<GameEvent>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(event: GameEvent)
 
@@ -656,7 +684,6 @@ interface GameEventDao {
     @Update
     suspend fun updateAll(events: List<GameEvent>)
 
-    /** 获取指定槽位下已有的实体 ID 集合（用于 UPSERT 差量写入） */
     @Query("SELECT id FROM game_events WHERE slot_id = :slotId")
     suspend fun getIdsBySlot(slotId: Int): List<String>
 
@@ -669,7 +696,6 @@ interface GameEventDao {
     @Query("DELETE FROM game_events WHERE slot_id = :slotId")
     suspend fun deleteAll(slotId: Int)
 
-    // 全局删除（管理员操作用）
     @Query("DELETE FROM game_events")
     suspend fun deleteAllGlobal()
 }
@@ -762,11 +788,15 @@ interface BattleLogDao {
     @Query("SELECT * FROM battle_logs WHERE slot_id = :slotId ORDER BY timestamp DESC")
     suspend fun getAllSync(slotId: Int): List<BattleLog>
 
-    // 通过主键ID查询，全局唯一，但建议也加 slotId 用于安全校验
     @Query("SELECT * FROM battle_logs WHERE slot_id = :slotId AND id = :id")
     suspend fun getById(slotId: Int, id: String): BattleLog?
 
-    // Insert 操作基于实体，实体层负责设置正确的 slot_id
+    @Query("SELECT COUNT(*) FROM battle_logs WHERE slot_id = :slotId")
+    suspend fun countBySlot(slotId: Int): Int
+
+    @Query("SELECT * FROM battle_logs WHERE slot_id = :slotId ORDER BY timestamp ASC LIMIT :limit")
+    suspend fun getOldestBySlot(slotId: Int, limit: Int): List<BattleLog>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(log: BattleLog)
 
@@ -776,7 +806,6 @@ interface BattleLogDao {
     @Update
     suspend fun updateAll(logs: List<BattleLog>)
 
-    /** 获取指定槽位下已有的实体 ID 集合（用于 UPSERT 差量写入） */
     @Query("SELECT id FROM battle_logs WHERE slot_id = :slotId")
     suspend fun getIdsBySlot(slotId: Int): List<String>
 
@@ -789,7 +818,6 @@ interface BattleLogDao {
     @Query("DELETE FROM battle_logs WHERE slot_id = :slotId")
     suspend fun deleteAll(slotId: Int)
 
-    // 全局删除（管理员操作用）
     @Query("DELETE FROM battle_logs")
     suspend fun deleteAllGlobal()
 }

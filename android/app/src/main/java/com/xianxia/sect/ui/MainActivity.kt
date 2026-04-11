@@ -10,9 +10,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -29,7 +27,9 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
 import com.xianxia.sect.R
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.xianxia.sect.BuildConfig
 import com.xianxia.sect.core.CrashHandler
 import com.xianxia.sect.data.SessionManager
@@ -89,11 +89,11 @@ private class ProgressRunnable : Runnable {
     override fun run() {
         val activity = weakActivity.get() ?: return
         if (activity.isLoadComplete) {
-            activity.loadingProgress.value = 1f
+            activity.loadingProgress.floatValue = 1f
             activity.loadHandler.postDelayed({ activity.onLoadingComplete() }, 150)
         } else {
-            val current = activity.loadingProgress.value
-            if (current < 0.9f) activity.loadingProgress.value = current + 0.05f
+            val current = activity.loadingProgress.floatValue
+            if (current < 0.9f) activity.loadingProgress.floatValue = current + 0.05f
             activity.loadHandler.postDelayed(this, 50)
         }
     }
@@ -156,10 +156,38 @@ class MainActivity : ComponentActivity() {
         // 启动进度条动画（持续更新直到加载完成）
         startProgressAnimation()
         
-        // 模拟加载完成（实际项目中应该根据真实加载状态）
-        loadHandler.postDelayed({
-            isLoadComplete = true
-        }, 500) // 0.5秒后标记加载完成
+        lifecycleScope.launch(Dispatchers.IO) {
+            var initialized = false
+            var retryCount = 0
+            val maxRetries = 3
+            while (!initialized && retryCount < maxRetries) {
+                try {
+                    val initResult = storageFacade.initialize()
+                    if (initResult.isSuccess) {
+                        Log.i(TAG, "StorageFacade initialized successfully (attempt ${retryCount + 1})")
+                        initialized = true
+                    } else {
+                        retryCount++
+                        Log.e(TAG, "StorageFacade initialization failed (attempt $retryCount/$maxRetries): $initResult")
+                        if (retryCount < maxRetries) {
+                            kotlinx.coroutines.delay(500L * retryCount)
+                        }
+                    }
+                } catch (e: Exception) {
+                    retryCount++
+                    Log.e(TAG, "StorageFacade initialization error (attempt $retryCount/$maxRetries)", e)
+                    if (retryCount < maxRetries) {
+                        kotlinx.coroutines.delay(500L * retryCount)
+                    }
+                }
+            }
+            if (!initialized) {
+                Log.e(TAG, "StorageFacade initialization failed after $maxRetries attempts, proceeding with empty cache")
+            }
+            withContext(Dispatchers.Main) {
+                isLoadComplete = true
+            }
+        }
     }
     
     private fun startProgressAnimation() {
@@ -169,11 +197,6 @@ class MainActivity : ComponentActivity() {
     }
     
     internal fun onLoadingComplete() {
-        if (!sessionManager.hasAgreedPrivacy) {
-            showPrivacyPolicyScreen()
-            return
-        }
-        
         if (crashHandler.hasCrashed() && storageFacade.hasEmergencySave()) {
             Log.i(TAG, "Detected crash with emergency save, showing recovery dialog")
             showCrashRecoveryDialog()
@@ -239,70 +262,60 @@ class MainActivity : ComponentActivity() {
         }
     }
     
-    private fun showPrivacyPolicyScreen() {
-        setContent {
-            XianxiaTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = Color.White
-                ) {
-                    PrivacyPolicyScreen(
-                        onAgree = {
-                            sessionManager.hasAgreedPrivacy = true
-                            initTapTapSDK()
-                            recreate()
-                        },
-                        onDisagree = {
-                            finish()
-                        }
-                    )
+    internal fun showSaveSelectScreen() {
+        lifecycleScope.launch {
+            val saveSlots = withContext(Dispatchers.IO) {
+                try {
+                    storageFacade.getSaveSlotsFresh()
+                } catch (e: Exception) {
+                    Log.e(TAG, "getSaveSlotsFresh failed, falling back to cache", e)
+                    storageFacade.getSaveSlots()
                 }
             }
-        }
-    }
-    
-    internal fun showSaveSelectScreen() {
-        val saveSlots = storageFacade.getSaveSlots().filter { !it.isAutoSave }
-        setContent {
-            XianxiaTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = Color.White
-                ) {
-                    SaveSelectScreen(
-                        saveSlots = saveSlots,
-                        onLoadSlot = { slot ->
-                            val saveSlot = saveSlots.find { it.slot == slot }
-                            val intent = Intent(this, GameActivity::class.java)
-                            if (saveSlot?.isEmpty == true) {
+            setContent {
+                XianxiaTheme {
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = Color.White
+                    ) {
+                        SaveSelectScreen(
+                            saveSlots = saveSlots,
+                            onLoadSlot = { slot ->
+                                val saveSlot = saveSlots.find { it.slot == slot }
+                                if (saveSlot?.isAutoSave == true && saveSlot.isEmpty) {
+                                    return@SaveSelectScreen
+                                }
+                                val intent = Intent(this@MainActivity, GameActivity::class.java)
+                                if (saveSlot?.isEmpty == true) {
+                                    intent.putExtra(EXTRA_SLOT, slot)
+                                    intent.putExtra(EXTRA_NEW_GAME, true)
+                                } else {
+                                    intent.putExtra(EXTRA_SLOT, slot)
+                                }
+                                startActivity(intent)
+                                finish()
+                            },
+                            onNewGame = { slot, sectName ->
+                                val intent = Intent(this@MainActivity, GameActivity::class.java)
                                 intent.putExtra(EXTRA_SLOT, slot)
                                 intent.putExtra(EXTRA_NEW_GAME, true)
-                            } else {
-                                intent.putExtra(EXTRA_SLOT, slot)
+                                intent.putExtra(EXTRA_SECT_NAME, sectName)
+                                startActivity(intent)
+                                finish()
+                            },
+                            onDeleteSlot = { slot ->
+                                lifecycleScope.launch {
+                                    storageFacade.delete(slot)
+                                    showSaveSelectScreen()
+                                }
+                            },
+                            onLogout = {
+                                sessionManager.clearSession()
+                                ComplianceManager.unregisterCallback()
+                                recreate()
                             }
-                            startActivity(intent)
-                            finish()
-                        },
-                        onNewGame = { slot, sectName ->
-                            val intent = Intent(this, GameActivity::class.java)
-                            intent.putExtra(EXTRA_SLOT, slot)
-                            intent.putExtra(EXTRA_NEW_GAME, true)
-                            intent.putExtra(EXTRA_SECT_NAME, sectName)
-                            startActivity(intent)
-                            finish()
-                        },
-                        onDeleteSlot = { slot ->
-                            lifecycleScope.launch {
-                                storageFacade.delete(slot)
-                                showSaveSelectScreen()
-                            }
-                        },
-                        onLogout = {
-                            sessionManager.clearSession()
-                            ComplianceManager.unregisterCallback()
-                            recreate()
-                        }
-                    )
+                        )
+                    }
                 }
             }
         }
@@ -370,7 +383,9 @@ class MainActivity : ComponentActivity() {
     
     private fun clearCrashStateAndContinue() {
         try {
-            storageFacade.clearEmergencySave()
+            lifecycleScope.launch {
+                storageFacade.clearEmergencySave()
+            }
             crashHandler.clearCrashState()
         } catch (e: Exception) {
             Log.e(TAG, "Error clearing crash state", e)
@@ -453,8 +468,8 @@ fun MainScreen(
     val context = LocalContext.current
     var isLoading by remember { mutableStateOf(false) }
     var loginResult by remember { mutableStateOf<String?>(null) }
-    var showPrivacyDialog by remember { mutableStateOf(!sessionManager.hasAgreedPrivacy) }
-    var showExitConfirm by remember { mutableStateOf(false) }
+    var privacyChecked by remember { mutableStateOf(sessionManager.hasAgreedPrivacy) }
+    var showPrivacyAlert by remember { mutableStateOf(false) }
     
     complianceDialogState.value?.let { state ->
         when (state) {
@@ -506,36 +521,15 @@ fun MainScreen(
         }
     }
     
-    if (showPrivacyDialog) {
-        PrivacyPolicyDialog(
-            onAgree = {
-                sessionManager.hasAgreedPrivacy = true
-                showPrivacyDialog = false
-            },
-            onDisagree = {
-                showExitConfirm = true
-            }
-        )
-    }
-    
-    if (showExitConfirm) {
+    if (showPrivacyAlert) {
         AlertDialog(
-            onDismissRequest = { showExitConfirm = false },
-            title = { Text("确认退出") },
-            text = { Text("您需要同意隐私政策才能使用本应用。拒绝后应用将关闭。") },
+            onDismissRequest = { showPrivacyAlert = false },
+            title = { Text("提示") },
+            text = { Text("请先勾选同意隐私政策后再登录游戏") },
             confirmButton = {
                 GameButton(
-                    text = "退出应用",
-                    onClick = {
-                        val activity = context as? MainActivity
-                        activity?.finish()
-                    }
-                )
-            },
-            dismissButton = {
-                GameButton(
-                    text = "重新阅读",
-                    onClick = { showExitConfirm = false }
+                    text = "我知道了",
+                    onClick = { showPrivacyAlert = false }
                 )
             }
         )
@@ -574,6 +568,11 @@ fun MainScreen(
         } else {
             Button(
                 onClick = {
+                    if (!privacyChecked) {
+                        showPrivacyAlert = true
+                        return@Button
+                    }
+                    
                     isLoading = true
                     loginResult = null
                     
@@ -664,16 +663,28 @@ fun MainScreen(
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
+            Checkbox(
+                checked = privacyChecked,
+                onCheckedChange = { checked ->
+                    privacyChecked = checked
+                    if (checked) {
+                        sessionManager.hasAgreedPrivacy = true
+                    }
+                },
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(4.dp))
             Text(
-                text = "登录即表示同意",
+                text = "我已阅读并同意",
                 color = Color(0xFF999999),
                 fontSize = 12.sp
             )
-            Spacer(modifier = Modifier.width(4.dp))
+            Spacer(modifier = Modifier.width(2.dp))
             Text(
                 text = "《隐私政策》",
                 color = Color.Black,
                 fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
                 modifier = Modifier.clickable {
                     val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://hsmy7.github.io/index.html"))
                     context.startActivity(intent)
@@ -682,263 +693,6 @@ fun MainScreen(
         }
         
         Spacer(modifier = Modifier.height(16.dp))
-    }
-}
-
-@Composable
-fun PrivacyPolicyDialog(
-    onAgree: () -> Unit,
-    onDisagree: () -> Unit
-) {
-    val context = LocalContext.current
-    
-    AlertDialog(
-        onDismissRequest = { },
-        title = { 
-            Text(
-                text = "隐私政策",
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            )
-        },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-            ) {
-                Text(
-                    text = "欢迎使用修仙宗门！我们重视您的隐私保护，在使用本应用前，请您仔细阅读并同意我们的隐私政策。",
-                    fontSize = 14.sp,
-                    lineHeight = 20.sp
-                )
-                
-                Spacer(modifier = Modifier.height(12.dp))
-                
-                Text(
-                    text = "我们收集的信息包括：",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp
-                )
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                Text(
-                    text = "1. 设备标识符：用于识别设备，提供游戏存档功能\n2. 网络状态：用于游戏数据同步\n3. 存储空间：用于保存游戏存档数据",
-                    fontSize = 13.sp,
-                    lineHeight = 20.sp,
-                    color = Color(0xFF666666)
-                )
-                
-                Spacer(modifier = Modifier.height(12.dp))
-                
-                Text(
-                    text = "一、信息收集",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp
-                )
-                
-                Spacer(modifier = Modifier.height(6.dp))
-                
-                Text(
-                    text = "1. 设备标识符：我们收集设备标识符用于识别您的设备，确保游戏存档与您的设备关联。\n2. 网络状态信息：用于判断网络连接情况。\n3. 存储空间权限：用于保存游戏存档数据到本地。",
-                    fontSize = 13.sp,
-                    lineHeight = 20.sp,
-                    color = Color(0xFF666666)
-                )
-                
-                Spacer(modifier = Modifier.height(12.dp))
-                
-                Text(
-                    text = "二、信息使用",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp
-                )
-                
-                Spacer(modifier = Modifier.height(6.dp))
-                
-                Text(
-                    text = "我们收集的信息仅用于游戏核心功能，不会用于其他用途。",
-                    fontSize = 13.sp,
-                    lineHeight = 20.sp,
-                    color = Color(0xFF666666)
-                )
-                
-                Spacer(modifier = Modifier.height(12.dp))
-                
-                Text(
-                    text = "三、信息保护",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp
-                )
-                
-                Spacer(modifier = Modifier.height(6.dp))
-                
-                Text(
-                    text = "游戏数据仅保存在您的设备本地。",
-                    fontSize = 13.sp,
-                    lineHeight = 20.sp,
-                    color = Color(0xFF666666)
-                )
-                
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                GameButton(
-                    text = "查看完整隐私政策",
-                    onClick = {
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://hsmy7.github.io/index.html/"))
-                        context.startActivity(intent)
-                    }
-                )
-            }
-        },
-        confirmButton = {
-            GameButton(
-                text = "同意并继续",
-                onClick = onAgree
-            )
-        },
-        dismissButton = {
-            GameButton(
-                text = "退出",
-                onClick = onDisagree
-            )
-        }
-    )
-}
-
-@Composable
-fun PrivacyPolicyScreen(
-    onAgree: () -> Unit,
-    onDisagree: () -> Unit
-) {
-    val context = LocalContext.current
-    val scrollState = rememberScrollState()
-    
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-        Text(
-            text = "隐私政策",
-            fontWeight = FontWeight.Bold,
-            fontSize = 20.sp,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth()
-        )
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .verticalScroll(scrollState)
-        ) {
-            Text(
-                text = "欢迎使用模拟宗门！我们重视您的隐私保护，在使用本应用前，请您仔细阅读并同意我们的隐私政策。",
-                fontSize = 14.sp,
-                lineHeight = 20.sp
-            )
-            
-            Spacer(modifier = Modifier.height(12.dp))
-            
-            Text(
-                text = "我们收集的信息包括：",
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp
-            )
-            
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            Text(
-                text = "1. 设备标识符：用于识别设备，提供游戏存档功能\n2. 网络状态：用于游戏数据同步\n3. 存储空间：用于保存游戏存档数据",
-                fontSize = 13.sp,
-                lineHeight = 20.sp,
-                color = Color(0xFF666666)
-            )
-            
-            Spacer(modifier = Modifier.height(12.dp))
-            
-            Text(
-                text = "一、信息收集",
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp
-            )
-            
-            Spacer(modifier = Modifier.height(6.dp))
-            
-            Text(
-                text = "1. 设备标识符：我们收集设备标识符用于识别您的设备，确保游戏存档与您的设备关联。\n2. 网络状态信息：用于判断网络连接情况。\n3. 存储空间权限：用于保存游戏存档数据到本地。",
-                fontSize = 13.sp,
-                lineHeight = 20.sp,
-                color = Color(0xFF666666)
-            )
-            
-            Spacer(modifier = Modifier.height(12.dp))
-            
-            Text(
-                text = "二、信息使用",
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp
-            )
-            
-            Spacer(modifier = Modifier.height(6.dp))
-            
-            Text(
-                text = "我们收集的信息仅用于游戏核心功能，不会用于其他用途。",
-                fontSize = 13.sp,
-                lineHeight = 20.sp,
-                color = Color(0xFF666666)
-            )
-            
-            Spacer(modifier = Modifier.height(12.dp))
-            
-            Text(
-                text = "三、信息保护",
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp
-            )
-            
-            Spacer(modifier = Modifier.height(6.dp))
-            
-            Text(
-                text = "游戏数据仅保存在您的设备本地。",
-                fontSize = 13.sp,
-                lineHeight = 20.sp,
-                color = Color(0xFF666666)
-            )
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            GameButton(
-                text = "查看完整隐私政策",
-                onClick = {
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://hsmy7.github.io/index.html/"))
-                    context.startActivity(intent)
-                }
-            )
-            
-            Spacer(modifier = Modifier.height(16.dp))
-        }
-        
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            GameButton(
-                text = "退出",
-                onClick = onDisagree,
-                modifier = Modifier.weight(1f)
-            )
-            
-            GameButton(
-                text = "同意并继续",
-                onClick = onAgree,
-                modifier = Modifier.weight(1f)
-            )
-        }
     }
 }
 
@@ -1065,4 +819,37 @@ fun ComplianceVerificationScreen(
         
         Spacer(modifier = Modifier.height(100.dp))
     }
+}
+
+@Composable
+fun PrivacyPolicyDialog(
+    onAgree: () -> Unit,
+    onDisagree: () -> Unit
+) {
+    val context = LocalContext.current
+
+    AlertDialog(
+        onDismissRequest = {},
+        title = { Text("隐私政策") },
+        text = {
+            Column {
+                Text("在使用本应用之前，请阅读并同意我们的隐私政策。")
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "查看《隐私政策》",
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.clickable {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://hsmy7.github.io/index.html"))
+                        context.startActivity(intent)
+                    }
+                )
+            }
+        },
+        confirmButton = {
+            GameButton(text = "同意", onClick = onAgree)
+        },
+        dismissButton = {
+            GameButton(text = "不同意", onClick = onDisagree)
+        }
+    )
 }

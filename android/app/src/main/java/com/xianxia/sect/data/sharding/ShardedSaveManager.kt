@@ -16,6 +16,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.serializer
 import java.io.File
 import java.security.MessageDigest
+import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
@@ -535,7 +536,7 @@ class ShardedSaveManager @Inject constructor(
      * @return 分片文件名（如 "slot1.shard_000"）
      */
     fun generateUsrShardFileName(baseFileName: String, shardIndex: Int): String {
-        return baseFileName + String.format(USR_SHARD_FILE_SUFFIX_PATTERN, shardIndex)
+        return baseFileName + String.format(Locale.ROOT, USR_SHARD_FILE_SUFFIX_PATTERN, shardIndex)
     }
 
     /**

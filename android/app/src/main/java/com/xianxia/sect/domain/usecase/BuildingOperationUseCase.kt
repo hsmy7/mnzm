@@ -49,11 +49,6 @@ class BuildingOperationUseCase @Inject constructor(
         return gameEngine.getBuildingSlots(buildingId)
     }
     
-    fun startBuildingWork(buildingId: String, slotIndex: Int, recipeId: String, baseDuration: Int): AssignResult {
-        gameEngine.startBuildingWork(buildingId, slotIndex, recipeId, baseDuration)
-        return AssignResult.Success(slotIndex)
-    }
-    
     fun collectBuildingResult(buildingId: String, slotIndex: Int): AssignResult {
         return AssignResult.Error("建筑产物自动收取，无需手动操作")
     }

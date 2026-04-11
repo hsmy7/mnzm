@@ -55,7 +55,7 @@ fun WenDaoPeakDialog(
             ),
             preachingMasters = preachingMasters,
             onMasterClick = { index -> showPreachingMasterSelection = index },
-            onMasterRemove = { index -> viewModel.removeDirectDisciple("preachingMasters", index) }
+            onMasterRemove = { index -> viewModel.removeDirectDisciple("preaching", index) }
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -103,7 +103,7 @@ fun WenDaoPeakDialog(
             currentDiscipleId = currentMaster?.discipleId,
             requirementText = "需要金丹及以上境界",
             onSelect = { disciple ->
-                viewModel.assignDirectDisciple("preachingMasters", slotIndex, disciple.id)
+                viewModel.assignDirectDisciple("preaching", slotIndex, disciple.id)
                 showPreachingMasterSelection = null
             },
             onDismiss = { showPreachingMasterSelection = null }

@@ -18,6 +18,7 @@ import com.xianxia.sect.data.concurrent.StorageScopeManager
 import com.xianxia.sect.data.memory.ProactiveMemoryGuard
 import com.xianxia.sect.data.orchestrator.StorageOrchestrator
 import com.xianxia.sect.data.pruning.DataPruningScheduler
+import com.xianxia.sect.data.archive.DataArchiveScheduler
 import com.xianxia.sect.data.serialization.unified.MetadataFile
 import com.xianxia.sect.data.quota.StorageQuotaManager
 import com.xianxia.sect.data.result.StorageError
@@ -109,6 +110,7 @@ class RefactoredStorageFacade @Inject constructor(
     private val orchestrator: StorageOrchestrator,
     private val memoryGuard: ProactiveMemoryGuard,
     private val pruningScheduler: DataPruningScheduler,
+    private val archiveScheduler: DataArchiveScheduler,
     private val scopeManager: StorageScopeManager
 ) {
     companion object {
@@ -204,6 +206,7 @@ class RefactoredStorageFacade @Inject constructor(
             orchestrator.initialize()
             memoryGuard.startMonitoring()
             pruningScheduler.start()
+            archiveScheduler.start()
 
             Log.i(TAG, "Storage system initialized successfully (slot cache warmed with ${slotStateCache.size} entries, version=${cacheVersion.get()})")
             SaveResult.success(Unit)
@@ -590,28 +593,18 @@ class RefactoredStorageFacade @Inject constructor(
     }
 
     suspend fun forceNonAtomicSave(slot: Int, data: SaveData): SaveResult<Unit> {
-        val originalValue = engine.useAtomicPipeline
-        try {
-            engine.useAtomicPipeline = false
-            Log.w(TAG, "Force non-atomic save for slot $slot (atomic pipeline disabled)")
-            val result = engine.save(slot, data).toUnifiedResult().map { Unit }
-            if (result.isSuccess) {
-                updateSlotStateCache(slot, data)
-            }
-            return result
-        } finally {
-            engine.useAtomicPipeline = originalValue
+        Log.w(TAG, "Force non-atomic save for slot $slot")
+        val result = engine.save(slot, data).toUnifiedResult().map { Unit }
+        if (result.isSuccess) {
+            updateSlotStateCache(slot, data)
         }
+        return result
     }
 
-    fun isAtomicPipelineEnabled(): Boolean = engine.useAtomicPipeline
+    fun isAtomicPipelineEnabled(): Boolean = true
 
     fun setAtomicPipelineEnabled(enabled: Boolean) {
-        if (enabled) {
-            Log.i(TAG, "Atomic pipeline enabled - now writes to Room Database (P0#2 fix applied)")
-        }
-        engine.useAtomicPipeline = enabled
-        Log.i(TAG, "Atomic pipeline ${if (enabled) "enabled" else "disabled"}")
+        Log.i(TAG, "Atomic pipeline is always enabled (Room-based)")
     }
 
     suspend fun createBackup(slot: Int): SaveResult<String> {
@@ -798,7 +791,7 @@ class RefactoredStorageFacade @Inject constructor(
         return unifiedSaveRepository.loadEmergencySave()
     }
     
-    fun clearEmergencySave(): Boolean = unifiedSaveRepository.clearEmergencySave()
+    suspend fun clearEmergencySave(): Boolean = unifiedSaveRepository.clearEmergencySave()
     
     suspend fun saveAsync(slot: Int, data: SaveData): SaveResult<Unit> = save(slot, data)
     
@@ -823,6 +816,7 @@ class RefactoredStorageFacade @Inject constructor(
         unifiedSaveRepository.shutdown()
         healthChecker.shutdown()
         statsCollector.shutdown()
+        archiveScheduler.stop()
         scope.cancel()
         Log.i(TAG, "StorageFacade shutdown completed")
     }

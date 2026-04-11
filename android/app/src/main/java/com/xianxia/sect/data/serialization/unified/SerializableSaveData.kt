@@ -36,7 +36,7 @@ data class SerializableGameData(
     @ProtoNumber(12) val worldMapSects: List<SerializableWorldSect> = emptyList(),
     @ProtoNumber(13) val exploredSects: Map<String, SerializableExploredSectInfo> = emptyMap(),
     @ProtoNumber(14) val scoutInfo: Map<String, SerializableSectScoutInfo> = emptyMap(),
-    @ProtoNumber(15) val herbGardenPlantSlots: List<SerializablePlantSlotData> = emptyList(),
+    @ProtoNumber(15) @Deprecated("Migrated to productionSlots") val herbGardenPlantSlots: List<SerializablePlantSlotData> = emptyList(),
     @ProtoNumber(16) val manualProficiencies: Map<String, List<SerializableManualProficiencyData>> = emptyMap(),
     @ProtoNumber(17) val travelingMerchantItems: List<SerializableMerchantItem> = emptyList(),
     @ProtoNumber(18) val merchantLastRefreshYear: Int = 0,
@@ -54,8 +54,8 @@ data class SerializableGameData(
     @ProtoNumber(33) val elderSlots: SerializableElderSlots = SerializableElderSlots(),
     @ProtoNumber(34) val spiritMineSlots: List<SerializableSpiritMineSlot> = emptyList(),
     @ProtoNumber(35) val librarySlots: List<SerializableLibrarySlot> = emptyList(),
-    @ProtoNumber(36) val forgeSlots: List<SerializableBuildingSlot> = emptyList(),
-    @ProtoNumber(37) val alchemySlots: List<SerializableAlchemySlot> = emptyList(),
+    @ProtoNumber(36) @Deprecated("Migrated to productionSlots") val forgeSlots: List<SerializableBuildingSlot> = emptyList(),
+    @ProtoNumber(37) @Deprecated("Migrated to productionSlots") val alchemySlots: List<SerializableAlchemySlot> = emptyList(),
     @ProtoNumber(52) val productionSlots: List<SerializableProductionSlot> = emptyList(),
     @ProtoNumber(38) val alliances: List<SerializableAlliance> = emptyList(),
     @ProtoNumber(39) val sectRelations: List<SerializableSectRelation> = emptyList(),
@@ -68,7 +68,14 @@ data class SerializableGameData(
     @ProtoNumber(47) val playerProtectionStartYear: Int = 1,
     @ProtoNumber(48) val playerHasAttackedAI: Boolean = false,
     @ProtoNumber(49) val activeMissions: List<SerializableActiveMission> = emptyList(),
-    @ProtoNumber(50) val availableMissions: List<SerializableMission> = emptyList()
+    @ProtoNumber(50) val availableMissions: List<SerializableMission> = emptyList(),
+    @ProtoNumber(53) val aiSectDisciples: List<SerializableAiSectDiscipleEntry> = emptyList()
+)
+
+@Serializable
+data class SerializableAiSectDiscipleEntry(
+    @ProtoNumber(1) val sectId: String,
+    @ProtoNumber(2) val disciples: List<SerializableDisciple> = emptyList()
 )
 
 @Serializable
@@ -386,7 +393,6 @@ data class SerializableWorldSect(
     @ProtoNumber(27) val allianceId: String = "",
     @ProtoNumber(28) val allianceStartYear: Int,
     @ProtoNumber(29) val isRighteous: Boolean,
-    @ProtoNumber(30) val aiDisciples: List<SerializableDisciple> = emptyList(),
     @ProtoNumber(31) val isPlayerOccupied: Boolean,
     @ProtoNumber(32) val occupierBattleTeamId: String = "",
     @ProtoNumber(33) val isUnderAttack: Boolean,

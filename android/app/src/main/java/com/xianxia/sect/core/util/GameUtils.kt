@@ -3,6 +3,7 @@ package com.xianxia.sect.core.util
 import com.xianxia.sect.core.GameConfig
 import java.util.Locale
 import java.util.UUID
+import kotlin.math.ceil
 import kotlin.math.pow
 import kotlin.random.Random
 
@@ -89,6 +90,26 @@ object GameUtils {
             realm - layerProgress
         }
         return total / disciples.size
+    }
+
+    fun <T> calculateBeastRealm(
+        disciples: List<T>,
+        realmExtractor: (T) -> Int,
+        layerExtractor: (T) -> Int?
+    ): Int {
+        if (disciples.isEmpty()) return 9
+
+        val avgRealm = calculateTeamAverageRealm(disciples, realmExtractor, layerExtractor)
+
+        val realmIndex = ceil(avgRealm).toInt().coerceIn(0, 9)
+
+        val teamMaxRealm = disciples.maxOf { realmExtractor(it) }
+        return realmIndex.coerceAtMost(teamMaxRealm)
+    }
+
+    fun calculateBeastRealmFromAvg(avgRealm: Double, teamMaxRealm: Int = 9): Int {
+        val realmIndex = ceil(avgRealm).toInt().coerceIn(0, 9)
+        return realmIndex.coerceAtMost(teamMaxRealm)
     }
     
     fun <T> randomFrom(list: List<T>): T? = list.randomOrNull()

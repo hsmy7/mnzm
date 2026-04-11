@@ -1142,6 +1142,47 @@ object DatabaseMigrations {
         }
     }
 
+    internal class Migration73To74 : Migration(73, 74) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            Log.i(TAG, "Migration 73 to 74: storage system optimization - auto migration handles schema changes")
+            Log.i(TAG, "Migration 73 to 74 completed")
+        }
+    }
+
+    internal class Migration74To75 : Migration(74, 75) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            Log.i(TAG, "Migration 74 to 75: auto migration handles schema changes")
+            Log.i(TAG, "Migration 74 to 75 completed")
+        }
+    }
+
+    internal class Migration75To76 : Migration(75, 76) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            Log.i(TAG, "Migration 75 to 76: add minRealm column to pills table")
+            db.execSQL("ALTER TABLE `pills` ADD COLUMN `minRealm` INTEGER NOT NULL DEFAULT 9")
+            Log.i(TAG, "Migration 75 to 76 completed")
+        }
+    }
+
+    internal class Migration76To77 : Migration(76, 77) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            Log.i(TAG, "Migration 76 to 77: add expectedYield and harvestAmount columns to production_slots table")
+            db.execSQL("ALTER TABLE `production_slots` ADD COLUMN `expectedYield` INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE `production_slots` ADD COLUMN `harvestAmount` INTEGER NOT NULL DEFAULT 0")
+            Log.i(TAG, "Migration 76 to 77 completed")
+        }
+    }
+
+    internal class Migration77To78 : Migration(77, 78) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            Log.i(TAG, "Migration 77 to 78: remove legacy slot columns from game_data table")
+            db.execSQL("ALTER TABLE `game_data` DROP COLUMN `herbGardenPlantSlots`")
+            db.execSQL("ALTER TABLE `game_data` DROP COLUMN `forgeSlots`")
+            db.execSQL("ALTER TABLE `game_data` DROP COLUMN `alchemySlots`")
+            Log.i(TAG, "Migration 77 to 78 completed")
+        }
+    }
+
     @JvmStatic
     val ALL_MIGRATIONS = arrayOf<Migration>(
         Migration53To54(),
@@ -1163,7 +1204,12 @@ object DatabaseMigrations {
         Migration69To70(),
         Migration70To71(),
         Migration71To72(),
-        Migration72To73()
+        Migration72To73(),
+        Migration73To74(),
+        Migration74To75(),
+        Migration75To76(),
+        Migration76To77(),
+        Migration77To78()
     )
 
     private val MIGRATION_REGISTRY = mapOf(
@@ -1186,7 +1232,12 @@ object DatabaseMigrations {
         69 to Migration69To70(),
         70 to Migration70To71(),
         71 to Migration71To72(),
-        72 to Migration72To73()
+        72 to Migration72To73(),
+        73 to Migration73To74(),
+        74 to Migration74To75(),
+        75 to Migration75To76(),
+        76 to Migration76To77(),
+        77 to Migration77To78()
     )
 
     fun buildMigrationChain(fromVersion: Int, toVersion: Int): Array<Migration> {

@@ -332,7 +332,7 @@ class RequestSigner @Inject constructor(
         // 序列号（Android O+）
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
-                @SuppressLint("HardwareIds")
+                @SuppressLint("HardwareIds", "MissingPermission")
                 parts.add(Build.getSerial() ?: "no_serial")
             }
         } catch (_: Exception) {}

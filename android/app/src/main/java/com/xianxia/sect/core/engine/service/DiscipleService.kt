@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.StateFlow
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.data.TalentDatabase
+import com.xianxia.sect.core.util.StorageBagUtils
 import java.util.UUID
 import kotlin.random.Random
 
@@ -26,6 +27,7 @@ class DiscipleService constructor(
     private val _disciples: MutableStateFlow<List<Disciple>>,
     private val _equipment: MutableStateFlow<List<Equipment>>,
     private val _teams: MutableStateFlow<List<ExplorationTeam>>,
+    private val productionSlotRepository: com.xianxia.sect.core.repository.ProductionSlotRepository,
     private val addEvent: (String, EventType) -> Unit,
     private val transactionMutex: Any
 ) {
@@ -216,10 +218,8 @@ class DiscipleService constructor(
         val data = _gameData.value
         val discipleIdsToReset = mutableSetOf<String>()
 
-        // Collect disciple IDs from various sources
-        // 1. Building slots
-        data.forgeSlots.forEach { slot ->
-            slot.discipleId?.let { discipleIdsToReset.add(it) }
+        productionSlotRepository.getSlotsByBuildingId("forge").forEach { slot ->
+            slot.assignedDiscipleId?.let { discipleIdsToReset.add(it) }
         }
 
         // 2. Spirit mine slots
@@ -397,6 +397,8 @@ class DiscipleService constructor(
 
     /**
      * Equip equipment to disciple
+     * 设计意图：装备是独占物品，不可共用。一件装备只能给一名弟子穿戴。
+     * 装备新装备时，旧装备自动卸下并放入弟子储物袋。
      */
     fun equipEquipment(discipleId: String, equipmentId: String): Boolean {
         val discipleIndex = _disciples.value.indexOfFirst { it.id == discipleId }
@@ -405,38 +407,37 @@ class DiscipleService constructor(
         val equipment = _equipment.value.find { it.id == equipmentId } ?: return false
         val disciple = _disciples.value[discipleIndex]
 
-        // Check realm requirement
-        if (disciple.realm > equipment.minRealm) {
+        if (equipment.isEquipped && equipment.ownerId != null && equipment.ownerId != discipleId) {
+            addEvent("${equipment.name} 已被其他弟子装备，无法重复穿戴", EventType.WARNING)
+            return false
+        }
+
+        if (!GameConfig.Realm.meetsRealmRequirement(disciple.realm, equipment.minRealm)) {
             addEvent("${disciple.name} 境界不足，无法装备 ${equipment.name}", EventType.WARNING)
             return false
         }
 
-        // Unequip existing equipment in same slot
+        when (equipment.slot) {
+            EquipmentSlot.WEAPON -> disciple.weaponId.takeIf { it.isNotEmpty() }?.let { unequipEquipment(discipleId, it) }
+            EquipmentSlot.ARMOR -> disciple.armorId.takeIf { it.isNotEmpty() }?.let { unequipEquipment(discipleId, it) }
+            EquipmentSlot.BOOTS -> disciple.bootsId.takeIf { it.isNotEmpty() }?.let { unequipEquipment(discipleId, it) }
+            EquipmentSlot.ACCESSORY -> disciple.accessoryId.takeIf { it.isNotEmpty() }?.let { unequipEquipment(discipleId, it) }
+            else -> {}
+        }
+
+        val currentDisciple = _disciples.value[discipleIndex]
         val updatedDisciple = when (equipment.slot) {
-            EquipmentSlot.WEAPON -> {
-                disciple.weaponId.takeIf { it.isNotEmpty() }?.let { unequipEquipment(discipleId, it) }
-                disciple.copyWith(weaponId = equipmentId)
-            }
-            EquipmentSlot.ARMOR -> {
-                disciple.armorId.takeIf { it.isNotEmpty() }?.let { unequipEquipment(discipleId, it) }
-                disciple.copyWith(armorId = equipmentId)
-            }
-            EquipmentSlot.BOOTS -> {
-                disciple.bootsId.takeIf { it.isNotEmpty() }?.let { unequipEquipment(discipleId, it) }
-                disciple.copyWith(bootsId = equipmentId)
-            }
-            EquipmentSlot.ACCESSORY -> {
-                disciple.accessoryId.takeIf { it.isNotEmpty() }?.let { unequipEquipment(discipleId, it) }
-                disciple.copyWith(accessoryId = equipmentId)
-            }
-            else -> disciple
+            EquipmentSlot.WEAPON -> currentDisciple.copyWith(weaponId = equipmentId)
+            EquipmentSlot.ARMOR -> currentDisciple.copyWith(armorId = equipmentId)
+            EquipmentSlot.BOOTS -> currentDisciple.copyWith(bootsId = equipmentId)
+            EquipmentSlot.ACCESSORY -> currentDisciple.copyWith(accessoryId = equipmentId)
+            else -> currentDisciple
         }
 
         _disciples.value = _disciples.value.toMutableList().also { it[discipleIndex] = updatedDisciple }
 
-        // Mark equipment as equipped
         _equipment.value = _equipment.value.map {
-            if (it.id == equipmentId) it.copy(isEquipped = true) else it
+            if (it.id == equipmentId) it.copy(isEquipped = true, ownerId = discipleId) else it
         }
 
         addEvent("${disciple.name} 装备了 ${equipment.name}", EventType.INFO)
@@ -445,6 +446,7 @@ class DiscipleService constructor(
 
     /**
      * Unequip equipment from disciple
+     * 设计意图：装备是独占物品，卸下后放入弟子储物袋，而非归还宗门仓库。
      */
     fun unequipEquipment(discipleId: String, equipmentId: String): Boolean {
         val discipleIndex = _disciples.value.indexOfFirst { it.id == discipleId }
@@ -460,11 +462,27 @@ class DiscipleService constructor(
         }
 
         if (updatedDisciple != disciple) {
-            _disciples.value = _disciples.value.toMutableList().also { it[discipleIndex] = updatedDisciple }
+            val eq = _equipment.value.find { it.id == equipmentId }
+            val data = _gameData.value
+            val discipleWithBag = if (eq != null) {
+                val storageItem = StorageBagItem(
+                    itemId = equipmentId,
+                    itemType = "equipment",
+                    name = eq.name,
+                    rarity = eq.rarity,
+                    quantity = 1,
+                    obtainedYear = data.gameYear,
+                    obtainedMonth = data.gameMonth
+                )
+                updatedDisciple.copyWith(
+                    storageBagItems = StorageBagUtils.increaseItemQuantity(updatedDisciple.storageBagItems, storageItem)
+                )
+            } else updatedDisciple
 
-            // Mark equipment as unequipped
+            _disciples.value = _disciples.value.toMutableList().also { it[discipleIndex] = discipleWithBag }
+
             _equipment.value = _equipment.value.map {
-                if (it.id == equipmentId) it.copy(isEquipped = false) else it
+                if (it.id == equipmentId) it.copy(isEquipped = false, ownerId = null) else it
             }
 
             return true
@@ -481,10 +499,6 @@ class DiscipleService constructor(
         synchronized(transactionMutex) {
             val data = _gameData.value
 
-            // Clear from forge slots
-            val updatedForgeSlots = data.forgeSlots.filter { it.discipleId != discipleId }
-
-            // Clear from spirit mine slots
             val updatedSpiritMineSlots = data.spiritMineSlots.map {
                 if (it.discipleId == discipleId) it.copy(discipleId = "", discipleName = "") else it
             }
@@ -493,17 +507,25 @@ class DiscipleService constructor(
                 if (it.discipleId == discipleId) it.copy(discipleId = "", discipleName = "") else it
             }
 
-            // Clear from elder slots
             val updatedElderSlots = clearDiscipleFromElderSlots(data.elderSlots, discipleId)
 
             _gameData.value = data.copy(
-                forgeSlots = updatedForgeSlots,
                 spiritMineSlots = updatedSpiritMineSlots,
                 librarySlots = updatedLibrarySlots,
                 elderSlots = updatedElderSlots
             )
 
-            // 触发执法堂自动补位（弟子离任后从储备池补位）
+            kotlinx.coroutines.runBlocking {
+                val forgeSlots = productionSlotRepository.getSlotsByBuildingId("forge")
+                for (slot in forgeSlots) {
+                    if (slot.assignedDiscipleId == discipleId && !slot.isWorking) {
+                        productionSlotRepository.updateSlotByBuildingId("forge", slot.slotIndex) { s ->
+                            s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
+                        }
+                    }
+                }
+            }
+
             autoFillLawEnforcementSlots()
         }
     }

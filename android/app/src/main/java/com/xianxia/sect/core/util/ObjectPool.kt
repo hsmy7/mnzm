@@ -2,6 +2,7 @@ package com.xianxia.sect.core.util
 
 import android.util.Log
 import java.util.ArrayDeque
+import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 import javax.inject.Inject
@@ -186,7 +187,7 @@ class ObjectPool @Inject constructor() {
         val statsStr = stats.joinToString("\n") { stat ->
             "  ${stat.objectType}: size=${stat.poolSize}, borrowed=${stat.borrowedCount}, " +
             "returned=${stat.returnedCount}, created=${stat.createdCount}, " +
-            "hits=${stat.hitCount}, misses=${stat.missCount}, hitRate=${String.format("%.2f", stat.hitRate)}"
+            "hits=${stat.hitCount}, misses=${stat.missCount}, hitRate=${String.format(Locale.ROOT, "%.2f", stat.hitRate)}"
         }
         Log.i(TAG, "ObjectPool Stats:\n$statsStr")
     }

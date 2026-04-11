@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.data
 
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.MaterialCategory
 import com.xianxia.sect.core.model.Pill
@@ -37,7 +38,8 @@ object ItemDatabase {
         val battleCount: Int = 0,
         val revive: Boolean = false,
         val clearAll: Boolean = false,
-        val mpRecoverMaxMpPercent: Double = 0.0
+        val mpRecoverMaxMpPercent: Double = 0.0,
+        val minRealm: Int = 9
     )
     
     data class MaterialTemplate(
@@ -402,6 +404,7 @@ object ItemDatabase {
             revive = template.revive,
             clearAll = template.clearAll,
             mpRecoverMaxMpPercent = template.mpRecoverMaxMpPercent,
+            minRealm = GameConfig.Realm.getMinRealmForRarity(template.rarity),
             quantity = quantity
         )
     }

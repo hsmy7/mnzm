@@ -216,7 +216,6 @@ object DiffUpdateSystem {
                oldData.gameMonth != newData.gameMonth ||
                oldData.spiritStones != newData.spiritStones ||
                oldData.spiritHerbs != newData.spiritHerbs ||
-               oldData.herbGardenPlantSlots != newData.herbGardenPlantSlots ||
                oldData.librarySlots != newData.librarySlots ||
                oldData.elderSlots != newData.elderSlots ||
                oldData.manualProficiencies != newData.manualProficiencies
@@ -259,7 +258,6 @@ data class IncrementalUpdate(
     val herbs: DiffResult<Herb>? = null,
     val seeds: DiffResult<Seed>? = null,
     val teams: DiffResult<ExplorationTeam>? = null,
-    val buildingSlots: DiffResult<BuildingSlot>? = null,
     val gameDataChanged: Boolean = false
 ) {
     val hasAnyChanges: Boolean
@@ -271,6 +269,5 @@ data class IncrementalUpdate(
                 (herbs?.hasChanges == true) ||
                 (seeds?.hasChanges == true) ||
                 (teams?.hasChanges == true) ||
-                (buildingSlots?.hasChanges == true) ||
                 gameDataChanged
 }

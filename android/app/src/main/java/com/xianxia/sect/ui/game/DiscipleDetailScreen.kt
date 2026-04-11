@@ -28,6 +28,7 @@ import com.xianxia.sect.core.data.TalentDatabase
 import com.xianxia.sect.core.engine.EquipmentNurtureSystem
 import com.xianxia.sect.core.engine.ManualProficiencySystem
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.ui.game.components.getBuffTypeName
 import com.xianxia.sect.ui.game.components.ItemDetailDialog
 import com.xianxia.sect.core.util.GameUtils
@@ -86,7 +87,7 @@ fun DiscipleDetailDialog(
     val maxManualSlots = remember(disciple.talentIds) {
         val talentEffects = TalentDatabase.calculateTalentEffects(disciple.talentIds)
         val manualSlotBonus = talentEffects["manualSlot"]?.toInt() ?: 0
-        5 + manualSlotBonus
+        6 + manualSlotBonus
     }
 
     var showRelationsDialog by remember { mutableStateOf(false) }
@@ -317,6 +318,7 @@ fun DiscipleDetailDialog(
         ManualSelectionDialog(
             allManuals = allManuals,
             currentManualIds = disciple.manualIds,
+            discipleRealm = disciple.realm,
             selectedManualId = selectedManualId,
             onSelect = { id -> 
                 selectedManualId = if (selectedManualId == id) null else id
@@ -342,6 +344,7 @@ fun DiscipleDetailDialog(
             proficiencyData = proficiencyData,
             allManuals = allManuals,
             currentManualIds = disciple.manualIds,
+            discipleRealm = disciple.realm,
             onReplace = { newManualId ->
                 viewModel?.replaceManual(disciple.id, manual.id, newManualId)
                 showManualDetailDialog = null
@@ -499,6 +502,7 @@ private fun ManualDetailDialog(
     proficiencyData: ManualProficiencyData?,
     allManuals: List<Manual>,
     currentManualIds: List<String>,
+    discipleRealm: Int,
     onReplace: (String) -> Unit,
     onForget: () -> Unit,
     onDismiss: () -> Unit
@@ -513,8 +517,15 @@ private fun ManualDetailDialog(
         else -> Color(0xFF95A5A6)
     }
 
-    val availableManuals = remember(allManuals, currentManualIds) {
-        allManuals.filter { it.id !in currentManualIds && !it.isLearned }.sortedByDescending { it.rarity }
+    val availableManuals = remember(allManuals, currentManualIds, manual, discipleRealm) {
+        val hasMindManual = currentManualIds.any { mid ->
+            allManuals.find { it.id == mid }?.type == ManualType.MIND
+        }
+        allManuals.filter { newManual ->
+            newManual.id !in currentManualIds && !newManual.isLearned &&
+            !(hasMindManual && manual.type != ManualType.MIND && newManual.type == ManualType.MIND) &&
+            GameConfig.Realm.meetsRealmRequirement(discipleRealm, newManual.minRealm)
+        }.sortedByDescending { it.rarity }
     }
 
     var showReplaceSelection by remember { mutableStateOf(false) }
@@ -1756,13 +1767,19 @@ private fun EquipmentSelectionCard(
 private fun ManualSelectionDialog(
     allManuals: List<Manual>,
     currentManualIds: List<String>,
+    discipleRealm: Int,
     selectedManualId: String?,
     onSelect: (String) -> Unit,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    val availableManuals = remember(allManuals, currentManualIds) {
-        allManuals.filter { it.id !in currentManualIds && !it.isLearned }.sortedByDescending { it.rarity }
+    val availableManuals = remember(allManuals, currentManualIds, discipleRealm) {
+        val hasMindManual = currentManualIds.any { mid -> allManuals.find { it.id == mid }?.type == ManualType.MIND }
+        allManuals.filter { manual ->
+            manual.id !in currentManualIds && !manual.isLearned &&
+            !(hasMindManual && manual.type == ManualType.MIND) &&
+            GameConfig.Realm.meetsRealmRequirement(discipleRealm, manual.minRealm)
+        }.sortedByDescending { it.rarity }
     }
 
     var showDetailManual by remember { mutableStateOf<Manual?>(null) }
@@ -2267,7 +2284,16 @@ private fun BasicInfoSection(
         ) {
             InfoItem("寿命 ${disciple.age}/${disciple.lifespan}", Modifier.weight(1f))
             val breakthroughChance = disciple.getBreakthroughChance()
-            InfoItem("突破率 ${GameUtils.formatPercent(breakthroughChance)}", Modifier.weight(1f))
+            val isMajorBreakthrough = disciple.realmLayer >= GameConfig.Realm.get(disciple.realm).maxLayers
+            val targetRealm = disciple.realm - 1
+            val soulRequired = if (isMajorBreakthrough && targetRealm >= 0) {
+                GameConfig.Realm.getSoulPowerRequirement(targetRealm)
+            } else 0
+            if (soulRequired > 0 && disciple.soulPower < soulRequired) {
+                InfoItem("神魂 ${disciple.soulPower}/$soulRequired", Modifier.weight(1f), color = Color(0xFFFF6B6B))
+            } else {
+                InfoItem("突破率 ${GameUtils.formatPercent(breakthroughChance)}", Modifier.weight(1f))
+            }
         }
         
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -2339,12 +2365,12 @@ private fun BasicInfoSection(
 }
 
 @Composable
-private fun InfoItem(value: String, modifier: Modifier = Modifier) {
+private fun InfoItem(value: String, modifier: Modifier = Modifier, color: Color = Color.Black) {
     Text(
         text = value,
         fontSize = 12.sp,
         fontWeight = FontWeight.Bold,
-        color = Color.Black,
+        color = color,
         modifier = modifier
     )
 }
@@ -3005,7 +3031,7 @@ private fun RewardItemsDialog(
 ) {
     var selectedFilter by remember { mutableStateOf(RewardFilter.ALL) }
     var selectedItem by remember { mutableStateOf<RewardSelectedItem?>(null) }
-    var rewardQuantity by remember { mutableStateOf(1) }
+    var rewardQuantity by remember { mutableIntStateOf(1) }
     var showDetailDialog by remember { mutableStateOf(false) }
     var detailItem by remember { mutableStateOf<Any?>(null) }
     var isRewarding by remember { mutableStateOf(false) }
@@ -3019,6 +3045,7 @@ private fun RewardItemsDialog(
 
     // 过滤掉已学习的功法（已学习的功法不可再次赏赐）
     val availableManuals = manuals.filter { !it.isLearned }
+    val availableEquipment = equipment.filter { !it.isEquipped }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -3104,7 +3131,7 @@ private fun RewardItemsDialog(
                 ) {
                     when (selectedFilter) {
                         RewardFilter.ALL -> RewardAllItemsGrid(
-                            equipment = equipment,
+                            equipment = availableEquipment,
                             manuals = availableManuals,
                             pills = pills,
                             materials = materials,
@@ -3121,7 +3148,7 @@ private fun RewardItemsDialog(
                             }
                         )
                         RewardFilter.EQUIPMENT -> RewardItemGrid(
-                            items = equipment,
+                            items = availableEquipment,
                             selectedItem = selectedItem,
                             onItemSelect = { item ->
                                 selectedItem = if (selectedItem?.id == item.id) null else item

@@ -91,7 +91,7 @@ object HerbDatabase {
         Herb("spiritFlower17", "混沌仙莲", 6, 6, "flower", "混沌中诞生的仙莲，蕴含混沌本源", 4800000),
         Herb("spiritFlower18", "造化神花", 6, 6, "flower", "天地造化孕育的神花，蕴含造化之力", 4800000),
         Herb("spiritFruit16", "瑞麟仙果", 6, 6, "fruit", "瑞兽麒麟守护万年的仙果，已生灵智", 4800000),
-        Herb("spiritFruit17", "玄武帝果", 6, 6, "fruit", "玄武守护之地生长的帝品灵果，蕴含大地精华", 4800000),
+        Herb("spiritFruit17", "玄武帝果", 6, 6, "fruit", "玄武守护之地生长的天品灵果，蕴含大地精华", 4800000),
         Herb("spiritFruit18", "混沌神果", 6, 6, "fruit", "混沌初开时诞生的神果，蕴含混沌本源", 4800000)
     )
 

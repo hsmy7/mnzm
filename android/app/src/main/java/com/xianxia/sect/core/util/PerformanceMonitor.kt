@@ -13,6 +13,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicLong
@@ -290,10 +291,10 @@ class PerformanceMonitor @Inject constructor() {
         val frameStatsLog = if (frameStats != null) {
             """
             |Frame Stats:
-            |  - FPS: ${String.format("%.1f", frameStats.fps)}
-            |  - Avg Frame Time: ${String.format("%.2f", frameStats.averageFrameTime / 1_000_000)}ms
-            |  - Max Frame Time: ${String.format("%.2f", frameStats.maxFrameTime / 1_000_000.0)}ms
-            |  - Dropped Frames: ${frameStats.droppedFrameCount} (${String.format("%.1f", frameStats.droppedFramePercent)}%)
+            |  - FPS: ${String.format(Locale.ROOT, "%.1f", frameStats.fps)}
+            |  - Avg Frame Time: ${String.format(Locale.ROOT, "%.2f", frameStats.averageFrameTime / 1_000_000)}ms
+            |  - Max Frame Time: ${String.format(Locale.ROOT, "%.2f", frameStats.maxFrameTime / 1_000_000.0)}ms
+            |  - Dropped Frames: ${frameStats.droppedFrameCount} (${String.format(Locale.ROOT, "%.1f", frameStats.droppedFramePercent)}%)
             """.trimMargin()
         } else {
             "Frame Stats: No data available"
@@ -306,7 +307,7 @@ class PerformanceMonitor @Inject constructor() {
         
         val operationsLog = if (slowOperations.isNotEmpty()) {
             slowOperations.joinToString("\n") { op ->
-                "  - ${op.name}: avg=${String.format("%.1f", op.averageTimeMs)}ms, max=${op.maxTimeMs}ms, calls=${op.totalExecutions}"
+                "  - ${op.name}: avg=${String.format(Locale.ROOT, "%.1f", op.averageTimeMs)}ms, max=${op.maxTimeMs}ms, calls=${op.totalExecutions}"
             }
         } else {
             "  No slow operations detected"
@@ -504,7 +505,7 @@ class PerformanceMonitor @Inject constructor() {
         
         val statsStr = sortedSummaries.joinToString("\n") { summary ->
             val status = if (summary.failureCount > 0) " [${summary.failureCount} failures]" else ""
-            "  ${summary.operationName}: avg=${String.format("%.1f", summary.averageTimeMs)}ms, " +
+            "  ${summary.operationName}: avg=${String.format(Locale.ROOT, "%.1f", summary.averageTimeMs)}ms, " +
             "max=${summary.maxTimeMs}ms, calls=${summary.totalExecutions}$status"
         }
         
@@ -533,7 +534,7 @@ class PerformanceMonitor @Inject constructor() {
             totalTime += summary.totalTimeMs
             sb.appendLine("${summary.operationName}:")
             sb.appendLine("  Executions: ${summary.totalExecutions} (success: ${summary.successCount}, fail: ${summary.failureCount})")
-            sb.appendLine("  Time: avg=${String.format("%.1f", summary.averageTimeMs)}ms, max=${summary.maxTimeMs}ms, total=${summary.totalTimeMs}ms")
+            sb.appendLine("  Time: avg=${String.format(Locale.ROOT, "%.1f", summary.averageTimeMs)}ms, max=${summary.maxTimeMs}ms, total=${summary.totalTimeMs}ms")
             
             if (summary.recentSlowExecutions.isNotEmpty()) {
                 sb.appendLine("  Recent slow executions:")

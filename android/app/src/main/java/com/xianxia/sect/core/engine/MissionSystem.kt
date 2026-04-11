@@ -15,7 +15,7 @@ import com.xianxia.sect.core.model.MissionTemplate
 import kotlin.random.Random
 
 object MissionSystem {
-    const val EXPIRY_MONTHS = 12
+    const val EXPIRY_MONTHS = 3
     const val REFRESH_INTERVAL_MONTHS = 3
 
     data class MissionResult(

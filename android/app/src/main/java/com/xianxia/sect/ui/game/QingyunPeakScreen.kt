@@ -55,7 +55,7 @@ fun QingyunPeakDialog(
             ),
             preachingMasters = preachingMasters,
             onMasterClick = { index -> showPreachingMasterSelection = index },
-            onMasterRemove = { index -> viewModel.removeDirectDisciple("qingyunPreachingMasters", index) }
+            onMasterRemove = { index -> viewModel.removeDirectDisciple("qingyunPreaching", index) }
         )
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -105,7 +105,7 @@ fun QingyunPeakDialog(
             currentDiscipleId = currentMaster?.discipleId,
             requirementText = "需要金丹及以上境界",
             onSelect = { disciple ->
-                viewModel.assignDirectDisciple("qingyunPreachingMasters", slotIndex, disciple.id)
+                viewModel.assignDirectDisciple("qingyunPreaching", slotIndex, disciple.id)
                 showPreachingMasterSelection = null
             },
             onDismiss = { showPreachingMasterSelection = null }

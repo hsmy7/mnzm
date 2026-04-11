@@ -77,8 +77,8 @@ class SavePipeline @Inject constructor(
         val timedOut: Boolean = false
     )
 
-    /** 缓冲队列：容量 2，防止积压过多存档请求 */
-    private val saveChannel = Channel<SaveRequest>(capacity = 2)
+    /** 缓冲队列：容量 4，允许短时间积压存档请求 */
+    private val saveChannel = Channel<SaveRequest>(capacity = 4)
 
     /** 后台消费者协程 Job */
     private var consumerJob: Job? = null

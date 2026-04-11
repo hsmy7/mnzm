@@ -27,7 +27,9 @@ data class DiscipleCore(
     var slotId: Int = 0,
 
     var name: String = "",
+    /** 境界等级：0=仙人(最高), 1=渡劫, 2=大乘, ..., 9=炼气(最低)。数字越小境界越高 */
     var realm: Int = 9,
+    /** 境界层数：1~9层，9层满后突破到下一大境界(realm-1) */
     var realmLayer: Int = 1,
     var cultivation: Double = 0.0,
     var isAlive: Boolean = true,

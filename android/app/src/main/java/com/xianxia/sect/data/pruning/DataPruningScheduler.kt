@@ -21,7 +21,7 @@ data class PruningConfig(
     val maxGameEvents: Int = StorageConstants.DEFAULT_MAX_GAME_EVENTS,
     val battleLogRetentionMs: Long = 7 * 24 * 60 * 60 * 1000L,
     val gameEventRetentionMs: Long = 14 * 24 * 60 * 60 * 1000L,
-    val slotIds: List<Int> = listOf(0, 1, 2, 3, 4),
+    val slotIds: List<Int> = listOf(1, 2, 3, 4, 5),
     val enableAutoPruning: Boolean = true
 )
 

@@ -12,9 +12,6 @@ import kotlinx.serialization.Serializable
  */
 @Serializable
 data class BuildingState(
-    val herbGardenPlantSlots: List<PlantSlotData> = emptyList(),
-    val forgeSlots: List<BuildingSlot> = emptyList(),
-    val alchemySlots: List<AlchemySlot> = emptyList(),
     val productionSlots: List<ProductionSlot> = emptyList(),
     val spiritMineSlots: List<SpiritMineSlot> = emptyList(),
     val librarySlots: List<LibrarySlot> = emptyList()

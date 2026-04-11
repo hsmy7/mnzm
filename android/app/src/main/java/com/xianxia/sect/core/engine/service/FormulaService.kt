@@ -18,7 +18,8 @@ import com.xianxia.sect.core.util.BuildingNames
  */
 class FormulaService(
     private val _gameData: MutableStateFlow<GameData>,
-    private val _disciples: MutableStateFlow<List<Disciple>>
+    private val _disciples: MutableStateFlow<List<Disciple>>,
+    private val productionSlotRepository: com.xianxia.sect.core.repository.ProductionSlotRepository
 ) {
     companion object {
         private const val TAG = "FormulaService"
@@ -145,8 +146,8 @@ class FormulaService(
                 totalSpeedBonus += elderBonus.speedBonus
             }
             else -> {
-                val allBuildingSlots = data.forgeSlots.filter { it.buildingId == buildingId }
-                val assignedDiscipleIds = allBuildingSlots.mapNotNull { it.discipleId }
+                val allBuildingSlots = productionSlotRepository.getSlotsByBuildingId(buildingId)
+                val assignedDiscipleIds = allBuildingSlots.mapNotNull { it.assignedDiscipleId }
                 if (assignedDiscipleIds.isNotEmpty()) {
                     totalSpeedBonus += getElderPositionBonus(buildingId)
                 }
@@ -205,17 +206,18 @@ class FormulaService(
         return when (buildingId) {
             "forge" -> {
                 val baseline = 80
-                val maxBonus = 0.20
                 val diff = (elderDisciple.artifactRefining - baseline).coerceAtLeast(0)
-                (diff * 0.01).coerceAtMost(maxBonus)
+                diff * 0.01
             }
             "alchemy" -> {
-                val diff = elderDisciple.pillRefining - 50
-                (diff * 0.02).coerceIn(-0.10, 0.30)
+                val baseline = 80
+                val diff = (elderDisciple.pillRefining - baseline).coerceAtLeast(0)
+                diff * 0.01
             }
             "herbGarden" -> {
-                val diff = elderDisciple.spiritPlanting - 50
-                (diff * 0.02).coerceIn(-0.10, 0.30)
+                val baseline = 80
+                val diff = (elderDisciple.spiritPlanting - baseline).coerceAtLeast(0)
+                diff * 0.01
             }
             else -> 0.0
         }
@@ -250,41 +252,38 @@ class FormulaService(
 
         when (buildingType) {
             "herbGarden" -> {
-                // 灵药园：受灵植属性影响
-                // 长老：以50为基准，每高5点增加1%成熟速度，每低5点减少1%成熟速度
+                val elderBaseline = 80
+                val discipleBaseline = 80
+
                 elder?.let { e ->
-                    val spiritPlantingDiff = e.spiritPlanting - 50
-                    speedBonus += (spiritPlantingDiff / 5.0) * 0.01
+                    val diff = (e.spiritPlanting - elderBaseline).coerceAtLeast(0)
+                    speedBonus += diff * 0.01
                 }
-                // 亲传弟子：以50为基准，每高10点增加1%成熟速度，每低10点减少1%成熟速度
                 disciples.forEach { d ->
-                    val spiritPlantingDiff = d.spiritPlanting - 50
-                    speedBonus += (spiritPlantingDiff / 10.0) * 0.01
+                    val diff = (d.spiritPlanting - discipleBaseline).coerceAtLeast(0)
+                    speedBonus += diff * 0.01
                 }
             }
             "alchemy" -> {
-                // 炼丹房：受炼丹属性影响
-                // 长老：以50为基准，每高5点增加1%炼制速度，每低5点减少1%炼制速度；每多5点增加1%成功率
+                val elderBaseline = 80
+                val discipleBaseline = 80
+
                 elder?.let { e ->
-                    val pillRefiningDiff = e.pillRefining - 50
-                    speedBonus += (pillRefiningDiff / 5.0) * 0.01
-                    successBonus += (pillRefiningDiff / 5.0) * 0.01
+                    val diff = (e.pillRefining - elderBaseline).coerceAtLeast(0)
+                    successBonus += diff * 0.01
                 }
-                // 亲传弟子：以50为基准，每高10点增加1%炼制速度，每低10点减少1%炼制速度；每多10点增加1%成功率
                 disciples.forEach { d ->
-                    val pillRefiningDiff = d.pillRefining - 50
-                    speedBonus += (pillRefiningDiff / 10.0) * 0.01
-                    successBonus += (pillRefiningDiff / 10.0) * 0.01
+                    val diff = (d.pillRefining - discipleBaseline).coerceAtLeast(0)
+                    speedBonus += diff * 0.01
                 }
             }
             "forge" -> {
                 val elderBaseline = 80
                 val discipleBaseline = 80
-                val maxElderSuccessBonus = 0.20
 
                 elder?.let { e ->
                     val diff = (e.artifactRefining - elderBaseline).coerceAtLeast(0)
-                    successBonus += (diff * 0.01).coerceAtMost(maxElderSuccessBonus)
+                    successBonus += diff * 0.01
                 }
                 disciples.forEach { d ->
                     val diff = (d.artifactRefining - discipleBaseline).coerceAtLeast(0)

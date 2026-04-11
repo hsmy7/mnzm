@@ -34,6 +34,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 
 @HiltViewModel
@@ -210,9 +212,6 @@ class GameViewModel @Inject constructor(
     val teams: StateFlow<List<ExplorationTeam>> = gameEngine.teams
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val buildingSlots: StateFlow<List<BuildingSlot>> = gameEngine.buildingSlots
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
     val events: StateFlow<List<GameEvent>> = gameEngine.events
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -223,7 +222,35 @@ class GameViewModel @Inject constructor(
         .map { it.alliances }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val alchemySlots: StateFlow<List<AlchemySlot>> = gameEngine.alchemySlots
+    val productionSlots: StateFlow<List<com.xianxia.sect.core.model.production.ProductionSlot>> = gameEngine.productionSlots
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val worldMapRenderData: StateFlow<WorldMapRenderData> = gameEngine.worldMapRenderData
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), WorldMapRenderData())
+
+    val alchemySlots: StateFlow<List<AlchemySlot>> = productionSlots
+        .map { slots ->
+            slots.filter { it.buildingType == com.xianxia.sect.core.model.production.BuildingType.ALCHEMY }.map { slot ->
+                AlchemySlot(
+                    id = slot.id,
+                    slotIndex = slot.slotIndex,
+                    recipeId = slot.recipeId,
+                    recipeName = slot.recipeName,
+                    pillName = slot.outputItemName,
+                    pillRarity = slot.outputItemRarity,
+                    startYear = slot.startYear,
+                    startMonth = slot.startMonth,
+                    duration = slot.duration,
+                    status = when (slot.status) {
+                        com.xianxia.sect.core.model.production.ProductionSlotStatus.IDLE -> AlchemySlotStatus.IDLE
+                        com.xianxia.sect.core.model.production.ProductionSlotStatus.WORKING -> AlchemySlotStatus.WORKING
+                        com.xianxia.sect.core.model.production.ProductionSlotStatus.COMPLETED -> AlchemySlotStatus.FINISHED
+                    },
+                    successRate = slot.successRate,
+                    requiredMaterials = slot.requiredMaterials
+                )
+            }
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val highFrequencyData: StateFlow<HighFrequencyData> = gameEngine.highFrequencyData
@@ -234,6 +261,10 @@ class GameViewModel @Inject constructor(
 
     private val saveLock = AtomicBoolean(false)
     private val pendingAutoSave = AtomicBoolean(false)
+    private val saveLockAcquireTime = AtomicLong(0L)
+    private val consecutiveSaveFailures = AtomicInteger(0)
+    private val MAX_CONSECUTIVE_SAVE_FAILURES = 3
+    private val SAVE_LOCK_TIMEOUT_MS = 60_000L
 
     private val _loadingProgress = MutableStateFlow(0f)
     val loadingProgress: StateFlow<Float> = _loadingProgress.asStateFlow()
@@ -328,6 +359,38 @@ class GameViewModel @Inject constructor(
         _pendingSlot.value = null
         _pendingAction.value = null
     }
+
+    private fun trimSaveData(snapshot: com.xianxia.sect.core.engine.GameStateSnapshot): SaveData {
+        val maxBattleLogs = 1000
+        val maxEvents = 2000
+        val trimmedBattleLogs = if (snapshot.battleLogs.size > maxBattleLogs) {
+            Log.w(TAG, "Trimming battleLogs: ${snapshot.battleLogs.size} -> $maxBattleLogs")
+            snapshot.battleLogs.takeLast(maxBattleLogs)
+        } else {
+            snapshot.battleLogs
+        }
+        val trimmedEvents = if (snapshot.events.size > maxEvents) {
+            Log.w(TAG, "Trimming events: ${snapshot.events.size} -> $maxEvents")
+            snapshot.events.takeLast(maxEvents)
+        } else {
+            snapshot.events
+        }
+        return SaveData(
+            gameData = snapshot.gameData,
+            disciples = snapshot.disciples,
+            equipment = snapshot.equipment,
+            manuals = snapshot.manuals,
+            pills = snapshot.pills,
+            materials = snapshot.materials,
+            herbs = snapshot.herbs,
+            seeds = snapshot.seeds,
+            teams = snapshot.teams,
+            events = trimmedEvents,
+            battleLogs = trimmedBattleLogs,
+            alliances = snapshot.alliances,
+            productionSlots = snapshot.productionSlots
+        )
+    }
     
     // 游戏已加载标志（用于Activity重建时判断是否需要重新加载）
     @Volatile private var _isGameLoaded = false
@@ -371,25 +434,25 @@ class GameViewModel @Inject constructor(
     private val _selectedPlantSlotIndex = MutableStateFlow<Int?>(null)
     val selectedPlantSlotIndex: StateFlow<Int?> = _selectedPlantSlotIndex.asStateFlow()
 
-    val forgeSlots: StateFlow<List<ForgeSlot>> = gameEngine.buildingSlots
-        .map { slots -> 
-            slots.filter { it.buildingId == "forge" }.map { buildingSlot ->
-                val recipe = buildingSlot.recipeId?.let { 
-                    com.xianxia.sect.core.data.ForgeRecipeDatabase.getRecipeById(it) 
+    val forgeSlots: StateFlow<List<ForgeSlot>> = productionSlots
+        .map { slots ->
+            slots.filter { it.buildingType == com.xianxia.sect.core.model.production.BuildingType.FORGE }.map { slot ->
+                val recipe = slot.recipeId?.let {
+                    com.xianxia.sect.core.data.ForgeRecipeDatabase.getRecipeById(it)
                 }
                 ForgeSlot(
-                    id = buildingSlot.id,
-                    slotIndex = buildingSlot.slotIndex,
-                    recipeId = buildingSlot.recipeId,
-                    recipeName = buildingSlot.recipeName,
+                    id = slot.id,
+                    slotIndex = slot.slotIndex,
+                    recipeId = slot.recipeId,
+                    recipeName = slot.recipeName,
                     equipmentName = recipe?.name ?: "",
                     equipmentRarity = recipe?.rarity ?: 1,
-                    startYear = buildingSlot.startYear,
-                    startMonth = buildingSlot.startMonth,
-                    duration = buildingSlot.duration,
-                    status = when (buildingSlot.status) {
-                        com.xianxia.sect.core.model.SlotStatus.WORKING -> ForgeSlotStatus.WORKING
-                        com.xianxia.sect.core.model.SlotStatus.COMPLETED -> ForgeSlotStatus.FINISHED
+                    startYear = slot.startYear,
+                    startMonth = slot.startMonth,
+                    duration = slot.duration,
+                    status = when (slot.status) {
+                        com.xianxia.sect.core.model.production.ProductionSlotStatus.WORKING -> ForgeSlotStatus.WORKING
+                        com.xianxia.sect.core.model.production.ProductionSlotStatus.COMPLETED -> ForgeSlotStatus.FINISHED
                         else -> ForgeSlotStatus.IDLE
                     }
                 )
@@ -458,12 +521,14 @@ class GameViewModel @Inject constructor(
         val memoryRatio = availableMemory.toDouble() / maxMemory.toDouble()
         val memoryUsagePercent = (usedMemory * 100 / maxMemory)
         
-        if (memoryRatio < 0.3) {
-            Log.w(TAG, "Low memory before save: ${memoryUsagePercent}% used")
+        if (memoryRatio < 0.4) {
+            Log.w(TAG, "Low memory before save: ${memoryUsagePercent}% used, triggering GC")
+            System.gc()
+
             val newFree = runtime.freeMemory()
             val newAvailable = maxMemory - (runtime.totalMemory() - newFree)
-            if (newAvailable.toDouble() / maxMemory < 0.2) {
-                Log.e(TAG, "Insufficient memory: only ${newAvailable/1024/1024}MB available")
+            if (newAvailable.toDouble() / maxMemory < 0.3) {
+                Log.e(TAG, "Insufficient memory after GC: only ${newAvailable/1024/1024}MB available")
                 return false
             }
         }
@@ -479,8 +544,9 @@ class GameViewModel @Inject constructor(
         val usedMemory = runtime.totalMemory() - runtime.freeMemory()
         val memoryUsagePercent = (usedMemory * 100 / runtime.maxMemory())
 
-        if (memoryUsagePercent > 80) {
-            Log.d(TAG, "High memory usage before save: ${memoryUsagePercent}%")
+        if (memoryUsagePercent > 70) {
+            Log.d(TAG, "High memory usage before save: ${memoryUsagePercent}%, triggering GC")
+            System.gc()
         } else {
             Log.d(TAG, "Memory usage acceptable: ${memoryUsagePercent}%")
         }
@@ -496,61 +562,60 @@ class GameViewModel @Inject constructor(
     }
 
     private fun enqueueAutoSave(source: SavePipeline.SaveSource) {
+        val lockAge = System.currentTimeMillis() - saveLockAcquireTime.get()
+        if (saveLock.get() && saveLockAcquireTime.get() > 0 && lockAge > SAVE_LOCK_TIMEOUT_MS) {
+            Log.e(TAG, "Save lock held for ${lockAge}ms, force releasing")
+            saveLock.set(false)
+        }
+
         if (!saveLock.compareAndSet(false, true)) {
             pendingAutoSave.set(true)
             Log.w(TAG, "Already saving, marking pending auto save (source=$source)")
             return
         }
 
+        saveLockAcquireTime.set(System.currentTimeMillis())
+
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val snapshot = gameEngine.getStateSnapshot()
                 val currentSlot = snapshot.gameData.currentSlot
                 val updatedGameData = snapshot.gameData.copy(currentSlot = currentSlot)
-                val saveData = SaveData(
-                    gameData = updatedGameData,
-                    disciples = snapshot.disciples,
-                    equipment = snapshot.equipment,
-                    manuals = snapshot.manuals,
-                    pills = snapshot.pills,
-                    materials = snapshot.materials,
-                    herbs = snapshot.herbs,
-                    seeds = snapshot.seeds,
-                    teams = snapshot.teams,
-                    events = snapshot.events,
-                    battleLogs = snapshot.battleLogs,
-                    alliances = snapshot.alliances,
-                    productionSlots = snapshot.productionSlots
-                )
+                val saveData = trimSaveData(snapshot)
 
                 val autoSaveSlot = com.xianxia.sect.data.StorageConstants.AUTO_SAVE_SLOT
-                val enqueued = savePipeline.enqueue(
-                    SavePipeline.SaveRequest(
-                        slot = autoSaveSlot,
-                        snapshot = snapshot,
-                        source = source
-                    )
+                val autoRequest = SavePipeline.SaveRequest(
+                    slot = autoSaveSlot,
+                    snapshot = snapshot,
+                    source = source
                 )
+                val autoEnqueued = savePipeline.enqueue(autoRequest)
 
-                if (enqueued) {
-                    gameEngine.updateGameData { updatedGameData }
-                    Log.d(TAG, "Auto save enqueued for slot: $autoSaveSlot, source=$source")
-                } else {
-                    Log.e(TAG, "Auto save enqueue FAILED (queue full): slot=$autoSaveSlot, source=$source")
+                if (!autoEnqueued) {
+                    Log.w(TAG, "Auto save queue full, retrying after delay")
+                    delay(2000)
+                    savePipeline.enqueue(autoRequest)
                 }
 
                 if (currentSlot > 0) {
-                    val playerSlotResult = storageFacade.saveSyncWithResult(currentSlot, saveData)
-                    if (playerSlotResult.isSuccess) {
-                        Log.d(TAG, "Auto save also saved to player slot: $currentSlot, source=$source")
-                    } else {
-                        Log.e(TAG, "Auto save failed for player slot $currentSlot: $playerSlotResult")
-                    }
+                    val playerRequest = SavePipeline.SaveRequest(
+                        slot = currentSlot,
+                        snapshot = snapshot,
+                        source = source
+                    )
+                    savePipeline.enqueue(playerRequest)
                 }
 
-                _saveSlots.value = storageFacade.getSaveSlots()
+                gameEngine.updateGameData { updatedGameData }
+                consecutiveSaveFailures.set(0)
+                Log.d(TAG, "Auto save enqueued for slots: $autoSaveSlot, $currentSlot, source=$source")
             } catch (e: Exception) {
+                val failures = consecutiveSaveFailures.incrementAndGet()
                 Log.e(TAG, "Auto save failed (source=$source): ${e.message}", e)
+                if (failures >= MAX_CONSECUTIVE_SAVE_FAILURES) {
+                    _errorMessage.value = "自动保存连续失败，请手动保存或重启游戏"
+                    consecutiveSaveFailures.set(0)
+                }
             } finally {
                 saveLock.set(false)
                 if (pendingAutoSave.compareAndSet(true, false)) {
@@ -573,21 +638,7 @@ class GameViewModel @Inject constructor(
      */
     suspend fun createSaveData(): SaveData {
         val snapshot = gameEngine.getStateSnapshot()
-        return SaveData(
-                    gameData = snapshot.gameData,
-                    disciples = snapshot.disciples,
-                    equipment = snapshot.equipment,
-                    manuals = snapshot.manuals,
-                    pills = snapshot.pills,
-                    materials = snapshot.materials,
-                    herbs = snapshot.herbs,
-                    seeds = snapshot.seeds,
-                    teams = snapshot.teams,
-            events = snapshot.events,
-            battleLogs = snapshot.battleLogs,
-            alliances = snapshot.alliances,
-            productionSlots = snapshot.productionSlots
-        )
+        return trimSaveData(snapshot)
     }
     
     /**
@@ -598,21 +649,7 @@ class GameViewModel @Inject constructor(
      */
     fun createSaveDataSync(): SaveData {
         val snapshot = gameEngine.getStateSnapshotSync()
-        return SaveData(
-            gameData = snapshot.gameData,
-            disciples = snapshot.disciples,
-            equipment = snapshot.equipment,
-            manuals = snapshot.manuals,
-            pills = snapshot.pills,
-            materials = snapshot.materials,
-            herbs = snapshot.herbs,
-            seeds = snapshot.seeds,
-            teams = snapshot.teams,
-            events = snapshot.events,
-            battleLogs = snapshot.battleLogs,
-            alliances = snapshot.alliances,
-            productionSlots = snapshot.productionSlots
-        )
+        return trimSaveData(snapshot)
     }
 
     private fun stopGameLoop() {
@@ -729,21 +766,7 @@ class GameViewModel @Inject constructor(
                 return false
             }
             val updatedGameData = snapshot.gameData.copy(currentSlot = slot)
-            val saveData = SaveData(
-                gameData = updatedGameData,
-                disciples = snapshot.disciples,
-                equipment = snapshot.equipment,
-                manuals = snapshot.manuals,
-                pills = snapshot.pills,
-                materials = snapshot.materials,
-                herbs = snapshot.herbs,
-                seeds = snapshot.seeds,
-                teams = snapshot.teams,
-                events = snapshot.events,
-                battleLogs = snapshot.battleLogs,
-                alliances = snapshot.alliances,
-                productionSlots = snapshot.productionSlots
-            )
+            val saveData = trimSaveData(snapshot).copy(gameData = updatedGameData)
             
             val result = withTimeoutOrNull(30_000L) {
                 storageFacade.saveSyncWithResult(slot, saveData)
@@ -1058,21 +1081,7 @@ class GameViewModel @Inject constructor(
                         _errorMessage.value = "游戏数据未初始化"
                         return@launch
                     }
-                    val saveData = SaveData(
-                        gameData = snapshot.gameData,
-                        disciples = snapshot.disciples,
-                        equipment = snapshot.equipment,
-                        manuals = snapshot.manuals,
-                        pills = snapshot.pills,
-                        materials = snapshot.materials,
-                        herbs = snapshot.herbs,
-                        seeds = snapshot.seeds,
-                        teams = snapshot.teams,
-                        events = snapshot.events,
-                        battleLogs = snapshot.battleLogs,
-                        alliances = snapshot.alliances,
-                        productionSlots = snapshot.productionSlots
-                    )
+                    val saveData = trimSaveData(snapshot)
 
                     val saveResult = withTimeoutOrNull(30_000L) {
                         storageFacade.saveSyncWithResult(slot, saveData)
@@ -1145,51 +1154,47 @@ class GameViewModel @Inject constructor(
 
     fun pauseAndSaveForBackground() {
         stopGameLoop()
+        if (!_isGameLoaded) {
+            Log.d(TAG, "pauseAndSaveForBackground: game not loaded, skipping")
+            return
+        }
         try {
-            kotlinx.coroutines.runBlocking(Dispatchers.IO) {
-                try {
-                    val snapshot = gameEngine.getStateSnapshot()
-                    val currentSlot = snapshot.gameData.currentSlot
-                    if (currentSlot <= 0) {
-                        Log.w(TAG, "pauseAndSaveForBackground: invalid currentSlot=$currentSlot, skipping")
-                        return@runBlocking
-                    }
-                    val updatedGameData = snapshot.gameData.copy(currentSlot = currentSlot)
-                    val saveData = SaveData(
-                        gameData = updatedGameData,
-                        disciples = snapshot.disciples,
-                        equipment = snapshot.equipment,
-                        manuals = snapshot.manuals,
-                        pills = snapshot.pills,
-                        materials = snapshot.materials,
-                        herbs = snapshot.herbs,
-                        seeds = snapshot.seeds,
-                        teams = snapshot.teams,
-                        events = snapshot.events,
-                        battleLogs = snapshot.battleLogs,
-                        alliances = snapshot.alliances,
-                        productionSlots = snapshot.productionSlots
-                    )
-                    val autoSaveSlot = com.xianxia.sect.data.StorageConstants.AUTO_SAVE_SLOT
-                    val autoSaveResult = storageFacade.saveSyncWithResult(autoSaveSlot, saveData)
-                    if (autoSaveResult.isSuccess) {
-                        Log.i(TAG, "Background auto-save completed for slot $autoSaveSlot")
-                    } else {
-                        Log.e(TAG, "Background auto-save failed for slot $autoSaveSlot: $autoSaveResult")
-                    }
-                    val playerSlotResult = storageFacade.saveSyncWithResult(currentSlot, saveData)
-                    if (playerSlotResult.isSuccess) {
-                        _saveSlots.value = storageFacade.getSaveSlots()
-                        Log.i(TAG, "Background save completed for player slot $currentSlot")
-                    } else {
-                        Log.e(TAG, "Background save failed for player slot $currentSlot: $playerSlotResult")
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Background save error: ${e.message}", e)
+            val snapshot = gameEngine.getStateSnapshotSync()
+            val currentSlot = snapshot.gameData.currentSlot
+            if (currentSlot <= 0) {
+                Log.w(TAG, "pauseAndSaveForBackground: invalid currentSlot=$currentSlot, skipping")
+                return
+            }
+            val autoSaveSlot = com.xianxia.sect.data.StorageConstants.AUTO_SAVE_SLOT
+            val autoRequest = SavePipeline.SaveRequest(
+                slot = autoSaveSlot,
+                snapshot = snapshot,
+                source = SavePipeline.SaveSource.AUTO
+            )
+            val autoEnqueued = savePipeline.enqueue(autoRequest)
+            if (!autoEnqueued) {
+                Log.w(TAG, "pauseAndSaveForBackground: auto save queue full, retrying after delay")
+                viewModelScope.launch(Dispatchers.IO) {
+                    kotlinx.coroutines.delay(2000)
+                    savePipeline.enqueue(autoRequest)
                 }
             }
+            val playerRequest = SavePipeline.SaveRequest(
+                slot = currentSlot,
+                snapshot = snapshot,
+                source = SavePipeline.SaveSource.AUTO
+            )
+            val playerEnqueued = savePipeline.enqueue(playerRequest)
+            if (!playerEnqueued) {
+                Log.w(TAG, "pauseAndSaveForBackground: player save queue full, retrying after delay")
+                viewModelScope.launch(Dispatchers.IO) {
+                    kotlinx.coroutines.delay(2000)
+                    savePipeline.enqueue(playerRequest)
+                }
+            }
+            Log.i(TAG, "pauseAndSaveForBackground: enqueued saves for slots $autoSaveSlot, $currentSlot")
         } catch (e: Exception) {
-            Log.e(TAG, "pauseAndSaveForBackground runBlocking error: ${e.message}", e)
+            Log.e(TAG, "pauseAndSaveForBackground error: ${e.message}", e)
         }
     }
 
@@ -1615,8 +1620,7 @@ class GameViewModel @Inject constructor(
                 }
 
                 if (promotedToInnerIds.isNotEmpty()) {
-                    val currentGameData = gameEngine.gameData.value
-                    val currentSpiritMineSlots = currentGameData.spiritMineSlots
+                    val currentSpiritMineSlots = gameEngine.gameData.value.spiritMineSlots
                     var slotsChanged = false
                     val updatedSpiritMineSlots = currentSpiritMineSlots.map { slot ->
                         if (slot.discipleId in promotedToInnerIds) {
@@ -1627,9 +1631,9 @@ class GameViewModel @Inject constructor(
                         }
                     }
                     if (slotsChanged) {
-                        gameEngine.updateSpiritMineSlots(updatedSpiritMineSlots)
-                        gameEngine.syncAllDiscipleStatuses()
+                        gameEngine.updateGameData { it.copy(spiritMineSlots = updatedSpiritMineSlots) }
                     }
+                    gameEngine.syncAllDiscipleStatuses()
                 }
 
                 closeOuterTournamentDialog()
@@ -1781,11 +1785,13 @@ class GameViewModel @Inject constructor(
                 
                 val minRealm = when (slotType) {
                     "viceSectMaster" -> 4
+                    "lawEnforcementElder" -> 5
                     else -> 6
                 }
                 if (disciple.realm > minRealm) {
                     val realmName = when (minRealm) {
                         4 -> "炼虚"
+                        5 -> "化神"
                         6 -> "元婴"
                         else -> "元婴"
                     }
@@ -1801,16 +1807,7 @@ class GameViewModel @Inject constructor(
                 val elderSlots = currentGameData.elderSlots
                 
                 val allElderIds = elderSlots.getAllElderIds()
-                val allDirectDiscipleIds = listOf(
-                    elderSlots.herbGardenDisciples,
-                    elderSlots.alchemyDisciples,
-                    elderSlots.forgeDisciples,
-                    elderSlots.preachingMasters,
-                    elderSlots.lawEnforcementDisciples,
-                    elderSlots.lawEnforcementReserveDisciples,
-                    elderSlots.qingyunPreachingMasters,
-                    elderSlots.spiritMineDeaconDisciples
-                ).flatten().mapNotNull { it.discipleId }
+                val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
 
                 if (allElderIds.contains(discipleId)) {
                     _errorMessage.value = "该弟子已担任长老职位"
@@ -2151,12 +2148,7 @@ class GameViewModel @Inject constructor(
                 val elderSlots = currentGameData.elderSlots
                 
                 val allElderIds = elderSlots.getAllElderIds()
-                val allDirectDiscipleIds = listOf(
-                    elderSlots.herbGardenDisciples,
-                    elderSlots.alchemyDisciples,
-                    elderSlots.forgeDisciples,
-                    elderSlots.spiritMineDeaconDisciples
-                ).flatten().mapNotNull { it.discipleId }
+                val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
 
                 if (allElderIds.contains(discipleId)) {
                     _errorMessage.value = "该弟子已担任长老职位"
@@ -2353,19 +2345,23 @@ class GameViewModel @Inject constructor(
         ).filter { !it.isNullOrBlank() }
     }
 
+    private fun ElderSlots.getAllDirectDiscipleIds(): List<String> {
+        return listOf(
+            herbGardenDisciples,
+            alchemyDisciples,
+            forgeDisciples,
+            preachingMasters,
+            lawEnforcementDisciples,
+            lawEnforcementReserveDisciples,
+            qingyunPreachingMasters,
+            spiritMineDeaconDisciples
+        ).flatten().mapNotNull { it.discipleId }
+    }
+
     fun getAvailableDisciplesForLawEnforcementElder(): List<DiscipleAggregate> {
         val elderSlots = gameEngine.gameData.value.elderSlots
         val allElderIds = elderSlots.getAllElderIds()
-
-        val allDirectDiscipleIds = listOf(
-            elderSlots.herbGardenDisciples,
-            elderSlots.alchemyDisciples,
-            elderSlots.forgeDisciples,
-            elderSlots.preachingMasters,
-            elderSlots.lawEnforcementDisciples,
-            elderSlots.lawEnforcementReserveDisciples,
-            elderSlots.spiritMineDeaconDisciples
-        ).flatten().mapNotNull { it.discipleId }
+        val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
 
         return discipleAggregates.value
             .filter { isSelectableDisciple(it) && it.realm <= 5 && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
@@ -2375,16 +2371,7 @@ class GameViewModel @Inject constructor(
     fun getAvailableDisciplesForLawEnforcementDisciple(): List<DiscipleAggregate> {
         val elderSlots = gameEngine.gameData.value.elderSlots
         val allElderIds = elderSlots.getAllElderIds()
-
-        val allDirectDiscipleIds = listOf(
-            elderSlots.herbGardenDisciples,
-            elderSlots.alchemyDisciples,
-            elderSlots.forgeDisciples,
-            elderSlots.preachingMasters,
-            elderSlots.lawEnforcementDisciples,
-            elderSlots.lawEnforcementReserveDisciples,
-            elderSlots.spiritMineDeaconDisciples
-        ).flatten().mapNotNull { it.discipleId }
+        val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
 
         return discipleAggregates.value
             .filter { isSelectableDisciple(it) && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
@@ -2394,16 +2381,7 @@ class GameViewModel @Inject constructor(
     fun getAvailableDisciplesForLawEnforcementReserve(): List<DiscipleAggregate> {
         val elderSlots = gameEngine.gameData.value.elderSlots
         val allElderIds = elderSlots.getAllElderIds()
-
-        val allDirectDiscipleIds = listOf(
-            elderSlots.herbGardenDisciples,
-            elderSlots.alchemyDisciples,
-            elderSlots.forgeDisciples,
-            elderSlots.preachingMasters,
-            elderSlots.lawEnforcementDisciples,
-            elderSlots.lawEnforcementReserveDisciples,
-            elderSlots.spiritMineDeaconDisciples
-        ).flatten().mapNotNull { it.discipleId }
+        val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
 
         return discipleAggregates.value
             .filter { isSelectableDisciple(it) && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
@@ -2417,21 +2395,13 @@ class GameViewModel @Inject constructor(
     fun getAvailableDisciplesForOuterElder(): List<DiscipleAggregate> {
         val elderSlots = gameEngine.gameData.value.elderSlots
         val allElderIds = elderSlots.getAllElderIds()
-
-        val allDirectDiscipleIds = listOf(
-            elderSlots.herbGardenDisciples,
-            elderSlots.alchemyDisciples,
-            elderSlots.forgeDisciples,
-            elderSlots.preachingMasters,
-            elderSlots.lawEnforcementDisciples,
-            elderSlots.spiritMineDeaconDisciples
-        ).flatten().mapNotNull { it.discipleId }
+        val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
 
         return disciples.value
             .filter {
                 it.isAlive &&
                 it.discipleType == "inner" &&
-                it.realm <= 5 &&
+                it.realm <= 6 &&
                 it.age >= 5 &&
                 it.realmLayer > 0 &&
                 it.status == DiscipleStatus.IDLE &&
@@ -2444,38 +2414,20 @@ class GameViewModel @Inject constructor(
     fun getAvailableDisciplesForPreachingElder(): List<DiscipleAggregate> {
         val elderSlots = gameEngine.gameData.value.elderSlots
         val allElderIds = elderSlots.getAllElderIds()
-
-        val allDirectDiscipleIds = listOf(
-            elderSlots.herbGardenDisciples,
-            elderSlots.alchemyDisciples,
-            elderSlots.forgeDisciples,
-            elderSlots.preachingMasters,
-            elderSlots.lawEnforcementDisciples,
-            elderSlots.spiritMineDeaconDisciples
-        ).flatten().mapNotNull { it.discipleId }
+        val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
 
         return disciples.value
-            .filter { isSelectableDisciple(it) && it.realm <= 5 && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
+            .filter { isSelectableDisciple(it) && it.realm <= 6 && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 
     fun getAvailableDisciplesForPreachingMaster(): List<DiscipleAggregate> {
         val elderSlots = gameEngine.gameData.value?.elderSlots ?: return emptyList()
         val allElderIds = elderSlots.getAllElderIds()
-
-        val allDirectDiscipleIds = listOf(
-            elderSlots.herbGardenDisciples,
-            elderSlots.alchemyDisciples,
-            elderSlots.forgeDisciples,
-            elderSlots.preachingMasters,
-            elderSlots.lawEnforcementDisciples,
-            elderSlots.lawEnforcementReserveDisciples,
-            elderSlots.qingyunPreachingMasters,
-            elderSlots.spiritMineDeaconDisciples
-        ).flatten().mapNotNull { it.discipleId }
+        val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
 
         return disciples.value
-            .filter { isSelectableDisciple(it) && it.realm <= 6 && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
+            .filter { isSelectableDisciple(it) && it.realm <= 7 && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 
@@ -2624,19 +2576,9 @@ class GameViewModel @Inject constructor(
     fun getAvailableDisciplesForHerbGardenReserve(): List<DiscipleAggregate> {
         val elderSlots = gameEngine.gameData.value?.elderSlots ?: return emptyList()
         val allElderIds = elderSlots.getAllElderIds()
-
-        val allDirectDiscipleIds = listOf(
-            elderSlots.herbGardenDisciples,
-            elderSlots.alchemyDisciples,
-            elderSlots.forgeDisciples,
-            elderSlots.preachingMasters,
-            elderSlots.lawEnforcementDisciples,
-            elderSlots.lawEnforcementReserveDisciples,
-            elderSlots.qingyunPreachingMasters,
-            elderSlots.spiritMineDeaconDisciples,
-            elderSlots.alchemyReserveDisciples,
-            elderSlots.herbGardenReserveDisciples
-        ).flatten().mapNotNull { it.discipleId }
+        val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds() +
+            elderSlots.alchemyReserveDisciples.mapNotNull { it.discipleId } +
+            elderSlots.herbGardenReserveDisciples.mapNotNull { it.discipleId }
 
         return disciples.value
             .filter {
@@ -2653,19 +2595,9 @@ class GameViewModel @Inject constructor(
     fun getAvailableDisciplesForAlchemyReserve(): List<DiscipleAggregate> {
         val elderSlots = gameEngine.gameData.value.elderSlots
         val allElderIds = elderSlots.getAllElderIds()
-
-        val allDirectDiscipleIds = listOf(
-            elderSlots.herbGardenDisciples,
-            elderSlots.alchemyDisciples,
-            elderSlots.forgeDisciples,
-            elderSlots.preachingMasters,
-            elderSlots.lawEnforcementDisciples,
-            elderSlots.lawEnforcementReserveDisciples,
-            elderSlots.qingyunPreachingMasters,
-            elderSlots.spiritMineDeaconDisciples,
-            elderSlots.alchemyReserveDisciples,
-            elderSlots.forgeReserveDisciples
-        ).flatten().mapNotNull { it.discipleId }
+        val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds() +
+            elderSlots.alchemyReserveDisciples.mapNotNull { it.discipleId } +
+            elderSlots.forgeReserveDisciples.mapNotNull { it.discipleId }
 
         return discipleAggregates.value
             .filter {
@@ -2749,19 +2681,9 @@ class GameViewModel @Inject constructor(
     fun getAvailableDisciplesForForgeReserve(): List<DiscipleAggregate> {
         val elderSlots = gameEngine.gameData.value.elderSlots
         val allElderIds = elderSlots.getAllElderIds()
-
-        val allDirectDiscipleIds = listOf(
-            elderSlots.herbGardenDisciples,
-            elderSlots.alchemyDisciples,
-            elderSlots.forgeDisciples,
-            elderSlots.preachingMasters,
-            elderSlots.lawEnforcementDisciples,
-            elderSlots.lawEnforcementReserveDisciples,
-            elderSlots.qingyunPreachingMasters,
-            elderSlots.spiritMineDeaconDisciples,
-            elderSlots.alchemyReserveDisciples,
-            elderSlots.forgeReserveDisciples
-        ).flatten().mapNotNull { it.discipleId }
+        val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds() +
+            elderSlots.alchemyReserveDisciples.mapNotNull { it.discipleId } +
+            elderSlots.forgeReserveDisciples.mapNotNull { it.discipleId }
 
         return discipleAggregates.value
             .filter {
@@ -2784,17 +2706,7 @@ class GameViewModel @Inject constructor(
     fun getAvailableDisciplesForSpiritMineDeacon(): List<DiscipleAggregate> {
         val elderSlots = gameEngine.gameData.value.elderSlots
         val allElderIds = elderSlots.getAllElderIds()
-
-        val allDirectDiscipleIds = listOf(
-            elderSlots.herbGardenDisciples,
-            elderSlots.alchemyDisciples,
-            elderSlots.forgeDisciples,
-            elderSlots.preachingMasters,
-            elderSlots.lawEnforcementDisciples,
-            elderSlots.lawEnforcementReserveDisciples,
-            elderSlots.qingyunPreachingMasters,
-            elderSlots.spiritMineDeaconDisciples
-        ).flatten().mapNotNull { it.discipleId }
+        val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
 
         // 灵矿执事只能由内门弟子担任
         return discipleAggregates.value
@@ -2830,17 +2742,7 @@ class GameViewModel @Inject constructor(
 
                 // 检查是否已在其他职位
                 val allElderIds = elderSlots.getAllElderIds()
-
-                val allDirectDiscipleIds = listOf(
-                    elderSlots.herbGardenDisciples,
-                    elderSlots.alchemyDisciples,
-                    elderSlots.forgeDisciples,
-                    elderSlots.preachingMasters,
-                    elderSlots.lawEnforcementDisciples,
-                    elderSlots.lawEnforcementReserveDisciples,
-                    elderSlots.qingyunPreachingMasters,
-                    elderSlots.spiritMineDeaconDisciples
-                ).flatten().mapNotNull { it.discipleId }
+                val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
 
                 if (allElderIds.contains(discipleId)) {
                     _errorMessage.value = "该弟子已担任长老职位"
@@ -2908,60 +2810,30 @@ class GameViewModel @Inject constructor(
     fun getAvailableDisciplesForInnerElder(): List<DiscipleAggregate> {
         val elderSlots = gameEngine.gameData.value.elderSlots
         val allElderIds = elderSlots.getAllElderIds()
-
-        val allDirectDiscipleIds = listOf(
-            elderSlots.herbGardenDisciples,
-            elderSlots.alchemyDisciples,
-            elderSlots.forgeDisciples,
-            elderSlots.preachingMasters,
-            elderSlots.lawEnforcementDisciples,
-            elderSlots.lawEnforcementReserveDisciples,
-            elderSlots.qingyunPreachingMasters,
-            elderSlots.spiritMineDeaconDisciples
-        ).flatten().mapNotNull { it.discipleId }
+        val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
 
         return disciples.value
-            .filter { isSelectableDisciple(it) && it.realm <= 5 && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
+            .filter { isSelectableDisciple(it) && it.realm <= 6 && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 
     fun getAvailableDisciplesForQingyunPreachingElder(): List<DiscipleAggregate> {
         val elderSlots = gameEngine.gameData.value.elderSlots
         val allElderIds = elderSlots.getAllElderIds()
-
-        val allDirectDiscipleIds = listOf(
-            elderSlots.herbGardenDisciples,
-            elderSlots.alchemyDisciples,
-            elderSlots.forgeDisciples,
-            elderSlots.preachingMasters,
-            elderSlots.lawEnforcementDisciples,
-            elderSlots.lawEnforcementReserveDisciples,
-            elderSlots.qingyunPreachingMasters,
-            elderSlots.spiritMineDeaconDisciples
-        ).flatten().mapNotNull { it.discipleId }
+        val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
 
         return disciples.value
-            .filter { isSelectableDisciple(it) && it.realm <= 5 && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
+            .filter { isSelectableDisciple(it) && it.realm <= 6 && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 
     fun getAvailableDisciplesForQingyunPreachingMaster(): List<DiscipleAggregate> {
         val elderSlots = gameEngine.gameData.value.elderSlots
         val allElderIds = elderSlots.getAllElderIds()
-
-        val allDirectDiscipleIds = listOf(
-            elderSlots.herbGardenDisciples,
-            elderSlots.alchemyDisciples,
-            elderSlots.forgeDisciples,
-            elderSlots.preachingMasters,
-            elderSlots.lawEnforcementDisciples,
-            elderSlots.lawEnforcementReserveDisciples,
-            elderSlots.qingyunPreachingMasters,
-            elderSlots.spiritMineDeaconDisciples
-        ).flatten().mapNotNull { it.discipleId }
+        val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
 
         return disciples.value
-            .filter { isSelectableDisciple(it) && it.realm <= 6 && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
+            .filter { isSelectableDisciple(it) && it.realm <= 7 && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 
@@ -3032,17 +2904,7 @@ class GameViewModel @Inject constructor(
     fun getAvailableDisciplesForSpiritMining(): List<DiscipleAggregate> {
         val elderSlots = gameEngine.gameData.value.elderSlots
         val allElderIds = elderSlots.getAllElderIds()
-
-        val allDirectDiscipleIds = listOf(
-            elderSlots.herbGardenDisciples,
-            elderSlots.alchemyDisciples,
-            elderSlots.forgeDisciples,
-            elderSlots.preachingMasters,
-            elderSlots.lawEnforcementDisciples,
-            elderSlots.lawEnforcementReserveDisciples,
-            elderSlots.qingyunPreachingMasters,
-            elderSlots.spiritMineDeaconDisciples
-        ).flatten().mapNotNull { it.discipleId }
+        val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
 
         val assignedMiningIds = gameEngine.gameData.value.spiritMineSlots.mapNotNull { it.discipleId }.toSet()
 
@@ -3228,8 +3090,11 @@ class GameViewModel @Inject constructor(
     fun autoPlantAllSlots() {
         viewModelScope.launch {
             try {
-                val data = gameEngine.gameData.value ?: return@launch
-                val idleSlots = data.herbGardenPlantSlots.filter { it.status == "idle" }
+                val productionSlots = gameEngine.productionSlots.value
+                val herbGardenSlots = productionSlots.filter {
+                    it.buildingType == com.xianxia.sect.core.model.production.BuildingType.HERB_GARDEN
+                }
+                val idleSlots = herbGardenSlots.filter { it.status == com.xianxia.sect.core.model.production.ProductionSlotStatus.IDLE }
                 if (idleSlots.isEmpty()) {
                     _errorMessage.value = "没有空闲的种植槽位"
                     return@launch
@@ -3243,7 +3108,7 @@ class GameViewModel @Inject constructor(
 
                     val seedToPlant = currentSeeds.firstOrNull() ?: break
 
-                    gameEngine.startManualPlanting(slot.index, seedToPlant.id)
+                    gameEngine.startManualPlanting(slot.slotIndex, seedToPlant.id)
                     plantedCount++
                 }
 
@@ -3261,11 +3126,13 @@ class GameViewModel @Inject constructor(
     fun autoAlchemyAllSlots() {
         viewModelScope.launch {
             try {
-                val data = gameEngine.gameData.value ?: return@launch
-                val idleSlotIndices = data.alchemySlots
-                    .mapIndexedNotNull { index, slot ->
-                        if (slot.status == AlchemySlotStatus.IDLE) index else null
-                    }
+                val productionSlots = gameEngine.productionSlots.value
+                val alchemySlots = productionSlots.filter {
+                    it.buildingType == com.xianxia.sect.core.model.production.BuildingType.ALCHEMY
+                }
+                val idleSlotIndices = alchemySlots
+                    .filter { it.status == com.xianxia.sect.core.model.production.ProductionSlotStatus.IDLE }
+                    .map { it.slotIndex }
 
                 if (idleSlotIndices.isEmpty()) {
                     _errorMessage.value = "没有空闲的炼丹槽位"
@@ -3307,13 +3174,15 @@ class GameViewModel @Inject constructor(
     fun autoForgeAllSlots() {
         viewModelScope.launch {
             try {
-                val data = gameEngine.gameData.value ?: return@launch
-                val forgeSlotsData = data.forgeSlots.filter { it.buildingId == "forge" }
+                val productionSlots = gameEngine.productionSlots.value
+                val forgeSlots = productionSlots.filter {
+                    it.buildingType == com.xianxia.sect.core.model.production.BuildingType.FORGE
+                }
                 val maxSlotCount = 3
 
                 val idleSlotIndices = (0 until maxSlotCount).filter { idx ->
-                    val slot = forgeSlotsData.find { it.slotIndex == idx }
-                    slot == null || slot.status == SlotStatus.IDLE
+                    val slot = forgeSlots.find { it.slotIndex == idx }
+                    slot == null || slot.status == com.xianxia.sect.core.model.production.ProductionSlotStatus.IDLE
                 }
 
                 if (idleSlotIndices.isEmpty()) {
@@ -3529,16 +3398,6 @@ class GameViewModel @Inject constructor(
                 gameEngine.startManualPlanting(slotIndex, seed.id)
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "种植失败"
-            }
-        }
-    }
-
-    fun harvestHerb(slotIndex: Int) {
-        viewModelScope.launch {
-            try {
-                gameEngine.harvestHerb(slotIndex)
-            } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "收获失败"
             }
         }
     }

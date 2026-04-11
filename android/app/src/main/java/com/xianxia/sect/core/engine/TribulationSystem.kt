@@ -17,26 +17,13 @@ data class TribulationResult(
 )
 
 object TribulationSystem {
-    
-    val soulRequirements = mapOf(
-        "筑基" to 20,
-        "金丹" to 30,
-        "元婴" to 40,
-        "化神" to 50,
-        "炼虚" to 70,
-        "合体" to 100,
-        "大乘" to 130,
-        "渡劫" to 160,
-        "仙人" to 200
-    )
-    
+
     fun trialHeartDemon(disciple: Disciple): TribulationResult {
         val newRealmIndex = disciple.realm - 1
-        val newRealmName = GameConfig.Realm.getName(newRealmIndex)
-        val requiredSoul = soulRequirements[newRealmName] ?: 20
+        val requiredSoul = GameConfig.Realm.getSoulPowerRequirement(newRealmIndex)
         val currentSoul = disciple.soulPower
-        
-        return if (currentSoul >= requiredSoul) {
+
+        return if (requiredSoul <= 0 || currentSoul >= requiredSoul) {
             TribulationResult(
                 success = true,
                 type = "heartDemon",
@@ -52,7 +39,7 @@ object TribulationSystem {
     }
     
     fun needsHeartDemon(disciple: Disciple): Boolean {
-        return disciple.realm <= 6
+        return disciple.realm <= 5
     }
     
     fun trialThunderTribulation(

@@ -593,6 +593,9 @@ private fun getManualEffects(item: Manual): List<String> = buildList {
 private fun getPillEffects(item: Pill): List<String> = buildList {
     add("类型: ${item.category.displayName}")
     add("数量: ${item.quantity}")
+    if (item.minRealm < 9) {
+        add("需求境界: ${GameConfig.Realm.getName(item.minRealm)}")
+    }
     add("")
     add("效果:")
     when (item.category) {

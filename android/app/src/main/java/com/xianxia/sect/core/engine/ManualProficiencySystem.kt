@@ -191,10 +191,10 @@ object ManualProficiencySystem {
         
         // Limit number of manuals a disciple can learn
         val maxManuals = when {
-            discipleRealm >= 8 -> 2
-            discipleRealm >= 6 -> 3
-            discipleRealm >= 4 -> 4
-            else -> 5
+            discipleRealm >= 8 -> 3
+            discipleRealm >= 6 -> 4
+            discipleRealm >= 4 -> 5
+            else -> 6
         }
         
         return currentManualCount < maxManuals

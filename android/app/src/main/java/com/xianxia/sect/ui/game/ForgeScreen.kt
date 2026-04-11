@@ -176,7 +176,7 @@ fun ForgeDialog(
     if (showElderSelection) {
         ProductionElderSelectionDialog(
             theme = theme,
-            disciples = disciples.filter { it.isAlive && it.realm <= 5 },
+            disciples = disciples.filter { it.isAlive && it.realm <= 6 },
             currentElderId = elderSlots?.forgeElder,
             elderSlots = elderSlots ?: ElderSlots(),
             onDismiss = { showElderSelection = false },
@@ -288,6 +288,7 @@ private fun EquipmentSelectionDialog(
         Column(modifier = Modifier.weight(1f)) {
             LazyVerticalGrid(
                 columns = GridCells.Adaptive(56.dp),
+                modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {

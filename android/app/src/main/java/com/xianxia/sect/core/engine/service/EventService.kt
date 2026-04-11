@@ -315,15 +315,24 @@ class EventService constructor(
             worldMapSects = updatedSects
         )
 
-        // Add items to warehouse (would delegate to InventoryService)
-        for (i in 0 until actualQuantity) {
-            when (item.type) {
-                "equipment" -> onAddEquipment(createMerchantEquipment(item))
-                "manual" -> onAddManual(createMerchantManual(item))
-                "pill" -> onAddPill(createMerchantPill(item))
-                "material" -> onAddMaterial(createMerchantMaterial(item))
-                "herb" -> onAddHerb(createMerchantHerb(item))
-                "seed" -> onAddSeed(createMerchantSeed(item))
+        when (item.type) {
+            "equipment" -> {
+                repeat(actualQuantity) { onAddEquipment(createMerchantEquipment(item)) }
+            }
+            "manual" -> {
+                onAddManual(createMerchantManual(item).copy(quantity = actualQuantity))
+            }
+            "pill" -> {
+                onAddPill(createMerchantPill(item).copy(quantity = actualQuantity))
+            }
+            "material" -> {
+                onAddMaterial(createMerchantMaterial(item).copy(quantity = actualQuantity))
+            }
+            "herb" -> {
+                onAddHerb(createMerchantHerb(item).copy(quantity = actualQuantity))
+            }
+            "seed" -> {
+                onAddSeed(createMerchantSeed(item).copy(quantity = actualQuantity))
             }
         }
 
@@ -378,7 +387,7 @@ class EventService constructor(
     }
 
     private fun createMerchantPill(item: MerchantItem): Pill {
-        val template = PillRecipeDatabase.getRecipeById(item.itemId)
+        val template = PillRecipeDatabase.getRecipeByName(item.name)
         if (template != null) {
             return Pill(
                 id = UUID.randomUUID().toString(),
@@ -402,7 +411,8 @@ class EventService constructor(
                 mpPercent = template.mpPercent,
                 speedPercent = template.speedPercent,
                 healPercent = template.healPercent,
-                healMaxHpPercent = template.healMaxHpPercent
+                healMaxHpPercent = template.healMaxHpPercent,
+                minRealm = GameConfig.Realm.getMinRealmForRarity(template.rarity)
             )
         }
         val pillTemplates = ItemDatabase.getPillsByRarity(item.rarity)
@@ -410,11 +420,11 @@ class EventService constructor(
             val t = pillTemplates.random()
             return ItemDatabase.createPillFromTemplate(t).copy(quantity = item.quantity)
         }
-        return Pill(id = UUID.randomUUID().toString(), name = item.name, rarity = item.rarity, quantity = item.quantity)
+        return Pill(id = UUID.randomUUID().toString(), name = item.name, rarity = item.rarity, quantity = item.quantity, minRealm = GameConfig.Realm.getMinRealmForRarity(item.rarity))
     }
 
     private fun createMerchantMaterial(item: MerchantItem): Material {
-        val template = BeastMaterialDatabase.getMaterialById(item.itemId)
+        val template = BeastMaterialDatabase.getMaterialByName(item.name)
         if (template != null) {
             return Material(
                 id = UUID.randomUUID().toString(),
@@ -430,7 +440,7 @@ class EventService constructor(
     }
 
     private fun createMerchantHerb(item: MerchantItem): Herb {
-        val template = HerbDatabase.getHerbById(item.itemId)
+        val template = HerbDatabase.getHerbByName(item.name)
         if (template != null) {
             return Herb(
                 id = UUID.randomUUID().toString(),
@@ -453,7 +463,7 @@ class EventService constructor(
     }
 
     private fun createMerchantSeed(item: MerchantItem): Seed {
-        val template = HerbDatabase.getSeedById(item.itemId)
+        val template = HerbDatabase.getSeedByName(item.name)
         if (template != null) {
             return Seed(
                 id = UUID.randomUUID().toString(),

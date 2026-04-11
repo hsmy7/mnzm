@@ -51,11 +51,11 @@ class BackupManager @Inject constructor(
             return SaveResult.failure(SaveError.INVALID_SLOT, "Invalid slot: $slot")
         }
 
-        return lockManager.withWriteLockSuspend(slot) {
+        return lockManager.withWriteLockLight(slot) {
             try {
                 val saveFile = fileHandler.getSaveFile(slot)
                 if (!saveFile.exists()) {
-                    return@withWriteLockSuspend SaveResult.failure(
+                    return@withWriteLockLight SaveResult.failure(
                         SaveError.SLOT_EMPTY,
                         "No save data for slot $slot"
                     )
@@ -78,7 +78,7 @@ class BackupManager @Inject constructor(
 
                 if (!tempBackup.renameTo(backupFile)) {
                     tempBackup.delete()
-                    return@withWriteLockSuspend SaveResult.failure(
+                    return@withWriteLockLight SaveResult.failure(
                         SaveError.BACKUP_FAILED,
                         "Failed to create backup"
                     )
@@ -193,27 +193,24 @@ class BackupManager @Inject constructor(
             return SaveResult.failure(SaveError.INVALID_SLOT, "Invalid slot: $slot")
         }
 
-        return lockManager.withWriteLockSuspend(slot) {
+        return lockManager.withWriteLockLight(slot) {
             try {
-                // 解析备份ID获取文件信息
                 val parsed = parseBackupId(backupId)
-                    ?: return@withWriteLockSuspend SaveResult.failure(
+                    ?: return@withWriteLockLight SaveResult.failure(
                         SaveError.SLOT_EMPTY,
                         "Invalid backup ID format: $backupId"
                     )
 
-                // 构建备份文件路径
                 val backupFileName = strategy.generateBackupFileName(slot, parsed.type, parsed.timestamp)
                 val backupFile = File(fileHandler.backupDir, backupFileName)
 
                 if (!backupFile.exists()) {
-                    return@withWriteLockSuspend SaveResult.failure(
+                    return@withWriteLockLight SaveResult.failure(
                         SaveError.SLOT_EMPTY,
                         "Backup not found: $backupFileName"
                     )
                 }
 
-                // 在恢复前先创建当前状态的备份（作为安全措施）
                 createAutoBackup(slot)
 
                 val saveFile = fileHandler.getSaveFile(slot)
@@ -227,7 +224,7 @@ class BackupManager @Inject constructor(
 
                 if (!tempFile.renameTo(saveFile)) {
                     tempFile.delete()
-                    return@withWriteLockSuspend SaveResult.failure(
+                    return@withWriteLockLight SaveResult.failure(
                         SaveError.RESTORE_FAILED,
                         "Failed to restore backup"
                     )

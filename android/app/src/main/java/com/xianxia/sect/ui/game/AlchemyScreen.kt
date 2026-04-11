@@ -173,7 +173,7 @@ fun AlchemyDialog(
     if (showElderSelection) {
         ProductionElderSelectionDialog(
             theme = theme,
-            disciples = disciples.filter { it.isAlive && it.realm <= 5 },
+            disciples = disciples.filter { it.isAlive && it.realm <= 6 },
             currentElderId = elderSlots.alchemyElder,
             elderSlots = elderSlots,
             onDismiss = { showElderSelection = false },
@@ -282,6 +282,7 @@ private fun PillSelectionDialog(
         Column(modifier = Modifier.weight(1f)) {
             LazyVerticalGrid(
                 columns = GridCells.Adaptive(56.dp),
+                modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {

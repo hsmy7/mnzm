@@ -378,6 +378,16 @@ object ProtobufConverters {
 
     @TypeConverter
     @JvmStatic
+    fun fromDiscipleListMap(value: Map<String, List<Disciple>>): String =
+        encodeToBase64(MapSerializer(String.serializer(), ListSerializer(Disciple.serializer())), value)
+
+    @TypeConverter
+    @JvmStatic
+    fun toDiscipleListMap(value: String): Map<String, List<Disciple>> =
+        decodeFromBase64(MapSerializer(String.serializer(), ListSerializer(Disciple.serializer())), value) { emptyMap() }
+
+    @TypeConverter
+    @JvmStatic
     fun fromBuildingSlotList(value: List<BuildingSlot>): String =
         encodeToBase64(ListSerializer(BuildingSlot.serializer()), value)
 

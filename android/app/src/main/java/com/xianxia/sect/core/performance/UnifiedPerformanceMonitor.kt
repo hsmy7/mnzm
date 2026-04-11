@@ -11,6 +11,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import javax.inject.Inject
@@ -210,7 +211,7 @@ class UnifiedPerformanceMonitor @Inject constructor(
         }
         
         if (gcStats.averageGCTimeMs > 100) {
-            recommendations.add("High average GC time (${String.format("%.1f", gcStats.averageGCTimeMs)}ms). Review object allocation patterns.")
+            recommendations.add("High average GC time (${String.format(Locale.ROOT, "%.1f", gcStats.averageGCTimeMs)}ms). Review object allocation patterns.")
         }
         
         metrics.forEach { (name, stats) ->

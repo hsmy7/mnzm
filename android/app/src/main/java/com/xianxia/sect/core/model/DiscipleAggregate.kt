@@ -218,14 +218,8 @@ data class DiscipleAggregate(
     /**
      * 计算突破成功率
      */
-    fun getBreakthroughChance(
-        pillBonus: Double = 0.0,
-        innerElderComprehension: Int = 0,
-        outerElderComprehensionBonus: Double = 0.0
-    ): Double {
-        return DiscipleStatCalculator.getBreakthroughChance(
-            this.toDisciple(), pillBonus, innerElderComprehension, outerElderComprehensionBonus
-        )
+    fun getBreakthroughChance(): Double {
+        return DiscipleStatCalculator.getBreakthroughChance(this.toDisciple())
     }
     
     fun toDisciple(): Disciple {

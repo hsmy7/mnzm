@@ -179,22 +179,22 @@ object ElderBonusInfoProvider {
     fun getAlchemyElderInfo(): ElderBonusInfo = ElderBonusInfo(
         title = "炼丹长老",
         requiredAttribute = "炼丹",
-        effectDescription = "提升丹药炼制速度和成功率",
-        bonusFormula = "炼丹属性以50为基准，每高5点增加1%炼制速度，\n每高5点增加1%成功率。\n炼丹属性低于50时，炼制速度和成功率会降低。"
+        effectDescription = "长老提升炼制成功率，亲传弟子提升炼制速度",
+        bonusFormula = "长老：炼丹属性以80为基准，每高1点增加1%成功率。\n亲传弟子：炼丹属性以80为基准，每高1点增加1%炼制速度。\n低于80时无加成效果。"
     )
     
     fun getForgeElderInfo(): ElderBonusInfo = ElderBonusInfo(
         title = "天工长老",
         requiredAttribute = "炼器",
         effectDescription = "长老提升锻造成功率，亲传弟子提升炼制速度",
-        bonusFormula = "长老：炼器属性以80为基准，每高1点增加1%成功率，最多20%。\n亲传弟子：炼器属性以80为基准，每高1点增加1%炼制速度。\n低于80时无加成效果。"
+        bonusFormula = "长老：炼器属性以80为基准，每高1点增加1%成功率。\n亲传弟子：炼器属性以80为基准，每高1点增加1%炼制速度。\n低于80时无加成效果。"
     )
     
     fun getHerbGardenElderInfo(): ElderBonusInfo = ElderBonusInfo(
         title = "灵植长老",
         requiredAttribute = "灵植",
-        effectDescription = "提升灵药成熟速度",
-        bonusFormula = "灵植属性以50为基准，每高5点增加1%成熟速度，\n每低5点减少1%成熟速度。\n灵植属性越高，灵药成熟越快。"
+        effectDescription = "长老提升灵药成熟速度，亲传弟子提升灵药成熟速度",
+        bonusFormula = "长老：灵植属性以80为基准，每高1点增加1%成熟速度。\n亲传弟子：灵植属性以80为基准，每高1点增加1%成熟速度。\n低于80时无加成效果。"
     )
     
     fun getLibraryElderInfo(): ElderBonusInfo = ElderBonusInfo(
@@ -205,17 +205,17 @@ object ElderBonusInfoProvider {
     )
     
     fun getOuterElderInfo(): ElderBonusInfo = ElderBonusInfo(
-        title = "外门长老",
+        title = "外门执事",
         requiredAttribute = "悟性",
         effectDescription = "提升外门弟子突破率（仅外门弟子有效，弟子境界超过长老时不生效）",
-        bonusFormula = "悟性属性以80为基准，每高1点增加1%突破率，最高20%。\n悟性低于80时无加成效果。\n仅对境界不超过长老的外门弟子生效。"
+        bonusFormula = "悟性属性以80为基准，每高1点增加1%突破率。\n悟性低于80时无加成效果。\n仅对境界不超过长老的外门弟子生效。"
     )
 
     fun getInnerElderInfo(): ElderBonusInfo = ElderBonusInfo(
-        title = "内门长老",
+        title = "内门执事",
         requiredAttribute = "悟性",
         effectDescription = "提升内门弟子突破成功率",
-        bonusFormula = "悟性以80为基准，每多1点增加1%突破率，最多20%。\n仅对内门弟子有效，弟子境界超过长老境界时不享受增益。"
+        bonusFormula = "悟性以80为基准，每多1点增加1%突破率。\n仅对内门弟子有效，弟子境界超过长老境界时不享受增益。"
     )
 
     fun getPreachingElderInfo(): ElderBonusInfo = ElderBonusInfo(
@@ -243,6 +243,6 @@ object ElderBonusInfoProvider {
         title = "灵矿执事",
         requiredAttribute = "道德",
         effectDescription = "提升灵矿产出效率",
-        bonusFormula = "道德以50为基准，每高5点增加2%产出效率，\n每低5点减少2%产出效率。\n道德属性越高，灵矿产出越多。"
+        bonusFormula = "道德以80为基准，每高1点增加1%产出效率。\n低于80时无加成效果。\n多名执事加成可叠加。"
     )
 }

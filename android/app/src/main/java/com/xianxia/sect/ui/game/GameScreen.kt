@@ -39,7 +39,6 @@ fun GameScreen(
 ) {
     val disciples by viewModel.disciples.collectAsState()
     val gameData by viewModel.gameData.collectAsState()
-    val plantSlots = gameData?.herbGardenPlantSlots ?: emptyList()
     val seeds by viewModel.seeds.collectAsState()
     val equipment by viewModel.equipment.collectAsState()
     val manuals by viewModel.manuals.collectAsState()

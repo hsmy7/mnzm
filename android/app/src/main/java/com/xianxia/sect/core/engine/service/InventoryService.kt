@@ -258,7 +258,7 @@ class InventoryService(
      * Create pill from merchant item
      */
     fun createPillFromMerchantItem(item: MerchantItem): Pill {
-        val template = PillRecipeDatabase.getRecipeById(item.itemId)
+        val template = PillRecipeDatabase.getRecipeByName(item.name)
         if (template != null) {
             return Pill(
                 id = UUID.randomUUID().toString(),
@@ -285,7 +285,8 @@ class InventoryService(
                 healMaxHpPercent = template.healMaxHpPercent,
                 heal = template.heal,
                 battleCount = template.battleCount,
-                mpRecoverMaxMpPercent = template.mpRecoverMaxMpPercent
+                mpRecoverMaxMpPercent = template.mpRecoverMaxMpPercent,
+                minRealm = GameConfig.Realm.getMinRealmForRarity(template.rarity)
             )
         }
 
@@ -346,7 +347,7 @@ class InventoryService(
      * Create material from merchant item
      */
     fun createMaterialFromMerchantItem(item: MerchantItem): Material {
-        val template = BeastMaterialDatabase.getMaterialById(item.itemId)
+        val template = BeastMaterialDatabase.getMaterialByName(item.name)
         if (template != null) {
             return Material(
                 id = UUID.randomUUID().toString(),
@@ -415,7 +416,7 @@ class InventoryService(
      * Create herb from merchant item
      */
     fun createHerbFromMerchantItem(item: MerchantItem): Herb {
-        val template = HerbDatabase.getHerbById(item.itemId)
+        val template = HerbDatabase.getHerbByName(item.name)
         if (template != null) {
             return Herb(
                 id = UUID.randomUUID().toString(),
@@ -491,7 +492,7 @@ class InventoryService(
      * Create seed from merchant item
      */
     fun createSeedFromMerchantItem(item: MerchantItem): Seed {
-        val template = HerbDatabase.getSeedById(item.itemId)
+        val template = HerbDatabase.getSeedByName(item.name)
         if (template != null) {
             return Seed(
                 id = UUID.randomUUID().toString(),

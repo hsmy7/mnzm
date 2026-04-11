@@ -23,6 +23,24 @@ import com.xianxia.sect.ui.theme.GameColors
 import java.text.SimpleDateFormat
 import java.util.*
 
+private data class SlotStyle(
+    val border: Color,
+    val background: Color,
+    val icon: Color
+)
+
+private val slotStyles = mapOf(
+    "auto_empty" to SlotStyle(Color(0xFFCCCCCC), Color(0xFFF5F5F5), Color(0xFFCCCCCC)),
+    "auto_filled" to SlotStyle(Color(0xFF4CAF50), Color(0xFFF0FFF0), Color(0xFF4CAF50)),
+    "manual_empty" to SlotStyle(Color(0xFFDDDDDD), GameColors.CardBackground, Color(0xFFCCCCCC)),
+    "manual_filled" to SlotStyle(Color(0xFF4A90E2), Color(0xFFF0F7FF), Color(0xFF4A90E2))
+)
+
+private fun SaveSlot.resolveStyle(): SlotStyle {
+    val key = "${if (isAutoSave) "auto" else "manual"}_${if (isEmpty) "empty" else "filled"}"
+    return slotStyles[key]!!
+}
+
 @Composable
 fun SaveSelectScreen(
     saveSlots: List<SaveSlot>,
@@ -64,7 +82,7 @@ fun SaveSelectScreen(
                     slot = slot,
                     dateFormat = dateFormat,
                     onLoad = { onLoadSlot(slot.slot) },
-                    onNewGame = { showSectNameDialog = slot.slot; sectNameInput = "" },
+                    onNewGame = if (slot.isAutoSave) {{}} else {{ showSectNameDialog = slot.slot; sectNameInput = "" }},
                     onDelete = { showDeleteConfirm = slot.slot }
                 )
             }
@@ -147,16 +165,19 @@ fun SaveSlotCard(
     onNewGame: () -> Unit,
     onDelete: () -> Unit
 ) {
-    val borderColor = if (slot.isAutoSave) Color(0xFF4CAF50) else if (slot.isEmpty) Color(0xFFDDDDDD) else Color(0xFF4A90E2)
-    val bgColor = if (slot.isAutoSave) Color(0xFFF0FFF0) else if (slot.isEmpty) GameColors.CardBackground else Color(0xFFF0F7FF)
+    val style = slot.resolveStyle()
+    val canClick = !(slot.isAutoSave && slot.isEmpty)
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
-            .background(bgColor)
-            .border(2.dp, borderColor, RoundedCornerShape(8.dp))
-            .clickable { if (!slot.isEmpty) onLoad() else if (!slot.isAutoSave) onNewGame() }
+            .background(style.background)
+            .border(2.dp, style.border, RoundedCornerShape(8.dp))
+            .then(
+                if (canClick) Modifier.clickable { if (!slot.isEmpty) onLoad() else if (!slot.isAutoSave) onNewGame() }
+                else Modifier
+            )
             .padding(16.dp)
     ) {
         Row(
@@ -172,7 +193,7 @@ fun SaveSlotCard(
                     modifier = Modifier
                         .size(40.dp)
                         .clip(RoundedCornerShape(4.dp))
-                        .background(if (slot.isAutoSave) Color(0xFF4CAF50) else if (slot.isEmpty) Color(0xFFCCCCCC) else Color(0xFF4A90E2)),
+                        .background(style.icon),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -266,7 +287,7 @@ fun SaveSlotCard(
                         color = Color(0xFF27AE60),
                         fontWeight = FontWeight.Medium
                     )
-                } else {
+                } else if (!slot.isAutoSave) {
                     Text(
                         text = "创建",
                         fontSize = 12.sp,

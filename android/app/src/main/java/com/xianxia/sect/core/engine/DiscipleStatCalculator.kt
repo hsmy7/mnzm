@@ -19,7 +19,7 @@ import kotlin.math.roundToInt
  * - 基础属性计算（境界加成、天赋效果、战斗成长）
  * - 最终属性汇总（装备、功法、丹药效果叠加）
  * - 修炼速度计算（灵根、悟性、功法熟练度、天赋）
- * - 突破概率计算（灵根品质、天赋、失败累计）
+ * - 突破概率计算（灵根品质）
  *
  * 设计原则：将 Disciple 数据模型的计算逻辑剥离到独立类中，
  * 保持数据模型的纯粹性，提高可测试性和可维护性。
@@ -329,6 +329,10 @@ object DiscipleStatCalculator {
         totalBonus += preachingMastersBonus
         totalBonus += cultivationSubsidyBonus
 
+        if (disciple.cultivationSpeedDuration > 0 && disciple.cultivationSpeedBonus > 0.0) {
+            totalBonus += disciple.cultivationSpeedBonus
+        }
+
         return (baseCultivation * (1.0 + totalBonus)).coerceAtLeast(1.0)
     }
 
@@ -337,58 +341,68 @@ object DiscipleStatCalculator {
     /**
      * 计算突破成功率
      *
-     * 影响因素：
-     * 1. 基础突破率（由目标境界决定）
-     * 2. 丹药加成
-     * 3. 天赋突破加成
-     * 4. 内门长老指导加成
-     * 5. 外门长老指导加成
-     * 6. 失败累积加成（每次失败+1%）
-     *
-     * 最终结果限制在 [0.01, 1.0] 范围内
+     * 基础突破概率由目标境界决定，再叠加长老悟性加成和丹药加成。
+     * 化神及以上大境界突破增加神魂限制，神魂不足时突破概率为0。
      *
      * @param disciple 弟子实例
-     * @param pillBonus 丹药提供的突破加成
-     * @param innerElderComprehension 内门长老悟性
-     * @param outerElderComprehensionBonus 外门长老加成比例
-     * @return 突破成功概率（0.01 ~ 1.0）
+     * @param innerElderComprehension 内门长老悟性（0表示无加成）
+     * @param outerElderComprehensionBonus 外门长老突破加成（0.0表示无加成）
+     * @param pillBonus 丹药突破加成（0.0表示无加成）
+     * @return 突破成功概率（0.0 ~ 1.0）
      */
     fun getBreakthroughChance(
         disciple: Disciple,
-        pillBonus: Double = 0.0,
         innerElderComprehension: Int = 0,
-        outerElderComprehensionBonus: Double = 0.0
+        outerElderComprehensionBonus: Double = 0.0,
+        pillBonus: Double = 0.0
     ): Double {
         if (disciple.realm <= 0) return 0.0
 
+        if (!meetsSoulPowerRequirement(disciple)) return 0.0
+
         val baseChance = GameConfig.Realm.getBreakthroughChance(disciple.realm)
 
-        var totalBonus = 0.0
-
-        // 丹药加成
-        totalBonus += pillBonus
-
-        // 天赋加成
-        val talentEffects = getTalentEffects(disciple)
-        val breakthroughBonus = talentEffects["breakthroughChance"] ?: 0.0
-        totalBonus += breakthroughBonus
-
-        // 内门长老指导加成（悟性）
-        // 悟性80点为基准，每多1点增加1%突破率，最多20%
-        // 仅对内门弟子有效，且弟子境界不能超过长老境界
-        if (innerElderComprehension >= 80) {
-            val innerElderBonus = ((innerElderComprehension - 80) * 0.01).coerceAtMost(0.20)
-            totalBonus += innerElderBonus
+        val innerElderBonus = if (innerElderComprehension >= 80) {
+            (innerElderComprehension - 80) * 0.01
+        } else {
+            0.0
         }
 
-        // 外门长老指导加成
-        totalBonus += outerElderComprehensionBonus
+        val totalBonus = innerElderBonus + outerElderComprehensionBonus + pillBonus
+        return (baseChance + totalBonus).coerceIn(0.0, 1.0)
+    }
 
-        // 失败累积加成
-        totalBonus += disciple.breakthroughFailCount * 0.01
+    /**
+     * 检查弟子是否满足神魂突破要求
+     *
+     * 化神及以上大境界突破（9层突破到下一境界）需要满足神魂限制：
+     * - 化神: 60 神魂
+     * - 炼虚: 100 神魂
+     * - 合体: 160 神魂
+     * - 大乘: 240 神魂
+     * - 渡劫: 340 神魂
+     * - 仙人: 500 神魂
+     *
+     * 非大境界突破（层内突破）不需要神魂检查
+     */
+    fun meetsSoulPowerRequirement(disciple: Disciple): Boolean {
+        return meetsSoulPowerRequirement(disciple.realm, disciple.realmLayer, disciple.soulPower)
+    }
 
-        val finalChance = baseChance * (1.0 + totalBonus)
-        return finalChance.coerceIn(0.01, 1.0)
+    /**
+     * 检查是否满足神魂突破要求（参数化版本，用于循环中动态境界/层次场景）
+     */
+    fun meetsSoulPowerRequirement(realm: Int, realmLayer: Int, soulPower: Int): Boolean {
+        val isMajorBreakthrough = realmLayer >= GameConfig.Realm.get(realm).maxLayers
+        if (!isMajorBreakthrough) return true
+
+        val targetRealm = realm - 1
+        if (targetRealm < 0) return true
+
+        val requiredSoul = GameConfig.Realm.getSoulPowerRequirement(targetRealm)
+        if (requiredSoul <= 0) return true
+
+        return soulPower >= requiredSoul
     }
 
     // ==================== 青云峰加成计算 ====================
@@ -404,13 +418,15 @@ object DiscipleStatCalculator {
         var cultivationSpeedBonus = 0.0
 
         if (qingyunPreachingElder != null && qingyunPreachingElder.isAlive) {
-            if (disciple.realm <= qingyunPreachingElder.realm && qingyunPreachingElder.skills.teaching >= 80) {
+            // realm越小境界越高，disciple.realm >= elder.realm 表示弟子境界不高于长老，长老才能指导
+            if (disciple.realm >= qingyunPreachingElder.realm && qingyunPreachingElder.skills.teaching >= 80) {
                 cultivationSpeedBonus += (qingyunPreachingElder.skills.teaching - 80) * 0.01
             }
         }
 
         qingyunPreachingMasters.filter { it.isAlive }.forEach { master ->
-            if (disciple.realm <= master.realm && master.skills.teaching >= 80) {
+            // realm越小境界越高，disciple.realm >= master.realm 表示弟子境界不高于师傅，师傅才能指导
+            if (disciple.realm >= master.realm && master.skills.teaching >= 80) {
                 cultivationSpeedBonus += (master.skills.teaching - 80) * 0.005
             }
         }

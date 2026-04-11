@@ -12,6 +12,7 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.data.*
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.engine.BattleSystem
+import com.xianxia.sect.core.engine.BattleMemberData
 import com.xianxia.sect.core.engine.production.ProductionCoordinator
 import com.xianxia.sect.core.engine.HerbGardenSystem
 import com.xianxia.sect.core.data.HerbDatabase
@@ -72,9 +73,10 @@ class CultivationService(
     private val inventorySystem: InventorySystem,
     private val battleSystem: BattleSystem,
     private val productionCoordinator: ProductionCoordinator,
+    private val productionSlotRepository: com.xianxia.sect.core.repository.ProductionSlotRepository,
     private val addEvent: (String, EventType) -> Unit,
     private val transactionMutex: Mutex,
-    private val discipleSystem: com.xianxia.sect.core.engine.system.DiscipleSystem? = null  // 用于同步 recruitList 到内存工作副本
+    private val discipleSystem: com.xianxia.sect.core.engine.system.DiscipleSystem? = null
 ) {
     companion object {
         private const val TAG = "CultivationService"
@@ -456,6 +458,7 @@ class CultivationService(
         val preachingElderId = elderSlots.preachingElder
         if (preachingElderId.isNotEmpty()) {
             val elder = allDisciples[preachingElderId]
+            // realm越小境界越高，disciple.realm >= elder.realm 表示弟子境界不高于长老，长老才能指导
             if (elder != null && elder.isAlive && disciple.realm >= elder.realm) {
                 val teaching = elder.skills.teaching
                 if (teaching >= 80) {
@@ -468,6 +471,7 @@ class CultivationService(
             val masterId = slot.discipleId ?: continue
             val master = allDisciples[masterId] ?: continue
             if (!slot.isActive || !master.isAlive) continue
+            // realm越小境界越高，disciple.realm < master.realm 表示弟子境界高于师傅，跳过
             if (disciple.realm < master.realm) continue
             val teaching = master.skills.teaching
             if (teaching >= 80) {
@@ -478,29 +482,13 @@ class CultivationService(
         return preachingElderBonus to preachingMastersBonus
     }
 
-    private fun calculateOuterElderBreakthroughBonus(disciple: Disciple, data: GameData): Double {
-        if (disciple.discipleType != "outer") return 0.0
-
-        val elderSlots = data.elderSlots
-        val outerElderId = elderSlots.outerElder ?: return 0.0
-        val allDisciples = _disciples.value.associateBy { it.id }
-
-        val elder = allDisciples[outerElderId] ?: return 0.0
-        if (disciple.realm < elder.realm) return 0.0
-
-        val comprehension = elder.skills.comprehension
-        return if (comprehension >= 80) {
-            (comprehension - 80) * 0.01
-        } else {
-            0.0
-        }
-    }
-
     /**
      * Process realtime breakthrough checks
      *
      * Uses maxCultivation as threshold (consistent with Disciple.canBreakthrough()).
      * When cultivation >= maxCultivation, auto attempt breakthrough.
+     * If disciple doesn't meet soul power requirement for major breakthrough,
+     * cultivation is NOT reset - disciple waits until soul power is sufficient.
      */
     private fun processRealtimeBreakthroughs(idleDisciples: List<Disciple>, data: GameData) {
         val candidates = idleDisciples.filter { disciple ->
@@ -518,6 +506,7 @@ class CultivationService(
             var newRealm = disciple.realm
             var newRealmLayer = disciple.realmLayer
             var newBreakthroughFailCount = disciple.breakthroughFailCount
+            var newLifespan = disciple.lifespan
             var shouldContinue = true
 
             while (shouldContinue && newRealm > 0) {
@@ -526,6 +515,12 @@ class CultivationService(
                     base * (1.0 + (newRealmLayer - 1) * 0.2)
                 }
                 if (newCultivation < currentMaxCultivation) break
+
+                val isMajorBreakthrough = newRealmLayer >= GameConfig.Realm.get(newRealm).maxLayers
+                if (isMajorBreakthrough && !DiscipleStatCalculator.meetsSoulPowerRequirement(newRealm, newRealmLayer, disciple.soulPower)) {
+                    shouldContinue = false
+                    continue
+                }
 
                 val success = tryBreakthrough(disciple)
                 if (success) {
@@ -537,6 +532,7 @@ class CultivationService(
                         newRealm--
                         newRealmLayer = 1
                     }
+                    newLifespan += getLifespanGainForRealm(newRealm)
                 } else {
                     newCultivation = 0.0
                     newBreakthroughFailCount++
@@ -548,11 +544,27 @@ class CultivationService(
                 cultivation = newCultivation,
                 realm = newRealm,
                 realmLayer = newRealmLayer,
+                lifespan = newLifespan,
                 breakthroughFailCount = newBreakthroughFailCount
             )
         }
 
         _disciples.value = updatedDisciples
+    }
+
+    private fun getLifespanGainForRealm(realm: Int): Int {
+        return when (realm) {
+            8 -> 50
+            7 -> 100
+            6 -> 200
+            5 -> 400
+            4 -> 800
+            3 -> 1500
+            2 -> 3000
+            1 -> 5000
+            0 -> 10000
+            else -> 0
+        }
     }
 
     /**
@@ -586,12 +598,12 @@ class CultivationService(
 
             processDailyEvents(newDay, newMonth, newYear)
 
-            if (monthChanged) {
-                processMonthlyEvents(newYear, newMonth)
-            }
-
             if (isYearChanged) {
                 processYearlyEvents(newYear)
+            }
+
+            if (monthChanged) {
+                processMonthlyEvents(newYear, newMonth)
             }
         }
     }
@@ -614,14 +626,15 @@ class CultivationService(
 
             _gameData.value = data.copy(
                 gameMonth = newMonth,
-                gameYear = newYear
+                gameYear = newYear,
+                gameDay = 1
             )
-
-            processMonthlyEvents(newYear, newMonth)
 
             if (isYearChanged) {
                 processYearlyEvents(newYear)
             }
+
+            processMonthlyEvents(newYear, newMonth)
         }
     }
 
@@ -633,10 +646,15 @@ class CultivationService(
             val data = _gameData.value
             val newYear = data.gameYear + 1
 
-            _gameData.value = data.copy(gameYear = newYear)
+            _gameData.value = data.copy(
+                gameYear = newYear,
+                gameMonth = 1,
+                gameDay = 1
+            )
 
-            // Process yearly events
             processYearlyEvents(newYear)
+
+            processMonthlyEvents(newYear, 1)
         }
     }
 
@@ -702,49 +720,47 @@ class CultivationService(
         // 0. 月初政策费用检测（优先于所有其他月度事件，确保政策状态在本月生效前确定）
         processPolicyCosts()
 
-        // 1. Process disciple aging and natural death
-        processDiscipleAging(year)
-
-        // 2. Process building production
+        // 1. Process building production
         processBuildingProduction(year, month)
 
-        // 4. Process herb garden growth
+        // 2. Process herb garden growth
         processHerbGardenGrowth(month)
 
-        // 5. Process spirit mine production
+        // 3. Process spirit mine production
         processSpiritMineProduction()
 
-        // 6. 藏经阁加成已在 updateRealtimeCultivation() 中实时处理，无需月度处理
+        // 4. 藏经阁加成已在 updateRealtimeCultivation() 中实时处理，无需月度处理
 
-        // 7. Process salary payment
+        // 5. Process salary payment
         processSalaryPayment(year, month)
 
-        // 8. Process exploration teams in dungeons (handled by updateExplorationTeamsMovement / checkExplorationArrivals)
+        // 6. Process dungeon monthly exploration (秘境月度探索)
+        processDungeonMonthlyExploration()
 
-        // 9. Process cave exploration
+        // 7. Process cave exploration
         processCaveLifecycle(year, month)
 
-        // 10. Process AI sect operations
+        // 8. Process AI sect operations
         processAISectOperations(year, month)
 
-        // 11. Process scout info expiry
+        // 9. Process scout info expiry
         processScoutInfoExpiry(year, month)
 
-        // 12. Process diplomacy events
+        // 10. Process diplomacy events
         processDiplomacyMonthlyEvents(year, month)
 
-        // 13. Process outer tournament (every 3 years)
+        // 11. Process outer tournament (every 3 years)
         if (month == 1) {
             processOuterTournament(year)
         }
 
-        // 14. Process law enforcement monthly check
+        // 12. Process law enforcement monthly check
         processLawEnforcementMonthly()
 
-        // 15. Process partner matching (道侣匹配)
+        // 13. Process partner matching (道侣匹配)
         processPartnerMatching()
 
-        // 16. Process completed missions and refresh available missions
+        // 14. Process completed missions and refresh available missions
         processCompletedMissions()
         processMissionRefresh()
     }
@@ -822,31 +838,34 @@ class CultivationService(
      * Process yearly events
      */
     private suspend fun processYearlyEvents(year: Int) {
-        // 1. Process yearly aging effects
+        // 1. Process disciple aging and natural death
+        processDiscipleAging(year)
+
+        // 2. Process yearly aging effects
         processYearlyAging(year)
 
-        // 2. Refresh recruit list (每年一月刷新招募弟子列表)
+        // 3. Refresh recruit list (每年一月刷新招募弟子列表)
         refreshRecruitList(year)
 
-        // 3. Refresh traveling merchant (每年一月刷新云游商人)
+        // 4. Refresh traveling merchant (每年一月刷新云游商人)
         refreshTravelingMerchant(year, 1)
 
-        // 4. Process cross-sect partner matching
+        // 5. Process cross-sect partner matching
         processCrossSectPartnerMatching(year, 1)
 
-        // 5. Generate items for AI sects
+        // 6. Generate items for AI sects
         generateYearlyItemsForAISects()
 
-        // 6. Process alliance expiry
+        // 7. Process alliance expiry
         checkAllianceExpiry(year)
 
-        // 7. Process alliance favor drop
+        // 8. Process alliance favor drop
         checkAllianceFavorDrop()
 
-        // 8. Process AI alliances
+        // 9. Process AI alliances
         processAIAlliances(year)
 
-        // 9. Process reflection cliff release (思过崖期满释放)
+        // 10. Process reflection cliff release (思过崖期满释放)
         processReflectionRelease(year)
     }
 
@@ -868,7 +887,7 @@ class CultivationService(
             }
 
             // Check for natural death (old age)
-            val maxAge = getMaxAgeForRealm(agedDisciple.realm)
+            val maxAge = maxOf(agedDisciple.lifespan, GameConfig.Realm.get(agedDisciple.realm).maxAge)
             if (agedDisciple.age >= maxAge) {
                 addEvent("${agedDisciple.name}因寿元耗尽而坐化，享年${agedDisciple.age}岁", EventType.INFO)
                 handleDiscipleDeath(agedDisciple)
@@ -879,25 +898,6 @@ class CultivationService(
         }
 
         _disciples.value = updatedDisciples
-    }
-
-    /**
-     * Get max age for realm
-     */
-    private fun getMaxAgeForRealm(realm: Int): Int {
-        return when (realm) {
-            0 -> 10000   // 仙人: 万年
-            1 -> 5000    // 渡劫: 五千年
-            2 -> 3000    // 大乘: 三千年
-            3 -> 1500    // 合体: 一千五百年
-            4 -> 800     // 炼虚: 八百年
-            5 -> 500     // 化神: 五百年
-            6 -> 300     // 元婴: 三百年
-            7 -> 200     // 金丹: 二百年
-            8 -> 150     // 筑基: 一百五十年
-            9 -> 120     // 炼气: 一百二十年
-            else -> 100
-        }
     }
 
     /**
@@ -922,10 +922,20 @@ class CultivationService(
         val elderSlots = data.elderSlots
         val allDisciples = _disciples.value.associateBy { it.id }
 
+        val isMajorBreakthrough = disciple.realmLayer >= GameConfig.Realm.get(disciple.realm).maxLayers
+
+        if (isMajorBreakthrough && !DiscipleStatCalculator.meetsSoulPowerRequirement(disciple)) {
+            val targetRealm = disciple.realm - 1
+            val requiredSoul = GameConfig.Realm.getSoulPowerRequirement(targetRealm)
+            addEvent("${disciple.name}神魂不足（${disciple.soulPower}/$requiredSoul），无法突破至${GameConfig.Realm.getName(targetRealm)}", EventType.WARNING)
+            return false
+        }
+
         val innerElderId = elderSlots.innerElder
         val innerElderComprehension = if (innerElderId.isNotEmpty() && disciple.discipleType == "inner") {
             val elder = allDisciples[innerElderId]
-            if (elder != null && elder.isAlive && disciple.realm <= elder.realm) {
+            // realm越小境界越高，disciple.realm >= elder.realm 表示弟子境界不高于长老，长老才能指导
+            if (elder != null && elder.isAlive && disciple.realm >= elder.realm) {
                 elder.skills.comprehension
             } else {
                 0
@@ -934,7 +944,7 @@ class CultivationService(
             0
         }
 
-        val outerElderComprehensionBonus = calculateOuterElderBreakthroughBonus(disciple, data)
+        val outerElderComprehensionBonus = calculateOuterElderBreakthroughBonus(disciple, data, allDisciples)
 
         val chance = DiscipleStatCalculator.getBreakthroughChance(
             disciple = disciple,
@@ -943,8 +953,6 @@ class CultivationService(
         )
         val success = Random.nextDouble() < chance
 
-        val realmName = GameConfig.Realm.getName(disciple.realm)
-        val isMajorBreakthrough = disciple.realmLayer == 9
         if (success) {
             val nextLayer = if (disciple.realmLayer < 9) disciple.realmLayer + 1 else 1
             val targetRealm = if (disciple.realmLayer < 9) disciple.realm else disciple.realm - 1
@@ -961,41 +969,57 @@ class CultivationService(
         return success
     }
 
+    private fun calculateOuterElderBreakthroughBonus(disciple: Disciple, data: GameData, allDisciples: Map<String, Disciple>): Double {
+        if (disciple.discipleType != "outer") return 0.0
+
+        val outerElderId = data.elderSlots.outerElder
+        if (outerElderId.isEmpty()) return 0.0
+
+        val elder = allDisciples[outerElderId] ?: return 0.0
+        // realm越小境界越高，disciple.realm < elder.realm 表示弟子境界高于长老，不给加成
+        if (disciple.realm < elder.realm) return 0.0
+
+        val comprehension = elder.skills.comprehension
+        return if (comprehension >= 80) {
+            (comprehension - 80) * 0.01
+        } else {
+            0.0
+        }
+    }
+
     /**
      * Process building production (forge, alchemy, herb garden)
      */
     private fun processBuildingProduction(year: Int, month: Int) {
-        val data = _gameData.value
-
-        data.forgeSlots.forEach { slot ->
-            if (slot.status == SlotStatus.WORKING) {
-                if (isBuildingWorkComplete(slot, year, month)) {
-                    completeBuildingWork(slot)
+        val forgeSlots = productionSlotRepository.getSlotsByBuildingId("forge")
+        forgeSlots.forEach { slot ->
+            if (slot.isWorking && slot.isFinished(year, month)) {
+                kotlinx.coroutines.runBlocking {
+                    productionSlotRepository.updateSlotByBuildingId("forge", slot.slotIndex) { s ->
+                        s.copy(status = com.xianxia.sect.core.model.production.ProductionSlotStatus.COMPLETED)
+                    }
                 }
+                addEvent("${getBuildingName(slot.buildingId)}工作已完成", EventType.INFO)
+            }
+        }
+
+        val alchemySlots = productionSlotRepository.getSlotsByType(com.xianxia.sect.core.model.production.BuildingType.ALCHEMY)
+        alchemySlots.forEach { slot ->
+            if (slot.isWorking && slot.isFinished(year, month)) {
+                kotlinx.coroutines.runBlocking {
+                    productionSlotRepository.updateSlotByBuildingId("alchemy", slot.slotIndex) { s ->
+                        s.copy(status = com.xianxia.sect.core.model.production.ProductionSlotStatus.COMPLETED)
+                    }
+                }
+                addEvent("炼丹工作已完成", EventType.INFO)
             }
         }
     }
 
-    /**
-     * Check if building work is complete
-     */
+    @Deprecated("No longer needed - using ProductionSlotRepository directly")
     private fun isBuildingWorkComplete(slot: BuildingSlot, year: Int, month: Int): Boolean {
         val elapsedMonths = (year - slot.startYear) * 12 + (month - slot.startMonth)
         return elapsedMonths >= slot.duration
-    }
-
-    /**
-     * Complete building work
-     */
-    private fun completeBuildingWork(slot: BuildingSlot) {
-        // Mark as completed
-        val data = _gameData.value
-        val updatedSlots = data.forgeSlots.map {
-            if (it.id == slot.id) it.copy(status = SlotStatus.COMPLETED) else it
-        }
-        _gameData.value = data.copy(forgeSlots = updatedSlots)
-
-        addEvent("${getBuildingName(slot.buildingId)}工作已完成", EventType.INFO)
     }
 
     /**
@@ -1006,10 +1030,11 @@ class CultivationService(
         val events = mutableListOf<Pair<String, String>>()
         val mutableHerbs = _herbs.value.toMutableList()
 
-        val updatedPlantSlots = data.herbGardenPlantSlots.map { slot ->
-            if (slot.status == "growing" && slot.isFinished(data.gameYear, month)) {
-                val seedId = slot.seedId
-                if (seedId.isNotEmpty()) {
+        val herbGardenSlots = productionSlotRepository.getSlotsByType(com.xianxia.sect.core.model.production.BuildingType.HERB_GARDEN)
+        herbGardenSlots.forEach { slot ->
+            if (slot.isWorking && slot.isFinished(data.gameYear, month)) {
+                val seedId = slot.recipeId
+                if (!seedId.isNullOrEmpty()) {
                     val herbId = HerbDatabase.getHerbIdFromSeedId(seedId)
                     if (herbId != null) {
                         val herb = HerbDatabase.getHerbById(herbId)
@@ -1035,13 +1060,15 @@ class CultivationService(
                         }
                     }
                 }
-                slot.copy(status = "mature")
-            } else {
-                slot
+
+                kotlinx.coroutines.runBlocking {
+                    productionSlotRepository.updateSlotByBuildingId("herbGarden", slot.slotIndex) { s ->
+                        s.copy(status = com.xianxia.sect.core.model.production.ProductionSlotStatus.COMPLETED)
+                    }
+                }
             }
         }
 
-        _gameData.value = data.copy(herbGardenPlantSlots = updatedPlantSlots)
         if (mutableHerbs != _herbs.value) {
             _herbs.value = mutableHerbs.toList()
         }
@@ -1053,14 +1080,8 @@ class CultivationService(
      */
     private fun processSpiritMineProduction() {
         val data = _gameData.value
-        var totalSpiritStones = 0
-
-        data.spiritMineSlots.forEach { slot ->
-            if (slot.discipleId.isNotEmpty()) {
-                val baseProduction = 60
-                totalSpiritStones += baseProduction
-            }
-        }
+        val minerCount = data.spiritMineSlots.count { it.discipleId.isNotEmpty() }
+        val baseSpiritStones = minerCount * 60
 
         val boostMultiplier = if (data.sectPolicies.spiritMineBoost) 1.2 else 1.0
 
@@ -1069,16 +1090,23 @@ class CultivationService(
                 _disciples.value.find { it.id == discipleId }
             }
         }.sumOf { disciple ->
-            val moralityDiff = disciple.skills.morality - 50
-            (moralityDiff / 5.0) * 0.02
+            val baseline = 80
+            val diff = (disciple.skills.morality - baseline).coerceAtLeast(0)
+            diff * 0.01
         }
 
-        totalSpiritStones = (totalSpiritStones * (1 + deaconBonus) * boostMultiplier).toInt()
+        val totalSpiritStones = (baseSpiritStones * (1 + deaconBonus) * boostMultiplier).toInt()
 
         if (totalSpiritStones > 0) {
             _gameData.value = data.copy(
                 spiritStones = data.spiritStones + totalSpiritStones
             )
+            val bonusParts = buildList {
+                if (deaconBonus > 0) add("执事加成+${(deaconBonus * 100).toInt()}%")
+                if (boostMultiplier > 1.0) add("政策加成+${((boostMultiplier - 1.0) * 100).toInt()}%")
+            }
+            val bonusText = if (bonusParts.isNotEmpty()) "（${bonusParts.joinToString("，")}）" else ""
+            addEvent("灵矿产出：${minerCount}名矿工本月共产出${totalSpiritStones}灵石$bonusText", EventType.INFO)
         }
     }
 
@@ -1460,29 +1488,23 @@ class CultivationService(
             return
         }
 
-        val result = AISectAttackManager.executeAISectBattle(team, defenderSect)
+        val attackerDisciples = data.aiSectDisciples[team.attackerSectId] ?: emptyList()
+        val defenderDisciples = data.aiSectDisciples[team.defenderSectId] ?: emptyList()
+        val result = AISectAttackManager.executeAISectBattle(team, defenderSect, defenderDisciples)
 
         if (attackerSect != null) {
-            val updatedAttackerDisciples = attackerSect.aiDisciples.filter { it.id !in result.deadAttackerIds }
+            val updatedAttackerDisciples = attackerDisciples.filter { it.id !in result.deadAttackerIds }
             _gameData.value = _gameData.value.copy(
-                worldMapSects = _gameData.value.worldMapSects.map { sect ->
-                    if (sect.id == team.attackerSectId) {
-                        sect.copy(aiDisciples = updatedAttackerDisciples)
-                    } else {
-                        sect
-                    }
+                aiSectDisciples = _gameData.value.aiSectDisciples.toMutableMap().apply {
+                    this[team.attackerSectId] = updatedAttackerDisciples
                 }
             )
         }
 
-        val updatedDefenderDisciples = defenderSect.aiDisciples.filter { it.id !in result.deadDefenderIds }
+        val updatedDefenderDisciples = defenderDisciples.filter { it.id !in result.deadDefenderIds }
         _gameData.value = _gameData.value.copy(
-            worldMapSects = _gameData.value.worldMapSects.map { sect ->
-                if (sect.id == team.defenderSectId) {
-                    sect.copy(aiDisciples = updatedDefenderDisciples)
-                } else {
-                    sect
-                }
+            aiSectDisciples = _gameData.value.aiSectDisciples.toMutableMap().apply {
+                this[team.defenderSectId] = updatedDefenderDisciples
             }
         )
 
@@ -1570,14 +1592,11 @@ class CultivationService(
         }
 
         if (attackerSect != null) {
-            val updatedAttackerDisciples = attackerSect.aiDisciples.filter { it.id !in result.deadAttackerIds }
+            val attackerDisciples = data.aiSectDisciples[team.attackerSectId] ?: emptyList()
+            val updatedAttackerDisciples = attackerDisciples.filter { it.id !in result.deadAttackerIds }
             _gameData.value = _gameData.value.copy(
-                worldMapSects = _gameData.value.worldMapSects.map { sect ->
-                    if (sect.id == team.attackerSectId) {
-                        sect.copy(aiDisciples = updatedAttackerDisciples)
-                    } else {
-                        sect
-                    }
+                aiSectDisciples = _gameData.value.aiSectDisciples.toMutableMap().apply {
+                    this[team.attackerSectId] = updatedAttackerDisciples
                 }
             )
         }
@@ -1598,6 +1617,18 @@ class CultivationService(
             processPlayerDefeat(team, attackerSect)
         } else {
             addEvent("我宗成功击退${team.attackerSectName}的进攻！", EventType.SUCCESS)
+
+            val aliveDefenderIds = _disciples.value
+                .filter { it.isAlive && it.id !in deadPlayerDiscipleIds }
+                .map { it.id }.toSet()
+            _disciples.value = _disciples.value.map { disciple ->
+                if (disciple.id in aliveDefenderIds) {
+                    disciple.copyWith(soulPower = disciple.soulPower + 1)
+                } else {
+                    disciple
+                }
+            }
+
             val aliveDisciples = team.disciples.filter { it.id !in result.deadAttackerIds }
             _gameData.value = _gameData.value.copy(
                 aiBattleTeams = _gameData.value.aiBattleTeams.map {
@@ -1704,47 +1735,203 @@ class CultivationService(
      * Check exploration arrivals and start exploration
      */
     private suspend fun checkExplorationArrivals() {
+        val data = _gameData.value
         val arrivedTeams = _teams.value.filter {
-            it.status == ExplorationStatus.EXPLORING
+            it.status == ExplorationStatus.EXPLORING &&
+            it.arrivalYear == data.gameYear &&
+            it.arrivalMonth == data.gameMonth &&
+            it.arrivalDay == data.gameDay
         }
 
         arrivedTeams.forEach { team ->
-            // Start dungeon exploration
-            startDungeonExploration(team)
+            val dungeonConfig = GameConfig.Dungeons.get(team.dungeon) ?: return@forEach
+            addEvent("探索队伍【${team.name}】已抵达${dungeonConfig.name}，开始探索", EventType.INFO)
         }
     }
 
-    /**
-     * Start dungeon exploration for arrived team
-     */
-    private suspend fun startDungeonExploration(team: ExplorationTeam) {
+    private suspend fun processDungeonMonthlyExploration() {
         val data = _gameData.value
-        val dungeonConfig = GameConfig.Dungeons.get(team.dungeon) ?: return
-
-        val teamMembers = team.memberIds.mapNotNull { id ->
-            _disciples.value.find { it.id == id }
-        }.filter { it.isAlive }
-
-        if (teamMembers.isEmpty()) {
-            addEvent("探索队伍【${team.name}】全员阵亡或失联", EventType.DANGER)
-            completeExploration(team, false, emptyList())
-            return
+        val exploringTeams = _teams.value.filter {
+            it.status == ExplorationStatus.EXPLORING
         }
 
+        for (team in exploringTeams) {
+            val dungeonConfig = GameConfig.Dungeons.get(team.dungeon) ?: continue
+
+            val teamMembers = team.memberIds.mapNotNull { id ->
+                _disciples.value.find { it.id == id }
+            }.filter { it.isAlive }
+
+            if (teamMembers.isEmpty()) {
+                addEvent("探索队伍【${team.name}】全员阵亡或失联", EventType.DANGER)
+                completeExploration(team, false, emptyList())
+                continue
+            }
+
+            val avgRealm = GameUtils.calculateBeastRealm(
+                teamMembers,
+                realmExtractor = { it.realm },
+                layerExtractor = { it.realmLayer }
+            )
+            val roll = Random.nextInt(3)
+
+            when (roll) {
+                0 -> processDungeonRandomLoot(team, dungeonConfig, avgRealm)
+                1 -> processDungeonEmptyResult(team, dungeonConfig)
+                2 -> processDungeonBeastEncounter(team, dungeonConfig, teamMembers, avgRealm)
+            }
+        }
+    }
+
+    private fun getRarityForRealm(avgRealm: Int): Int = GameConfig.Realm.getMaxRarity(avgRealm)
+
+    private fun processDungeonRandomLoot(team: ExplorationTeam, dungeonConfig: GameConfig.DungeonConfig, avgRealm: Int) {
+        val rarity = getRarityForRealm(avgRealm)
+        val totalSlots = Random.nextInt(3, 16)
+
+        val rewardCounts = mutableMapOf<String, Int>()
+        var spiritStoneAmount = 0L
+
+        val slotTypes = listOf(
+            "spiritStone" to 0.18,
+            "equipment" to 0.06,
+            "manual" to 0.06,
+            "pill" to 0.06,
+            "herb" to 0.22,
+            "seed" to 0.20,
+            "material" to 0.22
+        )
+        val totalWeight = slotTypes.sumOf { it.second }
+
+        for (i in 0 until totalSlots) {
+            var roll = Random.nextDouble() * totalWeight
+            var selectedType = "material"
+            for ((type, weight) in slotTypes) {
+                roll -= weight
+                if (roll <= 0) {
+                    selectedType = type
+                    break
+                }
+            }
+
+            when (selectedType) {
+                "spiritStone" -> {
+                    val base = 200.0
+                    val fluctuationPercent = Random.nextDouble(-30.0, 30.0)
+                    val roundedPercent = (fluctuationPercent * 10).toInt() / 10.0
+                    val amount = (base * (1 + roundedPercent / 100.0)).toLong()
+                    spiritStoneAmount += amount
+                }
+                "equipment" -> {
+                    val equipment = EquipmentDatabase.generateRandom(rarity, rarity)
+                    val existingIndex = _equipment.value.indexOfFirst { it.name == equipment.name && it.rarity == equipment.rarity }
+                    if (existingIndex >= 0) {
+                        val existing = _equipment.value[existingIndex]
+                        _equipment.value = _equipment.value.toMutableList().also { it[existingIndex] = existing.copy(quantity = existing.quantity + 1) }
+                    } else {
+                        _equipment.value = _equipment.value + equipment.copy(quantity = 1)
+                    }
+                    rewardCounts[equipment.name] = rewardCounts.getOrDefault(equipment.name, 0) + 1
+                }
+                "manual" -> {
+                    val manual = ManualDatabase.generateRandom(rarity, rarity)
+                    val existingIndex = _manuals.value.indexOfFirst { it.name == manual.name && it.rarity == manual.rarity }
+                    if (existingIndex >= 0) {
+                        val existing = _manuals.value[existingIndex]
+                        _manuals.value = _manuals.value.toMutableList().also { it[existingIndex] = existing.copy(quantity = existing.quantity + 1) }
+                    } else {
+                        _manuals.value = _manuals.value + manual.copy(quantity = 1)
+                    }
+                    rewardCounts[manual.name] = rewardCounts.getOrDefault(manual.name, 0) + 1
+                }
+                "pill" -> {
+                    val pill = ItemDatabase.generateRandomPill(rarity, rarity)
+                    val existingIndex = _pills.value.indexOfFirst { it.name == pill.name && it.rarity == pill.rarity }
+                    if (existingIndex >= 0) {
+                        val existing = _pills.value[existingIndex]
+                        _pills.value = _pills.value.toMutableList().also { it[existingIndex] = existing.copy(quantity = existing.quantity + 1) }
+                    } else {
+                        _pills.value = _pills.value + pill.copy(quantity = 1)
+                    }
+                    rewardCounts[pill.name] = rewardCounts.getOrDefault(pill.name, 0) + 1
+                }
+                "herb" -> {
+                    val herbTemplate = HerbDatabase.generateRandomHerb(rarity, rarity)
+                    val herb = Herb(name = herbTemplate.name, rarity = herbTemplate.rarity, description = herbTemplate.description, category = herbTemplate.category, quantity = 1)
+                    val existingIndex = _herbs.value.indexOfFirst { it.name == herb.name && it.rarity == herb.rarity }
+                    if (existingIndex >= 0) {
+                        val existing = _herbs.value[existingIndex]
+                        val updated = existing.copy(quantity = existing.quantity + 1)
+                        _herbs.value = _herbs.value.toMutableList().also { it[existingIndex] = updated }
+                    } else {
+                        _herbs.value = _herbs.value + herb
+                    }
+                    rewardCounts[herb.name] = rewardCounts.getOrDefault(herb.name, 0) + 1
+                }
+                "seed" -> {
+                    val seedTemplate = HerbDatabase.generateRandomSeed(rarity, rarity)
+                    val seed = Seed(name = seedTemplate.name, rarity = seedTemplate.rarity, description = seedTemplate.description, growTime = seedTemplate.growTime, yield = seedTemplate.yield, quantity = 1)
+                    val existingIndex = _seeds.value.indexOfFirst { it.name == seed.name && it.rarity == seed.rarity }
+                    if (existingIndex >= 0) {
+                        val existing = _seeds.value[existingIndex]
+                        val updated = existing.copy(quantity = existing.quantity + 1)
+                        _seeds.value = _seeds.value.toMutableList().also { it[existingIndex] = updated }
+                    } else {
+                        _seeds.value = _seeds.value + seed
+                    }
+                    rewardCounts[seed.name] = rewardCounts.getOrDefault(seed.name, 0) + 1
+                }
+                "material" -> {
+                    val material = ItemDatabase.generateRandomMaterial(rarity, rarity)
+                    val existingIndex = _materials.value.indexOfFirst { it.name == material.name && it.rarity == material.rarity }
+                    if (existingIndex >= 0) {
+                        val existing = _materials.value[existingIndex]
+                        _materials.value = _materials.value.toMutableList().also { it[existingIndex] = existing.copy(quantity = existing.quantity + 1) }
+                    } else {
+                        _materials.value = _materials.value + material.copy(quantity = 1)
+                    }
+                    rewardCounts[material.name] = rewardCounts.getOrDefault(material.name, 0) + 1
+                }
+            }
+        }
+
+        val rewardDescriptions = mutableListOf<String>()
+        if (spiritStoneAmount > 0) {
+            _gameData.value = _gameData.value.copy(
+                spiritStones = _gameData.value.spiritStones + spiritStoneAmount
+            )
+            rewardDescriptions.add("灵石x${spiritStoneAmount}")
+        }
+        rewardCounts.forEach { (name, count) -> rewardDescriptions.add("${name}x${count}") }
+
+        addEvent("探索队伍【${team.name}】在${dungeonConfig.name}获得宝物：${rewardDescriptions.joinToString("、")}", EventType.SUCCESS)
+    }
+
+    private fun processDungeonEmptyResult(team: ExplorationTeam, dungeonConfig: GameConfig.DungeonConfig) {
+        addEvent("探索队伍【${team.name}】在${dungeonConfig.name}一无所获", EventType.INFO)
+    }
+
+    private suspend fun processDungeonBeastEncounter(
+        team: ExplorationTeam,
+        dungeonConfig: GameConfig.DungeonConfig,
+        teamMembers: List<Disciple>,
+        avgRealm: Int
+    ) {
+        val data = _gameData.value
         val equipmentMap = _equipment.value.associateBy { it.id }
         val manualMap = _manuals.value.associateBy { it.id }
         val allProficiencies = data.manualProficiencies.mapValues { (_, list) ->
             list.associateBy { it.manualId }
         }
 
-        val avgRealm = teamMembers.map { it.realm }.average().toInt().coerceIn(1, 9)
-        val beastLevel = (avgRealm * 1.5).toInt().coerceIn(1, 15)
+        val beastCount = (GameConfig.Battle.MIN_BEAST_COUNT..GameConfig.Battle.MAX_BEAST_COUNT).random()
 
         val battle = battleSystem.createBattle(
             disciples = teamMembers,
             equipmentMap = equipmentMap,
             manualMap = manualMap,
-            beastLevel = beastLevel,
+            beastLevel = avgRealm,
+            beastCount = beastCount,
             beastType = dungeonConfig.beastType,
             manualProficiencies = allProficiencies
         )
@@ -1758,11 +1945,11 @@ class CultivationService(
             applyDungeonVictoryBonuses(
                 memberIds = battleResult.log.teamMembers.filter { it.isAlive }.map { it.id }
             )
-            giveDungeonRewards(dungeonConfig)
-            addEvent("探索队伍【${team.name}】在${dungeonConfig.name}探索成功", EventType.SUCCESS)
-            completeExploration(team, true, battleResult.log.teamMembers.filter { it.isAlive }.map { it.id }, survivorHpMap, survivorMpMap)
+            giveBeastMaterialRewards(dungeonConfig, avgRealm)
+            addEvent("探索队伍【${team.name}】在${dungeonConfig.name}遭遇妖兽并战胜", EventType.SUCCESS)
+            updateDiscipleHpMpAfterBattle(battleResult.log.teamMembers)
         } else {
-            addEvent("探索队伍【${team.name}】在${dungeonConfig.name}探索失败", EventType.DANGER)
+            addEvent("探索队伍【${team.name}】在${dungeonConfig.name}遭遇妖兽，战败撤退", EventType.DANGER)
             completeExploration(team, false, battleResult.log.teamMembers.filter { it.isAlive }.map { it.id }, survivorHpMap, survivorMpMap)
         }
 
@@ -1774,7 +1961,7 @@ class CultivationService(
             attackerName = team.name,
             defenderName = dungeonConfig.name,
             result = if (battleResult.victory) BattleResult.WIN else BattleResult.LOSE,
-            details = "副本探索",
+            details = "秘境遭遇妖兽",
             dungeonName = dungeonConfig.name,
             teamId = team.id,
             teamMembers = battleResult.log.teamMembers.map { member ->
@@ -1792,18 +1979,81 @@ class CultivationService(
             },
             enemies = battleResult.log.enemies.map { enemy ->
                 BattleLogEnemy(
-                    id = "",
+                    id = enemy.id,
                     name = enemy.name,
                     realm = enemy.realm,
                     realmName = enemy.realmName,
-                    hp = 0,
-                    maxHp = 0,
-                    isAlive = false
+                    realmLayer = enemy.realmLayer,
+                    hp = enemy.hp,
+                    maxHp = enemy.maxHp,
+                    isAlive = enemy.isAlive
                 )
             },
-            turns = battleResult.turnCount
+            rounds = battleResult.log.rounds.map { round ->
+                BattleLogRound(
+                    roundNumber = round.roundNumber,
+                    actions = round.actions.map { action ->
+                        BattleLogAction(
+                            type = action.type,
+                            attacker = action.attacker,
+                            attackerType = action.attackerType,
+                            target = action.target,
+                            damage = action.damage,
+                            damageType = action.damageType,
+                            isCrit = action.isCrit,
+                            isKill = action.isKill,
+                            message = action.message,
+                            skillName = action.skillName
+                        )
+                    }
+                )
+            },
+            turns = battleResult.turnCount,
+            battleResult = BattleLogResult(
+                winner = if (battleResult.victory) "team" else "beasts",
+                isPlayerWin = battleResult.victory,
+                turns = battleResult.turnCount,
+                rounds = battleResult.log.rounds.size,
+                teamCasualties = battleResult.log.teamMembers.count { !it.isAlive },
+                beastsDefeated = battleResult.log.enemies.count { !it.isAlive }
+            )
         )
         _battleLogs.value = listOf(battleLog) + _battleLogs.value.take(49)
+    }
+
+    private fun giveBeastMaterialRewards(dungeonConfig: GameConfig.DungeonConfig, avgRealm: Int) {
+        val rarity = getRarityForRealm(avgRealm)
+        val itemCount = Random.nextInt(3, 16)
+        val rewardCounts = mutableMapOf<String, Int>()
+
+        for (i in 0 until itemCount) {
+            val beastMaterial = BeastMaterialDatabase.getRandomMaterialByBeastType(
+                dungeonConfig.beastType, rarity
+            )
+            if (beastMaterial != null) {
+                val material = Material(
+                    id = java.util.UUID.randomUUID().toString(),
+                    name = beastMaterial.name,
+                    rarity = beastMaterial.rarity,
+                    description = beastMaterial.description,
+                    category = beastMaterial.materialCategory,
+                    quantity = 1
+                )
+                val existingIndex = _materials.value.indexOfFirst { it.name == material.name && it.rarity == material.rarity }
+                if (existingIndex >= 0) {
+                    val existing = _materials.value[existingIndex]
+                    _materials.value = _materials.value.toMutableList().also { it[existingIndex] = existing.copy(quantity = existing.quantity + 1) }
+                } else {
+                    _materials.value = _materials.value + material
+                }
+                rewardCounts[beastMaterial.name] = rewardCounts.getOrDefault(beastMaterial.name, 0) + 1
+            }
+        }
+
+        if (rewardCounts.isNotEmpty()) {
+            val rewardDescriptions = rewardCounts.map { (name, count) -> "${name}x${count}" }
+            addEvent("获得妖兽材料：${rewardDescriptions.joinToString("、")}", EventType.INFO)
+        }
     }
 
     private suspend fun applyDungeonVictoryBonuses(memberIds: List<String>) {
@@ -1822,9 +2072,31 @@ class CultivationService(
 
                 val newSoulPower = disciple.soulPower + 1
 
+                val talentEffects = com.xianxia.sect.core.data.TalentDatabase.calculateTalentEffects(disciple.talentIds)
+                val winGrowthAttr = if (talentEffects["winBattleRandomAttrPlus"] != null) {
+                    listOf("maxHp", "maxMp", "physicalAttack", "magicAttack", "physicalDefense", "magicDefense", "speed").random()
+                } else null
+
                 var updatedDisciple = disciple.copyWith(
                     soulPower = newSoulPower
                 )
+
+                if (winGrowthAttr != null) {
+                    val currentGrowth = updatedDisciple.statusData["winGrowth.$winGrowthAttr"]?.toIntOrNull() ?: 0
+                    val newStatusData = updatedDisciple.statusData.toMutableMap().apply {
+                        put("winGrowth.$winGrowthAttr", (currentGrowth + 1).toString())
+                    }
+                    updatedDisciple = when (winGrowthAttr) {
+                        "maxHp" -> updatedDisciple.copyWith(baseHp = updatedDisciple.baseHp + 1, statusData = newStatusData)
+                        "maxMp" -> updatedDisciple.copyWith(baseMp = updatedDisciple.baseMp + 1, statusData = newStatusData)
+                        "physicalAttack" -> updatedDisciple.copyWith(basePhysicalAttack = updatedDisciple.basePhysicalAttack + 1, statusData = newStatusData)
+                        "magicAttack" -> updatedDisciple.copyWith(baseMagicAttack = updatedDisciple.baseMagicAttack + 1, statusData = newStatusData)
+                        "physicalDefense" -> updatedDisciple.copyWith(basePhysicalDefense = updatedDisciple.basePhysicalDefense + 1, statusData = newStatusData)
+                        "magicDefense" -> updatedDisciple.copyWith(baseMagicDefense = updatedDisciple.baseMagicDefense + 1, statusData = newStatusData)
+                        "speed" -> updatedDisciple.copyWith(baseSpeed = updatedDisciple.baseSpeed + 1, statusData = newStatusData)
+                        else -> updatedDisciple
+                    }
+                }
 
                 disciple.manualIds.forEach { manualId ->
                     val manual = manualMap[manualId] ?: return@forEach
@@ -1931,14 +2203,22 @@ class CultivationService(
             }
     }
 
-    private fun giveDungeonRewards(dungeonConfig: GameConfig.DungeonConfig) {
-        val rewards = dungeonConfig.rewards
-        val spiritStoneReward = rewards.spiritStones.random()
-        if (spiritStoneReward > 0) {
-            _gameData.value = _gameData.value.copy(
-                spiritStones = _gameData.value.spiritStones + spiritStoneReward.toLong()
-            )
-            addEvent("获得灵石 x$spiritStoneReward", EventType.INFO)
+
+    private fun updateDiscipleHpMpAfterBattle(battleMembers: List<BattleMemberData>) {
+        val survivorIds = battleMembers.filter { it.isAlive }.map { it.id }.toSet()
+        team@ for (member in battleMembers) {
+            val discipleIndex = _disciples.value.indexOfFirst { it.id == member.id }
+            if (discipleIndex < 0) continue@team
+            val disciple = _disciples.value[discipleIndex]
+            if (!survivorIds.contains(member.id)) {
+                _disciples.value = _disciples.value.toMutableList().also { it[discipleIndex] = disciple.copy(isAlive = false) }
+            } else {
+                val hp = member.hp.coerceAtMost(member.maxHp)
+                val mp = member.mp.coerceAtMost(member.maxMp)
+                _disciples.value = _disciples.value.toMutableList().also {
+                    it[discipleIndex] = disciple.copy(combat = disciple.combat.copy(currentHp = hp, currentMp = mp))
+                }
+            }
         }
     }
 
@@ -2014,7 +2294,7 @@ class CultivationService(
                 val nearbySects = findNearbySects(cave, 400f)
                 val existingTeamForCave = allAITeams.filter { it.caveId == cave.id }
 
-                val aiTeam = AICaveTeamGenerator.generateAITeam(cave, nearbySects, existingTeamForCave)
+                val aiTeam = AICaveTeamGenerator.generateAITeam(cave, nearbySects, existingTeamForCave, _gameData.value.aiSectDisciples)
                 if (aiTeam != null) {
                     allAITeams.add(aiTeam)
                 }
@@ -2202,6 +2482,14 @@ class CultivationService(
         // 5. 胜利：给予奖励
         addEvent("探索队伍成功征服${cave.name}！", EventType.SUCCESS)
 
+        _disciples.value = _disciples.value.map { disciple ->
+            if (disciple.id in survivorIds && disciple.isAlive) {
+                disciple.copyWith(soulPower = disciple.soulPower + 1)
+            } else {
+                disciple
+            }
+        }
+
         val rewards = CaveExplorationSystem.generateVictoryRewards(cave)
 
         rewards.items.forEach { reward ->
@@ -2266,7 +2554,8 @@ class CultivationService(
                             healMaxHpPercent = template.healMaxHpPercent,
                             heal = template.heal,
                             battleCount = template.battleCount,
-                            mpRecoverMaxMpPercent = template.mpRecoverMaxMpPercent
+                            mpRecoverMaxMpPercent = template.mpRecoverMaxMpPercent,
+                            minRealm = GameConfig.Realm.getMinRealmForRarity(template.rarity)
                         )
                         _pills.value = _pills.value + pill
                         addEvent("获得丹药 ${template.name} x${reward.quantity}", EventType.SUCCESS)
@@ -2304,16 +2593,44 @@ class CultivationService(
             },
             enemies = battleResult.log.enemies.map { enemy ->
                 BattleLogEnemy(
-                    id = "",
+                    id = enemy.id,
                     name = enemy.name,
                     realm = enemy.realm,
                     realmName = enemy.realmName,
-                    hp = 0,
-                    maxHp = 0,
-                    isAlive = false
+                    realmLayer = enemy.realmLayer,
+                    hp = enemy.hp,
+                    maxHp = enemy.maxHp,
+                    isAlive = enemy.isAlive
                 )
             },
-            turns = battleResult.turnCount
+            rounds = battleResult.log.rounds.map { round ->
+                BattleLogRound(
+                    roundNumber = round.roundNumber,
+                    actions = round.actions.map { action ->
+                        BattleLogAction(
+                            type = action.type,
+                            attacker = action.attacker,
+                            attackerType = action.attackerType,
+                            target = action.target,
+                            damage = action.damage,
+                            damageType = action.damageType,
+                            isCrit = action.isCrit,
+                            isKill = action.isKill,
+                            message = action.message,
+                            skillName = action.skillName
+                        )
+                    }
+                )
+            },
+            turns = battleResult.turnCount,
+            battleResult = BattleLogResult(
+                winner = if (battleResult.victory) "team" else "beasts",
+                isPlayerWin = battleResult.victory,
+                turns = battleResult.turnCount,
+                rounds = battleResult.log.rounds.size,
+                teamCasualties = battleResult.log.teamMembers.count { !it.isAlive },
+                beastsDefeated = battleResult.log.enemies.count { !it.isAlive }
+            )
         )
         _battleLogs.value = listOf(battleLog) + _battleLogs.value.take(49)
 
@@ -2391,49 +2708,45 @@ class CultivationService(
      */
     private fun processAISectOperations(year: Int, month: Int) {
         val data = _gameData.value
+        val aiDisciples = data.aiSectDisciples
 
-        // Process AI disciple cultivation
-        var updatedSects = data.worldMapSects.map { sect ->
-            AISectDiscipleManager.processMonthlyCultivation(sect)
-        }
-        updatedSects = updatedSects.map { sect ->
-            AISectDiscipleManager.processManualMasteryGrowth(sect)
-        }
-        updatedSects = updatedSects.map { sect ->
-            AISectDiscipleManager.processEquipmentNurture(sect)
-        }
-        _gameData.value = data.copy(worldMapSects = updatedSects)
+        val updatedAiDisciples = aiDisciples.mapValues { (sectId, disciples) ->
+            val sect = data.worldMapSects.find { it.id == sectId }
+            if (sect == null || sect.isPlayerSect) return@mapValues disciples
 
-        // Process AI disciple recruitment
+            var updated = AISectDiscipleManager.processMonthlyCultivation(disciples)
+            updated = AISectDiscipleManager.processManualMasteryGrowth(updated)
+            updated = AISectDiscipleManager.processEquipmentNurture(updated)
+            updated
+        }
+
+        _gameData.value = data.copy(aiSectDisciples = updatedAiDisciples)
+
         processSectDisciplesRecruitment(year)
 
-        // Process AI disciple aging
         processSectDisciplesAging(year)
 
-        // Process AI attack decisions
         processAISectAttackDecisions()
     }
 
-    /**
-     * Process AI sect disciple recruitment
-     */
     private fun processSectDisciplesRecruitment(year: Int) {
         val data = _gameData.value
-        val updatedSects = data.worldMapSects.map { sect ->
-            AISectDiscipleManager.recruitDisciplesForSect(sect, year)
+        val updatedAiDisciples = data.aiSectDisciples.mapValues { (sectId, disciples) ->
+            val sect = data.worldMapSects.find { it.id == sectId }
+            if (sect == null || sect.isPlayerSect) return@mapValues disciples
+            AISectDiscipleManager.recruitDisciples(sect.name, sect.maxRealm, disciples)
         }
-        _gameData.value = data.copy(worldMapSects = updatedSects)
+        _gameData.value = data.copy(aiSectDisciples = updatedAiDisciples)
     }
 
-    /**
-     * Process AI sect disciple aging
-     */
     private fun processSectDisciplesAging(year: Int) {
         val data = _gameData.value
-        val updatedSects = data.worldMapSects.map { sect ->
-            AISectDiscipleManager.processAging(sect)
+        val updatedAiDisciples = data.aiSectDisciples.mapValues { (sectId, disciples) ->
+            val sect = data.worldMapSects.find { it.id == sectId }
+            if (sect == null || sect.isPlayerSect) return@mapValues disciples
+            AISectDiscipleManager.processAging(disciples)
         }
-        _gameData.value = data.copy(worldMapSects = updatedSects)
+        _gameData.value = data.copy(aiSectDisciples = updatedAiDisciples)
     }
 
     /**
@@ -2502,7 +2815,7 @@ class CultivationService(
             addEvent("第${year}年外门大比开始，共有${outerDisciples.size}名外门弟子参与", EventType.INFO)
 
             val sortedDisciples = outerDisciples.sortedWith(
-                compareByDescending<Disciple> { it.realm }
+                compareBy<Disciple> { it.realm }
                     .thenByDescending { it.realmLayer }
                     .thenByDescending { it.cultivation }
                     .thenByDescending { it.comprehension }
@@ -2558,8 +2871,6 @@ class CultivationService(
 
     private fun clearDiscipleFromAllSlots(discipleId: String) {
         val data = _gameData.value
-
-        val updatedForgeSlots = data.forgeSlots.filter { it.discipleId != discipleId }
 
         val updatedSpiritMineSlots = data.spiritMineSlots.map {
             if (it.discipleId == discipleId) it.copy(discipleId = "", discipleName = "") else it
@@ -2623,11 +2934,21 @@ class CultivationService(
         }
 
         _gameData.value = data.copy(
-            forgeSlots = updatedForgeSlots,
             spiritMineSlots = updatedSpiritMineSlots,
             librarySlots = updatedLibrarySlots,
             elderSlots = updatedElderSlots
         )
+
+        kotlinx.coroutines.runBlocking {
+            val forgeSlots = productionSlotRepository.getSlotsByBuildingId("forge")
+            for (slot in forgeSlots) {
+                if (slot.assignedDiscipleId == discipleId && !slot.isWorking) {
+                    productionSlotRepository.updateSlotByBuildingId("forge", slot.slotIndex) { s ->
+                        s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
+                    }
+                }
+            }
+        }
     }
 
     private fun removeEquipmentFromDisciple(discipleId: String, equipmentId: String) {
@@ -2923,7 +3244,7 @@ class CultivationService(
                 gender = gender,
                 age = Random.nextInt(16, 30),
                 realm = 9,
-                realmLayer = Random.nextInt(1, 10),
+                realmLayer = 1,
                 spiritRootType = spiritRootType,
                 status = DiscipleStatus.IDLE,
                 talentIds = TalentDatabase.generateTalentsForDisciple().map { it.id },

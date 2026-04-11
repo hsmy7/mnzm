@@ -378,6 +378,9 @@ data class Pill(
     val revive: Boolean = false,
     val clearAll: Boolean = false,
     val mpRecoverMaxMpPercent: Double = 0.0,
+
+    @ColumnInfo(name = "minRealm", defaultValue = "9")
+    val minRealm: Int = 9,
     
     override var quantity: Int = 1,
     override val isLocked: Boolean = false

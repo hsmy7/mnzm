@@ -59,7 +59,8 @@ class SaveService constructor(
     private val _seeds: MutableStateFlow<List<Seed>>,
     private val _events: MutableStateFlow<List<GameEvent>>,
     private val _battleLogs: MutableStateFlow<List<BattleLog>>,
-    private val _teams: MutableStateFlow<List<ExplorationTeam>>
+    private val _teams: MutableStateFlow<List<ExplorationTeam>>,
+    private val productionSlotRepository: com.xianxia.sect.core.repository.ProductionSlotRepository
 ) {
     companion object {
         private const val TAG = "SaveService"
@@ -103,8 +104,8 @@ class SaveService constructor(
             caveExplorationTeamCount = data.caveExplorationTeams.size,
 
             // Building slot counts
-            forgeSlotCount = data.forgeSlots.count { it.status == SlotStatus.WORKING },
-            alchemySlotCount = data.alchemySlots.count { it.status == AlchemySlotStatus.WORKING },
+            forgeSlotCount = productionSlotRepository.getSlotsByType(com.xianxia.sect.core.model.production.BuildingType.FORGE).count { it.isWorking },
+            alchemySlotCount = productionSlotRepository.getSlotsByType(com.xianxia.sect.core.model.production.BuildingType.ALCHEMY).count { it.isWorking },
 
             // World map info
             worldMapSectCount = data.worldMapSects.size,
@@ -226,10 +227,10 @@ class SaveService constructor(
 
         // Check disciple references
         val discipleIds = _disciples.value.map { it.id }.toSet()
-        data.forgeSlots.forEach { slot ->
-            slot.discipleId?.let { discipleId ->
+        productionSlotRepository.getSlotsByBuildingId("forge").forEach { slot ->
+            slot.assignedDiscipleId?.let { discipleId ->
                 if (!discipleIds.contains(discipleId)) {
-                    errors.add("Forge slot references non-existent disciple: $discipleId")
+                    errors.add("ProductionSlot(forge) references non-existent disciple: $discipleId")
                 }
             }
         }
@@ -268,8 +269,8 @@ class SaveService constructor(
             "battleLogCount" to _battleLogs.value.size,
             "explorationTeams" to _teams.value.size,
             "caveExplorations" to data.caveExplorationTeams.size,
-            "activeForgingSlots" to data.forgeSlots.count { it.status == SlotStatus.WORKING },
-            "activeAlchemySlots" to data.alchemySlots.count { it.status == AlchemySlotStatus.WORKING },
+            "activeForgingSlots" to productionSlotRepository.getSlotsByType(com.xianxia.sect.core.model.production.BuildingType.FORGE).count { it.isWorking },
+            "activeAlchemySlots" to productionSlotRepository.getSlotsByType(com.xianxia.sect.core.model.production.BuildingType.ALCHEMY).count { it.isWorking },
             "worldSects" to data.worldMapSects.size,
             "alliances" to data.alliances.size,
             "cultivatorCaves" to data.cultivatorCaves.size

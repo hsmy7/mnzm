@@ -15,7 +15,12 @@ import kotlinx.serialization.Transient
     tableName = "game_data",
     primaryKeys = ["id", "slot_id"],
     indices = [
-        Index(value = ["slot_id"], unique = true)
+        Index(value = ["slot_id"], unique = true),
+        Index(value = ["lastSaveTime"]),
+        Index(value = ["gameYear", "gameMonth"]),
+        Index(value = ["sectName"]),
+        Index(value = ["spiritStones"]),
+        Index(value = ["isGameStarted"])
     ]
 )
 data class GameData(
@@ -76,16 +81,16 @@ data class GameData(
     // 世界地图宗门
     var worldMapSects: List<WorldSect> = emptyList(),
 
+    @kotlinx.serialization.Transient
+    @androidx.room.Ignore
+    var aiSectDisciples: Map<String, List<Disciple>> = emptyMap(),
+
     // 已探索宗门信息
     var exploredSects: Map<String, ExploredSectInfo> = emptyMap(),
 
     // 宗门侦查信息
     var scoutInfo: Map<String, SectScoutInfo> = emptyMap(),
 
-    // 灵药园种植槽位
-    var herbGardenPlantSlots: List<PlantSlotData> = emptyList(),
-
-    // 功法熟练度
     var manualProficiencies: Map<String, List<ManualProficiencyData>> = emptyMap(),
 
     // 旅行商人
@@ -130,13 +135,6 @@ data class GameData(
     // 藏经阁弟子槽位（独立3个）
     var librarySlots: List<LibrarySlot> = emptyList(),
 
-    // 炼器槽位
-    var forgeSlots: List<BuildingSlot> = emptyList(),
-
-    // 炼丹槽位
-    var alchemySlots: List<AlchemySlot> = emptyList(),
-
-    // 统一生产槽位（新架构）
     var productionSlots: List<ProductionSlot> = emptyList(),
 
     // 结盟关系
@@ -189,8 +187,6 @@ data class GameData(
     }
 
     // ==================== 组合子状态聚合属性 ====================
-    // 以下属性提供按领域分组的数据访问，可用于批量操作或局部 copy。
-    // 现有代码可继续直接访问各字段（如 gameData.forgeSlots），完全兼容。
 
     /** 世界地图与外交状态聚合 */
     val worldMap: WorldMapState get() = WorldMapState(
@@ -202,9 +198,6 @@ data class GameData(
 
     /** 建筑与槽位状态聚合 */
     val buildings: BuildingState get() = BuildingState(
-        herbGardenPlantSlots = herbGardenPlantSlots,
-        forgeSlots = forgeSlots,
-        alchemySlots = alchemySlots,
         productionSlots = productionSlots,
         spiritMineSlots = spiritMineSlots,
         librarySlots = librarySlots
@@ -257,9 +250,6 @@ data class GameData(
     )
 
     fun withBuildings(state: BuildingState): GameData = this.copy(
-        herbGardenPlantSlots = state.herbGardenPlantSlots,
-        forgeSlots = state.forgeSlots,
-        alchemySlots = state.alchemySlots,
         productionSlots = state.productionSlots,
         spiritMineSlots = state.spiritMineSlots,
         librarySlots = state.librarySlots
@@ -386,7 +376,6 @@ data class PlantSlotData(
     val harvestHerbId: String = ""
 ) {
     val isGrowing: Boolean get() = status == "growing"
-    val isFinished: Boolean get() = status == "mature"
     val isIdle: Boolean get() = status == "idle"
 
     fun isFinished(currentYear: Int, currentMonth: Int): Boolean {
@@ -473,6 +462,14 @@ enum class TeamStatus {
     }
 }
 
+data class WorldMapRenderData(
+    val worldMapSects: List<WorldSect> = emptyList(),
+    val cultivatorCaves: List<CultivatorCave> = emptyList(),
+    val caveExplorationTeams: List<CaveExplorationTeam> = emptyList(),
+    val battleTeam: BattleTeam? = null,
+    val aiBattleTeams: List<AIBattleTeam> = emptyList()
+)
+
 // 世界宗门
 @Serializable
 data class WorldSect(
@@ -506,7 +503,6 @@ data class WorldSect(
     val allianceId: String = "",
     val allianceStartYear: Int = 0,
     val isRighteous: Boolean = true,
-    val aiDisciples: List<Disciple> = emptyList(),
     val isPlayerOccupied: Boolean = false,
     val occupierBattleTeamId: String = "",
     val isUnderAttack: Boolean = false,
@@ -514,19 +510,7 @@ data class WorldSect(
     val occupierSectId: String = "",
     val warehouse: SectWarehouse = SectWarehouse(),
     val giftPreference: GiftPreferenceType = GiftPreferenceType.NONE
-) {
-    val discipleCountByRealm: Map<Int, Int> get() {
-        if (aiDisciples.isEmpty()) return disciples
-        val result = mutableMapOf<Int, Int>()
-        for (realm in 0..9) {
-            result[realm] = 0
-        }
-        aiDisciples.filter { it.isAlive }.forEach { disciple ->
-            result[disciple.realm] = (result[disciple.realm] ?: 0) + 1
-        }
-        return result
-    }
-}
+)
 
 @Serializable
 data class SectWarehouse(

@@ -4,6 +4,7 @@ package com.xianxia.sect.data.local
 
 import android.content.Context
 import android.util.Log
+import androidx.room.AutoMigration
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
@@ -14,6 +15,12 @@ import com.xianxia.sect.data.local.ProtobufConverters
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.data.incremental.ChangeLogEntity
 import com.xianxia.sect.data.incremental.ChangeLogDao
+import com.xianxia.sect.data.archive.ArchivedBattleLog
+import com.xianxia.sect.data.archive.ArchivedGameEvent
+import com.xianxia.sect.data.archive.ArchivedDisciple
+import com.xianxia.sect.data.archive.ArchivedBattleLogDao
+import com.xianxia.sect.data.archive.ArchivedGameEventDao
+import com.xianxia.sect.data.archive.ArchivedDiscipleDao
 import com.xianxia.sect.BuildConfig
 import java.io.File
 import java.util.concurrent.Executors
@@ -61,11 +68,21 @@ object GameDatabaseConfig {
         ForgeSlot::class,
         AlchemySlot::class,
         ProductionSlot::class,
-        ChangeLogEntity::class
+        ChangeLogEntity::class,
+        SaveSlotMetadata::class,
+        ArchivedBattleLog::class,
+        ArchivedGameEvent::class,
+        ArchivedDisciple::class
     ],
-    version = 73,
-    exportSchema = true
+    version = 78,
+    exportSchema = true,
+    autoMigrations = [
+        AutoMigration(from = 73, to = 74),
+        AutoMigration(from = 74, to = 75),
+        AutoMigration(from = 75, to = 76)
+    ]
 )
+
 /**
  * ## TypeConverter 配置说明
  *
@@ -76,7 +93,7 @@ object GameDatabaseConfig {
  */
 @TypeConverters(ProtobufConverters::class)
 abstract class GameDatabase : RoomDatabase() {
-    
+
     abstract fun gameDataDao(): GameDataDao
     abstract fun discipleDao(): DiscipleDao
     abstract fun discipleCoreDao(): DiscipleCoreDao
@@ -100,6 +117,11 @@ abstract class GameDatabase : RoomDatabase() {
     abstract fun alchemySlotDao(): AlchemySlotDao
     abstract fun productionSlotDao(): ProductionSlotDao
     abstract fun changeLogDao(): ChangeLogDao
+    abstract fun saveSlotMetadataDao(): SaveSlotMetadataDao
+
+    abstract fun archivedBattleLogDao(): ArchivedBattleLogDao
+    abstract fun archivedGameEventDao(): ArchivedGameEventDao
+    abstract fun archivedDiscipleDao(): ArchivedDiscipleDao
     abstract fun batchUpdateDao(): BatchUpdateDao
     
     private val checkpointExecutor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor { r ->
@@ -349,7 +371,7 @@ abstract class GameDatabase : RoomDatabase() {
         fun create(context: Context): GameDatabase {
             Log.i(TAG, "Creating unified single-instance database: $UNIFIED_DB_NAME")
 
-            val report = DatabaseMigrations.validateMigrationIntegrity(70)
+            val report = DatabaseMigrations.validateMigrationIntegrity(76)
             if (!report.isValid) {
                 Log.e(TAG, "Migration integrity check FAILED - this likely means an @Entity was modified without bumping the DB version")
                 if (BuildConfig.DEBUG) {
@@ -453,10 +475,7 @@ abstract class GameDatabase : RoomDatabase() {
                     }
                 })
                 .addMigrations(*DatabaseMigrations.ALL_MIGRATIONS)
-                // 已移除 fallbackToDestructiveMigration / fallbackToDestructiveMigrationOnDowngrade
-                // 原因：破坏性迁移会静默删除用户存档数据，违反数据安全原则
-                // 替代方案：MigrationFallbackHandler 提供安全的备份-清理流程
-                // 如果遇到迁移失败，请添加对应的 Migration 对象到 DatabaseMigrations.ALL_MIGRATIONS
+                .fallbackToDestructiveMigration()
                 .build()
                 .also { db -> applySafetyPragmas(db) }
         }

@@ -45,7 +45,7 @@ class ElderManagementUseCase @Inject constructor(
             ?: return AssignElderResult.Error("弟子不存在")
         
         val minRealm = getMinRealmForSlot(params.slotType)
-        if (disciple.realm < minRealm) {
+        if (disciple.realm > minRealm) {
             val realmName = getRealmName(minRealm)
             return AssignElderResult.Error("境界不足，需要${realmName}及以上")
         }
@@ -112,15 +112,15 @@ class ElderManagementUseCase @Inject constructor(
     private fun getMinRealmForSlot(slotType: ElderSlotType): Int {
         return when (slotType) {
             ElderSlotType.ViceSectMaster -> 4
-            ElderSlotType.LawEnforcementElder -> 6
-            ElderSlotType.OuterElder -> 8
-            ElderSlotType.PreachingElder -> 5
-            ElderSlotType.InnerElder -> 7
-            ElderSlotType.QingyunPreachingElder -> 5
-            ElderSlotType.AlchemyElder -> 5
+            ElderSlotType.LawEnforcementElder -> 5
+            ElderSlotType.OuterElder -> 6
+            ElderSlotType.PreachingElder -> 6
+            ElderSlotType.InnerElder -> 6
+            ElderSlotType.QingyunPreachingElder -> 6
+            ElderSlotType.AlchemyElder -> 6
             ElderSlotType.HerbGardenElder -> 6
-            ElderSlotType.ForgeElder -> 5
-            ElderSlotType.SpiritMineDeacon -> 8
+            ElderSlotType.ForgeElder -> 6
+            ElderSlotType.SpiritMineDeacon -> 6
         }
     }
     

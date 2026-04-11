@@ -124,15 +124,12 @@ fun HerbGardenDialog(
                             slot = slot,
                             gameData = gameData,
                             onClick = {
-                                if (slot.status == "idle") {
+                                if (slot.status == "idle" || slot.status == "mature") {
                                     showSeedSelection = slot.index
                                 }
                             },
                             onRemove = {
                                 viewModel.clearPlantSlot(slot.index)
-                            },
-                            onHarvest = {
-                                viewModel.harvestHerb(slot.index)
                             }
                         )
                     }
@@ -155,7 +152,7 @@ fun HerbGardenDialog(
     if (showElderSelection) {
         val currentElderId = elderSlots.herbGardenElder
         HerbGardenElderSelectionDialog(
-            disciples = disciples.filter { it.isAlive && it.realm <= 5 },
+            disciples = disciples.filter { it.isAlive && it.realm <= 6 },
             currentElderId = currentElderId,
             elderSlots = elderSlots,
             onDismiss = { showElderSelection = false },
@@ -244,15 +241,26 @@ private fun ElderRemoveConfirmDialog(
 
 private fun getOccupiedIds(elderSlots: ElderSlots): Pair<List<String>, List<String>> {
     val allElderIds = listOf(
+        elderSlots.viceSectMaster,
         elderSlots.herbGardenElder,
         elderSlots.alchemyElder,
-        elderSlots.forgeElder
-    ).filterNotNull()
+        elderSlots.forgeElder,
+        elderSlots.outerElder,
+        elderSlots.preachingElder,
+        elderSlots.lawEnforcementElder,
+        elderSlots.innerElder,
+        elderSlots.qingyunPreachingElder
+    ).filter { !it.isNullOrBlank() }
 
     val allDirectDiscipleIds = listOf(
         elderSlots.herbGardenDisciples,
         elderSlots.alchemyDisciples,
-        elderSlots.forgeDisciples
+        elderSlots.forgeDisciples,
+        elderSlots.preachingMasters,
+        elderSlots.lawEnforcementDisciples,
+        elderSlots.lawEnforcementReserveDisciples,
+        elderSlots.qingyunPreachingMasters,
+        elderSlots.spiritMineDeaconDisciples
     ).flatten().mapNotNull { it.discipleId }
 
     return Pair(allElderIds, allDirectDiscipleIds)
@@ -502,7 +510,7 @@ private fun HerbGardenElderSelectionDialog(
             it.age >= 5 &&
             it.status == DiscipleStatus.IDLE &&
             it.discipleType == "inner" &&
-            it.realm <= 5 &&
+            it.realm <= 6 &&
             it.id !in allElderIds &&
             it.id !in allDirectDiscipleIds
         }
@@ -921,13 +929,11 @@ private fun PlantSlotItem(
     slot: PlantSlotData,
     gameData: GameData?,
     onClick: () -> Unit,
-    onRemove: () -> Unit = {},
-    onHarvest: () -> Unit = {}
+    onRemove: () -> Unit = {}
 ) {
     val statusColor = when (slot.status) {
-        "idle" -> Color(0xFF999999)
+        "idle", "mature" -> Color(0xFF999999)
         "growing" -> Color(0xFF4CAF50)
-        "mature" -> Color(0xFFFF9800)
         else -> Color(0xFF999999)
     }
 
@@ -948,21 +954,11 @@ private fun PlantSlotItem(
                 .background(GameColors.PageBackground)
                 .border(1.dp, statusColor, RoundedCornerShape(8.dp))
                 .clickable {
-                    when (slot.status) {
-                        "idle" -> onClick()
-                        "mature" -> onHarvest()
-                    }
+                    if (slot.status == "idle" || slot.status == "mature") onClick()
                 },
             contentAlignment = Alignment.Center
         ) {
             when (slot.status) {
-                "idle" -> {
-                    Text(
-                        text = "+",
-                        fontSize = 24.sp,
-                        color = Color(0xFF999999)
-                    )
-                }
                 "growing" -> {
                     val remainingMonths = if (gameData != null) {
                         slot.remainingTime(gameData.gameYear, gameData.gameMonth)
@@ -985,25 +981,6 @@ private fun PlantSlotItem(
                         )
                     }
                 }
-                "mature" -> {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = slot.seedName.ifEmpty { "未知" },
-                            fontSize = 8.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFFFF9800),
-                            maxLines = 1,
-                            textAlign = TextAlign.Center
-                        )
-                        Text(
-                            text = "可收获",
-                            fontSize = 9.sp,
-                            color = Color(0xFFFF9800)
-                        )
-                    }
-                }
                 else -> {
                     Text(
                         text = "+",
@@ -1013,18 +990,18 @@ private fun PlantSlotItem(
                 }
             }
         }
-        if (slot.status != "idle") {
+        if (slot.status == "growing") {
             Spacer(modifier = Modifier.height(4.dp))
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(6.dp))
                     .background(GameColors.PageBackground)
                     .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
-                    .clickable { if (slot.status == "mature") onHarvest() else onRemove() }
+                    .clickable { onRemove() }
                     .padding(horizontal = 12.dp, vertical = 6.dp)
             ) {
                 Text(
-                    text = if (slot.status == "mature") "收获" else "移除",
+                    text = "移除",
                     fontSize = 12.sp,
                     color = Color.Black
                 )
@@ -1237,10 +1214,10 @@ private fun SeedDetailDialog(
     val rarityName = when (seed.rarity) {
         1 -> "凡品"
         2 -> "灵品"
-        3 -> "仙品"
-        4 -> "神品"
-        5 -> "圣品"
-        6 -> "帝品"
+        3 -> "宝品"
+        4 -> "玄品"
+        5 -> "地品"
+        6 -> "天品"
         else -> "凡品"
     }
 

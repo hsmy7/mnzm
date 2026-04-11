@@ -28,80 +28,28 @@ import javax.inject.Singleton
 import kotlin.math.exp
 
 /**
- * ## GameDataCacheManager - 游戏数据缓存管理器（薄门面模式）
+ * ## GameDataCacheManager - 游戏数据缓存管理器
  *
- * ### 架构设计（Extract Delegate Pattern）
+ * ### 架构设计
  * ```
  * ┌─────────────────────────────────────────────────────────────┐
- * │                  GameDataCacheManager (Facade)              │
- * │  职责：协调者 / 门面                                          │
- * │  - 对外提供统一的缓存 API                                     │
- * │  - 协调内存缓存、磁盘缓存、写管道等组件                        │
- * │  - 处理内存压力响应和生命周期管理                              │
- * ├─────────────┬──────────────┬───────────────┬────────────────┤
- * │MemoryCacheCore│UnifiedDiskCache│WritePipeline  │ 其他组件       │
- * │(W-TinyLFU)   │(MMKV+文件)    │(写合并)        │                │
- * │+ BloomFilter │+ CRC32        │+ DirtyTracking │ PenetrationGuard│
- * │+ SWR         │+ Coalescer    │                │ CountMinSketch  │
- * └─────────────┴──────────────┴───────────────┴────────────────┘
+ * │                  GameDataCacheManager                       │
+ * │  职责：协调内存缓存、磁盘缓存、写管道和 BloomFilter          │
+ * ├──────────────┬──────────────┬───────────────┬───────────────┤
+ * │TieredMemory  │UnifiedDisk   │WritePipeline  │ BloomFilter   │
+ * │Cache         │Cache         │               │ (防穿透)       │
+ * │(W-TinyLFU)   │(MMKV+文件)   │(写合并)        │               │
+ * │+ SWR         │+ CRC32       │+ DirtyTracking│               │
+ * └──────────────┴──────────────┴───────────────┴───────────────┘
  * ```
  *
- * ### 拆分后的组件职责
+ * ### 组件职责
  *
- * **1. MemoryCacheCore** (独立组件，位于 `core` 子包)
- * - 纯内存缓存核心（W-TinyLFU 三分区策略）
- * - SWR (Stale-While-Revalidate) 过期策略
- * - BloomFilter 防缓存穿透
- * - 可独立复用于其他模块
- *
- * **2. SimpleBloomFilter** (独立组件，位于 `core` 子包)
- * - 简化版 BloomFilter 实现
- * - 双重哈希（Double Hashing）算法
- * - 可配置误判率和容量
- *
- * **3. TieredMemoryCache** (已有组件)
- * - 高级版 W-TinyLFU 实现（含 S3-FIFO Admission Gate）
- * - Count-Min Sketch 频率估计
- * - 动态热度阈值调整
- *
- * **4. UnifiedDiskCache** (已有组件)
- * - MMKV + 文件系统双层磁盘缓存
- * - CRC32 数据校验
- * - WriteCoalescer 写入合并
- *
- * **5. CachePenetrationGuard** (已有组件)
- * - 高级防穿透守卫（基于 CachePenetrationGuard）
- *
- * **6. GameDataCacheManager (本类 - 薄门面)**
- * - 协调上述所有组件的协作
- * - 提供向后兼容的公共 API
- * - 内存压力响应（Sigmoid 曲线）
- * - 统计信息聚合与监控
- * - DAO 工厂管理
- * - 生命周期管理（ComponentCallbacks2）
- *
- * ### 设计原则
- * - **单一职责**: 每个组件只负责一个明确的职责
- * - **开闭原则**: 可以通过组合新组件扩展功能，无需修改现有代码
- * - **依赖倒置**: 依赖抽象接口而非具体实现
- * - **最小知识**: 各组件之间通过门面协调，减少直接依赖
- *
- * ### 使用示例
- * ```kotlin
- * // 注入 GameDataCacheManager（自动组装所有子组件）
- * @Inject lateinit var cacheManager: GameDataCacheManager
- *
- * // 使用统一 API（内部自动协调多级缓存）
- * val data = cacheManager.get(CacheKey(...)) { loadDataFromDb() }
- * cacheManager.put(CacheKey(...), data)
- * ```
- *
- * ### 迁移说明
- * 此类从 v1 的上帝对象重构为 v2 的薄门面模式：
- * - 所有公共 API 保持完全兼容（无破坏性变更）
- * - 内部实现委托给独立的可复用组件
- * - 新代码应优先使用 MemoryCacheCore 或 TieredMemoryCache
- * - 旧代码无需修改，继续使用 GameDataCacheManager 即可
+ * **1. TieredMemoryCache** - W-TinyLFU 内存缓存 + SWR 过期策略
+ * **2. UnifiedDiskCache** - MMKV + 文件系统双层磁盘缓存 + CRC32 校验
+ * **3. UnifiedWritePipeline** - 写合并管道
+ * **4. SimpleBloomFilter** - 防缓存穿透
+ * **5. GameDataCacheManager (本类)** - 协调组件、内存压力响应、统计监控
  */
 @Singleton
 class GameDataCacheManager @Inject constructor(
@@ -210,27 +158,7 @@ class GameDataCacheManager @Inject constructor(
 
     private val writePipeline: UnifiedWritePipeline = UnifiedWritePipeline(scope = scope)
 
-    /**
-     * 防穿透守卫（高级版 - 使用 CachePenetrationGuard）
-     *
-     * 用于快速判断 key 是否可能存在，避免缓存穿透攻击。
-     * 与 MemoryCacheCore 内置的 SimpleBloomFilter 互为补充：
-     * - CachePenetrationGuard: 全局级别的防穿透（更精确）
-     * - SimpleBloomFilter: MemoryCacheCore 内部使用（更轻量）
-     */
-    private val penetrationGuard = CachePenetrationGuard(expectedInsertions = 5000)
-
-    /**
-     * 简化版 BloomFilter（新建的独立组件 - v2 新增）
-     *
-     * 可用于轻量级场景的防穿透需求。
-     * 与 CachePenetrationGuard 的区别：
-     * - SimpleBloomFilter: 更简单、可配置、适合独立使用
-     * - CachePenetrationGuard: 更完整、集成度更高
-     *
-     * @see com.xianxia.sect.data.cache.core.SimpleBloomFilter
-     */
-    private val simpleBloomFilter: SimpleBloomFilter = SimpleBloomFilter(
+    private val bloomFilter: SimpleBloomFilter = SimpleBloomFilter(
         expectedItems = 10000,
         falsePositiveRate = 0.01
     )
@@ -318,13 +246,10 @@ class GameDataCacheManager @Inject constructor(
         // 启动时执行一次 corruption recovery
         performInitialCorruptionCheck()
 
-        Log.i(TAG, "GameDataCacheManager v2 initialized with config: $config")
-        Log.i(TAG, "Component architecture (Facade pattern):")
-        Log.i(TAG, "  - MemoryCacheCore (W-TinyLFU + SWR + BloomFilter): ${config.memoryCacheSize / (1024 * 1024)}MB")
-        Log.i(TAG, "  - TieredMemoryCache (Advanced W-TinyLFU + CountMinSketch)")
+        Log.i(TAG, "GameDataCacheManager initialized")
+        Log.i(TAG, "  - TieredMemoryCache (W-TinyLFU + SWR): ${config.memoryCacheSize / (1024 * 1024)}MB")
         Log.i(TAG, "  - UnifiedDiskCache (MMKV + File + CRC32)")
-        Log.i(TAG, "  - CachePenetrationGuard (Advanced anti-penetration)")
-        Log.i(TAG, "  - SimpleBloomFilter (Lightweight anti-penetration)")
+        Log.i(TAG, "  - SimpleBloomFilter (Anti-penetration)")
         if (memoryManager != null) {
             Log.i(TAG, "DynamicMemoryManager integration enabled - Device tier: ${memoryManager.deviceTier.displayName}")
         }
@@ -727,11 +652,10 @@ class GameDataCacheManager @Inject constructor(
         val cacheKey = key.toString()
 
         // Bloom Filter 穿透防护：如果键从未见过，可以快速跳过缓存查找
-        if (!penetrationGuard.mightContain(cacheKey)) {
-            // Key has never been seen - skip cache lookup entirely and go straight to loader
+        if (!bloomFilter.mightContain(cacheKey)) {
             val value = loader()
             putInternal(key, value)
-            penetrationGuard.put(cacheKey)
+            bloomFilter.put(cacheKey)
             return value
         }
 
@@ -756,7 +680,7 @@ class GameDataCacheManager @Inject constructor(
         // 3. 全部 miss 时执行 loader
         val value = loader()
         putInternal(key, value)
-        penetrationGuard.put(cacheKey)
+        bloomFilter.put(cacheKey)
 
         return value
     }
@@ -808,31 +732,6 @@ class GameDataCacheManager @Inject constructor(
     }
 
     /**
-     * 存入缓存条目（fire-and-forget 异步版本）
-     *
-     * 【P1#7 标记为 @Deprecated】仅在确实不需要等待完成的场景使用。
-     * 崩溃时可能丢失最近一次写入。
-     *
-     * @Deprecated Use put() (suspend version) instead for guaranteed writes.
-     */
-    @Deprecated(
-        message = "Fire-and-forget put may lose data on crash. Use suspend put() instead.",
-        level = DeprecationLevel.WARNING,
-        replaceWith = ReplaceWith("put(key, value)")
-    )
-    fun putAsync(key: CacheKey, value: Any?) {
-        if (value == null) {
-            remove(key)
-            return
-        }
-        
-        // P1#7: 保留异步版本供遗留代码使用，但明确标记为不安全
-        scope.launch {
-            putInternal(key, value)
-        }
-    }
-
-    /**
      * 存入缓存条目（不追踪脏数据）
      *
      * F2: 同样消除 runBlocking
@@ -866,7 +765,7 @@ class GameDataCacheManager @Inject constructor(
         }
 
         // 更新 Bloom Filter
-        penetrationGuard.put(cacheKey)
+        bloomFilter.put(cacheKey)
 
         writePipeline.markUpdate(cacheKey, value)
     }
@@ -1211,7 +1110,7 @@ class GameDataCacheManager @Inject constructor(
         val topKeys = getTopAccessedKeys(10)
 
         // v2 新增：获取新组件的统计信息
-        val bloomFilterSize = simpleBloomFilter.approximateSize()
+        val bloomFilterSize = bloomFilter.approximateSize()
 
         val sb = StringBuilder()
         sb.appendLine("=== GameDataCacheManager Diagnostic (v2 Facade) ===")
@@ -1362,8 +1261,8 @@ class GameDataCacheManager @Inject constructor(
             // v2 新增：新组件统计信息
             put("v2Components", JSONObject().apply {
                 // SimpleBloomFilter 统计
-                put("simpleBloomFilter", JSONObject().apply {
-                    put("approximateSize", simpleBloomFilter.approximateSize())
+                put("bloomFilter", JSONObject().apply {
+                    put("approximateSize", bloomFilter.approximateSize())
                 })
             })
 
@@ -1587,8 +1486,8 @@ class GameDataCacheManager @Inject constructor(
 
         // 6. 清理新组件（v2 新增）
         scope.launch {
-            simpleBloomFilter.clear()
-            Log.d(TAG, "SimpleBloomFilter cleared")
+            bloomFilter.clear()
+            Log.d(TAG, "BloomFilter cleared")
         }
 
         // 7. 取消所有协程

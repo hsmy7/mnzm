@@ -13,6 +13,7 @@ package com.xianxia.sect.core.engine
 
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.runBlocking
@@ -28,7 +29,10 @@ import com.xianxia.sect.core.engine.service.*
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.engine.BattleSystem
 import com.xianxia.sect.core.engine.production.ProductionCoordinator
+import com.xianxia.sect.core.model.production.ProductionSlot
+import com.xianxia.sect.core.data.HerbDatabase
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.util.StorageBagUtils
 import dagger.hilt.android.scopes.ViewModelScoped
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
@@ -151,6 +155,7 @@ class GameEngine @Inject constructor(
             _disciples = _disciples,
             _equipment = _equipment,
             _teams = _teams,
+            productionSlotRepository = productionCoordinator.repository,
             addEvent = { message, type -> eventService.addGameEvent(message, type) },
             transactionMutex = transactionMutex
         )
@@ -165,6 +170,7 @@ class GameEngine @Inject constructor(
             _manuals = _manuals,
             _battleLogs = _battleLogs,
             battleSystem = battleSystem,
+            productionSlotRepository = productionCoordinator.repository,
             addEvent = { message, type -> eventService.addGameEvent(message, type) },
             transactionMutex = transactionMutex
         )
@@ -191,8 +197,10 @@ class GameEngine @Inject constructor(
             _equipment = _equipment,
             _pills = _pills,
             productionCoordinator = productionCoordinator,
+            productionSlotRepository = productionCoordinator.repository,
             addEvent = { message, type -> eventService.addGameEvent(message, type) },
-            transactionMutex = transactionMutex
+            transactionMutex = transactionMutex,
+            scope = engineScope
         )
     }
 
@@ -209,7 +217,8 @@ class GameEngine @Inject constructor(
             _seeds = _seeds,
             _events = _events,
             _battleLogs = _battleLogs,
-            _teams = _teams
+            _teams = _teams,
+            productionSlotRepository = productionCoordinator.repository
         )
     }
 
@@ -230,9 +239,10 @@ class GameEngine @Inject constructor(
             inventorySystem = inventorySystem,
             battleSystem = battleSystem,
             productionCoordinator = productionCoordinator,
+            productionSlotRepository = productionCoordinator.repository,
             addEvent = { message, type -> eventService.addGameEvent(message, type) },
             transactionMutex = transactionMutex,
-            discipleSystem = null  // TODO: DiscipleService 与 DiscipleSystem 类型不同，待统一后传入正确实例
+            discipleSystem = null
         )
     }
 
@@ -264,7 +274,8 @@ class GameEngine @Inject constructor(
     private val formulaService by lazy {
         FormulaService(
             _gameData = _gameData,
-            _disciples = _disciples
+            _disciples = _disciples,
+            productionSlotRepository = productionCoordinator.repository
         )
     }
 
@@ -308,23 +319,23 @@ class GameEngine @Inject constructor(
             )
     }
 
-    // ==================== 建筑/炼丹相关 StateFlow ====================
+    val productionSlots: StateFlow<List<ProductionSlot>> = productionCoordinator.slots
 
-    /** 建筑槽位列表 (锻造槽位) */
-    val buildingSlots: StateFlow<List<BuildingSlot>> by lazy {
-        _gameData.map { it.forgeSlots }.stateIn(
-            engineScope,
-            kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5000),
-            emptyList()
-        )
-    }
-
-    val alchemySlots: StateFlow<List<AlchemySlot>> by lazy {
-        _gameData.map { it.alchemySlots }.stateIn(
-            engineScope,
-            kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5000),
-            emptyList()
-        )
+    val worldMapRenderData: StateFlow<WorldMapRenderData> by lazy {
+        _gameData.map { data ->
+            WorldMapRenderData(
+                worldMapSects = data.worldMapSects,
+                cultivatorCaves = data.cultivatorCaves ?: emptyList(),
+                caveExplorationTeams = data.caveExplorationTeams ?: emptyList(),
+                battleTeam = data.battleTeam,
+                aiBattleTeams = data.aiBattleTeams ?: emptyList()
+            )
+        }.distinctUntilChanged()
+            .stateIn(
+                engineScope,
+                kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5000),
+                WorldMapRenderData()
+            )
     }
 
     // ==================== 初始化方法 ====================
@@ -355,7 +366,8 @@ class GameEngine @Inject constructor(
         teams: List<ExplorationTeam>,
         events: List<GameEvent>,
         battleLogs: List<BattleLog> = emptyList(),
-        alliances: List<Alliance> = emptyList()
+        alliances: List<Alliance> = emptyList(),
+        productionSlots: List<com.xianxia.sect.core.model.production.ProductionSlot> = emptyList()
     ) {
         transactionMutex.withLock {
             _gameData.value = gameData
@@ -366,24 +378,15 @@ class GameEngine @Inject constructor(
             _materials.value = materials
             _herbs.value = herbs
             _seeds.value = seeds
-
-            saveService.restoreCollections(
-                disciples = disciples,
-                equipment = equipment,
-                manuals = manuals,
-                pills = pills,
-                materials = materials,
-                herbs = herbs,
-                seeds = seeds,
-                events = events,
-                battleLogs = battleLogs,
-                teams = teams
-            )
-            checkAndCollectCompletedAlchemySlots()
             _teams.value = teams
             _events.value = events
             _battleLogs.value = battleLogs
+
+            if (productionSlots.isNotEmpty()) {
+                productionCoordinator.repository.restoreSlots(productionSlots)
+            }
         }
+        checkAndCollectCompletedAlchemySlots()
     }
 
     /**
@@ -439,19 +442,18 @@ class GameEngine @Inject constructor(
     }
 
     private suspend fun initializeWorldAndServices(sectName: String) {
-        val worldSects = WorldMapGenerator.generateWorldSects(sectName)
-        val sectRelations = WorldMapGenerator.initializeSectRelations(worldSects)
+        val generationResult = WorldMapGenerator.generateWorldSects(sectName)
+        val sectRelations = WorldMapGenerator.initializeSectRelations(generationResult.sects)
         cultivationService.refreshTravelingMerchant(1, 1)
         cultivationService.refreshRecruitList(1)
         _gameData.value = _gameData.value.copy(
             sectName = sectName,
-            worldMapSects = worldSects,
+            worldMapSects = generationResult.sects,
             sectRelations = sectRelations,
-            herbGardenPlantSlots = (0 until HerbGardenSystem.MAX_PLANT_SLOTS).map {
-                PlantSlotData(index = it)
-            },
+            aiSectDisciples = generationResult.aiSectDisciples,
             availableMissions = emptyList()
         )
+        productionCoordinator.repository.initializeAllSlots()
     }
 
     private fun addInitialManual() {
@@ -639,9 +641,6 @@ class GameEngine @Inject constructor(
 
     // ==================== 战斗系统 (委托给 CombatService) ====================
 
-    fun applyBattleVictoryBonuses(memberIds: List<String>, addSoulPower: Boolean) =
-        combatService.applyBattleVictoryBonuses(memberIds, addSoulPower)
-
     fun processBattleCasualties(deadMemberIds: Set<String>, survivorHpMap: Map<String, Int>, survivorMpMap: Map<String, Int> = emptyMap()) =
         combatService.processBattleCasualties(deadMemberIds, survivorHpMap, survivorMpMap)
 
@@ -732,15 +731,12 @@ class GameEngine @Inject constructor(
     suspend fun startForging(slotIndex: Int, recipeId: String): Boolean =
         buildingService.startForging(slotIndex, recipeId)
 
-    fun startBuildingWork(buildingId: String, slotIndex: Int, recipeId: String, baseDuration: Int) =
-        buildingService.startBuildingWork(buildingId, slotIndex, recipeId, baseDuration)
-
     fun collectBuildingResult(slotId: String) = buildingService.collectBuildingResult(slotId)
 
     fun collectForgeResult(slotIndex: Int) {
-        val data = _gameData.value
-        val slot = data.forgeSlots.find { it.slotIndex == slotIndex && it.status == SlotStatus.COMPLETED }
+        val slot = productionCoordinator.repository.getSlotByBuildingId("forge", slotIndex)
             ?: return
+        if (slot.status != com.xianxia.sect.core.model.production.ProductionSlotStatus.COMPLETED) return
         collectBuildingResult(slot.id)
     }
 
@@ -750,11 +746,7 @@ class GameEngine @Inject constructor(
     fun checkAndCollectCompletedAlchemySlots(): List<AlchemyResult> =
         buildingService.checkAndCollectCompletedAlchemySlots()
 
-    fun harvestHerb(slotIndex: Int) = buildingService.harvestHerb(slotIndex)
-
     fun clearPlantSlot(slotIndex: Int) = buildingService.clearPlantSlot(slotIndex)
-
-    fun getAlchemySlots(): List<AlchemySlot> = buildingService.getAlchemySlots()
 
     fun getForgeSlots(): List<BuildingSlot> = buildingService.getBuildingSlots()
 
@@ -774,7 +766,7 @@ class GameEngine @Inject constructor(
             events = _events.value,
             battleLogs = _battleLogs.value,
             alliances = _gameData.value.alliances,
-            productionSlots = _gameData.value.productionSlots
+            productionSlots = productionCoordinator.repository.getSlots()
         )
     }
 
@@ -795,7 +787,7 @@ class GameEngine @Inject constructor(
                 events = _events.value,
                 battleLogs = _battleLogs.value,
                 alliances = _gameData.value.alliances,
-                productionSlots = _gameData.value.productionSlots
+                productionSlots = productionCoordinator.repository.getSlots()
             )
         }
     }
@@ -872,9 +864,12 @@ class GameEngine @Inject constructor(
 
                     val worldSects = data.worldMapSects
                     if (worldSects.size > 30) {
-                        _gameData.value = data.copy(worldMapSects = worldSects.sortedByDescending { s -> s.relation }.take(30))
+                        val playerSect = worldSects.find { it.isPlayerSect }
+                        val otherSects = worldSects.filter { !it.isPlayerSect }.sortedByDescending { s -> s.relation }.take(if (playerSect != null) 29 else 30)
+                        val trimmedSects = if (playerSect != null) listOf(playerSect) + otherSects else otherSects
+                        _gameData.value = data.copy(worldMapSects = trimmedSects)
                         trimmed = true
-                        Log.d(TAG, "内存释放($levelName): worldMapSects 裁剪至 30 个")
+                        Log.d(TAG, "内存释放($levelName): worldMapSects 裁剪至 ${trimmedSects.size} 个")
                     }
 
                     val aiTeams = _gameData.value.aiBattleTeams
@@ -1343,24 +1338,22 @@ class GameEngine @Inject constructor(
 
     /** 清空炼丹槽位 */
     fun clearAlchemySlot(slotIndex: Int) {
-        val data = _gameData.value
-        val currentSlots = data.alchemySlots
-        if (slotIndex >= 0 && slotIndex < currentSlots.size) {
-            val updatedSlots = currentSlots.toMutableList()
-            updatedSlots[slotIndex] = AlchemySlot(slotIndex = slotIndex)
-            updateGameDataSync { it.copy(alchemySlots = updatedSlots) }
+        if (slotIndex < 0) return
+        engineScope.launch {
+            productionCoordinator.resetSlotByBuildingIdAtomic("alchemy", slotIndex)
         }
     }
 
     /** 清空锻造槽位 */
     fun clearForgeSlot(slotIndex: Int) {
-        val data = _gameData.value
-        val slot = data.forgeSlots.find { it.slotIndex == slotIndex } ?: return
-        if (slot.status != SlotStatus.WORKING) {
-            slot.discipleId?.let { discipleId ->
-                engineScope.launch { updateDiscipleStatus(discipleId, DiscipleStatus.IDLE) }
+        engineScope.launch {
+            val slot = productionCoordinator.repository.getSlotByBuildingId("forge", slotIndex)
+            if (slot != null && !slot.isWorking) {
+                slot.assignedDiscipleId?.let { discipleId ->
+                    updateDiscipleStatus(discipleId, DiscipleStatus.IDLE)
+                }
             }
-            updateGameDataSync { it.copy(forgeSlots = data.forgeSlots.filter { s -> s.slotIndex != slotIndex || s.buildingId != slot.buildingId }) }
+            productionCoordinator.resetSlotByBuildingIdAtomic("forge", slotIndex)
         }
     }
 
@@ -1369,22 +1362,34 @@ class GameEngine @Inject constructor(
     suspend fun startManualPlanting(slotIndex: Int, seedId: String) {
         transactionMutex.withLock {
             val data = _gameData.value
-            val currentSlots = data.herbGardenPlantSlots.toMutableList()
-            if (slotIndex < 0 || slotIndex >= currentSlots.size) return@withLock
             val seed = _seeds.value.find { it.id == seedId } ?: return@withLock
             if (seed.quantity <= 0) return@withLock
 
-            currentSlots[slotIndex] = PlantSlotData(
-                index = slotIndex,
-                seedId = seedId,
-                seedName = seed.name,
-                status = "growing",
+            val existingSlot = productionCoordinator.repository.getSlotByBuildingId("herbGarden", slotIndex)
+            val herbId = HerbDatabase.getHerbIdFromSeedId(seedId)
+            val newSlot = com.xianxia.sect.core.model.production.ProductionSlot(
+                id = existingSlot?.id ?: java.util.UUID.randomUUID().toString(),
+                slotIndex = slotIndex,
+                buildingType = com.xianxia.sect.core.model.production.BuildingType.HERB_GARDEN,
+                buildingId = "herbGarden",
+                status = com.xianxia.sect.core.model.production.ProductionSlotStatus.WORKING,
+                recipeId = seedId,
+                recipeName = seed.name,
                 startYear = data.gameYear,
                 startMonth = data.gameMonth,
-                growTime = seed.growTime,
-                harvestAmount = seed.yield
+                duration = seed.growTime,
+                outputItemId = herbId ?: "",
+                outputItemName = seed.name,
+                harvestAmount = seed.yield,
+                expectedYield = seed.yield
             )
-            _gameData.value = data.copy(herbGardenPlantSlots = currentSlots)
+
+            if (existingSlot != null) {
+                productionCoordinator.repository.updateSlotByBuildingId("herbGarden", slotIndex) { newSlot }
+            } else {
+                productionCoordinator.repository.addSlot(newSlot)
+            }
+
             inventoryService.removeSeed(seedId = seedId, quantity = 1)
         }
     }
@@ -1401,16 +1406,111 @@ class GameEngine @Inject constructor(
         updateGameDataSync { it.copy(recruitList = data.recruitList.filter { it.id != discipleId }) }
     }
 
-    /** 给予奖励物品到弟子 */
+    /** 给予奖励物品到弟子
+     * 设计意图：装备和功法是独占物品，不可共用。一件装备只能给一名弟子穿戴，一本功法只能给一名弟子学习。
+     * 被卸下的装备和遗忘的功法放入弟子的储物袋中，而非归还宗门仓库。*/
     suspend fun rewardItemsToDisciple(discipleId: String, items: List<RewardSelectedItem>) {
+        val data = _gameData.value
         items.forEach { item ->
+            val quantity = item.quantity.coerceAtLeast(1)
             when (item.type.lowercase(java.util.Locale.getDefault())) {
                 "equipment" -> {
                     val eq = _equipment.value.find { it.id == item.id }
-                    if (eq != null) { equipEquipment(discipleId, item.id) }
+                    if (eq != null) {
+                        equipEquipment(discipleId, item.id)
+                    }
                 }
-                "manual" -> { learnManual(discipleId, item.id) }
-                "pill" -> { usePill(discipleId, item.id) }
+                "manual" -> {
+                    val manual = _manuals.value.find { it.id == item.id }
+                    if (manual != null) {
+                        learnManual(discipleId, item.id)
+                        val updatedManual = _manuals.value.find { it.id == item.id }
+                        if (updatedManual != null && !updatedManual.isLearned) {
+                            updateDisciple(discipleId) { disciple ->
+                                disciple.copyWith(
+                                    storageBagItems = StorageBagUtils.increaseItemQuantity(
+                                        disciple.storageBagItems,
+                                        StorageBagItem(
+                                            itemId = item.id,
+                                            itemType = "manual",
+                                            name = manual.name,
+                                            rarity = manual.rarity,
+                                            quantity = 1,
+                                            obtainedYear = data.gameYear,
+                                            obtainedMonth = data.gameMonth
+                                        )
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+                "pill" -> {
+                    val pill = _pills.value.find { it.id == item.id }
+                    if (pill != null && pill.quantity >= quantity) {
+                        repeat(quantity) { usePill(discipleId, item.id) }
+                    }
+                }
+                "material" -> {
+                    if (inventoryService.removeMaterial(item.id, quantity)) {
+                        updateDisciple(discipleId) { disciple ->
+                            disciple.copyWith(
+                                storageBagItems = StorageBagUtils.increaseItemQuantity(
+                                    disciple.storageBagItems,
+                                    StorageBagItem(
+                                        itemId = item.id,
+                                        itemType = "material",
+                                        name = item.name,
+                                        rarity = item.rarity,
+                                        quantity = quantity,
+                                        obtainedYear = data.gameYear,
+                                        obtainedMonth = data.gameMonth
+                                    )
+                                )
+                            )
+                        }
+                    }
+                }
+                "herb" -> {
+                    if (inventoryService.removeHerb(item.id, quantity)) {
+                        updateDisciple(discipleId) { disciple ->
+                            disciple.copyWith(
+                                storageBagItems = StorageBagUtils.increaseItemQuantity(
+                                    disciple.storageBagItems,
+                                    StorageBagItem(
+                                        itemId = item.id,
+                                        itemType = "herb",
+                                        name = item.name,
+                                        rarity = item.rarity,
+                                        quantity = quantity,
+                                        obtainedYear = data.gameYear,
+                                        obtainedMonth = data.gameMonth
+                                    )
+                                )
+                            )
+                        }
+                    }
+                }
+                "seed" -> {
+                    if (inventoryService.removeSeed(item.id, quantity)) {
+                        updateDisciple(discipleId) { disciple ->
+                            disciple.copyWith(
+                                storageBagItems = StorageBagUtils.increaseItemQuantity(
+                                    disciple.storageBagItems,
+                                    StorageBagItem(
+                                        itemId = item.id,
+                                        itemType = "seed",
+                                        name = item.name,
+                                        rarity = item.rarity,
+                                        quantity = quantity,
+                                        obtainedYear = data.gameYear,
+                                        obtainedMonth = data.gameMonth
+                                    )
+                                )
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -1448,13 +1548,33 @@ class GameEngine @Inject constructor(
         discipleService.unequipEquipment(discipleId, equipmentId)
     }
 
-    /** 忘记功法 */
+    /** 忘记功法
+     * 设计意图：功法是独占物品，遗忘后放入弟子储物袋，而非归还宗门仓库。*/
     // P0修复: 改为 suspend fun，使用协程替代 runBlocking 避免主线程阻塞
     suspend fun forgetManual(discipleId: String, manualId: String) {
         val disciple = getDiscipleById(discipleId) ?: return
+        val manual = _manuals.value.find { it.id == manualId } ?: return
+        val data = _gameData.value
         transactionMutex.withLock {
             _disciples.value = _disciples.value.map {
-                if (it.id == discipleId) it.copy(manualIds = it.manualIds.filter { mid -> mid != manualId }) else it
+                if (it.id == discipleId) {
+                    val storageItem = StorageBagItem(
+                        itemId = manualId,
+                        itemType = "manual",
+                        name = manual.name,
+                        rarity = manual.rarity,
+                        quantity = 1,
+                        obtainedYear = data.gameYear,
+                        obtainedMonth = data.gameMonth
+                    )
+                    it.copyWith(
+                        manualIds = it.manualIds.filter { mid -> mid != manualId },
+                        storageBagItems = StorageBagUtils.increaseItemQuantity(it.storageBagItems, storageItem)
+                    )
+                } else it
+            }
+            _manuals.value = _manuals.value.map {
+                if (it.id == manualId) it.copy(isLearned = false, ownerId = null) else it
             }
         }
     }
@@ -1462,6 +1582,17 @@ class GameEngine @Inject constructor(
     /** 替换功法 */
     fun replaceManual(discipleId: String, oldManualId: String, newManualId: String) {
         engineScope.launch {
+            val oldManual = _manuals.value.find { it.id == oldManualId }
+            val newManual = _manuals.value.find { it.id == newManualId }
+            val disciple = _disciples.value.find { it.id == discipleId }
+            
+            if (newManual?.type == ManualType.MIND && oldManual?.type != ManualType.MIND && disciple != null) {
+                val hasMindManual = disciple.manualIds
+                    .filter { it != oldManualId }
+                    .any { mid -> _manuals.value.find { m -> m.id == mid }?.type == ManualType.MIND }
+                if (hasMindManual) return@launch
+            }
+            
             forgetManual(discipleId, oldManualId)
             learnManual(discipleId, newManualId)
         }
@@ -1471,10 +1602,34 @@ class GameEngine @Inject constructor(
     // P0修复: 改为 suspend fun，使用协程替代 runBlocking 避免主线程阻塞
     suspend fun learnManual(discipleId: String, manualId: String) {
         transactionMutex.withLock {
+            val manual = _manuals.value.find { it.id == manualId }
+            val disciple = _disciples.value.find { it.id == discipleId }
+            
+            if (manual == null || disciple == null) return@withLock
+
+            if (!GameConfig.Realm.meetsRealmRequirement(disciple.realm, manual.minRealm)) {
+                return@withLock
+            }
+
+            if (manual.isLearned && manual.ownerId != null && manual.ownerId != discipleId) {
+                return@withLock
+            }
+
+            if (manual.type == ManualType.MIND) {
+                val hasMindManual = disciple.manualIds.any { mid ->
+                    _manuals.value.find { it.id == mid }?.type == ManualType.MIND
+                }
+                if (hasMindManual) return@withLock
+            }
+            
             _disciples.value = _disciples.value.map {
                 if (it.id == discipleId && !it.manualIds.contains(manualId)) {
                     it.copy(manualIds = it.manualIds + manualId)
                 } else it
+            }
+
+            _manuals.value = _manuals.value.map {
+                if (it.id == manualId) it.copy(isLearned = true, ownerId = discipleId) else it
             }
         }
     }
@@ -1492,12 +1647,24 @@ class GameEngine @Inject constructor(
             _gameData.value = data.copy(spiritStones = data.spiritStones - cost)
 
             when (merchantItem.type.lowercase(java.util.Locale.getDefault())) {
-                "equipment" -> { addEquipment(createEquipmentFromMerchantItem(merchantItem)) }
-                "manual" -> { addManualToWarehouse(createManualFromMerchantItem(merchantItem)) }
-                "pill" -> { addPillToWarehouse(createPillFromMerchantItem(merchantItem)) }
-                "material" -> { addMaterialToWarehouse(createMaterialFromMerchantItem(merchantItem)) }
-                "herb" -> { addHerbToWarehouse(createHerbFromMerchantItem(merchantItem)) }
-                "seed" -> { addSeedToWarehouse(createSeedFromMerchantItem(merchantItem)) }
+                "equipment" -> {
+                    repeat(quantity) { addEquipment(createEquipmentFromMerchantItem(merchantItem)) }
+                }
+                "manual" -> {
+                    addManualToWarehouse(createManualFromMerchantItem(merchantItem).copy(quantity = quantity))
+                }
+                "pill" -> {
+                    addPillToWarehouse(createPillFromMerchantItem(merchantItem).copy(quantity = quantity))
+                }
+                "material" -> {
+                    addMaterialToWarehouse(createMaterialFromMerchantItem(merchantItem).copy(quantity = quantity))
+                }
+                "herb" -> {
+                    addHerbToWarehouse(createHerbFromMerchantItem(merchantItem).copy(quantity = quantity))
+                }
+                "seed" -> {
+                    addSeedToWarehouse(createSeedFromMerchantItem(merchantItem).copy(quantity = quantity))
+                }
             }
 
             _gameData.value = _gameData.value.copy(
@@ -1647,6 +1814,11 @@ class GameEngine @Inject constructor(
                 if (pill.quantity <= 0) return@launch
                 val disciple = getDiscipleById(discipleId) ?: return@launch
 
+                if (!GameConfig.Realm.meetsRealmRequirement(disciple.realm, pill.minRealm)) {
+                    addEvent("弟子${disciple.name}境界不足，无法使用${pill.name}（需要${GameConfig.Realm.getName(pill.minRealm)}及以上）", EventType.WARNING)
+                    return@launch
+                }
+
                 val updatedPills = _pills.value.map {
                     if (it.id == pillId && it.quantity > 0) it.copy(quantity = it.quantity - 1) else it
                 }.filter { it.quantity > 0 }
@@ -1671,6 +1843,13 @@ class GameEngine @Inject constructor(
                     pillEffectDuration = if (pill.duration > 0) pill.duration else updatedDisciple.pillEffects.pillEffectDuration
                 )
                 updatedDisciple = updatedDisciple.copy(pillEffects = newEffects)
+
+                if (effect.cultivationSpeed > 1.0) {
+                    updatedDisciple = updatedDisciple.copy(
+                        cultivationSpeedBonus = effect.cultivationSpeed / 100.0,
+                        cultivationSpeedDuration = if (pill.duration > 0) pill.duration else updatedDisciple.cultivationSpeedDuration
+                    )
+                }
 
                 if (effect.heal > 0 || effect.healPercent > 0 || effect.healMaxHpPercent > 0) {
                     updatedDisciple = updatedDisciple.copy(combat = updatedDisciple.combat.copy(hpVariance = 0))
@@ -1822,7 +2001,8 @@ class GameEngine @Inject constructor(
     /** 开始探索（简化接口） */
     fun startExploration(name: String, memberIds: List<String>, location: String, duration: Int) {
         val data = _gameData.value
-        createExplorationTeam(name, memberIds, location, location, duration, data.gameYear, data.gameMonth, data.gameDay)
+        val dungeonName = GameConfig.Dungeons.get(location)?.name ?: location
+        createExplorationTeam(name, memberIds, location, dungeonName, duration, data.gameYear, data.gameMonth, data.gameDay)
     }
 
     /** 开始战斗队伍移动 */

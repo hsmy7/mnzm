@@ -49,16 +49,6 @@ sealed class StateChangeRequest {
         val discipleId: String
     ) : StateChangeRequest()
     
-    data class UpdateBuildingSlot(
-        val slotIndex: Int,
-        val slot: BuildingSlot
-    ) : StateChangeRequest()
-    
-    data class UpdateAlchemySlot(
-        val slotIndex: Int,
-        val slot: AlchemySlot
-    ) : StateChangeRequest()
-    
     data class AddEquipment(
         val equipment: Equipment
     ) : StateChangeRequest()

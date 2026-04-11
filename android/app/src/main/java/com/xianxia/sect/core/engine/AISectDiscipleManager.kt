@@ -6,6 +6,7 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.data.EquipmentDatabase
 import com.xianxia.sect.core.data.ManualDatabase
 import com.xianxia.sect.core.data.TalentDatabase
+import com.xianxia.sect.core.engine.DiscipleStatCalculator
 import com.xianxia.sect.core.model.*
 import kotlin.random.Random
 
@@ -145,14 +146,21 @@ object AISectDiscipleManager {
         val count = Random.nextInt(1, 6)
         val maxRarity = getMaxRarityByRealm(maxRealm)
         
-        val allManuals = ManualDatabase.getByType(ManualType.ATTACK) +
-                         ManualDatabase.getByType(ManualType.DEFENSE) +
-                         ManualDatabase.getByType(ManualType.MIND)
+        val attackManuals = ManualDatabase.getByType(ManualType.ATTACK).filter { it.rarity <= maxRarity }
+        val defenseManuals = ManualDatabase.getByType(ManualType.DEFENSE).filter { it.rarity <= maxRarity }
+        val mindManuals = ManualDatabase.getByType(ManualType.MIND).filter { it.rarity <= maxRarity }
         
-        val availableManuals = allManuals.filter { it.rarity <= maxRarity }
-        if (availableManuals.isEmpty()) return emptyList()
+        val nonMindManuals = (attackManuals + defenseManuals).shuffled()
+        val selectedMind = if (mindManuals.isNotEmpty() && Random.nextBoolean()) {
+            listOf(mindManuals.random())
+        } else emptyList()
         
-        val selected = availableManuals.shuffled().take(count)
+        val remainingCount = (count - selectedMind.size).coerceAtLeast(0)
+        val selectedNonMind = nonMindManuals.take(remainingCount)
+        val selected = selectedMind + selectedNonMind
+        
+        if (selected.isEmpty()) return emptyList()
+        
         return selected.map { manual ->
             val mastery = Random.nextInt(0, 101)
             Pair(manual.id, mastery)
@@ -177,30 +185,29 @@ object AISectDiscipleManager {
     
     fun getMaxRarityByRealm(realm: Int): Int = GameConfig.Realm.getMaxRarity(realm)
     
-    fun recruitDisciplesForSect(sect: WorldSect, year: Int): WorldSect {
-        if (sect.isPlayerSect) return sect
-        
+    fun recruitDisciples(
+        sectName: String,
+        maxRealm: Int,
+        existingDisciples: List<Disciple>
+    ): List<Disciple> {
         val recruitCount = Random.nextInt(1, 11)
         val newDisciples = mutableListOf<Disciple>()
         
         repeat(recruitCount) {
-            val disciple = generateRandomDisciple(sect.name, sect.maxRealm)
+            val disciple = generateRandomDisciple(sectName, maxRealm)
             newDisciples.add(disciple)
         }
         
-        val allDisciples = sect.aiDisciples + newDisciples
-        val trimmed = if (allDisciples.size > PlantSlotData.MAX_AI_DISCIPLES_PER_SECT) {
+        val allDisciples = existingDisciples + newDisciples
+        return if (allDisciples.size > PlantSlotData.MAX_AI_DISCIPLES_PER_SECT) {
             allDisciples.sortedByDescending { it.combat.basePhysicalAttack + it.combat.baseMagicAttack + it.combat.baseHp }.take(PlantSlotData.MAX_AI_DISCIPLES_PER_SECT)
         } else {
             allDisciples
         }
-        return sect.copy(aiDisciples = trimmed)
     }
     
-    fun processMonthlyCultivation(sect: WorldSect): WorldSect {
-        if (sect.isPlayerSect) return sect
-        
-        val updatedDisciples = sect.aiDisciples.map { disciple ->
+    fun processMonthlyCultivation(disciples: List<Disciple>): List<Disciple> {
+        return disciples.map { disciple ->
             if (!disciple.isAlive) return@map disciple
             
             val cultivationSpeed = disciple.calculateCultivationSpeed()
@@ -212,11 +219,16 @@ object AISectDiscipleManager {
             var newBreakthroughFailCount = disciple.breakthroughFailCount
             
             while (newCultivation >= disciple.maxCultivation && newRealm > 0) {
+                val isMajorBreakthrough = newRealmLayer >= GameConfig.Realm.get(newRealm).maxLayers
+                if (isMajorBreakthrough && !DiscipleStatCalculator.meetsSoulPowerRequirement(newRealm, newRealmLayer, disciple.soulPower)) {
+                    break
+                }
+
                 val breakthroughChance = disciple.getBreakthroughChance()
                 if (Random.nextDouble() < breakthroughChance) {
                     newCultivation = 0.0
                     newBreakthroughFailCount = 0
-                    
+
                     if (newRealmLayer < 9) {
                         newRealmLayer++
                     } else {
@@ -244,14 +256,10 @@ object AISectDiscipleManager {
                 breakthroughFailCount = newBreakthroughFailCount
             )
         }
-        
-        return sect.copy(aiDisciples = updatedDisciples)
     }
     
-    fun processManualMasteryGrowth(sect: WorldSect): WorldSect {
-        if (sect.isPlayerSect) return sect
-        
-        val updatedDisciples = sect.aiDisciples.map { disciple ->
+    fun processManualMasteryGrowth(disciples: List<Disciple>): List<Disciple> {
+        return disciples.map { disciple ->
             if (!disciple.isAlive) return@map disciple
             
             val updatedMasteries = disciple.manualMasteries.toMutableMap()
@@ -274,14 +282,10 @@ object AISectDiscipleManager {
             
             disciple.copy(manualMasteries = updatedMasteries)
         }
-        
-        return sect.copy(aiDisciples = updatedDisciples)
     }
     
-    fun processEquipmentNurture(sect: WorldSect): WorldSect {
-        if (sect.isPlayerSect) return sect
-        
-        val updatedDisciples = sect.aiDisciples.map { disciple ->
+    fun processEquipmentNurture(disciples: List<Disciple>): List<Disciple> {
+        return disciples.map { disciple ->
             if (!disciple.isAlive) return@map disciple
             
             var updatedDisciple = disciple
@@ -316,8 +320,6 @@ object AISectDiscipleManager {
             
             updatedDisciple
         }
-        
-        return sect.copy(aiDisciples = updatedDisciples)
     }
     
     private fun updateEquipmentNurture(
@@ -363,10 +365,8 @@ object AISectDiscipleManager {
         }
     }
     
-    fun processAging(sect: WorldSect): WorldSect {
-        if (sect.isPlayerSect) return sect
-        
-        val updatedDisciples = sect.aiDisciples.map { disciple ->
+    fun processAging(disciples: List<Disciple>): List<Disciple> {
+        return disciples.map { disciple ->
             val newAge = disciple.age + 1
             val isAlive = newAge <= disciple.lifespan
             
@@ -375,14 +375,10 @@ object AISectDiscipleManager {
                 isAlive = isAlive
             )
         }.filter { it.isAlive }
-        
-        return sect.copy(aiDisciples = updatedDisciples)
     }
     
-    fun initializeSectDisciples(sect: WorldSect): WorldSect {
-        if (sect.isPlayerSect) return sect
-        
-        val totalDisciples = when (sect.level) {
+    fun initializeSectDisciples(sectName: String, sectLevel: Int): Pair<List<Disciple>, Int> {
+        val totalDisciples = when (sectLevel) {
             0 -> Random.nextInt(15, 26)
             1 -> Random.nextInt(25, 41)
             2 -> Random.nextInt(40, 61)
@@ -392,7 +388,7 @@ object AISectDiscipleManager {
         
         val disciples = mutableListOf<Disciple>()
         
-        val maxRealm = when (sect.level) {
+        val maxRealm = when (sectLevel) {
             0 -> 6
             1 -> 4
             2 -> 3
@@ -404,20 +400,19 @@ object AISectDiscipleManager {
         
         realmDistribution.forEach { (realm, count) ->
             repeat(count) {
-                val disciple = generateRandomDisciple(sect.name, maxRealm)
+                val disciple = generateRandomDisciple(sectName, maxRealm)
                 val adjustedDisciple = adjustDiscipleRealm(disciple, realm)
                 disciples.add(adjustedDisciple)
             }
         }
         
-        return sect.copy(
-            aiDisciples = if (disciples.size > PlantSlotData.MAX_AI_DISCIPLES_PER_SECT) {
-                disciples.sortedByDescending { it.combat.basePhysicalAttack + it.combat.baseMagicAttack + it.combat.baseHp }.take(PlantSlotData.MAX_AI_DISCIPLES_PER_SECT)
-            } else {
-                disciples
-            },
-            maxRealm = maxRealm
-        )
+        val trimmed = if (disciples.size > PlantSlotData.MAX_AI_DISCIPLES_PER_SECT) {
+            disciples.sortedByDescending { it.combat.basePhysicalAttack + it.combat.baseMagicAttack + it.combat.baseHp }.take(PlantSlotData.MAX_AI_DISCIPLES_PER_SECT)
+        } else {
+            disciples
+        }
+        
+        return Pair(trimmed, maxRealm)
     }
     
     private fun generateRealmDistribution(total: Int, maxRealm: Int): Map<Int, Int> {

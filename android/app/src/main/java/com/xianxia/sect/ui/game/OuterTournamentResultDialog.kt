@@ -229,6 +229,7 @@ private fun TournamentDiscipleCard(
                     )
                     DiscipleAttrText("悟性", disciple.comprehension, color = GameColors.TextSecondary)
                     DiscipleAttrText("忠诚", disciple.loyalty, color = GameColors.TextSecondary)
+                    DiscipleAttrText("道德", disciple.morality, color = GameColors.TextSecondary)
                 }
             }
 

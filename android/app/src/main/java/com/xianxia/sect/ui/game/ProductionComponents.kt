@@ -66,6 +66,7 @@ val ALCHEMY_THEME = ProductionTheme(
     reserveButtonTextColor = Color.Black,
     slotLabelPrefix = "炼丹槽",
     selectionDialogTitle = "选择丹药",
+    startProductionText = "确认炼制",
     elderSelectionTitle = "选择炼丹长老",
     recommendAttributeText = "炼丹",
     slotCount = 3,
@@ -94,6 +95,7 @@ val FORGE_THEME = ProductionTheme(
     reserveButtonTextColor = Color.White,
     slotLabelPrefix = "炼器槽",
     selectionDialogTitle = "选择装备",
+    startProductionText = "确认锻造",
     elderSelectionTitle = "选择天工长老",
     recommendAttributeText = "炼器",
     slotCount = 3,
@@ -380,7 +382,7 @@ fun ProductionElderSelectionDialog(
             it.age >= 5 &&
             it.status == DiscipleStatus.IDLE &&
             it.discipleType == "inner" &&
-            it.realm <= 5 &&
+            it.realm <= 6 &&
             !elderSlots.isDiscipleInAnyPosition(it.id)
         }
     }
