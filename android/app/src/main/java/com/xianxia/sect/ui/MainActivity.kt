@@ -117,6 +117,7 @@ class MainActivity : ComponentActivity() {
     public var complianceDialogState = mutableStateOf<ComplianceDialogState?>(null)
     internal val loadingProgress = mutableFloatStateOf(0f)
     internal var isLoadComplete = false
+    internal var isStorageReady = mutableStateOf(false)
     internal val loadHandler = android.os.Handler(android.os.Looper.getMainLooper())
     
     companion object {
@@ -132,17 +133,12 @@ class MainActivity : ComponentActivity() {
     }
     
     override fun onCreate(savedInstanceState: Bundle?) {
-        // 切换回正常主题
         setTheme(R.style.Theme_XianxiaSect)
         
         super.onCreate(savedInstanceState)
         
         WindowCompat.setDecorFitsSystemWindows(window, false)
-        WindowInsetsControllerCompat(window, window.decorView).let { controller ->
-            controller.hide(WindowInsetsCompat.Type.statusBars())
-            controller.hide(WindowInsetsCompat.Type.navigationBars())
-            controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-        }
+        hideSystemBars()
         
         if (!::sessionManager.isInitialized) {
             Log.e(TAG, "SessionManager未初始化")
@@ -150,10 +146,75 @@ class MainActivity : ComponentActivity() {
             return
         }
         
-        // 先显示加载界面
+        if (!sessionManager.hasAgreedPrivacy) {
+            showMainScreenBeforeConsent()
+        } else {
+            proceedAfterPrivacyConsent()
+        }
+    }
+    
+    private fun showMainScreenBeforeConsent() {
+        setContent {
+            XianxiaTheme {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = Color.White
+                ) {
+                    MainScreen(
+                        sessionManager = sessionManager,
+                        complianceDialogState = complianceDialogState,
+                        onLoginSuccess = {
+                            showSaveSelectScreen()
+                        },
+                        onPrivacyAgreed = {
+                            sessionManager.hasAgreedPrivacy = true
+                            startInitializationAfterConsent()
+                        },
+                        isStorageReady = isStorageReady
+                    )
+                }
+            }
+        }
+    }
+    
+    private fun startInitializationAfterConsent() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            var initialized = false
+            var retryCount = 0
+            val maxRetries = 3
+            while (!initialized && retryCount < maxRetries) {
+                try {
+                    val initResult = storageFacade.initialize()
+                    if (initResult.isSuccess) {
+                        Log.i(TAG, "StorageFacade initialized successfully after consent (attempt ${retryCount + 1})")
+                        initialized = true
+                    } else {
+                        retryCount++
+                        Log.e(TAG, "StorageFacade initialization failed (attempt $retryCount/$maxRetries): $initResult")
+                        if (retryCount < maxRetries) {
+                            kotlinx.coroutines.delay(500L * retryCount)
+                        }
+                    }
+                } catch (e: Exception) {
+                    retryCount++
+                    Log.e(TAG, "StorageFacade initialization error (attempt $retryCount/$maxRetries)", e)
+                    if (retryCount < maxRetries) {
+                        kotlinx.coroutines.delay(500L * retryCount)
+                    }
+                }
+            }
+            if (!initialized) {
+                Log.e(TAG, "StorageFacade initialization failed after $maxRetries attempts, proceeding with empty cache")
+            }
+            withContext(Dispatchers.Main) {
+                isStorageReady.value = true
+                initTapTapSDK()
+            }
+        }
+    }
+    
+    private fun proceedAfterPrivacyConsent() {
         showLoadingScreen()
-        
-        // 启动进度条动画（持续更新直到加载完成）
         startProgressAnimation()
         
         lifecycleScope.launch(Dispatchers.IO) {
@@ -255,7 +316,8 @@ class MainActivity : ComponentActivity() {
                         complianceDialogState = complianceDialogState,
                         onLoginSuccess = {
                             showSaveSelectScreen()
-                        }
+                        },
+                        isStorageReady = mutableStateOf(true)
                     )
                 }
             }
@@ -452,8 +514,26 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        hideSystemBars()
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) {
+            hideSystemBars()
+        }
+    }
+
+    private fun hideSystemBars() {
+        WindowInsetsControllerCompat(window, window.decorView).let { controller ->
+            controller.hide(WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.navigationBars())
+            controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
+    }
+
     override fun onDestroy() {
-        // 清理 Handler 防止内存泄漏
         loadHandler.removeCallbacksAndMessages(null)
         super.onDestroy()
     }
@@ -463,13 +543,16 @@ class MainActivity : ComponentActivity() {
 fun MainScreen(
     sessionManager: SessionManager,
     complianceDialogState: MutableState<MainActivity.ComplianceDialogState?>,
-    onLoginSuccess: () -> Unit
+    onLoginSuccess: () -> Unit,
+    onPrivacyAgreed: (() -> Unit)? = null,
+    isStorageReady: MutableState<Boolean> = mutableStateOf(true)
 ) {
     val context = LocalContext.current
     var isLoading by remember { mutableStateOf(false) }
     var loginResult by remember { mutableStateOf<String?>(null) }
     var privacyChecked by remember { mutableStateOf(sessionManager.hasAgreedPrivacy) }
     var showPrivacyAlert by remember { mutableStateOf(false) }
+    val ready by isStorageReady
     
     complianceDialogState.value?.let { state ->
         when (state) {
@@ -565,11 +648,21 @@ fun MainScreen(
             CircularProgressIndicator()
             Spacer(modifier = Modifier.height(16.dp))
             Text("正在登录...", color = Color.Black)
+        } else if (privacyChecked && !ready) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(24.dp),
+                strokeWidth = 2.dp
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Text("正在初始化...", color = Color(0xFF666666), fontSize = 14.sp)
         } else {
             Button(
                 onClick = {
                     if (!privacyChecked) {
                         showPrivacyAlert = true
+                        return@Button
+                    }
+                    if (!ready) {
                         return@Button
                     }
                     
@@ -669,6 +762,7 @@ fun MainScreen(
                     privacyChecked = checked
                     if (checked) {
                         sessionManager.hasAgreedPrivacy = true
+                        onPrivacyAgreed?.invoke()
                     }
                 },
                 modifier = Modifier.size(20.dp)
@@ -686,7 +780,7 @@ fun MainScreen(
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,
                 modifier = Modifier.clickable {
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://hsmy7.github.io/index.html"))
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://hsmy7.github.io/mnzm/"))
                     context.startActivity(intent)
                 }
             )
@@ -821,35 +915,4 @@ fun ComplianceVerificationScreen(
     }
 }
 
-@Composable
-fun PrivacyPolicyDialog(
-    onAgree: () -> Unit,
-    onDisagree: () -> Unit
-) {
-    val context = LocalContext.current
 
-    AlertDialog(
-        onDismissRequest = {},
-        title = { Text("隐私政策") },
-        text = {
-            Column {
-                Text("在使用本应用之前，请阅读并同意我们的隐私政策。")
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "查看《隐私政策》",
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.clickable {
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://hsmy7.github.io/index.html"))
-                        context.startActivity(intent)
-                    }
-                )
-            }
-        },
-        confirmButton = {
-            GameButton(text = "同意", onClick = onAgree)
-        },
-        dismissButton = {
-            GameButton(text = "不同意", onClick = onDisagree)
-        }
-    )
-}
