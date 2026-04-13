@@ -117,7 +117,6 @@ class MainActivity : ComponentActivity() {
     public var complianceDialogState = mutableStateOf<ComplianceDialogState?>(null)
     internal val loadingProgress = mutableFloatStateOf(0f)
     internal var isLoadComplete = false
-    internal var isStorageReady = mutableStateOf(false)
     internal val loadHandler = android.os.Handler(android.os.Looper.getMainLooper())
     
     companion object {
@@ -147,68 +146,24 @@ class MainActivity : ComponentActivity() {
         }
         
         if (!sessionManager.hasAgreedPrivacy) {
-            showMainScreenBeforeConsent()
+            showPrivacyConsentScreen()
         } else {
             proceedAfterPrivacyConsent()
         }
     }
     
-    private fun showMainScreenBeforeConsent() {
+    private fun showPrivacyConsentScreen() {
         setContent {
             XianxiaTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = Color.White
-                ) {
-                    MainScreen(
-                        sessionManager = sessionManager,
-                        complianceDialogState = complianceDialogState,
-                        onLoginSuccess = {
-                            showSaveSelectScreen()
-                        },
-                        onPrivacyAgreed = {
-                            sessionManager.hasAgreedPrivacy = true
-                            startInitializationAfterConsent()
-                        },
-                        isStorageReady = isStorageReady
-                    )
-                }
-            }
-        }
-    }
-    
-    private fun startInitializationAfterConsent() {
-        lifecycleScope.launch(Dispatchers.IO) {
-            var initialized = false
-            var retryCount = 0
-            val maxRetries = 3
-            while (!initialized && retryCount < maxRetries) {
-                try {
-                    val initResult = storageFacade.initialize()
-                    if (initResult.isSuccess) {
-                        Log.i(TAG, "StorageFacade initialized successfully after consent (attempt ${retryCount + 1})")
-                        initialized = true
-                    } else {
-                        retryCount++
-                        Log.e(TAG, "StorageFacade initialization failed (attempt $retryCount/$maxRetries): $initResult")
-                        if (retryCount < maxRetries) {
-                            kotlinx.coroutines.delay(500L * retryCount)
-                        }
+                PrivacyConsentScreen(
+                    onAgree = {
+                        sessionManager.hasAgreedPrivacy = true
+                        proceedAfterPrivacyConsent()
+                    },
+                    onDisagree = {
+                        finish()
                     }
-                } catch (e: Exception) {
-                    retryCount++
-                    Log.e(TAG, "StorageFacade initialization error (attempt $retryCount/$maxRetries)", e)
-                    if (retryCount < maxRetries) {
-                        kotlinx.coroutines.delay(500L * retryCount)
-                    }
-                }
-            }
-            if (!initialized) {
-                Log.e(TAG, "StorageFacade initialization failed after $maxRetries attempts, proceeding with empty cache")
-            }
-            withContext(Dispatchers.Main) {
-                isStorageReady.value = true
-                initTapTapSDK()
+                )
             }
         }
     }
@@ -316,8 +271,7 @@ class MainActivity : ComponentActivity() {
                         complianceDialogState = complianceDialogState,
                         onLoginSuccess = {
                             showSaveSelectScreen()
-                        },
-                        isStorageReady = mutableStateOf(true)
+                        }
                     )
                 }
             }
@@ -543,16 +497,13 @@ class MainActivity : ComponentActivity() {
 fun MainScreen(
     sessionManager: SessionManager,
     complianceDialogState: MutableState<MainActivity.ComplianceDialogState?>,
-    onLoginSuccess: () -> Unit,
-    onPrivacyAgreed: (() -> Unit)? = null,
-    isStorageReady: MutableState<Boolean> = mutableStateOf(true)
+    onLoginSuccess: () -> Unit
 ) {
     val context = LocalContext.current
     var isLoading by remember { mutableStateOf(false) }
     var loginResult by remember { mutableStateOf<String?>(null) }
     var privacyChecked by remember { mutableStateOf(sessionManager.hasAgreedPrivacy) }
     var showPrivacyAlert by remember { mutableStateOf(false) }
-    val ready by isStorageReady
     
     complianceDialogState.value?.let { state ->
         when (state) {
@@ -648,21 +599,11 @@ fun MainScreen(
             CircularProgressIndicator()
             Spacer(modifier = Modifier.height(16.dp))
             Text("正在登录...", color = Color.Black)
-        } else if (privacyChecked && !ready) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(24.dp),
-                strokeWidth = 2.dp
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Text("正在初始化...", color = Color(0xFF666666), fontSize = 14.sp)
         } else {
             Button(
                 onClick = {
                     if (!privacyChecked) {
                         showPrivacyAlert = true
-                        return@Button
-                    }
-                    if (!ready) {
                         return@Button
                     }
                     
@@ -762,7 +703,6 @@ fun MainScreen(
                     privacyChecked = checked
                     if (checked) {
                         sessionManager.hasAgreedPrivacy = true
-                        onPrivacyAgreed?.invoke()
                     }
                 },
                 modifier = Modifier.size(20.dp)
@@ -780,7 +720,7 @@ fun MainScreen(
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,
                 modifier = Modifier.clickable {
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://hsmy7.github.io/mnzm/"))
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://hsmy7.github.io/index.html"))
                     context.startActivity(intent)
                 }
             )
@@ -915,4 +855,150 @@ fun ComplianceVerificationScreen(
     }
 }
 
+@Composable
+fun PrivacyConsentScreen(
+    onAgree: () -> Unit,
+    onDisagree: () -> Unit
+) {
+    val context = LocalContext.current
+    var privacyChecked by remember { mutableStateOf(false) }
 
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.White)
+            .padding(24.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = "模拟宗门",
+                fontSize = 28.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = "踏入修仙之路，成就无上大道",
+                color = Color(0xFF666666),
+                fontSize = 14.sp
+            )
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5))
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    Text(
+                        text = "隐私政策提示",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Text(
+                        text = "在使用本应用之前，请您仔细阅读并同意我们的隐私政策。我们将严格按照隐私政策收集和使用您的个人信息，不会超出隐私政策所述范围收集信息。",
+                        fontSize = 13.sp,
+                        lineHeight = 20.sp,
+                        color = Color(0xFF444444)
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "点击查看",
+                            fontSize = 13.sp,
+                            color = Color(0xFF999999)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "《模拟宗门隐私政策》",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.clickable {
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://hsmy7.github.io/index.html"))
+                                context.startActivity(intent)
+                            }
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Checkbox(
+                    checked = privacyChecked,
+                    onCheckedChange = { checked ->
+                        privacyChecked = checked
+                    },
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = "我已阅读并同意",
+                    color = Color(0xFF999999),
+                    fontSize = 13.sp
+                )
+                Spacer(modifier = Modifier.width(2.dp))
+                Text(
+                    text = "《模拟宗门隐私政策》",
+                    color = MaterialTheme.colorScheme.primary,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.clickable {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://hsmy7.github.io/index.html"))
+                        context.startActivity(intent)
+                    }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            GameButton(
+                text = "同意并继续",
+                onClick = {
+                    if (privacyChecked) {
+                        onAgree()
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+                enabled = privacyChecked
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            TextButton(
+                onClick = onDisagree,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "不同意",
+                    color = Color(0xFF999999),
+                    fontSize = 14.sp
+                )
+            }
+        }
+    }
+}
