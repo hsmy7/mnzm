@@ -1,0 +1,346 @@
+package com.xianxia.sect.ui.game
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.xianxia.sect.core.engine.AISectAttackManager
+import com.xianxia.sect.core.engine.GameEngine
+import com.xianxia.sect.core.model.*
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+@HiltViewModel
+class WorldMapViewModel @Inject constructor(
+    private val gameEngine: GameEngine
+) : ViewModel() {
+
+    companion object {
+        private const val TAG = "WorldMapViewModel"
+    }
+
+    val worldMapRenderData: StateFlow<WorldMapRenderData> = gameEngine.worldMapRenderData
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), WorldMapRenderData())
+
+    val gameData: StateFlow<GameData> = gameEngine.gameData
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), GameData())
+
+    val discipleAggregates: StateFlow<List<DiscipleAggregate>> = gameEngine.discipleAggregates
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    private val _showScoutDialog = MutableStateFlow(false)
+    val showScoutDialog: StateFlow<Boolean> = _showScoutDialog.asStateFlow()
+
+    private val _selectedScoutSectId = MutableStateFlow<String?>(null)
+    val selectedScoutSectId: StateFlow<String?> = _selectedScoutSectId.asStateFlow()
+
+    private val _showAllianceDialog = MutableStateFlow(false)
+    val showAllianceDialog: StateFlow<Boolean> = _showAllianceDialog.asStateFlow()
+
+    private val _selectedAllianceSectId = MutableStateFlow<String?>(null)
+    val selectedAllianceSectId: StateFlow<String?> = _selectedAllianceSectId.asStateFlow()
+
+    private val _showEnvoyDiscipleSelectDialog = MutableStateFlow(false)
+    val showEnvoyDiscipleSelectDialog: StateFlow<Boolean> = _showEnvoyDiscipleSelectDialog.asStateFlow()
+
+    private val _battleTeamMoveMode = MutableStateFlow(false)
+    val battleTeamMoveMode: StateFlow<Boolean> = _battleTeamMoveMode.asStateFlow()
+
+    private val _errorMessage = MutableStateFlow<String?>(null)
+    val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
+
+    private val _successMessage = MutableStateFlow<String?>(null)
+    val successMessage: StateFlow<String?> = _successMessage.asStateFlow()
+
+    fun clearErrorMessage() { _errorMessage.value = null }
+    fun clearSuccessMessage() { _successMessage.value = null }
+
+    fun openScoutDialog(sectId: String) {
+        _selectedScoutSectId.value = sectId
+        _showScoutDialog.value = true
+    }
+
+    fun closeScoutDialog() {
+        _showScoutDialog.value = false
+        _selectedScoutSectId.value = null
+    }
+
+    fun startScoutMission(memberIds: List<String>, sectId: String) {
+        val data = gameData.value
+        val targetSect = data.worldMapSects.find { it.id == sectId }
+        if (targetSect != null) {
+            gameEngine.startScoutMission(memberIds, targetSect, data.gameYear, data.gameMonth, data.gameDay)
+            closeScoutDialog()
+        }
+    }
+
+    fun getEligibleScoutDisciples(): List<DiscipleAggregate> {
+        return discipleAggregates.value.filter {
+            it.isAlive && it.status == DiscipleStatus.IDLE
+        }
+    }
+
+    fun giftSpiritStones(sectId: String, tier: Int) {
+        viewModelScope.launch {
+            try {
+                gameEngine.giftSpiritStones(sectId, tier)
+            } catch (e: Exception) {
+                _errorMessage.value = e.message ?: "送礼失败"
+            }
+        }
+    }
+
+    fun giftItem(sectId: String, itemId: String, itemType: String, quantity: Int) {
+        viewModelScope.launch {
+            try {
+                gameEngine.giftItem(sectId, itemId, itemType, quantity)
+            } catch (e: Exception) {
+                _errorMessage.value = e.message ?: "送礼失败"
+            }
+        }
+    }
+
+    fun openAllianceDialog(sectId: String) {
+        _selectedAllianceSectId.value = sectId
+        _showAllianceDialog.value = true
+    }
+
+    fun closeAllianceDialog() {
+        _showAllianceDialog.value = false
+        _selectedAllianceSectId.value = null
+    }
+
+    fun openEnvoyDiscipleSelectDialog() {
+        _showEnvoyDiscipleSelectDialog.value = true
+    }
+
+    fun closeEnvoyDiscipleSelectDialog() {
+        _showEnvoyDiscipleSelectDialog.value = false
+    }
+
+    fun requestAlliance(sectId: String, envoyDiscipleId: String) {
+        viewModelScope.launch {
+            try {
+                val (success, message) = gameEngine.requestAlliance(sectId, envoyDiscipleId)
+                if (success) {
+                    closeEnvoyDiscipleSelectDialog()
+                    closeAllianceDialog()
+                } else {
+                    _errorMessage.value = message
+                }
+            } catch (e: Exception) {
+                _errorMessage.value = e.message ?: "结盟失败"
+            }
+        }
+    }
+
+    fun dissolveAlliance(sectId: String) {
+        viewModelScope.launch {
+            try {
+                val (success, message) = gameEngine.dissolveAlliance(sectId)
+                if (success) {
+                    closeAllianceDialog()
+                } else {
+                    _errorMessage.value = message
+                }
+            } catch (e: Exception) {
+                _errorMessage.value = e.message ?: "解除结盟失败"
+            }
+        }
+    }
+
+    fun getEligibleEnvoyDisciples(sectLevel: Int): List<DiscipleAggregate> {
+        val requiredRealm = gameEngine.getEnvoyRealmRequirement(sectLevel)
+        return discipleAggregates.value.filter {
+            it.isAlive &&
+            it.status == DiscipleStatus.IDLE &&
+            it.realm <= requiredRealm
+        }
+    }
+
+    fun getAllianceCost(sectLevel: Int): Long {
+        return gameEngine.getAllianceCost(sectLevel)
+    }
+
+    fun isAlly(sectId: String): Boolean {
+        return gameEngine.isAlly(sectId)
+    }
+
+    fun getAllianceRemainingYears(sectId: String): Int {
+        return gameEngine.getAllianceRemainingYears(sectId)
+    }
+
+    fun getPlayerAllies(): List<WorldSect> {
+        val allyIds = gameEngine.getPlayerAllies()
+        val data = gameData.value
+        return data.worldMapSects.filter { allyIds.contains(it.id) }
+    }
+
+    fun startCaveExploration(cave: CultivatorCave, selectedDisciples: List<DiscipleAggregate>) {
+        viewModelScope.launch {
+            gameEngine.startCaveExploration(cave, selectedDisciples.map { it.toDisciple() })
+        }
+    }
+
+    fun startBattleTeamMoveMode() {
+        _battleTeamMoveMode.value = true
+    }
+
+    fun cancelBattleTeamMoveMode() {
+        _battleTeamMoveMode.value = false
+    }
+
+    fun selectBattleTeamTarget(targetSectId: String) {
+        val data = gameEngine.gameData.value
+        val playerSect = data.worldMapSects.find { it.isPlayerSect }
+        val targetSect = data.worldMapSects.find { it.id == targetSectId }
+
+        if (playerSect == null || targetSect == null) {
+            _errorMessage.value = "无效的目标宗门"
+            _battleTeamMoveMode.value = false
+            return
+        }
+
+        if (targetSect.isPlayerSect) {
+            _errorMessage.value = "不能攻击自己的宗门"
+            _battleTeamMoveMode.value = false
+            return
+        }
+
+        if (targetSect.isPlayerOccupied) {
+            _errorMessage.value = "该宗门已被占领"
+            _battleTeamMoveMode.value = false
+            return
+        }
+
+        if (!playerSect.connectedSectIds.contains(targetSectId)) {
+            _errorMessage.value = "目标宗门不在可达路线上"
+            _battleTeamMoveMode.value = false
+            return
+        }
+
+        viewModelScope.launch {
+            gameEngine.startBattleTeamMove(targetSectId)
+            _battleTeamMoveMode.value = false
+        }
+    }
+
+    fun getMovableTargetSectIds(): List<String> {
+        val data = gameEngine.gameData.value
+        val playerSect = data.worldMapSects.find { it.isPlayerSect } ?: return emptyList()
+
+        return data.worldMapSects.filter { sect ->
+            !sect.isPlayerSect && !sect.isPlayerOccupied &&
+            AISectAttackManager.isRouteConnected(playerSect, sect, data)
+        }.map { it.id }
+    }
+
+    private val _showSectTradeDialog = MutableStateFlow(false)
+    val showSectTradeDialog: StateFlow<Boolean> = _showSectTradeDialog.asStateFlow()
+
+    private val _selectedTradeSectId = MutableStateFlow<String?>(null)
+    val selectedTradeSectId: StateFlow<String?> = _selectedTradeSectId.asStateFlow()
+
+    private val _sectTradeItems = MutableStateFlow<List<MerchantItem>>(emptyList())
+    val sectTradeItems: StateFlow<List<MerchantItem>> = _sectTradeItems.asStateFlow()
+
+    fun openSectTradeDialog(sectId: String) {
+        _selectedTradeSectId.value = sectId
+        _sectTradeItems.value = gameEngine.getOrRefreshSectTradeItems(sectId)
+        _showSectTradeDialog.value = true
+    }
+
+    fun closeSectTradeDialog() {
+        _showSectTradeDialog.value = false
+        _selectedTradeSectId.value = null
+    }
+
+    fun buyFromSectTrade(itemId: String, quantity: Int = 1) {
+        viewModelScope.launch {
+            try {
+                val sectId = _selectedTradeSectId.value ?: return@launch
+                gameEngine.buyFromSectTrade(sectId, itemId, quantity)
+                _sectTradeItems.value = gameEngine.getOrRefreshSectTradeItems(sectId)
+            } catch (e: Exception) {
+                _errorMessage.value = e.message ?: "购买失败"
+            }
+        }
+    }
+
+    private val _showGiftDialog = MutableStateFlow(false)
+    val showGiftDialog: StateFlow<Boolean> = _showGiftDialog.asStateFlow()
+
+    private val _selectedGiftSectId = MutableStateFlow<String?>(null)
+    val selectedGiftSectId: StateFlow<String?> = _selectedGiftSectId.asStateFlow()
+
+    fun openGiftDialog(sectId: String) {
+        _selectedGiftSectId.value = sectId
+        _showGiftDialog.value = true
+    }
+
+    fun closeGiftDialog() {
+        _showGiftDialog.value = false
+        _selectedGiftSectId.value = null
+    }
+
+    private val _showOuterTournamentDialog = MutableStateFlow(false)
+    val showOuterTournamentDialog: StateFlow<Boolean> = _showOuterTournamentDialog.asStateFlow()
+
+    private var _isOuterTournamentManuallyClosed = false
+
+    fun openOuterTournamentDialog() {
+        if (_isOuterTournamentManuallyClosed) {
+            return
+        }
+        _showOuterTournamentDialog.value = true
+    }
+
+    fun closeOuterTournamentDialog() {
+        _isOuterTournamentManuallyClosed = true
+        _showOuterTournamentDialog.value = false
+    }
+
+    fun resetOuterTournamentClosedFlag() {
+        _isOuterTournamentManuallyClosed = false
+    }
+
+    fun promoteSelectedDisciplesToInner(selectedDiscipleIds: Set<String>) {
+        viewModelScope.launch {
+            try {
+                val promotedToInnerIds = mutableListOf<String>()
+                selectedDiscipleIds.forEach { discipleId ->
+                    gameEngine.updateDisciple(discipleId) { disciple ->
+                        if (disciple.discipleType == "outer") {
+                            promotedToInnerIds.add(discipleId)
+                            disciple.copy(discipleType = "inner")
+                        } else {
+                            disciple
+                        }
+                    }
+                }
+
+                if (promotedToInnerIds.isNotEmpty()) {
+                    val currentSpiritMineSlots = gameEngine.gameData.value.spiritMineSlots
+                    var slotsChanged = false
+                    val updatedSpiritMineSlots = currentSpiritMineSlots.map { slot ->
+                        if (slot.discipleId in promotedToInnerIds) {
+                            slotsChanged = true
+                            slot.copy(discipleId = "", discipleName = "")
+                        } else {
+                            slot
+                        }
+                    }
+                    if (slotsChanged) {
+                        gameEngine.updateGameData { it.copy(spiritMineSlots = updatedSpiritMineSlots) }
+                    }
+                    gameEngine.syncAllDiscipleStatuses()
+                }
+
+                closeOuterTournamentDialog()
+            } catch (e: Exception) {
+                _errorMessage.value = "晋升弟子失败: ${e.message}"
+                closeOuterTournamentDialog()
+            }
+        }
+    }
+}

@@ -2,35 +2,77 @@
 
 package com.xianxia.sect.core.engine.service
 
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.data.TalentDatabase
+import com.xianxia.sect.core.repository.ProductionSlotRepository
+import com.xianxia.sect.core.state.GameStateStore
+import com.xianxia.sect.di.ApplicationScopeProvider
+import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.engine.system.GameSystem
+import com.xianxia.sect.core.engine.system.SystemPriority
 import com.xianxia.sect.core.util.StorageBagUtils
+import android.util.Log
 import java.util.UUID
+import javax.inject.Inject
+import javax.inject.Singleton
 import kotlin.random.Random
 
-/**
- * 弟子服务 - 负责弟子管理和状态机
- *
- * 职责域：
- * - 弟子 CRUD 操作
- * - 弟子状态机管理（培养/闭关/出战/探索等）
- * - disciples StateFlow 管理
- * - 弟子招募和培养
- * - 职位分配
- * - 道侣系统
- */
-class DiscipleService constructor(
-    private val _gameData: MutableStateFlow<GameData>,
-    private val _disciples: MutableStateFlow<List<Disciple>>,
-    private val _equipment: MutableStateFlow<List<Equipment>>,
-    private val _teams: MutableStateFlow<List<ExplorationTeam>>,
-    private val productionSlotRepository: com.xianxia.sect.core.repository.ProductionSlotRepository,
-    private val addEvent: (String, EventType) -> Unit,
-    private val transactionMutex: Any
-) {
+@SystemPriority(order = 220)
+@Singleton
+class DiscipleService @Inject constructor(
+    private val stateStore: GameStateStore,
+    private val productionSlotRepository: ProductionSlotRepository,
+    private val eventService: EventService,
+    private val applicationScopeProvider: ApplicationScopeProvider
+) : GameSystem {
+    override val systemName: String = "DiscipleService"
+    private val scope get() = applicationScopeProvider.scope
+
+    override fun initialize() {
+        Log.d(TAG, "DiscipleService initialized as GameSystem")
+    }
+
+    override fun release() {
+        Log.d(TAG, "DiscipleService released")
+    }
+
+    override suspend fun clear() {}
+
+    private var currentGameData: GameData
+        get() = stateStore.currentTransactionMutableState()?.gameData ?: stateStore.gameData.value
+        set(value) {
+            val ts = stateStore.currentTransactionMutableState()
+            if (ts != null) { ts.gameData = value; return }
+            scope.launch { stateStore.update { gameData = value } }
+        }
+
+    private var currentDisciples: List<Disciple>
+        get() = stateStore.currentTransactionMutableState()?.disciples ?: stateStore.disciples.value
+        set(value) {
+            val ts = stateStore.currentTransactionMutableState()
+            if (ts != null) { ts.disciples = value; return }
+            scope.launch { stateStore.update { disciples = value } }
+        }
+
+    private var currentEquipment: List<Equipment>
+        get() = stateStore.currentTransactionMutableState()?.equipment ?: stateStore.equipment.value
+        set(value) {
+            val ts = stateStore.currentTransactionMutableState()
+            if (ts != null) { ts.equipment = value; return }
+            scope.launch { stateStore.update { equipment = value } }
+        }
+
+    private var currentTeams: List<ExplorationTeam>
+        get() = stateStore.currentTransactionMutableState()?.teams ?: stateStore.teams.value
+        set(value) {
+            val ts = stateStore.currentTransactionMutableState()
+            if (ts != null) { ts.teams = value; return }
+            scope.launch { stateStore.update { teams = value } }
+        }
+
     companion object {
         private const val TAG = "DiscipleService"
     }
@@ -40,7 +82,7 @@ class DiscipleService constructor(
     /**
      * Get disciples StateFlow
      */
-    fun getDisciples(): StateFlow<List<Disciple>> = _disciples
+    fun getDisciples(): StateFlow<List<Disciple>> = stateStore.disciples
 
     // ==================== 弟子 CRUD ====================
 
@@ -48,17 +90,17 @@ class DiscipleService constructor(
      * Add new disciple
      */
     fun addDisciple(disciple: Disciple) {
-        _disciples.value = _disciples.value + disciple
+        currentDisciples = currentDisciples + disciple
     }
 
     /**
      * Remove disciple by ID
      */
     fun removeDisciple(discipleId: String): Boolean {
-        val current = _disciples.value
+        val current = currentDisciples
         val filtered = current.filter { it.id != discipleId }
         if (filtered.size < current.size) {
-            _disciples.value = filtered
+            currentDisciples = filtered
             return true
         }
         return false
@@ -68,14 +110,14 @@ class DiscipleService constructor(
      * Get disciple by ID
      */
     fun getDiscipleById(discipleId: String): Disciple? {
-        return _disciples.value.find { it.id == discipleId }
+        return currentDisciples.find { it.id == discipleId }
     }
 
     /**
      * Update disciple
      */
     fun updateDisciple(disciple: Disciple) {
-        _disciples.value = _disciples.value.map {
+        currentDisciples = currentDisciples.map {
             if (it.id == disciple.id) disciple else it
         }
     }
@@ -86,8 +128,8 @@ class DiscipleService constructor(
      * Get disciple status based on current assignments
      */
     fun getDiscipleStatus(discipleId: String): DiscipleStatus {
-        val data = _gameData.value
-        val disciple = _disciples.value.find { it.id == discipleId } ?: return DiscipleStatus.IDLE
+        val data = currentGameData
+        val disciple = currentDisciples.find { it.id == discipleId } ?: return DiscipleStatus.IDLE
 
         if (!disciple.isAlive) return DiscipleStatus.DEAD
         if (disciple.status == DiscipleStatus.REFLECTING) return DiscipleStatus.REFLECTING
@@ -147,7 +189,7 @@ class DiscipleService constructor(
      * Sync all disciples' status based on their assignments
      */
     fun syncAllDiscipleStatuses() {
-        val data = _gameData.value
+        val data = currentGameData
         val elderSlots = data.elderSlots
 
         val lawEnforcerIds = mutableSetOf<String>()
@@ -181,12 +223,12 @@ class DiscipleService constructor(
             battleTeam.slots.mapNotNull { it.discipleId }.forEach { inTeamIds.add(it) }
         }
 
-        _teams.value.filter { it.status == ExplorationStatus.TRAVELING || it.status == ExplorationStatus.EXPLORING }
+        currentTeams.filter { it.status == ExplorationStatus.TRAVELING || it.status == ExplorationStatus.EXPLORING }
             .forEach { team -> inTeamIds.addAll(team.memberIds) }
-        _gameData.value.caveExplorationTeams.filter { it.status == CaveExplorationStatus.TRAVELING || it.status == CaveExplorationStatus.EXPLORING }
+        currentGameData.caveExplorationTeams.filter { it.status == CaveExplorationStatus.TRAVELING || it.status == CaveExplorationStatus.EXPLORING }
             .forEach { team -> inTeamIds.addAll(team.memberIds) }
 
-        _disciples.value = _disciples.value.map { disciple ->
+        currentDisciples = currentDisciples.map { disciple ->
             if (!disciple.isAlive) return@map disciple
             if (disciple.status == DiscipleStatus.REFLECTING) return@map disciple
             if (disciple.status == DiscipleStatus.ON_MISSION) return@map disciple
@@ -215,7 +257,7 @@ class DiscipleService constructor(
      * Used when resetting game state or disbanding all teams
      */
     fun resetAllDisciplesStatus() {
-        val data = _gameData.value
+        val data = currentGameData
         val discipleIdsToReset = mutableSetOf<String>()
 
         productionSlotRepository.getSlotsByBuildingId("forge").forEach { slot ->
@@ -258,7 +300,7 @@ class DiscipleService constructor(
         elderSlots.spiritMineDeaconDisciples.forEach { slot -> slot.discipleId?.let { discipleIdsToReset.add(it) } }
 
         // Update disciple statuses (exclude reflecting disciples)
-        _disciples.value = _disciples.value.map { disciple ->
+        currentDisciples = currentDisciples.map { disciple ->
             if (discipleIdsToReset.contains(disciple.id) && disciple.status != DiscipleStatus.REFLECTING) {
                 disciple.copy(status = DiscipleStatus.IDLE)
             } else {
@@ -318,6 +360,7 @@ class DiscipleService constructor(
             realmLayer = 1,
             spiritRootType = spiritRootType,
             status = DiscipleStatus.IDLE,
+            discipleType = "outer",
             talentIds = TalentDatabase.generateTalentsForDisciple().map { it.id },
             combat = com.xianxia.sect.core.model.CombatAttributes(
                 hpVariance = hpVariance,
@@ -352,15 +395,21 @@ class DiscipleService constructor(
             basePhysicalDefense = baseStats.basePhysicalDefense
             baseMagicDefense = baseStats.baseMagicDefense
             baseSpeed = baseStats.baseSpeed
+
+            // 计算寿命天赋加成（如"寿元绵长"/"寿元亏损"）
+            val talentEffects = TalentDatabase.calculateTalentEffects(talentIds)
+            val lifespanBonus = talentEffects["lifespan"] ?: 0.0
+            val baseLifespan = GameConfig.Realm.get(realm).maxAge
+            lifespan = (baseLifespan * (1.0 + lifespanBonus)).toInt().coerceAtLeast(1)
         }
 
         // Set recruitment time
-        val data = _gameData.value
+        val data = currentGameData
         val currentMonthValue = data.gameYear * 12 + data.gameMonth
         disciple.recruitedMonth = currentMonthValue
 
         addDisciple(disciple)
-        addEvent("新弟子 ${disciple.name} 加入宗门", EventType.SUCCESS)
+        eventService.addGameEvent("新弟子 ${disciple.name} 加入宗门", EventType.SUCCESS)
 
         return disciple
     }
@@ -368,12 +417,12 @@ class DiscipleService constructor(
     /**
      * Expel disciple from sect
      */
-    fun expelDisciple(discipleId: String): Boolean {
+    suspend fun expelDisciple(discipleId: String): Boolean {
         val disciple = getDiscipleById(discipleId) ?: return false
 
         // Cannot expel if not idle
         if (!disciple.isAlive) {
-            addEvent("${disciple.name} 已死亡，无法逐出", EventType.WARNING)
+            eventService.addGameEvent("${disciple.name} 已死亡，无法逐出", EventType.WARNING)
             return false
         }
 
@@ -389,7 +438,7 @@ class DiscipleService constructor(
         // Remove disciple
         removeDisciple(discipleId)
 
-        addEvent("已将 ${disciple.name} 逐出宗门", EventType.INFO)
+        eventService.addGameEvent("已将 ${disciple.name} 逐出宗门", EventType.INFO)
         return true
     }
 
@@ -401,19 +450,19 @@ class DiscipleService constructor(
      * 装备新装备时，旧装备自动卸下并放入弟子储物袋。
      */
     fun equipEquipment(discipleId: String, equipmentId: String): Boolean {
-        val discipleIndex = _disciples.value.indexOfFirst { it.id == discipleId }
+        val discipleIndex = currentDisciples.indexOfFirst { it.id == discipleId }
         if (discipleIndex < 0) return false
 
-        val equipment = _equipment.value.find { it.id == equipmentId } ?: return false
-        val disciple = _disciples.value[discipleIndex]
+        val equipment = currentEquipment.find { it.id == equipmentId } ?: return false
+        val disciple = currentDisciples[discipleIndex]
 
         if (equipment.isEquipped && equipment.ownerId != null && equipment.ownerId != discipleId) {
-            addEvent("${equipment.name} 已被其他弟子装备，无法重复穿戴", EventType.WARNING)
+            eventService.addGameEvent("${equipment.name} 已被其他弟子装备，无法重复穿戴", EventType.WARNING)
             return false
         }
 
         if (!GameConfig.Realm.meetsRealmRequirement(disciple.realm, equipment.minRealm)) {
-            addEvent("${disciple.name} 境界不足，无法装备 ${equipment.name}", EventType.WARNING)
+            eventService.addGameEvent("${disciple.name} 境界不足，无法装备 ${equipment.name}", EventType.WARNING)
             return false
         }
 
@@ -425,7 +474,7 @@ class DiscipleService constructor(
             else -> {}
         }
 
-        val currentDisciple = _disciples.value[discipleIndex]
+        val currentDisciple = currentDisciples[discipleIndex]
         val updatedDisciple = when (equipment.slot) {
             EquipmentSlot.WEAPON -> currentDisciple.copyWith(weaponId = equipmentId)
             EquipmentSlot.ARMOR -> currentDisciple.copyWith(armorId = equipmentId)
@@ -434,13 +483,13 @@ class DiscipleService constructor(
             else -> currentDisciple
         }
 
-        _disciples.value = _disciples.value.toMutableList().also { it[discipleIndex] = updatedDisciple }
+        currentDisciples = currentDisciples.toMutableList().also { it[discipleIndex] = updatedDisciple }
 
-        _equipment.value = _equipment.value.map {
+        currentEquipment = currentEquipment.map {
             if (it.id == equipmentId) it.copy(isEquipped = true, ownerId = discipleId) else it
         }
 
-        addEvent("${disciple.name} 装备了 ${equipment.name}", EventType.INFO)
+        eventService.addGameEvent("${disciple.name} 装备了 ${equipment.name}", EventType.INFO)
         return true
     }
 
@@ -449,10 +498,10 @@ class DiscipleService constructor(
      * 设计意图：装备是独占物品，卸下后放入弟子储物袋，而非归还宗门仓库。
      */
     fun unequipEquipment(discipleId: String, equipmentId: String): Boolean {
-        val discipleIndex = _disciples.value.indexOfFirst { it.id == discipleId }
+        val discipleIndex = currentDisciples.indexOfFirst { it.id == discipleId }
         if (discipleIndex < 0) return false
 
-        val disciple = _disciples.value[discipleIndex]
+        val disciple = currentDisciples[discipleIndex]
         val updatedDisciple = when {
             disciple.weaponId == equipmentId -> disciple.copyWith(weaponId = "")
             disciple.armorId == equipmentId -> disciple.copyWith(armorId = "")
@@ -462,8 +511,8 @@ class DiscipleService constructor(
         }
 
         if (updatedDisciple != disciple) {
-            val eq = _equipment.value.find { it.id == equipmentId }
-            val data = _gameData.value
+            val eq = currentEquipment.find { it.id == equipmentId }
+            val data = currentGameData
             val discipleWithBag = if (eq != null) {
                 val storageItem = StorageBagItem(
                     itemId = equipmentId,
@@ -479,9 +528,9 @@ class DiscipleService constructor(
                 )
             } else updatedDisciple
 
-            _disciples.value = _disciples.value.toMutableList().also { it[discipleIndex] = discipleWithBag }
+            currentDisciples = currentDisciples.toMutableList().also { it[discipleIndex] = discipleWithBag }
 
-            _equipment.value = _equipment.value.map {
+            currentEquipment = currentEquipment.map {
                 if (it.id == equipmentId) it.copy(isEquipped = false, ownerId = null) else it
             }
 
@@ -495,39 +544,35 @@ class DiscipleService constructor(
     /**
      * Clear disciple from all slots and assignments
      */
-    fun clearDiscipleFromAllSlots(discipleId: String) {
-        synchronized(transactionMutex) {
-            val data = _gameData.value
+    suspend fun clearDiscipleFromAllSlots(discipleId: String) {
+        val data = currentGameData
 
-            val updatedSpiritMineSlots = data.spiritMineSlots.map {
-                if (it.discipleId == discipleId) it.copy(discipleId = "", discipleName = "") else it
-            }
+        val updatedSpiritMineSlots = data.spiritMineSlots.map {
+            if (it.discipleId == discipleId) it.copy(discipleId = "", discipleName = "") else it
+        }
 
-            val updatedLibrarySlots = data.librarySlots.map {
-                if (it.discipleId == discipleId) it.copy(discipleId = "", discipleName = "") else it
-            }
+        val updatedLibrarySlots = data.librarySlots.map {
+            if (it.discipleId == discipleId) it.copy(discipleId = "", discipleName = "") else it
+        }
 
-            val updatedElderSlots = clearDiscipleFromElderSlots(data.elderSlots, discipleId)
+        val updatedElderSlots = clearDiscipleFromElderSlots(data.elderSlots, discipleId)
 
-            _gameData.value = data.copy(
-                spiritMineSlots = updatedSpiritMineSlots,
-                librarySlots = updatedLibrarySlots,
-                elderSlots = updatedElderSlots
-            )
+        currentGameData = data.copy(
+            spiritMineSlots = updatedSpiritMineSlots,
+            librarySlots = updatedLibrarySlots,
+            elderSlots = updatedElderSlots
+        )
 
-            kotlinx.coroutines.runBlocking {
-                val forgeSlots = productionSlotRepository.getSlotsByBuildingId("forge")
-                for (slot in forgeSlots) {
-                    if (slot.assignedDiscipleId == discipleId && !slot.isWorking) {
-                        productionSlotRepository.updateSlotByBuildingId("forge", slot.slotIndex) { s ->
-                            s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
-                        }
-                    }
+        val forgeSlots = productionSlotRepository.getSlotsByBuildingId("forge")
+        for (slot in forgeSlots) {
+            if (slot.assignedDiscipleId == discipleId && !slot.isWorking) {
+                productionSlotRepository.updateSlotByBuildingId("forge", slot.slotIndex) { s ->
+                    s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
                 }
             }
-
-            autoFillLawEnforcementSlots()
         }
+
+        autoFillLawEnforcementSlots()
     }
 
     /**
@@ -598,7 +643,7 @@ class DiscipleService constructor(
      * @return 成功补位的数量
      */
     fun autoFillLawEnforcementSlots(): Int {
-        val data = _gameData.value
+        val data = currentGameData
         val elderSlots = data.elderSlots
         val activeSlots = elderSlots.lawEnforcementDisciples
         val reserveSlots = elderSlots.lawEnforcementReserveDisciples
@@ -613,7 +658,7 @@ class DiscipleService constructor(
         val candidates = reserveSlots
             .mapNotNull { slot ->
                 val discipleId = slot.discipleId.ifEmpty { return@mapNotNull null }
-                val disciple = _disciples.value.find { it.id == discipleId }
+                val disciple = currentDisciples.find { it.id == discipleId }
                 if (disciple != null && disciple.isAlive) {
                     Triple(discipleId, slot.discipleName, disciple)
                 } else null
@@ -656,12 +701,12 @@ class DiscipleService constructor(
                 if (slot.discipleId == discipleId) null else slot
             }.toMutableList()
 
-            addEvent("执法堂自动补位：$discipleName 接任第${slotIndex + 1}号执法弟子", EventType.INFO)
+            eventService.addGameEvent("执法堂自动补位：$discipleName 接任第${slotIndex + 1}号执法弟子", EventType.INFO)
             fillCount++
         }
 
         if (fillCount > 0) {
-            _gameData.value = data.copy(
+            currentGameData = data.copy(
                 elderSlots = elderSlots.copy(
                     lawEnforcementDisciples = updatedActiveSlots.toList(),
                     lawEnforcementReserveDisciples = updatedReserveSlots.toList()
@@ -679,7 +724,7 @@ class DiscipleService constructor(
      * Check if disciple is in exploration team
      */
     private fun _isInExploration(discipleId: String): Boolean {
-        return _teams.value.any { team ->
+        return currentTeams.any { team ->
             team.memberIds.contains(discipleId) &&
             (team.status == ExplorationStatus.TRAVELING || team.status == ExplorationStatus.EXPLORING)
         }
@@ -689,7 +734,7 @@ class DiscipleService constructor(
      * Check if disciple is in cave exploration team
      */
     private fun _isInCaveExploration(discipleId: String): Boolean {
-        val data = _gameData.value
+        val data = currentGameData
         return data.caveExplorationTeams.any { team ->
             team.memberIds.contains(discipleId) &&
             (team.status == CaveExplorationStatus.TRAVELING || team.status == CaveExplorationStatus.EXPLORING)
@@ -700,7 +745,7 @@ class DiscipleService constructor(
      * Check if disciple is assigned to spirit mine
      */
     fun isDiscipleAssignedToSpiritMine(discipleId: String): Boolean {
-        val data = _gameData.value
+        val data = currentGameData
         val inMinerSlots = data.spiritMineSlots.any { it.discipleId == discipleId }
         val inDeaconSlots = data.elderSlots.spiritMineDeaconDisciples.any { it.discipleId == discipleId }
         return inMinerSlots || inDeaconSlots
@@ -710,14 +755,14 @@ class DiscipleService constructor(
      * Get alive disciples count
      */
     fun getAliveDisciplesCount(): Int {
-        return _disciples.value.count { it.isAlive }
+        return currentDisciples.count { it.isAlive }
     }
 
     /**
      * Get disciples by status
      */
     fun getDisciplesByStatus(status: DiscipleStatus): List<Disciple> {
-        return _disciples.value.filter { it.status == status && it.isAlive }
+        return currentDisciples.filter { it.status == status && it.isAlive }
     }
 
     /**
@@ -752,16 +797,16 @@ class DiscipleService constructor(
      * @return 所有弟子的 DiscipleAggregate 列表
      */
     fun getAllDiscipleAggregates(): List<DiscipleAggregate> {
-        return _disciples.value.map { it.toAggregate() }
+        return currentDisciples.map { it.toAggregate() }
     }
 
     /**
      * Update monthly salary enabled/disabled for a realm
      */
     fun updateMonthlySalaryEnabled(realm: Int, enabled: Boolean) {
-        val data = _gameData.value
+        val data = currentGameData
         val newEnabled = data.monthlySalaryEnabled.toMutableMap()
         newEnabled[realm] = enabled
-        _gameData.value = data.copy(monthlySalaryEnabled = newEnabled)
+        currentGameData = data.copy(monthlySalaryEnabled = newEnabled)
     }
 }

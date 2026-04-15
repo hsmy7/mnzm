@@ -32,6 +32,7 @@ import com.xianxia.sect.core.model.ElderSlots
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.theme.GameColors
+import com.xianxia.sect.ui.game.ProductionViewModel
 import com.xianxia.sect.ui.components.ElderBonusInfoButton
 import com.xianxia.sect.ui.components.ElderBonusInfoProvider
 import com.xianxia.sect.ui.theme.getRarityColor
@@ -43,6 +44,7 @@ fun HerbGardenDialog(
     gameData: GameData?,
     disciples: List<DiscipleAggregate>,
     viewModel: GameViewModel,
+    productionViewModel: ProductionViewModel,
     onDismiss: () -> Unit
 ) {
     var showSeedSelection by remember { mutableStateOf<Int?>(null) }
@@ -51,7 +53,7 @@ fun HerbGardenDialog(
     var showElderRemoveConfirm by remember { mutableStateOf(false) }
 
     val elderSlots = gameData?.elderSlots ?: ElderSlots()
-    val herbGardenElder = viewModel.getElderDisciple(elderSlots.herbGardenElder)
+    val herbGardenElder = productionViewModel.getElderDisciple(elderSlots.herbGardenElder)
     val herbGardenDisciples = elderSlots.herbGardenDisciples
     val hasDirectDisciples = herbGardenDisciples.any { it.isActive }
 
@@ -70,7 +72,7 @@ fun HerbGardenDialog(
                     if (hasDirectDisciples) {
                         showElderRemoveConfirm = true
                     } else {
-                        viewModel.removeElder("herbGarden")
+                        productionViewModel.removeElder("herbGarden")
                     }
                 }
             )
@@ -78,7 +80,7 @@ fun HerbGardenDialog(
             HerbGardenDirectDiscipleSection(
                 directDisciples = herbGardenDisciples,
                 onDirectDiscipleClick = { index -> showDirectDiscipleSelection = index },
-                onDirectDiscipleRemove = { index -> viewModel.removeDirectDisciple("herbGarden", index) }
+                onDirectDiscipleRemove = { index -> productionViewModel.removeDirectDisciple("herbGarden", index) }
             )
 
             HorizontalDivider(
@@ -102,7 +104,7 @@ fun HerbGardenDialog(
                     modifier = Modifier
                         .clip(RoundedCornerShape(4.dp))
                         .background(GameColors.ButtonBackground)
-                        .clickable { viewModel.autoPlantAllSlots() }
+                        .clickable { productionViewModel.autoPlantAllSlots() }
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
                     Text(
@@ -127,9 +129,6 @@ fun HerbGardenDialog(
                                 if (slot.status == "idle" || slot.status == "mature") {
                                     showSeedSelection = slot.index
                                 }
-                            },
-                            onRemove = {
-                                viewModel.clearPlantSlot(slot.index)
                             }
                         )
                     }
@@ -142,7 +141,7 @@ fun HerbGardenDialog(
         SeedPlantingDialog(
             seeds = seeds,
             onSelect = { seed ->
-                viewModel.plantSeed(slotIndex, seed)
+                productionViewModel.plantSeed(slotIndex, seed)
                 showSeedSelection = null
             },
             onDismiss = { showSeedSelection = null }
@@ -157,7 +156,7 @@ fun HerbGardenDialog(
             elderSlots = elderSlots,
             onDismiss = { showElderSelection = false },
             onSelect = { discipleId ->
-                viewModel.assignElder("herbGarden", discipleId)
+                productionViewModel.assignElder("herbGarden", discipleId)
                 showElderSelection = false
             }
         )
@@ -169,7 +168,7 @@ fun HerbGardenDialog(
             elderSlots = elderSlots,
             onDismiss = { showDirectDiscipleSelection = null },
             onSelect = { discipleId ->
-                viewModel.assignDirectDisciple("herbGarden", slotIndex, discipleId)
+                productionViewModel.assignDirectDisciple("herbGarden", slotIndex, discipleId)
                 showDirectDiscipleSelection = null
             }
         )
@@ -180,7 +179,7 @@ fun HerbGardenDialog(
             elderName = herbGardenElder?.name ?: "长老",
             discipleCount = herbGardenDisciples.count { it.isActive },
             onConfirm = {
-                viewModel.removeElder("herbGarden")
+                productionViewModel.removeElder("herbGarden")
                 showElderRemoveConfirm = false
             },
             onDismiss = { showElderRemoveConfirm = false }
@@ -928,8 +927,7 @@ private fun HerbGardenDirectDiscipleSelectionDialog(
 private fun PlantSlotItem(
     slot: PlantSlotData,
     gameData: GameData?,
-    onClick: () -> Unit,
-    onRemove: () -> Unit = {}
+    onClick: () -> Unit
 ) {
     val statusColor = when (slot.status) {
         "idle", "mature" -> Color(0xFF999999)
@@ -988,23 +986,6 @@ private fun PlantSlotItem(
                         color = Color(0xFF999999)
                     )
                 }
-            }
-        }
-        if (slot.status == "growing") {
-            Spacer(modifier = Modifier.height(4.dp))
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(GameColors.PageBackground)
-                    .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
-                    .clickable { onRemove() }
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
-            ) {
-                Text(
-                    text = "移除",
-                    fontSize = 12.sp,
-                    color = Color.Black
-                )
             }
         }
     }

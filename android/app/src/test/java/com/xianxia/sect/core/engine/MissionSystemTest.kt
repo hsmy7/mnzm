@@ -8,6 +8,7 @@ import com.xianxia.sect.core.model.MissionTemplate
 import com.xianxia.sect.core.model.SkillStats
 import org.junit.Assert.*
 import org.junit.Test
+import kotlin.random.Random
 
 class MissionSystemTest {
 
@@ -127,5 +128,165 @@ class MissionSystemTest {
     fun `MissionDifficulty - HARD和FORBIDDEN允许内门弟子`() {
         assertTrue(MissionDifficulty.HARD.allowedPositions.contains("内门弟子"))
         assertTrue(MissionDifficulty.FORBIDDEN.allowedPositions.contains("内门弟子"))
+    }
+
+    @Test
+    fun `ESCORT奖励为固定600灵石`() {
+        val mission = MissionSystem.processMonthlyRefresh(
+            existingMissions = emptyList(),
+            currentYear = 1,
+            currentMonth = 3
+        ).newMissions.find { it.template == MissionTemplate.ESCORT } ?: return
+
+        assertEquals(600, mission.rewards.spiritStones)
+        assertEquals(0, mission.rewards.spiritStonesMax)
+        assertEquals(0, mission.rewards.materialCountMin)
+        assertEquals(0, mission.rewards.materialCountMax)
+    }
+
+    @Test
+    fun `SUPPRESS_BEASTS奖励为10到20个妖兽材料无灵石`() {
+        val mission = MissionSystem.processMonthlyRefresh(
+            existingMissions = emptyList(),
+            currentYear = 1,
+            currentMonth = 3
+        ).newMissions.find { it.template == MissionTemplate.SUPPRESS_BEASTS } ?: return
+
+        assertEquals(0, mission.rewards.spiritStones)
+        assertEquals(0, mission.rewards.spiritStonesMax)
+        assertEquals(10, mission.rewards.materialCountMin)
+        assertEquals(20, mission.rewards.materialCountMax)
+        assertEquals(1, mission.rewards.materialMinRarity)
+        assertEquals(2, mission.rewards.materialMaxRarity)
+    }
+
+    @Test
+    fun `processMissionCompletion - ESCORT固定600灵石`() {
+        val mission = Mission(
+            template = MissionTemplate.ESCORT,
+            name = "简单护送商队",
+            description = "测试",
+            difficulty = MissionDifficulty.SIMPLE,
+            duration = 3,
+            rewards = com.xianxia.sect.core.model.MissionRewardConfig(
+                spiritStones = 600,
+                spiritStonesMax = 0
+            )
+        )
+        val activeMission = MissionSystem.createActiveMission(
+            mission = mission,
+            disciples = (1..6).map { createDisciple(id = "d$it", name = "弟子$it") },
+            currentYear = 1,
+            currentMonth = 1
+        )
+        val result = MissionSystem.processMissionCompletion(
+            activeMission = activeMission,
+            disciples = emptyList()
+        )
+        assertEquals(600, result.spiritStones)
+        assertTrue(result.materials.isEmpty())
+    }
+
+    @Test
+    fun `processMissionCompletion - SUPPRESS_BEASTS生成10到20个材料`() {
+        val mission = Mission(
+            template = MissionTemplate.SUPPRESS_BEASTS,
+            name = "简单妖兽作乱",
+            description = "测试",
+            difficulty = MissionDifficulty.SIMPLE,
+            duration = 4,
+            rewards = com.xianxia.sect.core.model.MissionRewardConfig(
+                spiritStones = 0,
+                spiritStonesMax = 0,
+                materialCountMin = 10,
+                materialCountMax = 20,
+                materialMinRarity = 1,
+                materialMaxRarity = 2
+            )
+        )
+        val activeMission = MissionSystem.createActiveMission(
+            mission = mission,
+            disciples = (1..6).map { createDisciple(id = "d$it", name = "弟子$it") },
+            currentYear = 1,
+            currentMonth = 1
+        )
+        repeat(50) {
+            val result = MissionSystem.processMissionCompletion(
+                activeMission = activeMission,
+                disciples = emptyList()
+            )
+            assertEquals(0, result.spiritStones)
+            assertTrue(result.materials.size in 10..20)
+            result.materials.forEach { material ->
+                assertTrue(material.rarity in 1..2)
+            }
+        }
+    }
+
+    @Test
+    fun `SUPPRESS_BEASTS_NORMAL难度为普通`() {
+        assertEquals(MissionDifficulty.NORMAL, MissionTemplate.SUPPRESS_BEASTS_NORMAL.difficulty)
+    }
+
+    @Test
+    fun `SUPPRESS_BEASTS_NORMAL持续时间为4个月`() {
+        assertEquals(4, MissionTemplate.SUPPRESS_BEASTS_NORMAL.duration)
+    }
+
+    @Test
+    fun `SUPPRESS_BEASTS_NORMAL奖励为10到20个灵品宝品材料无灵石`() {
+        val mission = MissionSystem.processMonthlyRefresh(
+            existingMissions = emptyList(),
+            currentYear = 1,
+            currentMonth = 3
+        ).newMissions.find { it.template == MissionTemplate.SUPPRESS_BEASTS_NORMAL } ?: return
+
+        assertEquals(0, mission.rewards.spiritStones)
+        assertEquals(0, mission.rewards.spiritStonesMax)
+        assertEquals(10, mission.rewards.materialCountMin)
+        assertEquals(20, mission.rewards.materialCountMax)
+        assertEquals(2, mission.rewards.materialMinRarity)
+        assertEquals(3, mission.rewards.materialMaxRarity)
+    }
+
+    @Test
+    fun `SUPPRESS_BEASTS_NORMAL描述包含元婴`() {
+        assertTrue(MissionTemplate.SUPPRESS_BEASTS_NORMAL.description.contains("元婴"))
+    }
+
+    @Test
+    fun `processMissionCompletion - SUPPRESS_BEASTS_NORMAL生成10到20个灵品宝品材料`() {
+        val mission = Mission(
+            template = MissionTemplate.SUPPRESS_BEASTS_NORMAL,
+            name = "普通妖兽作乱",
+            description = "测试",
+            difficulty = MissionDifficulty.NORMAL,
+            duration = 4,
+            rewards = com.xianxia.sect.core.model.MissionRewardConfig(
+                spiritStones = 0,
+                spiritStonesMax = 0,
+                materialCountMin = 10,
+                materialCountMax = 20,
+                materialMinRarity = 2,
+                materialMaxRarity = 3
+            )
+        )
+        val activeMission = MissionSystem.createActiveMission(
+            mission = mission,
+            disciples = (1..6).map { createDisciple(id = "d$it", name = "弟子$it", discipleType = "inner") },
+            currentYear = 1,
+            currentMonth = 1
+        )
+        repeat(50) {
+            val result = MissionSystem.processMissionCompletion(
+                activeMission = activeMission,
+                disciples = emptyList()
+            )
+            assertEquals(0, result.spiritStones)
+            assertTrue(result.materials.size in 10..20)
+            result.materials.forEach { material ->
+                assertTrue(material.rarity in 2..3)
+            }
+        }
     }
 }

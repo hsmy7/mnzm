@@ -55,6 +55,7 @@ import com.xianxia.sect.core.model.Equipment
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GameEvent
 import com.xianxia.sect.core.model.Herb
+import com.xianxia.sect.core.model.SectScoutInfo
 import com.xianxia.sect.core.model.Manual
 import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.MerchantItem
@@ -142,6 +143,10 @@ enum class MainTab {
  */
 fun MainGameScreen(
     viewModel: GameViewModel,
+    saveLoadViewModel: SaveLoadViewModel,
+    productionViewModel: ProductionViewModel,
+    worldMapViewModel: WorldMapViewModel,
+    battleViewModel: BattleViewModel,
     onLogout: () -> Unit
 ) {
     // [M7-OPT-1] 高频核心数据收集 - 使用 derivedStateOf 限制重组范围
@@ -186,33 +191,33 @@ fun MainGameScreen(
     val showSalaryConfigDialog = currentDialog?.type == DialogType.SalaryConfig
     val showWorldMapDialog = currentDialog?.type == DialogType.WorldMap
     val showSecretRealmDialog = currentDialog?.type == DialogType.SecretRealm
-    val showSectTradeDialog by viewModel.showSectTradeDialog.collectAsState()
-    val selectedTradeSectId by viewModel.selectedTradeSectId.collectAsState()
-    val sectTradeItems by viewModel.sectTradeItems.collectAsState()
-    val showGiftDialog by viewModel.showGiftDialog.collectAsState()
-    val selectedGiftSectId by viewModel.selectedGiftSectId.collectAsState()
+    val showSectTradeDialog by worldMapViewModel.showSectTradeDialog.collectAsState()
+    val selectedTradeSectId by worldMapViewModel.selectedTradeSectId.collectAsState()
+    val sectTradeItems by worldMapViewModel.sectTradeItems.collectAsState()
+    val showGiftDialog by worldMapViewModel.showGiftDialog.collectAsState()
+    val selectedGiftSectId by worldMapViewModel.selectedGiftSectId.collectAsState()
 
-    val showAllianceDialog by viewModel.showAllianceDialog.collectAsState()
-    val selectedAllianceSectId by viewModel.selectedAllianceSectId.collectAsState()
-    val showEnvoyDiscipleSelectDialog by viewModel.showEnvoyDiscipleSelectDialog.collectAsState()
+    val showAllianceDialog by worldMapViewModel.showAllianceDialog.collectAsState()
+    val selectedAllianceSectId by worldMapViewModel.selectedAllianceSectId.collectAsState()
+    val showEnvoyDiscipleSelectDialog by worldMapViewModel.showEnvoyDiscipleSelectDialog.collectAsState()
 
-    val showScoutDialog by viewModel.showScoutDialog.collectAsState()
-    val selectedScoutSectId by viewModel.selectedScoutSectId.collectAsState()
-    val showOuterTournamentDialog by viewModel.showOuterTournamentDialog.collectAsState()
+    val showScoutDialog by worldMapViewModel.showScoutDialog.collectAsState()
+    val selectedScoutSectId by worldMapViewModel.selectedScoutSectId.collectAsState()
+    val showOuterTournamentDialog by worldMapViewModel.showOuterTournamentDialog.collectAsState()
     val showTianshuHallDialog = currentDialog?.type == DialogType.TianshuHall
 
-    val showBattleTeamDialog = currentDialog?.type == DialogType.BattleTeam
-    val battleTeamSlots by viewModel.battleTeamSlots.collectAsState()
+    val showBattleTeamDialog by battleViewModel.showBattleTeamDialog.collectAsState()
+    val battleTeamSlots by battleViewModel.battleTeamSlots.collectAsState()
     var selectedBattleTeamSlotIndex by remember { mutableStateOf<Int?>(null) }
-    val battleTeamMoveMode by viewModel.battleTeamMoveMode.collectAsState()
+    val battleTeamMoveMode by battleViewModel.battleTeamMoveMode.collectAsState()
 
     val showBattleLogDialog = currentDialog?.type == DialogType.BattleLog
     val battleLogs by viewModel.battleLogs.collectAsState()
 
     LaunchedEffect(gameData?.pendingCompetitionResults) {
         if (!gameData?.pendingCompetitionResults.isNullOrEmpty()) {
-            viewModel.resetOuterTournamentClosedFlag()
-            viewModel.openOuterTournamentDialog()
+            worldMapViewModel.resetOuterTournamentClosedFlag()
+            worldMapViewModel.openOuterTournamentDialog()
         }
     }
 
@@ -236,9 +241,9 @@ fun MainGameScreen(
                         manuals = manuals,
                         viewModel = viewModel
                     )
-                    MainTab.BUILDINGS -> BuildingsTab(viewModel = viewModel)
+                    MainTab.BUILDINGS -> BuildingsTab(viewModel = viewModel, productionViewModel = productionViewModel)
                     MainTab.WAREHOUSE -> WarehouseTab(viewModel = viewModel)
-                    MainTab.SETTINGS -> SettingsTab(viewModel = viewModel, onLogout = onLogout)
+                    MainTab.SETTINGS -> SettingsTab(viewModel = viewModel, saveLoadViewModel = saveLoadViewModel, onLogout = onLogout)
                 }
             }
 
@@ -262,6 +267,7 @@ fun MainGameScreen(
             DiplomacyDialog(
                 gameData = gameData,
                 viewModel = viewModel,
+                worldMapViewModel = worldMapViewModel,
                 onDismiss = { viewModel.closeDiplomacyDialog() }
             )
         }
@@ -297,6 +303,8 @@ fun MainGameScreen(
                 gameData = gameData,
                 disciples = disciples,
                 viewModel = viewModel,
+                worldMapViewModel = worldMapViewModel,
+                battleViewModel = battleViewModel,
                 battleTeamMoveMode = battleTeamMoveMode,
                 onDismiss = { viewModel.closeWorldMapDialog() }
             )
@@ -317,7 +325,8 @@ fun MainGameScreen(
                 gameData = gameData,
                 tradeItems = sectTradeItems,
                 viewModel = viewModel,
-                onDismiss = { viewModel.closeSectTradeDialog() }
+                worldMapViewModel = worldMapViewModel,
+                onDismiss = { worldMapViewModel.closeSectTradeDialog() }
             )
         }
         
@@ -330,7 +339,8 @@ fun MainGameScreen(
                 manuals = manuals,
                 pills = pills,
                 viewModel = viewModel,
-                onDismiss = { viewModel.closeGiftDialog() }
+                worldMapViewModel = worldMapViewModel,
+                onDismiss = { worldMapViewModel.closeGiftDialog() }
             )
         }
         
@@ -340,29 +350,32 @@ fun MainGameScreen(
                 sect = selectedSect,
                 gameData = gameData,
                 viewModel = viewModel,
-                onDismiss = { viewModel.closeAllianceDialog() }
+                worldMapViewModel = worldMapViewModel,
+                onDismiss = { worldMapViewModel.closeAllianceDialog() }
             )
         }
         
         if (showEnvoyDiscipleSelectDialog) {
             val selectedSect = gameData?.worldMapSects?.find { it.id == selectedAllianceSectId }
-            val eligibleDisciples = selectedSect?.level?.let { viewModel.getEligibleEnvoyDisciples(it) } ?: emptyList()
+            val eligibleDisciples = selectedSect?.level?.let { worldMapViewModel.getEligibleEnvoyDisciples(it) } ?: emptyList()
             EnvoyDiscipleSelectDialog(
                 sect = selectedSect,
                 disciples = eligibleDisciples,
                 viewModel = viewModel,
-                onDismiss = { viewModel.closeEnvoyDiscipleSelectDialog() }
+                worldMapViewModel = worldMapViewModel,
+                onDismiss = { worldMapViewModel.closeEnvoyDiscipleSelectDialog() }
             )
         }
         
         if (showScoutDialog) {
             val selectedSect = gameData?.worldMapSects?.find { it.id == selectedScoutSectId }
-            val eligibleDisciples = viewModel.getEligibleScoutDisciples()
+            val eligibleDisciples = worldMapViewModel.getEligibleScoutDisciples()
             ScoutDiscipleSelectDialog(
                 sect = selectedSect,
                 disciples = eligibleDisciples,
                 viewModel = viewModel,
-                onDismiss = { viewModel.closeScoutDialog() }
+                worldMapViewModel = worldMapViewModel,
+                onDismiss = { worldMapViewModel.closeScoutDialog() }
             )
         }
 
@@ -371,13 +384,13 @@ fun MainGameScreen(
                 competitionResults = gameData?.pendingCompetitionResults ?: emptyList(),
                 allDisciples = aliveDisciples.value,
                 gameData = gameData ?: GameData(),
-                viewModel = viewModel,
-                onDismiss = { viewModel.closeOuterTournamentDialog() }
+                worldMapViewModel = worldMapViewModel,
+                onDismiss = { worldMapViewModel.closeOuterTournamentDialog() }
             )
         }
         
         if (showBattleTeamDialog) {
-            val hasExistingTeam = viewModel.hasBattleTeam()
+            val hasExistingTeam = battleViewModel.hasBattleTeam()
             val battleTeam = gameData.battleTeam
             BattleTeamDialog(
                 slots = battleTeamSlots,
@@ -386,12 +399,12 @@ fun MainGameScreen(
                 isAtSect = battleTeam?.isAtSect ?: true,
                 isOccupying = battleTeam?.isOccupying ?: false,
                 onSlotClick = { slotIndex -> selectedBattleTeamSlotIndex = slotIndex },
-                onRemoveClick = { slotIndex -> viewModel.removeDiscipleFromBattleTeamSlot(slotIndex) },
-                onCreateTeam = { viewModel.createBattleTeam() },
-                onMoveClick = { viewModel.startBattleTeamMoveMode() },
-                onDisbandClick = { viewModel.disbandBattleTeam() },
-                onReturnClick = { viewModel.returnStationedBattleTeam() },
-                onDismiss = { viewModel.closeBattleTeamDialog() }
+                onRemoveClick = { slotIndex -> battleViewModel.removeDiscipleFromBattleTeamSlot(slotIndex) },
+                onCreateTeam = { battleViewModel.createBattleTeam() },
+                onMoveClick = { battleViewModel.startBattleTeamMoveMode() },
+                onDisbandClick = { battleViewModel.disbandBattleTeam() },
+                onReturnClick = { battleViewModel.returnStationedBattleTeam() },
+                onDismiss = { battleViewModel.closeBattleTeamDialog() }
             )
         }
         
@@ -399,16 +412,16 @@ fun MainGameScreen(
             val selectedSlot = battleTeamSlots.find { it.index == selectedBattleTeamSlotIndex }
             val isElderSlot = selectedSlot?.slotType == BattleSlotType.ELDER
             val availableDisciples = if (isElderSlot) {
-                viewModel.getAvailableEldersForBattleTeam()
+                battleViewModel.getAvailableEldersForBattleTeam()
             } else {
-                viewModel.getAvailableDisciplesForBattleTeam()
+                battleViewModel.getAvailableDisciplesForBattleTeam()
             }
             val slotIndex = selectedBattleTeamSlotIndex
             BattleTeamDiscipleSelectionDialog(
                 disciples = availableDisciples,
                 isElderSlot = isElderSlot,
                 onSelect = { disciple ->
-                    slotIndex?.let { viewModel.assignDiscipleToBattleTeamSlot(it, disciple) }
+                    slotIndex?.let { battleViewModel.assignDiscipleToBattleTeamSlot(it, disciple) }
                     selectedBattleTeamSlotIndex = null
                 },
                 onDismiss = { selectedBattleTeamSlotIndex = null }
@@ -1552,6 +1565,7 @@ fun SecretRealmDialog(
 ) {
     val secretRealms = remember { GameConfig.Dungeons.getAll() }
     val teams by viewModel.teams.collectAsState()
+    val gameData by viewModel.gameData.collectAsState()
     var selectedRealm by remember { mutableStateOf<GameConfig.DungeonConfig?>(null) }
     var showDispatchDialog by remember { mutableStateOf(false) }
     var showTeamDialog by remember { mutableStateOf(false) }
@@ -1578,19 +1592,40 @@ fun SecretRealmDialog(
                         fontWeight = FontWeight.Bold,
                         color = Color.Black
                     )
-                    Box(
-                        modifier = Modifier
-                            .size(24.dp)
-                            .clip(CircleShape)
-                            .clickable { onDismiss() }
-                            .background(Color(0xFFF5F5F5)),
-                        contentAlignment = Alignment.Center
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Text(
-                            text = "×",
-                            fontSize = 16.sp,
-                            color = Color(0xFF666666)
-                        )
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .border(1.dp, Color(0xFF999999), RoundedCornerShape(4.dp))
+                                .background(if (gameData.smartBattleEnabled) Color(0xFFFF9800) else Color(0xFFBDBDBD))
+                                .clickable { viewModel.toggleSmartBattle() }
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "智能战斗",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Black
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clip(CircleShape)
+                                .clickable { onDismiss() }
+                                .background(Color(0xFFF5F5F5)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "×",
+                                fontSize = 16.sp,
+                                color = Color(0xFF666666)
+                            )
+                        }
                     }
                 }
 
@@ -3136,7 +3171,10 @@ private fun ElderDiscipleSelectionDialog(
 }
 
 @Composable
-private fun BuildingsTab(viewModel: GameViewModel) {
+private fun BuildingsTab(
+    viewModel: GameViewModel,
+    productionViewModel: ProductionViewModel
+) {
     val gameData by viewModel.gameData.collectAsState()
     val alchemySlots by viewModel.alchemySlots.collectAsState()
     val forgeSlots by viewModel.forgeSlots.collectAsState()
@@ -3238,6 +3276,7 @@ private fun BuildingsTab(viewModel: GameViewModel) {
     if (showSpiritMineDialog) {
         SpiritMineDialog(
             viewModel = viewModel,
+            productionViewModel = productionViewModel,
             onDismiss = { viewModel.closeCurrentDialog() }
         )
     }
@@ -3259,15 +3298,14 @@ private fun BuildingsTab(viewModel: GameViewModel) {
                     startYear = slot.startYear,
                     startMonth = slot.startMonth,
                     growTime = slot.duration,
-                    expectedYield = slot.expectedYield,
-                    harvestAmount = slot.harvestAmount,
-                    harvestHerbId = slot.outputItemId ?: ""
+                    expectedYield = slot.expectedYield
                 )
             },
             seeds = seeds,
             gameData = gameData,
             disciples = disciples.filter { it.isAlive },
             viewModel = viewModel,
+            productionViewModel = productionViewModel,
             onDismiss = { viewModel.closeCurrentDialog() }
         )
     }
@@ -3280,6 +3318,7 @@ private fun BuildingsTab(viewModel: GameViewModel) {
             gameData = gameData,
             disciples = disciples.filter { it.isAlive },
             viewModel = viewModel,
+            productionViewModel = productionViewModel,
             colors = XianxiaColorScheme(),
             onDismiss = { viewModel.closeCurrentDialog() }
         )
@@ -3291,6 +3330,7 @@ private fun BuildingsTab(viewModel: GameViewModel) {
             materials = materials,
             gameData = gameData,
             viewModel = viewModel,
+            productionViewModel = productionViewModel,
             colors = XianxiaColorScheme(),
             onDismiss = { viewModel.closeCurrentDialog() }
         )
@@ -3302,6 +3342,7 @@ private fun BuildingsTab(viewModel: GameViewModel) {
             disciples = disciples.filter { it.isAlive },
             gameData = gameData,
             viewModel = viewModel,
+            productionViewModel = productionViewModel,
             onDismiss = { viewModel.closeCurrentDialog() }
         )
     }
@@ -3311,6 +3352,7 @@ private fun BuildingsTab(viewModel: GameViewModel) {
             disciples = disciples.filter { it.isAlive },
             gameData = gameData,
             viewModel = viewModel,
+            productionViewModel = productionViewModel,
             onDismiss = { viewModel.closeCurrentDialog() }
         )
     }
@@ -3320,6 +3362,7 @@ private fun BuildingsTab(viewModel: GameViewModel) {
             disciples = disciples.filter { it.isAlive },
             gameData = gameData,
             viewModel = viewModel,
+            productionViewModel = productionViewModel,
             onDismiss = { viewModel.closeCurrentDialog() }
         )
     }
@@ -3329,6 +3372,7 @@ private fun BuildingsTab(viewModel: GameViewModel) {
             gameData = gameData,
             disciples = disciples.filter { it.isAlive },
             viewModel = viewModel,
+            productionViewModel = productionViewModel,
             onDismiss = { viewModel.closeCurrentDialog() }
         )
     }
@@ -3338,6 +3382,7 @@ private fun BuildingsTab(viewModel: GameViewModel) {
             disciples = disciples.filter { it.isAlive },
             gameData = gameData,
             viewModel = viewModel,
+            productionViewModel = productionViewModel,
             onDismiss = { viewModel.closeCurrentDialog() }
         )
     }
@@ -4513,9 +4558,10 @@ private fun getRarityColor(rarity: Int): Color = when (rarity) {
 @Composable
 private fun SettingsTab(
     viewModel: GameViewModel,
+    saveLoadViewModel: SaveLoadViewModel,
     onLogout: () -> Unit
 ) {
-    val timeSpeed by viewModel.timeSpeed.collectAsState()
+    val timeSpeed by saveLoadViewModel.timeSpeed.collectAsState()
     val gameData by viewModel.gameData.collectAsState()
     
     var showSaveSlotDialog by remember { mutableStateOf(false) }
@@ -4553,7 +4599,7 @@ private fun SettingsTab(
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 
-                val isPaused by viewModel.isPaused.collectAsState()
+                val isPaused by saveLoadViewModel.isPaused.collectAsState()
                 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -4565,7 +4611,7 @@ private fun SettingsTab(
                             .clip(RoundedCornerShape(6.dp))
                             .background(if (isPaused) Color.Black else GameColors.PageBackground)
                             .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
-                            .clickable { viewModel.togglePause() }
+                            .clickable { saveLoadViewModel.togglePause() }
                             .padding(vertical = 12.dp),
                         contentAlignment = Alignment.Center
                     ) {
@@ -4583,7 +4629,7 @@ private fun SettingsTab(
                                 .clip(RoundedCornerShape(6.dp))
                                 .background(if (timeSpeed == speed && !isPaused) Color.Black else GameColors.PageBackground)
                                 .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
-                                .clickable { viewModel.setTimeSpeed(speed) }
+                                .clickable { saveLoadViewModel.setTimeSpeed(speed) }
                                 .padding(vertical = 12.dp),
                             contentAlignment = Alignment.Center
                         ) {
@@ -4618,7 +4664,7 @@ private fun SettingsTab(
                             .clip(RoundedCornerShape(6.dp))
                             .background(if (!isAutoSaveActive) Color(0xFFE74C3C) else GameColors.PageBackground)
                             .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
-                            .clickable { viewModel.setAutoSaveIntervalMonths(0) }
+                            .clickable { saveLoadViewModel.setAutoSaveIntervalMonths(0) }
                             .padding(vertical = 12.dp),
                         contentAlignment = Alignment.Center
                     ) {
@@ -4640,7 +4686,7 @@ private fun SettingsTab(
                             .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
                             .clickable {
                                 if (!isAutoSaveActive) {
-                                    viewModel.setAutoSaveIntervalMonths(3)
+                                    saveLoadViewModel.setAutoSaveIntervalMonths(3)
                                 } else {
                                     editIntervalValue = gameData.autoSaveIntervalMonths.toString()
                                     showEditIntervalDialog = true
@@ -4702,7 +4748,7 @@ private fun SettingsTab(
                                     onClick = {
                                         val months = editIntervalValue.toIntOrNull()
                                         if (months != null && months in 1..12) {
-                                            viewModel.setAutoSaveIntervalMonths(months)
+                                            saveLoadViewModel.setAutoSaveIntervalMonths(months)
                                         }
                                         showEditIntervalDialog = false
                                     }
@@ -4866,6 +4912,7 @@ private fun SettingsTab(
     if (showSaveSlotDialog) {
         SaveSlotDialog(
             viewModel = viewModel,
+            saveLoadViewModel = saveLoadViewModel,
             onDismiss = { showSaveSlotDialog = false }
         )
     }
@@ -4894,7 +4941,7 @@ private fun SettingsTab(
                     text = "确认",
                     onClick = {
                         showRestartConfirmDialog = false
-                        viewModel.restartGame()
+                        saveLoadViewModel.restartGame()
                     },
                     modifier = Modifier.height(32.dp)
                 )
@@ -4932,7 +4979,7 @@ private fun SettingsTab(
                     text = "确认",
                     onClick = {
                         showResetDisciplesConfirmDialog = false
-                        viewModel.resetAllDisciplesStatus()
+                        saveLoadViewModel.resetAllDisciplesStatus()
                     },
                     modifier = Modifier.height(32.dp)
                 )
@@ -4957,10 +5004,11 @@ private fun SettingsTab(
 @Composable
 private fun SaveSlotDialog(
     viewModel: GameViewModel,
+    saveLoadViewModel: SaveLoadViewModel,
     onDismiss: () -> Unit
 ) {
-    val saveSlots by viewModel.saveSlots.collectAsState()
-    val saveLoadState by viewModel.saveLoadState.collectAsState()
+    val saveSlots by saveLoadViewModel.saveSlots.collectAsState()
+    val saveLoadState by saveLoadViewModel.saveLoadState.collectAsState()
     val isBusy = saveLoadState.isBusy
     val isSaving = saveLoadState.isSaving
     val isLoading = saveLoadState.isLoading
@@ -4982,7 +5030,7 @@ private fun SaveSlotDialog(
     
     Dialog(onDismissRequest = { 
         if (isBusy) {
-            viewModel.cancelSaveLoad()
+            saveLoadViewModel.cancelSaveLoad()
         }
         onDismiss()
     }) {
@@ -5014,7 +5062,7 @@ private fun SaveSlotDialog(
                             GameButton(
                                 text = "取消",
                                 onClick = {
-                                    viewModel.cancelSaveLoad()
+                                    saveLoadViewModel.cancelSaveLoad()
                                     onDismiss()
                                 }
                             )
@@ -5023,7 +5071,7 @@ private fun SaveSlotDialog(
                             text = "关闭",
                             onClick = {
                                 if (isBusy) {
-                                    viewModel.cancelSaveLoad()
+                                    saveLoadViewModel.cancelSaveLoad()
                                 }
                                 onDismiss()
                             }
@@ -5090,7 +5138,7 @@ private fun SaveSlotDialog(
                                 if (selectedSlot != null && !isBusy && !isAutoSaveSlot) {
                                     Modifier.clickable {
                                         saveCompleted = true
-                                        viewModel.saveGame(selectedSlot.toString())
+                                        saveLoadViewModel.saveGame(selectedSlot.toString())
                                     }
                                 } else {
                                     Modifier
@@ -5128,7 +5176,7 @@ private fun SaveSlotDialog(
                                 if (selectedSlot != null && saveSlots.find { it.slot == selectedSlot }?.isEmpty == false && !isBusy) {
                                     Modifier.clickable {
                                         saveSlots.find { it.slot == selectedSlot }?.let { slot ->
-                                            viewModel.loadGame(slot)
+                                            saveLoadViewModel.loadGame(slot)
                                         }
                                     }
                                 } else {
@@ -5585,6 +5633,8 @@ private fun WorldMapDialog(
     gameData: GameData?,
     disciples: List<DiscipleAggregate>,
     viewModel: GameViewModel,
+    worldMapViewModel: WorldMapViewModel,
+    battleViewModel: BattleViewModel,
     battleTeamMoveMode: Boolean = false,
     onDismiss: () -> Unit
 ) {
@@ -5598,7 +5648,7 @@ private fun WorldMapDialog(
     val playerSectX = playerSect?.x ?: 2000f
     val playerSectY = playerSect?.y ?: 1750f
     val caveExplorationTeams: List<CaveExplorationTeam> = mapRenderData.caveExplorationTeams
-    val movableTargetIds = if (battleTeamMoveMode) viewModel.getMovableTargetSectIds().toSet() else emptySet()
+    val movableTargetIds = if (battleTeamMoveMode) worldMapViewModel.getMovableTargetSectIds().toSet() else emptySet()
 
     val sectItems = remember(worldSects, movableTargetIds) {
         MapItemMapper.fromWorldSects(worldSects, movableTargetIds)
@@ -5692,13 +5742,13 @@ private fun WorldMapDialog(
             }
         },
         onBattleTeamClick = {
-            viewModel.openBattleTeamDialog()
+            battleViewModel.openBattleTeamDialog()
         },
         onMovableTargetClick = { targetSectId ->
-            viewModel.selectBattleTeamTarget(targetSectId)
+            battleViewModel.selectBattleTeamTarget(targetSectId)
         },
-        onCreateTeamClick = { viewModel.openBattleTeamDialog() },
-        onManageTeamClick = { viewModel.openBattleTeamDialog() }
+        onCreateTeamClick = { battleViewModel.openBattleTeamDialog() },
+        onManageTeamClick = { battleViewModel.openBattleTeamDialog() }
     )
 
     if (showSectDetail) {
@@ -5707,6 +5757,7 @@ private fun WorldMapDialog(
                 sect = sect,
                 gameData = gameData,
                 viewModel = viewModel,
+                worldMapViewModel = worldMapViewModel,
                 onDismiss = {
                     showSectDetail = false
                     selectedSect = null
@@ -5722,6 +5773,7 @@ private fun WorldMapDialog(
                 gameData = gameData,
                 disciples = disciples,
                 viewModel = viewModel,
+                worldMapViewModel = worldMapViewModel,
                 onDismiss = {
                     showCaveDetail = false
                     selectedCave = null
@@ -5736,11 +5788,12 @@ private fun WorldMapSectDetailDialog(
     sect: WorldSect,
     gameData: GameData?,
     viewModel: GameViewModel,
+    worldMapViewModel: WorldMapViewModel,
     onDismiss: () -> Unit
 ) {
     val currentYear = gameData?.gameYear ?: 1
-    val isAlly = viewModel.isAlly(sect.id)
-    val hasGiftedThisYear = sect.lastGiftYear == currentYear
+    val isAlly = worldMapViewModel.isAlly(sect.id)
+    val hasGiftedThisYear = (gameData?.sectDetails?.get(sect.id)?.lastGiftYear ?: 0) == currentYear
     var showGiftedMessage by remember { mutableStateOf(false) }
     
     val playerSect = gameData?.worldMapSects?.find { it.isPlayerSect }
@@ -5866,7 +5919,7 @@ private fun WorldMapSectDetailDialog(
                         color = Color(0xFF333333)
                     )
                     
-                    val scoutInfo = sect.scoutInfo
+                    val scoutInfo = gameData?.sectDetails?.get(sect.id)?.scoutInfo ?: SectScoutInfo()
                     
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -5959,7 +6012,7 @@ private fun WorldMapSectDetailDialog(
                             GameButton(
                                 text = "探查",
                                 onClick = {
-                                    viewModel.openScoutDialog(sect.id)
+                                    worldMapViewModel.openScoutDialog(sect.id)
                                     onDismiss()
                                 },
                                 modifier = Modifier.weight(1f)
@@ -5971,7 +6024,7 @@ private fun WorldMapSectDetailDialog(
                                     if (hasGiftedThisYear) {
                                         showGiftedMessage = true
                                     } else {
-                                        viewModel.openGiftDialog(sect.id)
+                                        worldMapViewModel.openGiftDialog(sect.id)
                                         onDismiss()
                                     }
                                 },
@@ -5981,7 +6034,7 @@ private fun WorldMapSectDetailDialog(
                             GameButton(
                                 text = if (isAlly) "盟约" else "结盟",
                                 onClick = {
-                                    viewModel.formAlliance(sect.id)
+                                    worldMapViewModel.openAllianceDialog(sect.id)
                                     onDismiss()
                                 },
                                 enabled = relation >= 90 || isAlly,
@@ -5996,7 +6049,7 @@ private fun WorldMapSectDetailDialog(
                             GameButton(
                                 text = "交易",
                                 onClick = {
-                                    viewModel.openSectTradeDialog(sect.id)
+                                    worldMapViewModel.openSectTradeDialog(sect.id)
                                     onDismiss()
                                 },
                                 modifier = Modifier.weight(1f)
@@ -6041,6 +6094,7 @@ private fun WorldMapSectDetailDialog(
 fun DiplomacyDialog(
     gameData: GameData?,
     viewModel: GameViewModel,
+    worldMapViewModel: WorldMapViewModel,
     onDismiss: () -> Unit
 ) {
     val playerSect = gameData?.worldMapSects?.find { it.isPlayerSect }
@@ -6116,15 +6170,16 @@ fun DiplomacyDialog(
                                 sect = sect,
                                 relation = sectFavors[sect] ?: 0,
                                 currentYear = currentYear,
-                                isAlly = viewModel.isAlly(sect.id),
+                                gameData = gameData,
+                                isAlly = worldMapViewModel.isAlly(sect.id),
                                 onGift = {
-                                    viewModel.openGiftDialog(sect.id)
+                                    worldMapViewModel.openGiftDialog(sect.id)
                                 },
                                 onFormAlliance = {
-                                    viewModel.formAlliance(sect.id)
+                                    worldMapViewModel.openAllianceDialog(sect.id)
                                 },
                                 onTrade = {
-                                    viewModel.openSectTradeDialog(sect.id)
+                                    worldMapViewModel.openSectTradeDialog(sect.id)
                                 },
                                 onShowGiftedMessage = {
                                     showGiftedMessage = true
@@ -6152,6 +6207,7 @@ private fun CaveDetailDialog(
     gameData: GameData?,
     disciples: List<DiscipleAggregate>,
     viewModel: GameViewModel,
+    worldMapViewModel: WorldMapViewModel,
     onDismiss: () -> Unit
 ) {
     val currentYear = gameData?.gameYear ?: 1
@@ -6335,7 +6391,7 @@ private fun CaveDetailDialog(
                         GameButton(
                             text = "确认派遣",
                             onClick = {
-                                viewModel.startCaveExploration(cave, selectedDisciples)
+                                worldMapViewModel.startCaveExploration(cave, selectedDisciples)
                                 onDismiss()
                             }
                         )
@@ -6632,6 +6688,7 @@ private fun DiplomacySectCard(
     sect: WorldSect,
     relation: Int,
     currentYear: Int,
+    gameData: GameData?,
     isAlly: Boolean,
     onGift: () -> Unit,
     onFormAlliance: () -> Unit,
@@ -6645,7 +6702,7 @@ private fun DiplomacySectCard(
         else -> Color(0xFFF44336)
     }
     
-    val hasGiftedThisYear = sect.lastGiftYear == currentYear
+    val hasGiftedThisYear = (gameData?.sectDetails?.get(sect.id)?.lastGiftYear ?: 0) == currentYear
     
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -6785,6 +6842,7 @@ fun SectTradeDialog(
     gameData: GameData?,
     tradeItems: List<MerchantItem>,
     viewModel: GameViewModel,
+    worldMapViewModel: WorldMapViewModel,
     onDismiss: () -> Unit
 ) {
     var selectedItem by remember { mutableStateOf<MerchantItem?>(null) }
@@ -6799,7 +6857,7 @@ fun SectTradeDialog(
             (it.sectId1 == sect.id && it.sectId2 == playerSect.id)
         }?.favor ?: 0
     } else 0
-    val isAlly = sect?.let { viewModel.isAlly(it.id) } ?: false
+    val isAlly = sect?.let { worldMapViewModel.isAlly(it.id) } ?: false
     
     val maxAllowedRarity = when {
         relation >= 90 -> 6
@@ -7146,7 +7204,7 @@ fun SectTradeDialog(
                                         GameButton(
                                             text = "确认购买",
                                             onClick = {
-                                                viewModel.buyFromSectTrade(item.id, buyQuantity)
+                                                worldMapViewModel.buyFromSectTrade(item.id, buyQuantity)
                                                 selectedItem = null
                                                 buyQuantity = 1
                                             },

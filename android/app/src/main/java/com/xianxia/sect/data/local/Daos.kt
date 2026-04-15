@@ -69,6 +69,9 @@ interface DiscipleDao {
     @Query("SELECT * FROM disciples WHERE slot_id = :slotId AND isAlive = 1")
     suspend fun getAllAliveSync(slotId: Int): List<Disciple>
 
+    @Query("SELECT * FROM disciples WHERE slot_id = :slotId")
+    suspend fun getAllSync(slotId: Int): List<Disciple>
+
     @Query("SELECT * FROM disciples WHERE slot_id = :slotId AND isAlive = 1 AND realm = :realm ORDER BY cultivation DESC")
     fun getAliveByRealm(slotId: Int, realm: Int): Flow<List<Disciple>>
 

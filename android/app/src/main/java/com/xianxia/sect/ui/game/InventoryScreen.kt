@@ -46,10 +46,10 @@ fun InventoryDialog(
     var showBulkSellDialog by remember { mutableStateOf(false) }
 
     val sortedEquipment = remember(equipment) {
-        equipment.sortedWith(compareByDescending<Equipment> { it.rarity }.thenBy { it.name })
+        equipment.filter { it.ownerId == null }.sortedWith(compareByDescending<Equipment> { it.rarity }.thenBy { it.name })
     }
     val sortedManuals = remember(manuals) {
-        manuals.sortedWith(compareByDescending<Manual> { it.rarity }.thenBy { it.name })
+        manuals.filter { it.ownerId == null }.sortedWith(compareByDescending<Manual> { it.rarity }.thenBy { it.name })
     }
     val sortedPills = remember(pills) {
         pills.sortedWith(compareByDescending<Pill> { it.rarity }.thenBy { it.name })

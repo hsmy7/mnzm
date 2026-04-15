@@ -174,7 +174,7 @@ class SaveDataTest {
     @Test
     fun `copy preserves all fields`() {
         val original = SaveData(
-            version = "1.5.00",
+            version = "2.0.00",
             timestamp = 123456789L,
             gameData = com.xianxia.sect.core.model.GameData(),
             disciples = listOf(com.xianxia.sect.core.model.Disciple()),
@@ -190,8 +190,8 @@ class SaveDataTest {
             alliances = emptyList(),
             productionSlots = emptyList()
         )
-        val copy = original.copy(version = "1.6.00")
-        assertEquals("1.6.00", copy.version)
+        val copy = original.copy(version = "2.0.00")
+        assertEquals("2.0.00", copy.version)
         assertEquals(original.timestamp, copy.timestamp)
         assertEquals(1, copy.disciples.size)
         assertEquals(1, copy.battleLogs.size)

@@ -16,8 +16,10 @@ class GameConfigTest {
     }
 
     @Test
-    fun `游戏版本应为1点6点00`() {
-        assertEquals("1.6.00", GameConfig.Game.VERSION)
+    fun `游戏版本应为非空字符串且格式正确`() {
+        val version = GameConfig.Game.VERSION
+        assertTrue("版本号不应为空", version.isNotEmpty())
+        assertTrue("版本号应符合语义化版本格式 (x.y.z)", version.matches(Regex("\\d+\\.\\d+\\.\\d+")))
     }
 
     @Test
@@ -806,115 +808,6 @@ class GameConfigTest {
         for (expected in 1..5) {
             assertTrue("未覆盖灵根数量 $expected (500次采样)", results.contains(expected))
         }
-    }
-
-    // ============================================================
-    // Buildings 对象 - CONFIGS key 列表
-    // ============================================================
-
-    @Test
-    fun `建筑配置应有8个条目`() {
-        assertEquals(8, GameConfig.Buildings.CONFIGS.size)
-    }
-
-    @Test
-    fun `建筑配置应包含mainHall`() {
-        assertNotNull(GameConfig.Buildings.CONFIGS["mainHall"])
-    }
-
-    @Test
-    fun `建筑配置应包含discipleHall`() {
-        assertNotNull(GameConfig.Buildings.CONFIGS["discipleHall"])
-    }
-
-    @Test
-    fun `建筑配置应包含herbGarden`() {
-        assertNotNull(GameConfig.Buildings.CONFIGS["herbGarden"])
-    }
-
-    @Test
-    fun `建筑配置应包含alchemy`() {
-        assertNotNull(GameConfig.Buildings.CONFIGS["alchemy"])
-    }
-
-    @Test
-    fun `建筑配置应包含forge`() {
-        assertNotNull(GameConfig.Buildings.CONFIGS["forge"])
-    }
-
-    @Test
-    fun `建筑配置应包含library`() {
-        assertNotNull(GameConfig.Buildings.CONFIGS["library"])
-    }
-
-    @Test
-    fun `建筑配置应包含tianShuHall`() {
-        assertNotNull(GameConfig.Buildings.CONFIGS["tianShuHall"])
-    }
-
-    @Test
-    fun `建筑配置应包含wenDaoPeak`() {
-        assertNotNull(GameConfig.Buildings.CONFIGS["wenDaoPeak"])
-    }
-
-    // ============================================================
-    // Buildings 对象 - 每个建筑的 name 和 maxSlots
-    // ============================================================
-
-    @Test
-    fun `主殿名称和槽位正确`() {
-        val b = GameConfig.Buildings.CONFIGS["mainHall"]!!
-        assertEquals("主殿", b.name)
-        assertEquals(0, b.maxSlots)
-    }
-
-    @Test
-    fun `弟子堂名称和槽位正确`() {
-        val b = GameConfig.Buildings.CONFIGS["discipleHall"]!!
-        assertEquals("弟子堂", b.name)
-        assertEquals(6, b.maxSlots)
-    }
-
-    @Test
-    fun `灵药宛名称和槽位正确`() {
-        val b = GameConfig.Buildings.CONFIGS["herbGarden"]!!
-        assertEquals("灵药宛", b.name)
-        assertEquals(3, b.maxSlots)
-    }
-
-    @Test
-    fun `丹鼎殿名称和槽位正确`() {
-        val b = GameConfig.Buildings.CONFIGS["alchemy"]!!
-        assertEquals("丹鼎殿", b.name)
-        assertEquals(3, b.maxSlots)
-    }
-
-    @Test
-    fun `天工峰名称和槽位正确`() {
-        val b = GameConfig.Buildings.CONFIGS["forge"]!!
-        assertEquals("天工峰", b.name)
-        assertEquals(3, b.maxSlots)
-    }
-
-    @Test
-    fun `藏经阁名称和槽位正确`() {
-        val b = GameConfig.Buildings.CONFIGS["library"]!!
-        assertEquals("藏经阁", b.name)
-        assertEquals(3, b.maxSlots)
-    }
-
-    @Test
-    fun `天枢殿名称和槽位正确`() {
-        val b = GameConfig.Buildings.CONFIGS["tianShuHall"]!!
-        assertEquals("天枢殿", b.name)
-        assertEquals(2, b.maxSlots)
-    }
-
-    @Test
-    fun `问道峰名称和槽位正确`() {
-        val b = GameConfig.Buildings.CONFIGS["wenDaoPeak"]!!
-        assertEquals("问道峰", b.name)
-        assertEquals(0, b.maxSlots)
     }
 
     // ============================================================

@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.GameConfig
@@ -95,10 +97,7 @@ object WorldMapGenerator {
                 disciples = levelInfo.disciples,
                 relation = initialRelation,
                 discovered = false,
-                connectedSectIds = emptyList(),
-                tradeItems = emptyList(),
-                tradeLastRefreshYear = 0,
-                giftPreference = generateRandomGiftPreference()
+                connectedSectIds = emptyList()
             )
 
             val (aiDisciples, _) = AISectDiscipleManager.initializeSectDisciples(sect.name, sect.level)
@@ -120,20 +119,22 @@ object WorldMapGenerator {
         val gridCols = sqrt(count.toDouble() * aspectRatio).toInt().coerceIn(1, count)
         val gridRows = ((count + gridCols - 1) / gridCols).coerceIn(1, count)
 
-        val cellWidth = availableWidth.toDouble() / gridCols
-        val cellHeight = availableHeight.toDouble() / gridRows
+        val cellWidth = if (gridCols > 1) availableWidth.toDouble() / (gridCols - 1) else 0.0
+        val cellHeight = if (gridRows > 1) availableHeight.toDouble() / (gridRows - 1) else 0.0
 
         val positions = mutableListOf<Pair<Double, Double>>()
-        val maxJitterX = cellWidth * 0.2
-        val maxJitterY = cellHeight * 0.2
+        val maxJitterX = if (gridCols > 1) cellWidth * 0.15 else 0.0
+        val maxJitterY = if (gridRows > 1) cellHeight * 0.15 else 0.0
 
         var placed = 0
         for (row in 0 until gridRows) {
             for (col in 0 until gridCols) {
                 if (placed >= count) break
 
-                val centerX = BORDER_PADDING + cellWidth * (col + 0.5)
-                val centerY = BORDER_PADDING + cellHeight * (row + 0.5)
+                val centerX = if (gridCols > 1) BORDER_PADDING + cellWidth * col
+                    else BORDER_PADDING + availableWidth / 2.0
+                val centerY = if (gridRows > 1) BORDER_PADDING + cellHeight * row
+                    else BORDER_PADDING + availableHeight / 2.0
 
                 val jitterX = Random.nextDouble(-maxJitterX, maxJitterX)
                 val jitterY = Random.nextDouble(-maxJitterY, maxJitterY)
@@ -185,12 +186,24 @@ object WorldMapGenerator {
                 val x = positions[i].first
                 val y = positions[i].second
                 val margin = BORDER_PADDING.toDouble()
-                val boundaryForce = strength * 30.0
+                val softBoundaryDistance = 60.0
 
-                if (x < margin + 80) forces[i][0] += boundaryForce * (1.0 - (x - margin) / 80.0)
-                if (x > MAP_WIDTH - margin - 80) forces[i][0] -= boundaryForce * (1.0 - (MAP_WIDTH - margin - x) / 80.0)
-                if (y < margin + 80) forces[i][1] += boundaryForce * (1.0 - (y - margin) / 80.0)
-                if (y > MAP_HEIGHT - margin - 80) forces[i][1] -= boundaryForce * (1.0 - (MAP_HEIGHT - margin - y) / 80.0)
+                if (x < margin + softBoundaryDistance) {
+                    val t = 1.0 - (x - margin) / softBoundaryDistance
+                    forces[i][0] += strength * 2.0 * t * t
+                }
+                if (x > MAP_WIDTH - margin - softBoundaryDistance) {
+                    val t = 1.0 - (MAP_WIDTH - margin - x) / softBoundaryDistance
+                    forces[i][0] -= strength * 2.0 * t * t
+                }
+                if (y < margin + softBoundaryDistance) {
+                    val t = 1.0 - (y - margin) / softBoundaryDistance
+                    forces[i][1] += strength * 2.0 * t * t
+                }
+                if (y > MAP_HEIGHT - margin - softBoundaryDistance) {
+                    val t = 1.0 - (MAP_HEIGHT - margin - y) / softBoundaryDistance
+                    forces[i][1] -= strength * 2.0 * t * t
+                }
 
                 val newX = (x + forces[i][0]).coerceIn(margin, (MAP_WIDTH - margin).toDouble())
                 val newY = (y + forces[i][1]).coerceIn(margin, (MAP_HEIGHT - margin).toDouble())
@@ -513,17 +526,6 @@ object WorldMapGenerator {
             favor += SAME_ALIGNMENT_BONUS
         }
         return favor.coerceIn(10, 90)
-    }
-
-    private fun generateRandomGiftPreference(): GiftPreferenceType {
-        val rand = Random.nextDouble()
-        return when {
-            rand < 0.25 -> GiftPreferenceType.EQUIPMENT
-            rand < 0.50 -> GiftPreferenceType.MANUAL
-            rand < 0.75 -> GiftPreferenceType.PILL
-            rand < 0.90 -> GiftPreferenceType.SPIRIT_STONE
-            else -> GiftPreferenceType.NONE
-        }
     }
 
     private data class Edge(val from: String, val to: String, val dist: Double)

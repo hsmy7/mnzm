@@ -73,6 +73,7 @@ object AISectDiscipleManager {
             age = Random.nextInt(16, 26),
             lifespan = lifespan,
             isAlive = true,
+            discipleType = "outer",
             talentIds = talents,
             manualIds = manuals.map { it.first },
             manualMasteries = manuals.associate { it.first to it.second },
@@ -206,11 +207,12 @@ object AISectDiscipleManager {
         }
     }
     
-    fun processMonthlyCultivation(disciples: List<Disciple>): List<Disciple> {
+    fun processMonthlyCultivation(disciples: List<Disciple>, manualProficienciesMap: Map<String, Map<String, ManualProficiencyData>> = emptyMap()): List<Disciple> {
         return disciples.map { disciple ->
             if (!disciple.isAlive) return@map disciple
             
-            val cultivationSpeed = disciple.calculateCultivationSpeed()
+            val discipleProficiencies = manualProficienciesMap[disciple.id] ?: emptyMap()
+            val cultivationSpeed = disciple.calculateCultivationSpeed(manualProficiencies = discipleProficiencies)
             val monthlyGain = cultivationSpeed * SECONDS_PER_MONTH
             
             var newCultivation = disciple.cultivation + monthlyGain

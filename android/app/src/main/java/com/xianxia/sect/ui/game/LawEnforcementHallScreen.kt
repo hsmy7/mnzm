@@ -30,15 +30,16 @@ fun LawEnforcementHallDialog(
     disciples: List<DiscipleAggregate>,
     gameData: GameData?,
     viewModel: GameViewModel,
+    productionViewModel: ProductionViewModel,
     onDismiss: () -> Unit
 ) {
     var showElderSelection by remember { mutableStateOf(false) }
     var showDiscipleSelection by remember { mutableStateOf<Int?>(null) }
     var showReserveDiscipleList by remember { mutableStateOf(false) }
 
-    val lawElder = viewModel.getLawEnforcementElder()
-    val lawDisciples = viewModel.getLawEnforcementDisciples()
-    val reserveDisciplesWithInfo = viewModel.getLawEnforcementReserveDisciplesWithInfo()
+    val lawElder = productionViewModel.getLawEnforcementElder()
+    val lawDisciples = productionViewModel.getLawEnforcementDisciples()
+    val reserveDisciplesWithInfo = productionViewModel.getLawEnforcementReserveDisciplesWithInfo()
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -106,13 +107,13 @@ fun LawEnforcementHallDialog(
                 LawElderSection(
                     elder = lawElder,
                     onElderClick = { showElderSelection = true },
-                    onElderRemove = { viewModel.removeElder("lawEnforcementElder") }
+                    onElderRemove = { productionViewModel.removeElder("lawEnforcementElder") }
                 )
 
                 LawDisciplesSection(
                     lawDisciples = lawDisciples,
                     onDiscipleClick = { index -> showDiscipleSelection = index },
-                    onDiscipleRemove = { index -> viewModel.removeDirectDisciple("lawEnforcement", index) }
+                    onDiscipleRemove = { index -> productionViewModel.removeDirectDisciple("lawEnforcement", index) }
                 )
             }
         },
@@ -120,14 +121,14 @@ fun LawEnforcementHallDialog(
     )
 
     if (showElderSelection) {
-        val availableDisciples = viewModel.getAvailableDisciplesForLawEnforcementElder()
+        val availableDisciples = productionViewModel.getAvailableDisciplesForLawEnforcementElder()
         DiscipleSelectionDialog(
             title = "选择执法长老",
             disciples = availableDisciples,
             currentDiscipleId = lawElder?.id,
             requirementText = "需要化神及以上境界",
             onSelect = { disciple ->
-                viewModel.assignElder("lawEnforcementElder", disciple.id)
+                productionViewModel.assignElder("lawEnforcementElder", disciple.id)
                 showElderSelection = false
             },
             onDismiss = { showElderSelection = false }
@@ -135,7 +136,7 @@ fun LawEnforcementHallDialog(
     }
 
     showDiscipleSelection?.let { slotIndex ->
-        val availableDisciples = viewModel.getAvailableDisciplesForLawEnforcementDisciple()
+        val availableDisciples = productionViewModel.getAvailableDisciplesForLawEnforcementDisciple()
         val currentDisciple = lawDisciples.find { it.index == slotIndex }
         DiscipleSelectionDialog(
             title = "选择执法弟子",
@@ -143,7 +144,7 @@ fun LawEnforcementHallDialog(
             currentDiscipleId = currentDisciple?.discipleId,
             requirementText = "需要内门弟子及以上",
             onSelect = { disciple ->
-                viewModel.assignDirectDisciple("lawEnforcement", slotIndex, disciple.id)
+                productionViewModel.assignDirectDisciple("lawEnforcement", slotIndex, disciple.id)
                 showDiscipleSelection = null
             },
             onDismiss = { showDiscipleSelection = null }
@@ -154,6 +155,7 @@ fun LawEnforcementHallDialog(
         ReserveDiscipleListDialog(
             reserveDisciples = reserveDisciplesWithInfo,
             viewModel = viewModel,
+            productionViewModel = productionViewModel,
             onDismiss = { showReserveDiscipleList = false }
         )
     }
@@ -809,6 +811,7 @@ private fun CommonDialog(
 private fun ReserveDiscipleListDialog(
     reserveDisciples: List<DiscipleAggregate>,
     viewModel: GameViewModel,
+    productionViewModel: ProductionViewModel,
     onDismiss: () -> Unit
 ) {
     var showAddDiscipleDialog by remember { mutableStateOf(false) }
@@ -913,7 +916,7 @@ private fun ReserveDiscipleListDialog(
                         items(sortedReserveDisciples, key = { it.id }) { disciple ->
                             ReserveDiscipleCard(
                                 disciple = disciple,
-                                onRemove = { viewModel.removeReserveDisciple(disciple.id) }
+                                onRemove = { productionViewModel.removeReserveDisciple(disciple.id) }
                             )
                         }
                     }
@@ -926,6 +929,7 @@ private fun ReserveDiscipleListDialog(
     if (showAddDiscipleDialog) {
         InnerDiscipleSelectionDialog(
             viewModel = viewModel,
+            productionViewModel = productionViewModel,
             onDismiss = { showAddDiscipleDialog = false }
         )
     }
@@ -934,9 +938,10 @@ private fun ReserveDiscipleListDialog(
 @Composable
 private fun InnerDiscipleSelectionDialog(
     viewModel: GameViewModel,
+    productionViewModel: ProductionViewModel,
     onDismiss: () -> Unit
 ) {
-    val availableDisciples = viewModel.getAvailableDisciplesForLawEnforcementReserve()
+    val availableDisciples = productionViewModel.getAvailableDisciplesForLawEnforcementReserve()
     val selectedDiscipleIds = remember { mutableStateListOf<String>() }
 
     AlertDialog(
@@ -1044,7 +1049,7 @@ private fun InnerDiscipleSelectionDialog(
                         .background(if (hasSelection) Color(0xFFE74C3C) else Color(0xFFCCCCCC))
                         .clickable(enabled = hasSelection) {
                             if (hasSelection) {
-                                viewModel.addReserveDisciples(selectedDiscipleIds.toList())
+                                productionViewModel.addReserveDisciples(selectedDiscipleIds.toList())
                                 onDismiss()
                             }
                         }

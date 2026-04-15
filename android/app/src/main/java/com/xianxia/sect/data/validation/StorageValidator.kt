@@ -7,6 +7,7 @@ import com.xianxia.sect.data.crypto.SaveCrypto
 import com.xianxia.sect.data.crypto.SignedPayload
 import com.xianxia.sect.data.crypto.VerificationResult as CryptoVerificationResult
 import com.xianxia.sect.data.model.SaveData
+import com.xianxia.sect.core.util.InputValidator
 import com.xianxia.sect.data.unified.SlotMetadata
 import java.io.File
 import java.security.MessageDigest
@@ -547,6 +548,15 @@ object StorageValidator {
             allWarnings.addAll(memoryResult.warnings.ifEmpty { 
                 listOf(ValidationIssue("LOW_MEMORY_WARNING", memoryResult.errors.first().message, Severity.WARNING))
             })
+        }
+
+        // 5. 存档名称验证
+        if (data.gameData.sectName.isNotEmpty()) {
+            val nameResult = InputValidator.validateSectName(data.gameData.sectName)
+            if (nameResult.isError) {
+                allWarnings.add(ValidationIssue("LONG_SAVE_NAME",
+                    (nameResult as com.xianxia.sect.core.util.ValidationResult.Error).message, Severity.WARNING))
+            }
         }
 
         return if (allErrors.isEmpty()) {

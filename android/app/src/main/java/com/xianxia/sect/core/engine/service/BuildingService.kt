@@ -3,8 +3,6 @@
 package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.GameConfig
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import com.xianxia.sect.core.model.*
@@ -16,22 +14,88 @@ import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.model.production.ProductionSlotStatus
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.repository.ProductionSlotRepository
+import com.xianxia.sect.core.state.GameStateStore
+import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.engine.system.GameSystem
+import com.xianxia.sect.core.engine.system.SystemPriority
+import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.util.BuildingNames
+import com.xianxia.sect.di.ApplicationScopeProvider
+import android.util.Log
 import kotlin.random.Random
+import javax.inject.Inject
+import javax.inject.Singleton
 
-class BuildingService constructor(
-    private val _gameData: MutableStateFlow<GameData>,
-    private val _disciples: MutableStateFlow<List<Disciple>>,
-    private val _herbs: MutableStateFlow<List<Herb>>,
-    private val _materials: MutableStateFlow<List<Material>>,
-    private val _equipment: MutableStateFlow<List<Equipment>>,
-    private val _pills: MutableStateFlow<List<Pill>>,
+@SystemPriority(order = 210)
+@Singleton
+class BuildingService @Inject constructor(
+    private val stateStore: GameStateStore,
     private val productionCoordinator: ProductionCoordinator,
     private val productionSlotRepository: ProductionSlotRepository,
-    private val addEvent: (String, EventType) -> Unit,
-    private val transactionMutex: Any,
-    private val scope: CoroutineScope
-) {
+    private val eventService: EventService,
+    private val inventorySystem: InventorySystem,
+    private val applicationScopeProvider: ApplicationScopeProvider
+) : GameSystem {
+    override val systemName: String = "BuildingService"
+    private val scope get() = applicationScopeProvider.ioScope
+
+    override fun initialize() {
+        Log.d(TAG, "BuildingService initialized as GameSystem")
+    }
+
+    override fun release() {
+        Log.d(TAG, "BuildingService released")
+    }
+
+    override suspend fun clear() {}
+    private var currentGameData: GameData
+        get() = stateStore.currentTransactionMutableState()?.gameData ?: stateStore.gameData.value
+        set(value) {
+            val ts = stateStore.currentTransactionMutableState()
+            if (ts != null) { ts.gameData = value; return }
+            scope.launch { stateStore.update { gameData = value } }
+        }
+
+    private var currentDisciples: List<Disciple>
+        get() = stateStore.currentTransactionMutableState()?.disciples ?: stateStore.disciples.value
+        set(value) {
+            val ts = stateStore.currentTransactionMutableState()
+            if (ts != null) { ts.disciples = value; return }
+            scope.launch { stateStore.update { disciples = value } }
+        }
+
+    private var currentHerbs: List<Herb>
+        get() = stateStore.currentTransactionMutableState()?.herbs ?: stateStore.herbs.value
+        set(value) {
+            val ts = stateStore.currentTransactionMutableState()
+            if (ts != null) { ts.herbs = value; return }
+            scope.launch { stateStore.update { herbs = value } }
+        }
+
+    private var currentMaterials: List<Material>
+        get() = stateStore.currentTransactionMutableState()?.materials ?: stateStore.materials.value
+        set(value) {
+            val ts = stateStore.currentTransactionMutableState()
+            if (ts != null) { ts.materials = value; return }
+            scope.launch { stateStore.update { materials = value } }
+        }
+
+    private var currentEquipment: List<Equipment>
+        get() = stateStore.currentTransactionMutableState()?.equipment ?: stateStore.equipment.value
+        set(value) {
+            val ts = stateStore.currentTransactionMutableState()
+            if (ts != null) { ts.equipment = value; return }
+            scope.launch { stateStore.update { equipment = value } }
+        }
+
+    private var currentPills: List<Pill>
+        get() = stateStore.currentTransactionMutableState()?.pills ?: stateStore.pills.value
+        set(value) {
+            val ts = stateStore.currentTransactionMutableState()
+            if (ts != null) { ts.pills = value; return }
+            scope.launch { stateStore.update { pills = value } }
+        }
+
     companion object {
         private const val TAG = "BuildingService"
     }
@@ -48,70 +112,66 @@ class BuildingService constructor(
         return productionSlotRepository.getSlotsByType(BuildingType.HERB_GARDEN).map { it.toPlantSlotData() }
     }
 
-    fun assignDiscipleToBuilding(buildingId: String, slotIndex: Int, discipleId: String) {
-        synchronized(transactionMutex) {
-            if (discipleId.isEmpty()) {
-                removeDiscipleFromBuildingInternal(buildingId, slotIndex)
-                return
-            }
+    suspend fun assignDiscipleToBuilding(buildingId: String, slotIndex: Int, discipleId: String) {
+        if (discipleId.isEmpty()) {
+            removeDiscipleFromBuildingInternal(buildingId, slotIndex)
+            return
+        }
 
-            val disciple = _disciples.value.find { it.id == discipleId } ?: return
-            if (!disciple.isAlive || disciple.status != DiscipleStatus.IDLE) {
-                addEvent("${disciple.name}无法被安排工作", EventType.WARNING)
-                return
-            }
+        val disciple = currentDisciples.find { it.id == discipleId } ?: return
+        if (!disciple.isAlive || disciple.status != DiscipleStatus.IDLE) {
+            eventService.addGameEvent("${disciple.name}无法被安排工作", EventType.WARNING)
+            return
+        }
 
-            if (disciple.age < 5) {
-                addEvent("${disciple.name}年龄太小，无法工作", EventType.WARNING)
-                return
-            }
+        if (disciple.age < 5) {
+            eventService.addGameEvent("${disciple.name}年龄太小，无法工作", EventType.WARNING)
+            return
+        }
 
-            val existingSlot = productionSlotRepository.getSlotByBuildingId(buildingId, slotIndex)
+        val existingSlot = productionSlotRepository.getSlotByBuildingId(buildingId, slotIndex)
 
-            if (existingSlot != null && existingSlot.isWorking) {
-                addEvent("该槽位正在工作中，无法更换弟子", EventType.WARNING)
-                return
-            }
+        if (existingSlot != null && existingSlot.isWorking) {
+            eventService.addGameEvent("该槽位正在工作中，无法更换弟子", EventType.WARNING)
+            return
+        }
 
-            existingSlot?.assignedDiscipleId?.let { oldDiscipleId ->
-                updateDiscipleStatus(oldDiscipleId, DiscipleStatus.IDLE)
-            }
+        existingSlot?.assignedDiscipleId?.let { oldDiscipleId ->
+            updateDiscipleStatus(oldDiscipleId, DiscipleStatus.IDLE)
+        }
 
-            scope.launch {
-                if (existingSlot != null) {
-                    productionSlotRepository.updateSlotByBuildingId(buildingId, slotIndex) { slot ->
-                        slot.copy(assignedDiscipleId = discipleId, assignedDiscipleName = disciple.name)
-                    }
-                } else {
-                    val buildingType = ProductionSlot.resolveBuildingType(buildingId)
-                    productionSlotRepository.addSlot(ProductionSlot.createIdle(
-                        slotIndex = slotIndex,
-                        buildingType = buildingType,
-                        buildingId = buildingId
-                    ).copy(assignedDiscipleId = discipleId, assignedDiscipleName = disciple.name))
+        scope.launch {
+            if (existingSlot != null) {
+                productionSlotRepository.updateSlotByBuildingId(buildingId, slotIndex) { slot ->
+                    slot.copy(assignedDiscipleId = discipleId, assignedDiscipleName = disciple.name)
                 }
+            } else {
+                val buildingType = ProductionSlot.resolveBuildingType(buildingId)
+                productionSlotRepository.addSlot(ProductionSlot.createIdle(
+                    slotIndex = slotIndex,
+                    buildingType = buildingType,
+                    buildingId = buildingId
+                ).copy(assignedDiscipleId = discipleId, assignedDiscipleName = disciple.name))
             }
         }
     }
 
-    fun removeDiscipleFromBuilding(buildingId: String, slotIndex: Int) {
-        synchronized(transactionMutex) {
-            removeDiscipleFromBuildingInternal(buildingId, slotIndex)
-        }
+    suspend fun removeDiscipleFromBuilding(buildingId: String, slotIndex: Int) {
+        removeDiscipleFromBuildingInternal(buildingId, slotIndex)
     }
 
     private fun removeDiscipleFromBuildingInternal(buildingId: String, slotIndex: Int) {
         val existingSlot = productionSlotRepository.getSlotByBuildingId(buildingId, slotIndex) ?: return
 
         if (existingSlot.isWorking) {
-            addEvent("该槽位正在工作中，无法移除弟子", EventType.WARNING)
+            eventService.addGameEvent("该槽位正在工作中，无法移除弟子", EventType.WARNING)
             return
         }
 
         existingSlot.assignedDiscipleId?.let { oldDiscipleId ->
-            val disciple = _disciples.value.find { it.id == oldDiscipleId }
+            val disciple = currentDisciples.find { it.id == oldDiscipleId }
             disciple?.let {
-                addEvent("${it.name}从${getBuildingName(buildingId)}移除", EventType.INFO)
+                eventService.addGameEvent("${it.name}从${getBuildingName(buildingId)}移除", EventType.INFO)
             }
         }
 
@@ -129,15 +189,15 @@ class BuildingService constructor(
     suspend fun startAlchemy(slotIndex: Int, recipeId: String): Boolean {
         val maxSlotCount = 3
         if (slotIndex < 0 || slotIndex >= maxSlotCount) {
-            addEvent("无效的炼丹槽位索引: $slotIndex (有效范围: 0-$maxSlotCount)", EventType.WARNING)
+            eventService.addGameEvent("无效的炼丹槽位索引: $slotIndex (有效范围: 0-$maxSlotCount)", EventType.WARNING)
             return false
         }
 
-        val data = _gameData.value
+        val data = currentGameData
 
         val alchemySlot = productionSlotRepository.getSlotByBuildingId("alchemy", slotIndex)
         if (alchemySlot != null && alchemySlot.isWorking) {
-            addEvent("该炼丹槽位正在工作中", EventType.WARNING)
+            eventService.addGameEvent("该炼丹槽位正在工作中", EventType.WARNING)
             return false
         }
 
@@ -146,7 +206,7 @@ class BuildingService constructor(
             recipeId = recipeId,
             currentYear = data.gameYear,
             currentMonth = data.gameMonth,
-            herbs = _herbs.value,
+            herbs = currentHerbs,
             buildingId = "alchemy",
             alchemyPolicyBonus = if (data.sectPolicies.alchemyIncentive) com.xianxia.sect.core.GameConfig.PolicyConfig.ALCHEMY_INCENTIVE_BASE_EFFECT else 0.0
         )
@@ -155,14 +215,14 @@ class BuildingService constructor(
             !result.success -> {
                 val error = result.error
                 when (error) {
-                    is ProductionError.InsufficientMaterials -> addEvent("草药材料不足，无法开始炼丹", EventType.WARNING)
-                    is ProductionError.RecipeNotFound -> addEvent("配方不存在", EventType.ERROR)
-                    else -> addEvent("无法开始炼丹", EventType.WARNING)
+                    is ProductionError.InsufficientMaterials -> eventService.addGameEvent("草药材料不足，无法开始炼丹", EventType.WARNING)
+                    is ProductionError.RecipeNotFound -> eventService.addGameEvent("配方不存在", EventType.ERROR)
+                    else -> eventService.addGameEvent("无法开始炼丹", EventType.WARNING)
                 }
                 return false
             }
             result.materialUpdate != null -> {
-                _herbs.value = result.materialUpdate.herbs
+                currentHerbs = result.materialUpdate.herbs
 
                 val recipe = PillRecipeDatabase.getRecipeById(recipeId) ?: return false
                 val actualDuration = calculateWorkDurationWithAllDisciples(recipe.duration, "alchemy")
@@ -205,7 +265,7 @@ class BuildingService constructor(
                     }
                 }
 
-                addEvent("开始在炼丹炉工作", EventType.INFO)
+                eventService.addGameEvent("开始在炼丹炉工作", EventType.INFO)
                 return true
             }
         }
@@ -214,11 +274,11 @@ class BuildingService constructor(
     }
 
     suspend fun startForging(slotIndex: Int, recipeId: String): Boolean {
-        val data = _gameData.value
+        val data = currentGameData
 
         val forgeSlot = productionSlotRepository.getSlotByBuildingId("forge", slotIndex)
         if (forgeSlot != null && forgeSlot.isWorking) {
-            addEvent("该锻造槽位正在工作中", EventType.WARNING)
+            eventService.addGameEvent("该锻造槽位正在工作中", EventType.WARNING)
             return false
         }
 
@@ -227,7 +287,7 @@ class BuildingService constructor(
             recipeId = recipeId,
             currentYear = data.gameYear,
             currentMonth = data.gameMonth,
-            materials = _materials.value,
+            materials = currentMaterials,
             buildingId = "forge",
             forgePolicyBonus = if (data.sectPolicies.forgeIncentive) com.xianxia.sect.core.GameConfig.PolicyConfig.FORGE_INCENTIVE_BASE_EFFECT else 0.0
         )
@@ -236,14 +296,14 @@ class BuildingService constructor(
             !result.success -> {
                 val error = result.error
                 when (error) {
-                    is ProductionError.InsufficientMaterials -> addEvent("材料不足，无法开始锻造", EventType.WARNING)
-                    is ProductionError.RecipeNotFound -> addEvent("配方不存在", EventType.ERROR)
-                    else -> addEvent("无法开始锻造", EventType.WARNING)
+                    is ProductionError.InsufficientMaterials -> eventService.addGameEvent("材料不足，无法开始锻造", EventType.WARNING)
+                    is ProductionError.RecipeNotFound -> eventService.addGameEvent("配方不存在", EventType.ERROR)
+                    else -> eventService.addGameEvent("无法开始锻造", EventType.WARNING)
                 }
                 return false
             }
             result.materialUpdate != null -> {
-                _materials.value = result.materialUpdate.materials
+                currentMaterials = result.materialUpdate.materials
 
                 val recipe = ForgeRecipeDatabase.getRecipeById(recipeId) ?: return false
                 val baseDuration = ForgeRecipeDatabase.getDurationByTier(recipe.tier)
@@ -287,7 +347,7 @@ class BuildingService constructor(
                     }
                 }
 
-                addEvent("开始在锻造坊工作", EventType.INFO)
+                eventService.addGameEvent("开始在锻造坊工作", EventType.INFO)
                 return true
             }
         }
@@ -295,14 +355,11 @@ class BuildingService constructor(
         return false
     }
 
-    fun collectBuildingResult(slotId: String) {
-        val slot = productionSlotRepository.getSlotById(slotId) ?: return
-
-        if (slot.status != ProductionSlotStatus.COMPLETED) {
-            addEvent("工作尚未完成", EventType.WARNING)
-            return
-        }
-
+    /**
+     * Auto-collect a completed slot's result and reset it to IDLE.
+     * Called internally by the auto-harvest system during month advancement.
+     */
+    private fun autoCollectSlotResult(slot: ProductionSlot) {
         completeBuildingTaskFromProductionSlot(slot)
 
         slot.assignedDiscipleId?.let { discipleId ->
@@ -314,92 +371,75 @@ class BuildingService constructor(
         }
     }
 
-    fun collectForgeResult(slotIndex: Int) {
-        val slot = productionSlotRepository.getSlotByBuildingId("forge", slotIndex) ?: return
+    /**
+     * Auto-collect a completed alchemy slot with success rate check.
+     * Returns the alchemy result for event recording.
+     */
+    private suspend fun autoCollectAlchemyResult(slot: ProductionSlot): AlchemyResult? {
+        val success = Random.nextDouble() <= slot.successRate
 
-        if (slot.status != ProductionSlotStatus.COMPLETED) {
-            addEvent("工作尚未完成", EventType.WARNING)
-            return
+        var pill: Pill? = null
+        if (success) {
+            pill = Pill(
+                name = slot.outputItemName,
+                rarity = slot.outputItemRarity,
+                description = "通过炼丹炉炼制而成",
+                minRealm = GameConfig.Realm.getMinRealmForRarity(slot.outputItemRarity),
+                quantity = 1
+            )
+            inventorySystem.addPill(pill)
+            eventService.addGameEvent("炼制成功！获得${slot.outputItemName}，已放入宗门仓库", EventType.INFO)
+        } else {
+            eventService.addGameEvent("炼制失败，材料损毁", EventType.ERROR)
         }
 
-        completeBuildingTaskFromProductionSlot(slot)
+        scope.launch {
+            productionCoordinator.resetSlotByBuildingIdAtomic("alchemy", slot.slotIndex)
+        }
 
         slot.assignedDiscipleId?.let { discipleId ->
             updateDiscipleStatus(discipleId, DiscipleStatus.IDLE)
         }
 
-        scope.launch {
-            productionCoordinator.resetSlotByBuildingIdAtomic("forge", slotIndex)
-        }
+        return AlchemyResult(
+            success = success,
+            pill = pill,
+            message = if (success) "成功" else "失败"
+        )
     }
 
-    fun collectAlchemyResult(slotIndex: Int): AlchemyResult? {
-        synchronized(transactionMutex) {
-            val data = _gameData.value
-            val slot = productionSlotRepository.getSlotByBuildingId("alchemy", slotIndex) ?: run {
-                addEvent("无效的炼丹槽位索引: $slotIndex", EventType.WARNING)
-                return null
+    /**
+     * Auto-harvest all completed alchemy slots.
+     * Called internally during month advancement.
+     */
+    suspend fun autoHarvestCompletedAlchemySlots(): List<AlchemyResult> {
+        val data = currentGameData
+        val results = mutableListOf<AlchemyResult>()
+        val alchemySlots = productionSlotRepository.getSlotsByType(BuildingType.ALCHEMY)
+        alchemySlots.forEach { slot ->
+            if (slot.isCompleted || (slot.isWorking && slot.isFinished(data.gameYear, data.gameMonth))) {
+                autoCollectAlchemyResult(slot)?.let { results.add(it) }
             }
-
-            if (!slot.isWorking) {
-                addEvent("该槽位没有正在炼制的丹药", EventType.WARNING)
-                return null
-            }
-
-            if (!slot.isFinished(data.gameYear, data.gameMonth)) {
-                addEvent("炼制尚未完成", EventType.WARNING)
-                return null
-            }
-
-            val success = Random.nextDouble() <= slot.successRate
-
-            var pill: Pill? = null
-            if (success) {
-                pill = Pill(
-                    name = slot.outputItemName,
-                    rarity = slot.outputItemRarity,
-                    description = "通过炼丹炉炼制而成",
-                    minRealm = GameConfig.Realm.getMinRealmForRarity(slot.outputItemRarity),
-                    quantity = 1
-                )
-                val currentPills = _pills.value.toMutableList()
-                currentPills.add(pill)
-                _pills.value = currentPills
-                addEvent("炼制成功！获得${slot.outputItemName}，已放入宗门仓库", EventType.INFO)
-            } else {
-                addEvent("炼制失败，材料损毁", EventType.ERROR)
-            }
-
-            scope.launch {
-                productionCoordinator.resetSlotByBuildingIdAtomic("alchemy", slotIndex)
-            }
-
-            return AlchemyResult(
-                success = success,
-                pill = pill,
-                message = if (success) "成功" else "失败"
-            )
         }
+        return results
     }
 
-    fun checkAndCollectCompletedAlchemySlots(): List<AlchemyResult> {
-        synchronized(transactionMutex) {
-            val data = _gameData.value
-            val results = mutableListOf<AlchemyResult>()
-            val alchemySlots = productionSlotRepository.getSlotsByType(BuildingType.ALCHEMY)
-            alchemySlots.forEach { slot ->
-                if (slot.isWorking && slot.isFinished(data.gameYear, data.gameMonth)) {
-                    collectAlchemyResult(slot.slotIndex)?.let { results.add(it) }
-                }
-            }
-            return results
-        }
+    /**
+     * Auto-harvest a completed forge slot.
+     * Called internally during month advancement.
+     */
+    fun autoHarvestForgeSlot(slot: ProductionSlot) {
+        autoCollectSlotResult(slot)
     }
 
     fun clearPlantSlot(slotIndex: Int) {
         scope.launch {
             val slot = productionSlotRepository.getSlotByBuildingId("herbGarden", slotIndex)
             if (slot != null) {
+                // Auto-harvest if slot is in COMPLETED state before clearing
+                if (slot.isCompleted) {
+                    completeBuildingTaskFromProductionSlot(slot)
+                }
                 productionSlotRepository.updateSlotByBuildingId("herbGarden", slotIndex) { s ->
                     ProductionSlot.createIdle(
                         id = s.id,
@@ -410,11 +450,10 @@ class BuildingService constructor(
                 }
             }
         }
-        addEvent("已移除种植任务", EventType.INFO)
     }
 
     private fun updateDiscipleStatus(discipleId: String, status: DiscipleStatus) {
-        _disciples.value = _disciples.value.map {
+        currentDisciples = currentDisciples.map {
             if (it.id == discipleId) it.copy(status = status) else it
         }
     }
@@ -423,7 +462,7 @@ class BuildingService constructor(
 
     private fun calculateWorkDurationWithAllDisciples(baseDuration: Int, buildingId: String): Int {
         var totalSpeedBonus = 0.0
-        val data = _gameData.value
+        val data = currentGameData
 
         totalSpeedBonus += getElderPositionBonusLocal(buildingId)
 
@@ -445,7 +484,7 @@ class BuildingService constructor(
     }
 
     private fun getElderPositionBonusLocal(buildingId: String): Double {
-        val data = _gameData.value
+        val data = currentGameData
         val elderSlots = data.elderSlots
 
         val elderDiscipleId = when (buildingId) {
@@ -455,7 +494,7 @@ class BuildingService constructor(
             else -> null
         } ?: return 0.0
 
-        val elderDisciple = _disciples.value.find { it.id == elderDiscipleId } ?: return 0.0
+        val elderDisciple = currentDisciples.find { it.id == elderDiscipleId } ?: return 0.0
 
         return when (buildingId) {
             "forge" -> {
@@ -487,7 +526,7 @@ class BuildingService constructor(
     private fun completeBuildingTaskFromProductionSlot(slot: ProductionSlot) {
         val recipeId = slot.recipeId
         if (recipeId == null) {
-            addEvent("${BuildingNames.getDisplayName(slot.buildingId)}工作已完成，但无配方信息", EventType.WARNING)
+            eventService.addGameEvent("${BuildingNames.getDisplayName(slot.buildingId)}工作已完成，但无配方信息", EventType.WARNING)
             return
         }
 
@@ -502,12 +541,10 @@ class BuildingService constructor(
                         slot = recipe.type,
                         minRealm = recipe.tier
                     )
-                    val currentEquipment = _equipment.value.toMutableList()
-                    currentEquipment.add(equipment)
-                    _equipment.value = currentEquipment
-                    addEvent("锻造完成！获得${recipe.name}，已放入宗门仓库", EventType.INFO)
+                    inventorySystem.addEquipment(equipment)
+                    eventService.addGameEvent("锻造完成！获得${recipe.name}，已放入宗门仓库", EventType.INFO)
                 } else {
-                    addEvent("锻造完成，但配方[$recipeId]不存在", EventType.ERROR)
+                    eventService.addGameEvent("锻造完成，但配方[$recipeId]不存在", EventType.ERROR)
                 }
             }
             "alchemy" -> {
@@ -520,16 +557,41 @@ class BuildingService constructor(
                         minRealm = GameConfig.Realm.getMinRealmForRarity(recipe.rarity),
                         quantity = 1
                     )
-                    val currentPills = _pills.value.toMutableList()
-                    currentPills.add(pill)
-                    _pills.value = currentPills
-                    addEvent("炼制完成！获得${recipe.name}，已放入宗门仓库", EventType.INFO)
+                    inventorySystem.addPill(pill)
+                    eventService.addGameEvent("炼制完成！获得${recipe.name}，已放入宗门仓库", EventType.INFO)
                 } else {
-                    addEvent("炼制完成，但配方[$recipeId]不存在", EventType.ERROR)
+                    eventService.addGameEvent("炼制完成，但配方[$recipeId]不存在", EventType.ERROR)
+                }
+            }
+            "herbGarden" -> {
+                val seedId = slot.recipeId
+                if (!seedId.isNullOrEmpty()) {
+                    val herbId = HerbDatabase.getHerbIdFromSeedId(seedId)
+                    if (herbId != null) {
+                        val herb = HerbDatabase.getHerbById(herbId)
+                        if (herb != null) {
+                            val data = currentGameData
+                            val herbGrowthBonus = if (data.sectPolicies.herbCultivation) GameConfig.PolicyConfig.HERB_CULTIVATION_BASE_EFFECT else 0.0
+                            val actualYield = HerbGardenSystem.calculateIncreasedYield(slot.expectedYield, herbGrowthBonus)
+                            val herbItem = Herb(
+                                name = herb.name,
+                                rarity = herb.rarity,
+                                description = herb.description,
+                                category = herb.category,
+                                quantity = actualYield
+                            )
+                            inventorySystem.addHerb(herbItem)
+                            eventService.addGameEvent("${herb.name}已成熟，收获${actualYield}个，已放入宗门仓库", EventType.INFO)
+                        }
+                    } else {
+                        eventService.addGameEvent("草药成熟，但无法识别种子[$seedId]对应的草药", EventType.WARNING)
+                    }
+                } else {
+                    eventService.addGameEvent("${BuildingNames.getDisplayName(slot.buildingId)}工作已完成，但无种子信息", EventType.WARNING)
                 }
             }
             else -> {
-                addEvent("${BuildingNames.getDisplayName(slot.buildingId)}工作已完成，产出类型暂不支持", EventType.INFO)
+                eventService.addGameEvent("${BuildingNames.getDisplayName(slot.buildingId)}工作已完成，产出类型暂不支持", EventType.INFO)
             }
         }
     }
@@ -586,8 +648,6 @@ class BuildingService constructor(
         startYear = startYear,
         startMonth = startMonth,
         growTime = duration,
-        expectedYield = expectedYield,
-        harvestAmount = harvestAmount,
-        harvestHerbId = outputItemId ?: ""
+        expectedYield = expectedYield
     )
 }

@@ -86,7 +86,7 @@ data class DiscipleAggregate(
     val talentIds: List<String> get() = extended?.talentIds ?: emptyList()
     val manualMasteries: Map<String, Int> get() = extended?.manualMasteries ?: emptyMap()
     val statusData: Map<String, String> get() = extended?.statusData ?: emptyMap()
-    val cultivationSpeedBonus: Double get() = extended?.cultivationSpeedBonus ?: 1.0
+    val cultivationSpeedBonus: Double get() = extended?.cultivationSpeedBonus ?: 0.0
     val cultivationSpeedDuration: Int get() = extended?.cultivationSpeedDuration ?: 0
     val partnerId: String? get() = extended?.partnerId
     val partnerSectId: String? get() = extended?.partnerSectId

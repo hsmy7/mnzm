@@ -6,10 +6,15 @@ object InputValidator {
     const val MAX_SECT_NAME_LENGTH = 20
     const val MIN_DISCIPLE_NAME_LENGTH = 2
     const val MAX_DISCIPLE_NAME_LENGTH = 10
+    const val MAX_REDEEM_CODE_LENGTH = 64
+    const val MIN_SAVE_NAME_LENGTH = 1
+    const val MAX_SAVE_NAME_LENGTH = 30
     
     private val INVALID_CHARS = Regex("[<>\"'&\\\\/]")
     private val VALID_SECT_NAME_PATTERN = Regex("^[\\u4e00-\\u9fa5a-zA-Z0-9]+$")
     private val VALID_DISCIPLE_NAME_PATTERN = Regex("^[\\u4e00-\\u9fa5a-zA-Z]+$")
+    private val VALID_REDEEM_CODE_PATTERN = Regex("^[A-Za-z0-9\\-_]+$")
+    private val VALID_SAVE_NAME_PATTERN = Regex("^[\\u4e00-\\u9fa5a-zA-Z0-9\\s\\-_]+$")
     
     fun validateSectName(name: String): ValidationResult {
         val trimmed = name.trim()
@@ -60,6 +65,50 @@ object InputValidator {
             return ValidationResult.Error("弟子名称只能包含中文和英文")
         }
         
+        return ValidationResult.Success(trimmed)
+    }
+
+    fun validateRedeemCode(code: String): ValidationResult {
+        val trimmed = code.trim()
+
+        if (trimmed.isEmpty()) {
+            return ValidationResult.Error("兑换码不能为空")
+        }
+
+        if (trimmed.length > MAX_REDEEM_CODE_LENGTH) {
+            return ValidationResult.Error("兑换码过长")
+        }
+
+        if (!VALID_REDEEM_CODE_PATTERN.matches(trimmed)) {
+            return ValidationResult.Error("兑换码包含非法字符")
+        }
+
+        return ValidationResult.Success(trimmed)
+    }
+
+    fun validateSaveName(name: String): ValidationResult {
+        val trimmed = name.trim()
+
+        if (trimmed.isEmpty()) {
+            return ValidationResult.Error("存档名称不能为空")
+        }
+
+        if (trimmed.length < MIN_SAVE_NAME_LENGTH) {
+            return ValidationResult.Error("存档名称至少需要${MIN_SAVE_NAME_LENGTH}个字符")
+        }
+
+        if (trimmed.length > MAX_SAVE_NAME_LENGTH) {
+            return ValidationResult.Error("存档名称过长")
+        }
+
+        if (INVALID_CHARS.containsMatchIn(trimmed)) {
+            return ValidationResult.Error("存档名称包含非法字符")
+        }
+
+        if (!VALID_SAVE_NAME_PATTERN.matches(trimmed)) {
+            return ValidationResult.Error("存档名称只能包含中文、英文、数字和常见符号")
+        }
+
         return ValidationResult.Success(trimmed)
     }
     

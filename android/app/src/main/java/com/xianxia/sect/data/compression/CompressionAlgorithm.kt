@@ -5,7 +5,7 @@ package com.xianxia.sect.data.compression
  *
  * 定义支持的压缩算法类型，用于 DataCompressor 的配置。
  *
- * 算法选择指南（v1.6.00 新增 ZSTD）：
+ * 算法选择指南：
  * - LZ4: 速度优先（~500MB/s 压缩，2-3x 比率），适合 auto-save、实时缓存
  * - GZIP: 兼容性优先（legacy 格式），适合跨平台数据交换
  * - ZSTD: 压缩比优先（~100MB/s，3-5x 比率），适合 cloud upload / full save
@@ -32,7 +32,7 @@ enum class CompressionAlgorithm {
     GZIP,
 
     /**
-     * Zstandard (ZSTD) 压缩算法 （v1.6.00 新增）
+     * Zstandard (ZSTD) 压缩算法
      *
      * - 优点：压缩率极高，解压速度快（接近 LZ4）
      * - 缺点：压缩速度中等，Android 不原生支持（需 JNI 库）

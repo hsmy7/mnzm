@@ -75,18 +75,15 @@ object GameRandom {
          */
         fun nextInt(until: Int): Int {
             require(until > 0) { "until must be positive" }
-            // Lemire's bounded random: fast, unbiased for small ranges
-            val r = (nextLong() ushr 33).toInt()
-            val m = r * until.toLong()
-            val l = m and Int.MAX_VALUE.toLong()
-            if (l < until.toLong()) {
-                val t = (-until) % until
-                var remaining = t.toInt()
-                if (remaining < 0) remaining += until
-                while (l < remaining.toLong()) {
-                    val newR = (nextLong() ushr 33).toInt()
-                    val newM = newR * until.toLong()
-                    if ((newM and Int.MAX_VALUE.toLong()) >= until.toLong()) break
+            var r = nextInt()
+            var m = (r.toLong() and 0xFFFFFFFFL) * until
+            var l = m and 0xFFFFFFFFL
+            if (l < until) {
+                val threshold = (1L shl 32) % until
+                while (l < threshold) {
+                    r = nextInt()
+                    m = (r.toLong() and 0xFFFFFFFFL) * until
+                    l = m and 0xFFFFFFFFL
                 }
             }
             return (m ushr 32).toInt()

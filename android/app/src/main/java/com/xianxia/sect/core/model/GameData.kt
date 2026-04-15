@@ -81,6 +81,9 @@ data class GameData(
     // 世界地图宗门
     var worldMapSects: List<WorldSect> = emptyList(),
 
+    // 宗门详情（重型交互数据，按需访问）
+    var sectDetails: Map<String, SectDetail> = emptyMap(),
+
     @kotlinx.serialization.Transient
     @androidx.room.Ignore
     var aiSectDisciples: Map<String, List<Disciple>> = emptyMap(),
@@ -169,7 +172,10 @@ data class GameData(
 
     // 外门大比系统
     var pendingCompetitionResults: List<CompetitionRankResult> = emptyList(),
-    var lastCompetitionYear: Int = 0
+    var lastCompetitionYear: Int = 0,
+
+    // 秘境智能战斗：开启后遭遇妖兽时根据队伍状态决定是否战斗
+    var smartBattleEnabled: Boolean = false
 ) {
     val displayTime: String get() = "第${gameYear}年${gameMonth}月"
 
@@ -241,6 +247,9 @@ data class GameData(
     /**
      * 从子状态创建副本，用于批量更新某个领域的多个字段。
      * 示例: gd.withWorldMap(gd.worldMap.copy(worldMapSects = newSects))
+     *
+     * 注意: WorldMapState 不包含 sectDetails，调用此方法不会覆盖 sectDetails。
+     * 如需同步更新 sectDetails（如 scoutInfo），请直接使用 copy()。
      */
     fun withWorldMap(state: WorldMapState): GameData = this.copy(
         worldMapSects = state.worldMapSects,
@@ -372,7 +381,9 @@ data class PlantSlotData(
     val startMonth: Int = 0,
     val growTime: Int = 0,
     val expectedYield: Int = 0,
+    @Deprecated("Use expectedYield instead. Kept for serialization compatibility.")
     val harvestAmount: Int = 0,
+    @Deprecated("Use seedId to derive herbId via HerbDatabase. Kept for serialization compatibility.")
     val harvestHerbId: String = ""
 ) {
     val isGrowing: Boolean get() = status == "growing"
@@ -470,7 +481,7 @@ data class WorldMapRenderData(
     val aiBattleTeams: List<AIBattleTeam> = emptyList()
 )
 
-// 世界宗门
+// 世界宗门（轻量核心数据，用于地图渲染和游戏逻辑）
 @Serializable
 data class WorldSect(
     val id: String = "",
@@ -491,6 +502,19 @@ data class WorldSect(
     val isOccupied: Boolean = false,
     val occupierTeamId: String = "",
     val occupierTeamName: String = "",
+    val isRighteous: Boolean = true,
+    val isPlayerOccupied: Boolean = false,
+    val occupierBattleTeamId: String = "",
+    val isUnderAttack: Boolean = false,
+    val attackerSectId: String = "",
+    val occupierSectId: String = "",
+    val allianceId: String = "",
+    val allianceStartYear: Int = 0
+)
+
+@Serializable
+data class SectDetail(
+    val sectId: String = "",
     val mineSlots: List<MineSlot> = emptyList(),
     val occupationTime: Long = 0,
     val isOwned: Boolean = false,
@@ -500,14 +524,6 @@ data class WorldSect(
     val tradeItems: List<MerchantItem> = emptyList(),
     val tradeLastRefreshYear: Int = 0,
     val lastGiftYear: Int = 0,
-    val allianceId: String = "",
-    val allianceStartYear: Int = 0,
-    val isRighteous: Boolean = true,
-    val isPlayerOccupied: Boolean = false,
-    val occupierBattleTeamId: String = "",
-    val isUnderAttack: Boolean = false,
-    val attackerSectId: String = "",
-    val occupierSectId: String = "",
     val warehouse: SectWarehouse = SectWarehouse(),
     val giftPreference: GiftPreferenceType = GiftPreferenceType.NONE
 )

@@ -22,9 +22,8 @@ class DiscipleViewModel @Inject constructor(
     val gameData: StateFlow<GameData> = gameEngine.gameData
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), gameEngine.gameData.value)
     
-    val disciples: StateFlow<List<DiscipleAggregate>> = gameEngine.disciples
-        .map { discipleList -> discipleList.map { it.toAggregate() } }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val disciples: StateFlow<List<DiscipleAggregate>> = gameEngine.discipleAggregates
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()

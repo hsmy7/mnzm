@@ -3,16 +3,11 @@ package com.xianxia.sect.core.util
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import java.util.concurrent.locks.ReentrantLock
-import kotlin.concurrent.withLock
 
 object StateFlowListUtils {
-    
+
     private val mutex = Mutex()
-    private val syncLock = ReentrantLock()
-    
-    val globalLock: ReentrantLock get() = syncLock
-    
+
     suspend fun <T> addItemSuspend(
         flow: MutableStateFlow<List<T>>,
         item: T
@@ -21,7 +16,7 @@ object StateFlowListUtils {
             flow.value = flow.value + item
         }
     }
-    
+
     suspend fun <T> addAllSuspend(
         flow: MutableStateFlow<List<T>>,
         items: List<T>
@@ -30,7 +25,7 @@ object StateFlowListUtils {
             flow.value = flow.value + items
         }
     }
-    
+
     suspend fun <T> removeItemSuspend(
         flow: MutableStateFlow<List<T>>,
         predicate: (T) -> Boolean,
@@ -50,7 +45,7 @@ object StateFlowListUtils {
             removed > 0
         }
     }
-    
+
     suspend fun <T> removeItemByIdSuspend(
         flow: MutableStateFlow<List<T>>,
         id: String,
@@ -59,7 +54,7 @@ object StateFlowListUtils {
     ): Boolean {
         return removeItemSuspend(flow, { getId(it) == id }, quantity)
     }
-    
+
     suspend fun <T> removeWhereSuspend(
         flow: MutableStateFlow<List<T>>,
         predicate: (T) -> Boolean
@@ -70,7 +65,7 @@ object StateFlowListUtils {
             initialSize - flow.value.size
         }
     }
-    
+
     suspend fun <T> updateItemSuspend(
         flow: MutableStateFlow<List<T>>,
         predicate: (T) -> Boolean,
@@ -78,7 +73,7 @@ object StateFlowListUtils {
     ): Boolean {
         return mutex.withLock {
             var found = false
-            flow.value = flow.value.map { 
+            flow.value = flow.value.map {
                 if (predicate(it)) {
                     found = true
                     transform(it)
@@ -87,7 +82,7 @@ object StateFlowListUtils {
             found
         }
     }
-    
+
     suspend fun <T> updateItemByIdSuspend(
         flow: MutableStateFlow<List<T>>,
         id: String,
@@ -96,7 +91,7 @@ object StateFlowListUtils {
     ): Boolean {
         return updateItemSuspend(flow, { getId(it) == id }, transform)
     }
-    
+
     suspend fun <T> clearListSuspend(
         flow: MutableStateFlow<List<T>>
     ) {
@@ -104,7 +99,7 @@ object StateFlowListUtils {
             flow.value = emptyList()
         }
     }
-    
+
     suspend fun <T> setListSuspend(
         flow: MutableStateFlow<List<T>>,
         items: List<T>
@@ -113,7 +108,7 @@ object StateFlowListUtils {
             flow.value = items
         }
     }
-    
+
     suspend fun <T> withLockSuspend(
         flow: MutableStateFlow<List<T>>,
         block: (MutableStateFlow<List<T>>) -> Unit
@@ -122,7 +117,7 @@ object StateFlowListUtils {
             block(flow)
         }
     }
-    
+
     suspend fun <T> atomicUpdate(
         flow: MutableStateFlow<List<T>>,
         transform: (List<T>) -> List<T>
@@ -133,7 +128,7 @@ object StateFlowListUtils {
             newValue
         }
     }
-    
+
     suspend fun <T, R> atomicRead(
         flow: MutableStateFlow<List<T>>,
         block: (List<T>) -> R
@@ -142,31 +137,31 @@ object StateFlowListUtils {
             block(flow.value)
         }
     }
-    
-    fun <T> addItem(
+
+    suspend fun <T> addItem(
         flow: MutableStateFlow<List<T>>,
         item: T
     ) {
-        syncLock.withLock {
+        mutex.withLock {
             flow.value = flow.value + item
         }
     }
-    
-    fun <T> addAll(
+
+    suspend fun <T> addAll(
         flow: MutableStateFlow<List<T>>,
         items: List<T>
     ) {
-        syncLock.withLock {
+        mutex.withLock {
             flow.value = flow.value + items
         }
     }
-    
-    fun <T> removeItem(
+
+    suspend fun <T> removeItem(
         flow: MutableStateFlow<List<T>>,
         predicate: (T) -> Boolean,
         quantity: Int = 1
     ): Boolean {
-        return syncLock.withLock {
+        return mutex.withLock {
             var removed = 0
             val newList = flow.value.filterNot { item ->
                 if (predicate(item) && removed < quantity) {
@@ -180,8 +175,8 @@ object StateFlowListUtils {
             removed > 0
         }
     }
-    
-    fun <T> removeItemById(
+
+    suspend fun <T> removeItemById(
         flow: MutableStateFlow<List<T>>,
         id: String,
         getId: (T) -> String,
@@ -189,26 +184,26 @@ object StateFlowListUtils {
     ): Boolean {
         return removeItem(flow, { getId(it) == id }, quantity)
     }
-    
-    fun <T> removeWhere(
+
+    suspend fun <T> removeWhere(
         flow: MutableStateFlow<List<T>>,
         predicate: (T) -> Boolean
     ): Int {
-        return syncLock.withLock {
+        return mutex.withLock {
             val initialSize = flow.value.size
             flow.value = flow.value.filterNot(predicate)
             initialSize - flow.value.size
         }
     }
-    
-    fun <T> updateItem(
+
+    suspend fun <T> updateItem(
         flow: MutableStateFlow<List<T>>,
         predicate: (T) -> Boolean,
         transform: (T) -> T
     ): Boolean {
-        return syncLock.withLock {
+        return mutex.withLock {
             var found = false
-            flow.value = flow.value.map { 
+            flow.value = flow.value.map {
                 if (predicate(it)) {
                     found = true
                     transform(it)
@@ -217,8 +212,8 @@ object StateFlowListUtils {
             found
         }
     }
-    
-    fun <T> updateItemById(
+
+    suspend fun <T> updateItemById(
         flow: MutableStateFlow<List<T>>,
         id: String,
         getId: (T) -> String,
@@ -226,42 +221,42 @@ object StateFlowListUtils {
     ): Boolean {
         return updateItem(flow, { getId(it) == id }, transform)
     }
-    
-    fun <T> findItem(
+
+    suspend fun <T> findItem(
         flow: MutableStateFlow<List<T>>,
         predicate: (T) -> Boolean
-    ): T? = syncLock.withLock { flow.value.find(predicate) }
-    
-    fun <T> findItemById(
+    ): T? = mutex.withLock { flow.value.find(predicate) }
+
+    suspend fun <T> findItemById(
         flow: MutableStateFlow<List<T>>,
         id: String,
         getId: (T) -> String
-    ): T? = syncLock.withLock { flow.value.find { getId(it) == id } }
-    
-    fun <T> hasItem(
+    ): T? = mutex.withLock { flow.value.find { getId(it) == id } }
+
+    suspend fun <T> hasItem(
         flow: MutableStateFlow<List<T>>,
         predicate: (T) -> Boolean
-    ): Boolean = syncLock.withLock { flow.value.any(predicate) }
-    
-    fun <T> hasItemById(
+    ): Boolean = mutex.withLock { flow.value.any(predicate) }
+
+    suspend fun <T> hasItemById(
         flow: MutableStateFlow<List<T>>,
         id: String,
         getId: (T) -> String
-    ): Boolean = syncLock.withLock { flow.value.any { getId(it) == id } }
-    
-    fun <T> clearList(
+    ): Boolean = mutex.withLock { flow.value.any { getId(it) == id } }
+
+    suspend fun <T> clearList(
         flow: MutableStateFlow<List<T>>
     ) {
-        syncLock.withLock {
+        mutex.withLock {
             flow.value = emptyList()
         }
     }
-    
-    fun <T> setList(
+
+    suspend fun <T> setList(
         flow: MutableStateFlow<List<T>>,
         items: List<T>
     ) {
-        syncLock.withLock {
+        mutex.withLock {
             flow.value = items
         }
     }
@@ -277,9 +272,9 @@ interface StackableItem {
 }
 
 object StackableItemUtils {
-    
+
     private val stackableMutex = Mutex()
-    
+
     suspend fun <T> addStackableSuspend(
         flow: MutableStateFlow<List<T>>,
         item: T,
@@ -291,13 +286,13 @@ object StackableItemUtils {
         withQuantity: (T, Int) -> T
     ) where T : StackableItem {
         if (getQuantity(item) <= 0) return
-        
+
         stackableMutex.withLock {
             if (merge) {
                 val existingIndex = if (matchPredicate != null) {
                     flow.value.indexOfFirst { matchPredicate(it, item) }
                 } else {
-                    flow.value.indexOfFirst { 
+                    flow.value.indexOfFirst {
                         getName(it) == getName(item) && getRarity(it) == getRarity(item)
                     }
                 }
@@ -313,7 +308,7 @@ object StackableItemUtils {
             flow.value = flow.value + item
         }
     }
-    
+
     inline fun <T> addStackable(
         flow: MutableStateFlow<List<T>>,
         item: T,
@@ -325,12 +320,12 @@ object StackableItemUtils {
         crossinline withQuantity: (T, Int) -> T
     ) where T : StackableItem {
         if (getQuantity(item) <= 0) return
-        
+
         if (merge) {
             val existingIndex = if (matchPredicate != null) {
                 flow.value.indexOfFirst { matchPredicate(it, item) }
             } else {
-                flow.value.indexOfFirst { 
+                flow.value.indexOfFirst {
                     getName(it) == getName(item) && getRarity(it) == getRarity(item)
                 }
             }
@@ -345,7 +340,7 @@ object StackableItemUtils {
         }
         flow.value = flow.value + item
     }
-    
+
     inline fun <T> addStackableBatch(
         flow: MutableStateFlow<List<T>>,
         items: List<T>,
@@ -359,14 +354,14 @@ object StackableItemUtils {
         if (items.isEmpty()) return
         val validItems = items.filter { getQuantity(it) > 0 }
         if (validItems.isEmpty()) return
-        
+
         var currentList = flow.value
         for (item in validItems) {
             if (merge) {
                 val existingIndex = if (matchPredicate != null) {
                     currentList.indexOfFirst { matchPredicate(it, item) }
                 } else {
-                    currentList.indexOfFirst { 
+                    currentList.indexOfFirst {
                         getName(it) == getName(item) && getRarity(it) == getRarity(item)
                     }
                 }
@@ -385,7 +380,7 @@ object StackableItemUtils {
         }
         flow.value = currentList
     }
-    
+
     fun <T> removeStackable(
         flow: MutableStateFlow<List<T>>,
         id: String,
@@ -417,7 +412,7 @@ object StackableItemUtils {
         }
         return removed
     }
-    
+
     fun <T> removeStackableByName(
         flow: MutableStateFlow<List<T>>,
         name: String,
@@ -453,7 +448,7 @@ object StackableItemUtils {
         }
         return removed
     }
-    
+
     inline fun <T> hasStackable(
         flow: MutableStateFlow<List<T>>,
         name: String,
@@ -466,7 +461,7 @@ object StackableItemUtils {
         val item = flow.value.find { getName(it) == name && getRarity(it) == rarity } ?: return false
         return getQuantity(item) >= quantity
     }
-    
+
     inline fun <T> getStackableQuantity(
         flow: MutableStateFlow<List<T>>,
         id: String,

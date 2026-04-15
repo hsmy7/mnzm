@@ -45,7 +45,7 @@ fun UnifiedItemCard(
     val rarityColor = getRarityColor(data.rarity)
 
     Box(
-        modifier = modifier.size(56.dp),
+        modifier = modifier.wrapContentSize(Alignment.Center).requiredSize(56.dp),
         contentAlignment = Alignment.Center
     ) {
         Box(

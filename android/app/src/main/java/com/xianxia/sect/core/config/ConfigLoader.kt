@@ -1,7 +1,6 @@
 package com.xianxia.sect.core.config
 
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.GameConfig.BuildingConfig
 import com.xianxia.sect.core.GameConfig.BeastTypeConfig
 import com.xianxia.sect.core.GameConfig.DungeonConfig
 import com.xianxia.sect.core.GameConfig.RealmConfig
@@ -63,8 +62,6 @@ object ConfigLoader {
                 types = GameConfig.SpiritRoot.TYPES,
                 countWeights = GameConfig.SpiritRoot.COUNT_WEIGHTS
             ),
-            // 建筑配置
-            buildingConfigs = GameConfig.Buildings.CONFIGS,
             // 妖兽类型配置
             beastTypeConfigs = GameConfig.Beast.TYPES,
             // 地牢配置
@@ -126,10 +123,6 @@ data class GameConfigData(
     // 灵根配置
     val spiritRootConfigs: SpiritRootConfigData,
     
-    // 建筑配置映射 (id -> BuildingConfig)
-    val buildingConfigs: Map<String, BuildingConfig>,
-    
-    // 妖兽类型配置列表
     val beastTypeConfigs: List<BeastTypeConfig>,
     
     // 地牢配置映射 (id -> DungeonConfig)

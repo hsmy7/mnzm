@@ -14,12 +14,9 @@ enum class CacheEvictionPolicy(val description: String) {
 }
 
 /**
- * 旧版分级缓存配置（已废弃，保留向后兼容）
- *
- * @deprecated 使用 TieredMemoryCache.TieredCacheConfig 替代
+ * 分级缓存配置
  */
-@Deprecated("Use TieredMemoryCache.TieredCacheConfig instead")
-data class LegacyTieredConfig(
+data class TieredConfig(
     val hotDataMaxSize: Int = 100,          // 热数据最大条目数
     val warmDataMaxSize: Int = 500,         // 温数据最大条目数
     val coldDataMaxSize: Int = 1000,        // 冷数据最大条目数
@@ -51,7 +48,7 @@ data class MemoryPressureResponseConfig(
  * 所有修改会立即生效。
  */
 data class CacheConfig(
-    val memoryCacheSize: Long = 4 * 1024 * 1024,    // 4MB 默认内存缓存（删档游戏数据量有限）
+    val memoryCacheSize: Long = 4 * 1024 * 1024,    // 4MB 默认内存缓存
     val diskCacheSize: Long = 100 * 1024 * 1024,      // 100MB 默认磁盘缓存
     val writeBatchSize: Int = 100,                      // 批量写入大小
     val writeDelayMs: Long = 1000L,                     // 写入延迟（毫秒）
@@ -60,15 +57,15 @@ data class CacheConfig(
     val maxEntryCount: Int = 2000,                      // 最大缓存条目数
     val evictionPolicy: CacheEvictionPolicy = CacheEvictionPolicy.ADAPTIVE,  // 淘汰策略
     val cleanupIntervalMs: Long = 30_000L,              // 清理间隔（30秒）
-    val tieredConfig: LegacyTieredConfig = LegacyTieredConfig(),  // 分级缓存配置（旧版，保留兼容）
+    val tieredConfig: TieredConfig = TieredConfig(),  // 分级缓存配置
     val pressureResponseConfig: MemoryPressureResponseConfig = MemoryPressureResponseConfig()  // 内存压力响应配置
 ) {
     companion object {
         /**
-         * 默认配置（删档游戏优化版）
+         * 默认配置
          *
          * 调整说明：
-         * - 内存缓存：4MB（原 64MB → 4MB，删档游戏数据量有限）
+         * - 内存缓存：4MB（原 64MB → 4MB，数据量有限）
          * - 磁盘缓存：100MB（保持不变）
          */
         val DEFAULT = CacheConfig()
@@ -86,7 +83,7 @@ data class CacheConfig(
             maxEntryCount = 500,
             evictionPolicy = CacheEvictionPolicy.LRU,
             cleanupIntervalMs = 15_000L,           // 低配设备更频繁清理
-            tieredConfig = LegacyTieredConfig(
+            tieredConfig = TieredConfig(
                 hotDataMaxSize = 50,
                 warmDataMaxSize = 200,
                 coldDataMaxSize = 300,
@@ -128,7 +125,7 @@ data class CacheConfig(
             maxEntryCount = 3000,
             evictionPolicy = CacheEvictionPolicy.ADAPTIVE,
             cleanupIntervalMs = 30_000L,
-            tieredConfig = LegacyTieredConfig(
+            tieredConfig = TieredConfig(
                 hotDataMaxSize = 200,
                 warmDataMaxSize = 800,
                 coldDataMaxSize = 2000,
@@ -163,7 +160,7 @@ data class CacheConfig(
         var maxEntryCount: Int = config.maxEntryCount
         var evictionPolicy: CacheEvictionPolicy = config.evictionPolicy
         var cleanupIntervalMs: Long = config.cleanupIntervalMs
-        var tieredConfig: LegacyTieredConfig = config.tieredConfig
+        var tieredConfig: TieredConfig = config.tieredConfig
         var pressureResponseConfig: MemoryPressureResponseConfig = config.pressureResponseConfig
 
         fun build(): CacheConfig = CacheConfig(

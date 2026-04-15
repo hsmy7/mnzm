@@ -1,11 +1,8 @@
 package com.xianxia.sect.core.warehouse
 
 import com.xianxia.sect.core.model.WarehouseItem
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
+import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.concurrent.ConcurrentHashMap
@@ -19,6 +16,14 @@ object WarehouseCache {
     private const val MAX_CACHE_SIZE_LIMIT = 2000
     private const val CACHE_TTL = 5 * 60 * 1000L
     private const val CACHE_RATIO = 0.25f
+    
+    private lateinit var applicationScopeProvider: ApplicationScopeProvider
+    
+    fun initialize(provider: ApplicationScopeProvider) {
+        applicationScopeProvider = provider
+    }
+    
+    private val evictionScope get() = applicationScopeProvider.scope
     
     private val cacheLock = Any()
     
@@ -36,7 +41,6 @@ object WarehouseCache {
     private val missCount = AtomicLong(0)
     private val evictionCount = AtomicLong(0)
     
-    private val evictionScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var evictionJob: Job? = null
     private var isRunning = false
     
@@ -71,7 +75,6 @@ object WarehouseCache {
         isRunning = false
         evictionJob?.cancel()
         evictionJob = null
-        evictionScope.cancel()
     }
     
     fun getItem(itemId: String): List<WarehouseItem> {

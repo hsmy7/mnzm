@@ -44,7 +44,6 @@ data class ProductionTheme(
     val startProductionText: String = "开始炼制",
     val elderSelectionTitle: String,
     val recommendAttributeText: String,
-    val slotCount: Int,
     val getCoreAttributeValue: (DiscipleAggregate) -> Int,
     val getElderId: (ElderSlots) -> String?,
     val getDirectDisciples: (ElderSlots) -> List<DirectDiscipleSlot>,
@@ -69,7 +68,6 @@ val ALCHEMY_THEME = ProductionTheme(
     startProductionText = "确认炼制",
     elderSelectionTitle = "选择炼丹长老",
     recommendAttributeText = "炼丹",
-    slotCount = 3,
     getCoreAttributeValue = { it.pillRefining },
     getElderId = { it.alchemyElder },
     getDirectDisciples = { it.alchemyDisciples },
@@ -98,7 +96,6 @@ val FORGE_THEME = ProductionTheme(
     startProductionText = "确认锻造",
     elderSelectionTitle = "选择天工长老",
     recommendAttributeText = "炼器",
-    slotCount = 3,
     getCoreAttributeValue = { it.artifactRefining },
     getElderId = { it.forgeElder },
     getDirectDisciples = { it.forgeDisciples },
@@ -239,6 +236,7 @@ fun ProductionElderSection(
 fun ProductionDirectDiscipleSection(
     theme: ProductionTheme,
     directDisciples: List<DirectDiscipleSlot>,
+    slotCount: Int,
     onDirectDiscipleClick: (Int) -> Unit,
     onDirectDiscipleRemove: (Int) -> Unit
 ) {
@@ -252,7 +250,7 @@ fun ProductionDirectDiscipleSection(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
         ) {
-            (0 until theme.slotCount).forEach { index ->
+            (0 until slotCount).forEach { index ->
                 val disciple = directDisciples.getOrNull(index) ?: DirectDiscipleSlot(index = index)
                 ProductionDirectDiscipleSlotItem(
                     theme = theme,
@@ -320,8 +318,7 @@ fun ProductionSlotItem(
     isIdle: Boolean,
     remainingMonths: Int,
     index: Int,
-    onClick: () -> Unit,
-    onRemove: () -> Unit = {}
+    onClick: () -> Unit
 ) {
     val statusColor = if (isWorking) theme.workingStatusColor else GameColors.Border
 
@@ -350,17 +347,6 @@ fun ProductionSlotItem(
             } else {
                 Text(text = "+", fontSize = 24.sp, color = Color(0xFF999999))
             }
-        }
-        if (!isIdle) {
-            Spacer(modifier = Modifier.height(4.dp))
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(GameColors.PageBackground)
-                    .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
-                    .clickable { onRemove() }
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
-            ) { Text(text = "移除", fontSize = 12.sp, color = Color.Black) }
         }
     }
 }

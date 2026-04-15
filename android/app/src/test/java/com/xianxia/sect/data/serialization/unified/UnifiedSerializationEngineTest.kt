@@ -1,5 +1,6 @@
 package com.xianxia.sect.data.serialization.unified
 
+import com.xianxia.sect.data.compression.DataCompressor
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.protobuf.ProtoNumber
 import org.junit.Assert.*
@@ -16,15 +17,11 @@ data class TestProtoData(
 
 class UnifiedSerializationEngineTest {
 
-    private lateinit var compressionLayer: UnifiedCompressionLayer
-    private lateinit var integrityLayer: IntegrityLayer
     private lateinit var engine: UnifiedSerializationEngine
 
     @Before
     fun setUp() {
-        compressionLayer = UnifiedCompressionLayer()
-        integrityLayer = IntegrityLayer()
-        engine = UnifiedSerializationEngine(compressionLayer, integrityLayer)
+        engine = UnifiedSerializationEngine(DataCompressor())
     }
 
     private fun createTestContext(

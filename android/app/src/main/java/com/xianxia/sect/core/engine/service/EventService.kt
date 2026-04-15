@@ -1,70 +1,77 @@
 package com.xianxia.sect.core.engine.service
 
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.data.*
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.state.GameStateStore
+import com.xianxia.sect.di.ApplicationScopeProvider
+import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.engine.system.GameSystem
+import com.xianxia.sect.core.engine.system.SystemPriority
 import com.xianxia.sect.core.util.GameUtils
+import android.util.Log
 
 import java.util.UUID
+import javax.inject.Inject
+import javax.inject.Singleton
 import kotlin.random.Random
 
-/**
- * 事件服务 - 负责游戏事件和商人系统
- *
- * 职责域：
- * - 游戏事件生成和处理
- * - events StateFlow
- * - 商人刷新逻辑（MERCHANT_* 常量相关方法）
- * - 交易系统
- */
-class EventService constructor(
-    private val _gameData: MutableStateFlow<GameData>,
-    private val _events: MutableStateFlow<List<GameEvent>>,
-    private val addEvent: (String, EventType) -> Unit,
-    private val transactionMutex: Any
-) {
-    companion object {
-        private const val TAG = "EventService"
-        private const val MAX_EVENTS = 50
+@SystemPriority(order = 260)
+@Singleton
+class EventService @Inject constructor(
+    private val stateStore: GameStateStore,
+    private val applicationScopeProvider: ApplicationScopeProvider
+) : GameSystem {
+    override val systemName: String = "EventService"
+    private val scope get() = applicationScopeProvider.scope
+
+    override fun initialize() {
+        Log.d(TAG, "EventService initialized as GameSystem")
     }
 
-    // ==================== StateFlow 暴露 ====================
+    override fun release() {
+        Log.d(TAG, "EventService released")
+    }
 
-    /**
-     * Get events StateFlow
-     */
-    fun getEvents(): StateFlow<List<GameEvent>> = _events
+    override suspend fun clear() {
+        clearEvents()
+    }
+    companion object {
+        private const val TAG = "EventService"
+        private const val MAX_EVENTS = 100
+    }
 
-    // ==================== 事件管理 ====================
+    fun getEvents(): StateFlow<List<GameEvent>> = stateStore.events
 
-    /**
-     * Add new game event
-     */
     fun addGameEvent(message: String, type: EventType = EventType.INFO) {
-        val data = _gameData.value
+        val ts = stateStore.currentTransactionMutableState()
+        val data = if (ts != null) ts.gameData else stateStore.gameData.value
         val event = GameEvent(
             year = data.gameYear,
             month = data.gameMonth,
             message = message,
             type = type
         )
-        _events.value = listOf(event) + _events.value.take(MAX_EVENTS - 1)
+        if (ts != null) {
+            ts.events = listOf(event) + ts.events.take(MAX_EVENTS - 1)
+        } else {
+            scope.launch { stateStore.update { events = listOf(event) + events.take(MAX_EVENTS - 1) } }
+        }
     }
 
-    /**
-     * Clear all events
-     */
     fun clearEvents() {
-        _events.value = emptyList()
+        val ts = stateStore.currentTransactionMutableState()
+        if (ts != null) {
+            ts.events = emptyList()
+        } else {
+            scope.launch { stateStore.update { events = emptyList() } }
+        }
     }
 
-    /**
-     * Get recent events (last N)
-     */
     fun getRecentEvents(count: Int = 20): List<GameEvent> {
-        return _events.value.take(count)
+        return stateStore.events.value.take(count)
     }
 
     // ==================== 商人系统 ====================
@@ -247,25 +254,30 @@ class EventService constructor(
      * Get or refresh sect trade items
      */
     fun getOrRefreshSectTradeItems(sectId: String): List<MerchantItem> {
-        val data = _gameData.value
+        val data = stateStore.gameData.value
         val sect = data.worldMapSects.find { it.id == sectId } ?: return emptyList()
+        val sectDetail = data.sectDetails[sectId] ?: SectDetail(sectId = sectId)
 
         val currentYear = data.gameYear
-        val shouldRefresh = currentYear - sect.tradeLastRefreshYear >= 3 || sect.tradeItems.isEmpty()
+        val shouldRefresh = currentYear - sectDetail.tradeLastRefreshYear >= 3 || sectDetail.tradeItems.isEmpty()
 
         if (shouldRefresh) {
             val newItems = generateSectTradeItems(currentYear, sectId)
-            val updatedSects = data.worldMapSects.map {
-                if (it.id == sectId) it.copy(
-                    tradeItems = newItems,
-                    tradeLastRefreshYear = currentYear
-                ) else it
+            val updatedSectDetails = data.sectDetails.toMutableMap()
+            updatedSectDetails[sectId] = sectDetail.copy(
+                tradeItems = newItems,
+                tradeLastRefreshYear = currentYear
+            )
+            val ts = stateStore.currentTransactionMutableState()
+            if (ts != null) {
+                ts.gameData = ts.gameData.copy(sectDetails = updatedSectDetails)
+            } else {
+                scope.launch { stateStore.update { gameData = gameData.copy(sectDetails = updatedSectDetails) } }
             }
-            _gameData.value = data.copy(worldMapSects = updatedSects)
             return newItems
         }
 
-        return sect.tradeItems
+        return sectDetail.tradeItems
     }
 
     /**
@@ -282,38 +294,50 @@ class EventService constructor(
         onAddHerb: (Herb) -> Unit,
         onAddSeed: (Seed) -> Unit
     ) {
-        val data = _gameData.value
+        val data = stateStore.gameData.value
         val sect = data.worldMapSects.find { it.id == sectId } ?: return
-        val item = sect.tradeItems.find { it.id == itemId } ?: return
+        val sectDetail = data.sectDetails[sectId]
+        val tradeItems = sectDetail?.tradeItems ?: emptyList()
+        val item = tradeItems.find { it.id == itemId } ?: return
 
-        // Check relation and calculate price (would include diplomacy logic here)
         val actualQuantity = minOf(quantity, item.quantity)
         val totalPrice = item.price * actualQuantity
 
         if (data.spiritStones < totalPrice) {
-            addEvent("灵石不足，无法购买${item.name}", EventType.WARNING)
+            addGameEvent("灵石不足，无法购买${item.name}", EventType.WARNING)
             return
         }
 
-        // Update trade items
         val updatedTradeItems = if (item.quantity > actualQuantity) {
-            sect.tradeItems.map {
+            tradeItems.map {
                 if (it.id == itemId) it.copy(quantity = it.quantity - actualQuantity)
                 else it
             }
         } else {
-            sect.tradeItems.filter { it.id != itemId }
+            tradeItems.filter { it.id != itemId }
         }
 
-        val updatedSects = data.worldMapSects.map {
-            if (it.id == sectId) it.copy(tradeItems = updatedTradeItems) else it
+        val updatedSectDetails = data.sectDetails.toMutableMap()
+        if (sectDetail != null) {
+            updatedSectDetails[sectId] = sectDetail.copy(tradeItems = updatedTradeItems)
         }
 
-        // Deduct spirit stones
-        _gameData.value = data.copy(
-            spiritStones = data.spiritStones - totalPrice,
-            worldMapSects = updatedSects
-        )
+        val ts = stateStore.currentTransactionMutableState()
+        if (ts != null) {
+            ts.gameData = ts.gameData.copy(
+                spiritStones = ts.gameData.spiritStones - totalPrice,
+                sectDetails = updatedSectDetails
+            )
+        } else {
+            scope.launch {
+                stateStore.update {
+                    gameData = gameData.copy(
+                        spiritStones = gameData.spiritStones - totalPrice,
+                        sectDetails = updatedSectDetails
+                    )
+                }
+            }
+        }
 
         when (item.type) {
             "equipment" -> {
@@ -336,7 +360,7 @@ class EventService constructor(
             }
         }
 
-        addEvent("从${sect.name}购买了${item.name} x$actualQuantity", EventType.SUCCESS)
+        addGameEvent("从${sect.name}购买了${item.name} x$actualQuantity", EventType.SUCCESS)
     }
 
     // ==================== 辅助方法 ====================

@@ -40,7 +40,7 @@ fun MapCanvas(
             val normalX = -dy / distance
             val normalY = dx / distance
 
-            val randomOffset = ((pathData.fromId.hashCode() + pathData.toId.hashCode()) % 100 - 50) / 100f
+            val randomOffset = (((pathData.fromId.hashCode() + pathData.toId.hashCode()) and 0x7FFFFFFF) % 100 - 50) / 100f
             val curveStrength = distance * 0.2f * randomOffset
 
             val controlX = midX + normalX * curveStrength

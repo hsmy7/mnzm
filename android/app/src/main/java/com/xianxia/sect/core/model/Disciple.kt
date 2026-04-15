@@ -26,19 +26,18 @@ import kotlinx.serialization.Serializable
  * **技能属性** → `disciple.skills.intelligence`, `disciple.skills.comprehension` 等
  * **使用追踪** → `disciple.usage.monthlyUsedPillIds`, `disciple.usage.recruitedMonth` 等
  *
- * ## 委托属性（已标记 @Deprecated）
+ * ## 委托属性
  *
- * 以下快捷访问属性保留用于向后兼容，但建议新代码优先使用上述直接路径：
- * - `disciple.baseHp` → 请改用 `disciple.combat.baseHp`
- * - `disciple.pillHpBonus` → 请改用 `disciple.pillEffects.pillHpBonus`
- * - `disciple.weaponId` → 请改用 `disciple.equipment.weaponId`
- * - `disciple.intelligence` → 请改用 `disciple.skills.intelligence`
- * - （其余委托属性同理）
+ * 以下快捷访问属性用于简化访问，内部委托给子结构：
+ * - `disciple.baseHp` → `disciple.combat.baseHp`
+ * - `disciple.pillHpBonus` → `disciple.pillEffects.pillHpBonus`
+ * - `disciple.weaponId` → `disciple.equipment.weaponId`
+ * - `disciple.intelligence` → `disciple.skills.intelligence`
  *
  * ## 属性计算方法（已提取到 DiscipleStatCalculator）
  *
  * 复杂的业务计算逻辑已提取到 [DiscipleStatCalculator]，
- * 本类保留转发方法以维持 API 向后兼容：
+ * 本类保留转发方法：
  * - [getBaseStats] → 委托给 [DiscipleStatCalculator.getBaseStats]
  * - [getFinalStats] → 委托给 [DiscipleStatCalculator.getFinalStats]
  * - [getStatsWithEquipment] → 委托给 [DiscipleStatCalculator.getStatsWithEquipment]
@@ -59,10 +58,6 @@ import kotlinx.serialization.Serializable
         Index(value = ["loyalty"]),
         Index(value = ["age"])
     ]
-)
-@Deprecated(
-    message = "请使用 DiscipleAggregate 替代。此类为遗留单表实体，仅用于 Room 兼容。",
-    replaceWith = ReplaceWith("DiscipleAggregate", "com.xianxia.sect.core.model.DiscipleAggregate")
 )
 data class Disciple(
     @ColumnInfo(name = "id")
@@ -91,7 +86,7 @@ data class Disciple(
     var status: DiscipleStatus = DiscipleStatus.IDLE,
     var statusData: Map<String, String> = emptyMap(),
 
-    var cultivationSpeedBonus: Double = 1.0,
+    var cultivationSpeedBonus: Double = 0.0,
     var cultivationSpeedDuration: Int = 0,
 
     var discipleType: String = "outer",

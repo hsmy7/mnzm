@@ -245,7 +245,7 @@ class SaveFileHandler @Inject constructor(
      * 替代原有的空实现。
      */
     fun forceGcAndWait() {
-        memoryManager.forceGcAndWaitLegacy()
+        memoryManager.forceGcAndWait()
     }
     
     fun calculateTotalStorageBytes(): Long {

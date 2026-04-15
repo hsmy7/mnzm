@@ -70,6 +70,28 @@
             android:windowSoftInputMode="adjustResize"
             tools:ignore="LockedOrientationActivity,DiscouragedApi" />
 
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
+        <!-- 禁用 TapTap SDK 的 ContentProvider 自动初始化，确保在用户同意隐私政策后才初始化 SDK -->
+        <provider
+            android:name="com.taptap.sdk.kit.internal.TapTapKitInitProvider"
+            android:authorities="${applicationId}.TapTapKitInitProvider"
+            android:exported="false"
+            tools:node="remove" />
+        <provider
+            android:name="com.taptap.sdk.themis.lite.ThemisProvider"
+            android:authorities="${applicationId}.themisLite"
+            android:exported="false"
+            tools:node="remove" />
+
     </application>
 
 </manifest>

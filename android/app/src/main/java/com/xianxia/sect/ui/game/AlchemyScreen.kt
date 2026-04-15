@@ -25,6 +25,7 @@ import com.xianxia.sect.core.data.PillRecipeDatabase
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.theme.GameColors
+import com.xianxia.sect.ui.game.ProductionViewModel
 import java.util.Locale
 
 @Composable
@@ -35,6 +36,7 @@ fun AlchemyDialog(
     gameData: GameData?,
     disciples: List<DiscipleAggregate>,
     viewModel: GameViewModel,
+    productionViewModel: ProductionViewModel,
     colors: com.xianxia.sect.ui.theme.XianxiaColorScheme,
     onDismiss: () -> Unit
 ) {
@@ -78,14 +80,15 @@ fun AlchemyDialog(
                 theme = theme,
                 elder = alchemyElder,
                 onElderClick = { showElderSelection = true },
-                onElderRemove = { viewModel.removeElder("alchemy") }
+                onElderRemove = { productionViewModel.removeElder("alchemy") }
             )
 
             ProductionDirectDiscipleSection(
                 theme = theme,
                 directDisciples = alchemyDisciples,
+                slotCount = alchemySlots.size,
                 onDirectDiscipleClick = { index -> showDirectDiscipleSelection = index },
-                onDirectDiscipleRemove = { index -> viewModel.removeDirectDisciple("alchemy", index) }
+                onDirectDiscipleRemove = { index -> productionViewModel.removeDirectDisciple("alchemy", index) }
             )
 
             HorizontalDivider(
@@ -109,7 +112,7 @@ fun AlchemyDialog(
                     modifier = Modifier
                         .clip(RoundedCornerShape(4.dp))
                         .background(theme.reserveButtonBackgroundColor)
-                        .clickable { viewModel.autoAlchemyAllSlots() }
+                        .clickable { productionViewModel.autoAlchemyAllSlots() }
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
                     Text(
@@ -121,7 +124,7 @@ fun AlchemyDialog(
                 }
             }
 
-            val slotCount = theme.slotCount
+            val slotCount = alchemySlots.size
             (0 until slotCount).chunked(3).forEach { rowIndexes ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -146,8 +149,7 @@ fun AlchemyDialog(
                                     selectedSlotIndex = index
                                     showPillSelection = true
                                 }
-                            },
-                            onRemove = { viewModel.clearAlchemySlot(index) }
+                            }
                         )
                     }
                 }
@@ -162,6 +164,7 @@ fun AlchemyDialog(
                 herbs = herbs,
                 slotIndex = slotIdx,
                 viewModel = viewModel,
+                productionViewModel = productionViewModel,
                 onDismiss = {
                     showPillSelection = false
                     selectedSlotIndex = null
@@ -178,7 +181,7 @@ fun AlchemyDialog(
             elderSlots = elderSlots,
             onDismiss = { showElderSelection = false },
             onSelect = { discipleId ->
-                viewModel.assignElder("alchemy", discipleId)
+                productionViewModel.assignElder("alchemy", discipleId)
                 showElderSelection = false
             }
         )
@@ -191,7 +194,7 @@ fun AlchemyDialog(
             elderSlots = elderSlots,
             onDismiss = { showDirectDiscipleSelection = null },
             onSelect = { discipleId ->
-                viewModel.assignDirectDisciple("alchemy", slotIndex, discipleId)
+                productionViewModel.assignDirectDisciple("alchemy", slotIndex, discipleId)
                 showDirectDiscipleSelection = null
             }
         )
@@ -201,6 +204,7 @@ fun AlchemyDialog(
         AlchemyReserveDiscipleDialogWrapper(
             disciples = disciples,
             viewModel = viewModel,
+            productionViewModel = productionViewModel,
             onDismiss = { showReserveDiscipleDialog = false }
         )
     }
@@ -210,26 +214,27 @@ fun AlchemyDialog(
 private fun AlchemyReserveDiscipleDialogWrapper(
     disciples: List<DiscipleAggregate>,
     viewModel: GameViewModel,
+    productionViewModel: ProductionViewModel,
     onDismiss: () -> Unit
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
-    val reserveDisciples = viewModel.getAlchemyReserveDisciplesWithInfo()
+    val reserveDisciples = productionViewModel.getAlchemyReserveDisciplesWithInfo()
 
     ProductionReserveDiscipleDialog(
         theme = ALCHEMY_THEME,
         reserveDisciples = reserveDisciples,
         onDismiss = onDismiss,
         onAddClick = { showAddDialog = true },
-        onRemove = { viewModel.removeAlchemyReserveDisciple(it) }
+        onRemove = { productionViewModel.removeAlchemyReserveDisciple(it) }
     )
 
     if (showAddDialog) {
         ProductionAddReserveDiscipleDialog(
             theme = ALCHEMY_THEME,
-            availableDisciples = viewModel.getAvailableDisciplesForAlchemyReserve(),
+            availableDisciples = productionViewModel.getAvailableDisciplesForAlchemyReserve(),
             onDismiss = { showAddDialog = false },
             onConfirm = { selectedIds ->
-                viewModel.addAlchemyReserveDisciples(selectedIds)
+                productionViewModel.addAlchemyReserveDisciples(selectedIds)
                 showAddDialog = false
             }
         )
@@ -242,6 +247,7 @@ private fun PillSelectionDialog(
     herbs: List<Herb>,
     slotIndex: Int,
     viewModel: GameViewModel,
+    productionViewModel: ProductionViewModel,
     onDismiss: () -> Unit
 ) {
     var selectedRecipe by remember { mutableStateOf<PillRecipeDatabase.PillRecipe?>(null) }
@@ -297,7 +303,7 @@ private fun PillSelectionDialog(
 
                     val isSelected = selectedRecipe?.id == recipe.id
 
-                    Box(modifier = Modifier.fillMaxWidth().aspectRatio(1f)) {
+                    Box(modifier = Modifier.wrapContentSize(Alignment.Center).requiredSize(56.dp)) {
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
@@ -371,7 +377,7 @@ private fun PillSelectionDialog(
                 text = ALCHEMY_THEME.startProductionText,
                 onClick = {
                     selectedRecipe?.let { recipe ->
-                        viewModel.startAlchemy(slotIndex, recipe)
+                        productionViewModel.startAlchemy(slotIndex, recipe)
                         onDismiss()
                     }
                 },

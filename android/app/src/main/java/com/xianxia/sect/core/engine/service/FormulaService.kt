@@ -2,25 +2,35 @@
 
 package com.xianxia.sect.core.engine.service
 
-import kotlinx.coroutines.flow.MutableStateFlow
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.data.*
+import com.xianxia.sect.core.repository.ProductionSlotRepository
+import com.xianxia.sect.core.state.GameStateStore
+import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.engine.system.GameSystem
+import com.xianxia.sect.core.engine.system.SystemPriority
+import android.util.Log
 import com.xianxia.sect.core.util.BuildingNames
+import javax.inject.Inject
+import javax.inject.Singleton
 
-/**
- * 公式计算服务 - 负责游戏内各种数值计算
- *
- * 职责域：
- * - 成功率加成计算 (calculateSuccessRateBonus)
- * - 工作持续时间计算 (calculateWorkDurationWithAllDisciples)
- * - 长老和弟子加成计算 (calculateElderAndDisciplesBonus)
- * - 境界/天赋/功法/建筑相关加成计算
- */
-class FormulaService(
-    private val _gameData: MutableStateFlow<GameData>,
-    private val _disciples: MutableStateFlow<List<Disciple>>,
-    private val productionSlotRepository: com.xianxia.sect.core.repository.ProductionSlotRepository
-) {
+@SystemPriority(order = 960)
+@Singleton
+class FormulaService @Inject constructor(
+    private val stateStore: GameStateStore,
+    private val productionSlotRepository: ProductionSlotRepository
+) : GameSystem {
+    override val systemName: String = "FormulaService"
+
+    override fun initialize() {
+        Log.d(TAG, "FormulaService initialized as GameSystem")
+    }
+
+    override fun release() {
+        Log.d(TAG, "FormulaService released")
+    }
+
+    override suspend fun clear() {}
     companion object {
         private const val TAG = "FormulaService"
     }
@@ -134,7 +144,7 @@ class FormulaService(
      */
     fun calculateWorkDurationWithAllDisciples(baseDuration: Int, buildingId: String): Int {
         var totalSpeedBonus = 0.0
-        val data = _gameData.value
+        val data = stateStore.gameData.value
 
         when (buildingId) {
             "alchemy" -> {
@@ -186,10 +196,9 @@ class FormulaService(
         if (buildingId !in listOf("forge", "alchemy", "herbGarden")) return 0.0
 
         // Check if there is an elder assigned to this building type
-        val data = _gameData.value
+        val data = stateStore.gameData.value
         val elderSlots = data.elderSlots
 
-        // Find the elder disciple ID for this building type from elderSlots
         val elderDiscipleId = when (buildingId) {
             "forge" -> elderSlots.forgeElder
             "alchemy" -> elderSlots.alchemyElder
@@ -197,11 +206,9 @@ class FormulaService(
             else -> null
         }
 
-        // If no elder is assigned, return 0 bonus
         val resolvedElderDiscipleId = elderDiscipleId ?: return 0.0
 
-        // 获取长老弟子对象
-        val elderDisciple = _disciples.value.find { it.id == resolvedElderDiscipleId } ?: return 0.0
+        val elderDisciple = stateStore.disciples.value.find { it.id == resolvedElderDiscipleId } ?: return 0.0
 
         return when (buildingId) {
             "forge" -> {
@@ -232,7 +239,7 @@ class FormulaService(
      * @return 长老加成数据（包含速度、成功率和产量加成）
      */
     fun calculateElderAndDisciplesBonus(buildingType: String): ElderBonusData {
-        val data = _gameData.value
+        val data = stateStore.gameData.value
         val (elderId, discipleSlots) = when (buildingType) {
             "spiritMine" -> return ElderBonusData(0.0, 0.0, 0.0)
             "herbGarden" -> data.elderSlots.herbGardenElder to data.elderSlots.herbGardenDisciples
@@ -241,9 +248,9 @@ class FormulaService(
             else -> return ElderBonusData(0.0, 0.0, 0.0)
         }
 
-        val elder = elderId?.let { _disciples.value.find { d -> d.id == it } }
+        val elder = elderId?.let { stateStore.disciples.value.find { d -> d.id == it } }
         val disciples = discipleSlots.mapNotNull { slot ->
-            slot.discipleId?.let { id -> _disciples.value.find { d -> d.id == id } }
+            slot.discipleId?.let { id -> stateStore.disciples.value.find { d -> d.id == id } }
         }
 
         var yieldBonus = 0.0

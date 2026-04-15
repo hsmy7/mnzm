@@ -13,7 +13,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * 压缩使用场景枚举（v1.6.00 新增）
+ * 压缩使用场景枚举
  *
  * 用于 selectAlgorithm() 根据业务场景推荐最优压缩算法。
  */
@@ -70,7 +70,7 @@ class DataCompressor @Inject constructor(
             when (algorithm) {
                 CompressionAlgorithm.LZ4 -> compressLZ4(data)
                 CompressionAlgorithm.GZIP -> compressGzip(data)
-                CompressionAlgorithm.ZSTD -> compressZstd(data)  // v1.6.00 新增：带 fallback
+                CompressionAlgorithm.ZSTD -> compressZstd(data)
                 CompressionAlgorithm.NONE -> data
             }
         } catch (e: Exception) {
@@ -106,7 +106,7 @@ class DataCompressor @Inject constructor(
             when (compressedData.algorithm) {
                 CompressionAlgorithm.LZ4 -> decompressLZ4(compressedData.data, compressedData.originalSize)
                 CompressionAlgorithm.GZIP -> decompressGzip(compressedData.data)
-                CompressionAlgorithm.ZSTD -> decompressZstd(compressedData.data)  // v1.6.00 新增：带 fallback
+                CompressionAlgorithm.ZSTD -> decompressZstd(compressedData.data)
                 CompressionAlgorithm.NONE -> compressedData.data
             }
         } catch (e: Exception) {
@@ -124,7 +124,7 @@ class DataCompressor @Inject constructor(
             when (algorithm) {
                 CompressionAlgorithm.LZ4 -> decompressLZ4(data, originalSize)
                 CompressionAlgorithm.GZIP -> decompressGzip(data)
-                CompressionAlgorithm.ZSTD -> decompressZstd(data)  // v1.6.00 新增：带 fallback
+                CompressionAlgorithm.ZSTD -> decompressZstd(data)
                 CompressionAlgorithm.NONE -> data
             }
         } catch (e: Exception) {
@@ -185,7 +185,7 @@ class DataCompressor @Inject constructor(
     }
 
     /**
-     * 根据使用场景推荐最优压缩算法（v1.6.00 重构）。
+     * 根据使用场景推荐最优压缩算法。
      *
      * 算法选择策略：
      * - AUTO_SAVE: LZ4（速度优先，~500MB/s，适合高频自动存档）
@@ -220,7 +220,7 @@ class DataCompressor @Inject constructor(
         return selectAlgorithm(0, DataType.ARCHIVED, useCase)
     }
 
-    // ==================== ZSTD 压缩/解压实现（v1.6.00 新增，v2.0 重构为 wrapper 模式）====================
+    // ==================== ZSTD 压缩/解压实现（wrapper 模式）====================
 
     /**
      * ZSTD 反射调用封装器（编译期安全 wrapper）。

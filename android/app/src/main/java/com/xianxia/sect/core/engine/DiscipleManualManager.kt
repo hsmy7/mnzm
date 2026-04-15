@@ -3,7 +3,7 @@
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.data.TalentDatabase
+import com.xianxia.sect.core.engine.DiscipleStatCalculator
 import com.xianxia.sect.core.model.*
 
 object DiscipleManualManager {
@@ -73,9 +73,7 @@ object DiscipleManualManager {
     }
     
     private fun calculateMaxManualSlots(disciple: Disciple): Int {
-        val talentEffects = TalentDatabase.calculateTalentEffects(disciple.talentIds)
-        val manualSlotBonus = talentEffects["manualSlot"]?.toInt() ?: 0
-        return 6 + manualSlotBonus
+        return DiscipleStatCalculator.getMaxManualSlots(disciple)
     }
     
     private fun learnNewManual(
@@ -153,7 +151,7 @@ object DiscipleManualManager {
         )
         
         val learnedManual = highestBag.copy(isLearned = true, ownerId = disciple.id)
-        val replacedManual = lowestLearned.copy(isLearned = false, ownerId = null)
+        val replacedManual = lowestLearned.copy(isLearned = false, ownerId = disciple.id)
         
         val messagePrefix = if (instantMessage) "立即" else "自动"
         events.add("${disciple.name} ${messagePrefix}替换功法：${lowestLearned.name} → ${highestBag.name}")

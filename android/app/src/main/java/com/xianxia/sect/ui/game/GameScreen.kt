@@ -26,6 +26,7 @@ import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.state.DialogStateManager.DialogType
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.theme.getRealmColor
+import com.xianxia.sect.ui.game.WorldMapViewModel
 import com.xianxia.sect.ui.game.components.InventoryDialog
 import com.xianxia.sect.ui.components.discipleCardBorder
 import com.xianxia.sect.ui.components.DiscipleAttrText
@@ -35,6 +36,7 @@ import com.xianxia.sect.ui.components.DiscipleCardStyles
 @Composable
 fun GameScreen(
     viewModel: GameViewModel,
+    worldMapViewModel: WorldMapViewModel,
     onLogout: () -> Unit
 ) {
     val disciples by viewModel.disciples.collectAsState()
@@ -139,6 +141,7 @@ fun GameScreen(
             DiplomacyDialog(
                 gameData = gameData,
                 viewModel = viewModel,
+                worldMapViewModel = worldMapViewModel,
                 onDismiss = { viewModel.closeDiplomacyDialog() }
             )
         }

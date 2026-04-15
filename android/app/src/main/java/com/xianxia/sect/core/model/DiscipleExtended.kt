@@ -20,7 +20,7 @@ data class DiscipleExtended(
     var talentIds: List<String> = emptyList(),
     var manualMasteries: Map<String, Int> = emptyMap(),
     var statusData: Map<String, String> = emptyMap(),
-    var cultivationSpeedBonus: Double = 1.0,
+    var cultivationSpeedBonus: Double = 0.0,
     var cultivationSpeedDuration: Int = 0,
     var partnerId: String? = null,
     var partnerSectId: String? = null,

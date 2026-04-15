@@ -1,7 +1,7 @@
 package com.xianxia.sect.data
 
 import com.xianxia.sect.core.model.*
-import com.xianxia.sect.data.engine.UnifiedStorageEngine
+import com.xianxia.sect.data.engine.StorageEngine
 import com.xianxia.sect.data.model.SaveData
 import org.junit.Assert.*
 import org.junit.Test
@@ -239,7 +239,7 @@ class StorageConstantsTest {
             teams = emptyList(),
             events = emptyList()
         )
-        val size = UnifiedStorageEngine.estimateSaveSize(data)
+        val size = StorageEngine.estimateSaveSize(data)
         val expectedMin = StorageConstants.ESTIMATE_BASE_OVERHEAD
         assertTrue("Empty save should be at least base overhead ($expectedMin), got $size", size >= expectedMin)
     }
@@ -261,8 +261,8 @@ class StorageConstantsTest {
             events = emptyList()
         )
         val withDisciples = base.copy(disciples = List(10) { Disciple() })
-        val baseSize = UnifiedStorageEngine.estimateSaveSize(base)
-        val withSize = UnifiedStorageEngine.estimateSaveSize(withDisciples)
+        val baseSize = StorageEngine.estimateSaveSize(base)
+        val withSize = StorageEngine.estimateSaveSize(withDisciples)
         assertTrue("Save with 10 disciples ($withSize) should be larger than empty ($baseSize)", withSize > baseSize)
     }
 
@@ -283,8 +283,8 @@ class StorageConstantsTest {
             events = emptyList()
         )
         val data100 = data10.copy(disciples = List(100) { Disciple() })
-        val size10 = UnifiedStorageEngine.estimateSaveSize(data10)
-        val size100 = UnifiedStorageEngine.estimateSaveSize(data100)
+        val size10 = StorageEngine.estimateSaveSize(data10)
+        val size100 = StorageEngine.estimateSaveSize(data100)
         assertTrue("100 disciples ($size100) should be larger than 10 ($size10)", size100 > size10)
     }
 
@@ -304,7 +304,7 @@ class StorageConstantsTest {
             teams = emptyList(),
             events = emptyList()
         )
-        val size = UnifiedStorageEngine.estimateSaveSize(data)
+        val size = StorageEngine.estimateSaveSize(data)
         val baseOverhead = StorageConstants.ESTIMATE_BASE_OVERHEAD
         assertTrue("Multi-entity save should exceed base overhead ($baseOverhead), got $size", size > baseOverhead)
     }

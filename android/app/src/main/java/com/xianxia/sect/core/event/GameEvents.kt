@@ -1,8 +1,6 @@
 package com.xianxia.sect.core.event
 
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
+import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -148,9 +146,11 @@ interface DomainEventSubscriber {
 }
 
 @Singleton
-class EventBus @Inject constructor() {
-    
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+class EventBus @Inject constructor(
+    private val applicationScopeProvider: ApplicationScopeProvider
+) {
+
+    private val scope get() = applicationScopeProvider.scope
 
     private val eventChannel = Channel<DomainEvent>(capacity = 256)
     val events: Flow<DomainEvent> = eventChannel.receiveAsFlow()

@@ -2,33 +2,86 @@
 
 package com.xianxia.sect.core.engine.service
 
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.engine.BattleSystem
 import com.xianxia.sect.core.engine.CaveExplorationSystem
 import com.xianxia.sect.core.engine.BattleSystemResult
+import com.xianxia.sect.core.event.DeathEvent
+import com.xianxia.sect.core.event.EventBus
+import com.xianxia.sect.core.repository.ProductionSlotRepository
+import com.xianxia.sect.core.state.GameStateStore
+import com.xianxia.sect.di.ApplicationScopeProvider
+import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.engine.system.GameSystem
+import com.xianxia.sect.core.engine.system.SystemPriority
+import android.util.Log
+import javax.inject.Inject
+import javax.inject.Singleton
 
-/**
- * 战斗服务 - 负责战斗系统管理
- *
- * 职责域：
- * - 委托给 BattleSystem 执行战斗
- * - 战斗日志管理
- * - 战斗结果处理
- * - 战斗奖励计算
- */
-class CombatService constructor(
-    private val _gameData: MutableStateFlow<GameData>,
-    private val _disciples: MutableStateFlow<List<Disciple>>,
-    private val _equipment: MutableStateFlow<List<Equipment>>,
-    private val _manuals: MutableStateFlow<List<Manual>>,
-    private val _battleLogs: MutableStateFlow<List<BattleLog>>,
+@SystemPriority(order = 230)
+@Singleton
+class CombatService @Inject constructor(
+    private val stateStore: GameStateStore,
     private val battleSystem: BattleSystem,
-    private val productionSlotRepository: com.xianxia.sect.core.repository.ProductionSlotRepository,
-    private val addEvent: (String, EventType) -> Unit,
-    private val transactionMutex: Any
-) {
+    private val productionSlotRepository: ProductionSlotRepository,
+    private val eventService: EventService,
+    private val eventBus: EventBus,
+    private val applicationScopeProvider: ApplicationScopeProvider
+) : GameSystem {
+    override val systemName: String = "CombatService"
+    private val scope get() = applicationScopeProvider.scope
+
+    override fun initialize() {
+        Log.d(TAG, "CombatService initialized as GameSystem")
+    }
+
+    override fun release() {
+        Log.d(TAG, "CombatService released")
+    }
+
+    override suspend fun clear() {}
+    private var currentGameData: GameData
+        get() = stateStore.currentTransactionMutableState()?.gameData ?: stateStore.gameData.value
+        set(value) {
+            val ts = stateStore.currentTransactionMutableState()
+            if (ts != null) { ts.gameData = value; return }
+            scope.launch { stateStore.update { gameData = value } }
+        }
+
+    private var currentDisciples: List<Disciple>
+        get() = stateStore.currentTransactionMutableState()?.disciples ?: stateStore.disciples.value
+        set(value) {
+            val ts = stateStore.currentTransactionMutableState()
+            if (ts != null) { ts.disciples = value; return }
+            scope.launch { stateStore.update { disciples = value } }
+        }
+
+    private var currentEquipment: List<Equipment>
+        get() = stateStore.currentTransactionMutableState()?.equipment ?: stateStore.equipment.value
+        set(value) {
+            val ts = stateStore.currentTransactionMutableState()
+            if (ts != null) { ts.equipment = value; return }
+            scope.launch { stateStore.update { equipment = value } }
+        }
+
+    private var currentManuals: List<Manual>
+        get() = stateStore.currentTransactionMutableState()?.manuals ?: stateStore.manuals.value
+        set(value) {
+            val ts = stateStore.currentTransactionMutableState()
+            if (ts != null) { ts.manuals = value; return }
+            scope.launch { stateStore.update { manuals = value } }
+        }
+
+    private var currentBattleLogs: List<BattleLog>
+        get() = stateStore.currentTransactionMutableState()?.battleLogs ?: stateStore.battleLogs.value
+        set(value) {
+            val ts = stateStore.currentTransactionMutableState()
+            if (ts != null) { ts.battleLogs = value; return }
+            scope.launch { stateStore.update { battleLogs = value } }
+        }
+
     companion object {
         private const val TAG = "CombatService"
     }
@@ -38,7 +91,7 @@ class CombatService constructor(
     /**
      * Get battle logs StateFlow
      */
-    fun getBattleLogs(): StateFlow<List<BattleLog>> = _battleLogs
+    fun getBattleLogs(): StateFlow<List<BattleLog>> = stateStore.battleLogs
 
     // ==================== 战斗执行 ====================
 
@@ -49,10 +102,10 @@ class CombatService constructor(
         playerDisciples: List<Disciple>,
         aiTeam: AICaveTeam
     ): BattleSystemResult {
-        val data = _gameData.value
+        val data = currentGameData
 
-        val equipmentMap = _equipment.value.associateBy { it.id }
-        val manualMap = _manuals.value.associateBy { it.id }
+        val equipmentMap = currentEquipment.associateBy { it.id }
+        val manualMap = currentManuals.associateBy { it.id }
         val allProficiencies = data.manualProficiencies.mapValues { (_, list) ->
             list.associateBy { it.manualId }
         }
@@ -75,10 +128,10 @@ class CombatService constructor(
         playerDisciples: List<Disciple>,
         cave: CultivatorCave
     ): BattleSystemResult {
-        val data = _gameData.value
+        val data = currentGameData
 
-        val equipmentMap = _equipment.value.associateBy { it.id }
-        val manualMap = _manuals.value.associateBy { it.id }
+        val equipmentMap = currentEquipment.associateBy { it.id }
+        val manualMap = currentManuals.associateBy { it.id }
         val allProficiencies = data.manualProficiencies.mapValues { (_, list) ->
             list.associateBy { it.manualId }
         }
@@ -99,109 +152,134 @@ class CombatService constructor(
     /**
      * Process battle casualties - update disciples status and handle deaths
      */
-    fun processBattleCasualties(
+    suspend fun processBattleCasualties(
         deadMemberIds: Set<String>,
         survivorHpMap: Map<String, Int>,
-        survivorMpMap: Map<String, Int> = emptyMap()
+        survivorMpMap: Map<String, Int> = emptyMap(),
+        isOutsideSect: Boolean = true
     ) {
         deadMemberIds.forEach { memberId ->
-            val discipleIndex = _disciples.value.indexOfFirst { it.id == memberId }
+            val discipleIndex = currentDisciples.indexOfFirst { it.id == memberId }
             if (discipleIndex < 0) return@forEach
 
-            val disciple = _disciples.value[discipleIndex]
+            val disciple = currentDisciples[discipleIndex]
             val updatedDisciple = disciple.copy(isAlive = false, status = DiscipleStatus.IDLE)
-            _disciples.value = _disciples.value.toMutableList().also { it[discipleIndex] = updatedDisciple }
+            currentDisciples = currentDisciples.toMutableList().also { it[discipleIndex] = updatedDisciple }
 
-            addEvent("${disciple.name} 在战斗中阵亡", EventType.DANGER)
+            eventService.addGameEvent("${disciple.name} 在战斗中阵亡", EventType.DANGER)
+
+            if (isOutsideSect) {
+                eventBus.emitSync(DeathEvent(disciple.id, disciple.name, "战斗阵亡"))
+            } else {
+                disciple.weaponId?.let { eqId ->
+                    currentEquipment = currentEquipment.map { eq ->
+                        if (eq.id == eqId) eq.copy(isEquipped = false, ownerId = null, nurtureLevel = 0, nurtureProgress = 0.0) else eq
+                    }
+                }
+                disciple.armorId?.let { eqId ->
+                    currentEquipment = currentEquipment.map { eq ->
+                        if (eq.id == eqId) eq.copy(isEquipped = false, ownerId = null, nurtureLevel = 0, nurtureProgress = 0.0) else eq
+                    }
+                }
+                disciple.bootsId?.let { eqId ->
+                    currentEquipment = currentEquipment.map { eq ->
+                        if (eq.id == eqId) eq.copy(isEquipped = false, ownerId = null, nurtureLevel = 0, nurtureProgress = 0.0) else eq
+                    }
+                }
+                disciple.accessoryId?.let { eqId ->
+                    currentEquipment = currentEquipment.map { eq ->
+                        if (eq.id == eqId) eq.copy(isEquipped = false, ownerId = null, nurtureLevel = 0, nurtureProgress = 0.0) else eq
+                    }
+                }
+                disciple.manualIds.forEach { manualId ->
+                    currentManuals = currentManuals.map {
+                        if (it.id == manualId) it.copy(isLearned = false, ownerId = null) else it
+                    }
+                }
+            }
         }
 
         // 清理阵亡弟子的所有槽位
         if (deadMemberIds.isNotEmpty()) {
-            synchronized(transactionMutex) {
-                val data = _gameData.value
+            val data = currentGameData
 
-                // 清理执法堂槽位
-                val updatedElderSlots = data.elderSlots.let { slots ->
-                    var updated = slots
+            val updatedElderSlots = data.elderSlots.let { slots ->
+                var updated = slots
 
-                    if (updated.lawEnforcementElder in deadMemberIds) {
-                        updated = updated.copy(lawEnforcementElder = "")
+                if (updated.lawEnforcementElder in deadMemberIds) {
+                    updated = updated.copy(lawEnforcementElder = "")
+                }
+
+                updated = updated.copy(
+                    lawEnforcementDisciples = updated.lawEnforcementDisciples.mapNotNull { slot ->
+                        if (slot.discipleId in deadMemberIds) DirectDiscipleSlot(index = slot.index) else slot
+                    },
+                    lawEnforcementReserveDisciples = updated.lawEnforcementReserveDisciples.mapNotNull { slot ->
+                        if (slot.discipleId in deadMemberIds) DirectDiscipleSlot(index = slot.index) else slot
                     }
-
-                    updated = updated.copy(
-                        lawEnforcementDisciples = updated.lawEnforcementDisciples.mapNotNull { slot ->
-                            if (slot.discipleId in deadMemberIds) DirectDiscipleSlot(index = slot.index) else slot
-                        },
-                        lawEnforcementReserveDisciples = updated.lawEnforcementReserveDisciples.mapNotNull { slot ->
-                            if (slot.discipleId in deadMemberIds) DirectDiscipleSlot(index = slot.index) else slot
-                        }
-                    )
-
-                    if (updated.viceSectMaster in deadMemberIds) updated = updated.copy(viceSectMaster = "")
-                    if (updated.innerElder in deadMemberIds) updated = updated.copy(innerElder = "")
-                    if (updated.outerElder in deadMemberIds) updated = updated.copy(outerElder = "")
-                    if (updated.preachingElder in deadMemberIds) updated = updated.copy(preachingElder = "")
-                    if (updated.herbGardenElder in deadMemberIds) updated = updated.copy(herbGardenElder = "")
-                    if (updated.alchemyElder in deadMemberIds) updated = updated.copy(alchemyElder = "")
-                    if (updated.forgeElder in deadMemberIds) updated = updated.copy(forgeElder = "")
-                    if (updated.qingyunPreachingElder in deadMemberIds) updated = updated.copy(qingyunPreachingElder = "")
-
-                    // 清理传功、灵药园、炼丹、锻造等弟子槽位
-                    updated = updated.copy(
-                        preachingMasters = updated.preachingMasters.mapNotNull { slot ->
-                            if (slot.discipleId in deadMemberIds) DirectDiscipleSlot(index = slot.index) else slot
-                        },
-                        qingyunPreachingMasters = updated.qingyunPreachingMasters.mapNotNull { slot ->
-                            if (slot.discipleId in deadMemberIds) DirectDiscipleSlot(index = slot.index) else slot
-                        },
-                        herbGardenDisciples = updated.herbGardenDisciples.mapNotNull { slot ->
-                            if (slot.discipleId in deadMemberIds) DirectDiscipleSlot(index = slot.index) else slot
-                        },
-                        herbGardenReserveDisciples = updated.herbGardenReserveDisciples.mapNotNull { slot ->
-                            if (slot.discipleId in deadMemberIds) DirectDiscipleSlot(index = slot.index) else slot
-                        },
-                        alchemyDisciples = updated.alchemyDisciples.mapNotNull { slot ->
-                            if (slot.discipleId in deadMemberIds) DirectDiscipleSlot(index = slot.index) else slot
-                        },
-                        alchemyReserveDisciples = updated.alchemyReserveDisciples.mapNotNull { slot ->
-                            if (slot.discipleId in deadMemberIds) DirectDiscipleSlot(index = slot.index) else slot
-                        },
-                        forgeDisciples = updated.forgeDisciples.mapNotNull { slot ->
-                            if (slot.discipleId in deadMemberIds) DirectDiscipleSlot(index = slot.index) else slot
-                        },
-                        forgeReserveDisciples = updated.forgeReserveDisciples.mapNotNull { slot ->
-                            if (slot.discipleId in deadMemberIds) DirectDiscipleSlot(index = slot.index) else slot
-                        },
-                        spiritMineDeaconDisciples = updated.spiritMineDeaconDisciples.mapNotNull { slot ->
-                            if (slot.discipleId in deadMemberIds) DirectDiscipleSlot(index = slot.index) else slot
-                        }
-                    )
-
-                    updated
-                }
-
-                val updatedSpiritMineSlots = data.spiritMineSlots.map { slot ->
-                    if (slot.discipleId in deadMemberIds) slot.copy(discipleId = "", discipleName = "") else slot
-                }
-
-                val updatedLibrarySlots = data.librarySlots.map { slot ->
-                    if (slot.discipleId in deadMemberIds) slot.copy(discipleId = "", discipleName = "") else slot
-                }
-
-                _gameData.value = data.copy(
-                    elderSlots = updatedElderSlots,
-                    spiritMineSlots = updatedSpiritMineSlots,
-                    librarySlots = updatedLibrarySlots
                 )
 
-                kotlinx.coroutines.runBlocking {
-                    val forgeSlots = productionSlotRepository.getSlotsByBuildingId("forge")
-                    for (slot in forgeSlots) {
-                        if (slot.assignedDiscipleId in deadMemberIds && !slot.isWorking) {
-                            productionSlotRepository.updateSlotByBuildingId("forge", slot.slotIndex) { s ->
-                                s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
-                            }
-                        }
+                if (updated.viceSectMaster in deadMemberIds) updated = updated.copy(viceSectMaster = "")
+                if (updated.innerElder in deadMemberIds) updated = updated.copy(innerElder = "")
+                if (updated.outerElder in deadMemberIds) updated = updated.copy(outerElder = "")
+                if (updated.preachingElder in deadMemberIds) updated = updated.copy(preachingElder = "")
+                if (updated.herbGardenElder in deadMemberIds) updated = updated.copy(herbGardenElder = "")
+                if (updated.alchemyElder in deadMemberIds) updated = updated.copy(alchemyElder = "")
+                if (updated.forgeElder in deadMemberIds) updated = updated.copy(forgeElder = "")
+                if (updated.qingyunPreachingElder in deadMemberIds) updated = updated.copy(qingyunPreachingElder = "")
+
+                updated = updated.copy(
+                    preachingMasters = updated.preachingMasters.mapNotNull { slot ->
+                        if (slot.discipleId in deadMemberIds) DirectDiscipleSlot(index = slot.index) else slot
+                    },
+                    qingyunPreachingMasters = updated.qingyunPreachingMasters.mapNotNull { slot ->
+                        if (slot.discipleId in deadMemberIds) DirectDiscipleSlot(index = slot.index) else slot
+                    },
+                    herbGardenDisciples = updated.herbGardenDisciples.mapNotNull { slot ->
+                        if (slot.discipleId in deadMemberIds) DirectDiscipleSlot(index = slot.index) else slot
+                    },
+                    herbGardenReserveDisciples = updated.herbGardenReserveDisciples.mapNotNull { slot ->
+                        if (slot.discipleId in deadMemberIds) DirectDiscipleSlot(index = slot.index) else slot
+                    },
+                    alchemyDisciples = updated.alchemyDisciples.mapNotNull { slot ->
+                        if (slot.discipleId in deadMemberIds) DirectDiscipleSlot(index = slot.index) else slot
+                    },
+                    alchemyReserveDisciples = updated.alchemyReserveDisciples.mapNotNull { slot ->
+                        if (slot.discipleId in deadMemberIds) DirectDiscipleSlot(index = slot.index) else slot
+                    },
+                    forgeDisciples = updated.forgeDisciples.mapNotNull { slot ->
+                        if (slot.discipleId in deadMemberIds) DirectDiscipleSlot(index = slot.index) else slot
+                    },
+                    forgeReserveDisciples = updated.forgeReserveDisciples.mapNotNull { slot ->
+                        if (slot.discipleId in deadMemberIds) DirectDiscipleSlot(index = slot.index) else slot
+                    },
+                    spiritMineDeaconDisciples = updated.spiritMineDeaconDisciples.mapNotNull { slot ->
+                        if (slot.discipleId in deadMemberIds) DirectDiscipleSlot(index = slot.index) else slot
+                    }
+                )
+
+                updated
+            }
+
+            val updatedSpiritMineSlots = data.spiritMineSlots.map { slot ->
+                if (slot.discipleId in deadMemberIds) slot.copy(discipleId = "", discipleName = "") else slot
+            }
+
+            val updatedLibrarySlots = data.librarySlots.map { slot ->
+                if (slot.discipleId in deadMemberIds) slot.copy(discipleId = "", discipleName = "") else slot
+            }
+
+            currentGameData = data.copy(
+                elderSlots = updatedElderSlots,
+                spiritMineSlots = updatedSpiritMineSlots,
+                librarySlots = updatedLibrarySlots
+            )
+
+            val forgeSlots = productionSlotRepository.getSlotsByBuildingId("forge")
+            for (slot in forgeSlots) {
+                if (slot.assignedDiscipleId in deadMemberIds && !slot.isWorking) {
+                    productionSlotRepository.updateSlotByBuildingId("forge", slot.slotIndex) { s ->
+                        s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
                     }
                 }
             }
@@ -209,9 +287,9 @@ class CombatService constructor(
 
         // Update HP/MP for survivors
         survivorHpMap.forEach { (memberId, hp) ->
-            val discipleIndex = _disciples.value.indexOfFirst { it.id == memberId }
+            val discipleIndex = currentDisciples.indexOfFirst { it.id == memberId }
             if (discipleIndex >= 0 && !deadMemberIds.contains(memberId)) {
-                val disciple = _disciples.value[discipleIndex]
+                val disciple = currentDisciples[discipleIndex]
                 val mp = survivorMpMap[memberId] ?: disciple.currentMp
                 val updatedStatus = if (disciple.status == DiscipleStatus.IN_TEAM) DiscipleStatus.IDLE else disciple.status
                 val updatedDisciple = disciple.copyWith(
@@ -219,7 +297,7 @@ class CombatService constructor(
                     currentHp = hp,
                     currentMp = mp
                 )
-                _disciples.value = _disciples.value.toMutableList().also { it[discipleIndex] = updatedDisciple }
+                currentDisciples = currentDisciples.toMutableList().also { it[discipleIndex] = updatedDisciple }
             }
         }
     }
@@ -230,21 +308,21 @@ class CombatService constructor(
      * Get total battles fought
      */
     fun getTotalBattlesCount(): Int {
-        return _battleLogs.value.size
+        return currentBattleLogs.size
     }
 
     /**
      * Get recent battle results (last N)
      */
     fun getRecentBattles(count: Int = 10): List<BattleLog> {
-        return _battleLogs.value.take(count)
+        return currentBattleLogs.take(count)
     }
 
     /**
      * Get win rate for last N battles
      */
     fun getWinRate(lastNBattles: Int = 50): Double {
-        val recentBattles = _battleLogs.value.take(lastNBattles)
+        val recentBattles = currentBattleLogs.take(lastNBattles)
         if (recentBattles.isEmpty()) return 0.0
 
         val wins = recentBattles.count { it.result == BattleResult.WIN }

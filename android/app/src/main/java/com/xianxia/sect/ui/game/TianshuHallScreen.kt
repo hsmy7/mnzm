@@ -29,6 +29,7 @@ fun TianshuHallDialog(
     gameData: GameData?,
     disciples: List<DiscipleAggregate>,
     viewModel: GameViewModel,
+    productionViewModel: ProductionViewModel,
     onDismiss: () -> Unit
 ) {
     val elderSlots = gameData?.elderSlots
@@ -127,7 +128,7 @@ fun TianshuHallDialog(
                             .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
                             .clickable {
                                 if (viceSectMasterId != null) {
-                                    viewModel.removeViceSectMaster()
+                                    productionViewModel.removeViceSectMaster()
                                 }
                             }
                             .padding(horizontal = 12.dp, vertical = 4.dp)
@@ -204,7 +205,7 @@ fun TianshuHallDialog(
                                 .background(GameColors.PageBackground)
                                 .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
                                 .clickable {
-                                    viewModel.setViceSectMaster(disciple.id)
+                                    productionViewModel.setViceSectMaster(disciple.id)
                                     showViceSectMasterSelectDialog = false
                                 }
                                 .padding(12.dp)
@@ -275,6 +276,7 @@ fun TianshuHallDialog(
         SectPoliciesDialog(
             gameData = gameData,
             viewModel = viewModel,
+            productionViewModel = productionViewModel,
             onDismiss = { showSectPoliciesDialog = false }
         )
     }
@@ -333,6 +335,7 @@ private fun SectAffairsPlaceholderDialog(onDismiss: () -> Unit) {
 private fun SectPoliciesDialog(
     gameData: GameData?,
     viewModel: GameViewModel,
+    productionViewModel: ProductionViewModel,
     onDismiss: () -> Unit
 ) {
     AlertDialog(
@@ -354,7 +357,7 @@ private fun SectPoliciesDialog(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 val sectPolicies = gameData?.sectPolicies
-                val viceBonus = viewModel.getViceSectMasterIntelligenceBonus()
+                val viceBonus = productionViewModel.getViceSectMasterIntelligenceBonus()
                 val viceBonusText = if (viceBonus > 0) " (副宗主加成+${(viceBonus * 100).toInt()}%)" else ""
 
                 PolicyItem(
@@ -362,7 +365,7 @@ private fun SectPoliciesDialog(
                     effect = "灵石产出+20%$viceBonusText",
                     cost = "采矿弟子忠诚-1/月",
                     checked = sectPolicies?.spiritMineBoost ?: false,
-                    onCheckedChange = { viewModel.toggleSpiritMineBoost() }
+                    onCheckedChange = { productionViewModel.toggleSpiritMineBoost() }
                 )
 
                 PolicyItem(
@@ -370,7 +373,7 @@ private fun SectPoliciesDialog(
                     effect = "炼丹成功率+10%$viceBonusText",
                     cost = "每月消耗3000灵石",
                     checked = sectPolicies?.alchemyIncentive ?: false,
-                    onCheckedChange = { viewModel.toggleAlchemyIncentive() }
+                    onCheckedChange = { productionViewModel.toggleAlchemyIncentive() }
                 )
 
                 PolicyItem(
@@ -378,7 +381,7 @@ private fun SectPoliciesDialog(
                     effect = "锻造成功率+10%$viceBonusText",
                     cost = "每月消耗3000灵石",
                     checked = sectPolicies?.forgeIncentive ?: false,
-                    onCheckedChange = { viewModel.toggleForgeIncentive() }
+                    onCheckedChange = { productionViewModel.toggleForgeIncentive() }
                 )
 
                 PolicyItem(
@@ -386,7 +389,7 @@ private fun SectPoliciesDialog(
                     effect = "灵药生长速度+20%$viceBonusText",
                     cost = "每月消耗3000灵石",
                     checked = sectPolicies?.herbCultivation ?: false,
-                    onCheckedChange = { viewModel.toggleHerbCultivation() }
+                    onCheckedChange = { productionViewModel.toggleHerbCultivation() }
                 )
 
                 PolicyItem(
@@ -394,7 +397,7 @@ private fun SectPoliciesDialog(
                     effect = "化神境以下弟子修炼速度+15%$viceBonusText",
                     cost = "每月消耗4000灵石",
                     checked = sectPolicies?.cultivationSubsidy ?: false,
-                    onCheckedChange = { viewModel.toggleCultivationSubsidy() }
+                    onCheckedChange = { productionViewModel.toggleCultivationSubsidy() }
                 )
 
                 PolicyItem(
@@ -402,7 +405,7 @@ private fun SectPoliciesDialog(
                     effect = "功法修炼速度+20%$viceBonusText",
                     cost = "每月消耗4000灵石",
                     checked = sectPolicies?.manualResearch ?: false,
-                    onCheckedChange = { viewModel.toggleManualResearch() }
+                    onCheckedChange = { productionViewModel.toggleManualResearch() }
                 )
 
                 PolicyItem(
@@ -410,7 +413,7 @@ private fun SectPoliciesDialog(
                     effect = "执法堂抓捕率+20%$viceBonusText",
                     cost = "每月消耗3000灵石",
                     checked = sectPolicies?.enhancedSecurity ?: false,
-                    onCheckedChange = { viewModel.toggleEnhancedSecurity() }
+                    onCheckedChange = { productionViewModel.toggleEnhancedSecurity() }
                 )
             }
         },

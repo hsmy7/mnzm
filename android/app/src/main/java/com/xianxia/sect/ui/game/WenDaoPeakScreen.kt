@@ -12,16 +12,17 @@ fun WenDaoPeakDialog(
     disciples: List<DiscipleAggregate>,
     gameData: GameData?,
     viewModel: GameViewModel,
+    productionViewModel: ProductionViewModel,
     onDismiss: () -> Unit
 ) {
     var showOuterElderSelection by remember { mutableStateOf(false) }
     var showPreachingElderSelection by remember { mutableStateOf(false) }
     var showPreachingMasterSelection by remember { mutableStateOf<Int?>(null) }
 
-    val outerElder = viewModel.getOuterElder()
-    val preachingElder = viewModel.getPreachingElder()
-    val preachingMasters = viewModel.getPreachingMasters()
-    val outerDisciples = viewModel.getOuterDisciples()
+    val outerElder = productionViewModel.getOuterElder()
+    val preachingElder = productionViewModel.getPreachingElder()
+    val preachingMasters = productionViewModel.getPreachingMasters()
+    val outerDisciples = disciples.filter { it.isAlive && it.discipleType == "outer" }
 
     PeakDialog(
         title = "问道峰",
@@ -34,14 +35,14 @@ fun WenDaoPeakDialog(
                 elder = outerElder,
                 bonusInfo = ElderBonusInfoProvider.getOuterElderInfo(),
                 onClick = { showOuterElderSelection = true },
-                onRemove = { viewModel.removeElder("outerElder") }
+                onRemove = { productionViewModel.removeElder("outerElder") }
             ),
             slot2 = PeakElderSlotConfig(
                 title = "问道峰传道长老",
                 elder = preachingElder,
                 bonusInfo = ElderBonusInfoProvider.getPreachingElderInfo(),
                 onClick = { showPreachingElderSelection = true },
-                onRemove = { viewModel.removeElder("preachingElder") }
+                onRemove = { productionViewModel.removeElder("preachingElder") }
             )
         )
 
@@ -55,7 +56,7 @@ fun WenDaoPeakDialog(
             ),
             preachingMasters = preachingMasters,
             onMasterClick = { index -> showPreachingMasterSelection = index },
-            onMasterRemove = { index -> viewModel.removeDirectDisciple("preaching", index) }
+            onMasterRemove = { index -> productionViewModel.removeDirectDisciple("preaching", index) }
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -70,11 +71,11 @@ fun WenDaoPeakDialog(
     if (showOuterElderSelection) {
         PeakDiscipleSelectionDialog(
             title = "选择外门长老",
-            disciples = viewModel.getAvailableDisciplesForOuterElder(),
+            disciples = productionViewModel.getAvailableDisciplesForOuterElder(),
             currentDiscipleId = outerElder?.id,
             requirementText = "需要元婴及以上境界",
             onSelect = { disciple ->
-                viewModel.assignElder("outerElder", disciple.id)
+                productionViewModel.assignElder("outerElder", disciple.id)
                 showOuterElderSelection = false
             },
             onDismiss = { showOuterElderSelection = false }
@@ -84,11 +85,11 @@ fun WenDaoPeakDialog(
     if (showPreachingElderSelection) {
         PeakDiscipleSelectionDialog(
             title = "选择问道峰传道长老",
-            disciples = viewModel.getAvailableDisciplesForPreachingElder(),
+            disciples = productionViewModel.getAvailableDisciplesForPreachingElder(),
             currentDiscipleId = preachingElder?.id,
             requirementText = "需要元婴及以上境界",
             onSelect = { disciple ->
-                viewModel.assignElder("preachingElder", disciple.id)
+                productionViewModel.assignElder("preachingElder", disciple.id)
                 showPreachingElderSelection = false
             },
             onDismiss = { showPreachingElderSelection = false }
@@ -99,11 +100,11 @@ fun WenDaoPeakDialog(
         val currentMaster = preachingMasters.find { it.index == slotIndex }
         PeakDiscipleSelectionDialog(
             title = "选择问道峰传道师",
-            disciples = viewModel.getAvailableDisciplesForPreachingMaster(),
+            disciples = productionViewModel.getAvailableDisciplesForPreachingMaster(),
             currentDiscipleId = currentMaster?.discipleId,
             requirementText = "需要金丹及以上境界",
             onSelect = { disciple ->
-                viewModel.assignDirectDisciple("preaching", slotIndex, disciple.id)
+                productionViewModel.assignDirectDisciple("preaching", slotIndex, disciple.id)
                 showPreachingMasterSelection = null
             },
             onDismiss = { showPreachingMasterSelection = null }

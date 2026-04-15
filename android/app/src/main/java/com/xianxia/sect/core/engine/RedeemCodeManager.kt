@@ -419,18 +419,6 @@ object RedeemCodeManager {
 
         val upperCaseCode = code.uppercase(java.util.Locale.getDefault())
 
-        // ══════════════════════
-        // 幂等性检查：全局已使用兑换码记录
-        // ══════════════════════
-        val globalUsedRecord = usedCodesRecord[upperCaseCode]
-        if (globalUsedRecord != null) {
-            Log.w(TAG, "Code already used globally: $code, used at ${globalUsedRecord.usedAt}, by ${globalUsedRecord.deviceId}")
-            return RedeemResult(
-                success = false,
-                message = "该兑换码已被使用（${formatTimeAgo(globalUsedRecord.usedAt)}），无法重复使用"
-            )
-        }
-
         val redeemCode = getRedeemCode(code)
 
         if (redeemCode == null) {
@@ -754,6 +742,7 @@ object RedeemCodeManager {
             age = age,
             lifespan = (lifespan * (1.0 + lifespanBonus)).toInt(),
             gender = gender,
+            discipleType = "outer",
             talentIds = talentIds,
             combat = CombatAttributes(
                 hpVariance = hpVariance,

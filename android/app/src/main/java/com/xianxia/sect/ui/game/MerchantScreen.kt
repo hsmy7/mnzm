@@ -613,7 +613,13 @@ private fun <T : GameItem> filterAndSortItems(
     listedItemIds: Set<String>
 ): List<T> {
     return items
-        .filter { it.id !in listedItemIds }
+        .filter { item ->
+            item.id !in listedItemIds && when (item) {
+                is Equipment -> item.ownerId == null
+                is Manual -> item.ownerId == null
+                else -> true
+            }
+        }
         .sortedWith(compareByDescending<T> { it.rarity }.thenBy { it.name })
 }
 

@@ -84,12 +84,20 @@ object MissionSystem {
                 spiritStonesMax = 0
             )
             MissionTemplate.SUPPRESS_BEASTS -> MissionRewardConfig(
-                spiritStones = 100,
-                spiritStonesMax = 800,
-                materialCountMin = 1,
-                materialCountMax = 15,
+                spiritStones = 0,
+                spiritStonesMax = 0,
+                materialCountMin = 10,
+                materialCountMax = 20,
                 materialMinRarity = 1,
                 materialMaxRarity = 2
+            )
+            MissionTemplate.SUPPRESS_BEASTS_NORMAL -> MissionRewardConfig(
+                spiritStones = 0,
+                spiritStonesMax = 0,
+                materialCountMin = 10,
+                materialCountMax = 20,
+                materialMinRarity = 2,
+                materialMaxRarity = 3
             )
         }
     }

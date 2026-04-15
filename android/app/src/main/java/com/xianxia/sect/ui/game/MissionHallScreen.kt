@@ -698,11 +698,35 @@ private fun SelectionDiscipleCard(
 }
 
 private fun formatSpiritStoneReward(rewards: MissionRewardConfig): String {
-    return if (rewards.spiritStonesMax > 0) {
-        "${rewards.spiritStones}~${rewards.spiritStonesMax}灵石"
-    } else {
-        "${rewards.spiritStones}灵石"
+    val parts = mutableListOf<String>()
+    if (rewards.spiritStones > 0 || rewards.spiritStonesMax > 0) {
+        if (rewards.spiritStonesMax > 0) {
+            parts.add("${rewards.spiritStones}~${rewards.spiritStonesMax}灵石")
+        } else {
+            parts.add("${rewards.spiritStones}灵石")
+        }
     }
+    if (rewards.materialCountMin > 0) {
+        val rarityNames = (rewards.materialMinRarity..rewards.materialMaxRarity).map { r ->
+            when (r) {
+                1 -> "凡品"
+                2 -> "灵品"
+                3 -> "宝品"
+                4 -> "玄品"
+                5 -> "地品"
+                6 -> "天品"
+                else -> ""
+            }
+        }.filter { it.isNotEmpty() }
+        val rarityStr = rarityNames.joinToString("/")
+        val countStr = if (rewards.materialCountMin == rewards.materialCountMax) {
+            "${rewards.materialCountMin}"
+        } else {
+            "${rewards.materialCountMin}~${rewards.materialCountMax}"
+        }
+        parts.add("${countStr}个${rarityStr}妖兽材料")
+    }
+    return parts.joinToString("、")
 }
 
 private fun getDifficultyColor(difficulty: MissionDifficulty): Color {

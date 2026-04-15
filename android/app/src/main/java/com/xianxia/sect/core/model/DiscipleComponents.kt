@@ -87,9 +87,13 @@ data class EquipmentSet(
     var bootsId: String = "",
     var accessoryId: String = "",
 
+    // 武器孕育数据
     var weaponNurture: EquipmentNurtureData = EquipmentNurtureData("", 0),
+    // 护甲孕育数据
     var armorNurture: EquipmentNurtureData = EquipmentNurtureData("", 0),
+    // 鞋子孕育数据
     var bootsNurture: EquipmentNurtureData = EquipmentNurtureData("", 0),
+    // 饰品孕育数据
     var accessoryNurture: EquipmentNurtureData = EquipmentNurtureData("", 0),
 
     var storageBagItems: List<StorageBagItem> = emptyList(),

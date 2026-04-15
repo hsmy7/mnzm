@@ -18,8 +18,11 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
 import com.xianxia.sect.XianxiaApplication
 import com.xianxia.sect.core.CrashHandler
+import com.xianxia.sect.core.engine.GameEngineCore
 import com.xianxia.sect.core.util.VivoGCJITOptimizer
-import com.xianxia.sect.data.facade.RefactoredStorageFacade
+import com.xianxia.sect.data.crypto.SecureKeyManager
+import com.xianxia.sect.data.crypto.UiKeyRecoveryCallback
+import com.xianxia.sect.data.facade.StorageFacade
 import com.xianxia.sect.data.SessionManager
 import com.xianxia.sect.ui.MainActivity
 import com.xianxia.sect.ui.components.GameButton
@@ -38,15 +41,22 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
     }
 
     private val viewModel: GameViewModel by viewModels()
+    private val saveLoadViewModel: SaveLoadViewModel by viewModels()
+    private val productionViewModel: ProductionViewModel by viewModels()
+    private val worldMapViewModel: WorldMapViewModel by viewModels()
+    private val battleViewModel: BattleViewModel by viewModels()
 
     @Inject
     lateinit var sessionManager: SessionManager
 
     @Inject
-    lateinit var storageFacade: RefactoredStorageFacade
+    lateinit var storageFacade: StorageFacade
 
     @Inject
     lateinit var crashHandler: CrashHandler
+
+    @Inject
+    lateinit var gameEngineCore: GameEngineCore
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -58,12 +68,12 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
         // 初始化并注册崩溃处理器
         setupCrashHandler()
 
+        SecureKeyManager.recoveryCallback = UiKeyRecoveryCallback { this@GameActivity }
+
+        gameEngineCore.initialize()
+
         WindowCompat.setDecorFitsSystemWindows(window, false)
-        WindowInsetsControllerCompat(window, window.decorView).let { controller ->
-            controller.hide(WindowInsetsCompat.Type.statusBars())
-            controller.hide(WindowInsetsCompat.Type.navigationBars())
-            controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-        }
+        hideSystemBars()
 
         val savedSlot = savedInstanceState?.getInt(KEY_CURRENT_SLOT, -1) ?: -1
         val intentSlot = intent.getIntExtra(MainActivity.EXTRA_SLOT, -1)
@@ -73,7 +83,7 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
         val slot = if (savedSlot >= 0) savedSlot else intentSlot
         
         Log.d(TAG, "Slot info: savedSlot=$savedSlot, intentSlot=$intentSlot, finalSlot=$slot, isNewGame=$isNewGame, sectName=$sectName")
-        Log.d(TAG, "ViewModel game loaded: ${viewModel.isGameAlreadyLoaded()}")
+        Log.d(TAG, "ViewModel game loaded: ${saveLoadViewModel.isGameAlreadyLoaded()}")
 
         setContent {
             XianxiaTheme {
@@ -81,16 +91,14 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    val isLoading by viewModel.isLoading.collectAsState()
-                    val loadingProgress by viewModel.loadingProgress.collectAsState()
-                    val errorMessage by viewModel.errorMessage.collectAsState()
-                    val isRestarting by viewModel.isRestarting.collectAsState()
+                    val isLoading by saveLoadViewModel.isLoading.collectAsState()
+                    val loadingProgress by saveLoadViewModel.loadingProgress.collectAsState()
+                    val errorMessage by saveLoadViewModel.errorMessage.collectAsState()
+                    val isRestarting by saveLoadViewModel.isRestarting.collectAsState()
                     
-                    // 跟踪是否是首次加载（游戏数据是否已初始化）
                     val gameData by viewModel.gameData.collectAsState()
                     val isInitialLoading = remember { mutableStateOf(true) }
                     
-                    // 当游戏数据有效时，标记首次加载完成
                     LaunchedEffect(gameData.sectName) {
                         if (gameData.sectName.isNotEmpty()) {
                             isInitialLoading.value = false
@@ -100,6 +108,10 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
                     Box(modifier = Modifier.fillMaxSize()) {
                         MainGameScreen(
                             viewModel = viewModel,
+                            saveLoadViewModel = saveLoadViewModel,
+                            productionViewModel = productionViewModel,
+                            worldMapViewModel = worldMapViewModel,
+                            battleViewModel = battleViewModel,
                             onLogout = {
                                 sessionManager.clearSession()
                                 val intent = Intent(this@GameActivity, MainActivity::class.java)
@@ -109,7 +121,6 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
                             }
                         )
 
-                        // 显示加载界面：仅首次加载时显示（手动读档和重新开始时不显示）
                         if (isInitialLoading.value && !isRestarting) {
                             LoadingScreen(
                                 progress = loadingProgress,
@@ -119,13 +130,13 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
 
                         errorMessage?.let { error ->
                             AlertDialog(
-                                onDismissRequest = { viewModel.clearErrorMessage() },
+                                onDismissRequest = { saveLoadViewModel.clearErrorMessage() },
                                 title = { Text("提示") },
                                 text = { Text(error) },
                                 confirmButton = {
                                     GameButton(
                                         text = "确定",
-                                        onClick = { viewModel.clearErrorMessage() }
+                                        onClick = { saveLoadViewModel.clearErrorMessage() }
                                     )
                                 }
                             )
@@ -135,23 +146,23 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
             }
         }
 
-        if (!viewModel.isGameAlreadyLoaded()) {
-            viewModel.resetSaveLoadStateAsync()
+        if (!saveLoadViewModel.isGameAlreadyLoaded()) {
+            saveLoadViewModel.resetSaveLoadState()
             Log.d(TAG, "onCreate: Game not loaded, will initialize. slot=$slot, isNewGame=$isNewGame")
             lifecycleScope.launch {
                 VivoGCJITOptimizer.runWithJitPaused(block = {
                     when {
                         isNewGame && slot >= 0 -> {
                             Log.d(TAG, "Starting new game: sectName=$sectName, slot=$slot")
-                            viewModel.startNewGame(sectName, slot)
+                            saveLoadViewModel.startNewGame(sectName, slot)
                         }
                         slot >= 0 -> {
                             Log.d(TAG, "Loading game from slot: $slot")
-                            viewModel.loadGameFromSlot(slot)
+                            saveLoadViewModel.loadGameFromSlot(slot)
                         }
                         isNewGame -> {
                             Log.d(TAG, "Starting new game with default slot: sectName=$sectName")
-                            viewModel.startNewGame(sectName = sectName)
+                            saveLoadViewModel.startNewGame(sectName = sectName)
                         }
                         else -> {
                             Log.e(TAG, "Invalid game start parameters: slot=$slot, isNewGame=$isNewGame")
@@ -181,7 +192,7 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
     override fun onStop() {
         super.onStop()
         try {
-            viewModel.pauseAndSaveForBackground()
+            saveLoadViewModel.pauseAndSaveForBackground()
         } catch (e: Exception) {
             Log.e(TAG, "Error during onStop", e)
         }
@@ -189,22 +200,38 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
 
     override fun onResume() {
         super.onResume()
-        Log.d(TAG, "onResume: isGameLoaded=${viewModel.isGameAlreadyLoaded()}, isLoading=${viewModel.isLoading.value}")
+        Log.d(TAG, "onResume: isGameLoaded=${saveLoadViewModel.isGameAlreadyLoaded()}, isLoading=${saveLoadViewModel.isLoading.value}")
+        hideSystemBars()
         try {
-            viewModel.resumeGame()
+            saveLoadViewModel.resumeGameLoop()
         } catch (e: Exception) {
             Log.e(TAG, "Error during onResume", e)
+        }
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) {
+            hideSystemBars()
         }
     }
 
     private var lastEmergencySaveTime = 0L
     private val emergencySaveDebounceMs = 5000L
 
+    private fun hideSystemBars() {
+        WindowInsetsControllerCompat(window, window.decorView).let { controller ->
+            controller.hide(WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.navigationBars())
+            controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         Log.d(TAG, "onDestroy called")
-        // 取消注册内存压力监听
+        SecureKeyManager.recoveryCallback = null
         (application as? XianxiaApplication)?.unregisterMemoryPressureListener(this)
+        gameEngineCore.shutdown()
     }
 
     override fun onLowMemory() {
@@ -246,7 +273,7 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
         if (now - lastEmergencySaveTime > emergencySaveDebounceMs) {
             lastEmergencySaveTime = now
             try {
-                viewModel.performAutoSave()
+                saveLoadViewModel.performAutoSave()
             } catch (e: Exception) {
                 Log.e(TAG, "紧急保存失败", e)
             }
@@ -289,7 +316,7 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
             val gameData = viewModel.gameData.value
             if (gameData.sectName.isNotEmpty()) {
                 Log.i(TAG, "Attempting emergency save for sect: ${gameData.sectName}")
-                val saveData = viewModel.createSaveDataSync()
+                val saveData = saveLoadViewModel.createSaveDataSync()
                 kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) {
                     kotlinx.coroutines.withTimeoutOrNull(2_000L) {
                         storageFacade.emergencySave(saveData)

@@ -1,13 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="Theme.XianxiaSect" parent="android:Theme.Material.Light.NoActionBar">
-        <item name="android:statusBarColor">@color/purple_500</item>
-    </style>
-    
-    <!-- 启动主题：使用背景图片避免白屏 -->
-    <style name="Theme.XianxiaSect.Splash" parent="Theme.XianxiaSect">
-        <item name="android:windowBackground">@drawable/splash_background</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+    
+    <style name="Theme.XianxiaSect.Splash" parent="Theme.XianxiaSect">
+        <item name="android:windowBackground">@drawable/splash_background</item>
     </style>
 </resources>

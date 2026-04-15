@@ -29,6 +29,7 @@ fun LibraryDialog(
     disciples: List<DiscipleAggregate>,
     gameData: GameData?,
     viewModel: GameViewModel,
+    productionViewModel: ProductionViewModel,
     onDismiss: () -> Unit
 ) {
     var showDiscipleSelection by remember { mutableStateOf<Int?>(null) }
@@ -63,7 +64,7 @@ fun LibraryDialog(
                             slot = slot,
                             disciple = disciple,
                             onAssign = { showDiscipleSelection = slot.index },
-                            onRemove = { viewModel.removeDiscipleFromLibrarySlot(slot.index) }
+                            onRemove = { productionViewModel.removeDiscipleFromLibrarySlot(slot.index) }
                         )
                     }
                 }
@@ -81,7 +82,7 @@ fun LibraryDialog(
             },
             currentDiscipleId = currentDiscipleId,
             onSelect = { disciple ->
-                viewModel.assignDiscipleToLibrarySlot(slotIndex, disciple.id, disciple.name)
+                productionViewModel.assignDiscipleToLibrarySlot(slotIndex, disciple.id, disciple.name)
                 showDiscipleSelection = null
             },
             onDismiss = { showDiscipleSelection = null }

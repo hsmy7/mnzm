@@ -117,7 +117,7 @@ object DiscipleEquipmentManager {
         }
         
         currentEquip?.let { oldEquip ->
-            equipmentUpdates.add(oldEquip.copy(ownerId = null, isEquipped = false))
+            equipmentUpdates.add(oldEquip.copy(ownerId = disciple.id, isEquipped = false, nurtureLevel = 0, nurtureProgress = 0.0))
             
             val oldItem = StorageBagItem(
                 itemId = oldEquip.id,
@@ -147,7 +147,7 @@ object DiscipleEquipmentManager {
     }
 
     fun canEquip(disciple: Disciple, equipment: Equipment): Boolean {
-        if (equipment.ownerId != null) return false
+        if (equipment.ownerId != null && equipment.ownerId != disciple.id) return false
         return disciple.realm <= equipment.minRealm
     }
     

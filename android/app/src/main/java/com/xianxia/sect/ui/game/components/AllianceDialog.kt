@@ -27,6 +27,7 @@ import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.game.GameViewModel
+import com.xianxia.sect.ui.game.WorldMapViewModel
 import com.xianxia.sect.ui.components.DiscipleAttrText
 import com.xianxia.sect.ui.components.GameButton
 
@@ -35,11 +36,12 @@ fun AllianceDialog(
     sect: WorldSect?,
     gameData: com.xianxia.sect.core.model.GameData?,
     viewModel: GameViewModel,
+    worldMapViewModel: WorldMapViewModel,
     onDismiss: () -> Unit
 ) {
-    val isAlly = sect?.let { viewModel.isAlly(it.id) } ?: false
-    val remainingYears = sect?.let { viewModel.getAllianceRemainingYears(it.id) } ?: 0
-    val allianceCost = sect?.level?.let { viewModel.getAllianceCost(it) } ?: 0L
+    val isAlly = sect?.let { worldMapViewModel.isAlly(it.id) } ?: false
+    val remainingYears = sect?.let { worldMapViewModel.getAllianceRemainingYears(it.id) } ?: 0
+    val allianceCost = sect?.level?.let { worldMapViewModel.getAllianceCost(it) } ?: 0L
     val spiritStones = gameData?.spiritStones ?: 0L
     val canAfford = spiritStones >= allianceCost
     val playerSect = gameData?.worldMapSects?.find { it.isPlayerSect }
@@ -94,7 +96,7 @@ fun AllianceDialog(
                         GameButton(
                             text = "解除结盟",
                             onClick = {
-                                viewModel.dissolveAlliance(sect?.id ?: "")
+                                worldMapViewModel.dissolveAlliance(sect?.id ?: "")
                             },
                             modifier = Modifier.weight(1f)
                         )
@@ -112,7 +114,7 @@ fun AllianceDialog(
                             if (hasOtherAlliance) {
                                 showAlreadyAllianceDialog = true
                             } else {
-                                viewModel.openEnvoyDiscipleSelectDialog()
+                                worldMapViewModel.openEnvoyDiscipleSelectDialog()
                             }
                         },
                         onCloseClick = onDismiss
@@ -308,6 +310,7 @@ fun EnvoyDiscipleSelectDialog(
     sect: WorldSect?,
     disciples: List<DiscipleAggregate>,
     viewModel: GameViewModel,
+    worldMapViewModel: WorldMapViewModel,
     onDismiss: () -> Unit
 ) {
     var selectedDisciple by remember { mutableStateOf<DiscipleAggregate?>(null) }
@@ -393,7 +396,7 @@ fun EnvoyDiscipleSelectDialog(
                         text = "确认游说",
                         onClick = {
                             selectedDisciple?.let { disciple ->
-                                viewModel.requestAlliance(sect?.id ?: "", disciple.id)
+                                worldMapViewModel.requestAlliance(sect?.id ?: "", disciple.id)
                             }
                         },
                         enabled = selectedDisciple != null,
@@ -533,6 +536,7 @@ fun ScoutDiscipleSelectDialog(
     sect: WorldSect?,
     disciples: List<DiscipleAggregate>,
     viewModel: GameViewModel,
+    worldMapViewModel: WorldMapViewModel,
     onDismiss: () -> Unit
 ) {
     var selectedDisciples by remember { mutableStateOf<Set<String>>(emptySet()) }
@@ -644,7 +648,7 @@ fun ScoutDiscipleSelectDialog(
                         text = "开始探查",
                         onClick = {
                             if (selectedDisciples.isNotEmpty() && sect != null) {
-                                viewModel.startScoutMission(selectedDisciples.toList(), sect.id)
+                                worldMapViewModel.startScoutMission(selectedDisciples.toList(), sect.id)
                             }
                         },
                         enabled = selectedDisciples.isNotEmpty(),

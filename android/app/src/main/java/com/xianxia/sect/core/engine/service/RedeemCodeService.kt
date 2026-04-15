@@ -1,41 +1,243 @@
-@file:Suppress("DEPRECATION")
-
 package com.xianxia.sect.core.engine.service
 
-import kotlinx.coroutines.flow.MutableStateFlow
-import com.xianxia.sect.core.model.*
-import com.xianxia.sect.core.data.*
-import com.xianxia.sect.core.engine.RedeemCodeManager
-import com.xianxia.sect.core.GameConfig
+import android.content.Context
+import android.content.pm.PackageManager
 import android.util.Log
+import com.xianxia.sect.BuildConfig
+import com.xianxia.sect.core.data.*
+import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.state.GameStateStore
+import com.xianxia.sect.core.engine.RedeemCodeManager
+import com.xianxia.sect.core.engine.system.GameSystem
+import com.xianxia.sect.core.engine.system.SystemPriority
+import com.xianxia.sect.core.util.InputValidator
+import com.xianxia.sect.core.util.ValidationResult
+import com.xianxia.sect.network.SecureHttpClient
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import java.security.MessageDigest
+import javax.inject.Inject
+import javax.inject.Singleton
 
-/**
- * 兑换码服务 - 负责兑换码系统
- *
- * 职责域：
- * - 兑换码验证和执行 (redeemCode)
- * - 奖励发放（灵石、装备、功法、丹药、材料、灵草、种子、弟子）
- */
-class RedeemCodeService(
-    private val _gameData: MutableStateFlow<GameData>,
-    private val _disciples: MutableStateFlow<List<Disciple>>,
-    private val inventoryService: InventoryService,
-    private val addEvent: (String, EventType) -> Unit
-) {
-    companion object {
-        private const val TAG = "RedeemCodeService"
+@Serializable
+data class RedeemApiResponse(
+    val success: Boolean = false,
+    val message: String = "",
+    val rewards: List<RedeemApiReward> = emptyList()
+)
+
+@Serializable
+data class RedeemApiReward(
+    val type: String = "",
+    val name: String = "",
+    val quantity: Int = 0,
+    val rarity: Int = 1
+)
+
+@SystemPriority(order = 950)
+@Singleton
+class RedeemCodeService @Inject constructor(
+    private val stateStore: GameStateStore,
+    private val eventService: EventService,
+    private val secureClient: SecureHttpClient,
+    @ApplicationContext private val appContext: Context
+) : GameSystem {
+    override val systemName: String = "RedeemCodeService"
+
+    override fun initialize() {
+        Log.d(TAG, "RedeemCodeService initialized as GameSystem")
     }
 
-    /**
-     * 执行兑换码兑换
-     *
-     * @param code 兑换码
-     * @param usedCodes 已使用的兑换码列表
-     * @param currentYear 当前年份
-     * @param currentMonth 当前月份
-     * @return 兑换结果
-     */
+    override fun release() {
+        Log.d(TAG, "RedeemCodeService released")
+    }
+
+    override suspend fun clear() {}
+
+    companion object {
+        private const val TAG = "RedeemCodeService"
+        private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
+        private val json = Json { ignoreUnknownKeys = true; coerceInputValues = true }
+    }
+
     suspend fun redeemCode(
+        code: String,
+        usedCodes: List<String>,
+        currentYear: Int,
+        currentMonth: Int
+    ): RedeemResult {
+        val trimmedCode = code.trim().takeIf {
+            it.length in 4..32 && it.all { c -> c.isLetterOrDigit() || c == '-' }
+        } ?: return RedeemResult(success = false, message = "兑换码格式无效")
+
+        val inputValidation = InputValidator.validateRedeemCode(trimmedCode)
+        if (inputValidation is ValidationResult.Error) {
+            return RedeemResult(success = false, message = inputValidation.message)
+        }
+
+        if (trimmedCode in usedCodes) {
+            return RedeemResult(success = false, message = "该兑换码已使用")
+        }
+
+        val serverResult = tryServerRedeem(trimmedCode)
+        if (serverResult != null) return serverResult
+
+        Log.w(TAG, "Server redeem unavailable, falling back to local validation with APK signature check")
+        if (!verifyApkSignature()) {
+            return RedeemResult(success = false, message = "应用签名校验失败，无法使用离线兑换")
+        }
+
+        return localRedeem(trimmedCode, usedCodes, currentYear, currentMonth)
+    }
+
+    private suspend fun tryServerRedeem(code: String): RedeemResult? {
+        return try {
+            val requestBody = """{"code":"$code"}"""
+                .toRequestBody(JSON_MEDIA_TYPE)
+
+            val request = Request.Builder()
+                .url("${BuildConfig.API_BASE_URL}redeem/verify")
+                .post(requestBody)
+                .build()
+
+            val response = secureClient.execute(request)
+            val body = response.body?.string() ?: return RedeemResult(
+                success = false, message = "服务器响应异常"
+            )
+
+            val apiResult = json.decodeFromString<RedeemApiResponse>(body)
+
+            if (apiResult.success) {
+                applyApiRewardsAndMarkUsed(code, apiResult.rewards)
+                eventService.addGameEvent("成功兑换码：$code", EventType.SUCCESS)
+                RedeemResult(success = true, message = apiResult.message)
+            } else {
+                RedeemResult(success = false, message = apiResult.message)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Server redeem failed, will fallback to local", e)
+            null
+        }
+    }
+
+    private suspend fun applyApiRewardsAndMarkUsed(code: String, rewards: List<RedeemApiReward>) {
+        stateStore.update {
+            gameData = gameData.copy(
+                usedRedeemCodes = (gameData.usedRedeemCodes + code.uppercase(java.util.Locale.getDefault()))
+                    .distinct()
+                    .takeLast(GameData.MAX_REDEEM_CODES)
+            )
+            rewards.forEach { reward ->
+                when (reward.type) {
+                    "spiritStones" -> {
+                        gameData = gameData.copy(
+                            spiritStones = gameData.spiritStones + reward.quantity
+                        )
+                    }
+                    "equipment" -> {
+                        val newEquipment = EquipmentDatabase.generateRandom(
+                            minRarity = reward.rarity,
+                            maxRarity = reward.rarity
+                        )
+                        equipment = equipment + newEquipment
+                    }
+                    "pill" -> {
+                        val pill = ItemDatabase.generateRandomPill(
+                            minRarity = reward.rarity,
+                            maxRarity = reward.rarity
+                        )
+                        pills = pills + pill
+                    }
+                    "material" -> {
+                        val material = ItemDatabase.generateRandomMaterial(
+                            minRarity = reward.rarity,
+                            maxRarity = reward.rarity
+                        )
+                        materials = materials + material
+                    }
+                    "herb" -> {
+                        val herbTemplate = HerbDatabase.generateRandomHerb(
+                            minRarity = reward.rarity,
+                            maxRarity = reward.rarity
+                        )
+                        val herb = Herb(
+                            id = java.util.UUID.randomUUID().toString(),
+                            name = herbTemplate.name,
+                            rarity = herbTemplate.rarity,
+                            description = herbTemplate.description,
+                            category = herbTemplate.category,
+                            quantity = 1
+                        )
+                        herbs = herbs + herb
+                    }
+                    "seed" -> {
+                        val seedTemplate = HerbDatabase.generateRandomSeed(
+                            minRarity = reward.rarity,
+                            maxRarity = reward.rarity
+                        )
+                        val seed = Seed(
+                            id = java.util.UUID.randomUUID().toString(),
+                            name = seedTemplate.name,
+                            rarity = seedTemplate.rarity,
+                            description = seedTemplate.description,
+                            growTime = seedTemplate.growTime,
+                            yield = seedTemplate.yield,
+                            quantity = 1
+                        )
+                        seeds = seeds + seed
+                    }
+                }
+            }
+        }
+    }
+
+    private fun verifyApkSignature(): Boolean {
+        if (BuildConfig.APK_SIGNATURE_HASH.isEmpty()) {
+            Log.w(TAG, "APK_SIGNATURE_HASH not configured, skipping signature verification")
+            return true
+        }
+
+        return try {
+            val packageInfo = appContext.packageManager.getPackageInfo(
+                appContext.packageName,
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P)
+                    PackageManager.GET_SIGNING_CERTIFICATES
+                else @Suppress("DEPRECATION") PackageManager.GET_SIGNATURES
+            )
+
+            val signatures = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                packageInfo.signingInfo?.apkContentsSigners
+            } else {
+                @Suppress("DEPRECATION")
+                packageInfo.signatures
+            }
+
+            if (signatures == null || signatures.isEmpty()) {
+                Log.w(TAG, "No APK signatures found")
+                return false
+            }
+
+            val certDigest = MessageDigest.getInstance("SHA-256")
+                .digest(signatures[0].toByteArray())
+                .joinToString("") { "%02x".format(it) }
+
+            val isValid = certDigest == BuildConfig.APK_SIGNATURE_HASH
+            if (!isValid) {
+                Log.w(TAG, "APK signature mismatch: expected=${BuildConfig.APK_SIGNATURE_HASH}, got=$certDigest")
+            }
+            isValid
+        } catch (e: Exception) {
+            Log.e(TAG, "APK signature verification failed", e)
+            false
+        }
+    }
+
+    private suspend fun localRedeem(
         code: String,
         usedCodes: List<String>,
         currentYear: Int,
@@ -63,121 +265,133 @@ class RedeemCodeService(
             return result
         }
 
-        val data = _gameData.value
+        val data = stateStore.gameData.value
 
-        result.rewards.forEach { reward ->
-            when (reward.type) {
-                "spiritStones" -> {
-                    _gameData.value = _gameData.value.copy(
-                        spiritStones = _gameData.value.spiritStones + reward.quantity
-                    )
-                }
-                "equipment" -> {
-                    val equipment = EquipmentDatabase.generateRandom(
-                        minRarity = redeemCodeData.rarity,
-                        maxRarity = redeemCodeData.rarity
-                    )
-                    inventoryService.addEquipment(equipment)
-                }
-                "manual" -> {
-                    val template = ManualDatabase.getByNameAndRarity(reward.name, reward.rarity)
-                    if (template != null) {
-                        val manual = Manual(
-                            id = java.util.UUID.randomUUID().toString(),
-                            name = template.name,
-                            rarity = reward.rarity,
-                            description = template.description,
-                            type = template.type,
-                            stats = template.stats,
-                            skillName = template.skillName,
-                            skillDescription = template.skillDescription,
-                            skillType = template.skillType,
-                            skillDamageType = template.skillDamageType,
-                            skillHits = template.skillHits,
-                            skillDamageMultiplier = template.skillDamageMultiplier,
-                            skillCooldown = template.skillCooldown,
-                            skillMpCost = template.skillMpCost,
-                            skillHealPercent = template.skillHealPercent,
-                            skillHealType = template.skillHealType,
-                            skillBuffType = template.skillBuffType,
-                            skillBuffValue = template.skillBuffValue,
-                            skillBuffDuration = template.skillBuffDuration,
-                            minRealm = GameConfig.Realm.getMinRealmForRarity(reward.rarity),
-                            quantity = reward.quantity
+        stateStore.update {
+            result.rewards.forEach { reward ->
+                when (reward.type) {
+                    "spiritStones" -> {
+                        gameData = gameData.copy(
+                            spiritStones = gameData.spiritStones + reward.quantity
                         )
-                        inventoryService.addManualToWarehouse(manual)
-                    } else {
-                        Log.w(TAG, "无法找到功法模板: ${reward.name}, rarity: ${reward.rarity}")
                     }
-                }
-                "pill" -> {
-                    val pill = ItemDatabase.generateRandomPill(
-                        minRarity = redeemCodeData.rarity,
-                        maxRarity = redeemCodeData.rarity
-                    )
-                    inventoryService.addPillToWarehouse(pill)
-                }
-                "material" -> {
-                    val material = ItemDatabase.generateRandomMaterial(
-                        minRarity = redeemCodeData.rarity,
-                        maxRarity = redeemCodeData.rarity
-                    )
-                    inventoryService.addMaterialToWarehouse(material)
-                }
-                "herb" -> {
-                    val herbTemplate = HerbDatabase.generateRandomHerb(
-                        minRarity = redeemCodeData.rarity,
-                        maxRarity = redeemCodeData.rarity
-                    )
-                    val herb = Herb(
-                        id = java.util.UUID.randomUUID().toString(),
-                        name = herbTemplate.name,
-                        rarity = herbTemplate.rarity,
-                        description = herbTemplate.description,
-                        category = herbTemplate.category,
-                        quantity = 1
-                    )
-                    inventoryService.addHerbToWarehouse(herb)
-                }
-                "seed" -> {
-                    val seedTemplate = HerbDatabase.generateRandomSeed(
-                        minRarity = redeemCodeData.rarity,
-                        maxRarity = redeemCodeData.rarity
-                    )
-                    val seed = Seed(
-                        id = java.util.UUID.randomUUID().toString(),
-                        name = seedTemplate.name,
-                        rarity = seedTemplate.rarity,
-                        description = seedTemplate.description,
-                        growTime = seedTemplate.growTime,
-                        yield = seedTemplate.yield,
-                        quantity = 1
-                    )
-                    inventoryService.addSeedToWarehouse(seed)
-                }
-                "disciple" -> {
-                    result.disciple?.let { disciple ->
-                        val currentMonthValue = data.gameYear * 12 + data.gameMonth
-                        val discipleWithRecruitTime = disciple.copy()
-                        discipleWithRecruitTime.recruitedMonth = currentMonthValue
-                        _disciples.value = _disciples.value + discipleWithRecruitTime
+                    "equipment" -> {
+                        val newEquipment = EquipmentDatabase.generateRandom(
+                            minRarity = redeemCodeData.rarity,
+                            maxRarity = redeemCodeData.rarity
+                        )
+                        equipment = equipment + newEquipment
+                    }
+                    "manual" -> {
+                        val template = ManualDatabase.getByNameAndRarity(reward.name, reward.rarity)
+                        if (template != null) {
+                            val manual = Manual(
+                                id = java.util.UUID.randomUUID().toString(),
+                                name = template.name,
+                                rarity = reward.rarity,
+                                description = template.description,
+                                type = template.type,
+                                stats = template.stats,
+                                skillName = template.skillName,
+                                skillDescription = template.skillDescription,
+                                skillType = template.skillType,
+                                skillDamageType = template.skillDamageType,
+                                skillHits = template.skillHits,
+                                skillDamageMultiplier = template.skillDamageMultiplier,
+                                skillCooldown = template.skillCooldown,
+                                skillMpCost = template.skillMpCost,
+                                skillHealPercent = template.skillHealPercent,
+                                skillHealType = template.skillHealType,
+                                skillBuffType = template.skillBuffType,
+                                skillBuffValue = template.skillBuffValue,
+                                skillBuffDuration = template.skillBuffDuration,
+                                minRealm = GameConfig.Realm.getMinRealmForRarity(reward.rarity),
+                                quantity = reward.quantity
+                            )
+                            val existing = manuals.find {
+                                it.name == manual.name && it.rarity == manual.rarity && it.type == manual.type
+                            }
+                            if (existing != null) {
+                                val newQty = (existing.quantity + manual.quantity).coerceAtMost(999)
+                                manuals = manuals.map {
+                                    if (it.id == existing.id) it.copy(quantity = newQty) else it
+                                }
+                            } else {
+                                manuals = manuals + manual
+                            }
+                        } else {
+                            Log.w(TAG, "无法找到功法模板: ${reward.name}, rarity: ${reward.rarity}")
+                        }
+                    }
+                    "pill" -> {
+                        val pill = ItemDatabase.generateRandomPill(
+                            minRarity = redeemCodeData.rarity,
+                            maxRarity = redeemCodeData.rarity
+                        )
+                        pills = pills + pill
+                    }
+                    "material" -> {
+                        val material = ItemDatabase.generateRandomMaterial(
+                            minRarity = redeemCodeData.rarity,
+                            maxRarity = redeemCodeData.rarity
+                        )
+                        materials = materials + material
+                    }
+                    "herb" -> {
+                        val herbTemplate = HerbDatabase.generateRandomHerb(
+                            minRarity = redeemCodeData.rarity,
+                            maxRarity = redeemCodeData.rarity
+                        )
+                        val herb = Herb(
+                            id = java.util.UUID.randomUUID().toString(),
+                            name = herbTemplate.name,
+                            rarity = herbTemplate.rarity,
+                            description = herbTemplate.description,
+                            category = herbTemplate.category,
+                            quantity = 1
+                        )
+                        herbs = herbs + herb
+                    }
+                    "seed" -> {
+                        val seedTemplate = HerbDatabase.generateRandomSeed(
+                            minRarity = redeemCodeData.rarity,
+                            maxRarity = redeemCodeData.rarity
+                        )
+                        val seed = Seed(
+                            id = java.util.UUID.randomUUID().toString(),
+                            name = seedTemplate.name,
+                            rarity = seedTemplate.rarity,
+                            description = seedTemplate.description,
+                            growTime = seedTemplate.growTime,
+                            yield = seedTemplate.yield,
+                            quantity = 1
+                        )
+                        seeds = seeds + seed
+                    }
+                    "disciple" -> {
+                        result.disciple?.let { disciple ->
+                            val currentMonthValue = data.gameYear * 12 + data.gameMonth
+                            val discipleWithRecruitTime = disciple.copy()
+                            discipleWithRecruitTime.recruitedMonth = currentMonthValue
+                            disciples = disciples + discipleWithRecruitTime
+                        }
                     }
                 }
             }
-        }
 
-        result.disciples.forEach { disciple ->
-            val currentMonthValue = data.gameYear * 12 + data.gameMonth
-            val discipleWithRecruitTime = disciple.copy()
-            discipleWithRecruitTime.recruitedMonth = currentMonthValue
-            _disciples.value = _disciples.value + discipleWithRecruitTime
-        }
+            result.disciples.forEach { disciple ->
+                val currentMonthValue = data.gameYear * 12 + data.gameMonth
+                val discipleWithRecruitTime = disciple.copy()
+                discipleWithRecruitTime.recruitedMonth = currentMonthValue
+                disciples = disciples + discipleWithRecruitTime
+            }
 
-        _gameData.value = _gameData.value.copy(
-            usedRedeemCodes = (_gameData.value.usedRedeemCodes + code.uppercase(java.util.Locale.getDefault()))
-                .distinct()
-                .takeLast(GameData.MAX_REDEEM_CODES)
-        )
+            gameData = gameData.copy(
+                usedRedeemCodes = (gameData.usedRedeemCodes + code.uppercase(java.util.Locale.getDefault()))
+                    .distinct()
+                    .takeLast(GameData.MAX_REDEEM_CODES)
+            )
+        }
 
         val rewardDescription = result.rewards.joinToString("、") { reward ->
             when (reward.type) {
@@ -187,7 +401,7 @@ class RedeemCodeService(
             }
         }
 
-        addEvent("成功兑换码：$code，获得：$rewardDescription", EventType.SUCCESS)
+        eventService.addGameEvent("成功兑换码：$code，获得：$rewardDescription", EventType.SUCCESS)
 
         return RedeemResult(
             success = true,

@@ -114,8 +114,6 @@ object SecureKeyManager {
     private const val KEY_PREF_KEY = "derived_key_hash"
     private const val ACCOUNT_ANCHOR_KEY = "account_anchor_id"
     private const val FALLBACK_ID_KEY = "fallback_account_id"
-    private const val LEGACY_FINGERPRINT_KEY = "legacy_device_fingerprint"
-    
     private const val KEY_SIZE = 256
     private const val GCM_IV_LENGTH = 12
     private const val GCM_TAG_LENGTH = 128
@@ -713,7 +711,7 @@ object SecureKeyManager {
     @SuppressLint("HardwareIds")
     private fun getDeviceFingerprint(context: Context): String {
         val parts = mutableListOf<String>()
-        
+
         try {
             val deviceId = android.provider.Settings.Secure.getString(
                 context.contentResolver,
@@ -721,40 +719,38 @@ object SecureKeyManager {
             ) ?: "unknown"
             parts.add(deviceId)
         } catch (_: Exception) {}
-        
+
         try {
-            parts.add(Build.BOARD)
             parts.add(Build.BRAND)
-            parts.add(Build.DEVICE)
-            parts.add(Build.HARDWARE)
             parts.add(Build.MODEL)
-            parts.add(Build.PRODUCT)
-            parts.add(Build.DISPLAY)
-            parts.add(Build.FINGERPRINT)
-            parts.add(Build.TYPE)
-            parts.add(Build.TAGS)
-            parts.add(Build.USER)
         } catch (_: Exception) {}
-        
+
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
-                @SuppressLint("HardwareIds", "MissingPermission")
-                parts.add(Build.getSerial() ?: "no_serial")
+            val packageInfo = context.packageManager.getPackageInfo(
+                context.packageName,
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
+                    android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES
+                else @Suppress("DEPRECATION") android.content.pm.PackageManager.GET_SIGNATURES
+            )
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                val sigInfo = packageInfo.signingInfo
+                val apkContentsSigners = sigInfo?.apkContentsSigners
+                if (apkContentsSigners != null && apkContentsSigners.isNotEmpty()) {
+                    val certDigest = MessageDigest.getInstance("SHA-256")
+                        .digest(apkContentsSigners[0].toByteArray())
+                    parts.add(certDigest.joinToString("") { "%02x".format(it) })
+                }
+            } else {
+                @Suppress("DEPRECATION")
+                val signatures = packageInfo.signatures
+                if (signatures != null && signatures.isNotEmpty()) {
+                    val certDigest = MessageDigest.getInstance("SHA-256")
+                        .digest(signatures[0].toByteArray())
+                    parts.add(certDigest.joinToString("") { "%02x".format(it) })
+                }
             }
         } catch (_: Exception) {}
-        
-        // 运行时熵因子：增加动态熵源，提升指纹唯一性
-        try {
-            val runtime = Runtime.getRuntime()
-            parts.add("${runtime.availableProcessors()}")
-            parts.add("${runtime.maxMemory()}")
-        } catch (_: Exception) {}
-        
-        try {
-            val buildDate = java.io.File("/proc/version").lastModified().toString()
-            parts.add(buildDate)
-        } catch (_: Exception) {}
-        
+
         return if (parts.isNotEmpty()) {
             MessageDigest.getInstance("SHA-256")
                 .digest(parts.joinToString("|").toByteArray(Charsets.UTF_8))
@@ -1047,27 +1043,6 @@ object SecureKeyManager {
         }
     }
     
-    fun migrateLegacyKeyIfNeeded(context: Context): Boolean {
-        return try {
-            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            val legacyFingerprint = prefs.getString(LEGACY_FINGERPRINT_KEY, null)
-            
-            if (legacyFingerprint != null) {
-                Log.i(TAG, "Legacy fingerprint found, migration already completed")
-                return true
-            }
-            
-            val currentFingerprint = getDeviceFingerprint(context)
-            prefs.edit().putString(LEGACY_FINGERPRINT_KEY, currentFingerprint).apply()
-            
-            Log.i(TAG, "Legacy migration marker set")
-            true
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to check legacy migration status", e)
-            false
-        }
-    }
-    
     // ========== 密钥健康状态查询 ==========
     
     /**
@@ -1130,7 +1105,7 @@ object SecureKeyManager {
 
 class KeyRotationManager(
     private val context: Context,
-    private val saveRepository: com.xianxia.sect.data.unified.SaveRepository
+    private val storageFacade: com.xianxia.sect.data.facade.StorageFacade
 ) {
     companion object {
         private const val TAG = "KeyRotationManager"
@@ -1176,13 +1151,13 @@ class KeyRotationManager(
             Log.i(TAG, "Starting key rotation process")
 
             val slots = (1..6).filter { slot ->
-                saveRepository.hasSave(slot)
+                storageFacade.hasSave(slot)
             }
 
             SecureKeyManager.rotateKey(context)
 
             for (slot in slots) {
-                val result = saveRepository.load(slot)
+                val result = storageFacade.load(slot)
                 if (!result.isSuccess) {
                     Log.w(TAG, "Failed to load slot $slot during rotation, skipping")
                     continue
@@ -1191,7 +1166,7 @@ class KeyRotationManager(
                 try {
                     val data = result.getOrThrow()
 
-                    val saveResult = saveRepository.save(slot, data)
+                    val saveResult = storageFacade.save(slot, data)
                     if (saveResult.isFailure) {
                         Log.e(TAG, "Failed to re-encrypt slot $slot after key rotation")
                         return@withContext com.xianxia.sect.data.unified.SaveResult.failure(

@@ -12,9 +12,7 @@ data class LockStats(
 )
 
 /**
- * 槽位锁管理器（v3 重构版）
- *
- * 【P1#4 修复】已删除所有 @Deprecated 的 runBlocking 方法，消除 ANR 风险。
+ * 槽位锁管理器
  *
  * 设计原则：
  * 1. 所有公共 API 均为 suspend 函数，必须在协程上下文中调用

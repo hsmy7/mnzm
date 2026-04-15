@@ -69,7 +69,9 @@ data class SerializableGameData(
     @ProtoNumber(48) val playerHasAttackedAI: Boolean = false,
     @ProtoNumber(49) val activeMissions: List<SerializableActiveMission> = emptyList(),
     @ProtoNumber(50) val availableMissions: List<SerializableMission> = emptyList(),
-    @ProtoNumber(53) val aiSectDisciples: List<SerializableAiSectDiscipleEntry> = emptyList()
+    @ProtoNumber(53) val aiSectDisciples: List<SerializableAiSectDiscipleEntry> = emptyList(),
+    @ProtoNumber(54) val sectDetails: Map<String, SerializableSectDetail> = emptyMap(),
+    @ProtoNumber(55) val smartBattleEnabled: Boolean = false
 )
 
 @Serializable
@@ -413,6 +415,22 @@ data class SerializableMineSlot(
 )
 
 @Serializable
+data class SerializableSectDetail(
+    @ProtoNumber(1) val sectId: String = "",
+    @ProtoNumber(2) val mineSlots: List<SerializableMineSlot> = emptyList(),
+    @ProtoNumber(3) val occupationTime: Long = 0,
+    @ProtoNumber(4) val isOwned: Boolean = false,
+    @ProtoNumber(5) val expiryYear: Int = 0,
+    @ProtoNumber(6) val expiryMonth: Int = 0,
+    @ProtoNumber(7) val scoutInfo: SerializableSectScoutInfo = SerializableSectScoutInfo(sectId="", sectName="", scoutYear=0, scoutMonth=0, discipleCount=0, maxRealm=0, isKnown=false, expiryYear=0, expiryMonth=0),
+    @ProtoNumber(8) val tradeItems: List<SerializableMerchantItem> = emptyList(),
+    @ProtoNumber(9) val tradeLastRefreshYear: Int = 0,
+    @ProtoNumber(10) val lastGiftYear: Int = 0,
+    @ProtoNumber(11) val warehouse: SerializableSectWarehouse = SerializableSectWarehouse(),
+    @ProtoNumber(12) val giftPreference: String = "NONE"
+)
+
+@Serializable
 data class SerializableSectWarehouse(
     @ProtoNumber(1) val items: List<SerializableWarehouseItem> = emptyList(),
     @ProtoNumber(2) val spiritStones: Long = 0
@@ -483,7 +501,9 @@ data class SerializablePlantSlotData(
     @ProtoNumber(6) val startMonth: Int,
     @ProtoNumber(7) val growTime: Int,
     @ProtoNumber(8) val expectedYield: Int,
+    @Deprecated("Use expectedYield instead. Kept for proto serialization compatibility.")
     @ProtoNumber(9) val harvestAmount: Int,
+    @Deprecated("Use seedId to derive herbId. Kept for proto serialization compatibility.")
     @ProtoNumber(10) val harvestHerbId: String = ""
 )
 

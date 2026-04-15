@@ -44,6 +44,13 @@ class BuildingConfigService @Inject constructor(
     
     private var config: BuildingsConfig? = null
     
+    private fun ensureConfigLoaded(): BuildingsConfig {
+        if (config == null) {
+            loadConfig()
+        }
+        return config ?: createDefaultConfig().also { config = it }
+    }
+    
     suspend fun initialize() {
         loadConfig()
     }
@@ -83,18 +90,18 @@ class BuildingConfigService @Inject constructor(
     }
     
     fun getBuildingConfig(buildingId: String): BuildingConfigModel? {
-        val cfg = config ?: return null
-        val normalizedId = normalizeBuildingId(buildingId)
+        val cfg = ensureConfigLoaded()
+        val normalizedId = normalizeBuildingId(buildingId, cfg)
         return cfg.buildings[normalizedId]
     }
     
     fun getBuildingConfigByType(buildingType: BuildingType): BuildingConfigModel? {
-        val cfg = config ?: return null
+        val cfg = ensureConfigLoaded()
         return cfg.buildings.values.find { it.buildingType == buildingType.name }
     }
     
     fun getAllBuildingConfigs(): List<BuildingConfigModel> {
-        return config?.buildings?.values?.toList() ?: emptyList()
+        return ensureConfigLoaded().buildings.values.toList()
     }
     
     fun getSlotCount(buildingId: String): Int {
@@ -124,7 +131,7 @@ class BuildingConfigService @Inject constructor(
     }
     
     fun resolveBuildingId(input: String): String {
-        val cfg = config ?: return input.lowercase(java.util.Locale.getDefault())
+        val cfg = ensureConfigLoaded()
         return cfg.buildingAliases[input.lowercase(java.util.Locale.getDefault()).replace("_", "").replace("-", "")]
             ?: input.lowercase(java.util.Locale.getDefault())
     }
@@ -145,8 +152,7 @@ class BuildingConfigService @Inject constructor(
         Log.d(TAG, "Building config reloaded")
     }
     
-    private fun normalizeBuildingId(buildingId: String): String {
-        val cfg = config ?: return buildingId.lowercase(java.util.Locale.getDefault())
+    private fun normalizeBuildingId(buildingId: String, cfg: BuildingsConfig = ensureConfigLoaded()): String {
         val normalized = buildingId.lowercase(java.util.Locale.getDefault()).replace("_", "").replace("-", "")
         return cfg.buildingAliases[normalized] ?: buildingId.lowercase(java.util.Locale.getDefault())
     }
@@ -185,7 +191,7 @@ class BuildingConfigService @Inject constructor(
                     id = "herb_garden",
                     displayName = "灵药园",
                     buildingType = "HERB_GARDEN",
-                    slotCount = 6,
+                    slotCount = 3,
                     baseSuccessRate = 1.0,
                     description = "种植灵草的园地"
                 ),

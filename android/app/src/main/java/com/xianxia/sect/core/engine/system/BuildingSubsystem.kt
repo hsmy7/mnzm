@@ -47,6 +47,7 @@ import javax.inject.Singleton
  * - [workingSlots]/[completedSlots]/[idleSlots]: 按状态分类的槽位流
  *
  */
+@SystemPriority(order = 100)
 @Singleton
 class BuildingSubsystem @Inject constructor(
     private val repository: ProductionSlotRepository,

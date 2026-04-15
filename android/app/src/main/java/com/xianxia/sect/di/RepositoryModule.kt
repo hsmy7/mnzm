@@ -1,7 +1,7 @@
 package com.xianxia.sect.di
 
-import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.core.transaction.ProductionTransactionManager
+import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.data.local.GameDatabase
 import com.xianxia.sect.data.local.ProductionSlotDao
 import dagger.Module
@@ -16,16 +16,10 @@ object RepositoryModule {
 
     @Provides
     @Singleton
-    fun provideProductionSlotDao(database: GameDatabase): ProductionSlotDao =
-        database.productionSlotDao()
+    fun provideProductionSlotDao(database: GameDatabase): ProductionSlotDao {
+        return database.productionSlotDao()
+    }
 
-    @Provides
-    @Singleton
-    fun provideProductionSlotRepository(
-        dao: ProductionSlotDao,
-        configService: com.xianxia.sect.core.config.BuildingConfigService
-    ): ProductionSlotRepository = ProductionSlotRepository(dao, configService)
-    
     @Provides
     @Singleton
     fun provideProductionTransactionManager(

@@ -12,6 +12,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.ui.theme.GameColors
@@ -22,7 +24,9 @@ fun GameButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    backgroundColor: Color? = null
+    backgroundColor: Color? = null,
+    height: Dp = 32.dp,
+    fontSize: TextUnit = 10.sp
 ) {
     val actualBackgroundColor = when {
         !enabled -> Color(0xFFE0E0E0)
@@ -34,7 +38,7 @@ fun GameButton(
 
     Button(
         onClick = onClick,
-        modifier = modifier.height(32.dp),
+        modifier = modifier.height(height),
         enabled = enabled,
         shape = RoundedCornerShape(4.dp),
         colors = ButtonDefaults.buttonColors(
@@ -48,7 +52,7 @@ fun GameButton(
     ) {
         Text(
             text = text,
-            fontSize = 10.sp,
+            fontSize = fontSize,
             maxLines = 1,
             overflow = TextOverflow.Clip,
             textAlign = TextAlign.Center

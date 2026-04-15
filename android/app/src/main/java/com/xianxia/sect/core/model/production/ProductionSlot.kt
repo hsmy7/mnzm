@@ -45,6 +45,7 @@ data class ProductionSlot(
     val outputItemSlot: String = "",
     @ColumnInfo(defaultValue = "0")
     val expectedYield: Int = 0,
+    @Deprecated("Use expectedYield instead. This field is kept for database compatibility only.")
     @ColumnInfo(defaultValue = "0")
     val harvestAmount: Int = 0
 ) {
@@ -186,10 +187,9 @@ data class ProductionSlot(
             startYear = plantSlot.startYear,
             startMonth = plantSlot.startMonth,
             duration = plantSlot.growTime,
-            outputItemId = plantSlot.harvestHerbId.ifEmpty { null },
+            outputItemId = plantSlot.seedId.ifEmpty { null },
             outputItemName = plantSlot.seedName,
-            expectedYield = plantSlot.expectedYield,
-            harvestAmount = plantSlot.harvestAmount
+            expectedYield = plantSlot.expectedYield
         )
     }
 }

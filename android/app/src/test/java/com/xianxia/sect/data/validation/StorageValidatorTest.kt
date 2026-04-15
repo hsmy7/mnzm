@@ -56,7 +56,7 @@ class StorageValidatorTest {
     // ========== validateSaveData 测试 ==========
 
     private fun createValidSaveData(
-        version: String = "1.6.00",
+        version: String = "2.0.00",
         timestamp: Long = System.currentTimeMillis()
     ): SaveData {
         return SaveData(

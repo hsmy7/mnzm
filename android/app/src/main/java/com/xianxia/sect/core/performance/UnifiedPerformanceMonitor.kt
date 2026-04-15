@@ -3,7 +3,6 @@ package com.xianxia.sect.core.performance
 import android.util.Log
 import com.xianxia.sect.core.util.GCOptimizer
 import com.xianxia.sect.core.util.MemoryMonitor
-import com.xianxia.sect.data.monitor.StoragePerformanceMonitor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -20,8 +19,7 @@ import javax.inject.Singleton
 @Singleton
 class UnifiedPerformanceMonitor @Inject constructor(
     private val memoryMonitor: MemoryMonitor,
-    private val gcOptimizer: GCOptimizer,
-    private val storagePerformanceMonitor: StoragePerformanceMonitor
+    private val gcOptimizer: GCOptimizer
 ) {
     companion object {
         private const val TAG = "UnifiedPerformanceMonitor"
@@ -167,8 +165,6 @@ class UnifiedPerformanceMonitor @Inject constructor(
         val allMetrics = getMetrics()
         val memoryInfo = memoryMonitor.getCurrentMemoryInfo()
         val gcStats = gcOptimizer.getGCStats()
-        val storageReport = storagePerformanceMonitor.generateReport()
-        
         val recommendations = generateRecommendations(allMetrics, memoryInfo, gcStats)
         
         return PerformanceReport(
@@ -190,7 +186,6 @@ class UnifiedPerformanceMonitor @Inject constructor(
                 averageGCTimeMs = gcStats.averageGCTimeMs,
                 timeSinceLastGC = gcStats.timeSinceLastGC
             ),
-            storageReport = storageReport,
             recommendations = recommendations
         )
     }
@@ -307,7 +302,6 @@ data class PerformanceReport(
     val metrics: Map<String, MetricStats>,
     val memoryInfo: MemoryInfoReport?,
     val gcStats: GCStatsReport,
-    val storageReport: com.xianxia.sect.data.monitor.PerformanceReport,
     val recommendations: List<String>
 )
 

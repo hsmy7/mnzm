@@ -1,9 +1,11 @@
 package com.xianxia.sect.core.performance
 
 import android.util.Log
+import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -52,7 +54,9 @@ interface PerformanceListener {
 }
 
 @Singleton
-class GamePerformanceMonitor @Inject constructor() {
+class GamePerformanceMonitor @Inject constructor(
+    private val applicationScopeProvider: ApplicationScopeProvider
+) {
     
     companion object {
         private const val TAG = "GamePerformanceMonitor"
@@ -63,26 +67,27 @@ class GamePerformanceMonitor @Inject constructor() {
         private const val TICK_TIME_WARNING_THRESHOLD = 50f
     }
     
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val scope get() = applicationScopeProvider.scope
     private var monitorJob: Job? = null
-    
+
     private val tickTimes = ConcurrentLinkedQueue<Float>()
     private val frameTimes = ConcurrentLinkedQueue<Float>()
-    
+
     private val _metrics = MutableStateFlow(PerformanceMetrics())
     val metrics: StateFlow<PerformanceMetrics> = _metrics.asStateFlow()
-    
+
     private val _warnings = MutableStateFlow<List<PerformanceWarning>>(emptyList())
     val warnings: StateFlow<List<PerformanceWarning>> = _warnings.asStateFlow()
-    
-    private val listeners = mutableListOf<PerformanceListener>()
-    
+
+    private val listeners = CopyOnWriteArrayList<PerformanceListener>()
+
     private val tickCounter = AtomicLong(0)
     private var lastTickTime = System.currentTimeMillis()
-    
+
     private var lastFpsCalculation = System.currentTimeMillis()
+    @Volatile
     private var frameCount = 0
-    
+
     fun start() {
         if (monitorJob?.isActive == true) return
         
@@ -266,7 +271,6 @@ class GamePerformanceMonitor @Inject constructor() {
     
     fun dispose() {
         stop()
-        scope.cancel()
         listeners.clear()
     }
 }

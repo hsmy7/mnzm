@@ -26,13 +26,7 @@
       "displayName": "灵矿",
       "buildingType": "MINING",
       "slotCount": 3,
-      "unlockConditions": {
-        "sectLevel": 1,
-        "requiredSpiritStones": 0,
-        "requiredYear": 1
-      },
       "baseSuccessRate": 1.0,
-      "speedBonusPerDiscipleRealm": 0.0,
       "maxQueueLength": 1,
       "autoRestartEnabled": false,
       "description": "开采灵石和矿石"
@@ -41,14 +35,8 @@
       "id": "herb_garden",
       "displayName": "灵药园",
       "buildingType": "HERB_GARDEN",
-      "slotCount": 6,
-      "unlockConditions": {
-        "sectLevel": 1,
-        "requiredSpiritStones": 0,
-        "requiredYear": 1
-      },
+      "slotCount": 3,
       "baseSuccessRate": 1.0,
-      "speedBonusPerDiscipleRealm": 0.0,
       "maxQueueLength": 1,
       "autoRestartEnabled": false,
       "description": "种植灵草的园地"
@@ -58,16 +46,70 @@
       "displayName": "天枢殿",
       "buildingType": "ADMINISTRATION",
       "slotCount": 2,
-      "unlockConditions": {
-        "sectLevel": 1,
-        "requiredSpiritStones": 0,
-        "requiredYear": 1
-      },
       "baseSuccessRate": 1.0,
-      "speedBonusPerDiscipleRealm": 0.0,
       "maxQueueLength": 1,
       "autoRestartEnabled": false,
       "description": "处理宗门事务的核心建筑"
+    },
+    "library": {
+      "id": "library",
+      "displayName": "藏经阁",
+      "buildingType": "LIBRARY",
+      "slotCount": 3,
+      "baseSuccessRate": 1.0,
+      "maxQueueLength": 1,
+      "autoRestartEnabled": false,
+      "description": "弟子修习功法的场所，提升修炼速度"
+    },
+    "wen_dao_peak": {
+      "id": "wen_dao_peak",
+      "displayName": "问道峰",
+      "buildingType": "WEN_DAO_PEAK",
+      "slotCount": 5,
+      "baseSuccessRate": 1.0,
+      "maxQueueLength": 1,
+      "autoRestartEnabled": false,
+      "description": "管理外门弟子与传道授业"
+    },
+    "qingyun_peak": {
+      "id": "qingyun_peak",
+      "displayName": "青云峰",
+      "buildingType": "QINGYUN_PEAK",
+      "slotCount": 5,
+      "baseSuccessRate": 1.0,
+      "maxQueueLength": 1,
+      "autoRestartEnabled": false,
+      "description": "管理内门弟子与精英培养"
+    },
+    "law_enforcement_hall": {
+      "id": "law_enforcement_hall",
+      "displayName": "执法堂",
+      "buildingType": "LAW_ENFORCEMENT_HALL",
+      "slotCount": 3,
+      "baseSuccessRate": 1.0,
+      "maxQueueLength": 1,
+      "autoRestartEnabled": false,
+      "description": "维护宗门纪律，执行奖惩"
+    },
+    "mission_hall": {
+      "id": "mission_hall",
+      "displayName": "任务阁",
+      "buildingType": "MISSION_HALL",
+      "slotCount": 4,
+      "baseSuccessRate": 1.0,
+      "maxQueueLength": 1,
+      "autoRestartEnabled": false,
+      "description": "派遣弟子执行宗门任务"
+    },
+    "reflection_cliff": {
+      "id": "reflection_cliff",
+      "displayName": "思过崖",
+      "buildingType": "REFLECTION_CLIFF",
+      "slotCount": 6,
+      "baseSuccessRate": 1.0,
+      "maxQueueLength": 1,
+      "autoRestartEnabled": false,
+      "description": "悔过自新之地，关押违规弟子"
     }
   },
   "buildingAliases": {
@@ -82,6 +124,21 @@
     "herb_garden": "herb_garden",
     "tianshu": "tianshu_hall",
     "tianshuhall": "tianshu_hall",
-    "tianshu_hall": "tianshu_hall"
+    "tianshu_hall": "tianshu_hall",
+    "administration": "tianshu_hall",
+    "library": "library",
+    "wendaopeak": "wen_dao_peak",
+    "wendao": "wen_dao_peak",
+    "wen_dao_peak": "wen_dao_peak",
+    "qingyunpeak": "qingyun_peak",
+    "qingyun": "qingyun_peak",
+    "qingyun_peak": "qingyun_peak",
+    "lawenforcementhall": "law_enforcement_hall",
+    "lawenforcement": "law_enforcement_hall",
+    "law_enforcement_hall": "law_enforcement_hall",
+    "missionhall": "mission_hall",
+    "mission_hall": "mission_hall",
+    "reflectioncliff": "reflection_cliff",
+    "reflection_cliff": "reflection_cliff"
   }
 }

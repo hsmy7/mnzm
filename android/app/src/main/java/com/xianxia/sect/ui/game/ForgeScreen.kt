@@ -26,6 +26,7 @@ import com.xianxia.sect.core.data.ForgeRecipeDatabase
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.theme.GameColors
+import com.xianxia.sect.ui.game.ProductionViewModel
 import java.util.Locale
 
 @Composable
@@ -34,6 +35,7 @@ fun ForgeDialog(
     materials: List<Material>,
     gameData: GameData?,
     viewModel: GameViewModel,
+    productionViewModel: ProductionViewModel,
     colors: com.xianxia.sect.ui.theme.XianxiaColorScheme,
     onDismiss: () -> Unit
 ) {
@@ -41,12 +43,12 @@ fun ForgeDialog(
     var showEquipmentSelection by remember { mutableStateOf(false) }
     var selectedSlotIndex by remember { mutableStateOf<Int?>(null) }
 
-    val disciples by viewModel.discipleAggregates.collectAsState()
+    val disciples by productionViewModel.discipleAggregates.collectAsState()
     var showElderSelection by remember { mutableStateOf(false) }
     var showDirectDiscipleSelection by remember { mutableStateOf<Int?>(null) }
 
     val elderSlots = gameData?.elderSlots ?: ElderSlots()
-    val forgeElder = elderSlots.forgeElder?.let { viewModel.getElderDisciple(it) }
+    val forgeElder = elderSlots.forgeElder?.let { productionViewModel.getElderDisciple(it) }
     val forgeDisciples = elderSlots.forgeDisciples
 
     var showReserveDiscipleDialog by remember { mutableStateOf(false) }
@@ -83,14 +85,15 @@ fun ForgeDialog(
                 theme = theme,
                 elder = forgeElder,
                 onElderClick = { showElderSelection = true },
-                onElderRemove = { viewModel.removeElder("forge") }
+                onElderRemove = { productionViewModel.removeElder("forge") }
             )
 
             ProductionDirectDiscipleSection(
                 theme = theme,
                 directDisciples = forgeDisciples,
+                slotCount = forgeSlots.size,
                 onDirectDiscipleClick = { index -> showDirectDiscipleSelection = index },
-                onDirectDiscipleRemove = { index -> viewModel.removeDirectDisciple("forge", index) }
+                onDirectDiscipleRemove = { index -> productionViewModel.removeDirectDisciple("forge", index) }
             )
 
             HorizontalDivider(
@@ -114,7 +117,7 @@ fun ForgeDialog(
                     modifier = Modifier
                         .clip(RoundedCornerShape(4.dp))
                         .background(theme.reserveButtonBackgroundColor)
-                        .clickable { viewModel.autoForgeAllSlots() }
+                        .clickable { productionViewModel.autoForgeAllSlots() }
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
                     Text(
@@ -126,7 +129,7 @@ fun ForgeDialog(
                 }
             }
 
-            (0 until theme.slotCount).chunked(3).forEach { rowIndexes ->
+            (0 until forgeSlots.size).chunked(3).forEach { rowIndexes ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
@@ -150,8 +153,7 @@ fun ForgeDialog(
                                     selectedSlotIndex = index
                                     showEquipmentSelection = true
                                 }
-                            },
-                            onRemove = { viewModel.clearForgeSlot(index) }
+                            }
                         )
                     }
                 }
@@ -165,6 +167,7 @@ fun ForgeDialog(
                 materials = materials,
                 slotIndex = slotIdx,
                 viewModel = viewModel,
+                productionViewModel = productionViewModel,
                 onDismiss = {
                     showEquipmentSelection = false
                     selectedSlotIndex = null
@@ -181,7 +184,7 @@ fun ForgeDialog(
             elderSlots = elderSlots ?: ElderSlots(),
             onDismiss = { showElderSelection = false },
             onSelect = { discipleId ->
-                viewModel.assignElder("forge", discipleId)
+                productionViewModel.assignElder("forge", discipleId)
                 showElderSelection = false
             }
         )
@@ -194,7 +197,7 @@ fun ForgeDialog(
             elderSlots = elderSlots ?: ElderSlots(),
             onDismiss = { showDirectDiscipleSelection = null },
             onSelect = { discipleId ->
-                viewModel.assignDirectDisciple("forge", slotIndex, discipleId)
+                productionViewModel.assignDirectDisciple("forge", slotIndex, discipleId)
                 showDirectDiscipleSelection = null
             }
         )
@@ -203,6 +206,7 @@ fun ForgeDialog(
     if (showReserveDiscipleDialog) {
         ForgeReserveDiscipleDialogWrapper(
             viewModel = viewModel,
+            productionViewModel = productionViewModel,
             onDismiss = { showReserveDiscipleDialog = false },
             onAddClick = { showAddReserveDialog = true }
         )
@@ -211,10 +215,10 @@ fun ForgeDialog(
     if (showAddReserveDialog) {
         ProductionAddReserveDiscipleDialog(
             theme = theme,
-            availableDisciples = viewModel.getAvailableDisciplesForForgeReserve(),
+            availableDisciples = productionViewModel.getAvailableDisciplesForForgeReserve(),
             onDismiss = { showAddReserveDialog = false },
             onConfirm = { selectedIds ->
-                viewModel.addForgeReserveDisciples(selectedIds)
+                productionViewModel.addForgeReserveDisciples(selectedIds)
                 showAddReserveDialog = false
             }
         )
@@ -224,17 +228,18 @@ fun ForgeDialog(
 @Composable
 private fun ForgeReserveDiscipleDialogWrapper(
     viewModel: GameViewModel,
+    productionViewModel: ProductionViewModel,
     onDismiss: () -> Unit,
     onAddClick: () -> Unit
 ) {
-    val reserveDisciples by remember { derivedStateOf { viewModel.getForgeReserveDisciplesWithInfo() } }
+    val reserveDisciples by remember { derivedStateOf { productionViewModel.getForgeReserveDisciplesWithInfo() } }
 
     ProductionReserveDiscipleDialog(
         theme = FORGE_THEME,
         reserveDisciples = reserveDisciples,
         onDismiss = onDismiss,
         onAddClick = onAddClick,
-        onRemove = { viewModel.removeForgeReserveDisciple(it) }
+        onRemove = { productionViewModel.removeForgeReserveDisciple(it) }
     )
 }
 
@@ -243,13 +248,14 @@ private fun EquipmentSelectionDialog(
     materials: List<Material>,
     slotIndex: Int,
     viewModel: GameViewModel,
+    productionViewModel: ProductionViewModel,
     onDismiss: () -> Unit
 ) {
     var selectedRecipe by remember { mutableStateOf<ForgeRecipeDatabase.ForgeRecipe?>(null) }
     var clickedRecipe by remember { mutableStateOf<ForgeRecipeDatabase.ForgeRecipe?>(null) }
     var showDetail by remember { mutableStateOf(false) }
 
-    val allRecipes by viewModel.allForgeRecipes.collectAsState()
+    val allRecipes by productionViewModel.allForgeRecipes.collectAsState()
 
     ProductionCommonDialog(
         title = FORGE_THEME.selectionDialogTitle,
@@ -301,7 +307,7 @@ private fun EquipmentSelectionDialog(
                         Color(0xFF95a5a6)
                     }
 
-                    Box(modifier = Modifier.fillMaxWidth().aspectRatio(1f)) {
+                    Box(modifier = Modifier.wrapContentSize(Alignment.Center).requiredSize(56.dp)) {
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
@@ -370,7 +376,7 @@ private fun EquipmentSelectionDialog(
                 text = FORGE_THEME.startProductionText,
                 onClick = {
                     selectedRecipe?.let { recipe ->
-                        viewModel.startForge(slotIndex, recipe)
+                        productionViewModel.startForge(slotIndex, recipe)
                         onDismiss()
                     }
                 },

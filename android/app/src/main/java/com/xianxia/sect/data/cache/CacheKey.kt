@@ -10,7 +10,7 @@ data class CacheKey(
     val ttl: Long = DEFAULT_TTL
 ) {
     companion object {
-        const val DEFAULT_TTL = 3600_000L
+        const val DEFAULT_TTL = 86400_000L
         const val TYPE_DISCIPLE = "disciple"
         const val TYPE_EQUIPMENT = "equipment"
         const val TYPE_MANUAL = "manual"
@@ -88,7 +88,7 @@ data class SlotAwareCacheKey(
     val type: String,
     val slot: Int,
     val id: String,
-    val ttl: Long = 3600_000L
+    val ttl: Long = 86400_000L
 ) {
     override fun toString(): String = "$type:$slot:$id"
 

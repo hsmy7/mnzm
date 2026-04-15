@@ -53,7 +53,7 @@ import javax.crypto.spec.SecretKeySpec
  * | 常量名 | 值 | 用途 |
  * |--------|------|------|
  * | PBKDF2_ITERATIONS | 310,000 | 当前标准（加密/解密 / Argon2id API<30 fallback） |
- * | PBKDF2_LEGACY_ITERATIONS | 60,000 | 历史版本（v2 及更早），删档测试期间无需兼容解密 |
+ * | PBKDF2_LEGACY_ITERATIONS | 60,000 | 历史版本（v2 及更早），无需兼容解密 |
  *
  * ### 迭代次数版本化策略
  *
@@ -61,8 +61,7 @@ import javax.crypto.spec.SecretKeySpec
  * 1. 将旧值记录到 PBKDF2_LEGACY_ITERATIONS（或增加更多 LEGACY 常量）
  * 2. 在加密数据头部版本标识（KeyVersion）中区分不同迭代次数
  * 3. 解密时根据版本头路由到对应的迭代次数
- * 4. 删档测试期间可跳过旧版本兼容，正式上线后必须保留旧版解密路径
- * 5. 至少保留一个完整版本的兼容期，确保所有用户数据可迁移
+ * 4. 至少保留一个完整版本的兼容期，确保所有用户数据可迁移
  */
 object SaveCrypto {
     private const val TAG = "SaveCrypto"
@@ -188,8 +187,8 @@ object SaveCrypto {
     /**
      * 历史版本 PBKDF2 迭代次数：60,000（OWASP 2021 推荐值，已过时）
      *
-     * 用途：仅作为版本化记录，当前删档测试期间无需实现旧版解密路径。
-     * 正式上线后若迭代次数再次变更，需根据此常量实现兼容解密逻辑。
+     * 用途：仅作为版本化记录。
+     * 若迭代次数再次变更，需根据此常量实现兼容解密逻辑。
      *
      * 版本化策略详见文件头部 "迭代次数版本化策略" 章节。
      */
@@ -240,14 +239,14 @@ object SaveCrypto {
      * 与 StorageConfig.DEFAULT_KEY_CACHE_DURATION_MS (300000L) 和清理间隔对齐。
      *
      * 设计考量：
-     * - 删档游戏安全性优先，但 5 分钟仍在合理范围
+     * - 游戏安全性优先，但 5 分钟仍在合理范围
      * - Argon2id/PBKDF2 派生在中端设备上约 100-200ms
      * - 缓存仅在内存中，进程终止即清空
      * - 统一 TTL 和清理间隔消除时间窗口不一致导致的状态不一致
      */
     private val UNIFIED_CACHE_TTL_MS = TimeUnit.MINUTES.toMillis(5)
 
-    /** 最大缓存条目数：10（删档游戏数据量有限，减少内存中密钥驻留） */
+    /** 最大缓存条目数：10（数据量有限，减少内存中密钥驻留） */
     private const val MAX_CACHE_SIZE = 10
 
     /** 统一清理间隔：5分钟（与 TTL 一致，确保过期键及时清理） */
@@ -743,7 +742,7 @@ object SaveCrypto {
      * 启动定期缓存清理协程 (v3: 仅通过懒初始化调用)
      *
      * 每 5 分钟检查一次过期条目并清理，
-     * 防止密钥在内存中驻留时间过长（删档游戏安全优先）。
+     * 防止密钥在内存中驻留时间过长（安全优先）。
      * 使用 SupervisorJob 确保单个清理失败不影响后续调度。
      *
      * v3 变更：不再从 init 块直接调用，

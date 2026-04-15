@@ -24,13 +24,12 @@ import javax.inject.Singleton
  * - slotId=1~6：对应存档槽位（存档中的历史数据）
  *
  * 推荐做法：
- * - 新代码应优先通过 [StorageGateway] 访问存储系统
+ * - 新代码应优先通过 [StorageFacade] 访问存储系统
  * - 直接使用本类可能导致存储路径混乱（三重路径问题）
  * - 仅在确实需要直接操作底层 DAO 时才使用本类
  *
  * 与其他 Repository 的关系：
- * - [SaveRepository]：负责槽位 1-5 的原子性存档操作
- * - [StorageGateway]：统一门面类，推荐入口
+ * - [StorageFacade]：统一门面类，推荐入口
  * - 本类：负责指定槽位的细粒度 CRUD 操作
  */
 @Singleton

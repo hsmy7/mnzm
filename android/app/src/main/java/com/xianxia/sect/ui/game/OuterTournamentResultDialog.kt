@@ -32,7 +32,7 @@ fun OuterTournamentResultDialog(
     competitionResults: List<CompetitionRankResult>,
     allDisciples: List<DiscipleAggregate>,
     gameData: GameData,
-    viewModel: GameViewModel,
+    worldMapViewModel: WorldMapViewModel,
     onDismiss: () -> Unit
 ) {
     val selectedIds = remember { mutableStateListOf<String>() }
@@ -49,7 +49,7 @@ fun OuterTournamentResultDialog(
                 TournamentHeader(
                     onDismiss = onDismiss,
                     onConfirm = {
-                        viewModel.promoteSelectedDisciplesToInner(selectedIds.toSet())
+                        worldMapViewModel.promoteSelectedDisciplesToInner(selectedIds.toSet())
                     }
                 )
 

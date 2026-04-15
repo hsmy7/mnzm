@@ -241,7 +241,6 @@ class SaveDataConverterTest {
                 worldMapSects = emptyList(),
                 exploredSects = emptyMap(),
                 scoutInfo = emptyMap(),
-                herbGardenPlantSlots = emptyList(),
                 manualProficiencies = emptyMap(),
                 travelingMerchantItems = emptyList(),
                 merchantLastRefreshYear = 5,

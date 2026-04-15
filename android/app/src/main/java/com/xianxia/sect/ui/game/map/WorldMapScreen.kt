@@ -82,7 +82,7 @@ fun WorldMapScreen(
                     onDoubleTap = { offset ->
                         val newScale = if (cameraState.scale >= 2.5f) 1f
                         else (cameraState.scale * 1.5f).coerceIn(
-                            cameraState.scaleRange.start,
+                            cameraState.effectiveMinScale,
                             cameraState.scaleRange.endInclusive
                         )
                         cameraState.applyZoom(newScale / cameraState.scale, offset)

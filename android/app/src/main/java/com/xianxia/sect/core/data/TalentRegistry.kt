@@ -14,20 +14,55 @@ class TalentRegistry : BaseTemplateRegistry<com.xianxia.sect.core.model.Talent>(
      * 天赋原始数据（包含额外的元信息）
      */
     private val allTalentData: Map<String, TalentDatabase.TalentData> by lazy {
-        // 从原数据库获取所有天赋数据
+        // 从 TalentDatabase 的 talents 映射构建 TalentData
         val talentDataMap = mutableMapOf<String, TalentDatabase.TalentData>()
 
-        // 通过反射或直接访问原数据库的内部数据
-        // 这里我们复用 TalentDatabase 的数据
-        TalentDatabase.getTalentsByIds(
-            TalentDatabase.talents.keys.toList()
-        ).forEach { talent ->
-            // 需要从 Talent 反推 TalentData，这里简化处理
-            // 实际实现中可能需要直接访问 TalentDatabase 的内部 API
+        TalentDatabase.talents.forEach { (id, talent) ->
+            val type = inferTalentType(talent.effects, talent.isNegative)
+            talentDataMap[id] = TalentDatabase.TalentData(
+                id = talent.id,
+                name = talent.name,
+                description = talent.description,
+                rarity = talent.rarity,
+                effects = talent.effects,
+                isNegative = talent.isNegative,
+                type = type,
+                template = id
+            )
         }
 
-        // 临时方案：重新构建数据（与原数据库保持一致）
-        buildTalentDataMap()
+        talentDataMap
+    }
+
+    /**
+     * 从天赋效果推断天赋类型
+     */
+    private fun inferTalentType(effects: Map<String, Double>, isNegative: Boolean): TalentDatabase.TalentType {
+        return when {
+            effects.containsKey("cultivationSpeed") -> TalentDatabase.TalentType.CULT_SPEED
+            effects.containsKey("breakthroughChance") -> TalentDatabase.TalentType.BREAK_CHANCE
+            effects.containsKey("lifespan") -> TalentDatabase.TalentType.LIFESPAN
+            effects.containsKey("physicalAttack") -> TalentDatabase.TalentType.BAT_PHY_ATK
+            effects.containsKey("magicAttack") -> TalentDatabase.TalentType.BAT_MAG_ATK
+            effects.containsKey("physicalDefense") -> TalentDatabase.TalentType.BAT_PHY_DEF
+            effects.containsKey("magicDefense") -> TalentDatabase.TalentType.BAT_MAG_DEF
+            effects.containsKey("maxHp") -> TalentDatabase.TalentType.BAT_HP
+            effects.containsKey("maxMp") -> TalentDatabase.TalentType.BAT_MP
+            effects.containsKey("speed") -> TalentDatabase.TalentType.BAT_SPEED
+            effects.containsKey("critRate") -> TalentDatabase.TalentType.BAT_CRIT
+            effects.containsKey("manualSlot") -> TalentDatabase.TalentType.MANUAL_SLOT
+            effects.containsKey("winBattleRandomAttrPlus") -> TalentDatabase.TalentType.WIN_GROWTH
+            effects.containsKey("intelligenceFlat") -> TalentDatabase.TalentType.BASE_INT
+            effects.containsKey("charmFlat") -> TalentDatabase.TalentType.BASE_CHARM
+            effects.containsKey("loyaltyFlat") -> TalentDatabase.TalentType.BASE_LOYAL
+            effects.containsKey("comprehensionFlat") -> TalentDatabase.TalentType.BASE_COMP
+            effects.containsKey("artifactRefiningFlat") -> TalentDatabase.TalentType.BASE_ARTI
+            effects.containsKey("pillRefiningFlat") -> TalentDatabase.TalentType.BASE_PILL
+            effects.containsKey("spiritPlantingFlat") -> TalentDatabase.TalentType.BASE_PLANT
+            effects.containsKey("teachingFlat") -> TalentDatabase.TalentType.BASE_TEACH
+            effects.containsKey("moralityFlat") -> TalentDatabase.TalentType.BASE_MORAL
+            else -> TalentDatabase.TalentType.CULT_SPEED // 默认
+        }
     }
 
     /**
@@ -117,15 +152,4 @@ class TalentRegistry : BaseTemplateRegistry<com.xianxia.sect.core.model.Talent>(
         return TalentDatabase.getTalentDisplayInfo(talentId)
     }
 
-    // ==================== 私有辅助方法 ====================
-
-    /**
-     * 构建完整的天赋数据映射（临时方案）
-     */
-    private fun buildTalentDataMap(): Map<String, TalentDatabase.TalentData> {
-        // 由于 TalentDatabase 没有公开 getAllTalentData() 方法，
-        // 我们通过 generateRandomTalents 的行为间接使用其内部逻辑
-        // 这里返回空 map，实际使用时委托给 TalentDatabase
-        return emptyMap()
-    }
 }

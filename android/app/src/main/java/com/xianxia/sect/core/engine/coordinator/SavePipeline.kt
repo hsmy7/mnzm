@@ -1,10 +1,11 @@
 package com.xianxia.sect.core.engine.coordinator
 
 import android.util.Log
-import com.xianxia.sect.data.facade.RefactoredStorageFacade
+import com.xianxia.sect.data.facade.StorageFacade
 import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.core.engine.GameStateSnapshot
 import com.xianxia.sect.core.engine.coordinator.SaveLoadCoordinator
+import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
@@ -25,8 +26,9 @@ import javax.inject.Singleton
  */
 @Singleton
 class SavePipeline @Inject constructor(
-    private val storageFacade: RefactoredStorageFacade,
-    private val saveLoadCoordinator: SaveLoadCoordinator
+    private val storageFacade: StorageFacade,
+    private val saveLoadCoordinator: SaveLoadCoordinator,
+    private val applicationScopeProvider: ApplicationScopeProvider
 ) {
     companion object {
         private const val TAG = "SavePipeline"
@@ -80,11 +82,15 @@ class SavePipeline @Inject constructor(
     /** 缓冲队列：容量 4，允许短时间积压存档请求 */
     private val saveChannel = Channel<SaveRequest>(capacity = 4)
 
+    /** 存档完成事件流，用于通知外部（如 GameViewModel）刷新存档列表 */
+    private val _saveResults = MutableSharedFlow<SavePipelineResult>(extraBufferCapacity = 8)
+    val saveResults: SharedFlow<SavePipelineResult> = _saveResults.asSharedFlow()
+
     /** 后台消费者协程 Job */
     private var consumerJob: Job? = null
 
     /** 协程作用域 */
-    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val scope get() = applicationScopeProvider.ioScope
 
     init {
         startConsumer()
@@ -185,28 +191,24 @@ class SavePipeline @Inject constructor(
             SaveSource.MANUAL -> SaveLoadCoordinator.OperationType.MANUAL_SAVE
         }
 
-        return try {
-            // 通过 SaveLoadCoordinator 执行带监控的存档操作
+        val result = try {
             val monitoringResult = saveLoadCoordinator.executeSaveWithMonitoring(
                 operationType = operationType,
                 saveSlot = request.slot,
                 saveOperation = {
-                    // 内部使用 withTimeoutOrNull 控制超时
-                    val result = withTimeoutOrNull(timeoutMs) {
+                    val innerResult = withTimeoutOrNull(timeoutMs) {
                         storageFacade.saveSyncWithResult(request.slot, saveData)
                     }
-                    if (result == null) {
+                    if (innerResult == null) {
                         throw TimeoutException("Save timed out after ${timeoutMs}ms")
                     }
-                    result
+                    innerResult
                 }
             )
 
             val durationMs = System.currentTimeMillis() - startTime
 
             if (monitoringResult.success) {
-                // 存档成功后刷新 slot 列表（确保 UI 能立即看到新存档）
-                storageFacade.getSaveSlots()
                 Log.d(TAG, "Save completed: slot=${request.slot}, source=${request.source}, duration=${durationMs}ms")
                 SavePipelineResult(
                     success = true,
@@ -257,6 +259,9 @@ class SavePipeline @Inject constructor(
                 errorMessage = e.message ?: "Unknown error"
             )
         }
+
+        _saveResults.tryEmit(result)
+        return result
     }
 
     /**

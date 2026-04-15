@@ -85,9 +85,7 @@ fun DiscipleDetailDialog(
     }
 
     val maxManualSlots = remember(disciple.talentIds) {
-        val talentEffects = TalentDatabase.calculateTalentEffects(disciple.talentIds)
-        val manualSlotBonus = talentEffects["manualSlot"]?.toInt() ?: 0
-        6 + manualSlotBonus
+        com.xianxia.sect.core.engine.DiscipleStatCalculator.getMaxManualSlots(disciple.toDisciple())
     }
 
     var showRelationsDialog by remember { mutableStateOf(false) }
@@ -188,7 +186,7 @@ fun DiscipleDetailDialog(
                     isWorkStatusPosition = viewModel?.isPositionWorkStatus(disciple.id) ?: false
                 )
                 HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
-                TalentsSection(talents)
+                TalentsSection(talents, disciple.statusData)
                 HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
                 AttributesSection(disciple)
                 HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
@@ -318,6 +316,7 @@ fun DiscipleDetailDialog(
         ManualSelectionDialog(
             allManuals = allManuals,
             currentManualIds = disciple.manualIds,
+            currentDiscipleId = disciple.id,
             discipleRealm = disciple.realm,
             selectedManualId = selectedManualId,
             onSelect = { id -> 
@@ -1039,7 +1038,7 @@ private fun EquipmentDetailDialog(
         allEquipment.filter {
             it.slot.name.lowercase(java.util.Locale.getDefault()) == slotType &&
             it.id != equipment.id &&
-            (!it.isEquipped || it.ownerId == disciple.id)
+            (it.ownerId == null || (it.ownerId == disciple.id && !it.isEquipped))
         }.sortedByDescending { it.rarity }
     }
 
@@ -1543,7 +1542,7 @@ private fun EquipmentSelectionDialog(
         val filtered = allEquipment.filter { 
             it.slot.name.lowercase(java.util.Locale.getDefault()) == slotType.lowercase(java.util.Locale.getDefault()) && 
             it.id != currentEquipmentId &&
-            (!it.isEquipped || it.ownerId == currentDiscipleId)
+            (it.ownerId == null || (it.ownerId == currentDiscipleId && !it.isEquipped))
         }
         filtered.sortedByDescending { it.rarity }
     }
@@ -1767,16 +1766,19 @@ private fun EquipmentSelectionCard(
 private fun ManualSelectionDialog(
     allManuals: List<Manual>,
     currentManualIds: List<String>,
+    currentDiscipleId: String,
     discipleRealm: Int,
     selectedManualId: String?,
     onSelect: (String) -> Unit,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    val availableManuals = remember(allManuals, currentManualIds, discipleRealm) {
+    val availableManuals = remember(allManuals, currentManualIds, currentDiscipleId, discipleRealm) {
         val hasMindManual = currentManualIds.any { mid -> allManuals.find { it.id == mid }?.type == ManualType.MIND }
         allManuals.filter { manual ->
-            manual.id !in currentManualIds && !manual.isLearned &&
+            manual.id !in currentManualIds &&
+            (manual.ownerId == null || manual.ownerId == currentDiscipleId) &&
+            !manual.isLearned &&
             !(hasMindManual && manual.type == ManualType.MIND) &&
             GameConfig.Realm.meetsRealmRequirement(discipleRealm, manual.minRealm)
         }.sortedByDescending { it.rarity }
@@ -2376,8 +2378,18 @@ private fun InfoItem(value: String, modifier: Modifier = Modifier, color: Color 
 }
 
 @Composable
-private fun TalentsSection(talents: List<Talent>) {
+private fun TalentsSection(talents: List<Talent>, statusData: Map<String, String> = emptyMap()) {
     var selectedTalent by remember { mutableStateOf<Talent?>(null) }
+    
+    // 计算战斗成长值
+    val winGrowth = remember(statusData) {
+        val growthAttrs = listOf("maxHp" to "生命", "maxMp" to "灵力", "physicalAttack" to "物攻",
+            "magicAttack" to "法攻", "physicalDefense" to "物防", "magicDefense" to "法防", "speed" to "速度")
+        growthAttrs.mapNotNull { (key, label) ->
+            val value = statusData["winGrowth.$key"]?.toIntOrNull() ?: 0
+            if (value > 0) "$label+$value" else null
+        }
+    }
     
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
@@ -2425,6 +2437,15 @@ private fun TalentsSection(talents: List<Talent>) {
                     }
                 }
             }
+        }
+        
+        // 战斗成长显示（"百战通神"天赋效果）
+        if (winGrowth.isNotEmpty()) {
+            Text(
+                text = "战斗成长: ${winGrowth.joinToString(" ")}",
+                fontSize = 10.sp,
+                color = Color(0xFF4CAF50)
+            )
         }
     }
     

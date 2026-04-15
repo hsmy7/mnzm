@@ -1,5 +1,6 @@
 {
   "dependencies": {
-    "marked": "^17.0.4"
+    "marked": "^17.0.4",
+    "pdf-to-img": "^6.0.0"
   }
 }

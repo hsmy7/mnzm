@@ -12,6 +12,7 @@ import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.ManualProficiencyData
 import com.xianxia.sect.core.model.WorldSect
+import com.xianxia.sect.core.engine.ManualProficiencySystem
 import kotlin.math.sqrt
 import kotlin.random.Random
 
@@ -350,22 +351,30 @@ object AISectAttackManager {
         val equipmentMap = buildMap {
             disciple.weaponId?.let { weaponId ->
                 EquipmentDatabase.getById(weaponId)?.let { template ->
-                    put(weaponId, EquipmentDatabase.createFromTemplate(template))
+                    val eq = EquipmentDatabase.createFromTemplate(template)
+                    val nurture = disciple.weaponNurture
+                    put(weaponId, if (nurture.equipmentId == weaponId) eq.copy(nurtureLevel = nurture.nurtureLevel, nurtureProgress = nurture.nurtureProgress) else eq)
                 }
             }
             disciple.armorId?.let { armorId ->
                 EquipmentDatabase.getById(armorId)?.let { template ->
-                    put(armorId, EquipmentDatabase.createFromTemplate(template))
+                    val eq = EquipmentDatabase.createFromTemplate(template)
+                    val nurture = disciple.armorNurture
+                    put(armorId, if (nurture.equipmentId == armorId) eq.copy(nurtureLevel = nurture.nurtureLevel, nurtureProgress = nurture.nurtureProgress) else eq)
                 }
             }
             disciple.bootsId?.let { bootsId ->
                 EquipmentDatabase.getById(bootsId)?.let { template ->
-                    put(bootsId, EquipmentDatabase.createFromTemplate(template))
+                    val eq = EquipmentDatabase.createFromTemplate(template)
+                    val nurture = disciple.bootsNurture
+                    put(bootsId, if (nurture.equipmentId == bootsId) eq.copy(nurtureLevel = nurture.nurtureLevel, nurtureProgress = nurture.nurtureProgress) else eq)
                 }
             }
             disciple.accessoryId?.let { accessoryId ->
                 EquipmentDatabase.getById(accessoryId)?.let { template ->
-                    put(accessoryId, EquipmentDatabase.createFromTemplate(template))
+                    val eq = EquipmentDatabase.createFromTemplate(template)
+                    val nurture = disciple.accessoryNurture
+                    put(accessoryId, if (nurture.equipmentId == accessoryId) eq.copy(nurtureLevel = nurture.nurtureLevel, nurtureProgress = nurture.nurtureProgress) else eq)
                 }
             }
         }
@@ -378,17 +387,14 @@ object AISectAttackManager {
         
         val manualProficiencies = disciple.manualIds.associateWith { manualId ->
             val mastery = disciple.manualMasteries[manualId] ?: 0
+            val manual = ManualDatabase.getById(manualId)
+            val masteryLevel = if (manual != null) {
+                ManualProficiencySystem.MasteryLevel.fromProficiency(mastery.toDouble(), manual.rarity).level
+            } else 0
             ManualProficiencyData(
                 manualId = manualId,
                 proficiency = mastery.toDouble(),
-                masteryLevel = when {
-                    mastery >= 100 -> 3
-                    mastery >= 80 -> 2
-                    mastery >= 60 -> 1
-                    mastery >= 40 -> 1
-                    mastery >= 20 -> 0
-                    else -> 0
-                }
+                masteryLevel = masteryLevel
             )
         }
         

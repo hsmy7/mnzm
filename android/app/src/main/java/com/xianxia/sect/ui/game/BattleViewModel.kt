@@ -28,11 +28,9 @@ class BattleViewModel @Inject constructor(
      * 转换后的弟子列表（使用新的 DiscipleAggregate 模型）
      * 用于 UI 层展示，避免使用废弃的 Disciple 类
      */
-    val disciplesAggregates: StateFlow<List<DiscipleAggregate>> = gameEngine.disciples
-        .map { list -> list.map { DiscipleAggregate.fromDisciple(it) } }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val disciplesAggregates: StateFlow<List<DiscipleAggregate>> = gameEngine.discipleAggregates
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    // 使用 DiscipleAggregate 作为 UI 层的标准类型
     val disciples: StateFlow<List<DiscipleAggregate>> = disciplesAggregates
     
     private val _errorMessage = MutableStateFlow<String?>(null)
@@ -329,5 +327,187 @@ class BattleViewModel @Inject constructor(
     
     fun hasDisciplePosition(discipleId: String): Boolean {
         return DisciplePositionHelper.hasDisciplePosition(discipleId, gameEngine.gameData.value)
+    }
+
+    private val _showBattleTeamDialog = MutableStateFlow(false)
+    val showBattleTeamDialog: StateFlow<Boolean> = _showBattleTeamDialog.asStateFlow()
+
+    fun openBattleTeamDialog() {
+        val existingTeam = gameEngine.gameData.value.battleTeam
+        if (existingTeam != null) {
+            _battleTeamSlots.value = existingTeam.slots
+        } else {
+            _battleTeamSlots.value = buildList {
+                repeat(2) { index ->
+                    add(BattleTeamSlot(index, slotType = BattleSlotType.ELDER))
+                }
+                repeat(8) { index ->
+                    add(BattleTeamSlot(index + 2, slotType = BattleSlotType.DISCIPLE))
+                }
+            }
+        }
+        _showBattleTeamDialog.value = true
+    }
+
+    fun closeBattleTeamDialog() {
+        _showBattleTeamDialog.value = false
+    }
+
+    fun getAvailableEldersForBattleTeam(): List<DiscipleAggregate> {
+        val currentSlotDiscipleIds = _battleTeamSlots.value.mapNotNull { it.discipleId }
+        val occupiedIds = getWorkStatusPositionIds() + currentSlotDiscipleIds
+
+        return disciples.value
+            .filter { disciple ->
+                disciple.isAlive &&
+                disciple.discipleType == "inner" &&
+                disciple.realmLayer > 0 &&
+                disciple.age >= 5 &&
+                disciple.status == DiscipleStatus.IDLE &&
+                disciple.realm <= 5 &&
+                !occupiedIds.contains(disciple.id)
+            }
+            .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
+    }
+
+    fun getAvailableDisciplesForBattleTeam(): List<DiscipleAggregate> {
+        val currentSlotDiscipleIds = _battleTeamSlots.value.mapNotNull { it.discipleId }
+        val occupiedIds = getWorkStatusPositionIds() + currentSlotDiscipleIds
+
+        return disciples.value
+            .filter { disciple ->
+                disciple.isAlive &&
+                disciple.realmLayer > 0 &&
+                disciple.status == DiscipleStatus.IDLE &&
+                !occupiedIds.contains(disciple.id)
+            }
+            .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
+    }
+
+    fun assignDiscipleToBattleTeamSlot(slotIndex: Int, disciple: DiscipleAggregate) {
+        val currentSlots = _battleTeamSlots.value.toMutableList()
+
+        if (slotIndex < 0 || slotIndex >= currentSlots.size) {
+            _errorMessage.value = "槽位索引无效"
+            return
+        }
+
+        val slotType = currentSlots[slotIndex].slotType
+
+        if (slotType == BattleSlotType.ELDER && disciple.realm > 5) {
+            _errorMessage.value = "战斗长老需要达到化神境界"
+            return
+        }
+
+        val existingSlot = currentSlots.find { it.discipleId == disciple.id }
+        if (existingSlot != null) {
+            currentSlots[existingSlot.index] = BattleTeamSlot(existingSlot.index, slotType = existingSlot.slotType)
+        }
+        currentSlots[slotIndex] = BattleTeamSlot(
+            index = slotIndex,
+            discipleId = disciple.id,
+            discipleName = disciple.name,
+            discipleRealm = disciple.realmName,
+            slotType = slotType
+        )
+        _battleTeamSlots.value = currentSlots
+    }
+
+    fun createBattleTeam(): Boolean {
+        val currentSlots = _battleTeamSlots.value
+        val filledSlots = currentSlots.count { it.discipleId.isNotEmpty() }
+
+        if (filledSlots < 10) {
+            _errorMessage.value = "必须满10名弟子才可组建队伍"
+            return false
+        }
+
+        val elderSlots = currentSlots.filter { it.slotType == BattleSlotType.ELDER }
+        if (elderSlots.any { it.discipleId.isEmpty() }) {
+            _errorMessage.value = "必须填满长老槽位才可组建队伍"
+            return false
+        }
+
+        val existingTeam = gameEngine.gameData.value.battleTeam
+        if (existingTeam != null && existingTeam.isAtSect) {
+            _errorMessage.value = "宗门地址上已存在战斗队伍"
+            return false
+        }
+
+        viewModelScope.launch {
+            try {
+                val battleTeam = BattleTeam(
+                    id = java.util.UUID.randomUUID().toString(),
+                    name = "战斗队伍",
+                    slots = currentSlots,
+                    isAtSect = true,
+                    status = "idle"
+                )
+
+                gameEngine.updateGameData { it.copy(battleTeam = battleTeam) }
+                gameEngine.syncAllDiscipleStatuses()
+
+                closeBattleTeamDialog()
+            } catch (e: Exception) {
+                _errorMessage.value = e.message ?: "组建队伍失败"
+            }
+        }
+        return true
+    }
+
+    fun returnStationedBattleTeam() {
+        val team = gameEngine.gameData.value.battleTeam
+        if (team == null) {
+            _errorMessage.value = "没有可召回的战斗队伍"
+            return
+        }
+
+        if (!team.isAtSect) {
+            _errorMessage.value = "队伍不在宗门，无法召回"
+            return
+        }
+
+        if (!team.isIdle) {
+            _errorMessage.value = "队伍正在移动或战斗中，无法召回"
+            return
+        }
+
+        viewModelScope.launch {
+            try {
+                gameEngine.updateGameData { it.copy(battleTeam = null) }
+                gameEngine.syncAllDiscipleStatuses()
+
+                _battleTeamSlots.value = buildList {
+                    repeat(2) { index ->
+                        add(BattleTeamSlot(index, slotType = BattleSlotType.ELDER))
+                    }
+                    repeat(8) { index ->
+                        add(BattleTeamSlot(index + 2, slotType = BattleSlotType.DISCIPLE))
+                    }
+                }
+
+                closeBattleTeamDialog()
+                _successMessage.value = "战斗队伍已召回"
+            } catch (e: Exception) {
+                _errorMessage.value = e.message ?: "召回队伍失败"
+            }
+        }
+    }
+
+    fun isReserveDisciple(discipleId: String): Boolean {
+        val elderSlots = gameEngine.gameData.value.elderSlots
+        return elderSlots.lawEnforcementReserveDisciples.any { it.discipleId == discipleId } ||
+               elderSlots.herbGardenReserveDisciples.any { it.discipleId == discipleId } ||
+               elderSlots.alchemyReserveDisciples.any { it.discipleId == discipleId } ||
+               elderSlots.forgeReserveDisciples.any { it.discipleId == discipleId }
+    }
+
+    private fun getWorkStatusPositionIds(): List<String> {
+        val elderSlots = gameEngine.gameData.value.elderSlots
+        return listOfNotNull(elderSlots.viceSectMaster) +
+               elderSlots.preachingMasters.mapNotNull { it.discipleId } +
+               elderSlots.qingyunPreachingMasters.mapNotNull { it.discipleId } +
+               elderSlots.lawEnforcementDisciples.mapNotNull { it.discipleId } +
+               elderSlots.spiritMineDeaconDisciples.mapNotNull { it.discipleId }
     }
 }

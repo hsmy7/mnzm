@@ -1,8 +1,7 @@
 package com.xianxia.sect.core.warehouse
 
 import com.xianxia.sect.core.model.WarehouseItem
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
+import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -15,6 +14,14 @@ object WarehouseItemPool {
     private const val EVICTION_RATIO = 0.5f
     private const val IDLE_THRESHOLD = 10 * 60 * 1000L
     
+    private lateinit var applicationScopeProvider: ApplicationScopeProvider
+    
+    fun initialize(provider: ApplicationScopeProvider) {
+        applicationScopeProvider = provider
+    }
+    
+    private val cleanupScope get() = applicationScopeProvider.scope
+    
     private val poolLock = Any()
     private data class PooledItem(
         val item: WarehouseItem,
@@ -26,7 +33,6 @@ object WarehouseItemPool {
     private val poolStats = PoolStats()
     private val poolSize = AtomicInteger(0)
     
-    private val cleanupScope = CoroutineScope(Dispatchers.Default)
     private var cleanupJob: Job? = null
     private var isRunning = false
     

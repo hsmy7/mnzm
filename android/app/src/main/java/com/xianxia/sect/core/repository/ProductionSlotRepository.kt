@@ -8,7 +8,7 @@ import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.model.production.ProductionSlotStatus
 import com.xianxia.sect.core.model.production.SlotStateMachine
 import com.xianxia.sect.data.local.ProductionSlotDao
-import kotlinx.coroutines.CoroutineScope
+import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.sync.Mutex
@@ -20,16 +20,35 @@ import javax.inject.Singleton
 @Singleton
 class ProductionSlotRepository @Inject constructor(
     private val dao: ProductionSlotDao,
-    private val configService: BuildingConfigService
+    private val configService: BuildingConfigService,
+    private val applicationScopeProvider: ApplicationScopeProvider
 ) {
     companion object {
         private const val TAG = "ProductionSlotRepository"
+
+        private val BUILDING_ID_MAP = mapOf(
+            BuildingType.ALCHEMY to "alchemy",
+            BuildingType.FORGE to "forge",
+            BuildingType.MINING to "mining",
+            BuildingType.HERB_GARDEN to "herbGarden",
+            BuildingType.ADMINISTRATION to "tianshu_hall",
+            BuildingType.LIBRARY to "library",
+            BuildingType.WEN_DAO_PEAK to "wen_dao_peak",
+            BuildingType.QINGYUN_PEAK to "qingyun_peak",
+            BuildingType.LAW_ENFORCEMENT_HALL to "law_enforcement_hall",
+            BuildingType.MISSION_HALL to "mission_hall",
+            BuildingType.REFLECTION_CLIFF to "reflection_cliff"
+        )
+
+        fun getBuildingIdForType(buildingType: BuildingType): String {
+            return BUILDING_ID_MAP[buildingType] ?: buildingType.name.lowercase()
+        }
     }
 
     private val shardedLock = ShardedSlotLock()
     private val globalMutex = Mutex()
     private val cache = SlotQueryCache()
-    private val scope = CoroutineScope(Dispatchers.Default)
+    private val scope get() = applicationScopeProvider.scope
 
     private val _slots = MutableStateFlow<List<ProductionSlot>>(emptyList())
     val slots: StateFlow<List<ProductionSlot>> = _slots.asStateFlow()
@@ -76,6 +95,10 @@ class ProductionSlotRepository @Inject constructor(
     }
 
     fun getSlots(): List<ProductionSlot> = _slots.value
+
+    fun getExpectedSlotCount(buildingType: BuildingType): Int {
+        return configService.getSlotCountByType(buildingType)
+    }
 
     fun getSlotByIndex(buildingType: BuildingType, slotIndex: Int): ProductionSlot? {
         return cache.getByIndex(_slots.value, buildingType, slotIndex)
@@ -296,7 +319,7 @@ class ProductionSlotRepository @Inject constructor(
                     allSlots.add(ProductionSlot.createIdle(
                         slotIndex = idx,
                         buildingType = buildingType,
-                        buildingId = buildingType.name.lowercase()
+                        buildingId = getBuildingIdForType(buildingType)
                     ))
                 }
             }
@@ -317,7 +340,7 @@ class ProductionSlotRepository @Inject constructor(
                 ProductionSlot.createIdle(
                     slotIndex = idx,
                     buildingType = buildingType,
-                    buildingId = buildingType.name.lowercase()
+                    buildingId = getBuildingIdForType(buildingType)
                 )
             }
 

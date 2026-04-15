@@ -303,17 +303,10 @@ object DiscipleStatCalculator {
             disciple.manualIds.forEach { manualId ->
                 val manual = ManualDatabase.getById(manualId)
                 if (manual != null) {
-                    val mastery = disciple.manualMasteries[manualId] ?: 0
-                    val masteryMultiplier = when {
-                        mastery >= 100 -> 1.5
-                        mastery >= 80 -> 1.3
-                        mastery >= 60 -> 1.2
-                        mastery >= 40 -> 1.1
-                        mastery >= 20 -> 1.05
-                        else -> 1.0
-                    }
-                    val cultivationSpeedPercent = manual.stats["cultivationSpeedPercent"] ?: 0
-                    totalBonus += cultivationSpeedPercent * masteryMultiplier / 100.0
+                    val proficiencyData = manualProficiencies[manualId]
+                    val masteryLevel = proficiencyData?.masteryLevel ?: 0
+                    val masteryBonus = ManualProficiencySystem.MasteryLevel.fromLevel(masteryLevel).bonus
+                    totalBonus += (manual.stats["cultivationSpeedPercent"] ?: 0) * masteryBonus / 100.0
                 }
             }
         }
@@ -368,7 +361,11 @@ object DiscipleStatCalculator {
             0.0
         }
 
-        val totalBonus = innerElderBonus + outerElderComprehensionBonus + pillBonus
+        // 天赋突破概率加成（如"悟道通玄"/"灵脉紊乱"）
+        val talentEffects = getTalentEffects(disciple)
+        val talentBreakthroughBonus = talentEffects["breakthroughChance"] ?: 0.0
+
+        val totalBonus = innerElderBonus + outerElderComprehensionBonus + pillBonus + talentBreakthroughBonus
         return (baseChance + totalBonus).coerceIn(0.0, 1.0)
     }
 
@@ -405,6 +402,22 @@ object DiscipleStatCalculator {
         return soulPower >= requiredSoul
     }
 
+    // ==================== 功法槽位计算 ====================
+
+    /**
+     * 计算弟子最大功法槽位数
+     *
+     * 基础6个槽位，天赋"天衍道藏"可额外+1
+     *
+     * @param disciple 弟子实例
+     * @return 最大功法槽位数
+     */
+    fun getMaxManualSlots(disciple: Disciple): Int {
+        val talentEffects = getTalentEffects(disciple)
+        val manualSlotBonus = talentEffects["manualSlot"]?.toInt() ?: 0
+        return 6 + manualSlotBonus
+    }
+
     // ==================== 青云峰加成计算 ====================
 
     fun calculateQingyunPeakCultivationSpeedBonus(
@@ -418,16 +431,18 @@ object DiscipleStatCalculator {
         var cultivationSpeedBonus = 0.0
 
         if (qingyunPreachingElder != null && qingyunPreachingElder.isAlive) {
+            val elderTeaching = getBaseStats(qingyunPreachingElder).teaching
             // realm越小境界越高，disciple.realm >= elder.realm 表示弟子境界不高于长老，长老才能指导
-            if (disciple.realm >= qingyunPreachingElder.realm && qingyunPreachingElder.skills.teaching >= 80) {
-                cultivationSpeedBonus += (qingyunPreachingElder.skills.teaching - 80) * 0.01
+            if (disciple.realm >= qingyunPreachingElder.realm && elderTeaching >= 80) {
+                cultivationSpeedBonus += (elderTeaching - 80) * 0.01
             }
         }
 
         qingyunPreachingMasters.filter { it.isAlive }.forEach { master ->
+            val masterTeaching = getBaseStats(master).teaching
             // realm越小境界越高，disciple.realm >= master.realm 表示弟子境界不高于师傅，师傅才能指导
-            if (disciple.realm >= master.realm && master.skills.teaching >= 80) {
-                cultivationSpeedBonus += (master.skills.teaching - 80) * 0.005
+            if (disciple.realm >= master.realm && masterTeaching >= 80) {
+                cultivationSpeedBonus += (masterTeaching - 80) * 0.005
             }
         }
 

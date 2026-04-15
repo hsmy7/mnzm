@@ -419,7 +419,6 @@ class BackupManager @Inject constructor(
     )
 
     /**
-     * 向后兼容：从旧格式备份ID提取版本号
-     * 用于处理旧版本的备份ID格式
+     * 从备份ID提取版本号
      */
 }

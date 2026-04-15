@@ -284,7 +284,7 @@ class DynamicMemoryManager @Inject constructor(
     /**
      * 检查是否有足够内存执行存档操作
      *
-     * 与旧版 [checkAvailableMemory] 不同的是：
+     * 与 [checkAvailableMemory] 不同的是：
      * - 不再使用固定的 15% 阈值
      * - 根据实际存档大小 + 安全余量判断
      * - 返回更精确的结果
@@ -320,8 +320,6 @@ class DynamicMemoryManager @Inject constructor(
     /**
      * 向后兼容方法：无参版本，使用已设置的存档大小
      */
-    fun checkAvailableMemoryLegacy(): Boolean = checkAvailableMemory()
-
     // ==================== 真正的 GC 实现 ====================
 
     /**
@@ -387,13 +385,6 @@ class DynamicMemoryManager @Inject constructor(
         }
 
         return freed
-    }
-
-    /**
-     * 向后兼容的无返回值版本
-     */
-    fun forceGcAndWaitLegacy() {
-        forceGcAndWait()
     }
 
     // ==================== 内存预算分配 ====================

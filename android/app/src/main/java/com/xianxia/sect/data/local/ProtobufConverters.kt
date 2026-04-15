@@ -22,7 +22,7 @@ import java.util.Base64
  * 2. 使用 **kotlinx.serialization.protobuf.ProtoBuf** 进行二进制序列化
  * 3. 通过 **Base64 编码** 将 ByteArray 转换为 String 存储（Room TEXT 列兼容）
  * 4. **KSP 安全**：无匿名内部类，避免 KSP NPE 问题
- * 5. **无 Gson 依赖**：删档测试版本，不需要向后兼容
+ * 5. **无 Gson 依赖**：不需要向后兼容
  *
  * ### 性能优势
  * - 二进制体积比 JSON 小 30-50%
@@ -77,7 +77,7 @@ object ProtobufConverters {
             val bytes = protoBuf.encodeToByteArray(serializer, value)
             return bytesToBase64(bytes)
         } catch (e: Exception) {
-            Log.w(TAG, "Protobuf serialization failed for ${serializer.descriptor.serialName}, data will be lost", e)
+            Log.e(TAG, "Protobuf serialization FAILED for ${serializer.descriptor.serialName}, data will be lost! Value type: ${value::class.simpleName}", e)
             return ""
         }
     }
@@ -91,14 +91,11 @@ object ProtobufConverters {
             val bytes = protoBuf.encodeToByteArray(serializer, value)
             return bytesToBase64(bytes)
         } catch (e: Exception) {
-            Log.w(TAG, "Protobuf nullable serialization failed for ${serializer.descriptor.serialName}, data will be lost", e)
+            Log.e(TAG, "Protobuf nullable serialization FAILED for ${serializer.descriptor.serialName}, data will be lost! Value type: ${value::class.simpleName}", e)
             return ""
         }
     }
 
-    /**
-     * 通用反序列化方法：从 Base64 字符串解码为对象
-     */
     private fun <T> decodeFromBase64(serializer: KSerializer<T>, encoded: String, default: () -> T): T {
         if (encoded.isEmpty()) return default()
         try {
@@ -106,7 +103,7 @@ object ProtobufConverters {
             if (bytes.isEmpty()) return default()
             return protoBuf.decodeFromByteArray(serializer, bytes)
         } catch (e: Exception) {
-            Log.w(TAG, "Protobuf deserialization failed for ${serializer.descriptor.serialName}, returning default value", e)
+            Log.e(TAG, "Protobuf deserialization FAILED for ${serializer.descriptor.serialName}, returning default! Encoded length: ${encoded.length}", e)
             return default()
         }
     }
@@ -669,4 +666,14 @@ object ProtobufConverters {
     @JvmStatic
     fun toCompetitionRankResultList(value: String): List<CompetitionRankResult> =
         decodeFromBase64(ListSerializer(CompetitionRankResult.serializer()), value) { emptyList() }
+
+    @TypeConverter
+    @JvmStatic
+    fun fromSectDetailMap(value: Map<String, SectDetail>): String =
+        encodeToBase64(MapSerializer(String.serializer(), SectDetail.serializer()), value)
+
+    @TypeConverter
+    @JvmStatic
+    fun toSectDetailMap(value: String): Map<String, SectDetail> =
+        decodeFromBase64(MapSerializer(String.serializer(), SectDetail.serializer()), value) { emptyMap() }
 }

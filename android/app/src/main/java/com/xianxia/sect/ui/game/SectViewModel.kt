@@ -29,11 +29,9 @@ class SectViewModel @Inject constructor(
      * 转换后的弟子列表（使用新的 DiscipleAggregate 模型）
      * 用于 UI 层展示，避免使用废弃的 Disciple 类
      */
-    val disciplesAggregates: StateFlow<List<DiscipleAggregate>> = gameEngine.disciples
-        .map { list -> list.map { DiscipleAggregate.fromDisciple(it) } }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val disciplesAggregates: StateFlow<List<DiscipleAggregate>> = gameEngine.discipleAggregates
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    // 使用 DiscipleAggregate 作为 UI 层的标准类型
     val disciples: StateFlow<List<DiscipleAggregate>> = disciplesAggregates
     
     private val _errorMessage = MutableStateFlow<String?>(null)

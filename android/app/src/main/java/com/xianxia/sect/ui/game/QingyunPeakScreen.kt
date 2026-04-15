@@ -12,16 +12,17 @@ fun QingyunPeakDialog(
     disciples: List<DiscipleAggregate>,
     gameData: GameData?,
     viewModel: GameViewModel,
+    productionViewModel: ProductionViewModel,
     onDismiss: () -> Unit
 ) {
     var showInnerElderSelection by remember { mutableStateOf(false) }
     var showPreachingElderSelection by remember { mutableStateOf(false) }
     var showPreachingMasterSelection by remember { mutableStateOf<Int?>(null) }
 
-    val innerElder = viewModel.getInnerElder()
-    val preachingElder = viewModel.getQingyunPreachingElder()
-    val preachingMasters = viewModel.getQingyunPreachingMasters()
-    val innerDisciples = viewModel.getInnerDisciples()
+    val innerElder = productionViewModel.getInnerElder()
+    val preachingElder = productionViewModel.getQingyunPreachingElder()
+    val preachingMasters = productionViewModel.getQingyunPreachingMasters()
+    val innerDisciples = disciples.filter { it.isAlive && it.discipleType == "inner" }
 
     PeakDialog(
         title = "青云峰",
@@ -34,14 +35,14 @@ fun QingyunPeakDialog(
                 elder = innerElder,
                 bonusInfo = ElderBonusInfoProvider.getInnerElderInfo(),
                 onClick = { showInnerElderSelection = true },
-                onRemove = { viewModel.removeElder("innerElder") }
+                onRemove = { productionViewModel.removeElder("innerElder") }
             ),
             slot2 = PeakElderSlotConfig(
                 title = "青云峰传道长老",
                 elder = preachingElder,
                 bonusInfo = ElderBonusInfoProvider.getPreachingElderInfo(),
                 onClick = { showPreachingElderSelection = true },
-                onRemove = { viewModel.removeElder("qingyunPreachingElder") }
+                onRemove = { productionViewModel.removeElder("qingyunPreachingElder") }
             )
         )
 
@@ -55,7 +56,7 @@ fun QingyunPeakDialog(
             ),
             preachingMasters = preachingMasters,
             onMasterClick = { index -> showPreachingMasterSelection = index },
-            onMasterRemove = { index -> viewModel.removeDirectDisciple("qingyunPreaching", index) }
+            onMasterRemove = { index -> productionViewModel.removeDirectDisciple("qingyunPreaching", index) }
         )
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -72,11 +73,11 @@ fun QingyunPeakDialog(
     if (showInnerElderSelection) {
         PeakDiscipleSelectionDialog(
             title = "选择内门长老",
-            disciples = viewModel.getAvailableDisciplesForInnerElder(),
+            disciples = productionViewModel.getAvailableDisciplesForInnerElder(),
             currentDiscipleId = innerElder?.id,
             requirementText = "需要元婴及以上境界",
             onSelect = { disciple ->
-                viewModel.assignElder("innerElder", disciple.id)
+                productionViewModel.assignElder("innerElder", disciple.id)
                 showInnerElderSelection = false
             },
             onDismiss = { showInnerElderSelection = false }
@@ -86,11 +87,11 @@ fun QingyunPeakDialog(
     if (showPreachingElderSelection) {
         PeakDiscipleSelectionDialog(
             title = "选择青云峰传道长老",
-            disciples = viewModel.getAvailableDisciplesForQingyunPreachingElder(),
+            disciples = productionViewModel.getAvailableDisciplesForQingyunPreachingElder(),
             currentDiscipleId = preachingElder?.id,
             requirementText = "需要元婴及以上境界",
             onSelect = { disciple ->
-                viewModel.assignElder("qingyunPreachingElder", disciple.id)
+                productionViewModel.assignElder("qingyunPreachingElder", disciple.id)
                 showPreachingElderSelection = false
             },
             onDismiss = { showPreachingElderSelection = false }
@@ -101,11 +102,11 @@ fun QingyunPeakDialog(
         val currentMaster = preachingMasters.find { it.index == slotIndex }
         PeakDiscipleSelectionDialog(
             title = "选择青云峰传道师",
-            disciples = viewModel.getAvailableDisciplesForQingyunPreachingMaster(),
+            disciples = productionViewModel.getAvailableDisciplesForQingyunPreachingMaster(),
             currentDiscipleId = currentMaster?.discipleId,
             requirementText = "需要金丹及以上境界",
             onSelect = { disciple ->
-                viewModel.assignDirectDisciple("qingyunPreaching", slotIndex, disciple.id)
+                productionViewModel.assignDirectDisciple("qingyunPreaching", slotIndex, disciple.id)
                 showPreachingMasterSelection = null
             },
             onDismiss = { showPreachingMasterSelection = null }

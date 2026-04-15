@@ -9,7 +9,7 @@ object CaveGenerator {
     
     private const val MAP_WIDTH = 4000
     private const val MAP_HEIGHT = 3500
-    private const val BORDER_PADDING = 100
+    private const val BORDER_PADDING = 80
     
     private val caveNames = listOf(
         "化神洞府", "炼虚洞府", "合体洞府", "大乘洞府", "渡劫洞府"

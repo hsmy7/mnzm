@@ -102,8 +102,6 @@ object ManualDatabase {
     @Volatile
     private var _allManuals: Map<String, ManualTemplate>? = null
     @Volatile
-    private var _legacyMapping: Map<String, String>? = null
-    @Volatile
     private var _isInitialized = false
     private val initLock = Any()
     
@@ -113,26 +111,6 @@ object ManualDatabase {
     val allManuals: Map<String, ManualTemplate>
         get() = _allManuals ?: emptyMap()
     
-    private val legacyManualIdMapping: Map<String, String>
-        get() = _legacyMapping ?: buildLegacyMapping()
-    
-    private fun buildLegacyMapping(): Map<String, String> {
-        return mapOf(
-            "commonMovement" to "support_r1_speed",
-            "uncommonMovement" to "support_r2_speed",
-            "rareMovement" to "support_r3_speed",
-            "epicMovement" to "support_r4_speed",
-            "legendaryMovement" to "support_r5_speed",
-            "mythicMovement" to "support_r6_speed",
-            "support_common_speed_crit_buff" to "support_r1_speed",
-            "support_uncommon_speed_crit_buff" to "support_r2_speed",
-            "support_rare_speed_crit_buff" to "support_r3_speed",
-            "support_epic_speed_crit_buff" to "support_r4_speed",
-            "support_legendary_speed_crit_buff" to "support_r5_speed",
-            "support_mythic_speed_crit_buff" to "support_r6_speed"
-        )
-    }
-    
     fun initializeSync(context: Context): Result<Unit> {
         return try {
             synchronized(initLock) {
@@ -140,7 +118,6 @@ object ManualDatabase {
                 
                 _allManuals = loadManualTemplatesSync(context)
                 
-                // Proto 结构校验（可选）
                 if (enableProtoValidation && _allManuals != null) {
                     val manuals = _allManuals
                         ?: throw IllegalStateException("ManualDatabase: _allManuals is null after loading")
@@ -154,7 +131,6 @@ object ManualDatabase {
                     }
                 }
                 
-                _legacyMapping = buildLegacyMapping()
                 _isInitialized = true
                 Result.success(Unit)
             }
@@ -549,14 +525,13 @@ object ManualDatabase {
     fun initializeWithManuals(manuals: Map<String, ManualTemplate>) {
         synchronized(initLock) {
             _allManuals = manuals
-            _legacyMapping = buildLegacyMapping()
             _isInitialized = true
         }
     }
     
     fun getById(id: String): ManualTemplate? {
         check(_isInitialized) { "ManualDatabase not initialized. Call initialize() first." }
-        return allManuals[id] ?: allManuals[legacyManualIdMapping[id]]
+        return allManuals[id]
     }
 
     fun getByName(name: String): ManualTemplate? {

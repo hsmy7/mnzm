@@ -31,6 +31,7 @@ import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.game.GameViewModel
+import com.xianxia.sect.ui.game.WorldMapViewModel
 import com.xianxia.sect.ui.components.UnifiedItemCard
 import com.xianxia.sect.ui.components.ItemCardData
 import com.xianxia.sect.ui.components.getRarityColor
@@ -45,13 +46,14 @@ fun GiftDialog(
     manuals: List<Manual>,
     pills: List<Pill>,
     viewModel: GameViewModel,
+    worldMapViewModel: WorldMapViewModel,
     onDismiss: () -> Unit
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("灵石送礼", "物品送礼")
     
     val currentYear = gameData?.gameYear ?: 1
-    val hasGiftedThisYear = (sect?.lastGiftYear ?: 0) == currentYear
+    val hasGiftedThisYear = (gameData?.sectDetails?.get(sect?.id)?.lastGiftYear ?: 0) == currentYear
     val playerSect = gameData?.worldMapSects?.find { it.isPlayerSect }
     val relation = if (playerSect != null && sect != null) {
         gameData.sectRelations.find { 
@@ -93,13 +95,14 @@ fun GiftDialog(
                                         fontWeight = FontWeight.Bold,
                                         color = Color.White
                                     )
-                                    if (sect?.giftPreference != null && sect.giftPreference != GiftPreferenceType.NONE) {
+                                    val giftPref = gameData?.sectDetails?.get(sect?.id)?.giftPreference
+                                    if (giftPref != null && giftPref != GiftPreferenceType.NONE) {
                                         Surface(
                                             shape = RoundedCornerShape(4.dp),
                                             color = Color(0xFFFFD700).copy(alpha = 0.9f)
                                         ) {
                                             Text(
-                                                text = "偏好: ${sect.giftPreference.displayName}",
+                                                text = "偏好: ${giftPref.displayName}",
                                                 fontSize = 11.sp,
                                                 color = Color(0xFF333333),
                                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -195,6 +198,7 @@ fun GiftDialog(
                         gameData = gameData,
                         hasGiftedThisYear = hasGiftedThisYear,
                         viewModel = viewModel,
+                        worldMapViewModel = worldMapViewModel,
                         onDismiss = onDismiss
                     )
                     1 -> ItemGiftTab(
@@ -205,6 +209,7 @@ fun GiftDialog(
                         pills = pills,
                         hasGiftedThisYear = hasGiftedThisYear,
                         viewModel = viewModel,
+                        worldMapViewModel = worldMapViewModel,
                         onDismiss = onDismiss
                     )
                 }
@@ -265,6 +270,7 @@ private fun SpiritStoneGiftTab(
     gameData: GameData?,
     hasGiftedThisYear: Boolean,
     viewModel: GameViewModel,
+    worldMapViewModel: WorldMapViewModel,
     onDismiss: () -> Unit
 ) {
     val tiers = GiftConfig.SpiritStoneGiftConfig.getAllTiers()
@@ -294,7 +300,7 @@ private fun SpiritStoneGiftTab(
                 canAfford = canAfford,
                 onClick = {
                     if (!isDisabled) {
-                        viewModel.giftSpiritStones(sect?.id ?: "", tier.tier)
+                        worldMapViewModel.giftSpiritStones(sect?.id ?: "", tier.tier)
                         onDismiss()
                     }
                 }
@@ -374,6 +380,7 @@ private fun ItemGiftTab(
     pills: List<Pill>,
     hasGiftedThisYear: Boolean,
     viewModel: GameViewModel,
+    worldMapViewModel: WorldMapViewModel,
     onDismiss: () -> Unit
 ) {
     var selectedItem by remember { mutableStateOf<GiftableItem?>(null) }
@@ -629,7 +636,7 @@ private fun ItemGiftTab(
                                 text = "送礼",
                                 onClick = {
                                     if (!hasGiftedThisYear) {
-                                        viewModel.giftItem(
+                                        worldMapViewModel.giftItem(
                                             sectId = sect?.id ?: "",
                                             itemId = item.id,
                                             itemType = item.type,

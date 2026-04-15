@@ -42,21 +42,25 @@ enum class MissionDifficulty {
 @Serializable
 enum class MissionTemplate {
     ESCORT,
-    SUPPRESS_BEASTS;
+    SUPPRESS_BEASTS,
+    SUPPRESS_BEASTS_NORMAL;
 
     val displayName: String get() = when (this) {
         ESCORT -> "护送商队"
         SUPPRESS_BEASTS -> "妖兽作乱"
+        SUPPRESS_BEASTS_NORMAL -> "妖兽作乱"
     }
 
     val description: String get() = when (this) {
         ESCORT -> "选择弟子护送商队前往目的地"
         SUPPRESS_BEASTS -> "随机3到8名筑基期妖兽（小层随机）于民间作乱"
+        SUPPRESS_BEASTS_NORMAL -> "随机3到8名元婴期妖兽（小层随机）于民间作乱"
     }
 
     val difficulty: MissionDifficulty get() = when (this) {
         ESCORT -> MissionDifficulty.SIMPLE
         SUPPRESS_BEASTS -> MissionDifficulty.SIMPLE
+        SUPPRESS_BEASTS_NORMAL -> MissionDifficulty.NORMAL
     }
 
     val requiredMemberCount: Int get() = 6
@@ -64,6 +68,7 @@ enum class MissionTemplate {
     val duration: Int get() = when (this) {
         ESCORT -> difficulty.durationMonths
         SUPPRESS_BEASTS -> 4
+        SUPPRESS_BEASTS_NORMAL -> 4
     }
 }
 

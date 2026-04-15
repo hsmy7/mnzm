@@ -32,6 +32,7 @@ import com.xianxia.sect.ui.components.GameButton
 @Composable
 fun SpiritMineDialog(
     viewModel: GameViewModel,
+    productionViewModel: ProductionViewModel,
     onDismiss: () -> Unit
 ) {
     val disciples by viewModel.discipleAggregates.collectAsState()
@@ -41,7 +42,7 @@ fun SpiritMineDialog(
     var showDeaconSelection by remember { mutableStateOf<Int?>(null) }
     
     LaunchedEffect(Unit) {
-        viewModel.validateSpiritMineData()
+        productionViewModel.validateSpiritMineData()
     }
     
     val mineSlots = gameData?.spiritMineSlots ?: emptyList()
@@ -88,7 +89,7 @@ fun SpiritMineDialog(
                 deaconSlots = deaconDisciples,
                 disciples = disciples,
                 onDeaconClick = { index -> showDeaconSelection = index },
-                onDeaconRemove = { index -> viewModel.removeSpiritMineDeacon(index) }
+                onDeaconRemove = { index -> productionViewModel.removeSpiritMineDeacon(index) }
             )
             
             HorizontalDivider(
@@ -113,7 +114,7 @@ fun SpiritMineDialog(
                         .clip(RoundedCornerShape(4.dp))
                         .background(if (emptySlotCount > 0) Color(0xFF4CAF50) else Color(0xFFCCCCCC))
                         .clickable(enabled = emptySlotCount > 0) {
-                            viewModel.autoAssignSpiritMineMiners()
+                            productionViewModel.autoAssignSpiritMineMiners()
                         }
                         .padding(horizontal = 10.dp, vertical = 4.dp),
                     contentAlignment = Alignment.Center
@@ -138,7 +139,7 @@ fun SpiritMineDialog(
                             slot = slot,
                             disciple = disciple,
                             onAssign = { if (emptySlotCount > 0) showDiscipleSelection = true },
-                            onRemove = { viewModel.removeDiscipleFromSpiritMineSlot(slot.index) }
+                            onRemove = { productionViewModel.removeDiscipleFromSpiritMineSlot(slot.index) }
                         )
                     }
                 }
@@ -147,12 +148,12 @@ fun SpiritMineDialog(
     }
 
     if (showDiscipleSelection) {
-        val availableDisciples = viewModel.getAvailableDisciplesForSpiritMining()
+        val availableDisciples = productionViewModel.getAvailableDisciplesForSpiritMining()
         SpiritMineDiscipleSelectionDialog(
             disciples = availableDisciples,
             maxSelectCount = emptySlotCount,
             onConfirm = { selectedDisciples ->
-                viewModel.assignDisciplesToSpiritMineSlots(selectedDisciples)
+                productionViewModel.assignDisciplesToSpiritMineSlots(selectedDisciples)
                 showDiscipleSelection = false
             },
             onDismiss = { showDiscipleSelection = false }
@@ -162,10 +163,10 @@ fun SpiritMineDialog(
     showDeaconSelection?.let { slotIndex ->
         val currentDeaconId = deaconDisciples.getOrNull(slotIndex)?.discipleId
         SpiritMineDeaconSelectionDialog(
-            disciples = viewModel.getAvailableDisciplesForSpiritMineDeacon(),
+            disciples = productionViewModel.getAvailableDisciplesForSpiritMineDeacon(),
             currentDeaconId = currentDeaconId,
             onSelect = { disciple ->
-                viewModel.assignSpiritMineDeacon(slotIndex, disciple.id)
+                productionViewModel.assignSpiritMineDeacon(slotIndex, disciple.id)
                 showDeaconSelection = null
             },
             onDismiss = { showDeaconSelection = null }

@@ -23,6 +23,9 @@ fun InventoryDialog(
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("装备", "功法", "丹药", "材料", "灵草")
+
+    val filteredEquipment = remember(equipment) { equipment.filter { it.ownerId == null } }
+    val filteredManuals = remember(manuals) { manuals.filter { it.ownerId == null } }
     
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -43,13 +46,13 @@ fun InventoryDialog(
                 
                 LazyColumn(modifier = Modifier.height(300.dp)) {
                     when (selectedTab) {
-                        0 -> items(equipment) { item ->
+                        0 -> items(filteredEquipment) { item ->
                             ListItem(
                                 headlineContent = { Text(item.name) },
                                 supportingContent = { Text("稀有度: ${item.rarity}") }
                             )
                         }
-                        1 -> items(manuals) { item ->
+                        1 -> items(filteredManuals) { item ->
                             ListItem(
                                 headlineContent = { Text(item.name) },
                                 supportingContent = { Text("稀有度: ${item.rarity}") }

@@ -1,12 +1,13 @@
 package com.xianxia.sect.core
 
+import com.xianxia.sect.BuildConfig
 import com.xianxia.sect.core.util.GameRandom
 
 object GameConfig {
     
     object Game {
         const val NAME = "模拟宗门"
-        const val VERSION = "1.6.00"
+        const val VERSION = BuildConfig.VERSION_NAME
         const val AUTO_SAVE_INTERVAL_SECONDS = 60L
         const val AUTO_SAVE_DEBOUNCE_MS = 30_000L
         const val MAX_SAVE_SLOTS = 5
@@ -139,23 +140,6 @@ object GameConfig {
             return 5
         }
         
-    }
-    
-    object Buildings {
-        val CONFIGS = mapOf(
-            "mainHall" to BuildingConfig("mainHall", "主殿", "宗门核心建筑", 0),
-            "discipleHall" to BuildingConfig("discipleHall", "弟子堂", "管理弟子", 6),
-            "herbGarden" to BuildingConfig("herbGarden", "灵药宛", "种植灵草", 3),
-            "alchemy" to BuildingConfig("alchemy", "丹鼎殿", "炼制丹药", 3),
-            "forge" to BuildingConfig("forge", "天工峰", "锻造装备", 3),
-            "library" to BuildingConfig("library", "藏经阁", "提升弟子修习功法的速度", 3),
-            "tianShuHall" to BuildingConfig("tianShuHall", "天枢殿", "处理宗门事务", 2),
-            "wenDaoPeak" to BuildingConfig("wenDaoPeak", "问道峰", "管理外门弟子与传道", 0)
-        )
-        
-        fun get(id: String): BuildingConfig? = CONFIGS[id]
-        
-        fun getAll(): List<BuildingConfig> = CONFIGS.values.toList()
     }
     
     object Beast {
@@ -371,6 +355,7 @@ object GameConfig {
         const val DISCIPLE_INTELLIGENCE_STEP = 5
         const val DISCIPLE_BONUS_PER_STEP = 0.01
         const val REFLECTION_YEARS = 10
+        const val NEW_DISCIPLE_PROTECTION_MONTHS = 12  // 新弟子入门一年内不会偷盗和叛逃
     }
 
     data class RarityConfig(
@@ -398,13 +383,6 @@ object GameConfig {
         val name: String,
         val color: String,
         val cultivationBonus: Double
-    )
-    
-    data class BuildingConfig(
-        val id: String,
-        val name: String,
-        val description: String,
-        val maxSlots: Int
     )
     
     data class StartingResources(
@@ -461,7 +439,7 @@ object GameConfig {
         const val SECT_RADIUS = 70
         const val MIN_DISTANCE = 120
         const val MAX_CONNECTION_DISTANCE = 500.0
-        const val BORDER_PADDING = 150
+        const val BORDER_PADDING = 80
         const val TARGET_SECT_COUNT = 55
         const val MAX_ATTEMPTS = 50000
         const val INITIAL_SECT_FAVOR = 50

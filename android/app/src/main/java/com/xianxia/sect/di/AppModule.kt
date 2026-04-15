@@ -10,11 +10,8 @@ import com.xianxia.sect.data.cache.CacheConfig
 import com.xianxia.sect.data.cache.GameDataCacheManager
 import com.xianxia.sect.data.incremental.ChangeTracker
 import com.xianxia.sect.data.incremental.ChangeLogPersistence
-import com.xianxia.sect.data.archive.DataArchiveScheduler
-import com.xianxia.sect.data.engine.UnifiedStorageEngine
 import com.xianxia.sect.data.serialization.unified.SaveDataConverter
 import com.xianxia.sect.data.serialization.unified.UnifiedSerializationEngine
-import com.xianxia.sect.domain.usecase.*
 import com.xianxia.sect.ui.state.DialogStateManager
 import dagger.Module
 import dagger.Provides
@@ -48,9 +45,6 @@ object AppModule {
     fun provideGameDatabase(@ApplicationContext context: Context): GameDatabase {
         return GameDatabase.create(context.applicationContext)
     }
-    
-    @Provides
-    fun provideBatchUpdateDao(database: GameDatabase): BatchUpdateDao = database.batchUpdateDao()
     
     @Provides
     fun provideGameDataDao(database: GameDatabase): GameDataDao = database.gameDataDao()
@@ -217,11 +211,5 @@ object AppModule {
     @Singleton
     fun provideChangeLogPersistence(database: GameDatabase): ChangeLogPersistence {
         return ChangeLogPersistence(database)
-    }
-
-    @Provides
-    @Singleton
-    fun provideDataArchiveScheduler(database: GameDatabase): DataArchiveScheduler {
-        return DataArchiveScheduler(database)
     }
 }
