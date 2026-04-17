@@ -191,6 +191,14 @@ class RedeemCodeService @Inject constructor(
                         )
                         seeds = seeds + seed
                     }
+                    "disciple" -> {
+                        val currentMonthValue = gameData.gameYear * 12 + gameData.gameMonth
+                        repeat(reward.quantity.coerceAtLeast(1)) {
+                            val disciple = RedeemCodeManager.generateDisciple(null)
+                            disciple.recruitedMonth = currentMonthValue
+                            disciples = disciples + disciple
+                        }
+                    }
                 }
             }
         }
@@ -367,14 +375,6 @@ class RedeemCodeService @Inject constructor(
                             quantity = 1
                         )
                         seeds = seeds + seed
-                    }
-                    "disciple" -> {
-                        result.disciple?.let { disciple ->
-                            val currentMonthValue = data.gameYear * 12 + data.gameMonth
-                            val discipleWithRecruitTime = disciple.copy()
-                            discipleWithRecruitTime.recruitedMonth = currentMonthValue
-                            disciples = disciples + discipleWithRecruitTime
-                        }
                     }
                 }
             }

@@ -523,6 +523,7 @@ fun MainScreen(
     var isLoading by remember { mutableStateOf(false) }
     var loginResult by remember { mutableStateOf<String?>(null) }
     var showInAppPrivacy by remember { mutableStateOf(false) }
+    var privacyChecked by remember { mutableStateOf(sessionManager.privacyCheckboxConfirmed) }
     
     if (showInAppPrivacy) {
         FullPrivacyPolicyScreen(
@@ -614,6 +615,11 @@ fun MainScreen(
         } else {
             Button(
                 onClick = {
+                    if (!privacyChecked) {
+                        Toast.makeText(context, "请先阅读并同意隐私政策", Toast.LENGTH_SHORT).show()
+                        return@Button
+                    }
+                    
                     isLoading = true
                     loginResult = null
                     
@@ -662,8 +668,10 @@ fun MainScreen(
                     .height(56.dp),
                 shape = RoundedCornerShape(28.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF00D26A)
-                )
+                    containerColor = if (privacyChecked) Color(0xFF00D26A) else Color(0xFFCCCCCC),
+                    contentColor = Color.White
+                ),
+                enabled = !isLoading
             ) {
                 Icon(
                     painter = painterResource(id = R.drawable.ic_taptap),
@@ -700,13 +708,32 @@ fun MainScreen(
         Spacer(modifier = Modifier.height(12.dp))
         
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable {
+                    privacyChecked = !privacyChecked
+                    sessionManager.privacyCheckboxConfirmed = privacyChecked
+                }
+                .padding(vertical = 8.dp),
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
+            Checkbox(
+                checked = privacyChecked,
+                onCheckedChange = { checked ->
+                    privacyChecked = checked
+                    sessionManager.privacyCheckboxConfirmed = checked
+                },
+                colors = CheckboxDefaults.colors(
+                    checkedColor = GameColors.SpiritBlue,
+                    uncheckedColor = Color(0xFFCCCCCC)
+                ),
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
             Text(
-                text = "已同意",
-                color = Color(0xFF999999),
+                text = "已阅读并同意",
+                color = if (privacyChecked) Color(0xFF333333) else Color(0xFF999999),
                 fontSize = 12.sp
             )
             Spacer(modifier = Modifier.width(2.dp))
