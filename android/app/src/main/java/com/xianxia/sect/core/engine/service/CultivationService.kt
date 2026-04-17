@@ -2,6 +2,7 @@
 
 package com.xianxia.sect.core.engine.service
 
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -85,7 +86,7 @@ class CultivationService @Inject constructor(
         set(value) {
             val ts = stateStore.currentTransactionMutableState()
             if (ts != null) { ts.gameData = value; return }
-            scope.launch { stateStore.update { gameData = value } }
+            scope.launch(Dispatchers.IO) { stateStore.update { gameData = value } }
         }
 
     private var currentDisciples: List<Disciple>
@@ -93,7 +94,7 @@ class CultivationService @Inject constructor(
         set(value) {
             val ts = stateStore.currentTransactionMutableState()
             if (ts != null) { ts.disciples = value; return }
-            scope.launch { stateStore.update { disciples = value } }
+            scope.launch(Dispatchers.IO) { stateStore.update { disciples = value } }
         }
 
     private var currentEquipment: List<Equipment>
@@ -101,7 +102,7 @@ class CultivationService @Inject constructor(
         set(value) {
             val ts = stateStore.currentTransactionMutableState()
             if (ts != null) { ts.equipment = value; return }
-            scope.launch { stateStore.update { equipment = value } }
+            scope.launch(Dispatchers.IO) { stateStore.update { equipment = value } }
         }
 
     private var currentManuals: List<Manual>
@@ -109,7 +110,7 @@ class CultivationService @Inject constructor(
         set(value) {
             val ts = stateStore.currentTransactionMutableState()
             if (ts != null) { ts.manuals = value; return }
-            scope.launch { stateStore.update { manuals = value } }
+            scope.launch(Dispatchers.IO) { stateStore.update { manuals = value } }
         }
 
     private var currentPills: List<Pill>
@@ -117,39 +118,57 @@ class CultivationService @Inject constructor(
         set(value) {
             val ts = stateStore.currentTransactionMutableState()
             if (ts != null) { ts.pills = value; return }
-            scope.launch { stateStore.update { pills = value } }
+            scope.launch(Dispatchers.IO) { stateStore.update { pills = value } }
         }
 
     private var currentMaterials: List<Material>
-        get() = stateStore.currentTransactionMutableState()?.materials ?: stateStore.materials.value
-        set(value) {
+        get() = stateStore.currentTransactionMutableState()?.materials ?: stateStore.getCurrentMaterials()
+        private set(value) {
             val ts = stateStore.currentTransactionMutableState()
             if (ts != null) { ts.materials = value; return }
-            scope.launch { stateStore.update { materials = value } }
+            scope.launch(Dispatchers.IO) { stateStore.update { materials = value } }
         }
 
     private var currentHerbs: List<Herb>
-        get() = stateStore.currentTransactionMutableState()?.herbs ?: stateStore.herbs.value
-        set(value) {
+        get() = stateStore.currentTransactionMutableState()?.herbs ?: stateStore.getCurrentHerbs()
+        private set(value) {
             val ts = stateStore.currentTransactionMutableState()
             if (ts != null) { ts.herbs = value; return }
-            scope.launch { stateStore.update { herbs = value } }
+            scope.launch(Dispatchers.IO) { stateStore.update { herbs = value } }
         }
 
     private var currentSeeds: List<Seed>
-        get() = stateStore.currentTransactionMutableState()?.seeds ?: stateStore.seeds.value
-        set(value) {
+        get() = stateStore.currentTransactionMutableState()?.seeds ?: stateStore.getCurrentSeeds()
+        private set(value) {
             val ts = stateStore.currentTransactionMutableState()
             if (ts != null) { ts.seeds = value; return }
-            scope.launch { stateStore.update { seeds = value } }
+            scope.launch(Dispatchers.IO) { stateStore.update { seeds = value } }
         }
+
+    private suspend fun updateHerbsSync(value: List<Herb>) {
+        val ts = stateStore.currentTransactionMutableState()
+        if (ts != null) { ts.herbs = value; return }
+        stateStore.update { herbs = value }
+    }
+
+    private suspend fun updateMaterialsSync(value: List<Material>) {
+        val ts = stateStore.currentTransactionMutableState()
+        if (ts != null) { ts.materials = value; return }
+        stateStore.update { materials = value }
+    }
+
+    private suspend fun updateSeedsSync(value: List<Seed>) {
+        val ts = stateStore.currentTransactionMutableState()
+        if (ts != null) { ts.seeds = value; return }
+        stateStore.update { seeds = value }
+    }
 
     private var currentEvents: List<GameEvent>
         get() = stateStore.currentTransactionMutableState()?.events ?: stateStore.events.value
         set(value) {
             val ts = stateStore.currentTransactionMutableState()
             if (ts != null) { ts.events = value; return }
-            scope.launch { stateStore.update { events = value } }
+            scope.launch(Dispatchers.IO) { stateStore.update { events = value } }
         }
 
     private var currentBattleLogs: List<BattleLog>
@@ -157,7 +176,7 @@ class CultivationService @Inject constructor(
         set(value) {
             val ts = stateStore.currentTransactionMutableState()
             if (ts != null) { ts.battleLogs = value; return }
-            scope.launch { stateStore.update { battleLogs = value } }
+            scope.launch(Dispatchers.IO) { stateStore.update { battleLogs = value } }
         }
 
     private var currentTeams: List<ExplorationTeam>
@@ -165,7 +184,7 @@ class CultivationService @Inject constructor(
         set(value) {
             val ts = stateStore.currentTransactionMutableState()
             if (ts != null) { ts.teams = value; return }
-            scope.launch { stateStore.update { teams = value } }
+            scope.launch(Dispatchers.IO) { stateStore.update { teams = value } }
         }
 
     private var _highFrequencyData = MutableStateFlow(HighFrequencyData())
@@ -1197,26 +1216,21 @@ class CultivationService @Inject constructor(
         val herbGardenSlots = productionSlotRepository.getSlotsByType(com.xianxia.sect.core.model.production.BuildingType.HERB_GARDEN)
         herbGardenSlots.forEach { slot ->
             if (slot.isWorking && slot.isFinished(year, month)) {
-                val seedId = slot.recipeId
-                if (!seedId.isNullOrEmpty()) {
-                    val herbId = HerbDatabase.getHerbIdFromSeedId(seedId)
-                    if (herbId != null) {
-                        val herb = HerbDatabase.getHerbById(herbId)
-                        if (herb != null) {
-                            val herbGrowthBonus = if (data.sectPolicies.herbCultivation) GameConfig.PolicyConfig.HERB_CULTIVATION_BASE_EFFECT else 0.0
-                            val actualYield = HerbGardenSystem.calculateIncreasedYield(slot.expectedYield, herbGrowthBonus)
-                            val herbItem = Herb(
-                                id = java.util.UUID.randomUUID().toString(),
-                                name = herb.name,
-                                rarity = herb.rarity,
-                                description = herb.description,
-                                category = herb.category,
-                                quantity = actualYield
-                            )
-                            inventorySystem.addHerb(herbItem)
-                            events.add("${herb.name}已成熟，收获${actualYield}个" to "SUCCESS")
-                        }
-                    }
+                val herb = HerbDatabase.getHerbFromSeedName(slot.recipeName)
+                    ?: slot.recipeId?.let { HerbDatabase.getHerbFromSeed(it) }
+                if (herb != null) {
+                    val herbGrowthBonus = if (data.sectPolicies.herbCultivation) GameConfig.PolicyConfig.HERB_CULTIVATION_BASE_EFFECT else 0.0
+                    val actualYield = HerbGardenSystem.calculateIncreasedYield(slot.expectedYield, herbGrowthBonus)
+                    val herbItem = Herb(
+                        id = java.util.UUID.randomUUID().toString(),
+                        name = herb.name,
+                        rarity = herb.rarity,
+                        description = herb.description,
+                        category = herb.category,
+                        quantity = actualYield
+                    )
+                    inventorySystem.addHerb(herbItem)
+                    events.add("${herb.name}已成熟，收获${actualYield}个" to "SUCCESS")
                 }
 
                 productionSlotRepository.updateSlotByBuildingId("herbGarden", slot.slotIndex) { s ->
@@ -1231,6 +1245,139 @@ class CultivationService @Inject constructor(
         }
 
         events.forEach { (msg, type) -> eventService.addGameEvent(msg, EventType.valueOf(type)) }
+    }
+
+    internal suspend fun processAutoPlant() {
+        val data = currentGameData
+        if (!data.sectPolicies.autoPlant) return
+
+        val herbGardenSlots = productionSlotRepository.getSlotsByType(com.xianxia.sect.core.model.production.BuildingType.HERB_GARDEN)
+        val idleSlots = herbGardenSlots.filter { it.status == com.xianxia.sect.core.model.production.ProductionSlotStatus.IDLE }
+        if (idleSlots.isEmpty()) return
+
+        for (slot in idleSlots) {
+            val seeds = currentSeeds.filter { it.quantity > 0 }.sortedByDescending { it.rarity }
+            val seedToPlant = seeds.firstOrNull() ?: break
+
+            val herbDbSeedId = HerbDatabase.getSeedByName(seedToPlant.name)?.id
+            val herbId = herbDbSeedId?.let { HerbDatabase.getHerbIdFromSeedId(it) }
+            val newSlot = com.xianxia.sect.core.model.production.ProductionSlot(
+                id = slot.id,
+                slotIndex = slot.slotIndex,
+                buildingType = com.xianxia.sect.core.model.production.BuildingType.HERB_GARDEN,
+                buildingId = "herbGarden",
+                status = com.xianxia.sect.core.model.production.ProductionSlotStatus.WORKING,
+                recipeId = herbDbSeedId ?: seedToPlant.id,
+                recipeName = seedToPlant.name,
+                startYear = data.gameYear,
+                startMonth = data.gameMonth,
+                duration = seedToPlant.growTime,
+                outputItemId = herbId ?: "",
+                outputItemName = seedToPlant.name,
+                expectedYield = seedToPlant.yield
+            )
+
+            productionSlotRepository.updateSlotByBuildingId("herbGarden", slot.slotIndex) { newSlot }
+            inventorySystem.removeSeedSync(seedToPlant.id, 1)
+            eventService.addGameEvent("自动种植：${seedToPlant.name}，已种入种植槽${slot.slotIndex + 1}", EventType.SUCCESS)
+        }
+    }
+
+    internal suspend fun processAutoAlchemy() {
+        val data = currentGameData
+        if (!data.sectPolicies.autoAlchemy) return
+
+        val alchemySlots = productionSlotRepository.getSlotsByType(com.xianxia.sect.core.model.production.BuildingType.ALCHEMY)
+        val idleSlotIndices = alchemySlots
+            .filter { it.status == com.xianxia.sect.core.model.production.ProductionSlotStatus.IDLE }
+            .map { it.slotIndex }
+        if (idleSlotIndices.isEmpty()) return
+
+        val allRecipes = PillRecipeDatabase.getAllRecipes().sortedByDescending { it.rarity }
+        val alchemyPolicyBonus = if (data.sectPolicies.alchemyIncentive) GameConfig.PolicyConfig.ALCHEMY_INCENTIVE_BASE_EFFECT else 0.0
+
+        for (slotIndex in idleSlotIndices) {
+            val herbs = currentHerbs
+            val recipeToStart = allRecipes.firstOrNull { recipe ->
+                recipe.materials.all { (materialId, requiredQuantity) ->
+                    val herbData = HerbDatabase.getHerbById(materialId)
+                    val herbName = herbData?.name
+                    val herbRarity = herbData?.rarity ?: 1
+                    val herb = herbs.find { it.name == herbName && it.rarity == herbRarity }
+                    herb != null && herb.quantity >= requiredQuantity
+                }
+            } ?: break
+
+            val result = productionCoordinator.startAlchemyAtomic(
+                slotIndex = slotIndex,
+                recipeId = recipeToStart.id,
+                currentYear = data.gameYear,
+                currentMonth = data.gameMonth,
+                herbs = herbs,
+                buildingId = "alchemy",
+                alchemyPolicyBonus = alchemyPolicyBonus
+            )
+
+            if (result.success) {
+                if (result.materialUpdate != null) {
+                    updateHerbsSync(result.materialUpdate.herbs)
+                }
+                eventService.addGameEvent("自动炼丹：${recipeToStart.name}，已启动炼丹槽${slotIndex + 1}", EventType.SUCCESS)
+            } else {
+                break
+            }
+        }
+    }
+
+    internal suspend fun processAutoForge() {
+        val data = currentGameData
+        if (!data.sectPolicies.autoForge) return
+
+        val forgeSlots = productionSlotRepository.getSlotsByBuildingId("forge")
+        val maxSlotCount = 3
+        val idleSlotIndices = (0 until maxSlotCount).filter { idx ->
+            val slot = forgeSlots.find { it.slotIndex == idx }
+            slot == null || slot.status == com.xianxia.sect.core.model.production.ProductionSlotStatus.IDLE
+        }
+        if (idleSlotIndices.isEmpty()) return
+
+        val allRecipes = ForgeRecipeDatabase.getAllRecipes().sortedByDescending { it.rarity }
+        val forgePolicyBonus = if (data.sectPolicies.forgeIncentive) GameConfig.PolicyConfig.FORGE_INCENTIVE_BASE_EFFECT else 0.0
+
+        for (slotIndex in idleSlotIndices) {
+            val materials = currentMaterials
+            val materialIndex = materials.groupBy { it.name to it.rarity }
+                .mapValues { (_, list) -> list.sumOf { it.quantity } }
+
+            val recipeToStart = allRecipes.firstOrNull { recipe ->
+                recipe.materials.all { (materialId, requiredQuantity) ->
+                    val materialData = BeastMaterialDatabase.getMaterialById(materialId)
+                    materialData != null && run {
+                        val available = materialIndex[materialData.name to materialData.rarity] ?: 0
+                        available >= requiredQuantity
+                    }
+                }
+            } ?: break
+
+            val result = productionCoordinator.startForgingAtomic(
+                slotIndex = slotIndex,
+                recipeId = recipeToStart.id,
+                currentYear = data.gameYear,
+                currentMonth = data.gameMonth,
+                materials = materials,
+                buildingId = "forge",
+                forgePolicyBonus = forgePolicyBonus
+            )
+
+            if (result.success) {
+                if (result.materialUpdate != null) {
+                    updateMaterialsSync(result.materialUpdate.materials)
+                }
+                eventService.addGameEvent("自动炼器：${recipeToStart.name}，已启动锻造槽${slotIndex + 1}", EventType.SUCCESS)
+            } else {
+                break
+            }
+        }
     }
 
     /**

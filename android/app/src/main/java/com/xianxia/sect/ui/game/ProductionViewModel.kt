@@ -223,7 +223,7 @@ class ProductionViewModel @Inject constructor(
                 var startedCount = 0
 
                 for (slotIndex in idleSlotIndices) {
-                    val currentHerbs = gameEngine.herbs.value
+                    val currentHerbs = gameEngine.getCurrentHerbs()
                     val recipeToStart = allRecipes.firstOrNull { recipe ->
                         recipe.materials.all { (materialId, requiredQuantity) ->
                             val herbData = HerbDatabase.getHerbById(materialId)
@@ -274,7 +274,7 @@ class ProductionViewModel @Inject constructor(
                 var startedCount = 0
 
                 for (slotIndex in idleSlotIndices) {
-                    val currentMaterials = gameEngine.materials.value
+                    val currentMaterials = gameEngine.getCurrentMaterials()
                     val materialIndex = currentMaterials.groupBy { it.name to it.rarity }
                         .mapValues { (_, list) -> list.sumOf { it.quantity } }
 
@@ -683,6 +683,39 @@ class ProductionViewModel @Inject constructor(
                 !allDirectDiscipleIds.contains(it.id)
             }
             .sortedByDescending { it.artifactRefining }
+    }
+
+    fun toggleAutoPlant() {
+        val currentGameData = gameEngine.gameData.value ?: return
+        viewModelScope.launch {
+            gameEngine.updateGameData { it.copy(sectPolicies = it.sectPolicies.copy(autoPlant = !it.sectPolicies.autoPlant)) }
+        }
+    }
+
+    fun isAutoPlantEnabled(): Boolean {
+        return gameEngine.gameData.value?.sectPolicies?.autoPlant ?: false
+    }
+
+    fun toggleAutoAlchemy() {
+        val currentGameData = gameEngine.gameData.value ?: return
+        viewModelScope.launch {
+            gameEngine.updateGameData { it.copy(sectPolicies = it.sectPolicies.copy(autoAlchemy = !it.sectPolicies.autoAlchemy)) }
+        }
+    }
+
+    fun isAutoAlchemyEnabled(): Boolean {
+        return gameEngine.gameData.value?.sectPolicies?.autoAlchemy ?: false
+    }
+
+    fun toggleAutoForge() {
+        val currentGameData = gameEngine.gameData.value ?: return
+        viewModelScope.launch {
+            gameEngine.updateGameData { it.copy(sectPolicies = it.sectPolicies.copy(autoForge = !it.sectPolicies.autoForge)) }
+        }
+    }
+
+    fun isAutoForgeEnabled(): Boolean {
+        return gameEngine.gameData.value?.sectPolicies?.autoForge ?: false
     }
 
     fun toggleSpiritMineBoost(): Boolean {

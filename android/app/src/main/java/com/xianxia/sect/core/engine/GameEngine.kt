@@ -78,6 +78,8 @@ class GameEngine @Inject constructor(
     val herbs: StateFlow<List<Herb>> get() = stateStore.herbs
     val seeds: StateFlow<List<Seed>> get() = stateStore.seeds
     fun getCurrentSeeds(): List<Seed> = stateStore.getCurrentSeeds()
+    fun getCurrentHerbs(): List<Herb> = stateStore.getCurrentHerbs()
+    fun getCurrentMaterials(): List<Material> = stateStore.getCurrentMaterials()
     val events: StateFlow<List<GameEvent>> get() = stateStore.events
     val battleLogs: StateFlow<List<BattleLog>> get() = stateStore.battleLogs
     val teams: StateFlow<List<ExplorationTeam>> get() = stateStore.teams

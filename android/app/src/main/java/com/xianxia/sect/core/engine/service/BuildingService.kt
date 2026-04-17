@@ -53,7 +53,7 @@ class BuildingService @Inject constructor(
         set(value) {
             val ts = stateStore.currentTransactionMutableState()
             if (ts != null) { ts.gameData = value; return }
-            scope.launch { stateStore.update { gameData = value } }
+            scope.launch(kotlinx.coroutines.Dispatchers.IO) { stateStore.update { gameData = value } }
         }
 
     private var currentDisciples: List<Disciple>
@@ -61,31 +61,43 @@ class BuildingService @Inject constructor(
         set(value) {
             val ts = stateStore.currentTransactionMutableState()
             if (ts != null) { ts.disciples = value; return }
-            scope.launch { stateStore.update { disciples = value } }
+            scope.launch(kotlinx.coroutines.Dispatchers.IO) { stateStore.update { disciples = value } }
         }
 
     private var currentHerbs: List<Herb>
-        get() = stateStore.currentTransactionMutableState()?.herbs ?: stateStore.herbs.value
-        set(value) {
+        get() = stateStore.currentTransactionMutableState()?.herbs ?: stateStore.getCurrentHerbs()
+        private set(value) {
             val ts = stateStore.currentTransactionMutableState()
             if (ts != null) { ts.herbs = value; return }
-            scope.launch { stateStore.update { herbs = value } }
+            scope.launch(kotlinx.coroutines.Dispatchers.IO) { stateStore.update { herbs = value } }
         }
 
     private var currentMaterials: List<Material>
-        get() = stateStore.currentTransactionMutableState()?.materials ?: stateStore.materials.value
-        set(value) {
+        get() = stateStore.currentTransactionMutableState()?.materials ?: stateStore.getCurrentMaterials()
+        private set(value) {
             val ts = stateStore.currentTransactionMutableState()
             if (ts != null) { ts.materials = value; return }
-            scope.launch { stateStore.update { materials = value } }
+            scope.launch(kotlinx.coroutines.Dispatchers.IO) { stateStore.update { materials = value } }
         }
+
+    private suspend fun updateHerbsSync(value: List<Herb>) {
+        val ts = stateStore.currentTransactionMutableState()
+        if (ts != null) { ts.herbs = value; return }
+        stateStore.update { herbs = value }
+    }
+
+    private suspend fun updateMaterialsSync(value: List<Material>) {
+        val ts = stateStore.currentTransactionMutableState()
+        if (ts != null) { ts.materials = value; return }
+        stateStore.update { materials = value }
+    }
 
     private var currentEquipment: List<Equipment>
         get() = stateStore.currentTransactionMutableState()?.equipment ?: stateStore.equipment.value
         set(value) {
             val ts = stateStore.currentTransactionMutableState()
             if (ts != null) { ts.equipment = value; return }
-            scope.launch { stateStore.update { equipment = value } }
+            scope.launch(kotlinx.coroutines.Dispatchers.IO) { stateStore.update { equipment = value } }
         }
 
     private var currentPills: List<Pill>
@@ -93,7 +105,7 @@ class BuildingService @Inject constructor(
         set(value) {
             val ts = stateStore.currentTransactionMutableState()
             if (ts != null) { ts.pills = value; return }
-            scope.launch { stateStore.update { pills = value } }
+            scope.launch(kotlinx.coroutines.Dispatchers.IO) { stateStore.update { pills = value } }
         }
 
     companion object {
@@ -222,7 +234,7 @@ class BuildingService @Inject constructor(
                 return false
             }
             result.materialUpdate != null -> {
-                currentHerbs = result.materialUpdate.herbs
+                updateHerbsSync(result.materialUpdate.herbs)
 
                 val recipe = PillRecipeDatabase.getRecipeById(recipeId) ?: return false
                 val actualDuration = calculateWorkDurationWithAllDisciples(recipe.duration, "alchemy")
@@ -303,7 +315,7 @@ class BuildingService @Inject constructor(
                 return false
             }
             result.materialUpdate != null -> {
-                currentMaterials = result.materialUpdate.materials
+                updateMaterialsSync(result.materialUpdate.materials)
 
                 val recipe = ForgeRecipeDatabase.getRecipeById(recipeId) ?: return false
                 val baseDuration = ForgeRecipeDatabase.getDurationByTier(recipe.tier)
@@ -564,30 +576,23 @@ class BuildingService @Inject constructor(
                 }
             }
             "herbGarden" -> {
-                val seedId = slot.recipeId
-                if (!seedId.isNullOrEmpty()) {
-                    val herbId = HerbDatabase.getHerbIdFromSeedId(seedId)
-                    if (herbId != null) {
-                        val herb = HerbDatabase.getHerbById(herbId)
-                        if (herb != null) {
-                            val data = currentGameData
-                            val herbGrowthBonus = if (data.sectPolicies.herbCultivation) GameConfig.PolicyConfig.HERB_CULTIVATION_BASE_EFFECT else 0.0
-                            val actualYield = HerbGardenSystem.calculateIncreasedYield(slot.expectedYield, herbGrowthBonus)
-                            val herbItem = Herb(
-                                name = herb.name,
-                                rarity = herb.rarity,
-                                description = herb.description,
-                                category = herb.category,
-                                quantity = actualYield
-                            )
-                            inventorySystem.addHerb(herbItem)
-                            eventService.addGameEvent("${herb.name}已成熟，收获${actualYield}个，已放入宗门仓库", EventType.INFO)
-                        }
-                    } else {
-                        eventService.addGameEvent("草药成熟，但无法识别种子[$seedId]对应的草药", EventType.WARNING)
-                    }
+                val herb = HerbDatabase.getHerbFromSeedName(slot.recipeName)
+                    ?: slot.recipeId?.let { HerbDatabase.getHerbFromSeed(it) }
+                if (herb != null) {
+                    val data = currentGameData
+                    val herbGrowthBonus = if (data.sectPolicies.herbCultivation) GameConfig.PolicyConfig.HERB_CULTIVATION_BASE_EFFECT else 0.0
+                    val actualYield = HerbGardenSystem.calculateIncreasedYield(slot.expectedYield, herbGrowthBonus)
+                    val herbItem = Herb(
+                        name = herb.name,
+                        rarity = herb.rarity,
+                        description = herb.description,
+                        category = herb.category,
+                        quantity = actualYield
+                    )
+                    inventorySystem.addHerb(herbItem)
+                    eventService.addGameEvent("${herb.name}已成熟，收获${actualYield}个，已放入宗门仓库", EventType.INFO)
                 } else {
-                    eventService.addGameEvent("${BuildingNames.getDisplayName(slot.buildingId)}工作已完成，但无种子信息", EventType.WARNING)
+                    eventService.addGameEvent("${BuildingNames.getDisplayName(slot.buildingId)}工作已完成，但无法识别种子对应的草药", EventType.WARNING)
                 }
             }
             else -> {

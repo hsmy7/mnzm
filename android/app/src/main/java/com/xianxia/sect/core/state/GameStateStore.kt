@@ -118,6 +118,10 @@ class GameStateStore @Inject constructor(
 
     fun getCurrentSeeds(): List<Seed> = _state.value.seeds
 
+    fun getCurrentHerbs(): List<Herb> = _state.value.herbs
+
+    fun getCurrentMaterials(): List<Material> = _state.value.materials
+
     private val reusableMutableState = MutableGameState(
         gameData = GameData(),
         disciples = emptyList(),
