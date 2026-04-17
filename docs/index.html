@@ -115,7 +115,7 @@
 <div class="container">
 
 <h1>模拟宗门 隐私政策</h1>
-<p class="update-date">更新日期：2026年4月16日 &nbsp;|&nbsp; 生效日期：2026年4月16日</p>
+<p class="update-date">更新日期：2026年4月17日 &nbsp;|&nbsp; 生效日期：2026年4月17日</p>
 
 <div class="intro">
     欢迎使用模拟宗门！【黑色毛衣工作室】（以下简称"我们"）系移动应用程序"模拟宗门"（以下简称"本游戏"）的运营者。我们深知个人信息对您的重要性，并将按照法律法规要求，采取相应安全保护措施来保护您的个人信息。在使用本应用前，请您仔细阅读并充分理解本隐私政策的全部内容。一旦您同意本隐私政策，即表示您已充分理解并同意我们按照本隐私政策处理您的相关信息。
@@ -147,9 +147,13 @@
     <tr><th>信息类型</th><th>具体内容</th><th>用途</th></tr>
     <tr><td>用户标识</td><td>TapTap OpenID、UnionID</td><td>账户识别和游戏存档关联</td></tr>
     <tr><td>个人资料</td><td>昵称、头像</td><td>游戏内显示</td></tr>
+    <tr><td>联系方式</td><td>电话号码、邮箱（TapTap 账户注册信息）</td><td>TapTap 账户身份验证和账户安全</td></tr>
     <tr><td>认证令牌</td><td>AccessToken（kid、tokenType、macKey、macAlgorithm）</td><td>安全通信和请求签名</td></tr>
 </table>
 <p>以上信息存储在设备本地，使用 AES-256 加密的 EncryptedSharedPreferences 保存。</p>
+<div class="note" style="background:#e3f2fd; border-left:4px solid #1976d2;">
+    <strong>关于电话号码和邮箱：</strong>电话号码和邮箱由 TapTap 平台在您注册 TapTap 账户时收集，用于账户身份验证和安全保障。当您使用 TapTap 登录本游戏时，TapTap SDK 会读取上述信息以完成登录验证。我们不会自行收集、存储或传输您的电话号码和邮箱。如需管理您的电话号码和邮箱，请在 TapTap 平台操作。
+</div>
 
 <h3>1.2 实名认证信息</h3>
 <p>根据《关于防止未成年人沉迷网络游戏的通知》等国家防沉迷相关规定，我们通过 TapTap 合规 SDK 进行实名认证和年龄验证，以确定您的游戏时段和时长限制。</p>
@@ -196,6 +200,9 @@
 <div class="note">
     上述设备标识符仅用于本地加密密钥派生，以哈希形式参与加密运算，原始值不会传输到我们的服务器。在网络请求中，仅发送设备指纹的前8位字符（SHA-256摘要前缀），用于防止请求伪造，不足以还原原始设备信息。
 </div>
+<div class="note" style="background:#e3f2fd; border-left:4px solid #1976d2;">
+    <strong>关于 Android ID 与 TapTap SDK：</strong>除本应用自身读取 Android ID 用于本地加密密钥派生外，TapTap SDK（包括 tap-core、tap-login、tap-compliance 模块）也会独立收集 Android ID，用于确保设备系统兼容性和定位解决问题。TapTap SDK 对 Android ID 的收集和处理受 TapTap SDK 隐私政策约束，详见下方第二节。
+</div>
 
 <h3>1.4 网络状态信息</h3>
 <p>我们检查网络连接状态（ConnectivityManager），用于判断网络是否可用，确保游戏数据同步正常。我们不收集 Wi-Fi SSID、BSSID 或 IP 地址。</p>
@@ -240,12 +247,12 @@
     <p><strong>初始化时机：</strong>TapTap SDK 仅在您同意本隐私政策后进行初始化，不会在您同意前调用任何系统隐私敏感接口。</p>
     <table>
         <tr><th>SDK 模块</th><th>功能</th><th>可能收集的信息</th></tr>
-        <tr><td>tap-core（4.10.0）</td><td>SDK 核心功能</td><td>设备信息（设备型号、操作系统版本、设备标识符）、网络信息</td></tr>
-        <tr><td>tap-login（4.10.0）</td><td>TapTap 账户登录</td><td>TapTap 账户标识（OpenID、UnionID）、昵称、头像</td></tr>
+        <tr><td>tap-core（4.10.0）</td><td>SDK 核心功能</td><td>设备信息（设备型号、操作系统版本、<strong>Android ID</strong>、设备 CPU 信息、设备内存信息）、网络信息（网络类型）</td></tr>
+        <tr><td>tap-login（4.10.0）</td><td>TapTap 账户登录</td><td>TapTap 账户标识（OpenID、UnionID）、昵称、头像、<strong>电话号码</strong>（TapTap 账户注册信息）、<strong>邮箱</strong>（TapTap 账户注册信息）、<strong>Android ID</strong>、设备信息、网络信息</td></tr>
         <tr><td>tap-common（4.10.0）</td><td>SDK 公共组件</td><td>设备基础信息</td></tr>
-        <tr><td>tap-compliance（4.10.0）</td><td>防沉迷和实名认证</td><td>实名认证数据、年龄信息</td></tr>
+        <tr><td>tap-compliance（4.10.0）</td><td>防沉迷和实名认证</td><td>实名认证数据、年龄信息、<strong>Android ID</strong>、设备信息、网络信息</td></tr>
     </table>
-    <p>TapTap SDK 隐私政策：<a href="https://developer.taptap.cn/docs/sdk/agreement/" target="_blank">https://developer.taptap.cn/docs/sdk/agreement/</a></p>
+    <p>TapTap SDK 隐私政策：<a href="https://developer.taptap.cn/docs/sdk/start/agreement/" target="_blank">https://developer.taptap.cn/docs/sdk/start/agreement/</a></p>
 </div>
 
 <div class="sdk-section">

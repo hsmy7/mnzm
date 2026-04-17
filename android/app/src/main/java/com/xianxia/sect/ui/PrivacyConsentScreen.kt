@@ -31,7 +31,7 @@ import com.xianxia.sect.ui.theme.GameColors
 import java.io.File
 import java.io.FileOutputStream
 
-private const val TAPTAP_SDK_PRIVACY_URL = "https://developer.taptap.cn/docs/sdk/agreement/"
+private const val TAPTAP_SDK_PRIVACY_URL = "https://developer.taptap.cn/docs/sdk/start/agreement/"
 private const val MMKV_URL = "https://github.com/Tencent/MMKV"
 
 private fun openUrlInBrowser(context: android.content.Context, url: String) {
@@ -251,7 +251,7 @@ private fun PrivacySummaryContent(
         text = buildAnnotatedString {
             withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color(0xFF333333))) { append("1. 账户信息") }
             append("\n")
-            withStyle(bodyStyle) { append("当您选择TapTap登录时，收集：TapTap OpenID、UnionID、昵称、头像、认证令牌。用于账户识别和游戏存档关联。") }
+            withStyle(bodyStyle) { append("当您选择TapTap登录时，收集：TapTap OpenID、UnionID、昵称、头像、电话号码（TapTap账户注册信息）、邮箱（TapTap账户注册信息）、认证令牌。电话号码和邮箱由TapTap平台在注册时收集，我们不会自行收集、存储或传输。用于账户识别、游戏存档关联、游戏内显示、账户安全和安全通信。") }
         },
         modifier = Modifier.padding(bottom = 8.dp, start = 8.dp),
         lineHeight = 19.sp
@@ -261,7 +261,7 @@ private fun PrivacySummaryContent(
         text = buildAnnotatedString {
             withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color(0xFF333333))) { append("2. 实名认证信息") }
             append("\n")
-            withStyle(bodyStyle) { append("根据防沉迷规定，通过TapTap合规SDK进行实名认证。手动填写时需输入姓名、身份证号码和电话号码，用于完成国家要求的实名身份验证。电话号码属于个人敏感信息，由TapTap平台收集并提交至国家防沉迷系统验证，我们不会存储或查看。建议优先使用快速认证（无需重新输入）。") }
+            withStyle(bodyStyle) { append("根据防沉迷规定，通过TapTap合规SDK进行实名认证。手动填写时需输入姓名、身份证号码和电话号码，用于完成国家要求的实名身份验证。电话号码属于个人敏感信息，由TapTap平台收集并提交至国家防沉迷系统验证，我们不会存储、查看或传输。建议优先使用快速认证（无需重新输入）。") }
         },
         modifier = Modifier.padding(bottom = 8.dp, start = 8.dp),
         lineHeight = 19.sp
@@ -271,7 +271,7 @@ private fun PrivacySummaryContent(
         text = buildAnnotatedString {
             withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color(0xFF333333))) { append("3. 设备标识符") }
             append("\n")
-            withStyle(bodyStyle) { append("读取Android ID、设备硬件信息（品牌、型号等）、应用签名证书哈希。仅用于本地加密密钥派生，以哈希形式参与加密运算，原始值不会传输到服务器。") }
+            withStyle(bodyStyle) { append("读取Android ID、设备硬件信息（品牌、型号等）、应用签名证书哈希。本应用仅用于本地加密密钥派生，以哈希形式参与加密运算，原始值不会传输到服务器。TapTap SDK也会独立收集Android ID，用于设备系统兼容性。") }
         },
         modifier = Modifier.padding(bottom = 8.dp, start = 8.dp),
         lineHeight = 19.sp
@@ -318,7 +318,7 @@ private fun PrivacySummaryContent(
         withStyle(ParagraphStyle(lineHeight = 19.sp)) {
             withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color(0xFF333333))) { append("TapTap SDK\uff08v4.10.0\uff09") }
             append("\n")
-            withStyle(bodyStyle) { append("仅在您同意本隐私政策后初始化。可能收集：设备信息（型号、系统版本、设备标识符）、网络信息、TapTap账户标识、实名认证数据。") }
+            withStyle(bodyStyle) { append("仅在您同意本隐私政策后初始化。可能收集：设备信息（型号、系统版本、Android ID、CPU信息、内存信息）、网络信息、TapTap账户标识、电话号码（TapTap账户注册信息）、邮箱（TapTap账户注册信息）、实名认证数据。") }
             append("\n")
             pushStringAnnotation(tag = "URL", annotation = TAPTAP_SDK_PRIVACY_URL)
             withStyle(linkStyle) { append("TapTap SDK隐私政策 >") }
@@ -459,7 +459,7 @@ fun FullPrivacyPolicyScreen(
                 Spacer(modifier = Modifier.height(4.dp))
 
                 Text(
-                    text = "更新日期：2026年4月16日 | 生效日期：2026年4月16日",
+                    text = "更新日期：2026年4月17日 | 生效日期：2026年4月17日",
                     fontSize = 12.sp,
                     color = GameColors.TextTertiary,
                     modifier = Modifier.fillMaxWidth(),
@@ -516,7 +516,7 @@ fun FullPrivacyPolicyScreen(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "\u2022 用户标识：TapTap OpenID、UnionID \u2014 账户识别和游戏存档关联\n\u2022 个人资料：昵称、头像 \u2014 游戏内显示\n\u2022 认证令牌：AccessToken（kid、tokenType、macKey、macAlgorithm）\u2014 安全通信和请求签名",
+                            text = "\u2022 用户标识：TapTap OpenID、UnionID \u2014 账户识别和游戏存档关联\n\u2022 个人资料：昵称、头像 \u2014 游戏内显示\n\u2022 联系方式：电话号码、邮箱（TapTap 账户注册信息）\u2014 TapTap 账户身份验证和账户安全\n\u2022 认证令牌：AccessToken（kid、tokenType、macKey、macAlgorithm）\u2014 安全通信和请求签名",
                             fontSize = 12.sp, color = Color(0xFF555555), lineHeight = 18.sp
                         )
                         Spacer(modifier = Modifier.height(4.dp))
@@ -524,13 +524,49 @@ fun FullPrivacyPolicyScreen(
                             text = "以上信息存储在设备本地，使用 AES-256 加密的 EncryptedSharedPreferences 保存。",
                             fontSize = 12.sp, color = Color(0xFF666666), lineHeight = 18.sp
                         )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFE3F2FD)),
+                            shape = RoundedCornerShape(4.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = "关于电话号码和邮箱：电话号码和邮箱由 TapTap 平台在您注册 TapTap 账户时收集，用于账户身份验证和安全保障。当您使用 TapTap 登录本游戏时，TapTap SDK 会读取上述信息以完成登录验证。我们不会自行收集、存储或传输您的电话号码和邮箱。如需管理您的电话号码和邮箱，请在 TapTap 平台操作。",
+                                fontSize = 12.sp, color = Color(0xFF1565C0), lineHeight = 18.sp,
+                                modifier = Modifier.padding(10.dp)
+                            )
+                        }
                     }
 
                     FullPolicySubSection("1.2 实名认证信息") {
                         Text(
-                            text = "根据《关于防止未成年人沉迷网络游戏的通知》等国家防沉迷相关规定，我们通过 TapTap 合规 SDK 进行实名认证和年龄验证。\n\n\u2022 快速认证（推荐）：复用您在 TapTap 平台已完成的实名信息（姓名、身份证号），由 TapTap 平台处理。\n\u2022 手动填写认证：需输入姓名、身份证号码和电话号码。其中电话号码属于个人敏感信息，由 TapTap 平台收集并提交至国家新闻出版署网络游戏防沉迷实名认证系统进行验证。我们不会存储、查看或传输您的身份证号码和电话号码。建议优先使用快速认证方式，无需重新输入任何个人信息。",
+                            text = "根据《关于防止未成年人沉迷网络游戏的通知》等国家防沉迷相关规定，我们通过 TapTap 合规 SDK 进行实名认证和年龄验证。\n\n\u2022 快速认证（推荐）：复用您在 TapTap 平台已完成的实名信息（姓名、身份证号），由 TapTap 平台处理。\n\u2022 手动填写认证：需输入姓名、身份证号码和电话号码。",
                             fontSize = 13.sp, color = Color(0xFF444444), lineHeight = 20.sp
                         )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE)),
+                            shape = RoundedCornerShape(4.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = "重要提示 - 关于电话号码收集：\n\n\u2022 收集目的：电话号码仅在您选择\"手动填写认证\"场景下收集，用于完成国家要求的实名身份验证，确保防沉迷政策有效执行。\n\u2022 收集方式：由 TapTap 合规 SDK 在实名认证界面中向您明示并征得同意后收集，我们不会自行设计或使用任何电话号码输入框。\n\u2022 处理方：电话号码由 TapTap 平台收集，并提交至国家新闻出版署网络游戏防沉迷实名认证系统进行验证。我们不会存储、查看或传输您的电话号码。\n\u2022 您的权利：您有权拒绝提供电话号码。如拒绝，将无法通过手动方式完成实名认证，可能导致无法正常使用游戏。建议优先使用\"快速认证\"方式，无需重新输入任何个人信息。\n\u2022 敏感信息性质：电话号码属于个人敏感信息。本条为针对电话号码的单独告知，请您仔细阅读并充分理解后再进行后续操作。",
+                                fontSize = 12.sp, color = Color(0xFFC62828), lineHeight = 18.sp,
+                                modifier = Modifier.padding(10.dp), fontWeight = FontWeight.Medium
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF8E1)),
+                            shape = RoundedCornerShape(4.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = "实名认证数据由 TapTap 平台处理，我们不直接收集、存储或传输您的身份证号码等敏感身份信息。",
+                                fontSize = 12.sp, color = Color(0xFF795548), lineHeight = 18.sp,
+                                modifier = Modifier.padding(10.dp)
+                            )
+                        }
                     }
 
                     FullPolicySubSection("1.3 设备标识符") {
@@ -538,6 +574,18 @@ fun FullPrivacyPolicyScreen(
                             text = "我们读取以下设备信息，仅用于本地数据加密密钥派生和防止请求伪造：\n\n\u2022 Android ID（Settings.Secure.ANDROID_ID）\u2014 本地加密密钥派生\n\u2022 设备硬件信息（品牌、型号）\u2014 本地加密密钥派生和设备指纹\n\u2022 应用签名证书 SHA-256 哈希 \u2014 设备指纹增强\n\n上述设备标识符仅用于本地加密密钥派生，以哈希形式参与加密运算，原始值不会传输到我们的服务器。在网络请求中，仅发送设备指纹的前8位字符（SHA-256摘要前缀），用于防止请求伪造。",
                             fontSize = 13.sp, color = Color(0xFF444444), lineHeight = 20.sp
                         )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFE3F2FD)),
+                            shape = RoundedCornerShape(4.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = "关于 Android ID 与 TapTap SDK：除本应用自身读取 Android ID 用于本地加密密钥派生外，TapTap SDK（包括 tap-core、tap-login、tap-compliance 模块）也会独立收集 Android ID，用于确保设备系统兼容性和定位解决问题。TapTap SDK 对 Android ID 的收集和处理受 TapTap SDK 隐私政策约束，详见下方第二节。",
+                                fontSize = 12.sp, color = Color(0xFF1565C0), lineHeight = 18.sp,
+                                modifier = Modifier.padding(10.dp)
+                            )
+                        }
                     }
 
                     FullPolicySubSection("1.4 网络状态信息") {
@@ -579,7 +627,7 @@ fun FullPrivacyPolicyScreen(
                 FullPolicySection("二、第三方 SDK 数据收集") {
                     FullPolicySubSection("2.1 TapTap SDK（v4.10.0）") {
                         Text(
-                            text = "由易玩（上海）网络科技有限公司提供。仅在您同意本隐私政策后初始化。\n\n\u2022 tap-core：SDK核心功能 \u2014 可能收集设备信息、网络信息\n\u2022 tap-login：账户登录 \u2014 收集TapTap账户标识、昵称、头像\n\u2022 tap-common：公共组件 \u2014 收集设备基础信息\n\u2022 tap-compliance：防沉迷和实名认证 \u2014 收集实名认证数据、年龄信息",
+                            text = "由易玩（上海）网络科技有限公司提供。仅在您同意本隐私政策后初始化。\n\n\u2022 tap-core：SDK核心功能 \u2014 可能收集设备信息（设备型号、操作系统版本、Android ID、CPU信息、内存信息）、网络信息（网络类型）\n\u2022 tap-login：账户登录 \u2014 收集TapTap账户标识、昵称、头像、电话号码（TapTap账户注册信息）、邮箱（TapTap账户注册信息）、Android ID、设备信息、网络信息\n\u2022 tap-common：公共组件 \u2014 收集设备基础信息\n\u2022 tap-compliance：防沉迷和实名认证 \u2014 收集实名认证数据、年龄信息、Android ID、设备信息、网络信息",
                             fontSize = 13.sp, color = Color(0xFF444444), lineHeight = 20.sp
                         )
                         Spacer(modifier = Modifier.height(6.dp))
