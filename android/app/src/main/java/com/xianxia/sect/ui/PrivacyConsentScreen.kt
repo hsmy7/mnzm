@@ -28,11 +28,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.theme.GameColors
-import java.io.File
-import java.io.FileOutputStream
 
 private const val TAPTAP_SDK_PRIVACY_URL = "https://developer.taptap.cn/docs/sdk/start/agreement/"
 private const val MMKV_URL = "https://github.com/Tencent/MMKV"
+private const val PRIVACY_POLICY_URL = "https://hsmy7.github.io/index.html/"
 
 private fun openUrlInBrowser(context: android.content.Context, url: String) {
     try {
@@ -41,31 +40,6 @@ private fun openUrlInBrowser(context: android.content.Context, url: String) {
         context.startActivity(intent)
     } catch (e: Exception) {
         Toast.makeText(context, "无法打开浏览器", Toast.LENGTH_SHORT).show()
-    }
-}
-
-private fun openPrivacyHtmlInBrowser(context: android.content.Context) {
-    try {
-        val cacheDir = File(context.cacheDir, "privacy")
-        if (!cacheDir.exists()) cacheDir.mkdirs()
-        val targetFile = File(cacheDir, "privacy.html")
-        if (!targetFile.exists()) {
-            context.assets.open("privacy.html").use { input ->
-                FileOutputStream(targetFile).use { output ->
-                    input.copyTo(output)
-                }
-            }
-        }
-        val authority = "${context.packageName}.fileprovider"
-        val uri = androidx.core.content.FileProvider.getUriForFile(context, authority, targetFile)
-        val intent = Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(uri, "text/html")
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        context.startActivity(intent)
-    } catch (e: Exception) {
-        Toast.makeText(context, "无法打开隐私政策", Toast.LENGTH_SHORT).show()
     }
 }
 
@@ -200,7 +174,7 @@ fun PrivacyConsentScreen(
                     color = GameColors.SpiritBlue,
                     fontWeight = FontWeight.Medium,
                     textDecoration = TextDecoration.Underline,
-                    modifier = Modifier.clickable { openPrivacyHtmlInBrowser(context) }
+                    modifier = Modifier.clickable { openUrlInBrowser(context, PRIVACY_POLICY_URL) }
                 )
             }
 
@@ -435,7 +409,7 @@ fun FullPrivacyPolicyScreen(
                     color = GameColors.SpiritBlue,
                     fontWeight = FontWeight.Medium,
                     textDecoration = TextDecoration.Underline,
-                    modifier = Modifier.clickable { openPrivacyHtmlInBrowser(context) }
+                    modifier = Modifier.clickable { openUrlInBrowser(context, PRIVACY_POLICY_URL) }
                 )
             }
 
