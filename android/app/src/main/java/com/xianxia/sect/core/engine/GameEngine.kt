@@ -298,7 +298,7 @@ class GameEngine @Inject constructor(
 
     fun syncAllDiscipleStatuses() = discipleService.syncAllDiscipleStatuses()
 
-    fun resetAllDisciplesStatus() = discipleService.resetAllDisciplesStatus()
+    suspend fun resetAllDisciplesStatus() = discipleService.resetAllDisciplesStatus()
 
     fun recruitDisciple(): Disciple = discipleService.recruitDisciple()
 

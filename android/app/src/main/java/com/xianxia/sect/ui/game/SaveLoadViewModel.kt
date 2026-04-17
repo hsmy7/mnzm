@@ -112,15 +112,17 @@ class SaveLoadViewModel @Inject constructor(
         _saveSlots.value = storageFacade.getSaveSlots()
 
         viewModelScope.launch {
-            gameEngineCore.autoSaveTrigger.collect {
-                try {
-                    withTimeoutOrNull(30_000L) {
-                        performAutoSave()
-                    } ?: Log.w(TAG, "Auto save cancelled due to timeout")
-                } catch (e: CancellationException) {
-                    Log.w(TAG, "Auto save cancelled", e)
-                } catch (e: Exception) {
-                    Log.e(TAG, "Auto save error", e)
+            while (isActive) {
+                gameEngineCore.autoSaveTrigger.collect {
+                    try {
+                        withTimeoutOrNull(30_000L) {
+                            performAutoSave()
+                        } ?: Log.w(TAG, "Auto save cancelled due to timeout")
+                    } catch (e: CancellationException) {
+                        Log.w(TAG, "Auto save cancelled", e)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Auto save error", e)
+                    }
                 }
             }
         }
@@ -543,11 +545,7 @@ class SaveLoadViewModel @Inject constructor(
                     return@launch
                 }
 
-                val effectiveSlot = if (saveSlot.isAutoSave) {
-                    saveData.gameData.currentSlot.let { if (it > 0) it else 1 }
-                } else {
-                    saveSlot.slot
-                }
+                val effectiveSlot = com.xianxia.sect.data.StorageConstants.resolveEffectiveSlot(saveSlot.slot)
                 storageFacade.setCurrentSlot(effectiveSlot)
                 gameEngine.loadData(
                     gameData = saveData.gameData.copy(currentSlot = effectiveSlot),
@@ -647,11 +645,7 @@ class SaveLoadViewModel @Inject constructor(
                 }
                 if (saveData != null) {
                     _loadingProgress.value = PROGRESS_DATA_LOAD
-                    val effectiveSlot = if (slot == com.xianxia.sect.data.StorageConstants.AUTO_SAVE_SLOT) {
-                        saveData.gameData.currentSlot.let { if (it > 0) it else 1 }
-                    } else {
-                        slot
-                    }
+                    val effectiveSlot = com.xianxia.sect.data.StorageConstants.resolveEffectiveSlot(slot)
                     storageFacade.setCurrentSlot(effectiveSlot)
                     gameEngine.loadData(
                         gameData = saveData.gameData.copy(currentSlot = effectiveSlot),
@@ -752,7 +746,8 @@ class SaveLoadViewModel @Inject constructor(
                         _errorMessage.value = "游戏数据未初始化"
                         return@launch
                     }
-                    val saveData = trimSaveData(snapshot)
+                    val updatedGameData = snapshot.gameData.copy(currentSlot = slot)
+                    val saveData = trimSaveData(snapshot).copy(gameData = updatedGameData)
 
                     val saveResult = withTimeoutOrNull(30_000L) {
                         storageFacade.saveSyncWithResult(slot, saveData)
@@ -808,17 +803,29 @@ class SaveLoadViewModel @Inject constructor(
     }
 
     fun pauseAndSaveForBackground() {
+        // 关键修复：先获取快照，再停游戏循环
+        // 之前的逻辑先 stopGameLoop() 再获取快照，游戏循环停止后
+        // 如果有异步操作修改了状态，快照可能为空
+        val snapshot = try {
+            gameEngine.getStateSnapshotSync()
+        } catch (e: Exception) {
+            Log.e(TAG, "pauseAndSaveForBackground: failed to get snapshot: ${e.message}")
+            null
+        }
+
         stopGameLoop()
+
         if (!_isGameLoaded) {
             Log.d(TAG, "pauseAndSaveForBackground: game not loaded, skipping")
             return
         }
+
+        if (snapshot == null || snapshot.gameData.sectName.isBlank()) {
+            Log.w(TAG, "pauseAndSaveForBackground: snapshot is null or not initialized, skipping")
+            return
+        }
+
         try {
-            val snapshot = gameEngine.getStateSnapshotSync()
-            if (snapshot.gameData.sectName.isBlank()) {
-                Log.w(TAG, "pauseAndSaveForBackground: game data not initialized, skipping")
-                return
-            }
             val autoSaveSlot = com.xianxia.sect.data.StorageConstants.AUTO_SAVE_SLOT
             val autoRequest = SavePipeline.SaveRequest(
                 slot = autoSaveSlot,
@@ -879,7 +886,7 @@ class SaveLoadViewModel @Inject constructor(
 
                 val currentData = gameEngine.gameData.value
                 val sectName = currentData.sectName.ifBlank { "QingYunSect" }
-                val currentSlot = currentData.currentSlot.coerceAtLeast(1)
+                val currentSlot = currentData.currentSlot.let { if (it >= 0) it else 1 }
                 previousSlot = storageFacade.getCurrentSlot()
 
                 Log.i(TAG, "=== restartGame BEGIN === currentSlot=$currentSlot, previousSlot=$previousSlot, sectName=$sectName")
@@ -1055,6 +1062,19 @@ class SaveLoadViewModel @Inject constructor(
 
     override fun onCleared() {
         Log.i(TAG, "SaveLoadViewModel cleared")
+
+        // 关键修复：先捕获快照，再停循环和重置状态，避免保存空数据
+        var snapshotToSave: com.xianxia.sect.core.engine.GameStateSnapshot? = null
+        try {
+            val snapshot = gameEngine.getStateSnapshotSync()
+            if (snapshot.gameData.sectName.isNotBlank()) {
+                snapshotToSave = snapshot
+                Log.d(TAG, "Captured game snapshot for exit save in SaveLoadViewModel")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to capture snapshot for exit save: ${e.message}")
+        }
+
         runBlocking { setSaveLoadState(isLoading = false, isSaving = false, pendingSlot = null, pendingAction = null) }
         _loadingProgress.value = PROGRESS_START
         stopGameLoop()
@@ -1062,13 +1082,46 @@ class SaveLoadViewModel @Inject constructor(
         if (stateManager.state.value.isSaving) {
             Log.i(TAG, "Waiting for current save operation to complete")
             val waitStartTime = System.currentTimeMillis()
-            val maxWaitTime = 5000L
+            val maxWaitTime = 3000L
             while (stateManager.state.value.isSaving && System.currentTimeMillis() - waitStartTime < maxWaitTime) {
                 Thread.sleep(100)
             }
         }
 
-        performExitSave()
+        // 使用之前捕获的快照进行保存
+        if (snapshotToSave != null) {
+            try {
+                val autoSaveSlot = com.xianxia.sect.data.StorageConstants.AUTO_SAVE_SLOT
+                val saveData = SaveData(
+                    gameData = snapshotToSave.gameData,
+                    disciples = snapshotToSave.disciples,
+                    equipment = snapshotToSave.equipment,
+                    manuals = snapshotToSave.manuals,
+                    pills = snapshotToSave.pills,
+                    materials = snapshotToSave.materials,
+                    herbs = snapshotToSave.herbs,
+                    seeds = snapshotToSave.seeds,
+                    teams = snapshotToSave.teams,
+                    events = snapshotToSave.events,
+                    battleLogs = snapshotToSave.battleLogs,
+                    alliances = snapshotToSave.alliances,
+                    productionSlots = snapshotToSave.productionSlots
+                )
+                val result = runBlocking(Dispatchers.IO) {
+                    withTimeoutOrNull(5_000L) {
+                        storageFacade.save(autoSaveSlot, saveData)
+                    } ?: SaveResult.failure(SaveError.TIMEOUT, "Save timeout on exit")
+                }
+                if (result.isSuccess) {
+                    Log.i(TAG, "Exit save completed in SaveLoadViewModel, slot: $autoSaveSlot")
+                } else {
+                    Log.w(TAG, "Exit save failed in SaveLoadViewModel, slot: $autoSaveSlot")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Exit save failed in SaveLoadViewModel: ${e.message}")
+            }
+        }
+
         runBlocking { gameEngineCore.stopGameLoopAndWait(3000) }
         runBlocking { stateManager.setPaused(true) }
         super.onCleared()
@@ -1103,6 +1156,8 @@ class SaveLoadViewModel @Inject constructor(
     }
 
     fun resetAllDisciplesStatus() {
-        gameEngine.resetAllDisciplesStatus()
+        viewModelScope.launch {
+            gameEngine.resetAllDisciplesStatus()
+        }
     }
 }

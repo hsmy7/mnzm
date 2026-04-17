@@ -259,7 +259,9 @@ class DiscipleViewModel @Inject constructor(
     }
     
     fun resetAllDisciplesStatus() {
-        gameEngine.resetAllDisciplesStatus()
+        viewModelScope.launch {
+            gameEngine.resetAllDisciplesStatus()
+        }
     }
     
     fun syncAllDiscipleStatuses() {

@@ -274,57 +274,138 @@ class DiscipleService @Inject constructor(
      * Reset all disciples to IDLE status
      * Used when resetting game state or disbanding all teams
      */
-    fun resetAllDisciplesStatus() {
+    suspend fun resetAllDisciplesStatus() {
         val data = currentGameData
-        val discipleIdsToReset = mutableSetOf<String>()
 
-        productionSlotRepository.getSlotsByBuildingId("forge").forEach { slot ->
-            slot.assignedDiscipleId?.let { discipleIdsToReset.add(it) }
+        val reflectingIds = currentDisciples
+            .filter { it.status == DiscipleStatus.REFLECTING }
+            .map { it.id }
+            .toSet()
+
+        val clearedSpiritMineSlots = data.spiritMineSlots.map {
+            if (it.discipleId.isNotEmpty() && it.discipleId !in reflectingIds)
+                it.copy(discipleId = "", discipleName = "") else it
         }
 
-        // 2. Spirit mine slots
-        data.spiritMineSlots.forEach { slot ->
-            slot.discipleId?.let { discipleIdsToReset.add(it) }
+        val clearedLibrarySlots = data.librarySlots.map {
+            if (it.discipleId.isNotEmpty() && it.discipleId !in reflectingIds)
+                it.copy(discipleId = "", discipleName = "") else it
         }
 
-        // 3. Library slots
-        data.librarySlots.forEach { slot ->
-            slot.discipleId?.let { discipleIdsToReset.add(it) }
+        val clearedElderSlots = clearAllDisciplesFromElderSlots(data.elderSlots, reflectingIds)
+
+        val clearedBattleTeam = data.battleTeam?.let { team ->
+            if (team.status != "idle") {
+                team.copy(
+                    slots = team.slots.map { slot ->
+                        if (slot.discipleId.isNotEmpty() && slot.discipleId !in reflectingIds)
+                            slot.copy(discipleId = "", discipleName = "", discipleRealm = "", isAlive = true)
+                        else slot
+                    },
+                    status = "idle",
+                    targetSectId = "",
+                    originSectId = "",
+                    route = emptyList(),
+                    currentRouteIndex = 0,
+                    moveProgress = 0f,
+                    isOccupying = false,
+                    occupiedSectId = "",
+                    isReturning = false
+                )
+            } else team
         }
 
-        // 4. Elder slots
-        val elderSlots = data.elderSlots
-        elderSlots.viceSectMaster?.let { discipleIdsToReset.add(it) }
-        elderSlots.herbGardenElder?.let { discipleIdsToReset.add(it) }
-        elderSlots.alchemyElder?.let { discipleIdsToReset.add(it) }
-        elderSlots.forgeElder?.let { discipleIdsToReset.add(it) }
-        elderSlots.outerElder?.let { discipleIdsToReset.add(it) }
-        elderSlots.preachingElder?.let { discipleIdsToReset.add(it) }
-        elderSlots.lawEnforcementElder?.let { discipleIdsToReset.add(it) }
-        elderSlots.innerElder?.let { discipleIdsToReset.add(it) }
-        elderSlots.qingyunPreachingElder?.let { discipleIdsToReset.add(it) }
+        val clearedCaveTeams = data.caveExplorationTeams.map { team ->
+            if (team.memberIds.any { it !in reflectingIds }) {
+                team.copy(
+                    memberIds = emptyList(),
+                    memberNames = emptyList(),
+                    status = CaveExplorationStatus.COMPLETED
+                )
+            } else team
+        }
 
-        // Collect from position slots
-        elderSlots.preachingMasters.forEach { slot -> slot.discipleId?.let { discipleIdsToReset.add(it) } }
-        elderSlots.lawEnforcementDisciples.forEach { slot -> slot.discipleId?.let { discipleIdsToReset.add(it) } }
-        elderSlots.lawEnforcementReserveDisciples.forEach { slot -> slot.discipleId?.let { discipleIdsToReset.add(it) } }
-        elderSlots.qingyunPreachingMasters.forEach { slot -> slot.discipleId?.let { discipleIdsToReset.add(it) } }
-        elderSlots.herbGardenDisciples.forEach { slot -> slot.discipleId?.let { discipleIdsToReset.add(it) } }
-        elderSlots.alchemyDisciples.forEach { slot -> slot.discipleId?.let { discipleIdsToReset.add(it) } }
-        elderSlots.forgeDisciples.forEach { slot -> slot.discipleId?.let { discipleIdsToReset.add(it) } }
-        elderSlots.herbGardenReserveDisciples.forEach { slot -> slot.discipleId?.let { discipleIdsToReset.add(it) } }
-        elderSlots.alchemyReserveDisciples.forEach { slot -> slot.discipleId?.let { discipleIdsToReset.add(it) } }
-        elderSlots.forgeReserveDisciples.forEach { slot -> slot.discipleId?.let { discipleIdsToReset.add(it) } }
-        elderSlots.spiritMineDeaconDisciples.forEach { slot -> slot.discipleId?.let { discipleIdsToReset.add(it) } }
+        val clearedActiveMissions = data.activeMissions.filter { mission ->
+            mission.discipleIds.all { it in reflectingIds }
+        }
 
-        // Update disciple statuses (exclude reflecting disciples)
-        currentDisciples = currentDisciples.map { disciple ->
-            if (discipleIdsToReset.contains(disciple.id) && disciple.status != DiscipleStatus.REFLECTING) {
-                disciple.copy(status = DiscipleStatus.IDLE)
-            } else {
-                disciple
+        currentGameData = data.copy(
+            spiritMineSlots = clearedSpiritMineSlots,
+            librarySlots = clearedLibrarySlots,
+            elderSlots = clearedElderSlots,
+            battleTeam = clearedBattleTeam,
+            caveExplorationTeams = clearedCaveTeams,
+            activeMissions = clearedActiveMissions
+        )
+
+        currentTeams = currentTeams.map { team ->
+            if (team.memberIds.any { it !in reflectingIds }) {
+                team.copy(
+                    memberIds = emptyList(),
+                    memberNames = emptyList(),
+                    status = ExplorationStatus.COMPLETED
+                )
+            } else team
+        }
+
+        val allSlots = productionSlotRepository.getSlots()
+        for (slot in allSlots) {
+            if (slot.assignedDiscipleId != null && slot.assignedDiscipleId !in reflectingIds && !slot.isWorking) {
+                productionSlotRepository.updateSlotByBuildingId(slot.buildingId, slot.slotIndex) { s ->
+                    s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
+                }
             }
         }
+
+        currentDisciples = currentDisciples.map { disciple ->
+            when {
+                !disciple.isAlive -> disciple
+                disciple.status == DiscipleStatus.REFLECTING -> disciple
+                disciple.status == DiscipleStatus.IDLE -> disciple
+                else -> disciple.copy(status = DiscipleStatus.IDLE, statusData = emptyMap())
+            }
+        }
+
+        autoFillLawEnforcementSlots()
+    }
+
+    private fun clearAllDisciplesFromElderSlots(slots: ElderSlots, reflectingIds: Set<String>): ElderSlots {
+        var updated = slots
+
+        if (updated.viceSectMaster.isNotEmpty() && updated.viceSectMaster !in reflectingIds)
+            updated = updated.copy(viceSectMaster = "")
+        if (updated.herbGardenElder.isNotEmpty() && updated.herbGardenElder !in reflectingIds)
+            updated = updated.copy(herbGardenElder = "")
+        if (updated.alchemyElder.isNotEmpty() && updated.alchemyElder !in reflectingIds)
+            updated = updated.copy(alchemyElder = "")
+        if (updated.forgeElder.isNotEmpty() && updated.forgeElder !in reflectingIds)
+            updated = updated.copy(forgeElder = "")
+        if (updated.outerElder.isNotEmpty() && updated.outerElder !in reflectingIds)
+            updated = updated.copy(outerElder = "")
+        if (updated.preachingElder.isNotEmpty() && updated.preachingElder !in reflectingIds)
+            updated = updated.copy(preachingElder = "")
+        if (updated.lawEnforcementElder.isNotEmpty() && updated.lawEnforcementElder !in reflectingIds)
+            updated = updated.copy(lawEnforcementElder = "")
+        if (updated.innerElder.isNotEmpty() && updated.innerElder !in reflectingIds)
+            updated = updated.copy(innerElder = "")
+        if (updated.qingyunPreachingElder.isNotEmpty() && updated.qingyunPreachingElder !in reflectingIds)
+            updated = updated.copy(qingyunPreachingElder = "")
+
+        updated = updated.copy(
+            preachingMasters = updated.preachingMasters.filter { it.discipleId in reflectingIds },
+            lawEnforcementDisciples = updated.lawEnforcementDisciples.filter { it.discipleId in reflectingIds },
+            lawEnforcementReserveDisciples = updated.lawEnforcementReserveDisciples.filter { it.discipleId in reflectingIds },
+            qingyunPreachingMasters = updated.qingyunPreachingMasters.filter { it.discipleId in reflectingIds },
+            herbGardenDisciples = updated.herbGardenDisciples.filter { it.discipleId in reflectingIds },
+            alchemyDisciples = updated.alchemyDisciples.filter { it.discipleId in reflectingIds },
+            forgeDisciples = updated.forgeDisciples.filter { it.discipleId in reflectingIds },
+            herbGardenReserveDisciples = updated.herbGardenReserveDisciples.filter { it.discipleId in reflectingIds },
+            alchemyReserveDisciples = updated.alchemyReserveDisciples.filter { it.discipleId in reflectingIds },
+            forgeReserveDisciples = updated.forgeReserveDisciples.filter { it.discipleId in reflectingIds },
+            spiritMineDeaconDisciples = updated.spiritMineDeaconDisciples.filter { it.discipleId in reflectingIds }
+        )
+
+        return updated
     }
 
     // ==================== 弟子培养 ====================
