@@ -259,7 +259,7 @@ class WorldMapViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val sectId = _selectedTradeSectId.value ?: return@launch
-                gameEngine.buyFromSectTrade(sectId, itemId, quantity)
+                gameEngine.buyFromSectTradeSync(sectId, itemId, quantity)
                 _sectTradeItems.value = gameEngine.getOrRefreshSectTradeItems(sectId)
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "购买失败"

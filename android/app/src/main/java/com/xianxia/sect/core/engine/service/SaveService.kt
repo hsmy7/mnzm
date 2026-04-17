@@ -108,17 +108,20 @@ class SaveService @Inject constructor(
         return getStateSnapshotSync()
     }
 
-    fun prepareForLoad() {
-        scope.launch { stateStore.reset() }
-        android.util.Log.d(TAG, "Prepared state for loading from save")
-    }
-
-    fun restoreFromLoad(loadedGameData: GameData) {
-        scope.launch { stateStore.update { gameData = loadedGameData } }
-        android.util.Log.d(TAG, "Restored state from save: year=${loadedGameData.gameYear}, disciples count would be set separately")
-    }
-
-    fun restoreCollections(
+    /**
+     * 原子化恢复存档：将 reset + restoreFromLoad + restoreCollections 合并为
+     * 一个 loadFromSnapshot 调用，避免 runBlocking 死锁和多次 update 竞态。
+     *
+     * 之前的问题：
+     * 1. runBlocking { stateStore.reset() } 如果游戏循环正持有 transactionMutex，
+     *    会阻塞调用线程等待锁，超过 5 秒触发 ANR → 系统杀进程。
+     * 2. restoreFromLoad 和 restoreCollections 分两次 runBlocking update，
+     *    两次 update 之间可能被其他操作插入，导致状态不一致。
+     *
+     * 修复方案：使用 suspend 函数 + stateStore.loadFromSnapshot 一次性原子写入所有状态。
+     */
+    suspend fun loadFromSave(
+        loadedGameData: GameData,
         disciples: List<Disciple>,
         equipment: List<Equipment>,
         manuals: List<Manual>,
@@ -130,21 +133,20 @@ class SaveService @Inject constructor(
         battleLogs: List<BattleLog>,
         teams: List<ExplorationTeam>
     ) {
-        scope.launch {
-            stateStore.update {
-                this.disciples = disciples
-                this.equipment = equipment
-                this.manuals = manuals
-                this.pills = pills
-                this.materials = materials
-                this.herbs = herbs
-                this.seeds = seeds
-                this.events = events
-                this.battleLogs = battleLogs
-                this.teams = teams
-            }
-        }
-        android.util.Log.d(TAG, "Restored collections: ${disciples.size} disciples, ${equipment.size} equipment")
+        stateStore.loadFromSnapshot(
+            gameData = loadedGameData,
+            disciples = disciples,
+            equipment = equipment,
+            manuals = manuals,
+            pills = pills,
+            materials = materials,
+            herbs = herbs,
+            seeds = seeds,
+            teams = teams,
+            events = events,
+            battleLogs = battleLogs
+        )
+        Log.d(TAG, "Atomically restored from save: year=${loadedGameData.gameYear}, ${disciples.size} disciples, ${equipment.size} equipment")
     }
 
     fun validateState(): List<String> {

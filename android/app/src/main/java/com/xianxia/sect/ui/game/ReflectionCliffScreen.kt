@@ -20,6 +20,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.ui.components.FollowedTag
+import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.theme.GameColors
 
 @Composable
@@ -168,6 +170,9 @@ private fun ReflectingDiscipleCard(
                         fontWeight = FontWeight.Bold,
                         color = Color.Black
                     )
+                    if (disciple.isFollowed) {
+                        FollowedTag()
+                    }
                     Text(
                         text = disciple.core.genderSymbol,
                         fontSize = 11.sp,

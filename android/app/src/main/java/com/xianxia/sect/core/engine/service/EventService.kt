@@ -8,7 +8,10 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.di.ApplicationScopeProvider
 import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.engine.system.AddResult
 import com.xianxia.sect.core.engine.system.GameSystem
+import com.xianxia.sect.core.engine.system.InventorySystem
+import com.xianxia.sect.core.engine.system.MerchantItemConverter
 import com.xianxia.sect.core.engine.system.SystemPriority
 import com.xianxia.sect.core.util.GameUtils
 import android.util.Log
@@ -22,7 +25,8 @@ import kotlin.random.Random
 @Singleton
 class EventService @Inject constructor(
     private val stateStore: GameStateStore,
-    private val applicationScopeProvider: ApplicationScopeProvider
+    private val applicationScopeProvider: ApplicationScopeProvider,
+    private val inventorySystem: InventorySystem
 ) : GameSystem {
     override val systemName: String = "EventService"
     private val scope get() = applicationScopeProvider.scope
@@ -283,29 +287,63 @@ class EventService @Inject constructor(
     /**
      * Buy item from sect trade
      */
-    fun buyFromSectTrade(
-        sectId: String,
-        itemId: String,
-        quantity: Int = 1,
-        onAddEquipment: (Equipment) -> Unit,
-        onAddManual: (Manual) -> Unit,
-        onAddPill: (Pill) -> Unit,
-        onAddMaterial: (Material) -> Unit,
-        onAddHerb: (Herb) -> Unit,
-        onAddSeed: (Seed) -> Unit
-    ) {
-        val data = stateStore.gameData.value
-        val sect = data.worldMapSects.find { it.id == sectId } ?: return
+    private data class SectTradeValidation(
+        val sect: WorldSect,
+        val item: MerchantItem,
+        val actualQuantity: Int,
+        val totalPrice: Int,
+        val updatedSectDetails: Map<String, SectDetail>
+    )
+
+    private fun validateSectTrade(data: GameData, sectId: String, itemId: String, quantity: Int): SectTradeValidation? {
+        val sect = data.worldMapSects.find { it.id == sectId } ?: return null
         val sectDetail = data.sectDetails[sectId]
         val tradeItems = sectDetail?.tradeItems ?: emptyList()
-        val item = tradeItems.find { it.id == itemId } ?: return
+        val item = tradeItems.find { it.id == itemId } ?: return null
+
+        val relation = getSectRelation(data, sectId)
+        if (relation < 40) {
+            addGameEvent("好感度不足，无法与${sect.name}交易", EventType.WARNING)
+            return null
+        }
 
         val actualQuantity = minOf(quantity, item.quantity)
-        val totalPrice = item.price * actualQuantity
+        val priceMultiplier = calculatePriceMultiplier(data, sectId)
+        val totalPrice = (item.price * priceMultiplier).toInt() * actualQuantity
 
         if (data.spiritStones < totalPrice) {
             addGameEvent("灵石不足，无法购买${item.name}", EventType.WARNING)
-            return
+            return null
+        }
+
+        val capacityOk = when (item.type.lowercase()) {
+            "equipment" -> inventorySystem.canAddItems(actualQuantity)
+            "manual" -> {
+                val t = ManualDatabase.getByName(item.name)
+                inventorySystem.canAddManual(item.name, item.rarity, t?.type ?: ManualType.SUPPORT)
+            }
+            "pill" -> {
+                val t = PillRecipeDatabase.getRecipeByName(item.name)
+                inventorySystem.canAddPill(item.name, item.rarity, t?.category ?: PillCategory.HEALING)
+            }
+            "material" -> {
+                val t = BeastMaterialDatabase.getMaterialByName(item.name)
+                val cat = t?.category?.let { try { MaterialCategory.valueOf(it) } catch (e: IllegalArgumentException) { MaterialCategory.BEAST_HIDE } } ?: MaterialCategory.BEAST_HIDE
+                inventorySystem.canAddMaterial(item.name, item.rarity, cat)
+            }
+            "herb" -> {
+                val t = HerbDatabase.getHerbByName(item.name)
+                inventorySystem.canAddHerb(item.name, item.rarity, t?.category ?: "spirit")
+            }
+            "seed" -> {
+                val t = HerbDatabase.getSeedByName(item.name)
+                inventorySystem.canAddSeed(item.name, item.rarity, t?.growTime ?: 12)
+            }
+            else -> false
+        }
+        if (!capacityOk) {
+            addGameEvent("仓库容量不足，无法购买${item.name}", EventType.WARNING)
+            return null
         }
 
         val updatedTradeItems = if (item.quantity > actualQuantity) {
@@ -322,52 +360,124 @@ class EventService @Inject constructor(
             updatedSectDetails[sectId] = sectDetail.copy(tradeItems = updatedTradeItems)
         }
 
-        val ts = stateStore.currentTransactionMutableState()
-        if (ts != null) {
-            ts.gameData = ts.gameData.copy(
-                spiritStones = ts.gameData.spiritStones - totalPrice,
-                sectDetails = updatedSectDetails
+        return SectTradeValidation(sect, item, actualQuantity, totalPrice, updatedSectDetails)
+    }
+
+    fun buyFromSectTrade(
+        sectId: String,
+        itemId: String,
+        quantity: Int = 1
+    ) {
+        val data = stateStore.gameData.value
+        val v = validateSectTrade(data, sectId, itemId, quantity) ?: return
+
+        scope.launch {
+            stateStore.update {
+                gameData = gameData.copy(
+                    spiritStones = gameData.spiritStones - v.totalPrice,
+                    sectDetails = v.updatedSectDetails
+                )
+                addSectTradeItemToMutableState(v.item, v.actualQuantity)
+                events = listOf(GameEvent(
+                    year = gameData.gameYear,
+                    month = gameData.gameMonth,
+                    message = "从${v.sect.name}购买了${v.item.name} x${v.actualQuantity}",
+                    type = EventType.SUCCESS
+                )) + events.take(99)
+            }
+        }
+    }
+
+    suspend fun buyFromSectTradeSync(
+        sectId: String,
+        itemId: String,
+        quantity: Int = 1
+    ) {
+        val data = stateStore.gameData.value
+        val v = validateSectTrade(data, sectId, itemId, quantity) ?: return
+
+        stateStore.update {
+            gameData = gameData.copy(
+                spiritStones = gameData.spiritStones - v.totalPrice,
+                sectDetails = v.updatedSectDetails
             )
-        } else {
-            scope.launch {
-                stateStore.update {
-                    gameData = gameData.copy(
-                        spiritStones = gameData.spiritStones - totalPrice,
-                        sectDetails = updatedSectDetails
-                    )
+            addSectTradeItemToMutableState(v.item, v.actualQuantity)
+            events = listOf(GameEvent(
+                year = gameData.gameYear,
+                month = gameData.gameMonth,
+                message = "从${v.sect.name}购买了${v.item.name} x${v.actualQuantity}",
+                type = EventType.SUCCESS
+            )) + events.take(99)
+        }
+    }
+
+    private fun MutableGameState.addSectTradeItemToMutableState(item: MerchantItem, actualQuantity: Int) {
+        when (item.type.lowercase()) {
+            "equipment" -> {
+                val eqList = MerchantItemConverter.toEquipmentBatch(item, actualQuantity)
+                equipment = equipment + eqList
+            }
+            "manual" -> {
+                val m = MerchantItemConverter.toManual(item).copy(quantity = actualQuantity)
+                val existing = manuals.find { it.name == m.name && it.rarity == m.rarity && it.type == m.type }
+                if (existing != null) {
+                    val newQty = (existing.quantity + m.quantity).coerceAtMost(999)
+                    manuals = manuals.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
+                } else {
+                    manuals = manuals + m
+                }
+            }
+            "pill" -> {
+                val p = MerchantItemConverter.toPill(item).copy(quantity = actualQuantity)
+                val existing = pills.find { it.name == p.name && it.rarity == p.rarity && it.category == p.category }
+                if (existing != null) {
+                    val newQty = (existing.quantity + p.quantity).coerceAtMost(999)
+                    pills = pills.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
+                } else {
+                    pills = pills + p
+                }
+            }
+            "material" -> {
+                val m = MerchantItemConverter.toMaterial(item).copy(quantity = actualQuantity)
+                val existing = materials.find { it.name == m.name && it.rarity == m.rarity && m.category == m.category }
+                if (existing != null) {
+                    val newQty = (existing.quantity + m.quantity).coerceAtMost(999)
+                    materials = materials.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
+                } else {
+                    materials = materials + m
+                }
+            }
+            "herb" -> {
+                val h = MerchantItemConverter.toHerb(item).copy(quantity = actualQuantity)
+                val existing = herbs.find { it.name == h.name && it.rarity == h.rarity && it.category == h.category }
+                if (existing != null) {
+                    val newQty = (existing.quantity + h.quantity).coerceAtMost(999)
+                    herbs = herbs.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
+                } else {
+                    herbs = herbs + h
+                }
+            }
+            "seed" -> {
+                val s = MerchantItemConverter.toSeed(item).copy(quantity = actualQuantity)
+                val existing = seeds.find { it.name == s.name && it.rarity == s.rarity && s.growTime == s.growTime }
+                if (existing != null) {
+                    val newQty = (existing.quantity + s.quantity).coerceAtMost(999)
+                    seeds = seeds.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
+                } else {
+                    seeds = seeds + s
                 }
             }
         }
-
-        when (item.type) {
-            "equipment" -> {
-                repeat(actualQuantity) { onAddEquipment(createMerchantEquipment(item)) }
-            }
-            "manual" -> {
-                onAddManual(createMerchantManual(item).copy(quantity = actualQuantity))
-            }
-            "pill" -> {
-                onAddPill(createMerchantPill(item).copy(quantity = actualQuantity))
-            }
-            "material" -> {
-                onAddMaterial(createMerchantMaterial(item).copy(quantity = actualQuantity))
-            }
-            "herb" -> {
-                onAddHerb(createMerchantHerb(item).copy(quantity = actualQuantity))
-            }
-            "seed" -> {
-                onAddSeed(createMerchantSeed(item).copy(quantity = actualQuantity))
-            }
-        }
-
-        addGameEvent("从${sect.name}购买了${item.name} x$actualQuantity", EventType.SUCCESS)
     }
 
     // ==================== 辅助方法 ====================
 
-    /**
-     * Generate rarity based on probability distribution
-     */
+    private fun calculatePriceMultiplier(data: GameData, sectId: String): Double =
+        GameUtils.calculateSectTradePriceMultiplier(data.worldMapSects, data.sectRelations, data.alliances, sectId)
+
+    private fun getSectRelation(data: GameData, sectId: String): Int =
+        GameUtils.getSectRelation(data.worldMapSects, data.sectRelations, sectId)
+
     private fun generateRarityByProbability(probabilities: List<Double>, random: Random): Int {
         val roll = random.nextDouble() * 100
         var cumulative = 0.0
@@ -375,139 +485,10 @@ class EventService @Inject constructor(
         probabilities.forEachIndexed { index, probability ->
             cumulative += probability
             if (roll <= cumulative) {
-                return index + 1 // Rarity is 1-based
+                return index + 1
             }
         }
 
-        return probabilities.size // Fallback to highest rarity
-    }
-
-    /**
-     * Create equipment from merchant item (simplified)
-     */
-    private fun createMerchantEquipment(item: MerchantItem): Equipment {
-        val template = EquipmentDatabase.generateRandom(item.rarity, item.rarity)
-        return template.copy(id = UUID.randomUUID().toString(), rarity = item.rarity)
-    }
-
-    private fun createMerchantManual(item: MerchantItem): Manual {
-        val template = ManualDatabase.getByName(item.name)
-        if (template != null) {
-            return Manual(
-                id = UUID.randomUUID().toString(),
-                name = template.name,
-                rarity = item.rarity,
-                description = template.description,
-                type = template.type,
-                stats = template.stats,
-                minRealm = GameConfig.Realm.getMinRealmForRarity(item.rarity),
-                quantity = 1
-            )
-        }
-        return ManualDatabase.generateRandom(item.rarity, item.rarity).copy(
-            id = UUID.randomUUID().toString(),
-            rarity = item.rarity
-        )
-    }
-
-    private fun createMerchantPill(item: MerchantItem): Pill {
-        val template = PillRecipeDatabase.getRecipeByName(item.name)
-        if (template != null) {
-            return Pill(
-                id = UUID.randomUUID().toString(),
-                name = template.name,
-                rarity = template.rarity,
-                quantity = item.quantity,
-                description = template.description,
-                category = template.category,
-                breakthroughChance = template.breakthroughChance,
-                targetRealm = template.targetRealm,
-                cultivationSpeed = template.cultivationSpeed,
-                duration = template.effectDuration,
-                cultivationPercent = template.cultivationPercent,
-                skillExpPercent = template.skillExpPercent,
-                extendLife = template.extendLife,
-                physicalAttackPercent = template.physicalAttackPercent,
-                magicAttackPercent = template.magicAttackPercent,
-                physicalDefensePercent = template.physicalDefensePercent,
-                magicDefensePercent = template.magicDefensePercent,
-                hpPercent = template.hpPercent,
-                mpPercent = template.mpPercent,
-                speedPercent = template.speedPercent,
-                healPercent = template.healPercent,
-                healMaxHpPercent = template.healMaxHpPercent,
-                minRealm = GameConfig.Realm.getMinRealmForRarity(template.rarity)
-            )
-        }
-        val pillTemplates = ItemDatabase.getPillsByRarity(item.rarity)
-        if (pillTemplates.isNotEmpty()) {
-            val t = pillTemplates.random()
-            return ItemDatabase.createPillFromTemplate(t).copy(quantity = item.quantity)
-        }
-        return Pill(id = UUID.randomUUID().toString(), name = item.name, rarity = item.rarity, quantity = item.quantity, minRealm = GameConfig.Realm.getMinRealmForRarity(item.rarity))
-    }
-
-    private fun createMerchantMaterial(item: MerchantItem): Material {
-        val template = BeastMaterialDatabase.getMaterialByName(item.name)
-        if (template != null) {
-            return Material(
-                id = UUID.randomUUID().toString(),
-                name = template.name,
-                rarity = item.rarity,
-                quantity = item.quantity,
-                description = template.description,
-                category = try { MaterialCategory.valueOf(template.category) } catch (e: IllegalArgumentException) { MaterialCategory.BEAST_HIDE }
-            )
-        }
-        val randomMaterial = ItemDatabase.generateRandomMaterial(minRarity = item.rarity, maxRarity = item.rarity)
-        return randomMaterial.copy(quantity = item.quantity)
-    }
-
-    private fun createMerchantHerb(item: MerchantItem): Herb {
-        val template = HerbDatabase.getHerbByName(item.name)
-        if (template != null) {
-            return Herb(
-                id = UUID.randomUUID().toString(),
-                name = template.name,
-                rarity = item.rarity,
-                description = template.description,
-                category = template.category,
-                quantity = item.quantity
-            )
-        }
-        val herbTemplate = HerbDatabase.generateRandomHerb(minRarity = item.rarity, maxRarity = item.rarity)
-        return Herb(
-            id = UUID.randomUUID().toString(),
-            name = herbTemplate.name,
-            rarity = herbTemplate.rarity,
-            description = herbTemplate.description,
-            category = herbTemplate.category,
-            quantity = item.quantity
-        )
-    }
-
-    private fun createMerchantSeed(item: MerchantItem): Seed {
-        val template = HerbDatabase.getSeedByName(item.name)
-        if (template != null) {
-            return Seed(
-                id = UUID.randomUUID().toString(),
-                name = template.name,
-                rarity = item.rarity,
-                description = template.description,
-                growTime = template.growTime,
-                yield = template.yield,
-                quantity = item.quantity
-            )
-        }
-        val seedTemplate = HerbDatabase.generateRandomSeed(minRarity = item.rarity, maxRarity = item.rarity)
-        return Seed(
-            id = UUID.randomUUID().toString(),
-            name = seedTemplate.name,
-            rarity = seedTemplate.rarity,
-            description = seedTemplate.description,
-            growTime = seedTemplate.growTime,
-            yield = seedTemplate.yield,
-            quantity = item.quantity
-        )
+        return probabilities.size
     }
 }

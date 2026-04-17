@@ -35,5 +35,8 @@ class ProductionSubsystem @Inject constructor(
         cultivationService.processBuildingProduction(state.gameData.gameYear, state.gameData.gameMonth)
         cultivationService.processHerbGardenGrowth(state.gameData.gameYear, state.gameData.gameMonth)
         cultivationService.processSpiritMineProduction()
+        cultivationService.processAutoPlant()
+        cultivationService.processAutoAlchemy()
+        cultivationService.processAutoForge()
     }
 }

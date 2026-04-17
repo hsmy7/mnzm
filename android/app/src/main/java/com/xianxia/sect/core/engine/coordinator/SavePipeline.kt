@@ -153,7 +153,7 @@ class SavePipeline @Inject constructor(
      * 执行实际存档逻辑
      *
      * 1. 通过 saveLoadCoordinator.executeSaveWithMonitoring 包装存档操作
-     * 2. 调用 storageFacade.saveSyncWithResult(slot, saveData)
+     * 2. 调用 storageFacade.save(slot, saveData)（异步版本，避免 runBlocking 死锁）
      * 3. 根据 source 类型设置不同的超时（AUTO=15s, MANUAL/BG=30s）
      * 4. 返回 SavePipelineResult
      *
@@ -168,8 +168,7 @@ class SavePipeline @Inject constructor(
         }
 
         // 从快照构建 SaveData
-        val currentSlot = request.snapshot.gameData.currentSlot
-        val updatedGameData = request.snapshot.gameData.copy(currentSlot = currentSlot)
+        val updatedGameData = request.snapshot.gameData.copy(currentSlot = request.slot)
         val saveData = SaveData(
             gameData = updatedGameData,
             disciples = request.snapshot.disciples,
@@ -196,13 +195,17 @@ class SavePipeline @Inject constructor(
                 operationType = operationType,
                 saveSlot = request.slot,
                 saveOperation = {
+                    // 关键修复：使用异步 save() 替代 saveSyncWithResult()
+                    // saveSyncWithResult() 内部使用 runBlocking(Dispatchers.IO)，
+                    // 在协程消费者上下文中嵌套 runBlocking 会导致线程池饥饿和死锁风险。
+                    // 异步 save() 已在 executeSaveWithMonitoring 的 withContext(Dispatchers.IO) 中执行。
                     val innerResult = withTimeoutOrNull(timeoutMs) {
-                        storageFacade.saveSyncWithResult(request.slot, saveData)
+                        storageFacade.save(request.slot, saveData)
                     }
                     if (innerResult == null) {
                         throw TimeoutException("Save timed out after ${timeoutMs}ms")
                     }
-                    innerResult
+                    innerResult.isSuccess
                 }
             )
 

@@ -2,6 +2,7 @@ package com.xianxia.sect.data.facade
 
 import android.content.Context
 import android.util.Log
+import com.xianxia.sect.data.StorageConstants
 import com.xianxia.sect.data.concurrent.SlotLockManager
 import com.xianxia.sect.data.engine.StorageEngine
 import com.xianxia.sect.data.model.SaveData
@@ -128,8 +129,6 @@ class StorageFacade @Inject constructor(
 ) {
     companion object {
         private const val TAG = "StorageFacade"
-        private const val AUTO_SAVE_SLOT = 0
-        private const val EMERGENCY_SLOT = -1
     }
 
     private val scope get() = applicationScopeProvider.ioScope
@@ -307,9 +306,11 @@ class StorageFacade @Inject constructor(
             }
         } catch (e: Exception) {
             Log.e(TAG, "getSaveSlots failed", e)
-            (1..lockManager.getMaxSlots()).map { slot ->
+            val autoSlot = SaveSlot(StorageConstants.AUTO_SAVE_SLOT, "", 0, 1, 1, "", 0, 0, true, isAutoSave = true)
+            val manualSlots = (1..lockManager.getMaxSlots()).map { slot ->
                 SaveSlot(slot, "", 0, 1, 1, "", 0, 0, true)
             }
+            listOf(autoSlot) + manualSlots
         }
     }
 
@@ -320,9 +321,11 @@ class StorageFacade @Inject constructor(
             }
         } catch (e: Exception) {
             Log.e(TAG, "getSaveSlotsFresh failed", e)
-            (1..lockManager.getMaxSlots()).map { slot ->
+            val autoSlot = SaveSlot(StorageConstants.AUTO_SAVE_SLOT, "", 0, 1, 1, "", 0, 0, true, isAutoSave = true)
+            val manualSlots = (1..lockManager.getMaxSlots()).map { slot ->
                 SaveSlot(slot, "", 0, 1, 1, "", 0, 0, true)
             }
+            listOf(autoSlot) + manualSlots
         }
     }
 

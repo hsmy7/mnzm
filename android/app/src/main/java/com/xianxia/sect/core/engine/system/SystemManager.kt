@@ -2,11 +2,20 @@ package com.xianxia.sect.core.engine.system
 
 import android.util.Log
 import com.xianxia.sect.core.state.MutableGameState
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.reflect.KClass
+
+data class SystemError(
+    val systemName: String,
+    val tickType: String,
+    val error: Throwable
+)
 
 @Singleton
 class SystemManager @Inject constructor(
@@ -20,6 +29,9 @@ class SystemManager @Inject constructor(
     private val systemMap = mutableMapOf<KClass<out GameSystem>, GameSystem>()
     private val systemOrder = mutableListOf<KClass<out GameSystem>>()
     private val mutex = Mutex()
+
+    private val _errors = Channel<SystemError>(Channel.BUFFERED)
+    val errors: Flow<SystemError> = _errors.receiveAsFlow()
 
     private var isInitialized = false
 
@@ -117,6 +129,7 @@ class SystemManager @Inject constructor(
                     system.onSecondTick(state)
                 } catch (e: Exception) {
                     Log.e(TAG, "Error in onSecondTick for ${system.systemName}", e)
+                    _errors.trySend(SystemError(system.systemName, "onSecondTick", e))
                 }
             }
         }
@@ -129,6 +142,7 @@ class SystemManager @Inject constructor(
                     system.onDayTick(state)
                 } catch (e: Exception) {
                     Log.e(TAG, "Error in onDayTick for ${system.systemName}", e)
+                    _errors.trySend(SystemError(system.systemName, "onDayTick", e))
                 }
             }
         }
@@ -141,6 +155,7 @@ class SystemManager @Inject constructor(
                     system.onMonthTick(state)
                 } catch (e: Exception) {
                     Log.e(TAG, "Error in onMonthTick for ${system.systemName}", e)
+                    _errors.trySend(SystemError(system.systemName, "onMonthTick", e))
                 }
             }
         }
@@ -153,6 +168,7 @@ class SystemManager @Inject constructor(
                     system.onYearTick(state)
                 } catch (e: Exception) {
                     Log.e(TAG, "Error in onYearTick for ${system.systemName}", e)
+                    _errors.trySend(SystemError(system.systemName, "onYearTick", e))
                 }
             }
         }

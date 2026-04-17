@@ -108,18 +108,19 @@ fun AlchemyDialog(
                     fontWeight = FontWeight.Bold,
                     color = Color.Black
                 )
+                val autoAlchemyEnabled by productionViewModel.autoAlchemyEnabled.collectAsState()
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(4.dp))
-                        .background(theme.reserveButtonBackgroundColor)
-                        .clickable { productionViewModel.autoAlchemyAllSlots() }
+                        .background(if (autoAlchemyEnabled) Color(0xFFFFD700) else Color(0xFF999999))
+                        .clickable { productionViewModel.toggleAutoAlchemy() }
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
                     Text(
-                        text = "自动炼丹",
+                        text = if (autoAlchemyEnabled) "自动炼丹:开" else "自动炼丹:关",
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
-                        color = theme.reserveButtonTextColor
+                        color = if (autoAlchemyEnabled) Color.Black else Color.White
                     )
                 }
             }

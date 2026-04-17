@@ -26,6 +26,8 @@ import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.components.ElderBonusInfoButton
 import com.xianxia.sect.ui.components.ElderBonusInfo
 import com.xianxia.sect.ui.components.ElderBonusInfoProvider
+import com.xianxia.sect.ui.components.FollowedTag
+import com.xianxia.sect.core.util.isFollowed
 
 data class PeakElderSlotConfig(
     val title: String,
@@ -447,12 +449,20 @@ private fun PeakDiscipleItem(disciple: DiscipleAggregate) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = disciple.name,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black
-            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = disciple.name,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+                if (disciple.isFollowed) {
+                    FollowedTag()
+                }
+            }
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -584,6 +594,7 @@ fun PeakDiscipleSelectionDialog(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(text = disciple.name, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                                    if (disciple.isFollowed) { FollowedTag() }
                                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                                         val spiritRootColor = try {
                                             Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))

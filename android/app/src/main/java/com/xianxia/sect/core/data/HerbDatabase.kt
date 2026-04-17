@@ -249,6 +249,12 @@ object HerbDatabase {
         return getHerbById(herbId)
     }
 
+    fun getHerbFromSeedName(seedName: String): Herb? {
+        val seed = seedByNameMap[seedName] ?: return null
+        val herbId = seedToHerbMap[seed.id] ?: return null
+        return herbByIdMap[herbId]
+    }
+
     // 根据种子名称获取长成的草药名称
     fun getHerbNameFromSeedName(seedName: String): String {
         return when {

@@ -32,6 +32,7 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.ui.game.components.getBuffTypeName
 import com.xianxia.sect.ui.game.components.ItemDetailDialog
 import com.xianxia.sect.core.util.GameUtils
+import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.components.DiscipleAttrText
 import com.xianxia.sect.ui.components.EmptyListMessage
 import com.xianxia.sect.ui.components.GameButton
@@ -135,6 +136,20 @@ fun DiscipleDetailDialog(
                     ) {
                         Text(
                             text = "储物袋",
+                            fontSize = 10.sp,
+                            color = Color.White
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(if (disciple.isFollowed) Color(0xFFFFD700) else Color(0xFF999999))
+                            .clickable { viewModel?.toggleFollowDisciple(disciple.id) }
+                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = if (disciple.isFollowed) "已关注" else "关注",
                             fontSize = 10.sp,
                             color = Color.White
                         )

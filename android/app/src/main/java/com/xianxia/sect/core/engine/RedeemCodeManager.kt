@@ -417,8 +417,6 @@ object RedeemCodeManager {
             return rateLimitError
         }
 
-        val upperCaseCode = code.uppercase(java.util.Locale.getDefault())
-
         val redeemCode = getRedeemCode(code)
 
         if (redeemCode == null) {
@@ -457,7 +455,7 @@ object RedeemCodeManager {
             )
         }
 
-        if (usedCodes.contains(upperCaseCode)) {
+        if (usedCodes.contains(code.uppercase(java.util.Locale.getDefault()))) {
             Log.w(TAG, "Code already used by player: $code")
             return RedeemResult(
                 success = false,
@@ -484,7 +482,6 @@ object RedeemCodeManager {
         lastRedeemTime = System.currentTimeMillis()
         
         val rewards = mutableListOf<RewardSelectedItem>()
-        var disciple: Disciple? = null
         val disciples = mutableListOf<Disciple>()
 
         when (redeemCode.rewardType) {
@@ -670,7 +667,7 @@ object RedeemCodeManager {
             success = true,
             message = "兑换成功！",
             rewards = rewards,
-            disciple = disciple,
+            disciple = disciples.firstOrNull(),
             disciples = disciples
         )
     }
@@ -961,24 +958,6 @@ object RedeemCodeManager {
     // ══════════════════════════════════
     // 工具方法
     // ══════════════════════════════════
-
-    /**
-     * 格式化时间差为人类可读字符串
-     *
-     * @param timestamp 过去的时间戳
-     * @return 如 "3分钟前"、"2小时前" 等
-     */
-    private fun formatTimeAgo(timestamp: Long): String {
-        val now = System.currentTimeMillis()
-        val diffMs = now - timestamp
-
-        return when {
-            diffMs < 60_000 -> "刚刚"
-            diffMs < 3_600_000 -> "${diffMs / 60_000}分钟前"
-            diffMs < 86_400_000 -> "${diffMs / 3_600_000}小时前"
-            else -> "${diffMs / 86_400_000}天前"
-        }
-    }
 
     /**
      * 获取当前设备的频率使用统计（用于 UI 展示）

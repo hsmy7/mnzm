@@ -98,10 +98,16 @@ fun SaveSelectScreen(
     }
 
     if (showDeleteConfirm != null) {
+        val confirmSlot = saveSlots.find { it.slot == showDeleteConfirm }
+        val confirmText = if (confirmSlot?.isAutoSave == true) {
+            "确定要删除自动存档吗？此操作不可恢复。"
+        } else {
+            "确定要删除存档 ${showDeleteConfirm} 吗？此操作不可恢复。"
+        }
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = null },
             title = { Text("确认删除") },
-            text = { Text("确定要删除存档 ${showDeleteConfirm} 吗？此操作不可恢复。") },
+            text = { Text(confirmText) },
             confirmButton = {
                 GameButton(
                     text = "删除",
@@ -262,7 +268,7 @@ fun SaveSlotCard(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                if (!slot.isEmpty && !slot.isAutoSave) {
+                if (!slot.isEmpty) {
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(4.dp))

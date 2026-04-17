@@ -22,6 +22,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.ui.components.FollowedTag
+import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.theme.GameColors
 
 @Composable
@@ -228,6 +230,7 @@ fun TianshuHallDialog(
                                             fontWeight = FontWeight.Bold,
                                             color = Color.Black
                                         )
+                                        if (disciple.isFollowed) { FollowedTag() }
                                     }
                                     Text(
                                         text = disciple.realmName,

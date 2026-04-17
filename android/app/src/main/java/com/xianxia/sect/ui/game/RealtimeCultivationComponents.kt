@@ -16,6 +16,8 @@ import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.service.HighFrequencyData
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.ui.theme.GameColors
+import com.xianxia.sect.ui.components.FollowedTag
+import com.xianxia.sect.core.util.isFollowed
 import java.util.Locale
 import kotlinx.coroutines.flow.StateFlow
 
@@ -137,12 +139,20 @@ fun RealtimeDiscipleCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = disciple.name,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = disciple.name,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+                    if (disciple.isFollowed) {
+                        FollowedTag()
+                    }
+                }
                 
                 Box(
                     modifier = Modifier

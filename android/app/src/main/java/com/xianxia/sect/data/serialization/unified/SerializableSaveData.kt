@@ -671,7 +671,10 @@ data class SerializableSectPolicies(
     @ProtoNumber(4) val forgeIncentive: Boolean = false,
     @ProtoNumber(5) val herbCultivation: Boolean = false,
     @ProtoNumber(6) val cultivationSubsidy: Boolean = false,
-    @ProtoNumber(7) val manualResearch: Boolean = false
+    @ProtoNumber(7) val manualResearch: Boolean = false,
+    @ProtoNumber(8) val autoPlant: Boolean = false,
+    @ProtoNumber(9) val autoAlchemy: Boolean = false,
+    @ProtoNumber(10) val autoForge: Boolean = false
 )
 
 @Serializable

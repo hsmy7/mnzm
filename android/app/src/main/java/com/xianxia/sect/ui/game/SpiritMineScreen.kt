@@ -28,6 +28,8 @@ import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.components.ElderBonusInfoButton
 import com.xianxia.sect.ui.components.ElderBonusInfoProvider
 import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.ui.components.FollowedTag
+import com.xianxia.sect.core.util.isFollowed
 
 @Composable
 fun SpiritMineDialog(
@@ -261,13 +263,19 @@ private fun SpiritMineDeaconSlotItem(
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text(
-                        text = disciple.name,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black,
-                        maxLines = 1
-                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = disciple.name,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Black,
+                            maxLines = 1
+                        )
+                        if (disciple.isFollowed) { FollowedTag() }
+                    }
                     Text(
                         text = disciple.realmName,
                         fontSize = 9.sp,
@@ -350,12 +358,18 @@ private fun SpiritMineSlotItem(
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text(
-                        text = disciple.name,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = disciple.name,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Black
+                        )
+                        if (disciple.isFollowed) { FollowedTag() }
+                    }
                     Text(
                         text = disciple.realmName,
                         fontSize = 10.sp,
@@ -546,12 +560,18 @@ private fun SpiritMineDiscipleSelectionDialog(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Column {
-                                    Text(
-                                        text = disciple.name,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.Black
-                                    )
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = disciple.name,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.Black
+                                        )
+                                        if (disciple.isFollowed) { FollowedTag() }
+                                    }
                                     Row(
                                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                                         verticalAlignment = Alignment.CenterVertically
@@ -764,12 +784,18 @@ private fun SpiritMineDeaconSelectionDialog(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Column {
-                                        Text(
-                                            text = disciple.name,
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color.Black
-                                        )
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = disciple.name,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.Black
+                                            )
+                                            if (disciple.isFollowed) { FollowedTag() }
+                                        }
                                         Text(
                                             text = "道德: ${disciple.morality}",
                                             fontSize = 10.sp,

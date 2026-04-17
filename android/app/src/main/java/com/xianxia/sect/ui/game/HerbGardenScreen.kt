@@ -33,6 +33,9 @@ import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.game.ProductionViewModel
+import com.xianxia.sect.core.util.isFollowed
+import com.xianxia.sect.core.util.sortedByFollowAttributeAndRealm
+import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.ui.components.ElderBonusInfoButton
 import com.xianxia.sect.ui.components.ElderBonusInfoProvider
 import com.xianxia.sect.ui.theme.getRarityColor
@@ -100,18 +103,19 @@ fun HerbGardenDialog(
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF666666)
                 )
+                val autoPlantEnabled by productionViewModel.autoPlantEnabled.collectAsState()
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(4.dp))
-                        .background(GameColors.ButtonBackground)
-                        .clickable { productionViewModel.autoPlantAllSlots() }
+                        .background(if (autoPlantEnabled) Color(0xFFFFD700) else Color(0xFF999999))
+                        .clickable { productionViewModel.toggleAutoPlant() }
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
                     Text(
-                        text = "自动种植",
+                        text = if (autoPlantEnabled) "自动种植:开" else "自动种植:关",
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.Black
+                        color = if (autoPlantEnabled) Color.Black else Color.White
                     )
                 }
             }
@@ -520,12 +524,7 @@ private fun HerbGardenElderSelectionDialog(
     }
 
     val sortedDisciples = remember(filteredDisciplesBase) {
-        filteredDisciplesBase.sortedWith(
-            compareByDescending<DiscipleAggregate> { disciple ->
-                disciple.spiritPlanting
-            }.thenBy { it.realm }
-                .thenByDescending { it.realmLayer }
-        )
+        filteredDisciplesBase.sortedByFollowAttributeAndRealm("spiritPlanting")
     }
 
     val filteredDisciples = remember(sortedDisciples, selectedRealmFilter) {
@@ -702,13 +701,19 @@ private fun HerbGardenDiscipleSelectionCard(
         Column(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(
-                text = disciple.name,
-                fontSize = 9.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black,
-                maxLines = 1
-            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = disciple.name,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black,
+                    maxLines = 1
+                )
+                if (disciple.isFollowed) { FollowedTag() }
+            }
             Text(
                 text = disciple.realmName,
                 fontSize = 8.sp,
@@ -764,12 +769,7 @@ private fun HerbGardenDirectDiscipleSelectionDialog(
     }
 
     val sortedDisciples = remember(filteredDisciplesBase) {
-        filteredDisciplesBase.sortedWith(
-            compareByDescending<DiscipleAggregate> { disciple ->
-                disciple.spiritPlanting
-            }.thenBy { it.realm }
-                .thenByDescending { it.realmLayer }
-        )
+        filteredDisciplesBase.sortedByFollowAttributeAndRealm("spiritPlanting")
     }
 
     val filteredDisciples = remember(sortedDisciples, selectedRealmFilter) {
@@ -1202,7 +1202,8 @@ private fun SeedDetailDialog(
         else -> "凡品"
     }
 
-    val herb = HerbDatabase.getHerbFromSeed(seed.id)
+    val herb = HerbDatabase.getHerbFromSeedName(seed.name)
+        ?: HerbDatabase.getHerbFromSeed(seed.id)
 
     AlertDialog(
         onDismissRequest = onDismiss,

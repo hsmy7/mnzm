@@ -204,7 +204,6 @@ class SaveLoadCoordinator @Inject constructor(
         VALID,
         NULL_DATA,
         EMPTY_DATA,
-        CORRUPTED_DATA,
         VERSION_MISMATCH,
         VALIDATION_ERROR
     }

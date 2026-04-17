@@ -21,6 +21,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.util.isFollowed
+import com.xianxia.sect.core.util.sortedByFollowAndRealm
+import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.ui.theme.GameColors
 
 @Composable
@@ -133,14 +136,20 @@ private fun LibrarySlotItem(
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text(
-                        text = disciple.name,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black,
-                        maxLines = 1,
-                        textAlign = TextAlign.Center
-                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = disciple.name,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Black,
+                            maxLines = 1,
+                            textAlign = TextAlign.Center
+                        )
+                        if (disciple.isFollowed) { FollowedTag() }
+                    }
                     Text(
                         text = disciple.realmName,
                         fontSize = 10.sp,
@@ -202,10 +211,7 @@ private fun LibraryDiscipleSelectionDialog(
     }
 
     val sortedDisciples = remember(disciples) {
-        disciples.filter { it.realmLayer > 0 && it.age >= 5 }.sortedWith(
-            compareBy<DiscipleAggregate> { it.realm }
-                .thenByDescending { it.realmLayer }
-        )
+        disciples.filter { it.realmLayer > 0 && it.age >= 5 }.sortedByFollowAndRealm()
     }
 
     val filteredDisciples = remember(sortedDisciples, selectedRealmFilter) {
@@ -347,12 +353,18 @@ private fun LibraryDiscipleSelectionDialog(
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(
-                                        text = disciple.name,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.Black
-                                    )
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = disciple.name,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.Black
+                                        )
+                                        if (disciple.isFollowed) { FollowedTag() }
+                                    }
                                     Row(
                                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                                         verticalAlignment = Alignment.CenterVertically

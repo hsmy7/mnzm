@@ -1,5 +1,6 @@
 package com.xianxia.sect.data.concurrent
 
+import com.xianxia.sect.data.StorageConstants
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Before
@@ -18,12 +19,12 @@ class SlotLockManagerTest {
 
     @Test
     fun `isValidSlot - slot 0 is valid (AUTO_SAVE_SLOT)`() {
-        assertTrue(lockManager.isValidSlot(SlotLockManager.AUTO_SAVE_SLOT))
+        assertTrue(lockManager.isValidSlot(StorageConstants.AUTO_SAVE_SLOT))
     }
 
     @Test
     fun `isValidSlot - slot -1 is valid (EMERGENCY_SLOT)`() {
-        assertTrue(lockManager.isValidSlot(SlotLockManager.EMERGENCY_SLOT))
+        assertTrue(lockManager.isValidSlot(StorageConstants.EMERGENCY_SLOT))
     }
 
     @Test
@@ -217,12 +218,12 @@ class SlotLockManagerTest {
 
     @Test
     fun `AUTO_SAVE_SLOT is 0`() {
-        assertEquals(0, SlotLockManager.AUTO_SAVE_SLOT)
+        assertEquals(0, StorageConstants.AUTO_SAVE_SLOT)
     }
 
     @Test
     fun `EMERGENCY_SLOT is -1`() {
-        assertEquals(-1, SlotLockManager.EMERGENCY_SLOT)
+        assertEquals(-1, StorageConstants.EMERGENCY_SLOT)
     }
 
     // ==================== LockStats data class ====================

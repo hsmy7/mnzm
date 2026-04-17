@@ -27,6 +27,8 @@ import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.discipleCardBorder
 import com.xianxia.sect.ui.components.DiscipleAttrText
 import com.xianxia.sect.ui.components.DiscipleCardStyles
+import com.xianxia.sect.ui.components.FollowedTag
+import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.theme.GameColors
 
 @Composable
@@ -650,6 +652,9 @@ private fun SelectionDiscipleCard(
                         fontWeight = FontWeight.Bold,
                         color = Color.Black
                     )
+                    if (disciple.isFollowed) {
+                        FollowedTag()
+                    }
                     Text(
                         text = if (disciple.discipleType == "outer") "外门弟子" else "内门弟子",
                         fontSize = 11.sp,

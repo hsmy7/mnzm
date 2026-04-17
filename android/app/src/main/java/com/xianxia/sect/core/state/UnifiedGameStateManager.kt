@@ -31,8 +31,7 @@ data class UnifiedGameState(
     val gameSpeed: Int = 1,
 
     val lastUpdateTime: Long = System.currentTimeMillis(),
-    val version: Int = 1,
-    val batchVersion: Long = 0
+    val version: Int = 1
 ) {
     val isRunning: Boolean get() = !isPaused && !isLoading && !isSaving
 

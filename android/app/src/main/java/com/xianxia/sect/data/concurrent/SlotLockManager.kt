@@ -1,6 +1,7 @@
 package com.xianxia.sect.data.concurrent
 
 import android.util.Log
+import com.xianxia.sect.data.StorageConstants
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.ConcurrentHashMap
@@ -28,8 +29,6 @@ class SlotLockManager(
 ) {
     companion object {
         private const val TAG = "SlotLockManager"
-        const val AUTO_SAVE_SLOT = 0
-        const val EMERGENCY_SLOT = -1
     }
 
     private val mutexes: Array<Mutex> =
@@ -41,8 +40,8 @@ class SlotLockManager(
     private val holdCounts = ConcurrentHashMap<Int, Int>()
 
     private val slotIndexMap: Map<Int, Int> = mapOf(
-        AUTO_SAVE_SLOT to 0,
-        EMERGENCY_SLOT to 1,
+        StorageConstants.AUTO_SAVE_SLOT to 0,
+        StorageConstants.EMERGENCY_SLOT to 1,
         *(1..maxSlots).map { it to it + 1 }.toTypedArray()
     )
 

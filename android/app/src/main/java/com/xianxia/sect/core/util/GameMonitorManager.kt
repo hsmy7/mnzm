@@ -180,29 +180,6 @@ class GameMonitorManager @Inject constructor(
         Log.i(TAG, "==================================")
     }
     
-    @Suppress("DEPRECATION")
-    private fun handleMemoryPressure(level: Int) {
-        Log.w(TAG, "Memory pressure received: level=$level")
-        
-        when (level) {
-            android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL,
-            android.content.ComponentCallbacks2.TRIM_MEMORY_COMPLETE -> {
-                gcOptimizer.optimizeForLowMemory()
-            }
-            android.content.ComponentCallbacks2.TRIM_MEMORY_MODERATE,
-            android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW -> {
-                if (gcOptimizer.shouldPerformGC()) {
-                    gcOptimizer.performManualGC("memory_pressure_$level")
-                }
-            }
-        }
-    }
-    
-    private fun handleLowMemory() {
-        Log.e(TAG, "Low memory situation detected")
-        gcOptimizer.optimizeForLowMemory()
-    }
-    
     fun getMemoryMonitor(): MemoryMonitor = memoryMonitor
     
     fun getPerformanceMonitor(): PerformanceMonitor = performanceMonitor

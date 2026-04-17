@@ -1,6 +1,9 @@
 package com.xianxia.sect.core.util
 
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.model.WorldSect
+import com.xianxia.sect.core.model.SectRelation
+import com.xianxia.sect.core.model.Alliance
 import java.util.Locale
 import java.util.UUID
 import kotlin.math.ceil
@@ -258,10 +261,32 @@ object GameUtils {
         val type: String,
         val quality: Int
     )
+
+    fun getSectRelation(worldMapSects: List<WorldSect>, sectRelations: List<SectRelation>, sectId: String): Int {
+        val playerSect = worldMapSects.find { it.isPlayerSect } ?: return 0
+        return sectRelations.find {
+            (it.sectId1 == playerSect.id && it.sectId2 == sectId) ||
+            (it.sectId1 == sectId && it.sectId2 == playerSect.id)
+        }?.favor ?: 0
+    }
+
+    fun calculateSectTradePriceMultiplier(
+        worldMapSects: List<WorldSect>,
+        sectRelations: List<SectRelation>,
+        alliances: List<Alliance>,
+        sectId: String
+    ): Double {
+        val relation = getSectRelation(worldMapSects, sectRelations, sectId)
+        val isAlly = alliances.any { it.sectIds.contains("player") && it.sectIds.contains(sectId) }
+        return when {
+            isAlly -> (0.9 * (1.0 - maxOf(0, relation - 70) * 0.01)).coerceAtLeast(0.85)
+            relation >= 70 -> (1.0 - (relation - 70) * 0.01).coerceAtLeast(0.85)
+            else -> 1.0
+        }
+    }
 }
 
 object CollectionUtils {
-
     fun <T> List<T>.getOrDefault(index: Int, defaultValue: T): T {
         return if (index in indices) this[index] else defaultValue
     }

@@ -108,36 +108,25 @@ class StorageEngine @Inject constructor(
     companion object {
         private const val TAG = "StorageEngine"
         private const val MAX_BATCH_SIZE = 200
-        private const val AUTO_SAVE_SLOT = 0
-        private const val EMERGENCY_SLOT = -1
 
         fun estimateSaveSize(data: SaveData): Long {
-            val discipleBytesPerEntity = 800L
-            val equipmentBytesPerEntity = 350L
-            val manualBytesPerEntity = 280L
-            val pillBytesPerEntity = 180L
-            val materialBytesPerEntity = 150L
-            val herbBytesPerEntity = 160L
-            val seedBytesPerEntity = 140L
-            val battleLogBytesPerEntity = 600L
-            val eventBytesPerEntity = 250L
-            val teamBytesPerEntity = 450L
+            val es = StorageConstants.EntitySize
 
-            var size = 2000L
+            var size = StorageConstants.ESTIMATE_BASE_OVERHEAD
 
-            size += data.disciples.size * discipleBytesPerEntity
-            size += data.equipment.size * equipmentBytesPerEntity
-            size += data.manuals.size * manualBytesPerEntity
-            size += data.pills.size * pillBytesPerEntity
-            size += data.materials.size * materialBytesPerEntity
-            size += data.herbs.size * herbBytesPerEntity
-            size += data.seeds.size * seedBytesPerEntity
-            size += data.battleLogs.size * battleLogBytesPerEntity
-            size += data.events.size * eventBytesPerEntity
-            size += data.teams.size * teamBytesPerEntity
-            size += data.alliances.size * 300L
+            size += data.disciples.size * es.DISCIPLE
+            size += data.equipment.size * es.EQUIPMENT
+            size += data.manuals.size * es.MANUAL
+            size += data.pills.size * es.PILL
+            size += data.materials.size * es.MATERIAL
+            size += data.herbs.size * es.HERB
+            size += data.seeds.size * es.SEED
+            size += data.battleLogs.size * es.BATTLE_LOG
+            size += data.events.size * es.GAME_EVENT
+            size += data.teams.size * es.TEAM
+            size += data.alliances.size * es.ALLIANCE
 
-            val serializationOverhead = (size * 0.15).toLong()
+            val serializationOverhead = (size * StorageConstants.ESTIMATE_SERIALIZATION_OVERHEAD_RATIO).toLong()
             size += serializationOverhead
 
             return size
@@ -260,6 +249,9 @@ class StorageEngine @Inject constructor(
             return StorageResult.failure(StorageError.INVALID_SLOT, "Invalid slot: $slot")
         }
 
+        val isAutoSave = StorageConstants.isAutoSaveSlot(slot)
+        Log.i(TAG, "Deleting slot $slot (isAutoSave=$isAutoSave)")
+
         return lockManager.withWriteLockLight(slot) {
             try {
                 clearCacheForSlot(slot)
@@ -297,7 +289,7 @@ class StorageEngine @Inject constructor(
                     Log.w(TAG, "Backup cleanup failed for slot $slot (non-fatal)", e)
                 }
 
-                Log.i(TAG, "Deleted all data for slot $slot")
+                Log.i(TAG, "Deleted all data for slot $slot (isAutoSave=$isAutoSave)")
                 StorageResult.success(Unit)
             } catch (e: Exception) {
                 Log.e(TAG, "Delete failed for slot $slot", e)
@@ -350,7 +342,7 @@ class StorageEngine @Inject constructor(
     }
 
     suspend fun emergencySave(data: SaveData): StorageResult<SaveOperationStats> {
-        val emergencySlot = SlotLockManager.EMERGENCY_SLOT
+        val emergencySlot = StorageConstants.EMERGENCY_SLOT
 
         if (!isEmergencySaving.compareAndSet(false, true)) {
             Log.w(TAG, "Emergency save already in progress, skipping duplicate request")
@@ -500,14 +492,18 @@ class StorageEngine @Inject constructor(
 
     suspend fun getSaveSlots(): List<SaveSlot> {
         return try {
-            (1..lockManager.getMaxSlots()).map { slot ->
+            val autoSlot = querySingleSlot(StorageConstants.AUTO_SAVE_SLOT)
+            val manualSlots = (1..lockManager.getMaxSlots()).map { slot ->
                 querySingleSlot(slot)
             }
+            listOf(autoSlot) + manualSlots
         } catch (e: Exception) {
             Log.e(TAG, "Error in getSaveSlots", e)
-            (1..lockManager.getMaxSlots()).map { slot ->
+            val autoSlot = SaveSlot(StorageConstants.AUTO_SAVE_SLOT, "", 0, 1, 1, "", 0, 0, true, isAutoSave = true)
+            val manualSlots = (1..lockManager.getMaxSlots()).map { slot ->
                 SaveSlot(slot, "", 0, 1, 1, "", 0, 0, true)
             }
+            listOf(autoSlot) + manualSlots
         }
     }
 
@@ -520,12 +516,12 @@ class StorageEngine @Inject constructor(
     fun getCurrentSlot(): Int = _currentSlot.value
 
     suspend fun autoSave(data: SaveData): StorageResult<SaveOperationStats> {
-        return save(AUTO_SAVE_SLOT, data)
+        return save(StorageConstants.AUTO_SAVE_SLOT, data)
     }
 
     fun hasEmergencySave(): Boolean {
         return try {
-            val slot = SlotLockManager.EMERGENCY_SLOT
+            val slot = StorageConstants.EMERGENCY_SLOT
             lockManager.isValidSlot(slot) && runCatching {
                 kotlinx.coroutines.runBlocking {
                     database.gameDataDao().getGameDataSync(slot) != null
@@ -538,7 +534,7 @@ class StorageEngine @Inject constructor(
 
     suspend fun loadEmergencySave(): SaveData? {
         return try {
-            val result = load(SlotLockManager.EMERGENCY_SLOT)
+            val result = load(StorageConstants.EMERGENCY_SLOT)
             result.getOrNull()
         } catch (e: Exception) {
             Log.e(TAG, "Failed to load emergency save", e)
@@ -548,7 +544,7 @@ class StorageEngine @Inject constructor(
 
     suspend fun clearEmergencySave(): Boolean {
         return try {
-            val result = delete(SlotLockManager.EMERGENCY_SLOT)
+            val result = delete(StorageConstants.EMERGENCY_SLOT)
             result.isSuccess
         } catch (e: Exception) {
             Log.e(TAG, "Failed to clear emergency save", e)
@@ -812,6 +808,7 @@ class StorageEngine @Inject constructor(
     }
 
     private suspend fun querySingleSlot(slot: Int): SaveSlot {
+        val isAutoSave = slot == StorageConstants.AUTO_SAVE_SLOT
         return try {
             val gameData = database.gameDataDao().getGameDataSync(slot)
             if (gameData != null) {
@@ -822,17 +819,18 @@ class StorageEngine @Inject constructor(
                     gameYear = gameData.gameYear,
                     gameMonth = gameData.gameMonth,
                     sectName = gameData.sectName,
-                    discipleCount = 0,
+                    discipleCount = database.discipleDao().getAllAliveSync(slot).size,
                     spiritStones = gameData.spiritStones,
                     isEmpty = false,
-                    customName = gameData.sectName
+                    customName = gameData.sectName,
+                    isAutoSave = isAutoSave
                 )
             } else {
-                SaveSlot(slot, "", 0, 1, 1, "", 0, 0, true)
+                SaveSlot(slot, "", 0, 1, 1, "", 0, 0, true, isAutoSave = isAutoSave)
             }
         } catch (e: Exception) {
             Log.w(TAG, "querySingleSlot failed for slot $slot", e)
-            SaveSlot(slot, "", 0, 1, 1, "", 0, 0, true)
+            SaveSlot(slot, "", 0, 1, 1, "", 0, 0, true, isAutoSave = isAutoSave)
         }
     }
 

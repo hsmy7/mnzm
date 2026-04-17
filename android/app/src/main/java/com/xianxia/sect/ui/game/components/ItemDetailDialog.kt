@@ -690,7 +690,8 @@ private fun getSeedEffects(item: Seed): List<String> = buildList {
     add("收获数量: ${item.yield}")
     add("数量: ${item.quantity}")
 
-    val herb = com.xianxia.sect.core.data.HerbDatabase.getHerbFromSeed(item.id)
+    val herb = com.xianxia.sect.core.data.HerbDatabase.getHerbFromSeedName(item.name)
+        ?: com.xianxia.sect.core.data.HerbDatabase.getHerbFromSeed(item.id)
     if (herb != null) {
         add("")
         add("长成后:")

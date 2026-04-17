@@ -28,8 +28,8 @@ android {
         applicationId = "com.xianxia.sect"
         minSdk = 24
         targetSdk = 35
-        versionCode = 2002
-        versionName = "2.0.02"
+        versionCode = 2004
+        versionName = "2.0.04"
 
         buildConfigField "String", "API_BASE_URL", '"' + apiProperties.getProperty('API_BASE_URL', 'https://api.xianxia.com/api/') + '"'
         buildConfigField "String", "TAPTAP_CLIENT_ID", '"' + apiProperties.getProperty('TAPTAP_CLIENT_ID', '') + '"'
@@ -44,9 +44,9 @@ android {
     }
 
     def keystoreFile = file(keystoreProperties.getProperty('storeFile', '../../../keystore/keystore.jks'))
-    def canSignRelease = keystoreFile.exists()
-        && keystoreProperties.getProperty('storePassword') != null
-        && !keystoreProperties.getProperty('storePassword').isEmpty()
+    def canSignRelease = keystoreFile.exists() &&
+        keystoreProperties.getProperty('storePassword') != null &&
+        !keystoreProperties.getProperty('storePassword').isEmpty()
 
     if (!canSignRelease) {
         logger.lifecycle("Warning: Keystore not available at ${keystoreFile.absolutePath}. Building without release signing.")

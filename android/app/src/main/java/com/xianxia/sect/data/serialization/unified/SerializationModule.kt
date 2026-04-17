@@ -2513,7 +2513,10 @@ class SaveDataConverter @Inject constructor() {
             forgeIncentive = policies.forgeIncentive ?: false,
             herbCultivation = policies.herbCultivation ?: false,
             cultivationSubsidy = policies.cultivationSubsidy ?: false,
-            manualResearch = policies.manualResearch ?: false
+            manualResearch = policies.manualResearch ?: false,
+            autoPlant = policies.autoPlant ?: false,
+            autoAlchemy = policies.autoAlchemy ?: false,
+            autoForge = policies.autoForge ?: false
         )
     }
 
@@ -2525,7 +2528,10 @@ class SaveDataConverter @Inject constructor() {
             forgeIncentive = data.forgeIncentive,
             herbCultivation = data.herbCultivation,
             cultivationSubsidy = data.cultivationSubsidy,
-            manualResearch = data.manualResearch
+            manualResearch = data.manualResearch,
+            autoPlant = data.autoPlant,
+            autoAlchemy = data.autoAlchemy,
+            autoForge = data.autoForge
         )
     }
 

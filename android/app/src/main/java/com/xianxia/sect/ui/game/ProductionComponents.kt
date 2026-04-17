@@ -26,6 +26,8 @@ import com.xianxia.sect.ui.components.ElderBonusInfo
 import com.xianxia.sect.ui.components.ElderBonusInfoButton
 import com.xianxia.sect.ui.components.ElderBonusInfoProvider
 import com.xianxia.sect.ui.theme.GameColors
+import com.xianxia.sect.ui.components.FollowedTag
+import com.xianxia.sect.core.util.isFollowed
 
 data class ProductionTheme(
     val buildingId: String,
@@ -566,7 +568,10 @@ private fun ProductionDiscipleSelectionCard(
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(text = disciple.name, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.Black, maxLines = 1)
+            Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(text = disciple.name, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.Black, maxLines = 1)
+                if (disciple.isFollowed) { FollowedTag() }
+            }
             Text(text = disciple.realmName, fontSize = 8.sp, color = Color(0xFF666666), maxLines = 1)
             Text(
                 text = "${theme.coreAttributeName}:${theme.getCoreAttributeValue(disciple)}",
@@ -711,7 +716,10 @@ private fun ProductionReserveDiscipleCard(
             contentAlignment = Alignment.Center
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(text = disciple.name, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.Black, maxLines = 1)
+                Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(text = disciple.name, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.Black, maxLines = 1)
+                    if (disciple.isFollowed) { FollowedTag() }
+                }
                 Text(text = disciple.spiritRootType, fontSize = 7.sp, color = spiritRootColor, maxLines = 1)
                 Text(text = disciple.realmName, fontSize = 8.sp, color = Color(0xFF666666), maxLines = 1)
                 Text(
@@ -839,7 +847,10 @@ private fun ProductionAddReserveDiscipleSelectCard(
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(text = disciple.name, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.Black, maxLines = 1)
+            Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(text = disciple.name, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.Black, maxLines = 1)
+                if (disciple.isFollowed) { FollowedTag() }
+            }
             Text(text = disciple.spiritRootType, fontSize = 7.sp, color = spiritRootColor, maxLines = 1)
             Text(text = disciple.realmName, fontSize = 8.sp, color = Color(0xFF666666), maxLines = 1)
             Text(

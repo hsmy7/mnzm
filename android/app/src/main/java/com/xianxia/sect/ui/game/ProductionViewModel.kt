@@ -685,37 +685,37 @@ class ProductionViewModel @Inject constructor(
             .sortedByDescending { it.artifactRefining }
     }
 
+    val autoPlantEnabled: StateFlow<Boolean> = gameEngine.gameData
+        .map { it.sectPolicies.autoPlant }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
     fun toggleAutoPlant() {
-        val currentGameData = gameEngine.gameData.value ?: return
         viewModelScope.launch {
             gameEngine.updateGameData { it.copy(sectPolicies = it.sectPolicies.copy(autoPlant = !it.sectPolicies.autoPlant)) }
         }
     }
 
-    fun isAutoPlantEnabled(): Boolean {
-        return gameEngine.gameData.value?.sectPolicies?.autoPlant ?: false
-    }
+    val autoAlchemyEnabled: StateFlow<Boolean> = gameEngine.gameData
+        .map { it.sectPolicies.autoAlchemy }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     fun toggleAutoAlchemy() {
-        val currentGameData = gameEngine.gameData.value ?: return
         viewModelScope.launch {
             gameEngine.updateGameData { it.copy(sectPolicies = it.sectPolicies.copy(autoAlchemy = !it.sectPolicies.autoAlchemy)) }
         }
     }
 
-    fun isAutoAlchemyEnabled(): Boolean {
-        return gameEngine.gameData.value?.sectPolicies?.autoAlchemy ?: false
-    }
+    val autoForgeEnabled: StateFlow<Boolean> = gameEngine.gameData
+        .map { it.sectPolicies.autoForge }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     fun toggleAutoForge() {
-        val currentGameData = gameEngine.gameData.value ?: return
         viewModelScope.launch {
             gameEngine.updateGameData { it.copy(sectPolicies = it.sectPolicies.copy(autoForge = !it.sectPolicies.autoForge)) }
         }
-    }
-
-    fun isAutoForgeEnabled(): Boolean {
-        return gameEngine.gameData.value?.sectPolicies?.autoForge ?: false
     }
 
     fun toggleSpiritMineBoost(): Boolean {

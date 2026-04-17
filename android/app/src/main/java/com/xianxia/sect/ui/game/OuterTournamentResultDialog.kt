@@ -26,6 +26,8 @@ import com.xianxia.sect.ui.theme.getSpiritRootColor
 import com.xianxia.sect.ui.components.DiscipleAttrText
 import com.xianxia.sect.ui.components.discipleCardBorder
 import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.ui.components.FollowedTag
+import com.xianxia.sect.core.util.isFollowed
 
 @Composable
 fun OuterTournamentResultDialog(
@@ -198,6 +200,9 @@ private fun TournamentDiscipleCard(
                         fontWeight = FontWeight.Bold,
                         color = GameColors.TextPrimary
                     )
+                    if (disciple.isFollowed) {
+                        FollowedTag()
+                    }
                     val spiritRootColor = remember(disciple.spiritRoot.countColor, disciple.spiritRootType) {
                         try {
                             Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))

@@ -113,18 +113,19 @@ fun ForgeDialog(
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF666666)
                 )
+                val autoForgeEnabled by productionViewModel.autoForgeEnabled.collectAsState()
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(4.dp))
-                        .background(theme.reserveButtonBackgroundColor)
-                        .clickable { productionViewModel.autoForgeAllSlots() }
+                        .background(if (autoForgeEnabled) Color(0xFFFFD700) else Color(0xFF999999))
+                        .clickable { productionViewModel.toggleAutoForge() }
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
                     Text(
-                        text = "自动炼器",
+                        text = if (autoForgeEnabled) "自动炼器:开" else "自动炼器:关",
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
-                        color = theme.reserveButtonTextColor
+                        color = if (autoForgeEnabled) Color.Black else Color.White
                     )
                 }
             }

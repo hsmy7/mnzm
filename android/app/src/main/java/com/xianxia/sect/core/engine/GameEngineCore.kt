@@ -1,4 +1,5 @@
 @file:Suppress("DEPRECATION")
+@file:OptIn(DelicateCoroutinesApi::class)
 
 package com.xianxia.sect.core.engine
 
@@ -12,6 +13,7 @@ import com.xianxia.sect.core.state.*
 import com.xianxia.sect.core.performance.GamePerformanceMonitor
 import com.xianxia.sect.data.facade.StorageFacade
 import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -58,7 +60,12 @@ class GameEngineCore @Inject constructor(
     }
     
     private var scopeJob = SupervisorJob()
-    private var engineScope: CoroutineScope = CoroutineScope(scopeJob + Dispatchers.Default)
+    private val engineExceptionHandler = CoroutineExceptionHandler { _, throwable ->
+        if (throwable !is CancellationException) {
+            Log.e(TAG, "Unhandled exception in engine coroutine", throwable)
+        }
+    }
+    private var engineScope: CoroutineScope = CoroutineScope(scopeJob + Dispatchers.Default + engineExceptionHandler)
 
     fun launchInScope(block: suspend CoroutineScope.() -> Unit): Job = engineScope.launch(block = block)
 
@@ -83,8 +90,9 @@ class GameEngineCore @Inject constructor(
     
     private var dayAccumulator = 0.0
     
-    private val _autoSaveTrigger = MutableSharedFlow<Unit>(replay = 0, extraBufferCapacity = 1)
-    val autoSaveTrigger: SharedFlow<Unit> = _autoSaveTrigger.asSharedFlow()
+    @Volatile
+    private var _autoSaveTrigger = Channel<Unit>(capacity = Channel.BUFFERED)
+    val autoSaveTrigger: Flow<Unit> get() = _autoSaveTrigger.receiveAsFlow()
     
     private var isInitialized = false
 
@@ -92,6 +100,9 @@ class GameEngineCore @Inject constructor(
         if (isInitialized) {
             Log.w(TAG, "GameEngineCore already initialized")
             return
+        }
+        if (_autoSaveTrigger.isClosedForSend) {
+            _autoSaveTrigger = Channel(capacity = Channel.BUFFERED)
         }
         systemManager.initializeAll()
         isInitialized = true
@@ -170,9 +181,10 @@ class GameEngineCore @Inject constructor(
         deathEventJob?.cancel()
         deathEventJob = null
         systemManager.releaseAll()
+        _autoSaveTrigger.close()
         scopeJob.cancel()
         scopeJob = SupervisorJob()
-        engineScope = CoroutineScope(scopeJob + Dispatchers.Default)
+        engineScope = CoroutineScope(scopeJob + Dispatchers.Default + engineExceptionHandler)
         isInitialized = false
         Log.i(TAG, "GameEngineCore shutdown complete")
     }
@@ -236,8 +248,12 @@ class GameEngineCore @Inject constructor(
                 val autoSaveInterval = gameDataSnapshot.autoSaveIntervalMonths
                 if (autoSaveInterval > 0) {
                     if (gameDataSnapshot.gameDay == 1 && gameDataSnapshot.gameMonth % autoSaveInterval == 0) {
-                        _autoSaveTrigger.tryEmit(Unit)
-                        Log.d(TAG, "Auto save triggered: year=${gameDataSnapshot.gameYear}, month=${gameDataSnapshot.gameMonth}, day=${gameDataSnapshot.gameDay}")
+                        val result = _autoSaveTrigger.trySend(Unit)
+                        if (result.isSuccess) {
+                            Log.d(TAG, "Auto save triggered: year=${gameDataSnapshot.gameYear}, month=${gameDataSnapshot.gameMonth}, day=${gameDataSnapshot.gameDay}")
+                        } else {
+                            Log.w(TAG, "Auto save trigger failed to send: $result, year=${gameDataSnapshot.gameYear}, month=${gameDataSnapshot.gameMonth}")
+                        }
                     }
                 }
             }

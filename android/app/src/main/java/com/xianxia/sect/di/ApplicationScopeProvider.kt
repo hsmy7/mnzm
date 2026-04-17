@@ -1,6 +1,8 @@
 package com.xianxia.sect.di
 
 import android.util.Log
+import android.os.Process
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -33,11 +35,24 @@ class ApplicationScopeProvider @Inject constructor() : Closeable {
 
     private val supervisorJob = SupervisorJob()
 
+    /**
+     * 全局协程异常处理器
+     *
+     * 捕获协程中未处理的异常，防止静默失败导致状态不一致。
+     * 仅处理 [kotlinx.coroutines.CoroutineException] 以外的异常
+     * （CancellationException 不应被拦截）。
+     */
+    private val exceptionHandler = CoroutineExceptionHandler { _, throwable ->
+        if (throwable !is kotlinx.coroutines.CancellationException) {
+            Log.e(TAG, "Unhandled coroutine exception", throwable)
+        }
+    }
+
     /** 应用级默认 Scope (Dispatchers.Default) */
-    val scope: CoroutineScope = CoroutineScope(supervisorJob + Dispatchers.Default)
+    val scope: CoroutineScope = CoroutineScope(supervisorJob + Dispatchers.Default + exceptionHandler)
 
     /** IO 密集型 Scope (Dispatchers.IO)，共享同一 SupervisorJob 以便统一取消 */
-    val ioScope: CoroutineScope = CoroutineScope(supervisorJob + Dispatchers.IO)
+    val ioScope: CoroutineScope = CoroutineScope(supervisorJob + Dispatchers.IO + exceptionHandler)
 
     /** 活跃子 Job 计数器（用于监控） */
     private val activeChildrenCount = AtomicInteger(0)

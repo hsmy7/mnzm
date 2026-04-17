@@ -310,7 +310,10 @@ data class SectPolicies(
     val forgeIncentive: Boolean = false,
     val herbCultivation: Boolean = false,
     val cultivationSubsidy: Boolean = false,
-    val manualResearch: Boolean = false
+    val manualResearch: Boolean = false,
+    val autoPlant: Boolean = false,
+    val autoAlchemy: Boolean = false,
+    val autoForge: Boolean = false
 )
 
 // 长老槽位数据

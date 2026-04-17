@@ -30,6 +30,9 @@ import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.WorldMapViewModel
 import com.xianxia.sect.ui.components.DiscipleAttrText
 import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.ui.components.FollowedTag
+import com.xianxia.sect.core.util.isFollowed
+import com.xianxia.sect.core.util.sortedByFollowAndRealm
 
 @Composable
 fun AllianceDialog(
@@ -439,12 +442,20 @@ private fun DiscipleSelectCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column {
-                Text(
-                    text = disciple.name,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = disciple.name,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+                    if (disciple.isFollowed) {
+                        FollowedTag()
+                    }
+                }
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "${GameConfig.Realm.getName(disciple.realm)} · ${disciple.realmLayer}层",
@@ -559,9 +570,9 @@ fun ScoutDiscipleSelectDialog(
     val realmCounts = disciples.groupingBy { it.realm }.eachCount()
 
     val filteredDisciples = if (selectedRealmFilter == null) {
-        disciples.sortedBy { it.realm }
+        disciples.sortedByFollowAndRealm()
     } else {
-        disciples.filter { it.realm == selectedRealmFilter }.sortedBy { it.realm }
+        disciples.filter { it.realm == selectedRealmFilter }.sortedByFollowAndRealm()
     }
 
     Dialog(onDismissRequest = onDismiss) {
@@ -622,7 +633,8 @@ fun ScoutDiscipleSelectDialog(
                             .padding(horizontal = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(filteredDisciples, key = { it.id }) { disciple ->
+                        items(filteredDisciples.size, key = { filteredDisciples[it].id }) { index ->
+                            val disciple = filteredDisciples[index]
                             ScoutDiscipleCard(
                                 disciple = disciple,
                                 isSelected = selectedDisciples.contains(disciple.id),
@@ -778,6 +790,9 @@ private fun ScoutDiscipleCard(
                         fontWeight = FontWeight.Bold,
                         color = Color.Black
                     )
+                    if (disciple.isFollowed) {
+                        FollowedTag()
+                    }
                     Text(
                         text = disciple.status.displayName,
                         fontSize = 12.sp,

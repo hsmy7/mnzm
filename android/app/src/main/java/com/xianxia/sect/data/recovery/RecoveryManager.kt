@@ -2,6 +2,7 @@ package com.xianxia.sect.data.recovery
 
 import android.content.Context
 import android.util.Log
+import com.xianxia.sect.data.StorageConstants
 import com.xianxia.sect.data.concurrent.SlotLockManager
 import com.xianxia.sect.data.local.GameDatabase
 import com.xianxia.sect.data.local.GameDatabaseConfig
@@ -363,7 +364,7 @@ class RecoveryManager @Inject constructor(
         val metadata = database.saveSlotMetadataDao().getBySlotId(slot)
         if (metadata != null && metadata.isGameStarted) return@withContext true
 
-        val autoSaveData = database.gameDataDao().getGameDataSync(SlotLockManager.AUTO_SAVE_SLOT)
+        val autoSaveData = database.gameDataDao().getGameDataSync(StorageConstants.AUTO_SAVE_SLOT)
         if (autoSaveData != null) return@withContext true
 
         false
@@ -391,11 +392,11 @@ class RecoveryManager @Inject constructor(
                 metadata != null && metadata.lastSaveTime > 0
             }
             RecoveryLevel.AUTO_SAVE -> {
-                val autoSaveData = database.gameDataDao().getGameDataSync(SlotLockManager.AUTO_SAVE_SLOT)
+                val autoSaveData = database.gameDataDao().getGameDataSync(StorageConstants.AUTO_SAVE_SLOT)
                 autoSaveData != null
             }
             RecoveryLevel.EMERGENCY_SAVE -> {
-                val emergencyData = database.gameDataDao().getGameDataSync(SlotLockManager.EMERGENCY_SLOT)
+                val emergencyData = database.gameDataDao().getGameDataSync(StorageConstants.EMERGENCY_SLOT)
                 emergencyData != null
             }
             RecoveryLevel.DEFAULT_DATA -> true
@@ -413,15 +414,19 @@ class RecoveryManager @Inject constructor(
                 metadata != null && metadata.lastSaveTime > 0
             }
             RecoveryLevel.AUTO_SAVE -> {
-                val autoSaveData = database.gameDataDao().getGameDataSync(SlotLockManager.AUTO_SAVE_SLOT)
-                if (autoSaveData != null) {
-                    val restored = autoSaveData.copy(slotId = slot)
-                    database.gameDataDao().insert(restored)
-                    true
-                } else false
+                if (StorageConstants.isAutoSaveSlot(slot)) {
+                    val autoSaveData = database.gameDataDao().getGameDataSync(StorageConstants.AUTO_SAVE_SLOT)
+                    if (autoSaveData != null) {
+                        database.gameDataDao().insert(autoSaveData)
+                        true
+                    } else false
+                } else {
+                    Log.w(TAG, "Skipping AUTO_SAVE recovery for manual slot $slot: auto-save is independent")
+                    false
+                }
             }
             RecoveryLevel.EMERGENCY_SAVE -> {
-                val emergencyData = database.gameDataDao().getGameDataSync(SlotLockManager.EMERGENCY_SLOT)
+                val emergencyData = database.gameDataDao().getGameDataSync(StorageConstants.EMERGENCY_SLOT)
                 if (emergencyData != null) {
                     val restored = emergencyData.copy(slotId = slot)
                     database.gameDataDao().insert(restored)
