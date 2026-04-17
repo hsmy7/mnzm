@@ -62,28 +62,28 @@ fun UnifiedItemCard(
                 .padding(8.dp),
             contentAlignment = Alignment.Center
         ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Text(
-                    text = data.name,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = GameColors.TextPrimary,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    textAlign = TextAlign.Center
-                )
+            Text(
+                text = data.name,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                color = GameColors.TextPrimary,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center
+            )
 
-                if (showQuantity && data.quantity > 1) {
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = "x${data.quantity}",
-                        fontSize = 9.sp,
-                        color = GameColors.TextSecondary
-                    )
-                }
+            if (showQuantity && data.quantity > 1) {
+                Text(
+                    text = "x${data.quantity}",
+                    fontSize = 9.sp,
+                    color = Color.White,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .offset(x = 2.dp, y = 2.dp)
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(Color.Black.copy(alpha = 0.55f))
+                        .padding(horizontal = 3.dp, vertical = 1.dp)
+                )
             }
         }
 
