@@ -201,7 +201,7 @@
     上述设备标识符仅用于本地加密密钥派生，以哈希形式参与加密运算，原始值不会传输到我们的服务器。在网络请求中，仅发送设备指纹的前8位字符（SHA-256摘要前缀），用于防止请求伪造，不足以还原原始设备信息。
 </div>
 <div class="note" style="background:#e3f2fd; border-left:4px solid #1976d2;">
-    <strong>关于 Android ID 与 TapTap SDK：</strong>除本应用自身读取 Android ID 用于本地加密密钥派生外，TapTap SDK（包括 tap-core、tap-login、tap-compliance 模块）也会独立收集 Android ID，用于确保设备系统兼容性和定位解决问题。TapTap SDK 对 Android ID 的收集和处理受 TapTap SDK 隐私政策约束，详见下方第二节。
+    <strong>关于 Android ID、OAID 与 TapTap SDK：</strong>除本应用自身读取 Android ID 用于本地加密密钥派生外，TapTap SDK（包括 tap-core、tap-login、tap-compliance 模块）也会独立收集 Android ID 和 OAID，用于确保设备系统兼容性、定位解决问题和广告效果分析。TapTap SDK 对 Android ID 和 OAID 的收集和处理受 TapTap SDK 隐私政策约束，详见下方第二节。
 </div>
 
 <h3>1.4 网络状态信息</h3>
@@ -247,10 +247,10 @@
     <p><strong>初始化时机：</strong>TapTap SDK 仅在您同意本隐私政策后进行初始化，不会在您同意前调用任何系统隐私敏感接口。</p>
     <table>
         <tr><th>SDK 模块</th><th>功能</th><th>可能收集的信息</th></tr>
-        <tr><td>tap-core（4.10.0）</td><td>SDK 核心功能</td><td>设备信息（设备型号、操作系统版本、<strong>Android ID</strong>、设备 CPU 信息、设备内存信息）、网络信息（网络类型）</td></tr>
-        <tr><td>tap-login（4.10.0）</td><td>TapTap 账户登录</td><td>TapTap 账户标识（OpenID、UnionID）、昵称、头像、<strong>电话号码</strong>（TapTap 账户注册信息）、<strong>邮箱</strong>（TapTap 账户注册信息）、<strong>Android ID</strong>、设备信息、网络信息</td></tr>
+        <tr><td>tap-core（4.10.0）</td><td>SDK 核心功能</td><td>设备信息（设备型号、操作系统版本、<strong>Android ID</strong>、<strong>OAID</strong>、设备 CPU 信息、设备内存信息）、网络信息（网络类型）</td></tr>
+        <tr><td>tap-login（4.10.0）</td><td>TapTap 账户登录</td><td>TapTap 账户标识（OpenID、UnionID）、昵称、头像、<strong>电话号码</strong>（TapTap 账户注册信息）、<strong>邮箱</strong>（TapTap 账户注册信息）、<strong>Android ID</strong>、<strong>OAID</strong>、设备信息、网络信息</td></tr>
         <tr><td>tap-common（4.10.0）</td><td>SDK 公共组件</td><td>设备基础信息</td></tr>
-        <tr><td>tap-compliance（4.10.0）</td><td>防沉迷和实名认证</td><td>实名认证数据、年龄信息、<strong>Android ID</strong>、设备信息、网络信息</td></tr>
+        <tr><td>tap-compliance（4.10.0）</td><td>防沉迷和实名认证</td><td>实名认证数据、年龄信息、<strong>Android ID</strong>、<strong>OAID</strong>、设备信息、网络信息</td></tr>
     </table>
     <p>TapTap SDK 隐私政策：<a href="https://developer.taptap.cn/docs/sdk/start/agreement/" target="_blank">https://developer.taptap.cn/docs/sdk/start/agreement/</a></p>
 </div>
@@ -293,8 +293,8 @@
 
 <h3>4.3 设备标识符保护</h3>
 <ul>
-    <li>设备标识符仅用于本地密钥派生，以哈希形式参与加密运算</li>
-    <li>原始设备标识符不会离开设备</li>
+    <li>本应用读取的设备标识符仅用于本地密钥派生，以哈希形式参与加密运算</li>
+    <li>本应用读取的原始设备标识符不会离开设备</li>
     <li>网络请求中仅发送设备指纹的 SHA-256 摘要前8位</li>
 </ul>
 

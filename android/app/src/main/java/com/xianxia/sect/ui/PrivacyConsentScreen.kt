@@ -245,7 +245,7 @@ private fun PrivacySummaryContent(
         text = buildAnnotatedString {
             withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color(0xFF333333))) { append("3. 设备标识符") }
             append("\n")
-            withStyle(bodyStyle) { append("读取Android ID、设备硬件信息（品牌、型号等）、应用签名证书哈希。本应用仅用于本地加密密钥派生，以哈希形式参与加密运算，原始值不会传输到服务器。TapTap SDK也会独立收集Android ID，用于设备系统兼容性。") }
+            withStyle(bodyStyle) { append("读取Android ID、设备硬件信息（品牌、型号等）、应用签名证书哈希。本应用仅用于本地加密密钥派生，以哈希形式参与加密运算，原始值不会传输到服务器。TapTap SDK也会独立收集Android ID和OAID（开放匿名设备标识符），用于设备系统兼容性、定位解决问题和广告效果分析。") }
         },
         modifier = Modifier.padding(bottom = 8.dp, start = 8.dp),
         lineHeight = 19.sp
@@ -292,7 +292,7 @@ private fun PrivacySummaryContent(
         withStyle(ParagraphStyle(lineHeight = 19.sp)) {
             withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color(0xFF333333))) { append("TapTap SDK\uff08v4.10.0\uff09") }
             append("\n")
-            withStyle(bodyStyle) { append("仅在您同意本隐私政策后初始化。可能收集：设备信息（型号、系统版本、Android ID、CPU信息、内存信息）、网络信息、TapTap账户标识、电话号码（TapTap账户注册信息）、邮箱（TapTap账户注册信息）、实名认证数据。") }
+            withStyle(bodyStyle) { append("仅在您同意本隐私政策后初始化。可能收集：设备信息（型号、系统版本、Android ID、OAID、CPU信息、内存信息）、网络信息、TapTap账户标识、电话号码（TapTap账户注册信息）、邮箱（TapTap账户注册信息）、实名认证数据。") }
             append("\n")
             pushStringAnnotation(tag = "URL", annotation = TAPTAP_SDK_PRIVACY_URL)
             withStyle(linkStyle) { append("TapTap SDK隐私政策 >") }
@@ -360,7 +360,7 @@ private fun PrivacySummaryContent(
     )
 
     Text(
-        text = "\u2022 账户信息使用AES-256加密存储于设备本地\n\u2022 网络通信强制TLS 1.2/1.3加密传输\n\u2022 设备标识符仅以哈希形式参与加密运算，原始值不离开设备\n\u2022 网络请求中仅发送设备指纹的SHA-256摘要前8位\n\u2022 所有数据存储在中国境内，不存在跨境传输",
+        text = "\u2022 账户信息使用AES-256加密存储于设备本地\n\u2022 网络通信强制TLS 1.2/1.3加密传输\n\u2022 本应用读取的设备标识符仅以哈希形式参与加密运算，原始值不离开设备\n\u2022 网络请求中仅发送设备指纹的SHA-256摘要前8位\n\u2022 所有数据存储在中国境内，不存在跨境传输",
         fontSize = 13.sp,
         color = Color(0xFF444444),
         lineHeight = 19.sp,
@@ -555,7 +555,7 @@ fun FullPrivacyPolicyScreen(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(
-                                text = "关于 Android ID 与 TapTap SDK：除本应用自身读取 Android ID 用于本地加密密钥派生外，TapTap SDK（包括 tap-core、tap-login、tap-compliance 模块）也会独立收集 Android ID，用于确保设备系统兼容性和定位解决问题。TapTap SDK 对 Android ID 的收集和处理受 TapTap SDK 隐私政策约束，详见下方第二节。",
+                                text = "关于 Android ID、OAID 与 TapTap SDK：除本应用自身读取 Android ID 用于本地加密密钥派生外，TapTap SDK（包括 tap-core、tap-login、tap-compliance 模块）也会独立收集 Android ID 和 OAID，用于确保设备系统兼容性、定位解决问题和广告效果分析。TapTap SDK 对 Android ID 和 OAID 的收集和处理受 TapTap SDK 隐私政策约束，详见下方第二节。",
                                 fontSize = 12.sp, color = Color(0xFF1565C0), lineHeight = 18.sp,
                                 modifier = Modifier.padding(10.dp)
                             )
@@ -601,7 +601,7 @@ fun FullPrivacyPolicyScreen(
                 FullPolicySection("二、第三方 SDK 数据收集") {
                     FullPolicySubSection("2.1 TapTap SDK（v4.10.0）") {
                         Text(
-                            text = "由易玩（上海）网络科技有限公司提供。仅在您同意本隐私政策后初始化。\n\n\u2022 tap-core：SDK核心功能 \u2014 可能收集设备信息（设备型号、操作系统版本、Android ID、CPU信息、内存信息）、网络信息（网络类型）\n\u2022 tap-login：账户登录 \u2014 收集TapTap账户标识、昵称、头像、电话号码（TapTap账户注册信息）、邮箱（TapTap账户注册信息）、Android ID、设备信息、网络信息\n\u2022 tap-common：公共组件 \u2014 收集设备基础信息\n\u2022 tap-compliance：防沉迷和实名认证 \u2014 收集实名认证数据、年龄信息、Android ID、设备信息、网络信息",
+                            text = "由易玩（上海）网络科技有限公司提供。仅在您同意本隐私政策后初始化。\n\n\u2022 tap-core：SDK核心功能 \u2014 可能收集设备信息（设备型号、操作系统版本、Android ID、OAID、CPU信息、内存信息）、网络信息（网络类型）\n\u2022 tap-login：账户登录 \u2014 收集TapTap账户标识、昵称、头像、电话号码（TapTap账户注册信息）、邮箱（TapTap账户注册信息）、Android ID、OAID、设备信息、网络信息\n\u2022 tap-common：公共组件 \u2014 收集设备基础信息\n\u2022 tap-compliance：防沉迷和实名认证 \u2014 收集实名认证数据、年龄信息、Android ID、OAID、设备信息、网络信息",
                             fontSize = 13.sp, color = Color(0xFF444444), lineHeight = 20.sp
                         )
                         Spacer(modifier = Modifier.height(6.dp))
@@ -641,7 +641,7 @@ fun FullPrivacyPolicyScreen(
 
                 FullPolicySection("四、信息存储与保护") {
                     Text(
-                        text = "\u2022 游戏存档和账户信息仅保存在您的设备本地\n\u2022 账户信息使用 AES-256 加密的 EncryptedSharedPreferences 存储\n\u2022 存档数据使用 AES-256-GCM 加密保护\n\u2022 网络通信强制使用 TLS 1.2/1.3 加密传输\n\u2022 启用证书固定防止中间人攻击\n\u2022 设备标识符仅以哈希形式参与加密运算，原始值不离开设备\n\u2022 网络请求中仅发送设备指纹的SHA-256摘要前8位\n\u2022 所有数据存储在中国境内，不存在跨境传输",
+                        text = "\u2022 游戏存档和账户信息仅保存在您的设备本地\n\u2022 账户信息使用 AES-256 加密的 EncryptedSharedPreferences 存储\n\u2022 存档数据使用 AES-256-GCM 加密保护\n\u2022 网络通信强制使用 TLS 1.2/1.3 加密传输\n\u2022 启用证书固定防止中间人攻击\n\u2022 本应用读取的设备标识符仅以哈希形式参与加密运算，原始值不离开设备\n\u2022 网络请求中仅发送设备指纹的SHA-256摘要前8位\n\u2022 所有数据存储在中国境内，不存在跨境传输",
                         fontSize = 13.sp, color = Color(0xFF444444), lineHeight = 20.sp
                     )
                 }
