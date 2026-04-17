@@ -13,7 +13,7 @@ import javax.inject.Singleton
 class SessionManager @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
-    private val prefs: SharedPreferences = try {
+    private val prefs: SharedPreferences = run {
         val masterKey = MasterKey.Builder(context)
             .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
             .build()
@@ -24,9 +24,6 @@ class SessionManager @Inject constructor(
             EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
             EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
         )
-    } catch (e: Exception) {
-        Log.w(TAG, "EncryptedSharedPreferences creation failed, falling back to plain SharedPreferences", e)
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     }
     
     var isLoggedIn: Boolean
@@ -48,6 +45,10 @@ class SessionManager @Inject constructor(
     var hasAgreedPrivacy: Boolean
         get() = prefs.getBoolean(KEY_PRIVACY_AGREED, false)
         set(value) = edit { putBoolean(KEY_PRIVACY_AGREED, value) }
+
+    var privacyCheckboxConfirmed: Boolean
+        get() = prefs.getBoolean(KEY_PRIVACY_CHECKBOX_CONFIRMED, false)
+        set(value) = edit { putBoolean(KEY_PRIVACY_CHECKBOX_CONFIRMED, value) }
     
     var complianceVerified: Boolean
         get() = prefs.getBoolean(KEY_COMPLIANCE_VERIFIED, false)
@@ -104,6 +105,7 @@ class SessionManager @Inject constructor(
         private const val KEY_USER_NAME = "user_name"
         private const val KEY_LOGIN_TYPE = "login_type"
         private const val KEY_PRIVACY_AGREED = "privacy_agreed"
+        private const val KEY_PRIVACY_CHECKBOX_CONFIRMED = "privacy_checkbox_confirmed"
         private const val KEY_COMPLIANCE_VERIFIED = "compliance_verified"
         private const val KEY_UNION_ID = "union_id"
     }

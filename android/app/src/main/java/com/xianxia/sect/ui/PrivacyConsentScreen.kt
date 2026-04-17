@@ -261,7 +261,7 @@ private fun PrivacySummaryContent(
         text = buildAnnotatedString {
             withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color(0xFF333333))) { append("2. 实名认证信息") }
             append("\n")
-            withStyle(bodyStyle) { append("根据防沉迷规定，通过TapTap合规SDK进行实名认证。实名数据由TapTap平台处理，我们不直接收集身份证号码。") }
+            withStyle(bodyStyle) { append("根据防沉迷规定，通过TapTap合规SDK进行实名认证。手动填写时需输入姓名、身份证号码和电话号码，用于完成国家要求的实名身份验证。电话号码属于个人敏感信息，由TapTap平台收集并提交至国家防沉迷系统验证，我们不会存储或查看。建议优先使用快速认证（无需重新输入）。") }
         },
         modifier = Modifier.padding(bottom = 8.dp, start = 8.dp),
         lineHeight = 19.sp
@@ -301,7 +301,7 @@ private fun PrivacySummaryContent(
         text = buildAnnotatedString {
             withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color(0xFF333333))) { append("6. 崩溃日志") }
             append("\n")
-            withStyle(bodyStyle) { append("游戏异常退出时自动收集设备信息、应用版本和异常堆栈，仅保存在设备本地，最多保留5份，不会自动上传。") }
+            withStyle(bodyStyle) { append("游戏异常退出时自动收集设备品牌、型号、产品名、设备代号、应用版本和异常堆栈，仅保存在设备本地，最多保留5份，不会自动上传。") }
         },
         modifier = Modifier.padding(bottom = 12.dp, start = 8.dp),
         lineHeight = 19.sp
@@ -459,7 +459,7 @@ fun FullPrivacyPolicyScreen(
                 Spacer(modifier = Modifier.height(4.dp))
 
                 Text(
-                    text = "更新日期：2026年4月15日 | 生效日期：2026年4月15日",
+                    text = "更新日期：2026年4月16日 | 生效日期：2026年4月16日",
                     fontSize = 12.sp,
                     color = GameColors.TextTertiary,
                     modifier = Modifier.fillMaxWidth(),
@@ -501,6 +501,13 @@ fun FullPrivacyPolicyScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
+                FullPolicySection("〇、隐私同意机制") {
+                    Text(
+                        text = "本应用采用以下隐私同意机制，确保您的知情权和选择权：\n\n\u2022 首次启动弹窗：首次启动时弹出隐私政策同意窗口，您可以选择\"同意\"或\"不同意\"。\n\u2022 不同意即退出：选择\"不同意\"，本应用将立即退出，不会收集任何个人信息。\n\u2022 同意后初始化：只有在您明确同意后，本应用才会初始化第三方SDK（TapTap SDK）并开始收集个人信息。\n\u2022 应用内查看：您可以随时在应用内查看完整的隐私政策内容。\n\u2022 撤回同意：您可以随时退出 TapTap 登录来撤回对账户信息收集的同意。撤回同意不影响此前基于同意已进行的信息处理活动的效力。",
+                        fontSize = 13.sp, color = Color(0xFF444444), lineHeight = 20.sp
+                    )
+                }
+
                 FullPolicySection("一、我们收集的信息") {
                     FullPolicySubSection("1.1 账户信息") {
                         Text(
@@ -521,7 +528,7 @@ fun FullPrivacyPolicyScreen(
 
                     FullPolicySubSection("1.2 实名认证信息") {
                         Text(
-                            text = "根据《关于防止未成年人沉迷网络游戏的通知》等国家防沉迷相关规定，我们通过 TapTap 合规 SDK 进行实名认证和年龄验证。实名认证数据由 TapTap 平台处理，我们不直接收集、存储或传输您的身份证号码等敏感身份信息。",
+                            text = "根据《关于防止未成年人沉迷网络游戏的通知》等国家防沉迷相关规定，我们通过 TapTap 合规 SDK 进行实名认证和年龄验证。\n\n\u2022 快速认证（推荐）：复用您在 TapTap 平台已完成的实名信息（姓名、身份证号），由 TapTap 平台处理。\n\u2022 手动填写认证：需输入姓名、身份证号码和电话号码。其中电话号码属于个人敏感信息，由 TapTap 平台收集并提交至国家新闻出版署网络游戏防沉迷实名认证系统进行验证。我们不会存储、查看或传输您的身份证号码和电话号码。建议优先使用快速认证方式，无需重新输入任何个人信息。",
                             fontSize = 13.sp, color = Color(0xFF444444), lineHeight = 20.sp
                         )
                     }
@@ -549,12 +556,19 @@ fun FullPrivacyPolicyScreen(
 
                     FullPolicySubSection("1.6 崩溃日志") {
                         Text(
-                            text = "当游戏异常退出时，我们自动收集设备品牌、型号、Android版本、应用版本号和异常堆栈跟踪。崩溃日志仅保存在设备本地，最多保留5份，不会自动上传。",
+                            text = "当游戏异常退出时，我们自动收集设备品牌、型号、产品名、设备代号、Android版本、应用版本号和异常堆栈跟踪。崩溃日志仅保存在设备本地，最多保留5份，不会自动上传。",
                             fontSize = 13.sp, color = Color(0xFF444444), lineHeight = 20.sp
                         )
                     }
 
-                    FullPolicySubSection("1.7 兑换码使用记录") {
+                    FullPolicySubSection("1.7 网络请求安全信息") {
+                        Text(
+                            text = "为保障通信安全，防止请求伪造和重放攻击，每个网络请求会携带以下安全头：应用版本号、平台标识、Android SDK级别、设备指纹前8位、HMAC-SHA256签名、时间戳、随机数、请求唯一标识和请求体哈希。",
+                            fontSize = 13.sp, color = Color(0xFF444444), lineHeight = 20.sp
+                        )
+                    }
+
+                    FullPolicySubSection("1.8 兑换码使用记录") {
                         Text(
                             text = "当您使用兑换码时，我们记录兑换码、使用时间、设备标识和玩家标识，用于防止兑换码重复使用和暴力枚举。",
                             fontSize = 13.sp, color = Color(0xFF444444), lineHeight = 20.sp
@@ -617,28 +631,35 @@ fun FullPrivacyPolicyScreen(
                     )
                 }
 
-                FullPolicySection("六、您的权利") {
+                FullPolicySection("六、数据保留期限") {
+                    Text(
+                        text = "\u2022 游戏存档数据：保留至您主动删除存档或卸载应用\n\u2022 账户登录信息：保留至您主动退出登录或卸载应用\n\u2022 崩溃日志：最多保留5份，超过后自动清理\n\u2022 兑换码使用记录：保留至游戏存档删除\n\u2022 加密密钥：保留至卸载应用",
+                        fontSize = 13.sp, color = Color(0xFF444444), lineHeight = 20.sp
+                    )
+                }
+
+                FullPolicySection("七、您的权利") {
                     Text(
                         text = "\u2022 查询和更正：您可以在游戏内查看您的登录信息\n\u2022 删除：您可以删除游戏存档、退出登录或卸载应用来清除数据\n\u2022 撤回同意：您可以随时退出 TapTap 登录来撤回对账户信息收集的同意\n\u2022 注销账户：如需注销 TapTap 账户，请在 TapTap 平台操作",
                         fontSize = 13.sp, color = Color(0xFF444444), lineHeight = 20.sp
                     )
                 }
 
-                FullPolicySection("七、未成年人保护") {
+                FullPolicySection("八、未成年人保护") {
                     Text(
                         text = "我们严格遵守《关于防止未成年人沉迷网络游戏的通知》等相关规定，通过 TapTap 合规 SDK 对未成年人实施游戏时段和时长限制。未成年人仅可在周五、周六、周日及法定节假日的 20:00-21:00 进行游戏。我们不会主动收集未成年人的身份信息。",
                         fontSize = 13.sp, color = Color(0xFF444444), lineHeight = 20.sp
                     )
                 }
 
-                FullPolicySection("八、隐私政策更新") {
+                FullPolicySection("九、隐私政策更新") {
                     Text(
                         text = "我们可能会不时更新本隐私政策。更新后的政策将在应用内重新展示，您需要再次同意后方可继续使用。如果您不同意更新后的隐私政策，可以选择停止使用本应用。",
                         fontSize = 13.sp, color = Color(0xFF444444), lineHeight = 20.sp
                     )
                 }
 
-                FullPolicySection("九、联系我们") {
+                FullPolicySection("十、联系我们") {
                     Text(
                         text = "如您对本隐私政策有任何疑问、意见或建议，可通过以下方式与我们联系：\n\n\u2022 邮箱：cp050923@126.com\n\u2022 通过 TapTap 平台的应用页面反馈\n\n我们将在15个工作日内回复您的请求。",
                         fontSize = 13.sp, color = Color(0xFF444444), lineHeight = 20.sp
