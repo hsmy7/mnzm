@@ -61,7 +61,6 @@ import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.MerchantItem
 import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.Seed
-import com.xianxia.sect.core.warehouse.WarehousePager
 import com.xianxia.sect.core.model.WorldMapRenderData
 import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.model.BattleTeam
@@ -79,6 +78,7 @@ import com.xianxia.sect.core.model.BattleResult
 import com.xianxia.sect.core.model.ExplorationStatus
 import com.xianxia.sect.core.model.RedeemResult
 import com.xianxia.sect.core.model.RewardSelectedItem
+import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.core.util.sortedByFollowAndRealm
 import com.xianxia.sect.core.util.sortedByFollowAttributeAndRealm
 import com.xianxia.sect.data.model.SaveSlot
@@ -90,6 +90,8 @@ import com.xianxia.sect.ui.game.map.CaveExplorationPathData
 import com.xianxia.sect.ui.game.map.WorldMapScreen
 import com.xianxia.sect.ui.components.discipleCardBorder
 import com.xianxia.sect.ui.components.DiscipleAttrText
+import com.xianxia.sect.ui.components.FollowedTag
+import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.components.DiscipleCardStyles
 import com.xianxia.sect.ui.theme.XianxiaColorScheme
 import com.xianxia.sect.ui.components.GameButton
@@ -927,6 +929,9 @@ private fun DiscipleCard(
                         fontWeight = FontWeight.Bold,
                         color = Color.Black
                     )
+                    if (disciple.isFollowed) {
+                        FollowedTag()
+                    }
                     Text(
                         text = disciple.status.displayName,
                         fontSize = 12.sp,
@@ -1318,6 +1323,9 @@ private fun DirectDiscipleSelectionDialog(
                                         fontWeight = FontWeight.Bold,
                                         color = Color.Black
                                     )
+                                    if (disciple.isFollowed) {
+                                        FollowedTag()
+                                    }
                                 }
                                 Row(
                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -2007,6 +2015,9 @@ private fun DispatchTeamDialog(
                                                 fontWeight = FontWeight.Bold,
                                                 color = Color.Black
                                             )
+                                            if (disciple.isFollowed) {
+                                                FollowedTag()
+                                            }
                                         }
                                         Row(
                                             horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -2365,8 +2376,9 @@ private fun TeamMemberSlot(
                 .clickable(onClick = onClick),
             contentAlignment = Alignment.Center
         ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     text = disciple.name,
@@ -2375,13 +2387,14 @@ private fun TeamMemberSlot(
                     color = if (isDead) Color(0xFF999999) else Color.Black,
                     maxLines = 1
                 )
-                Text(
-                    text = disciple.realmName,
-                    fontSize = 7.sp,
-                    color = if (isDead) Color(0xFFAAAAAA) else Color(0xFF666666),
-                    maxLines = 1
-                )
+                if (disciple.isFollowed) { FollowedTag() }
             }
+            Text(
+                text = disciple.realmName,
+                fontSize = 7.sp,
+                color = if (isDead) Color(0xFFAAAAAA) else Color(0xFF666666),
+                maxLines = 1
+            )
         }
     }
 }
@@ -3121,6 +3134,9 @@ private fun ElderDiscipleSelectionDialog(
                                         fontWeight = FontWeight.Bold,
                                         color = Color.Black
                                     )
+                                    if (disciple.isFollowed) {
+                                        FollowedTag()
+                                    }
                                 }
                                 Row(
                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -3475,37 +3491,18 @@ private fun WarehouseTab(viewModel: GameViewModel) {
     var showBulkSellDialog by remember { mutableStateOf(false) }
     var currentPage by remember { mutableIntStateOf(0) }
     
-    val currentFilterItems = when (selectedFilter) {
-        WarehouseFilter.ALL -> allSortedItems
-        WarehouseFilter.EQUIPMENT -> equipment.map { WarehouseItemData(it.id, it.name, it.rarity, it) }
-        WarehouseFilter.PILL -> sortedPills.map { WarehouseItemData(it.id, it.name, it.rarity, it) }
-        WarehouseFilter.MANUAL -> manuals.map { WarehouseItemData(it.id, it.name, it.rarity, it) }
-        WarehouseFilter.HERB -> sortedHerbs.map { WarehouseItemData(it.id, it.name, it.rarity, it) }
-        WarehouseFilter.SEED -> sortedSeeds.map { WarehouseItemData(it.id, it.name, it.rarity, it) }
-        WarehouseFilter.MATERIAL -> sortedMaterials.map { WarehouseItemData(it.id, it.name, it.rarity, it) }
-    }
-    
-    val totalPages = remember(currentFilterItems) {
-        maxOf(1, (currentFilterItems.size + WarehousePager.DEFAULT_PAGE_SIZE - 1) / WarehousePager.DEFAULT_PAGE_SIZE)
-    }
-    
-    LaunchedEffect(totalPages) {
-        val correctedPage = currentPage.coerceIn(0, (totalPages - 1).coerceAtLeast(0))
-        if (correctedPage != currentPage) {
-            currentPage = correctedPage
+    val currentFilterItems = remember(selectedFilter, allSortedItems, equipment, sortedPills, manuals, sortedHerbs, sortedSeeds, sortedMaterials) {
+        when (selectedFilter) {
+            WarehouseFilter.ALL -> allSortedItems
+            WarehouseFilter.EQUIPMENT -> equipment.map { WarehouseItemData(it.id, it.name, it.rarity, it) }
+            WarehouseFilter.PILL -> sortedPills.map { WarehouseItemData(it.id, it.name, it.rarity, it) }
+            WarehouseFilter.MANUAL -> manuals.map { WarehouseItemData(it.id, it.name, it.rarity, it) }
+            WarehouseFilter.HERB -> sortedHerbs.map { WarehouseItemData(it.id, it.name, it.rarity, it) }
+            WarehouseFilter.SEED -> sortedSeeds.map { WarehouseItemData(it.id, it.name, it.rarity, it) }
+            WarehouseFilter.MATERIAL -> sortedMaterials.map { WarehouseItemData(it.id, it.name, it.rarity, it) }
         }
     }
     
-    val pageItems = remember(currentFilterItems, currentPage) {
-        val start = currentPage * WarehousePager.DEFAULT_PAGE_SIZE
-        val end = minOf(start + WarehousePager.DEFAULT_PAGE_SIZE, currentFilterItems.size)
-        if (start < currentFilterItems.size) {
-            currentFilterItems.subList(start, end)
-        } else {
-            emptyList()
-        }
-    }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -3556,6 +3553,7 @@ private fun WarehouseTab(viewModel: GameViewModel) {
                         if (selectedFilter != WarehouseFilter.ALL) {
                             selectedFilter = WarehouseFilter.ALL
                             currentPage = 0
+                            selectedItemId = null
                         }
                     },
                     modifier = Modifier.weight(1f)
@@ -3567,6 +3565,7 @@ private fun WarehouseTab(viewModel: GameViewModel) {
                         if (selectedFilter != WarehouseFilter.EQUIPMENT) {
                             selectedFilter = WarehouseFilter.EQUIPMENT
                             currentPage = 0
+                            selectedItemId = null
                         }
                     },
                     modifier = Modifier.weight(1f)
@@ -3578,6 +3577,7 @@ private fun WarehouseTab(viewModel: GameViewModel) {
                         if (selectedFilter != WarehouseFilter.PILL) {
                             selectedFilter = WarehouseFilter.PILL
                             currentPage = 0
+                            selectedItemId = null
                         }
                     },
                     modifier = Modifier.weight(1f)
@@ -3589,6 +3589,7 @@ private fun WarehouseTab(viewModel: GameViewModel) {
                         if (selectedFilter != WarehouseFilter.MANUAL) {
                             selectedFilter = WarehouseFilter.MANUAL
                             currentPage = 0
+                            selectedItemId = null
                         }
                     },
                     modifier = Modifier.weight(1f)
@@ -3605,6 +3606,7 @@ private fun WarehouseTab(viewModel: GameViewModel) {
                         if (selectedFilter != WarehouseFilter.HERB) {
                             selectedFilter = WarehouseFilter.HERB
                             currentPage = 0
+                            selectedItemId = null
                         }
                     },
                     modifier = Modifier.weight(1f)
@@ -3616,6 +3618,7 @@ private fun WarehouseTab(viewModel: GameViewModel) {
                         if (selectedFilter != WarehouseFilter.SEED) {
                             selectedFilter = WarehouseFilter.SEED
                             currentPage = 0
+                            selectedItemId = null
                         }
                     },
                     modifier = Modifier.weight(1f)
@@ -3627,6 +3630,7 @@ private fun WarehouseTab(viewModel: GameViewModel) {
                         if (selectedFilter != WarehouseFilter.MATERIAL) {
                             selectedFilter = WarehouseFilter.MATERIAL
                             currentPage = 0
+                            selectedItemId = null
                         }
                     },
                     modifier = Modifier.weight(1f)
@@ -3640,51 +3644,91 @@ private fun WarehouseTab(viewModel: GameViewModel) {
         if (currentFilterItems.isEmpty()) {
             EmptyWarehouseMessage()
         } else {
-            LazyVerticalGrid(
-                columns = GridCells.Adaptive(56.dp),
+            BoxWithConstraints(
                 modifier = Modifier
                     .weight(1f)
-                    .fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                    .fillMaxWidth()
             ) {
-                items(pageItems, key = { "${it.item.javaClass.simpleName}_${it.id}_${currentPage}" }) { warehouseItem ->
-                    UnifiedItemCard(
-                        data = ItemCardData(
-                            id = warehouseItem.id,
-                            name = warehouseItem.name,
-                            rarity = warehouseItem.rarity,
-                            quantity = when (val item = warehouseItem.item) {
-                                is Equipment -> item.quantity
-                                is Manual -> item.quantity
-                                is Pill -> item.quantity
-                                is Material -> item.quantity
-                                is Herb -> item.quantity
-                                is Seed -> item.quantity
-                                else -> 1
+                val cellSize = 56.dp
+                val spacing = 8.dp
+                val paginationHeight = 44.dp
+                val availableHeight = maxHeight - paginationHeight
+                val columns = maxOf(1, ((maxWidth + spacing) / (cellSize + spacing)).toInt())
+                val rows = maxOf(1, ((availableHeight + spacing) / (cellSize + spacing)).toInt())
+                val pageSize = columns * rows
+
+                val totalPages = remember(currentFilterItems, pageSize) {
+                    maxOf(1, (currentFilterItems.size + pageSize - 1) / pageSize)
+                }
+
+                val safeCurrentPage = currentPage.coerceIn(0, (totalPages - 1).coerceAtLeast(0))
+                if (safeCurrentPage != currentPage) {
+                    SideEffect { currentPage = safeCurrentPage }
+                }
+
+                val pageItems = remember(currentFilterItems, safeCurrentPage, pageSize) {
+                    val start = safeCurrentPage * pageSize
+                    if (start < currentFilterItems.size) {
+                        currentFilterItems.drop(start).take(pageSize)
+                    } else {
+                        emptyList()
+                    }
+                }
+
+                Column(modifier = Modifier.fillMaxSize()) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(spacing)
+                    ) {
+                        pageItems.chunked(columns).forEach { rowItems ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(spacing)
+                            ) {
+                                rowItems.forEach { warehouseItem ->
+                                    UnifiedItemCard(
+                                        data = ItemCardData(
+                                            id = warehouseItem.id,
+                                            name = warehouseItem.name,
+                                            rarity = warehouseItem.rarity,
+                                            quantity = when (val item = warehouseItem.item) {
+                                                is Equipment -> item.quantity
+                                                is Manual -> item.quantity
+                                                is Pill -> item.quantity
+                                                is Material -> item.quantity
+                                                is Herb -> item.quantity
+                                                is Seed -> item.quantity
+                                                else -> 1
+                                            }
+                                        ),
+                                        isSelected = selectedItemId == warehouseItem.id,
+                                        showViewButton = true,
+                                        onClick = { selectedItemId = if (selectedItemId == warehouseItem.id) null else warehouseItem.id },
+                                        onViewDetail = { selectedItem = warehouseItem.item; showDetailDialog = true }
+                                    )
+                                }
+                                repeat(columns - rowItems.size) {
+                                    Spacer(modifier = Modifier.size(cellSize))
+                                }
                             }
-                        ),
-                        isSelected = selectedItemId == warehouseItem.id,
-                        showViewButton = true,
-                        onClick = { selectedItemId = if (selectedItemId == warehouseItem.id) null else warehouseItem.id },
-                        onViewDetail = { selectedItem = warehouseItem.item; showDetailDialog = true }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                    WarehousePagination(
+                        currentPage = safeCurrentPage + 1,
+                        totalPages = totalPages,
+                        onPreviousPage = {
+                            if (currentPage > 0) { currentPage--; selectedItemId = null }
+                        },
+                        onNextPage = {
+                            if (currentPage < totalPages - 1) { currentPage++; selectedItemId = null }
+                        },
+                        onFirstPage = { currentPage = 0; selectedItemId = null },
+                        onLastPage = { currentPage = totalPages - 1; selectedItemId = null }
                     )
                 }
             }
-            
-            Spacer(modifier = Modifier.height(8.dp))
-            WarehousePagination(
-                    currentPage = currentPage + 1,
-                    totalPages = totalPages,
-                    onPreviousPage = { 
-                        if (currentPage > 0) currentPage-- 
-                    },
-                    onNextPage = { 
-                        if (currentPage < totalPages - 1) currentPage++ 
-                    },
-                    onFirstPage = { currentPage = 0 },
-                    onLastPage = { currentPage = totalPages - 1 }
-                )
         }
     }
     
@@ -6631,6 +6675,9 @@ private fun CaveDiscipleSelectionDialog(
                                             fontWeight = FontWeight.Bold,
                                             color = if (canSelect) Color.Black else Color(0xFF999999)
                                         )
+                                        if (disciple.isFollowed) {
+                                            FollowedTag()
+                                        }
                                     }
                                     Row(
                                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -6849,13 +6896,17 @@ fun SectTradeDialog(
     var buyQuantity by remember { mutableIntStateOf(1) }
     var showDetailDialog by remember { mutableStateOf(false) }
     var showRelationWarning by remember { mutableStateOf(false) }
+
+    LaunchedEffect(tradeItems) {
+        val currentId = selectedItem?.id
+        if (currentId != null) {
+            val updated = tradeItems.find { it.id == currentId }
+            selectedItem = updated
+        }
+    }
     
-    val playerSect = gameData?.worldMapSects?.find { it.isPlayerSect }
-    val relation = if (playerSect != null && sect != null) {
-        gameData.sectRelations.find { 
-            (it.sectId1 == playerSect.id && it.sectId2 == sect.id) ||
-            (it.sectId1 == sect.id && it.sectId2 == playerSect.id)
-        }?.favor ?: 0
+    val relation = if (gameData != null && sect != null) {
+        GameUtils.getSectRelation(gameData.worldMapSects, gameData.sectRelations, sect.id)
     } else 0
     val isAlly = sect?.let { worldMapViewModel.isAlly(it.id) } ?: false
     
@@ -6869,11 +6920,9 @@ fun SectTradeDialog(
         else -> 0
     }
     
-    val priceMultiplier = when {
-        isAlly -> (0.9 * (1.0 - maxOf(0, relation - 70) * 0.01)).coerceAtLeast(0.3)  // 盟友额外10%优惠，最低30%
-        relation >= 70 -> (1.0 - (relation - 70) * 0.01).coerceAtLeast(0.3)  // 最低30%
-        else -> 1.0
-    }
+    val priceMultiplier = if (gameData != null && sect != null) {
+        GameUtils.calculateSectTradePriceMultiplier(gameData.worldMapSects, gameData.sectRelations, gameData.alliances, sect.id)
+    } else 1.0
     
     val relationColor = when {
         relation >= 70 -> Color(0xFF4CAF50)
@@ -7205,7 +7254,6 @@ fun SectTradeDialog(
                                             text = "确认购买",
                                             onClick = {
                                                 worldMapViewModel.buyFromSectTrade(item.id, buyQuantity)
-                                                selectedItem = null
                                                 buyQuantity = 1
                                             },
                                             enabled = canAfford && buyQuantity > 0
@@ -7750,6 +7798,9 @@ private fun BattleTeamDiscipleSelectionDialog(
                                                 fontWeight = FontWeight.Bold,
                                                 color = Color.Black
                                             )
+                                            if (disciple.isFollowed) {
+                                                FollowedTag()
+                                            }
                                         }
                                         Row(
                                             horizontalArrangement = Arrangement.spacedBy(8.dp),
