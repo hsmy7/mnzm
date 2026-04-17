@@ -176,7 +176,8 @@ fun LearnedManualDetailDialog(
     manual: Manual,
     proficiencyData: ManualProficiencyData?,
     onForget: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    extraActions: @Composable (() -> Unit)? = null
 ) {
     val rarityColor = getRarityColor(manual.rarity)
     
@@ -340,10 +341,22 @@ fun LearnedManualDetailDialog(
             }
         },
         confirmButton = {
-            GameButton(
-                text = "遗忘",
-                onClick = onForget
-            )
+            if (extraActions != null) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    extraActions()
+                    GameButton(
+                        text = "遗忘",
+                        onClick = onForget
+                    )
+                }
+            } else {
+                GameButton(
+                    text = "遗忘",
+                    onClick = onForget
+                )
+            }
         }
     )
 }

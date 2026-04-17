@@ -22,7 +22,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.xianxia.sect.core.data.HerbDatabase
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.PlantSlotData
 import com.xianxia.sect.core.model.Seed
@@ -39,6 +38,7 @@ import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.ui.components.ElderBonusInfoButton
 import com.xianxia.sect.ui.components.ElderBonusInfoProvider
 import com.xianxia.sect.ui.theme.getRarityColor
+import com.xianxia.sect.ui.game.components.ItemDetailDialog
 
 @Composable
 fun HerbGardenDialog(
@@ -1003,8 +1003,8 @@ private fun SeedPlantingDialog(
 
     if (showDetail) {
         clickedSeed?.let { seed ->
-            SeedDetailDialog(
-                seed = seed,
+            ItemDetailDialog(
+                item = seed,
                 onDismiss = { showDetail = false }
             )
         }
@@ -1176,184 +1176,6 @@ private fun SeedSelectionCard(
             }
         }
     }
-}
-
-@Composable
-private fun SeedDetailDialog(
-    seed: Seed,
-    onDismiss: () -> Unit
-) {
-    val rarityColor = when (seed.rarity) {
-        1 -> Color(0xFF95A5A6)
-        2 -> Color(0xFF27AE60)
-        3 -> Color(0xFF3498DB)
-        4 -> Color(0xFF9B59B6)
-        5 -> Color(0xFFF39C12)
-        6 -> Color(0xFFE74C3C)
-        else -> Color(0xFF95A5A6)
-    }
-    val rarityName = when (seed.rarity) {
-        1 -> "凡品"
-        2 -> "灵品"
-        3 -> "宝品"
-        4 -> "玄品"
-        5 -> "地品"
-        6 -> "天品"
-        else -> "凡品"
-    }
-
-    val herb = HerbDatabase.getHerbFromSeedName(seed.name)
-        ?: HerbDatabase.getHerbFromSeed(seed.id)
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
-        title = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = seed.name,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = rarityColor
-                )
-                Box(
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clip(CircleShape)
-                        .clickable { onDismiss() }
-                        .background(GameColors.CardBackground),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "×",
-                        fontSize = 16.sp,
-                        color = Color(0xFF666666)
-                    )
-                }
-            }
-        },
-        text = {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = "稀有度:",
-                        fontSize = 12.sp,
-                        color = Color(0xFF666666)
-                    )
-                    Text(
-                        text = rarityName,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = rarityColor
-                    )
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = "生长时间:",
-                        fontSize = 12.sp,
-                        color = Color(0xFF666666)
-                    )
-                    Text(
-                        text = "${seed.growTime}月",
-                        fontSize = 12.sp,
-                        color = Color.Black
-                    )
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = "预期产量:",
-                        fontSize = 12.sp,
-                        color = Color(0xFF666666)
-                    )
-                    Text(
-                        text = "${seed.yield}",
-                        fontSize = 12.sp,
-                        color = Color.Black
-                    )
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = "持有数量:",
-                        fontSize = 12.sp,
-                        color = Color(0xFF666666)
-                    )
-                    Text(
-                        text = "${seed.quantity}",
-                        fontSize = 12.sp,
-                        color = Color.Black
-                    )
-                }
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "描述:",
-                    fontSize = 12.sp,
-                    color = Color(0xFF666666)
-                )
-                Text(
-                    text = seed.description,
-                    fontSize = 11.sp,
-                    color = Color(0xFF333333)
-                )
-
-                if (herb != null) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = "长成后:",
-                            fontSize = 12.sp,
-                            color = Color(0xFF666666)
-                        )
-                        Text(
-                            text = herb.name,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF27AE60)
-                        )
-                    }
-                    if (herb.category.isNotEmpty()) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = "草药类型:",
-                                fontSize = 12.sp,
-                                color = Color(0xFF666666)
-                            )
-                            Text(
-                                text = herb.category,
-                                fontSize = 12.sp,
-                                color = Color.Black
-                            )
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {}
-    )
 }
 
 @Composable
