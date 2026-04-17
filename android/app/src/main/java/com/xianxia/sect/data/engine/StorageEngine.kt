@@ -619,7 +619,7 @@ class StorageEngine @Inject constructor(
     }
 
     private suspend fun writeAllDataToDatabase(slot: Int, data: SaveData) {
-        val gameDataWithSlot = data.gameData.copy(slotId = slot, id = "game_data_$slot")
+        val gameDataWithSlot = data.gameData.copy(slotId = slot, id = "game_data_$slot", lastSaveTime = data.timestamp)
         database.gameDataDao().insert(gameDataWithSlot)
 
         database.discipleDao().deleteAll(slot)
@@ -701,7 +701,7 @@ class StorageEngine @Inject constructor(
             spiritHerbs = gd.spiritHerbs,
             sectCultivation = gd.sectCultivation,
             isGameStarted = gd.isGameStarted,
-            lastSaveTime = gd.lastSaveTime,
+            lastSaveTime = data.timestamp,
             discipleCount = data.disciples.count { it.isAlive }
         )
         database.saveSlotMetadataDao().upsert(metadata)

@@ -22,8 +22,8 @@ data class SaveSlot(
 ) {
     val displayTime: String get() = "第${gameYear}年${gameMonth}月"
     val saveTime: String
-        get() = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.CHINA)
-            .format(java.util.Date(timestamp))
+        get() = if (timestamp > 0) java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.CHINA)
+            .format(java.util.Date(timestamp)) else "--"
     val displayName: String get() = if (isAutoSave) "自动存档" else (if (customName.isNotBlank()) customName else name)
 }
 
