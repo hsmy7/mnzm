@@ -42,7 +42,7 @@ class DiscipleService @Inject constructor(
     override suspend fun clear() {}
 
     private var currentGameData: GameData
-        get() = stateStore.currentTransactionMutableState()?.gameData ?: stateStore.gameData.value
+        get() = stateStore.currentTransactionMutableState()?.gameData ?: stateStore.unifiedState.value.gameData
         set(value) {
             val ts = stateStore.currentTransactionMutableState()
             if (ts != null) { ts.gameData = value; return }
@@ -50,7 +50,7 @@ class DiscipleService @Inject constructor(
         }
 
     private var currentDisciples: List<Disciple>
-        get() = stateStore.currentTransactionMutableState()?.disciples ?: stateStore.disciples.value
+        get() = stateStore.currentTransactionMutableState()?.disciples ?: stateStore.unifiedState.value.disciples
         set(value) {
             val ts = stateStore.currentTransactionMutableState()
             if (ts != null) { ts.disciples = value; return }
@@ -58,7 +58,7 @@ class DiscipleService @Inject constructor(
         }
 
     private var currentEquipment: List<Equipment>
-        get() = stateStore.currentTransactionMutableState()?.equipment ?: stateStore.equipment.value
+        get() = stateStore.currentTransactionMutableState()?.equipment ?: stateStore.unifiedState.value.equipment
         set(value) {
             val ts = stateStore.currentTransactionMutableState()
             if (ts != null) { ts.equipment = value; return }
@@ -66,7 +66,7 @@ class DiscipleService @Inject constructor(
         }
 
     private var currentTeams: List<ExplorationTeam>
-        get() = stateStore.currentTransactionMutableState()?.teams ?: stateStore.teams.value
+        get() = stateStore.currentTransactionMutableState()?.teams ?: stateStore.unifiedState.value.teams
         set(value) {
             val ts = stateStore.currentTransactionMutableState()
             if (ts != null) { ts.teams = value; return }
@@ -178,7 +178,7 @@ class DiscipleService @Inject constructor(
             return DiscipleStatus.STUDYING
         }
 
-        if (data.spiritMineSlots.any { it.discipleId == discipleId }) {
+        if (data.spiritMineSlots.any { it.discipleId == discipleId } && disciple.discipleType == "outer") {
             return DiscipleStatus.MINING
         }
 
@@ -189,7 +189,8 @@ class DiscipleService @Inject constructor(
      * Sync all disciples' status based on their assignments
      */
     fun syncAllDiscipleStatuses() {
-        val data = currentGameData
+        var data = currentGameData
+        val disciples = currentDisciples
         val elderSlots = data.elderSlots
 
         val lawEnforcerIds = mutableSetOf<String>()
@@ -215,7 +216,24 @@ class DiscipleService @Inject constructor(
 
         val studyingIds = data.librarySlots.mapNotNull { it.discipleId }.toMutableSet()
 
-        val miningIds = data.spiritMineSlots.mapNotNull { it.discipleId }.toMutableSet()
+        val allDisciplesMap = disciples.associateBy { it.id }
+        val miningIds = data.spiritMineSlots
+            .mapNotNull { it.discipleId }
+            .filter { id -> allDisciplesMap[id]?.discipleType == "outer" }
+            .toMutableSet()
+
+        val hasInvalidMiningSlots = data.spiritMineSlots.any { slot ->
+            slot.discipleId.isNotEmpty() && allDisciplesMap[slot.discipleId]?.discipleType != "outer"
+        }
+        if (hasInvalidMiningSlots) {
+            val fixedSlots = data.spiritMineSlots.map { slot ->
+                if (slot.discipleId.isNotEmpty() && allDisciplesMap[slot.discipleId]?.discipleType != "outer") {
+                    slot.copy(discipleId = "", discipleName = "")
+                } else slot
+            }
+            data = data.copy(spiritMineSlots = fixedSlots)
+            currentGameData = data
+        }
 
         val inTeamIds = mutableSetOf<String>()
         val battleTeam = data.battleTeam
@@ -225,10 +243,10 @@ class DiscipleService @Inject constructor(
 
         currentTeams.filter { it.status == ExplorationStatus.TRAVELING || it.status == ExplorationStatus.EXPLORING }
             .forEach { team -> inTeamIds.addAll(team.memberIds) }
-        currentGameData.caveExplorationTeams.filter { it.status == CaveExplorationStatus.TRAVELING || it.status == CaveExplorationStatus.EXPLORING }
+        data.caveExplorationTeams.filter { it.status == CaveExplorationStatus.TRAVELING || it.status == CaveExplorationStatus.EXPLORING }
             .forEach { team -> inTeamIds.addAll(team.memberIds) }
 
-        currentDisciples = currentDisciples.map { disciple ->
+        currentDisciples = disciples.map { disciple ->
             if (!disciple.isAlive) return@map disciple
             if (disciple.status == DiscipleStatus.REFLECTING) return@map disciple
             if (disciple.status == DiscipleStatus.ON_MISSION) return@map disciple

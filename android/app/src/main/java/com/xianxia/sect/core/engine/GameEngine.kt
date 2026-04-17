@@ -11,6 +11,7 @@ import kotlinx.coroutines.Dispatchers
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.engine.service.*
 import com.xianxia.sect.core.engine.system.InventorySystem
+import com.xianxia.sect.core.engine.system.MerchantItemConverter
 import com.xianxia.sect.core.engine.BattleSystem
 import com.xianxia.sect.core.engine.production.ProductionCoordinator
 import com.xianxia.sect.core.model.production.ProductionSlot
@@ -244,18 +245,6 @@ class GameEngine @Inject constructor(
         }
     }
 
-    @Deprecated("时间推进由 GameEngineCore 统一管理，外部不应直接调用，否则会导致双重推进")
-    suspend fun advanceDay() = cultivationService.advanceDay()
-
-    @Deprecated("时间推进由 GameEngineCore 统一管理，外部不应直接调用，否则会导致双重推进")
-    suspend fun advanceMonth() {
-        cultivationService.advanceMonth()
-        checkAndCollectCompletedSlots()
-    }
-
-    @Deprecated("时间推进由 GameEngineCore 统一管理，外部不应直接调用，否则会导致双重推进")
-    suspend fun advanceYear() = cultivationService.advanceYear()
-
     suspend fun updateRealtimeCultivation(currentTimeMillis: Long) =
         cultivationService.updateRealtimeCultivation(currentTimeMillis)
 
@@ -406,15 +395,10 @@ class GameEngine @Inject constructor(
         eventService.getOrRefreshSectTradeItems(sectId)
 
     fun buyFromSectTrade(sectId: String, itemId: String, quantity: Int = 1) =
-        eventService.buyFromSectTrade(
-            sectId, itemId, quantity,
-            onAddEquipment = { inventorySystem.addEquipment(it) },
-            onAddManual = { inventorySystem.addManual(it) },
-            onAddPill = { inventorySystem.addPill(it) },
-            onAddMaterial = { inventorySystem.addMaterial(it) },
-            onAddHerb = { inventorySystem.addHerb(it) },
-            onAddSeed = { inventorySystem.addSeed(it) }
-        )
+        eventService.buyFromSectTrade(sectId, itemId, quantity)
+
+    suspend fun buyFromSectTradeSync(sectId: String, itemId: String, quantity: Int = 1) =
+        eventService.buyFromSectTradeSync(sectId, itemId, quantity)
 
     suspend fun assignDiscipleToBuilding(buildingId: String, slotIndex: Int, discipleId: String) =
         buildingService.assignDiscipleToBuilding(buildingId, slotIndex, discipleId)
@@ -467,11 +451,9 @@ class GameEngine @Inject constructor(
      * (e.g., slot was in COMPLETED state from an old save).
      */
     private fun harvestHerbFromCompletedSlot(slot: com.xianxia.sect.core.model.production.ProductionSlot) {
-        val seedId = slot.recipeId
-        if (seedId.isNullOrEmpty()) return
-
-        val herbId = HerbDatabase.getHerbIdFromSeedId(seedId) ?: return
-        val herb = HerbDatabase.getHerbById(herbId) ?: return
+        val herb = HerbDatabase.getHerbFromSeedName(slot.recipeName)
+            ?: slot.recipeId?.let { HerbDatabase.getHerbFromSeed(it) }
+            ?: return
 
         val herbGrowthBonus = if (stateStore.gameData.value.sectPolicies.herbCultivation) GameConfig.PolicyConfig.HERB_CULTIVATION_BASE_EFFECT else 0.0
         val actualYield = HerbGardenSystem.calculateIncreasedYield(slot.expectedYield, herbGrowthBonus)
@@ -530,9 +512,22 @@ class GameEngine @Inject constructor(
         )
     }
 
-    fun prepareForLoad() = saveService.prepareForLoad()
-
-    fun restoreFromLoad(loadedGameData: GameData) = saveService.restoreFromLoad(loadedGameData)
+    suspend fun loadFromSave(
+        loadedGameData: GameData,
+        disciples: List<Disciple>,
+        equipment: List<Equipment>,
+        manuals: List<Manual>,
+        pills: List<Pill>,
+        materials: List<Material>,
+        herbs: List<Herb>,
+        seeds: List<Seed>,
+        events: List<GameEvent>,
+        battleLogs: List<BattleLog>,
+        teams: List<ExplorationTeam>
+    ) = saveService.loadFromSave(
+        loadedGameData, disciples, equipment, manuals, pills,
+        materials, herbs, seeds, events, battleLogs, teams
+    )
 
     fun validateState(): List<String> = saveService.validateState()
 
@@ -869,10 +864,11 @@ class GameEngine @Inject constructor(
     }
 
     fun validateAndFixSpiritMineData() {
-        val data = stateStore.gameData.value
-        val discipleIds = stateStore.disciples.value.map { it.id }.toSet()
+        val unified = stateStore.unifiedState.value
+        val data = unified.gameData
+        val discipleMap = unified.disciples.associateBy { it.id }
         val fixedSlots = data.spiritMineSlots.map { slot ->
-            if (slot.discipleId.isNotEmpty() && slot.discipleId !in discipleIds) {
+            if (slot.discipleId.isNotEmpty() && (slot.discipleId !in discipleMap || discipleMap[slot.discipleId]?.discipleType != "outer")) {
                 slot.copy(discipleId = "", discipleName = "")
             } else slot
         }
@@ -939,14 +935,15 @@ class GameEngine @Inject constructor(
             harvestHerbFromCompletedSlot(existingSlot)
         }
 
-        val herbId = HerbDatabase.getHerbIdFromSeedId(seedId)
+        val herbDbSeedId = HerbDatabase.getSeedByName(seed.name)?.id
+        val herbId = herbDbSeedId?.let { HerbDatabase.getHerbIdFromSeedId(it) }
         val newSlot = com.xianxia.sect.core.model.production.ProductionSlot(
             id = existingSlot?.id ?: java.util.UUID.randomUUID().toString(),
             slotIndex = slotIndex,
             buildingType = com.xianxia.sect.core.model.production.BuildingType.HERB_GARDEN,
             buildingId = "herbGarden",
             status = com.xianxia.sect.core.model.production.ProductionSlotStatus.WORKING,
-            recipeId = seedId,
+            recipeId = herbDbSeedId ?: seedId,
             recipeName = seed.name,
             startYear = data.gameYear,
             startMonth = data.gameMonth,
@@ -1201,22 +1198,27 @@ class GameEngine @Inject constructor(
 
         when (merchantItem.type.lowercase(java.util.Locale.getDefault())) {
             "equipment" -> {
-                repeat(quantity) { addEquipment(createEquipmentFromMerchantItem(merchantItem)) }
+                if (!inventorySystem.canAddItems(quantity)) return
             }
             "manual" -> {
-                addManualToWarehouse(createManualFromMerchantItem(merchantItem).copy(quantity = quantity))
+                val m = MerchantItemConverter.toManual(merchantItem)
+                if (!inventorySystem.canAddManual(m.name, m.rarity, m.type)) return
             }
             "pill" -> {
-                addPillToWarehouse(createPillFromMerchantItem(merchantItem).copy(quantity = quantity))
+                val p = MerchantItemConverter.toPill(merchantItem)
+                if (!inventorySystem.canAddPill(p.name, p.rarity, p.category)) return
             }
             "material" -> {
-                addMaterialToWarehouse(createMaterialFromMerchantItem(merchantItem).copy(quantity = quantity))
+                val m = MerchantItemConverter.toMaterial(merchantItem)
+                if (!inventorySystem.canAddMaterial(m.name, m.rarity, m.category)) return
             }
             "herb" -> {
-                addHerbToWarehouse(createHerbFromMerchantItem(merchantItem).copy(quantity = quantity))
+                val h = MerchantItemConverter.toHerb(merchantItem)
+                if (!inventorySystem.canAddHerb(h.name, h.rarity, h.category)) return
             }
             "seed" -> {
-                addSeedToWarehouse(createSeedFromMerchantItem(merchantItem).copy(quantity = quantity))
+                val s = MerchantItemConverter.toSeed(merchantItem)
+                if (!inventorySystem.canAddSeed(s.name, s.rarity, s.growTime)) return
             }
         }
 
@@ -1229,6 +1231,63 @@ class GameEngine @Inject constructor(
                     } else item
                 }.filterNotNull()
             )
+
+            when (merchantItem.type.lowercase(java.util.Locale.getDefault())) {
+                "equipment" -> {
+                    val eqList = MerchantItemConverter.toEquipmentBatch(merchantItem, quantity)
+                    equipment = equipment + eqList
+                }
+                "manual" -> {
+                    val m = MerchantItemConverter.toManual(merchantItem).copy(quantity = quantity)
+                    val existing = manuals.find { it.name == m.name && it.rarity == m.rarity && it.type == m.type }
+                    if (existing != null) {
+                        val newQty = (existing.quantity + m.quantity).coerceAtMost(999)
+                        manuals = manuals.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
+                    } else {
+                        manuals = manuals + m
+                    }
+                }
+                "pill" -> {
+                    val p = MerchantItemConverter.toPill(merchantItem).copy(quantity = quantity)
+                    val existing = pills.find { it.name == p.name && it.rarity == p.rarity && it.category == p.category }
+                    if (existing != null) {
+                        val newQty = (existing.quantity + p.quantity).coerceAtMost(999)
+                        pills = pills.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
+                    } else {
+                        pills = pills + p
+                    }
+                }
+                "material" -> {
+                    val m = MerchantItemConverter.toMaterial(merchantItem).copy(quantity = quantity)
+                    val existing = materials.find { it.name == m.name && it.rarity == m.rarity && it.category == m.category }
+                    if (existing != null) {
+                        val newQty = (existing.quantity + m.quantity).coerceAtMost(999)
+                        materials = materials.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
+                    } else {
+                        materials = materials + m
+                    }
+                }
+                "herb" -> {
+                    val h = MerchantItemConverter.toHerb(merchantItem).copy(quantity = quantity)
+                    val existing = herbs.find { it.name == h.name && it.rarity == h.rarity && it.category == h.category }
+                    if (existing != null) {
+                        val newQty = (existing.quantity + h.quantity).coerceAtMost(999)
+                        herbs = herbs.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
+                    } else {
+                        herbs = herbs + h
+                    }
+                }
+                "seed" -> {
+                    val s = MerchantItemConverter.toSeed(merchantItem).copy(quantity = quantity)
+                    val existing = seeds.find { it.name == s.name && it.rarity == s.rarity && it.growTime == s.growTime }
+                    if (existing != null) {
+                        val newQty = (existing.quantity + s.quantity).coerceAtMost(999)
+                        seeds = seeds.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
+                    } else {
+                        seeds = seeds + s
+                    }
+                }
+            }
         }
     }
 
