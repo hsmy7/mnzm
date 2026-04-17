@@ -31,7 +31,7 @@ import com.xianxia.sect.ui.theme.GameColors
 
 private const val TAPTAP_SDK_PRIVACY_URL = "https://developer.taptap.cn/docs/sdk/start/agreement/"
 private const val MMKV_URL = "https://github.com/Tencent/MMKV"
-private const val PRIVACY_POLICY_URL = "https://hsmy7.github.io/index.html/"
+private const val PRIVACY_POLICY_URL = "https://hsmy7.github.io/mnzm/"
 
 private fun openUrlInBrowser(context: android.content.Context, url: String) {
     try {
