@@ -77,6 +77,7 @@ class GameEngine @Inject constructor(
     val materials: StateFlow<List<Material>> get() = stateStore.materials
     val herbs: StateFlow<List<Herb>> get() = stateStore.herbs
     val seeds: StateFlow<List<Seed>> get() = stateStore.seeds
+    fun getCurrentSeeds(): List<Seed> = stateStore.getCurrentSeeds()
     val events: StateFlow<List<GameEvent>> get() = stateStore.events
     val battleLogs: StateFlow<List<BattleLog>> get() = stateStore.battleLogs
     val teams: StateFlow<List<ExplorationTeam>> get() = stateStore.teams
@@ -923,7 +924,7 @@ class GameEngine @Inject constructor(
     }
 
     suspend fun startManualPlanting(slotIndex: Int, seedId: String) {
-        val seed = stateStore.seeds.value.find { it.id == seedId } ?: return
+        val seed = stateStore.getCurrentSeeds().find { it.id == seedId } ?: return
         if (seed.quantity <= 0) return
 
         val data = stateStore.gameData.value
@@ -959,7 +960,7 @@ class GameEngine @Inject constructor(
             productionCoordinator.repository.addSlot(newSlot)
         }
 
-        inventorySystem.removeSeed(seedId, 1)
+        inventorySystem.removeSeedSync(seedId, 1)
     }
 
     fun recruitDiscipleFromList(discipleId: String) {

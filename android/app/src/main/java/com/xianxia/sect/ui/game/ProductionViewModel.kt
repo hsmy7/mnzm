@@ -12,6 +12,7 @@ import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.model.production.ProductionSlotStatus
+import com.xianxia.sect.core.util.sortedByFollowAndRealm
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -181,7 +182,7 @@ class ProductionViewModel @Inject constructor(
 
                 var plantedCount = 0
                 for (slot in idleSlots) {
-                    val currentSeeds = gameEngine.seeds.value
+                    val currentSeeds = gameEngine.getCurrentSeeds()
                         .filter { it.quantity > 0 }
                         .sortedByDescending { it.rarity }
 
@@ -1178,7 +1179,7 @@ class ProductionViewModel @Inject constructor(
         val reserveIds = reserveSlots.mapNotNull { it.discipleId }.toSet()
         return discipleAggregates.value
             .filter { it.id in reserveIds }
-            .sortedByDescending { it.intelligence }
+            .sortedByFollowAndRealm()
     }
 
     fun addReserveDisciple(discipleId: String) {
@@ -1309,7 +1310,7 @@ class ProductionViewModel @Inject constructor(
 
         return discipleAggregates.value
             .filter { isSelectableDisciple(it) && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
-            .sortedByDescending { it.intelligence }
+            .sortedByFollowAndRealm()
     }
 
     fun getAvailableDisciplesForLawEnforcementReserve(): List<DiscipleAggregate> {
