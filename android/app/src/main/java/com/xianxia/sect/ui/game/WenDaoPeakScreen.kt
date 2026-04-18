@@ -40,7 +40,7 @@ fun WenDaoPeakDialog(
             slot2 = PeakElderSlotConfig(
                 title = "问道峰传道长老",
                 elder = preachingElder,
-                bonusInfo = ElderBonusInfoProvider.getPreachingElderInfo(),
+                bonusInfo = ElderBonusInfoProvider.getWenDaoPreachingElderInfo(),
                 onClick = { showPreachingElderSelection = true },
                 onRemove = { productionViewModel.removeElder("preachingElder") }
             )

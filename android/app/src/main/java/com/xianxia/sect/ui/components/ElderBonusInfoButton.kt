@@ -218,8 +218,15 @@ object ElderBonusInfoProvider {
         bonusFormula = "悟性以80为基准，每多1点增加1%突破率。\n仅对内门弟子有效，弟子境界超过长老境界时不享受增益。"
     )
 
-    fun getPreachingElderInfo(): ElderBonusInfo = ElderBonusInfo(
-        title = "传道长老",
+    fun getWenDaoPreachingElderInfo(): ElderBonusInfo = ElderBonusInfo(
+        title = "问道峰传道长老",
+        requiredAttribute = "传道",
+        effectDescription = "提升外门弟子修炼速度",
+        bonusFormula = "传道以80为基准，每多1点增加1%修炼速度。\n仅对外门弟子有效，弟子境界超过长老境界时不享受增益。"
+    )
+
+    fun getQingyunPreachingElderInfo(): ElderBonusInfo = ElderBonusInfo(
+        title = "青云峰传道长老",
         requiredAttribute = "传道",
         effectDescription = "提升内门弟子修炼速度",
         bonusFormula = "传道以80为基准，每多1点增加1%修炼速度。\n仅对内门弟子有效，弟子境界超过长老境界时不享受增益。"

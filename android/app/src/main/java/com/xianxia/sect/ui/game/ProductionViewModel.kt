@@ -380,8 +380,7 @@ class ProductionViewModel @Inject constructor(
                         outerElder = discipleId
                     )
                     "preachingElder" -> elderSlots.copy(
-                        preachingElder = discipleId,
-                        preachingMasters = emptyList()
+                        preachingElder = discipleId
                     )
                     "lawEnforcementElder" -> elderSlots.copy(
                         lawEnforcementElder = discipleId
@@ -390,8 +389,7 @@ class ProductionViewModel @Inject constructor(
                         innerElder = discipleId
                     )
                     "qingyunPreachingElder" -> elderSlots.copy(
-                        qingyunPreachingElder = discipleId,
-                        qingyunPreachingMasters = emptyList()
+                        qingyunPreachingElder = discipleId
                     )
                     else -> elderSlots
                 }
@@ -428,8 +426,7 @@ class ProductionViewModel @Inject constructor(
                         outerElder = ""
                     )
                     "preachingElder" -> elderSlots.copy(
-                        preachingElder = "",
-                        preachingMasters = emptyList()
+                        preachingElder = ""
                     )
                     "lawEnforcementElder" -> elderSlots.copy(
                         lawEnforcementElder = ""
@@ -438,8 +435,7 @@ class ProductionViewModel @Inject constructor(
                         innerElder = ""
                     )
                     "qingyunPreachingElder" -> elderSlots.copy(
-                        qingyunPreachingElder = "",
-                        qingyunPreachingMasters = emptyList()
+                        qingyunPreachingElder = ""
                     )
                     else -> elderSlots
                 }

@@ -543,7 +543,9 @@ class CultivationService @Inject constructor(
     private fun calculateDiscipleCultivationPerSecond(disciple: Disciple, data: GameData): Double {
         val buildingBonus = calculateBuildingCultivationBonus(disciple, data)
 
-        val (preachingElderBonus, preachingMastersBonus) = calculateWenDaoPeakBonuses(disciple, data)
+        val allDisciples = currentDisciples.associateBy { it.id }
+        val (wenDaoElderBonus, wenDaoMastersBonus) = calculatePreachingBonuses(disciple, data, allDisciples, "outer")
+        val (qingyunElderBonus, qingyunMastersBonus) = calculatePreachingBonuses(disciple, data, allDisciples, "inner")
 
         var cultivationSubsidyBonus = 0.0
         if (data.sectPolicies.cultivationSubsidy && disciple.realm > 5) {
@@ -561,46 +563,36 @@ class CultivationService @Inject constructor(
             manuals = manualMap,
             manualProficiencies = discipleProficiencies,
             buildingBonus = buildingBonus,
-            preachingElderBonus = preachingElderBonus,
-            preachingMastersBonus = preachingMastersBonus,
+            preachingElderBonus = wenDaoElderBonus + qingyunElderBonus,
+            preachingMastersBonus = wenDaoMastersBonus + qingyunMastersBonus,
             cultivationSubsidyBonus = cultivationSubsidyBonus
         ).coerceIn(1.0, 1000.0)
     }
 
-    private fun calculateWenDaoPeakBonuses(disciple: Disciple, data: GameData): Pair<Double, Double> {
-        if (disciple.discipleType != "outer") return 0.0 to 0.0
-
+    private fun calculatePreachingBonuses(
+        disciple: Disciple,
+        data: GameData,
+        allDisciples: Map<String, Disciple>,
+        targetDiscipleType: String
+    ): Pair<Double, Double> {
         val elderSlots = data.elderSlots
-        val allDisciples = currentDisciples.associateBy { it.id }
-
-        var preachingElderBonus = 0.0
-        var preachingMastersBonus = 0.0
-
-        val preachingElderId = elderSlots.preachingElder
-        if (preachingElderId.isNotEmpty()) {
-            val elder = allDisciples[preachingElderId]
-            // realm越小境界越高，disciple.realm >= elder.realm 表示弟子境界不高于长老，长老才能指导
-            if (elder != null && elder.isAlive && disciple.realm >= elder.realm) {
-                val teaching = DiscipleStatCalculator.getBaseStats(elder).teaching
-                if (teaching >= 80) {
-                    preachingElderBonus = (teaching - 80) * 0.01
-                }
-            }
+        val preachingElder = when (targetDiscipleType) {
+            "outer" -> elderSlots.preachingElder.let { id -> if (id.isNotEmpty()) allDisciples[id] else null }
+            "inner" -> elderSlots.qingyunPreachingElder.let { id -> if (id.isNotEmpty()) allDisciples[id] else null }
+            else -> null
+        }
+        val preachingMasters = when (targetDiscipleType) {
+            "outer" -> elderSlots.preachingMasters.mapNotNull { slot -> slot.discipleId?.let { allDisciples[it] } }
+            "inner" -> elderSlots.qingyunPreachingMasters.mapNotNull { slot -> slot.discipleId?.let { allDisciples[it] } }
+            else -> emptyList()
         }
 
-        for (slot in elderSlots.preachingMasters) {
-            val masterId = slot.discipleId ?: continue
-            val master = allDisciples[masterId] ?: continue
-            if (!slot.isActive || !master.isAlive) continue
-            // realm越小境界越高，disciple.realm < master.realm 表示弟子境界高于师傅，跳过
-            if (disciple.realm < master.realm) continue
-            val teaching = DiscipleStatCalculator.getBaseStats(master).teaching
-            if (teaching >= 80) {
-                preachingMastersBonus += (teaching - 80) * 0.005
-            }
-        }
-
-        return preachingElderBonus to preachingMastersBonus
+        return DiscipleStatCalculator.calculatePreachingBonus(
+            disciple = disciple,
+            targetDiscipleType = targetDiscipleType,
+            preachingElder = preachingElder,
+            preachingMasters = preachingMasters
+        )
     }
 
     /**
@@ -3238,27 +3230,7 @@ class CultivationService @Inject constructor(
      */
 
     private fun calculateBuildingCultivationBonus(disciple: Disciple, data: GameData): Double {
-        var bonus = 1.0
-
-        if (disciple.discipleType == "inner") {
-            val elderSlots = data.elderSlots
-            val allDisciples = currentDisciples.associateBy { it.id }
-
-            val qingyunPreachingElder = elderSlots.qingyunPreachingElder?.let { allDisciples[it] }
-            val qingyunPreachingMasters = elderSlots.qingyunPreachingMasters.mapNotNull { slot ->
-                slot.discipleId?.let { allDisciples[it] }
-            }
-
-            val speedBonus = DiscipleStatCalculator.calculateQingyunPeakCultivationSpeedBonus(
-                disciple = disciple,
-                qingyunPreachingElder = qingyunPreachingElder,
-                qingyunPreachingMasters = qingyunPreachingMasters
-            )
-
-            bonus += speedBonus
-        }
-
-        return bonus
+        return 1.0
     }
 
     private suspend fun clearDiscipleFromAllSlots(discipleId: String) {

@@ -420,7 +420,35 @@ object DiscipleStatCalculator {
         return 6 + manualSlotBonus
     }
 
-    // ==================== 青云峰加成计算 ====================
+    // ==================== 传道加成计算 ====================
+
+    fun calculatePreachingBonus(
+        disciple: Disciple,
+        targetDiscipleType: String,
+        preachingElder: Disciple?,
+        preachingMasters: List<Disciple>
+    ): Pair<Double, Double> {
+        if (disciple.discipleType != targetDiscipleType) return 0.0 to 0.0
+
+        var elderBonus = 0.0
+        var mastersBonus = 0.0
+
+        if (preachingElder != null && preachingElder.isAlive) {
+            val elderTeaching = getBaseStats(preachingElder).teaching
+            if (disciple.realm >= preachingElder.realm && elderTeaching >= 80) {
+                elderBonus = (elderTeaching - 80) * 0.01
+            }
+        }
+
+        preachingMasters.filter { it.isAlive }.forEach { master ->
+            val masterTeaching = getBaseStats(master).teaching
+            if (disciple.realm >= master.realm && masterTeaching >= 80) {
+                mastersBonus += (masterTeaching - 80) * 0.005
+            }
+        }
+
+        return elderBonus to mastersBonus
+    }
 
     fun calculateQingyunPeakCultivationSpeedBonus(
         disciple: Disciple,
@@ -428,26 +456,12 @@ object DiscipleStatCalculator {
         qingyunPreachingElder: Disciple? = null,
         qingyunPreachingMasters: List<Disciple> = emptyList()
     ): Double {
-        if (disciple.discipleType != "inner") return 0.0
-
-        var cultivationSpeedBonus = 0.0
-
-        if (qingyunPreachingElder != null && qingyunPreachingElder.isAlive) {
-            val elderTeaching = getBaseStats(qingyunPreachingElder).teaching
-            // realm越小境界越高，disciple.realm >= elder.realm 表示弟子境界不高于长老，长老才能指导
-            if (disciple.realm >= qingyunPreachingElder.realm && elderTeaching >= 80) {
-                cultivationSpeedBonus += (elderTeaching - 80) * 0.01
-            }
-        }
-
-        qingyunPreachingMasters.filter { it.isAlive }.forEach { master ->
-            val masterTeaching = getBaseStats(master).teaching
-            // realm越小境界越高，disciple.realm >= master.realm 表示弟子境界不高于师傅，师傅才能指导
-            if (disciple.realm >= master.realm && masterTeaching >= 80) {
-                cultivationSpeedBonus += (masterTeaching - 80) * 0.005
-            }
-        }
-
-        return cultivationSpeedBonus
+        val (elderBonus, mastersBonus) = calculatePreachingBonus(
+            disciple = disciple,
+            targetDiscipleType = "inner",
+            preachingElder = qingyunPreachingElder,
+            preachingMasters = qingyunPreachingMasters
+        )
+        return elderBonus + mastersBonus
     }
 }

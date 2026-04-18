@@ -40,7 +40,7 @@ fun QingyunPeakDialog(
             slot2 = PeakElderSlotConfig(
                 title = "青云峰传道长老",
                 elder = preachingElder,
-                bonusInfo = ElderBonusInfoProvider.getPreachingElderInfo(),
+                bonusInfo = ElderBonusInfoProvider.getQingyunPreachingElderInfo(),
                 onClick = { showPreachingElderSelection = true },
                 onRemove = { productionViewModel.removeElder("qingyunPreachingElder") }
             )

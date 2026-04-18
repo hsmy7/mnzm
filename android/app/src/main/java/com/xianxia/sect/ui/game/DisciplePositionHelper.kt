@@ -42,7 +42,11 @@ object DisciplePositionHelper {
     
     fun getWorkStatusPositionIds(gameData: GameData): List<String> {
         val elderSlots = gameData.elderSlots
-        return listOfNotNull(elderSlots.viceSectMaster) +
+        return listOf(
+            elderSlots.viceSectMaster,
+            elderSlots.preachingElder,
+            elderSlots.qingyunPreachingElder
+        ).filter { it.isNotEmpty() } +
                elderSlots.preachingMasters.mapNotNull { it.discipleId } +
                elderSlots.qingyunPreachingMasters.mapNotNull { it.discipleId } +
                elderSlots.lawEnforcementDisciples.mapNotNull { it.discipleId } +
