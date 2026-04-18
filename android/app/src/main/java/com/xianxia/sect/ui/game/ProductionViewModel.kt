@@ -394,7 +394,6 @@ class ProductionViewModel @Inject constructor(
                     else -> elderSlots
                 }
                 gameEngine.updateElderSlots(newElderSlots)
-                gameEngine.syncAllDiscipleStatuses()
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "任命失败"
             }
@@ -440,7 +439,6 @@ class ProductionViewModel @Inject constructor(
                     else -> elderSlots
                 }
                 gameEngine.updateElderSlots(newElderSlots)
-                gameEngine.syncAllDiscipleStatuses()
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "卸任失败"
             }
@@ -480,7 +478,6 @@ class ProductionViewModel @Inject constructor(
                     discipleRealm = disciple.realmName,
                     discipleSpiritRootColor = disciple.spiritRoot.countColor
                 )
-                gameEngine.syncAllDiscipleStatuses()
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "分配失败"
             }
@@ -491,7 +488,6 @@ class ProductionViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 gameEngine.removeDirectDisciple(elderSlotType, slotIndex)
-                gameEngine.syncAllDiscipleStatuses()
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "卸任失败"
             }
@@ -1247,6 +1243,7 @@ class ProductionViewModel @Inject constructor(
 
                 val updatedReserveDisciples = currentReserveDisciples + newSlot
                 gameEngine.updateGameData { it.copy(elderSlots = it.elderSlots.copy(lawEnforcementReserveDisciples = updatedReserveDisciples)) }
+                gameEngine.syncAllDiscipleStatuses()
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "添加失败"
             }
@@ -1287,6 +1284,7 @@ class ProductionViewModel @Inject constructor(
                 if (newSlots.isNotEmpty()) {
                     val updatedReserveDisciples = currentReserveDisciples + newSlots
                     gameEngine.updateGameData { it.copy(elderSlots = it.elderSlots.copy(lawEnforcementReserveDisciples = updatedReserveDisciples)) }
+                    gameEngine.syncAllDiscipleStatuses()
                 }
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "添加失败"
@@ -1300,6 +1298,7 @@ class ProductionViewModel @Inject constructor(
                 val currentReserveDisciples = gameEngine.gameData.value?.elderSlots?.lawEnforcementReserveDisciples ?: emptyList()
                 val updatedReserveDisciples = currentReserveDisciples.filter { it.discipleId != discipleId }
                 gameEngine.updateGameData { it.copy(elderSlots = it.elderSlots.copy(lawEnforcementReserveDisciples = updatedReserveDisciples)) }
+                gameEngine.syncAllDiscipleStatuses()
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "移除失败"
             }

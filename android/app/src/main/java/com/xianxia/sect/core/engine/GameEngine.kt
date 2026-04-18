@@ -329,7 +329,7 @@ class GameEngine @Inject constructor(
 
     fun getIdleDisciples(): List<Disciple> = discipleService.getIdleDisciples()
 
-    fun autoFillLawEnforcementSlots(): Int = discipleService.autoFillLawEnforcementSlots()
+    suspend fun autoFillLawEnforcementSlots(): Int = discipleService.autoFillLawEnforcementSlots()
 
     fun getDiscipleAggregate(discipleId: String): DiscipleAggregate? {
         val disciple = discipleService.getDiscipleById(discipleId) ?: return null
@@ -727,7 +727,10 @@ class GameEngine @Inject constructor(
     }
 
     fun updateElderSlots(newElderSlots: ElderSlots) {
-        updateGameDataSync { it.copy(elderSlots = newElderSlots) }
+        gameEngineCore.launchInScope {
+            stateStore.update { gameData = gameData.copy(elderSlots = newElderSlots) }
+            discipleService.syncAllDiscipleStatuses()
+        }
     }
 
     fun assignDirectDisciple(
@@ -798,10 +801,10 @@ class GameEngine @Inject constructor(
             }
             else -> slots
         }
-        updateGameDataSync { it.copy(elderSlots = updatedSlots) }
-
-        if (elderSlotType == "lawEnforcement") {
-            gameEngineCore.launchInScope {
+        gameEngineCore.launchInScope {
+            stateStore.update { gameData = gameData.copy(elderSlots = updatedSlots) }
+            discipleService.syncAllDiscipleStatuses()
+            if (elderSlotType == "lawEnforcement") {
                 discipleService.autoFillLawEnforcementSlots()
             }
         }
@@ -852,10 +855,12 @@ class GameEngine @Inject constructor(
             }
             else -> slots
         }
-        updateGameDataSync { it.copy(elderSlots = updatedSlots) }
-
-        if (elderSlotType == "lawEnforcement") {
-            discipleService.autoFillLawEnforcementSlots()
+        gameEngineCore.launchInScope {
+            stateStore.update { gameData = gameData.copy(elderSlots = updatedSlots) }
+            discipleService.syncAllDiscipleStatuses()
+            if (elderSlotType == "lawEnforcement") {
+                discipleService.autoFillLawEnforcementSlots()
+            }
         }
     }
 
@@ -896,7 +901,10 @@ class GameEngine @Inject constructor(
             discipleId = discipleId,
             discipleName = discipleName
         )
-        updateGameDataSync { it.copy(librarySlots = slots) }
+        gameEngineCore.launchInScope {
+            stateStore.update { gameData = gameData.copy(librarySlots = slots) }
+            discipleService.syncAllDiscipleStatuses()
+        }
     }
 
     fun removeDiscipleFromLibrarySlot(slotIndex: Int) {
@@ -904,7 +912,10 @@ class GameEngine @Inject constructor(
         if (slotIndex < 0 || slotIndex >= data.librarySlots.size) return
         val slots = data.librarySlots.toMutableList()
         slots[slotIndex] = LibrarySlot(index = slotIndex)
-        updateGameDataSync { it.copy(librarySlots = slots) }
+        gameEngineCore.launchInScope {
+            stateStore.update { gameData = gameData.copy(librarySlots = slots) }
+            discipleService.syncAllDiscipleStatuses()
+        }
     }
 
     fun clearAlchemySlot(slotIndex: Int) {

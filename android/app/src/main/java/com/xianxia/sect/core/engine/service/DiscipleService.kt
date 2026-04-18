@@ -196,6 +196,7 @@ class DiscipleService @Inject constructor(
         val lawEnforcerIds = mutableSetOf<String>()
         elderSlots.lawEnforcementElder?.let { lawEnforcerIds.add(it) }
         elderSlots.lawEnforcementDisciples.mapNotNull { it.discipleId }.forEach { lawEnforcerIds.add(it) }
+        elderSlots.lawEnforcementReserveDisciples.mapNotNull { it.discipleId }.forEach { lawEnforcerIds.add(it) }
 
         val preachingIds = mutableSetOf<String>()
         elderSlots.preachingElder?.let { preachingIds.add(it) }
@@ -741,7 +742,7 @@ class DiscipleService @Inject constructor(
      *
      * @return 成功补位的数量
      */
-    fun autoFillLawEnforcementSlots(): Int {
+    suspend fun autoFillLawEnforcementSlots(): Int {
         val data = currentGameData
         val elderSlots = data.elderSlots
         val activeSlots = elderSlots.lawEnforcementDisciples
@@ -805,14 +806,15 @@ class DiscipleService @Inject constructor(
         }
 
         if (fillCount > 0) {
-            currentGameData = data.copy(
-                elderSlots = elderSlots.copy(
-                    lawEnforcementDisciples = updatedActiveSlots.toList(),
-                    lawEnforcementReserveDisciples = updatedReserveSlots.toList()
+            stateStore.update {
+                gameData = gameData.copy(
+                    elderSlots = elderSlots.copy(
+                        lawEnforcementDisciples = updatedActiveSlots.toList(),
+                        lawEnforcementReserveDisciples = updatedReserveSlots.toList()
+                    )
                 )
-            )
+            }
 
-            // 同步补位弟子的状态为 LAW_ENFORCING
             syncAllDiscipleStatuses()
         }
 

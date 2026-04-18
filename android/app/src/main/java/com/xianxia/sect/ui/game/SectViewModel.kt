@@ -213,7 +213,6 @@ class SectViewModel @Inject constructor(
                     else -> elderSlots
                 }
                 gameEngine.updateElderSlots(newElderSlots)
-                gameEngine.syncAllDiscipleStatuses()
                 _successMessage.value = "长老任命成功"
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "任命失败"
@@ -263,7 +262,6 @@ class SectViewModel @Inject constructor(
                     else -> elderSlots
                 }
                 gameEngine.updateElderSlots(newElderSlots)
-                gameEngine.syncAllDiscipleStatuses()
                 _successMessage.value = "长老已卸任"
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "卸任失败"
@@ -412,6 +410,7 @@ class SectViewModel @Inject constructor(
                     lawEnforcementReserveDisciples = updatedReserveDisciples
                 )
                 gameEngine.updateGameData { it.copy(elderSlots = updatedElderSlots) }
+                gameEngine.syncAllDiscipleStatuses()
                 _successMessage.value = "储备弟子添加成功"
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "添加失败"
@@ -428,6 +427,7 @@ class SectViewModel @Inject constructor(
                     lawEnforcementReserveDisciples = updatedReserveDisciples
                 )
                 gameEngine.updateGameData { it.copy(elderSlots = updatedElderSlots) }
+                gameEngine.syncAllDiscipleStatuses()
                 _successMessage.value = "储备弟子已移除"
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "移除失败"
