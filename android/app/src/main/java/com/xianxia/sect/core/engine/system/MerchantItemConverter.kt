@@ -16,6 +16,7 @@ import com.xianxia.sect.core.model.MaterialCategory
 import com.xianxia.sect.core.model.MerchantItem
 import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.PillCategory
+import com.xianxia.sect.core.model.PillGrade
 import com.xianxia.sect.core.model.Seed
 import java.util.UUID
 
@@ -95,6 +96,9 @@ object MerchantItemConverter {
 
     fun toPill(item: MerchantItem): Pill {
         val template = PillRecipeDatabase.getRecipeByName(item.name)
+        val grade = item.grade?.let { gradeName ->
+            PillGrade.entries.find { it.displayName == gradeName } ?: PillGrade.MEDIUM
+        } ?: PillGrade.MEDIUM
         if (template != null) {
             return Pill(
                 id = UUID.randomUUID().toString(),
@@ -103,6 +107,7 @@ object MerchantItemConverter {
                 quantity = 1,
                 description = template.description,
                 category = template.category,
+                grade = grade,
                 breakthroughChance = template.breakthroughChance,
                 targetRealm = template.targetRealm,
                 cultivationSpeedPercent = template.cultivationSpeedPercent,
@@ -133,7 +138,7 @@ object MerchantItemConverter {
             )
         }
         val randomPill = ItemDatabase.generateRandomPill(minRarity = item.rarity, maxRarity = item.rarity)
-        return randomPill.copy(quantity = 1)
+        return randomPill.copy(quantity = 1, grade = grade)
     }
 
     fun toMaterial(item: MerchantItem): Material {

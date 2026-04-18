@@ -1045,7 +1045,8 @@ class GameEngine @Inject constructor(
                             quantity = quantity,
                             obtainedYear = data.gameYear,
                             obtainedMonth = data.gameMonth,
-                            effect = DisciplePillManager.pillToItemEffect(pill)
+                            effect = DisciplePillManager.pillToItemEffect(pill),
+                            grade = pill.grade.displayName
                         )
                         val canUse = disciple != null && DisciplePillManager.canUsePill(disciple, pillItem).canUse
 

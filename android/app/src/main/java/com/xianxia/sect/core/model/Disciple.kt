@@ -775,7 +775,8 @@ data class StorageBagItem(
     val quantity: Int = 1,
     val obtainedYear: Int = 1,
     val obtainedMonth: Int = 1,
-    val effect: ItemEffect? = null
+    val effect: ItemEffect? = null,
+    val grade: String? = null
 ) {
     val color: String get() = GameConfig.Rarity.getColor(rarity)
     val rarityName: String get() = GameConfig.Rarity.getName(rarity)
@@ -828,7 +829,8 @@ data class RewardSelectedItem(
     val type: String,
     val name: String,
     val rarity: Int,
-    val quantity: Int
+    val quantity: Int,
+    val grade: String? = null
 )
 
 @Serializable

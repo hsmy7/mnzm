@@ -148,7 +148,8 @@ fun MerchantDialog(
                                         name = item.name,
                                         rarity = item.rarity,
                                         quantity = item.quantity,
-                                        additionalInfo = "${item.price}灵石"
+                                        additionalInfo = "${item.price}灵石",
+                                        grade = item.grade
                                     ),
                                     isSelected = selectedItem?.id == item.id,
                                     showViewButton = true,
@@ -896,6 +897,7 @@ private fun <T> InventorySelectGrid(
                     is Seed -> Tuple5(item.id, item.name, item.description, item.rarity, item.quantity)
                     else -> Tuple5("", "", "", 1, 1)
                 }
+                val grade = (item as? Pill)?.grade?.displayName
 
                 val isSelected = selectedItems.containsKey(id)
 
@@ -905,7 +907,8 @@ private fun <T> InventorySelectGrid(
                         name = name,
                         description = description,
                         rarity = rarity,
-                        quantity = quantity
+                        quantity = quantity,
+                        grade = grade
                     ),
                     isSelected = isSelected,
                     showViewButton = true,
@@ -1036,6 +1039,7 @@ private fun AllItemsSelectGrid(
                     is Seed -> Tuple5(item.id, item.name, item.description, item.rarity, item.quantity)
                     else -> Tuple5("", "", "", 1, 1)
                 }
+                val grade = (item as? Pill)?.grade?.displayName
 
                 val isSelected = selectedItems.containsKey(id)
 
@@ -1045,7 +1049,8 @@ private fun AllItemsSelectGrid(
                         name = name,
                         description = description,
                         rarity = rarity,
-                        quantity = quantity
+                        quantity = quantity,
+                        grade = grade
                     ),
                     isSelected = isSelected,
                     showViewButton = true,

@@ -28,7 +28,8 @@ data class ItemCardData(
     val type: String? = null,
     val stats: Map<String, Int> = emptyMap(),
     val additionalInfo: String? = null,
-    val price: Int = 0
+    val price: Int = 0,
+    val grade: String? = null
 )
 
 @Composable
@@ -71,6 +72,20 @@ fun UnifiedItemCard(
                 overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center
             )
+
+            if (!data.grade.isNullOrEmpty()) {
+                Text(
+                    text = data.grade,
+                    fontSize = 9.sp,
+                    color = Color.White,
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .offset(x = (-2).dp, y = 2.dp)
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(Color.Black.copy(alpha = 0.55f))
+                        .padding(horizontal = 3.dp, vertical = 1.dp)
+                )
+            }
 
             if (showQuantity && data.quantity > 1) {
                 Text(

@@ -1380,12 +1380,12 @@ class SaveDataConverter @Inject constructor() {
             quantity = item.quantity ?: 1,
             obtainedYear = item.obtainedYear ?: 1,
             obtainedMonth = item.obtainedMonth ?: 1,
-            effect = item.effect?.let { convertItemEffect(it) } ?: SerializableItemEffect()
+            effect = item.effect?.let { convertItemEffect(it) } ?: SerializableItemEffect(),
+            grade = item.grade ?: ""
         )
     }
 
     private fun convertBackStorageBagItem(data: SerializableStorageBagItem): com.xianxia.sect.core.model.StorageBagItem {
-        // SerializableItemEffect 现在是非空的，需要检查是否为默认实例来判断原始值是否为 null
         val effect = data.effect.takeIf { it.cultivationSpeedPercent != 0.0 || it.skillExpSpeedPercent != 0.0 || it.nurtureSpeedPercent != 0.0 || it.breakthroughChance != 0.0 || it.targetRealm != 0 || it.cultivationAdd != 0 || it.skillExpAdd != 0 || it.nurtureAdd != 0 || it.healMaxHpPercent != 0.0 || it.mpRecoverMaxMpPercent != 0.0 || it.hpAdd != 0 || it.mpAdd != 0 || it.extendLife != 0 || it.physicalAttackAdd != 0 || it.magicAttackAdd != 0 || it.physicalDefenseAdd != 0 || it.magicDefenseAdd != 0 || it.speedAdd != 0 || it.critRateAdd != 0.0 || it.critEffectAdd != 0.0 || it.intelligenceAdd != 0 || it.charmAdd != 0 || it.loyaltyAdd != 0 || it.comprehensionAdd != 0 || it.artifactRefiningAdd != 0 || it.pillRefiningAdd != 0 || it.spiritPlantingAdd != 0 || it.teachingAdd != 0 || it.moralityAdd != 0 || it.revive || it.clearAll || it.duration != 0 || it.minRealm != 9 || it.pillCategory.isNotEmpty() || it.pillType.isNotEmpty() }?.let { convertBackItemEffect(it) }
 
         return com.xianxia.sect.core.model.StorageBagItem(
@@ -1396,7 +1396,8 @@ class SaveDataConverter @Inject constructor() {
             quantity = data.quantity,
             obtainedYear = data.obtainedYear,
             obtainedMonth = data.obtainedMonth,
-            effect = effect
+            effect = effect,
+            grade = data.grade.takeIf { it.isNotEmpty() }
         )
     }
 
@@ -2200,7 +2201,8 @@ class SaveDataConverter @Inject constructor() {
             quantity = item.quantity ?: 0,
             description = item.description ?: "",
             obtainedYear = item.obtainedYear ?: 1,
-            obtainedMonth = item.obtainedMonth ?: 1
+            obtainedMonth = item.obtainedMonth ?: 1,
+            grade = item.grade ?: ""
         )
     }
 
@@ -2215,7 +2217,8 @@ class SaveDataConverter @Inject constructor() {
             quantity = data.quantity,
             description = data.description,
             obtainedYear = data.obtainedYear,
-            obtainedMonth = data.obtainedMonth
+            obtainedMonth = data.obtainedMonth,
+            grade = data.grade.takeIf { it.isNotEmpty() }
         )
     }
 

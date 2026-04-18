@@ -482,21 +482,7 @@ class BattleSystem @Inject constructor() {
             if (availableSkill != null) {
                 val combatantIndex = alliesIndexMap[currentCombatant.id] ?: -1
                 if (combatantIndex >= 0) {
-                    val updatedSkills = currentCombatant.skills.map { skill ->
-                        if (skill.name == availableSkill.name) {
-                            skill.copy(currentCooldown = skill.cooldown)
-                        } else {
-                            skill.copy(currentCooldown = maxOf(0, skill.currentCooldown - 1))
-                        }
-                    }
-
-                    val existingBuffs = currentCombatant.buffs.map { it.copy(remainingDuration = maxOf(0, it.remainingDuration - 1)) }.filter { it.remainingDuration > 0 }
-
-                    val updatedCombatant = currentCombatant.copy(
-                        mp = currentCombatant.mp - availableSkill.mpCost,
-                        skills = updatedSkills,
-                        buffs = existingBuffs
-                    )
+                    val updatedCombatant = BattleCalculator.updateCombatantCooldowns(currentCombatant, availableSkill)
 
                     if (isTeamMember) {
                         team[combatantIndex] = updatedCombatant
@@ -560,8 +546,7 @@ class BattleSystem @Inject constructor() {
     private fun updateCombatantBuffs(combatant: Combatant, list: List<Combatant>, indexMap: Map<String, Int>) {
         val idx = indexMap[combatant.id] ?: return
         if (idx >= list.size) return
-        val newBuffs = combatant.buffs.map { it.copy(remainingDuration = maxOf(0, it.remainingDuration - 1)) }.filter { it.remainingDuration > 0 }
-        val updated = combatant.copy(buffs = newBuffs)
+        val updated = BattleCalculator.updateCombatantBuffsOnly(combatant)
         if (list === list) {
             @Suppress("UNCHECKED_CAST")
             (list as MutableList<Combatant>)[idx] = updated
@@ -570,120 +555,52 @@ class BattleSystem @Inject constructor() {
 
     private fun processDotEffects(team: MutableList<Combatant>, beasts: MutableList<Combatant>, actions: MutableList<BattleActionData>) {
         val allCombatants = (team + beasts).filter { !it.isDead }
-        for (combatant in allCombatants) {
-            val poisonBuffs = combatant.buffs.filter { it.type == BuffType.POISON && it.remainingDuration > 0 }
-            val burnBuffs = combatant.buffs.filter { it.type == BuffType.BURN && it.remainingDuration > 0 }
-
-            var dotDamage = 0
-            poisonBuffs.forEach { buff -> dotDamage += (combatant.maxHp * buff.value).toInt() }
-            burnBuffs.forEach { buff -> dotDamage += (combatant.maxHp * buff.value).toInt() }
-
-            if (dotDamage > 0) {
-                val newHp = maxOf(0, combatant.hp - dotDamage)
-                val isTeamMember = combatant.side == CombatantSide.DEFENDER
-                if (isTeamMember) {
-                    val idx = team.indexOfFirst { it.id == combatant.id }
-                    if (idx >= 0) team[idx] = team[idx].copy(hp = newHp)
-                } else {
-                    val idx = beasts.indexOfFirst { it.id == combatant.id }
-                    if (idx >= 0) beasts[idx] = beasts[idx].copy(hp = newHp)
-                }
-                actions.add(BattleActionData(
-                    type = "dot",
-                    attacker = "",
-                    attackerType = "",
-                    target = combatant.name,
-                    damage = dotDamage,
-                    damageType = "持续伤害",
-                    isKill = newHp <= 0,
-                    message = "${combatant.name}受到${dotDamage}点持续伤害"
-                ))
+        val dotResults = BattleCalculator.processDotEffects(allCombatants)
+        for (result in dotResults) {
+            val isTeamMember = result.combatant.side == CombatantSide.DEFENDER
+            if (isTeamMember) {
+                val idx = team.indexOfFirst { it.id == result.combatant.id }
+                if (idx >= 0) team[idx] = team[idx].copy(hp = result.newHp)
+            } else {
+                val idx = beasts.indexOfFirst { it.id == result.combatant.id }
+                if (idx >= 0) beasts[idx] = beasts[idx].copy(hp = result.newHp)
             }
+            actions.add(BattleActionData(
+                type = "dot",
+                attacker = "",
+                attackerType = "",
+                target = result.combatant.name,
+                damage = result.damage,
+                damageType = "持续伤害",
+                isKill = result.newHp <= 0,
+                message = "${result.combatant.name}受到${result.damage}点持续伤害"
+            ))
         }
     }
 
     private fun executeAttack(attacker: Combatant, defender: Combatant): AttackResult {
-        val speedDiff = attacker.effectiveSpeed - defender.effectiveSpeed
-        val dodgeChance = (speedDiff.toDouble() / (attacker.effectiveSpeed + defender.effectiveSpeed).coerceAtLeast(1) * 0.5).coerceIn(0.0, GameConfig.Battle.MAX_DODGE_CHANCE)
-
-        if (Random.nextDouble() < dodgeChance) {
-            return AttackResult(
-                attacker = attacker,
-                target = defender,
-                damage = 0,
-                isCrit = false,
-                isPhysical = true,
-                isDodged = true
-            )
-        }
-
-        val isPhysical = attacker.physicalAttack >= attacker.magicAttack
-        val attack = if (isPhysical) attacker.effectivePhysicalAttack else attacker.effectiveMagicAttack
-        val defense = if (isPhysical) defender.effectivePhysicalDefense else defender.effectiveMagicDefense
-
-        val isCrit = Random.nextDouble() < attacker.effectiveCritRate
-        val critMultiplier = if (isCrit) GameConfig.Battle.CRIT_MULTIPLIER else 1.0
-
-        val baseDamage = attack.toDouble()
-        val reduction = defense.toDouble() / (defense.toDouble() + GameConfig.Battle.DEFENSE_CONSTANT)
-        val realmGapMultiplier = calculateRealmGapMultiplier(attacker.realm, defender.realm)
-        val elementMultiplier = calculateElementMultiplier(attacker.element, defender.element)
-
-        val finalDamage = (baseDamage * (1.0 - reduction) * critMultiplier * realmGapMultiplier * elementMultiplier).toInt()
-        val variance = Random.nextDouble(GameConfig.Battle.DAMAGE_VARIANCE_MIN, GameConfig.Battle.DAMAGE_VARIANCE_MAX)
-        val damageWithVariance = (finalDamage * variance).toInt().coerceAtLeast(GameConfig.Battle.MIN_DAMAGE).coerceAtMost(Int.MAX_VALUE / 2)
-
+        val result = BattleCalculator.calculateCombatantDamage(attacker, defender, null)
         return AttackResult(
             attacker = attacker,
             target = defender,
-            damage = damageWithVariance,
-            isCrit = isCrit,
-            isPhysical = isPhysical,
-            isDodged = false
+            damage = result.damage,
+            isCrit = result.isCrit,
+            isPhysical = result.isPhysical,
+            isDodged = result.isDodged
         )
     }
 
     private fun executeSkill(attacker: Combatant, defender: Combatant, skill: CombatSkill): AttackResult {
-        val speedDiff = attacker.effectiveSpeed - defender.effectiveSpeed
-        val dodgeChance = (speedDiff.toDouble() / (attacker.effectiveSpeed + defender.effectiveSpeed).coerceAtLeast(1) * 0.3).coerceIn(0.0, GameConfig.Battle.MAX_SKILL_DODGE_CHANCE)
-
-        if (Random.nextDouble() < dodgeChance) {
-            return AttackResult(
-                attacker = attacker,
-                target = defender,
-                damage = 0,
-                isCrit = false,
-                isPhysical = skill.damageType == DamageType.PHYSICAL,
-                isDodged = true,
-                skillName = skill.name,
-                hits = skill.hits
-            )
-        }
-
-        val isPhysical = skill.damageType == DamageType.PHYSICAL
-        val baseAttack = if (isPhysical) attacker.effectivePhysicalAttack else attacker.effectiveMagicAttack
-        val defense = if (isPhysical) defender.effectivePhysicalDefense else defender.effectiveMagicDefense
-
-        val isCrit = Random.nextDouble() < attacker.effectiveCritRate
-        val critMultiplier = if (isCrit) GameConfig.Battle.CRIT_MULTIPLIER else 1.0
-
-        val reduction = defense.toDouble() / (defense.toDouble() + GameConfig.Battle.DEFENSE_CONSTANT)
-        val realmGapMultiplier = calculateRealmGapMultiplier(attacker.realm, defender.realm)
-        val elementMultiplier = calculateElementMultiplier(attacker.element, defender.element)
-
-        val totalDamage = (baseAttack * skill.damageMultiplier * (1.0 - reduction) * critMultiplier * realmGapMultiplier * elementMultiplier).toInt()
-        val variance = Random.nextDouble(GameConfig.Battle.DAMAGE_VARIANCE_MIN, GameConfig.Battle.DAMAGE_VARIANCE_MAX)
-        val finalDamage = (totalDamage * variance).toInt().coerceAtLeast(GameConfig.Battle.MIN_DAMAGE).coerceAtMost(Int.MAX_VALUE / 2)
-
+        val result = BattleCalculator.calculateCombatantDamage(attacker, defender, skill)
         return AttackResult(
             attacker = attacker,
             target = defender,
-            damage = finalDamage,
-            isCrit = isCrit,
-            isPhysical = isPhysical,
-            isDodged = false,
-            skillName = skill.name,
-            hits = skill.hits
+            damage = result.damage,
+            isCrit = result.isCrit,
+            isPhysical = result.isPhysical,
+            isDodged = result.isDodged,
+            skillName = result.skillName,
+            hits = result.hits
         )
     }
 
@@ -692,44 +609,7 @@ class BattleSystem @Inject constructor() {
         allies: List<Combatant>,
         skill: CombatSkill
     ): AttackResult {
-        val targets = if (skill.targetScope == "team") allies else listOf(caster)
-        val healPercent = skill.healPercent
-        val healType = skill.healType
-
-        var healAmount = 0
-        val teamBuffs = mutableMapOf<String, List<CombatBuff>>()
-
-        if (healPercent > 0) {
-            healAmount = if (healType == HealType.MP) {
-                (caster.maxMp * healPercent).toInt()
-            } else {
-                (caster.maxHp * healPercent).toInt()
-            }
-        }
-
-        if (skill.buffType != null && skill.buffDuration > 0) {
-            val buff = CombatBuff(
-                type = skill.buffType,
-                value = skill.buffValue,
-                remainingDuration = skill.buffDuration
-            )
-            for (member in targets) {
-                teamBuffs[member.id] = listOf(buff)
-            }
-        }
-
-        for ((buffType, buffValue, buffDuration) in skill.buffs) {
-            val buff = CombatBuff(
-                type = buffType,
-                value = buffValue,
-                remainingDuration = buffDuration
-            )
-            for (member in targets) {
-                val existing = teamBuffs[member.id] ?: emptyList()
-                teamBuffs[member.id] = existing + buff
-            }
-        }
-
+        val supportResult = BattleCalculator.executeSupportSkill(caster, allies, skill)
         return AttackResult(
             attacker = caster,
             target = caster,
@@ -741,37 +621,21 @@ class BattleSystem @Inject constructor() {
             hits = 1,
             isSupport = true,
             message = "",
-            healPercent = healPercent,
-            healType = healType,
-            healAmount = healAmount,
-            healedIds = if (healAmount > 0) targets.map { it.id } else emptyList(),
+            healPercent = skill.healPercent,
+            healType = skill.healType,
+            healAmount = supportResult.healAmount,
+            healedIds = supportResult.healedIds,
             newBuffs = emptyList(),
-            teamBuffs = teamBuffs
+            teamBuffs = supportResult.teamBuffs
         )
     }
 
     fun calculateRealmGapMultiplier(attackerRealm: Int, defenderRealm: Int): Double {
-        val gap = attackerRealm - defenderRealm
-        val absGap = kotlin.math.abs(gap).coerceAtMost(GameConfig.Battle.RealmGap.MAX_REALM_GAP)
-        if (absGap == 0) return 1.0
-
-        val ratio = if (gap > 0) {
-            1.0 + absGap * GameConfig.Battle.RealmGap.DAMAGE_BONUS_PER_REALM
-        } else {
-            1.0 - absGap * GameConfig.Battle.RealmGap.DAMAGE_PENALTY_PER_REALM
-        }
-
-        return ratio.coerceIn(GameConfig.Battle.RealmGap.MIN_DAMAGE_RATIO, GameConfig.Battle.RealmGap.MAX_DAMAGE_RATIO)
+        return BattleCalculator.calculateRealmGapMultiplier(attackerRealm, defenderRealm)
     }
 
     fun calculateElementMultiplier(attackerElement: String, defenderElement: String): Double {
-        if (attackerElement.isEmpty() || defenderElement.isEmpty()) return 1.0
-        val advantage = GameConfig.Battle.Element.ADVANTAGES[attackerElement]
-        return when {
-            advantage == defenderElement -> GameConfig.Battle.Element.ADVANTAGE_MULTIPLIER
-            GameConfig.Battle.Element.ADVANTAGES[defenderElement] == attackerElement -> GameConfig.Battle.Element.DISADVANTAGE_MULTIPLIER
-            else -> 1.0
-        }
+        return BattleCalculator.calculateElementMultiplier(attackerElement, defenderElement)
     }
 
     private fun selectSkill(
@@ -780,80 +644,11 @@ class BattleSystem @Inject constructor() {
         allies: List<Combatant>,
         isSilenced: Boolean
     ): CombatSkill? {
-        if (isSilenced) return null
-        if (combatant.skills.isEmpty()) return null
-
-        val availableSkills = combatant.skills.filter {
-            it.currentCooldown == 0 && combatant.mp >= it.mpCost
-        }
-        if (availableSkills.isEmpty()) return null
-
-        val supportSkills = availableSkills.filter { it.skillType == SkillType.SUPPORT }
-        val attackSkills = availableSkills.filter { it.skillType == SkillType.ATTACK }
-
-        val lowHpAllies = allies.filter { it.hpPercent < 0.3 }
-        if (lowHpAllies.isNotEmpty() && supportSkills.isNotEmpty() && Random.nextDouble() < 0.8) {
-            return supportSkills.first()
-        }
-
-        val controlSkills = attackSkills.filter { skill ->
-            skill.buffType != null && skill.buffDuration > 0 && skill.buffType.isDebuff &&
-                skill.buffType in setOf(BuffType.STUN, BuffType.FREEZE, BuffType.SILENCE, BuffType.TAUNT)
-        }
-        val uncontrolledEnemies = enemies.filter { enemy -> !enemy.hasControlEffect }
-        if (uncontrolledEnemies.isNotEmpty() && controlSkills.isNotEmpty() && Random.nextDouble() < 0.6) {
-            return controlSkills.first()
-        }
-
-        val aoeSkills = attackSkills.filter { it.isAoe }
-        if (enemies.size >= 3 && aoeSkills.isNotEmpty() && Random.nextDouble() < 0.7) {
-            return aoeSkills.maxByOrNull { it.damageMultiplier }
-        }
-
-        if (combatant.mpPercent < 0.3 && attackSkills.isNotEmpty()) {
-            val cheapSkill = attackSkills.minByOrNull { it.mpCost }
-            if (cheapSkill != null && combatant.mp >= cheapSkill.mpCost * 2) {
-                return cheapSkill
-            }
-            return null
-        }
-
-        if (attackSkills.isNotEmpty()) {
-            return attackSkills.maxByOrNull { it.damageMultiplier / it.mpCost.coerceAtLeast(1) }
-        }
-
-        return availableSkills.firstOrNull()
+        return BattleCalculator.selectSkill(combatant, enemies, allies, isSilenced)
     }
 
     private fun selectTarget(attacker: Combatant, targets: List<Combatant>): Combatant {
-        val lowHpTargets = targets.filter { it.hpPercent < 0.3 }
-        if (lowHpTargets.isNotEmpty() && Random.nextDouble() < 0.7) {
-            return lowHpTargets.random()
-        }
-
-        val highThreatTargets = targets.filter { target ->
-            target.skills.isNotEmpty() && target.effectivePhysicalAttack > attacker.effectivePhysicalDefense
-        }
-        if (highThreatTargets.isNotEmpty() && Random.nextDouble() < 0.5) {
-            return highThreatTargets.random()
-        }
-
-        val lowDefenseTargets = targets.filter { target ->
-            val avgDefense = (target.effectivePhysicalDefense + target.effectiveMagicDefense) / 2.0
-            avgDefense < attacker.effectivePhysicalAttack * 0.5
-        }
-        if (lowDefenseTargets.isNotEmpty() && Random.nextDouble() < 0.4) {
-            return lowDefenseTargets.random()
-        }
-
-        val elementAdvantageTargets = targets.filter { target ->
-            calculateElementMultiplier(attacker.element, target.element) > 1.0
-        }
-        if (elementAdvantageTargets.isNotEmpty() && Random.nextDouble() < 0.3) {
-            return elementAdvantageTargets.random()
-        }
-
-        return targets.random()
+        return BattleCalculator.selectTarget(attacker, targets)
     }
 
     private fun generateRewards(beastCount: Int): Map<String, Int> {

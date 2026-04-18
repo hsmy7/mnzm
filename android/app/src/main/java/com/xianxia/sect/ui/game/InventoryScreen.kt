@@ -138,7 +138,8 @@ fun InventoryDialog(
                                 name = item.name,
                                 description = item.description,
                                 rarity = item.rarity,
-                                quantity = item.quantity
+                                quantity = item.quantity,
+                                grade = item.grade.displayName
                             ),
                             isSelected = isSelected,
                             showViewButton = true,
@@ -649,7 +650,8 @@ internal fun BulkSellDialog(
                                     rarity = item.rarity,
                                     quantity = item.quantity,
                                     type = "丹药",
-                                    price = (item.basePrice * item.quantity * 0.8).toInt()
+                                    price = (item.basePrice * item.quantity * 0.8).toInt(),
+                                    grade = item.grade.displayName
                                 )
                                 is Material -> ItemCardData(
                                     name = item.name,

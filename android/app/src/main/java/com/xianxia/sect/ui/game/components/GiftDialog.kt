@@ -424,7 +424,8 @@ private fun ItemGiftTab(
                 type = "pill",
                 rarity = first.rarity,
                 quantity = pillList.sumOf { it.quantity },
-                originalItem = first
+                originalItem = first,
+                grade = first.grade.displayName
             ))
         }
         
@@ -499,7 +500,8 @@ private fun ItemGiftTab(
                             name = item.name,
                             rarity = item.rarity,
                             quantity = item.quantity,
-                            type = getTypeName(item.type)
+                            type = getTypeName(item.type),
+                            grade = item.grade
                         ),
                         isSelected = selectedItem?.id == item.id && selectedItem?.type == item.type,
                         showViewButton = true,
@@ -699,7 +701,8 @@ private data class GiftableItem(
     val type: String,
     val rarity: Int,
     val quantity: Int,
-    val originalItem: Any? = null
+    val originalItem: Any? = null,
+    val grade: String? = null
 )
 
 private fun formatSpiritStones(amount: Long): String {

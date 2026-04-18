@@ -186,7 +186,8 @@ class EventService @Inject constructor(
                         price = GameUtils.applyPriceFluctuation(basePrice, random),
                         quantity = calcStock(type, rarity),
                         obtainedYear = year,
-                        obtainedMonth = 1
+                        obtainedMonth = 1,
+                        grade = pill.grade.displayName
                     )
                 }
                 "material" -> {

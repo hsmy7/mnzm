@@ -425,7 +425,8 @@ data class MerchantItem(
     val quantity: Int = 1,
     val description: String = "",
     val obtainedYear: Int = 0,
-    val obtainedMonth: Int = 0
+    val obtainedMonth: Int = 0,
+    val grade: String? = null
 )
 
 // 游戏设置数据

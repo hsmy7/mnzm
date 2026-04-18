@@ -2132,7 +2132,8 @@ private fun StorageBagDialog(
                                     id = item.itemId,
                                     name = item.name,
                                     rarity = item.rarity,
-                                    quantity = item.quantity
+                                    quantity = item.quantity,
+                                    grade = item.grade
                                 ),
                                 isSelected = selectedItem?.itemId == item.itemId,
                                 showViewButton = true,
@@ -2481,7 +2482,7 @@ private fun <T> RewardItemGrid(
                     when (item) {
                         is Equipment -> RewardSelectedItem(item.id, "equipment", item.name, item.rarity, 1)
                         is Manual -> RewardSelectedItem(item.id, "manual", item.name, item.rarity, 1)
-                        is Pill -> RewardSelectedItem(item.id, "pill", item.name, item.rarity, item.quantity)
+                        is Pill -> RewardSelectedItem(item.id, "pill", item.name, item.rarity, item.quantity, item.grade.displayName)
                         is Material -> RewardSelectedItem(item.id, "material", item.name, item.rarity, item.quantity)
                         is Herb -> RewardSelectedItem(item.id, "herb", item.name, item.rarity, item.quantity)
                         is Seed -> RewardSelectedItem(item.id, "seed", item.name, item.rarity, item.quantity)
@@ -2495,7 +2496,8 @@ private fun <T> RewardItemGrid(
                         data = ItemCardData(
                             name = currentSelectedItem.name,
                             rarity = currentSelectedItem.rarity,
-                            quantity = currentSelectedItem.quantity
+                            quantity = currentSelectedItem.quantity,
+                            grade = currentSelectedItem.grade
                         ),
                         isSelected = isSelected,
                         showViewButton = true,
@@ -2551,7 +2553,7 @@ private fun RewardAllItemsGrid(
                     when (item) {
                         is Equipment -> RewardSelectedItem(item.id, "equipment", item.name, item.rarity, 1)
                         is Manual -> RewardSelectedItem(item.id, "manual", item.name, item.rarity, 1)
-                        is Pill -> RewardSelectedItem(item.id, "pill", item.name, item.rarity, item.quantity)
+                        is Pill -> RewardSelectedItem(item.id, "pill", item.name, item.rarity, item.quantity, item.grade.displayName)
                         is Material -> RewardSelectedItem(item.id, "material", item.name, item.rarity, item.quantity)
                         is Herb -> RewardSelectedItem(item.id, "herb", item.name, item.rarity, item.quantity)
                         is Seed -> RewardSelectedItem(item.id, "seed", item.name, item.rarity, item.quantity)
@@ -2565,7 +2567,8 @@ private fun RewardAllItemsGrid(
                         data = ItemCardData(
                             name = currentSelectedItem.name,
                             rarity = currentSelectedItem.rarity,
-                            quantity = currentSelectedItem.quantity
+                            quantity = currentSelectedItem.quantity,
+                            grade = currentSelectedItem.grade
                         ),
                         isSelected = isSelected,
                         showViewButton = true,

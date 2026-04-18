@@ -1,4 +1,4 @@
-package com.xianxia.sect.ui.game.components
+﻿package com.xianxia.sect.ui.game.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -605,6 +605,7 @@ private fun getManualEffects(item: Manual): List<String> = buildList {
 
 private fun getPillEffects(item: Pill): List<String> = buildList {
     add("类型: ${item.category.displayName}")
+    add("品级: ${item.grade.displayName}")
     add("数量: ${item.quantity}")
     if (item.minRealm < 9) {
         add("需求境界: ${GameConfig.Realm.getName(item.minRealm)}")
@@ -727,6 +728,9 @@ private fun getMerchantItemEffects(item: MerchantItem): List<String> = buildList
         else -> "物品"
     }
     add("类型: $typeName")
+    if (!item.grade.isNullOrEmpty()) {
+        add("品级: ${item.grade}")
+    }
     add("数量: ${item.quantity}")
     if (item.price > 0) {
         add("价格: ${item.price}灵石")
@@ -789,6 +793,9 @@ private fun getStorageBagItemEffects(item: StorageBagItem): List<String> = build
         else -> "物品"
     }
     add("类型: $typeName")
+    if (!item.grade.isNullOrEmpty()) {
+        add("品级: ${item.grade}")
+    }
     add("数量: ${item.quantity}")
     add("获得时间: 第${item.obtainedYear}年${item.obtainedMonth}月")
     add("")

@@ -3699,7 +3699,8 @@ private fun WarehouseTab(viewModel: GameViewModel) {
                                                 is Herb -> item.quantity
                                                 is Seed -> item.quantity
                                                 else -> 1
-                                            }
+                                            },
+                                            grade = (warehouseItem.item as? Pill)?.grade?.displayName
                                         ),
                                         isSelected = selectedItemId == warehouseItem.id,
                                         showViewButton = true,
@@ -4289,7 +4290,7 @@ private fun BulkSellDialog(
                                 ) {
                                     rowItems.forEach { item ->
                                         UnifiedItemCard(
-                                            data = ItemCardData(name = item.name, rarity = item.rarity, quantity = item.quantity),
+                                            data = ItemCardData(name = item.name, rarity = item.rarity, quantity = item.quantity, grade = item.grade.displayName),
                                             modifier = Modifier.weight(1f)
                                         )
                                     }
