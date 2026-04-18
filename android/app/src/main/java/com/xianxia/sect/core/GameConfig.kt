@@ -106,12 +106,12 @@ object GameConfig {
     
     object Rarity {
         val CONFIGS = mapOf(
-            1 to RarityConfig(1, "凡品", "#95a5a6", 1.0, 20000),
-            2 to RarityConfig(2, "灵品", "#27ae60", 1.3, 70000),
-            3 to RarityConfig(3, "宝品", "#3498db", 1.6, 210000),
-            4 to RarityConfig(4, "玄品", "#9b59b6", 2.0, 700000),
-            5 to RarityConfig(5, "地品", "#f39c12", 2.5, 1400000),
-            6 to RarityConfig(6, "天品", "#e74c3c", 3.2, 7000000)
+            1 to RarityConfig(1, "凡品", "#95a5a6", 1.0, 20000, 16000, 1000),
+            2 to RarityConfig(2, "灵品", "#27ae60", 1.3, 70000, 56000, 3500),
+            3 to RarityConfig(3, "宝品", "#3498db", 1.6, 210000, 168000, 10500),
+            4 to RarityConfig(4, "玄品", "#9b59b6", 2.0, 700000, 560000, 35000),
+            5 to RarityConfig(5, "地品", "#f39c12", 2.5, 1400000, 1120000, 70000),
+            6 to RarityConfig(6, "天品", "#e74c3c", 3.2, 7000000, 5600000, 350000)
         )
         
         fun get(rarity: Int): RarityConfig = CONFIGS[rarity] ?: CONFIGS.getValue(1)
@@ -463,7 +463,9 @@ object GameConfig {
         val name: String,
         val color: String,
         val multiplier: Double,
-        val basePrice: Int
+        val basePrice: Int,
+        val pillBasePrice: Int = 0,
+        val materialBasePrice: Int = 0
     )
     
     data class RealmConfig(

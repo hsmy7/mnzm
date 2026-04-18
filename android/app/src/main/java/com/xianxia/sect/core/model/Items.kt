@@ -11,6 +11,7 @@ import com.xianxia.sect.core.SkillType
 import com.xianxia.sect.core.engine.CombatSkill
 import com.xianxia.sect.core.util.StackableItem
 import kotlinx.serialization.Serializable
+import kotlin.math.roundToInt
 
 sealed class GameItem {
     abstract val id: String
@@ -401,7 +402,7 @@ data class Pill(
     
     override fun withQuantity(newQuantity: Int): Pill = copy(quantity = newQuantity)
     
-    val basePrice: Int get() = (GameConfig.Rarity.get(rarity).basePrice * 0.8).toInt()
+    val basePrice: Int get() = (GameConfig.Rarity.get(rarity).pillBasePrice * grade.priceMultiplier).roundToInt()
     
     val effect: PillEffect get() = PillEffect(
         breakthroughChance = breakthroughChance,
@@ -466,6 +467,12 @@ enum class PillGrade {
         LOW -> 0.7
         MEDIUM -> 1.0
         HIGH -> 1.5
+    }
+
+    val priceMultiplier: Double get() = when (this) {
+        LOW -> 0.7
+        MEDIUM -> 1.0
+        HIGH -> 1.7
     }
 }
 
@@ -536,7 +543,7 @@ data class Material(
     
     override fun withQuantity(newQuantity: Int): Material = copy(quantity = newQuantity)
     
-    val basePrice: Int get() = (GameConfig.Rarity.get(rarity).basePrice * 0.05).toInt()
+    val basePrice: Int get() = GameConfig.Rarity.get(rarity).materialBasePrice
 }
 
 @Serializable
@@ -597,7 +604,7 @@ data class Herb(
     
     override fun withQuantity(newQuantity: Int): Herb = copy(quantity = newQuantity)
     
-    val basePrice: Int get() = (GameConfig.Rarity.get(rarity).basePrice * 0.05).toInt()
+    val basePrice: Int get() = GameConfig.Rarity.get(rarity).materialBasePrice
 }
 
 @Serializable
@@ -629,5 +636,5 @@ data class Seed(
     
     override fun withQuantity(newQuantity: Int): Seed = copy(quantity = newQuantity)
     
-    val basePrice: Int get() = (GameConfig.Rarity.get(rarity).basePrice * 0.05).toInt()
+    val basePrice: Int get() = GameConfig.Rarity.get(rarity).materialBasePrice
 }
