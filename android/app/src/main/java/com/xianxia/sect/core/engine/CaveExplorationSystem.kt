@@ -91,10 +91,11 @@ object CaveExplorationSystem {
                 critRate = stats.critRate,
                 skills = skills,
                 realm = disciple.realm,
-                realmName = disciple.realmName
+                realmName = disciple.realmName,
+                element = disciple.spiritRoot.types.firstOrNull()?.trim() ?: "metal"
             )
         }
-        
+
         val aiCombatants = aiTeam.disciples.map { aiDisciple ->
             Combatant(
                 id = aiDisciple.id,
@@ -112,7 +113,8 @@ object CaveExplorationSystem {
                 critRate = 0.05 + aiDisciple.realm * 0.01,
                 skills = emptyList(),
                 realm = aiDisciple.realm,
-                realmName = aiDisciple.realmName
+                realmName = aiDisciple.realmName,
+                element = "metal"
             )
         }
         
@@ -173,7 +175,8 @@ object CaveExplorationSystem {
                 critRate = stats.critRate,
                 skills = skills,
                 realm = disciple.realm,
-                realmName = disciple.realmName
+                realmName = disciple.realmName,
+                element = disciple.spiritRoot.types.firstOrNull()?.trim() ?: "metal"
             )
         }
         
@@ -247,7 +250,8 @@ object CaveExplorationSystem {
             critRate = 0.05 + realm * 0.01 + if (isBoss) 0.1 else 0.0,
             skills = emptyList(),
             realm = realm,
-            realmName = GameConfig.Realm.getName(realm)
+            realmName = GameConfig.Realm.getName(realm),
+            element = GameConfig.Beast.TYPES.random().element
         )
     }
     
