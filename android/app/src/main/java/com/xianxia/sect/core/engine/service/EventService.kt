@@ -324,7 +324,7 @@ class EventService @Inject constructor(
             }
             "pill" -> {
                 val t = PillRecipeDatabase.getRecipeByName(item.name)
-                inventorySystem.canAddPill(item.name, item.rarity, t?.category ?: PillCategory.HEALING)
+                inventorySystem.canAddPill(item.name, item.rarity, t?.category ?: PillCategory.FUNCTIONAL)
             }
             "material" -> {
                 val t = BeastMaterialDatabase.getMaterialByName(item.name)

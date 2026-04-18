@@ -1,4 +1,4 @@
-package com.xianxia.sect.data.serialization.unified
+﻿package com.xianxia.sect.data.serialization.unified
 
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.data.model.SaveData
@@ -73,13 +73,13 @@ class SaveDataConverterTest {
                 breakthroughFailCount = 1
             ),
             pillEffects = PillEffects(
-                pillPhysicalAttackBonus = 0.0,
-                pillMagicAttackBonus = 0.0,
-                pillPhysicalDefenseBonus = 0.0,
-                pillMagicDefenseBonus = 0.0,
-                pillHpBonus = 0.0,
-                pillMpBonus = 0.0,
-                pillSpeedBonus = 0.0,
+                pillPhysicalAttackBonus = 0,
+                pillMagicAttackBonus = 0,
+                pillPhysicalDefenseBonus = 0,
+                pillMagicDefenseBonus = 0,
+                pillHpBonus = 0,
+                pillMpBonus = 0,
+                pillSpeedBonus = 0,
                 pillEffectDuration = 0
             ),
             equipment = EquipmentSet(
@@ -114,7 +114,7 @@ class SaveDataConverterTest {
                 salaryMissedCount = 0
             ),
             usage = UsageTracking(
-                monthlyUsedPillIds = emptyList(),
+                usedFunctionalPillTypes = emptyList(),
                 usedExtendLifePillIds = emptyList(),
                 recruitedMonth = 3,
                 hasReviveEffect = false,
@@ -151,7 +151,7 @@ class SaveDataConverterTest {
         val pill = Pill(
             id = "pill_1",
             name = "筑基丹",
-            category = PillCategory.BREAKTHROUGH,
+            category = PillCategory.FUNCTIONAL,
             rarity = 3,
             breakthroughChance = 30.0,
             description = "辅助突破的丹药",
@@ -625,13 +625,8 @@ class SaveDataConverterTest {
                     breakthroughFailCount = 0
                 ),
                 pillEffects = PillEffects(
-                    pillPhysicalAttackBonus = 0.0,
-                    pillMagicAttackBonus = 0.0,
-                    pillPhysicalDefenseBonus = 0.0,
-                    pillMagicDefenseBonus = 0.0,
-                    pillHpBonus = 0.0,
-                    pillMpBonus = 0.0,
-                    pillSpeedBonus = 0.0,
+                    pillPhysicalAttackBonus = 0,
+                    pillMagicAttackBonus = 0,
                     pillEffectDuration = 0
                 ),
                 equipment = EquipmentSet(
@@ -661,7 +656,7 @@ class SaveDataConverterTest {
                     salaryMissedCount = 0
                 ),
                 usage = UsageTracking(
-                    monthlyUsedPillIds = emptyList(),
+                    usedFunctionalPillTypes = emptyList(),
                     usedExtendLifePillIds = emptyList(),
                     recruitedMonth = 1,
                     hasReviveEffect = false,

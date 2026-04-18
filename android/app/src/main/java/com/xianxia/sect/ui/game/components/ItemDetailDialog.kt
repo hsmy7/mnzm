@@ -1,4 +1,4 @@
-package com.xianxia.sect.ui.game.components
+﻿package com.xianxia.sect.ui.game.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -419,7 +419,7 @@ private fun ManualStatsContent(
                 color = Color(0xFF333333)
             )
         }
-        if (skill.skillType == com.xianxia.sect.core.engine.SkillType.SUPPORT) {
+        if (skill.skillType == com.xianxia.sect.core.SkillType.SUPPORT) {
             Text(
                 text = "类型：辅助",
                 fontSize = 10.sp,
@@ -428,8 +428,8 @@ private fun ManualStatsContent(
         }
         if (skill.healPercent > 0) {
             val healTypeName = when (skill.healType) {
-                com.xianxia.sect.core.engine.HealType.HP -> "生命"
-                com.xianxia.sect.core.engine.HealType.MP -> "灵力"
+                com.xianxia.sect.core.HealType.HP -> "生命"
+                com.xianxia.sect.core.HealType.MP -> "灵力"
             }
             Text(
                 text = "治疗：${(skill.healPercent * 100).toInt()}% $healTypeName",
@@ -437,9 +437,9 @@ private fun ManualStatsContent(
                 color = Color(0xFF666666)
             )
         }
-        if (skill.damageMultiplier > 0 && skill.skillType == com.xianxia.sect.core.engine.SkillType.ATTACK) {
+        if (skill.damageMultiplier > 0 && skill.skillType == com.xianxia.sect.core.SkillType.ATTACK) {
             Text(
-                text = "伤害类型：${if (skill.damageType == com.xianxia.sect.core.engine.DamageType.PHYSICAL) "物理" else "法术"}",
+                text = "伤害类型：${if (skill.damageType == com.xianxia.sect.core.DamageType.PHYSICAL) "物理" else "法术"}",
                 fontSize = 10.sp,
                 color = Color(0xFF666666)
             )
@@ -567,7 +567,7 @@ private fun getManualEffects(item: Manual): List<String> = buildList {
         if (skill.description.isNotEmpty()) {
             add("  ${skill.description}")
         }
-        if (skill.skillType == com.xianxia.sect.core.engine.SkillType.SUPPORT) {
+        if (skill.skillType == com.xianxia.sect.core.SkillType.SUPPORT) {
             add("  类型: 辅助")
         }
         if (skill.targetScope == "team") {
@@ -575,13 +575,13 @@ private fun getManualEffects(item: Manual): List<String> = buildList {
         }
         if (skill.healPercent > 0) {
             val healTypeName = when (skill.healType) {
-                com.xianxia.sect.core.engine.HealType.HP -> "生命"
-                com.xianxia.sect.core.engine.HealType.MP -> "灵力"
+                com.xianxia.sect.core.HealType.HP -> "生命"
+                com.xianxia.sect.core.HealType.MP -> "灵力"
             }
             add("  治疗: ${(skill.healPercent * 100).toInt()}% $healTypeName")
         }
-        if (skill.damageMultiplier > 0 && skill.skillType == com.xianxia.sect.core.engine.SkillType.ATTACK) {
-            add("  伤害类型: ${if (skill.damageType == com.xianxia.sect.core.engine.DamageType.PHYSICAL) "物理" else "法术"}")
+        if (skill.damageMultiplier > 0 && skill.skillType == com.xianxia.sect.core.SkillType.ATTACK) {
+            add("  伤害类型: ${if (skill.damageType == com.xianxia.sect.core.DamageType.PHYSICAL) "物理" else "法术"}")
             add("  伤害倍率: ${(skill.damageMultiplier * 100).toInt()}%")
         }
         add("  连击次数: ${skill.hits}")
@@ -612,7 +612,7 @@ private fun getPillEffects(item: Pill): List<String> = buildList {
     add("")
     add("效果:")
     when (item.category) {
-        PillCategory.BREAKTHROUGH -> {
+        PillCategory.FUNCTIONAL -> {
             if (item.breakthroughChance > 0) {
                 add("  突破概率 +${String.format(Locale.getDefault(), "%.1f", item.breakthroughChance * 100)}%")
             }
@@ -624,39 +624,11 @@ private fun getPillEffects(item: Pill): List<String> = buildList {
             }
         }
         PillCategory.CULTIVATION -> {
-            if (item.cultivationPercent > 0) {
-                add("  修为 +${String.format(Locale.getDefault(), "%.1f", item.cultivationPercent * 100)}%")
-            }
-            if (item.cultivationSpeed > 1.0) {
-                add("  修炼速度 x${item.cultivationSpeed}")
-            }
-            if (item.skillExpPercent > 0) {
-                add("  功法熟练度 +${String.format(Locale.getDefault(), "%.1f", item.skillExpPercent * 100)}%")
-            }
-            if (item.extendLife > 0) {
-                add("  延寿 ${item.extendLife} 年")
-            }
         }
-        PillCategory.BATTLE_PHYSICAL, PillCategory.BATTLE_MAGIC, PillCategory.BATTLE_STATUS -> {
-            if (item.physicalAttackPercent > 0) add("  物理攻击 +${String.format(Locale.getDefault(), "%.1f", item.physicalAttackPercent * 100)}%")
-            if (item.magicAttackPercent > 0) add("  法术攻击 +${String.format(Locale.getDefault(), "%.1f", item.magicAttackPercent * 100)}%")
-            if (item.physicalDefensePercent > 0) add("  物理防御 +${String.format(Locale.getDefault(), "%.1f", item.physicalDefensePercent * 100)}%")
-            if (item.magicDefensePercent > 0) add("  法术防御 +${String.format(Locale.getDefault(), "%.1f", item.magicDefensePercent * 100)}%")
-            if (item.hpPercent > 0) add("  生命 +${String.format(Locale.getDefault(), "%.1f", item.hpPercent * 100)}%")
-            if (item.mpPercent > 0) add("  灵力 +${String.format(Locale.getDefault(), "%.1f", item.mpPercent * 100)}%")
-            if (item.speedPercent > 0) add("  速度 +${String.format(Locale.getDefault(), "%.1f", item.speedPercent * 100)}%")
-            if (item.battleCount > 0) add("  持续 ${item.battleCount} 场战斗")
-        }
-        PillCategory.HEALING -> {
-            if (item.heal > 0) add("  恢复生命 ${item.heal}")
-            if (item.healPercent > 0) add("  恢复生命 ${String.format(Locale.getDefault(), "%.1f", item.healPercent * 100)}%")
-            if (item.healMaxHpPercent > 0) add("  恢复生命 ${String.format(Locale.getDefault(), "%.1f", item.healMaxHpPercent * 100)}% 最大生命")
-            if (item.mpRecoverMaxMpPercent > 0) add("  恢复灵力 ${String.format(Locale.getDefault(), "%.1f", item.mpRecoverMaxMpPercent * 100)}% 最大灵力")
-            if (item.revive) add("  可复活弟子")
-            if (item.clearAll) add("  清除所有负面状态")
+        PillCategory.BATTLE -> {
         }
     }
-    if (item.duration > 0 && !item.category.isBattlePill) {
+    if (item.duration > 0 && item.category != PillCategory.BATTLE) {
         add("  持续 ${item.duration} 月")
     }
 }
@@ -729,16 +701,7 @@ private fun getSeedEffects(item: Seed): List<String> = buildList {
     }
 }
 
-fun getBuffTypeName(buffType: com.xianxia.sect.core.engine.BuffType): String = when (buffType) {
-    com.xianxia.sect.core.engine.BuffType.HP_BOOST -> "生命加成"
-    com.xianxia.sect.core.engine.BuffType.MP_BOOST -> "灵力加成"
-    com.xianxia.sect.core.engine.BuffType.SPEED_BOOST -> "速度加成"
-    com.xianxia.sect.core.engine.BuffType.PHYSICAL_ATTACK_BOOST -> "物攻加成"
-    com.xianxia.sect.core.engine.BuffType.MAGIC_ATTACK_BOOST -> "法攻加成"
-    com.xianxia.sect.core.engine.BuffType.PHYSICAL_DEFENSE_BOOST -> "物防加成"
-    com.xianxia.sect.core.engine.BuffType.MAGIC_DEFENSE_BOOST -> "法防加成"
-    com.xianxia.sect.core.engine.BuffType.CRIT_RATE_BOOST -> "暴击率加成"
-}
+fun getBuffTypeName(buffType: com.xianxia.sect.core.BuffType): String = buffType.displayName
 
 private fun getStatDisplayName(key: String): String = when (key) {
     "cultivationSpeedPercent" -> "修炼速度"
@@ -832,24 +795,21 @@ private fun getStorageBagItemEffects(item: StorageBagItem): List<String> = build
 
     item.effect?.let { effect ->
         add("效果:")
-        if (effect.cultivationSpeed > 1.0) add("  修炼速度 x${effect.cultivationSpeed}")
-        if (effect.cultivationPercent > 0) add("  修为 +${GameUtils.formatPercent(effect.cultivationPercent)}")
-        if (effect.skillExpPercent > 0) add("  功法熟练度 +${GameUtils.formatPercent(effect.skillExpPercent)}")
+        if (effect.cultivationSpeedPercent > 0) add("  修炼速度 +${GameUtils.formatPercent(effect.cultivationSpeedPercent)}")
+        if (effect.cultivationAdd > 0) add("  修为 +${effect.cultivationAdd}")
+        if (effect.skillExpAdd > 0) add("  功法熟练度 +${effect.skillExpAdd}")
         if (effect.breakthroughChance > 0) add("  突破概率 +${GameUtils.formatPercent(effect.breakthroughChance)}")
         if (effect.targetRealm > 0) add("  目标境界: ${GameConfig.Realm.getName(effect.targetRealm)}")
-        if (effect.heal > 0) add("  恢复生命 ${effect.heal}")
-        if (effect.healPercent > 0) add("  恢复生命 ${GameUtils.formatPercent(effect.healPercent)}")
         if (effect.healMaxHpPercent > 0) add("  恢复生命 ${GameUtils.formatPercent(effect.healMaxHpPercent)} 最大生命")
-        if (effect.hpPercent > 0) add("  生命 +${GameUtils.formatPercent(effect.hpPercent)}")
-        if (effect.mpPercent > 0) add("  灵力 +${GameUtils.formatPercent(effect.mpPercent)}")
-        if (effect.mpRecoverPercent > 0) add("  恢复灵力 ${GameUtils.formatPercent(effect.mpRecoverPercent)}")
+        if (effect.hpAdd > 0) add("  生命 +${effect.hpAdd}")
+        if (effect.mpAdd > 0) add("  灵力 +${effect.mpAdd}")
+        if (effect.mpRecoverMaxMpPercent > 0) add("  恢复灵力 ${GameUtils.formatPercent(effect.mpRecoverMaxMpPercent)} 最大灵力")
         if (effect.extendLife > 0) add("  延寿 ${effect.extendLife} 年")
-        if (effect.battleCount > 0) add("  持续 ${effect.battleCount} 场战斗")
-        if (effect.physicalAttackPercent > 0) add("  物理攻击 +${GameUtils.formatPercent(effect.physicalAttackPercent)}")
-        if (effect.magicAttackPercent > 0) add("  法术攻击 +${GameUtils.formatPercent(effect.magicAttackPercent)}")
-        if (effect.physicalDefensePercent > 0) add("  物理防御 +${GameUtils.formatPercent(effect.physicalDefensePercent)}")
-        if (effect.magicDefensePercent > 0) add("  法术防御 +${GameUtils.formatPercent(effect.magicDefensePercent)}")
-        if (effect.speedPercent > 0) add("  速度 +${GameUtils.formatPercent(effect.speedPercent)}")
+        if (effect.physicalAttackAdd > 0) add("  物理攻击 +${effect.physicalAttackAdd}")
+        if (effect.magicAttackAdd > 0) add("  法术攻击 +${effect.magicAttackAdd}")
+        if (effect.physicalDefenseAdd > 0) add("  物理防御 +${effect.physicalDefenseAdd}")
+        if (effect.magicDefenseAdd > 0) add("  法术防御 +${effect.magicDefenseAdd}")
+        if (effect.speedAdd > 0) add("  速度 +${effect.speedAdd}")
         if (effect.revive) add("  可复活弟子")
         if (effect.clearAll) add("  清除所有负面状态")
         if (effect.duration > 0) add("  持续 ${effect.duration} 月")

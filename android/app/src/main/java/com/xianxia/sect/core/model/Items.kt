@@ -4,11 +4,11 @@ import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.BuffType
+import com.xianxia.sect.core.DamageType
+import com.xianxia.sect.core.HealType
+import com.xianxia.sect.core.SkillType
 import com.xianxia.sect.core.engine.CombatSkill
-import com.xianxia.sect.core.engine.DamageType
-import com.xianxia.sect.core.engine.SkillType
-import com.xianxia.sect.core.engine.HealType
-import com.xianxia.sect.core.engine.BuffType
 import com.xianxia.sect.core.util.StackableItem
 import kotlinx.serialization.Serializable
 
@@ -355,29 +355,42 @@ data class Pill(
     override val description: String = "",
     
     val category: PillCategory = PillCategory.CULTIVATION,
+    val grade: PillGrade = PillGrade.MEDIUM,
+    val pillType: String = "",
     val breakthroughChance: Double = 0.0,
     val targetRealm: Int = 0,
     val isAscension: Boolean = false,
-    val cultivationSpeed: Double = 1.0,
-    val duration: Int = 0,
-    val cannotStack: Boolean = false,
-    val cultivationPercent: Double = 0.0,
-    val skillExpPercent: Double = 0.0,
+    val cultivationSpeedPercent: Double = 0.0,
+    val skillExpSpeedPercent: Double = 0.0,
+    val nurtureSpeedPercent: Double = 0.0,
+    val cultivationAdd: Int = 0,
+    val skillExpAdd: Int = 0,
+    val nurtureAdd: Int = 0,
+    val duration: Int = 3,
+    val cannotStack: Boolean = true,
+    val physicalAttackAdd: Int = 0,
+    val magicAttackAdd: Int = 0,
+    val physicalDefenseAdd: Int = 0,
+    val magicDefenseAdd: Int = 0,
+    val hpAdd: Int = 0,
+    val mpAdd: Int = 0,
+    val speedAdd: Int = 0,
+    val critRateAdd: Double = 0.0,
+    val critEffectAdd: Double = 0.0,
     val extendLife: Int = 0,
-    val physicalAttackPercent: Double = 0.0,
-    val magicAttackPercent: Double = 0.0,
-    val physicalDefensePercent: Double = 0.0,
-    val magicDefensePercent: Double = 0.0,
-    val hpPercent: Double = 0.0,
-    val mpPercent: Double = 0.0,
-    val speedPercent: Double = 0.0,
+    val intelligenceAdd: Int = 0,
+    val charmAdd: Int = 0,
+    val loyaltyAdd: Int = 0,
+    val comprehensionAdd: Int = 0,
+    val artifactRefiningAdd: Int = 0,
+    val pillRefiningAdd: Int = 0,
+    val spiritPlantingAdd: Int = 0,
+    val teachingAdd: Int = 0,
+    val moralityAdd: Int = 0,
     val healMaxHpPercent: Double = 0.0,
-    val healPercent: Double = 0.0,
-    val heal: Int = 0,
-    val battleCount: Int = 0,
+    val mpRecoverMaxMpPercent: Double = 0.0,
     val revive: Boolean = false,
     val clearAll: Boolean = false,
-    val mpRecoverMaxMpPercent: Double = 0.0,
 
     @ColumnInfo(name = "minRealm", defaultValue = "9")
     val minRealm: Int = 9,
@@ -388,49 +401,72 @@ data class Pill(
     
     override fun withQuantity(newQuantity: Int): Pill = copy(quantity = newQuantity)
     
-    val basePrice: Int get() = (GameConfig.Rarity.get(rarity).basePrice * 0.8).toInt() // 丹药基础价格是功法/装备的80%
+    val basePrice: Int get() = (GameConfig.Rarity.get(rarity).basePrice * 0.8).toInt()
     
     val effect: PillEffect get() = PillEffect(
         breakthroughChance = breakthroughChance,
         targetRealm = targetRealm,
         isAscension = isAscension,
-        cultivationSpeed = cultivationSpeed,
+        cultivationSpeedPercent = cultivationSpeedPercent,
+        skillExpSpeedPercent = skillExpSpeedPercent,
+        nurtureSpeedPercent = nurtureSpeedPercent,
+        cultivationAdd = cultivationAdd,
+        skillExpAdd = skillExpAdd,
+        nurtureAdd = nurtureAdd,
         duration = duration,
         cannotStack = cannotStack,
-        cultivationPercent = cultivationPercent,
-        skillExpPercent = skillExpPercent,
+        physicalAttackAdd = physicalAttackAdd,
+        magicAttackAdd = magicAttackAdd,
+        physicalDefenseAdd = physicalDefenseAdd,
+        magicDefenseAdd = magicDefenseAdd,
+        hpAdd = hpAdd,
+        mpAdd = mpAdd,
+        speedAdd = speedAdd,
+        critRateAdd = critRateAdd,
+        critEffectAdd = critEffectAdd,
         extendLife = extendLife,
-        physicalAttackPercent = physicalAttackPercent,
-        magicAttackPercent = magicAttackPercent,
-        physicalDefensePercent = physicalDefensePercent,
-        magicDefensePercent = magicDefensePercent,
-        hpPercent = hpPercent,
-        mpPercent = mpPercent,
-        speedPercent = speedPercent,
+        intelligenceAdd = intelligenceAdd,
+        charmAdd = charmAdd,
+        loyaltyAdd = loyaltyAdd,
+        comprehensionAdd = comprehensionAdd,
+        artifactRefiningAdd = artifactRefiningAdd,
+        pillRefiningAdd = pillRefiningAdd,
+        spiritPlantingAdd = spiritPlantingAdd,
+        teachingAdd = teachingAdd,
+        moralityAdd = moralityAdd,
         healMaxHpPercent = healMaxHpPercent,
-        healPercent = healPercent,
-        heal = heal,
-        battleCount = battleCount,
+        mpRecoverMaxMpPercent = mpRecoverMaxMpPercent,
         revive = revive,
-        clearAll = clearAll,
-        mpRecoverMaxMpPercent = mpRecoverMaxMpPercent
+        clearAll = clearAll
     )
 }
 
 @Serializable
 enum class PillCategory {
-    BREAKTHROUGH, CULTIVATION, HEALING, BATTLE_PHYSICAL, BATTLE_MAGIC, BATTLE_STATUS;
-    
+    CULTIVATION, BATTLE, FUNCTIONAL;
+
     val displayName: String get() = when (this) {
-        BREAKTHROUGH -> "突破丹"
-        CULTIVATION -> "修炼丹"
-        HEALING -> "治疗丹"
-        BATTLE_PHYSICAL -> "物理丹"
-        BATTLE_MAGIC -> "法术丹"
-        BATTLE_STATUS -> "状态丹"
+        CULTIVATION -> "修炼丹药"
+        BATTLE -> "战斗丹药"
+        FUNCTIONAL -> "功能丹药"
     }
-    
-    val isBattlePill: Boolean get() = this == BATTLE_PHYSICAL || this == BATTLE_MAGIC || this == BATTLE_STATUS
+}
+
+@Serializable
+enum class PillGrade {
+    LOW, MEDIUM, HIGH;
+
+    val displayName: String get() = when (this) {
+        LOW -> "下品"
+        MEDIUM -> "中品"
+        HIGH -> "上品"
+    }
+
+    val multiplier: Double get() = when (this) {
+        LOW -> 0.7
+        MEDIUM -> 1.0
+        HIGH -> 1.5
+    }
 }
 
 @Serializable
@@ -438,26 +474,37 @@ data class PillEffect(
     val breakthroughChance: Double = 0.0,
     val targetRealm: Int = 0,
     val isAscension: Boolean = false,
-    val cultivationSpeed: Double = 1.0,
-    val duration: Int = 0,
-    val cannotStack: Boolean = false,
-    val cultivationPercent: Double = 0.0,
-    val skillExpPercent: Double = 0.0,
+    val cultivationSpeedPercent: Double = 0.0,
+    val skillExpSpeedPercent: Double = 0.0,
+    val nurtureSpeedPercent: Double = 0.0,
+    val cultivationAdd: Int = 0,
+    val skillExpAdd: Int = 0,
+    val nurtureAdd: Int = 0,
+    val duration: Int = 3,
+    val cannotStack: Boolean = true,
+    val physicalAttackAdd: Int = 0,
+    val magicAttackAdd: Int = 0,
+    val physicalDefenseAdd: Int = 0,
+    val magicDefenseAdd: Int = 0,
+    val hpAdd: Int = 0,
+    val mpAdd: Int = 0,
+    val speedAdd: Int = 0,
+    val critRateAdd: Double = 0.0,
+    val critEffectAdd: Double = 0.0,
     val extendLife: Int = 0,
-    val physicalAttackPercent: Double = 0.0,
-    val magicAttackPercent: Double = 0.0,
-    val physicalDefensePercent: Double = 0.0,
-    val magicDefensePercent: Double = 0.0,
-    val hpPercent: Double = 0.0,
-    val mpPercent: Double = 0.0,
-    val speedPercent: Double = 0.0,
+    val intelligenceAdd: Int = 0,
+    val charmAdd: Int = 0,
+    val loyaltyAdd: Int = 0,
+    val comprehensionAdd: Int = 0,
+    val artifactRefiningAdd: Int = 0,
+    val pillRefiningAdd: Int = 0,
+    val spiritPlantingAdd: Int = 0,
+    val teachingAdd: Int = 0,
+    val moralityAdd: Int = 0,
     val healMaxHpPercent: Double = 0.0,
-    val healPercent: Double = 0.0,
-    val heal: Int = 0,
-    val battleCount: Int = 0,
+    val mpRecoverMaxMpPercent: Double = 0.0,
     val revive: Boolean = false,
-    val clearAll: Boolean = false,
-    val mpRecoverMaxMpPercent: Double = 0.0
+    val clearAll: Boolean = false
 )
 
 @Serializable

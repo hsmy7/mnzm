@@ -105,23 +105,30 @@ object MerchantItemConverter {
                 category = template.category,
                 breakthroughChance = template.breakthroughChance,
                 targetRealm = template.targetRealm,
-                cultivationSpeed = template.cultivationSpeed,
-                duration = template.effectDuration,
-                cultivationPercent = template.cultivationPercent,
-                skillExpPercent = template.skillExpPercent,
+                cultivationSpeedPercent = template.cultivationSpeedPercent,
+                duration = template.duration,
+                cultivationAdd = template.cultivationAdd,
+                skillExpAdd = template.skillExpAdd,
+                nurtureAdd = template.nurtureAdd,
                 extendLife = template.extendLife,
-                physicalAttackPercent = template.physicalAttackPercent,
-                magicAttackPercent = template.magicAttackPercent,
-                physicalDefensePercent = template.physicalDefensePercent,
-                magicDefensePercent = template.magicDefensePercent,
-                hpPercent = template.hpPercent,
-                mpPercent = template.mpPercent,
-                speedPercent = template.speedPercent,
-                healPercent = template.healPercent,
-                healMaxHpPercent = template.healMaxHpPercent,
-                heal = template.heal,
-                battleCount = template.battleCount,
-                mpRecoverMaxMpPercent = template.mpRecoverMaxMpPercent,
+                physicalAttackAdd = template.physicalAttackAdd,
+                magicAttackAdd = template.magicAttackAdd,
+                physicalDefenseAdd = template.physicalDefenseAdd,
+                magicDefenseAdd = template.magicDefenseAdd,
+                hpAdd = template.hpAdd,
+                mpAdd = template.mpAdd,
+                speedAdd = template.speedAdd,
+                critRateAdd = template.critRateAdd,
+                critEffectAdd = template.critEffectAdd,
+                intelligenceAdd = template.intelligenceAdd,
+                charmAdd = template.charmAdd,
+                loyaltyAdd = template.loyaltyAdd,
+                comprehensionAdd = template.comprehensionAdd,
+                artifactRefiningAdd = template.artifactRefiningAdd,
+                pillRefiningAdd = template.pillRefiningAdd,
+                spiritPlantingAdd = template.spiritPlantingAdd,
+                teachingAdd = template.teachingAdd,
+                moralityAdd = template.moralityAdd,
                 minRealm = GameConfig.Realm.getMinRealmForRarity(item.rarity)
             )
         }
@@ -202,7 +209,7 @@ object MerchantItemConverter {
             }
             "pill" -> {
                 val t = PillRecipeDatabase.getRecipeByName(item.name)
-                CapacityCheckParams.PillParams(item.name, item.rarity, t?.category ?: PillCategory.HEALING)
+                CapacityCheckParams.PillParams(item.name, item.rarity, t?.category ?: PillCategory.FUNCTIONAL)
             }
             "material" -> {
                 val t = BeastMaterialDatabase.getMaterialByName(item.name)

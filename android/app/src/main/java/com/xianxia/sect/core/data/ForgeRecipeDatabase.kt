@@ -3,7 +3,9 @@ package com.xianxia.sect.core.data
 import com.xianxia.sect.core.model.EquipmentSlot
 
 object ForgeRecipeDatabase {
-    
+
+    val TIER_DURATION = mapOf(1 to 2, 2 to 5, 3 to 9, 4 to 18, 5 to 30, 6 to 48)
+
     data class ForgeRecipe(
         val id: String,
         val name: String,
@@ -128,15 +130,5 @@ object ForgeRecipeDatabase {
 
     fun getRecipesByType(type: EquipmentSlot): List<ForgeRecipe> = allRecipes.filter { it.type == type }
 
-    fun getDurationByTier(tier: Int): Int {
-        return when (tier) {
-            1 -> 2
-            2 -> 5
-            3 -> 9
-            4 -> 18
-            5 -> 30
-            6 -> 48
-            else -> 2
-        }
-    }
+    fun getDurationByTier(tier: Int): Int = TIER_DURATION[tier] ?: 2
 }

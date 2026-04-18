@@ -1,4 +1,4 @@
-package com.xianxia.sect.core.engine.system
+﻿package com.xianxia.sect.core.engine.system
 
 import com.xianxia.sect.core.model.Equipment
 import com.xianxia.sect.core.model.Manual
@@ -102,7 +102,7 @@ class InventorySystemTest {
 
     @Test
     fun `addPill - 正常添加丹药`() {
-        val pill = Pill(id = "p1", name = "筑基丹", rarity = 2, category = PillCategory.BREAKTHROUGH, quantity = 5)
+        val pill = Pill(id = "p1", name = "筑基丹", rarity = 2, category = PillCategory.FUNCTIONAL, quantity = 5)
         assertEquals(AddResult.SUCCESS, system.addPill(pill))
         assertNotNull(system.getPillById("p1"))
         assertEquals(5, system.getPillQuantity("p1"))
@@ -110,8 +110,8 @@ class InventorySystemTest {
 
     @Test
     fun `addPill - 合并同名同品质同类别丹药`() {
-        system.addPill(Pill(id = "p1", name = "筑基丹", rarity = 2, category = PillCategory.BREAKTHROUGH, quantity = 5))
-        system.addPill(Pill(id = "p2", name = "筑基丹", rarity = 2, category = PillCategory.BREAKTHROUGH, quantity = 3))
+        system.addPill(Pill(id = "p1", name = "筑基丹", rarity = 2, category = PillCategory.FUNCTIONAL, quantity = 5))
+        system.addPill(Pill(id = "p2", name = "筑基丹", rarity = 2, category = PillCategory.FUNCTIONAL, quantity = 3))
         assertEquals(8, system.getPillQuantity("p1"))
         assertNull(system.getPillById("p2"))
     }
@@ -126,15 +126,15 @@ class InventorySystemTest {
 
     @Test
     fun `addPill - 合并数量不超过MAX_STACK_SIZE`() {
-        system.addPill(Pill(id = "p1", name = "筑基丹", rarity = 2, category = PillCategory.BREAKTHROUGH, quantity = 998))
-        system.addPill(Pill(id = "p2", name = "筑基丹", rarity = 2, category = PillCategory.BREAKTHROUGH, quantity = 5))
+        system.addPill(Pill(id = "p1", name = "筑基丹", rarity = 2, category = PillCategory.FUNCTIONAL, quantity = 998))
+        system.addPill(Pill(id = "p2", name = "筑基丹", rarity = 2, category = PillCategory.FUNCTIONAL, quantity = 5))
         assertEquals(InventorySystem.MAX_STACK_SIZE, system.getPillQuantity("p1"))
     }
 
     @Test
     fun `addPill - 禁止合并时添加新物品`() {
-        system.addPill(Pill(id = "p1", name = "筑基丹", rarity = 2, category = PillCategory.BREAKTHROUGH, quantity = 5))
-        system.addPill(Pill(id = "p2", name = "筑基丹", rarity = 2, category = PillCategory.BREAKTHROUGH, quantity = 3), merge = false)
+        system.addPill(Pill(id = "p1", name = "筑基丹", rarity = 2, category = PillCategory.FUNCTIONAL, quantity = 5))
+        system.addPill(Pill(id = "p2", name = "筑基丹", rarity = 2, category = PillCategory.FUNCTIONAL, quantity = 3), merge = false)
         assertNotNull(system.getPillById("p2"))
         assertEquals(3, system.getPillQuantity("p2"))
     }
@@ -159,28 +159,28 @@ class InventorySystemTest {
 
     @Test
     fun `removePill - 正常减少数量`() {
-        system.addPill(Pill(id = "p1", name = "筑基丹", rarity = 2, category = PillCategory.BREAKTHROUGH, quantity = 5))
+        system.addPill(Pill(id = "p1", name = "筑基丹", rarity = 2, category = PillCategory.FUNCTIONAL, quantity = 5))
         assertTrue(system.removePill("p1", 3))
         assertEquals(2, system.getPillQuantity("p1"))
     }
 
     @Test
     fun `removePill - 数量减为0时删除物品`() {
-        system.addPill(Pill(id = "p1", name = "筑基丹", rarity = 2, category = PillCategory.BREAKTHROUGH, quantity = 5))
+        system.addPill(Pill(id = "p1", name = "筑基丹", rarity = 2, category = PillCategory.FUNCTIONAL, quantity = 5))
         assertTrue(system.removePill("p1", 5))
         assertNull(system.getPillById("p1"))
     }
 
     @Test
     fun `removePill - 锁定丹药不能删除`() {
-        system.addPill(Pill(id = "p1", name = "筑基丹", rarity = 2, category = PillCategory.BREAKTHROUGH, quantity = 5, isLocked = true))
+        system.addPill(Pill(id = "p1", name = "筑基丹", rarity = 2, category = PillCategory.FUNCTIONAL, quantity = 5, isLocked = true))
         assertFalse(system.removePill("p1", 1))
         assertEquals(5, system.getPillQuantity("p1"))
     }
 
     @Test
     fun `removePillByName - 按名称和品质删除`() {
-        system.addPill(Pill(id = "p1", name = "筑基丹", rarity = 2, category = PillCategory.BREAKTHROUGH, quantity = 5))
+        system.addPill(Pill(id = "p1", name = "筑基丹", rarity = 2, category = PillCategory.FUNCTIONAL, quantity = 5))
         assertTrue(system.removePillByName("筑基丹", 2, 3))
         assertEquals(2, system.getPillQuantity("p1"))
     }
@@ -192,7 +192,7 @@ class InventorySystemTest {
 
     @Test
     fun `hasPill - 检查丹药是否存在且数量足够`() {
-        system.addPill(Pill(id = "p1", name = "筑基丹", rarity = 2, category = PillCategory.BREAKTHROUGH, quantity = 5))
+        system.addPill(Pill(id = "p1", name = "筑基丹", rarity = 2, category = PillCategory.FUNCTIONAL, quantity = 5))
         assertTrue(system.hasPill("筑基丹", 2, 5))
         assertTrue(system.hasPill("筑基丹", 2, 1))
         assertFalse(system.hasPill("筑基丹", 2, 6))
@@ -201,7 +201,7 @@ class InventorySystemTest {
 
     @Test
     fun `updatePill - 正常更新丹药`() {
-        system.addPill(Pill(id = "p1", name = "筑基丹", rarity = 2, category = PillCategory.BREAKTHROUGH, quantity = 5))
+        system.addPill(Pill(id = "p1", name = "筑基丹", rarity = 2, category = PillCategory.FUNCTIONAL, quantity = 5))
         assertTrue(system.updatePill("p1") { it.copy(quantity = 10) })
         assertEquals(10, system.getPillQuantity("p1"))
     }

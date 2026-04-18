@@ -81,7 +81,7 @@ class BoundaryAndEdgeCaseTest {
                     salaryMissedCount = i % 10
                 ),
                 usage = UsageTracking(
-                    monthlyUsedPillIds = emptyList(),
+                    usedFunctionalPillTypes = emptyList(),
                     usedExtendLifePillIds = emptyList(),
                     recruitedMonth = 1 + (i % 12),
                     hasReviveEffect = i % 20 == 0,
@@ -178,7 +178,7 @@ class BoundaryAndEdgeCaseTest {
                 teaching = 80, morality = 90, salaryPaidCount = 30, salaryMissedCount = 2
             ),
             usage = UsageTracking(
-                monthlyUsedPillIds = listOf("pill_1", "pill_2"),
+                usedFunctionalPillTypes = listOf("pill_1", "pill_2"),
                 usedExtendLifePillIds = listOf("extend_pill_1"),
                 recruitedMonth = 6, hasReviveEffect = true, hasClearAllEffect = true
             )
@@ -348,10 +348,10 @@ class BoundaryAndEdgeCaseTest {
                 breakthroughCount = Int.MAX_VALUE, breakthroughFailCount = Int.MAX_VALUE
             ),
             pillEffects = PillEffects(
-                pillPhysicalAttackBonus = Double.MAX_VALUE, pillMagicAttackBonus = Double.MAX_VALUE,
-                pillPhysicalDefenseBonus = Double.MAX_VALUE, pillMagicDefenseBonus = Double.MAX_VALUE,
-                pillHpBonus = Double.MAX_VALUE, pillMpBonus = Double.MAX_VALUE,
-                pillSpeedBonus = Double.MAX_VALUE, pillEffectDuration = Int.MAX_VALUE
+                pillPhysicalAttackBonus = Int.MAX_VALUE, pillMagicAttackBonus = Int.MAX_VALUE,
+                pillPhysicalDefenseBonus = Int.MAX_VALUE, pillMagicDefenseBonus = Int.MAX_VALUE,
+                pillHpBonus = Int.MAX_VALUE, pillMpBonus = Int.MAX_VALUE,
+                pillSpeedBonus = Int.MAX_VALUE, pillEffectDuration = Int.MAX_VALUE
             ),
             equipment = EquipmentSet(
                 spiritStones = Int.MAX_VALUE, soulPower = Int.MAX_VALUE,

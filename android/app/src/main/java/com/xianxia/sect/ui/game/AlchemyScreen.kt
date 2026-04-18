@@ -452,59 +452,74 @@ private fun PillDetailDialog(
                             Text(text = "目标境界: ${recipe.targetRealm}阶", fontSize = 11.sp, color = Color(0xFF666666))
                         }
                     }
-                    if (recipe.cultivationSpeed > 1.0) {
-                        Text(text = "修炼速度 +${String.format(Locale.getDefault(), "%.1f", (recipe.cultivationSpeed - 1.0) * 100)}%", fontSize = 11.sp, color = Color(0xFF666666))
+                    if (recipe.cultivationSpeedPercent > 0) {
+                        Text(text = "修炼速度 +${String.format(Locale.getDefault(), "%.1f", recipe.cultivationSpeedPercent * 100)}%", fontSize = 11.sp, color = Color(0xFF666666))
                     }
-                    if (recipe.cultivation > 0) {
-                        Text(text = "修为 +${recipe.cultivation}", fontSize = 11.sp, color = Color(0xFF666666))
+                    if (recipe.cultivationAdd > 0) {
+                        Text(text = "修为 +${recipe.cultivationAdd}", fontSize = 11.sp, color = Color(0xFF666666))
                     }
-                    if (recipe.cultivationPercent > 0) {
-                        Text(text = "修为 +${String.format(Locale.getDefault(), "%.1f", recipe.cultivationPercent * 100)}%", fontSize = 11.sp, color = Color(0xFF666666))
+                    if (recipe.physicalAttackAdd > 0) {
+                        Text(text = "物理攻击 +${recipe.physicalAttackAdd}", fontSize = 11.sp, color = Color(0xFF666666))
                     }
-                    if (recipe.physicalAttackPercent > 0) {
-                        Text(text = "物理攻击 +${String.format(Locale.getDefault(), "%.1f", recipe.physicalAttackPercent * 100)}%", fontSize = 11.sp, color = Color(0xFF666666))
+                    if (recipe.magicAttackAdd > 0) {
+                        Text(text = "法术攻击 +${recipe.magicAttackAdd}", fontSize = 11.sp, color = Color(0xFF666666))
                     }
-                    if (recipe.magicAttackPercent > 0) {
-                        Text(text = "法术攻击 +${String.format(Locale.getDefault(), "%.1f", recipe.magicAttackPercent * 100)}%", fontSize = 11.sp, color = Color(0xFF666666))
+                    if (recipe.physicalDefenseAdd > 0) {
+                        Text(text = "物理防御 +${recipe.physicalDefenseAdd}", fontSize = 11.sp, color = Color(0xFF666666))
                     }
-                    if (recipe.physicalDefensePercent > 0) {
-                        Text(text = "物理防御 +${String.format(Locale.getDefault(), "%.1f", recipe.physicalDefensePercent * 100)}%", fontSize = 11.sp, color = Color(0xFF666666))
+                    if (recipe.magicDefenseAdd > 0) {
+                        Text(text = "法术防御 +${recipe.magicDefenseAdd}", fontSize = 11.sp, color = Color(0xFF666666))
                     }
-                    if (recipe.magicDefensePercent > 0) {
-                        Text(text = "法术防御 +${String.format(Locale.getDefault(), "%.1f", recipe.magicDefensePercent * 100)}%", fontSize = 11.sp, color = Color(0xFF666666))
+                    if (recipe.hpAdd > 0) {
+                        Text(text = "生命值 +${recipe.hpAdd}", fontSize = 11.sp, color = Color(0xFF666666))
                     }
-                    if (recipe.hpPercent > 0) {
-                        Text(text = "生命值 +${String.format(Locale.getDefault(), "%.1f", recipe.hpPercent * 100)}%", fontSize = 11.sp, color = Color(0xFF666666))
+                    if (recipe.mpAdd > 0) {
+                        Text(text = "灵力容量 +${recipe.mpAdd}", fontSize = 11.sp, color = Color(0xFF666666))
                     }
-                    if (recipe.mpPercent > 0) {
-                        Text(text = "灵力容量 +${String.format(Locale.getDefault(), "%.1f", recipe.mpPercent * 100)}%", fontSize = 11.sp, color = Color(0xFF666666))
+                    if (recipe.speedAdd > 0) {
+                        Text(text = "身法 +${recipe.speedAdd}", fontSize = 11.sp, color = Color(0xFF666666))
                     }
-                    if (recipe.speedPercent > 0) {
-                        Text(text = "身法 +${String.format(Locale.getDefault(), "%.1f", recipe.speedPercent * 100)}%", fontSize = 11.sp, color = Color(0xFF666666))
+                    if (recipe.critRateAdd > 0) {
+                        Text(text = "暴击率 +${String.format(Locale.getDefault(), "%.1f", recipe.critRateAdd * 100)}%", fontSize = 11.sp, color = Color(0xFF666666))
                     }
-                    if (recipe.heal > 0) {
-                        Text(text = "恢复生命值 ${recipe.heal}点", fontSize = 11.sp, color = Color(0xFF666666))
+                    if (recipe.critEffectAdd > 0) {
+                        Text(text = "暴击效果 +${String.format(Locale.getDefault(), "%.1f", recipe.critEffectAdd * 100)}%", fontSize = 11.sp, color = Color(0xFF666666))
                     }
-                    if (recipe.healPercent > 0) {
-                        Text(text = "恢复生命值 ${String.format(Locale.getDefault(), "%.1f", recipe.healPercent * 100)}%", fontSize = 11.sp, color = Color(0xFF666666))
+                    if (recipe.skillExpAdd > 0) {
+                        Text(text = "功法熟练度 +${recipe.skillExpAdd}", fontSize = 11.sp, color = Color(0xFF666666))
                     }
-                    if (recipe.healMaxHpPercent > 0) {
-                        Text(text = "恢复 ${String.format(Locale.getDefault(), "%.1f", recipe.healMaxHpPercent * 100)}%最大生命值", fontSize = 11.sp, color = Color(0xFF666666))
-                    }
-                    if (recipe.mpRecoverMaxMpPercent > 0) {
-                        Text(text = "恢复 ${String.format(Locale.getDefault(), "%.1f", recipe.mpRecoverMaxMpPercent * 100)}%最大灵力", fontSize = 11.sp, color = Color(0xFF666666))
-                    }
-                    if (recipe.skillExpPercent > 0) {
-                        Text(text = "功法熟练度 +${String.format(Locale.getDefault(), "%.1f", recipe.skillExpPercent * 100)}%", fontSize = 11.sp, color = Color(0xFF666666))
+                    if (recipe.nurtureAdd > 0) {
+                        Text(text = "孕育值 +${recipe.nurtureAdd}", fontSize = 11.sp, color = Color(0xFF666666))
                     }
                     if (recipe.extendLife > 0) {
                         Text(text = "延长寿命 ${recipe.extendLife}年", fontSize = 11.sp, color = Color(0xFF666666))
                     }
-                    if (recipe.effectDuration > 0) {
-                        Text(text = "持续: ${recipe.effectDuration}个月", fontSize = 11.sp, color = Color(0xFF666666))
+                    if (recipe.intelligenceAdd > 0) {
+                        Text(text = "悟性 +${recipe.intelligenceAdd}", fontSize = 11.sp, color = Color(0xFF666666))
                     }
-                    if (recipe.battleCount > 0) {
-                        Text(text = "持续: ${recipe.battleCount}场战斗", fontSize = 11.sp, color = Color(0xFF666666))
+                    if (recipe.charmAdd > 0) {
+                        Text(text = "魅力 +${recipe.charmAdd}", fontSize = 11.sp, color = Color(0xFF666666))
+                    }
+                    if (recipe.loyaltyAdd > 0) {
+                        Text(text = "忠诚 +${recipe.loyaltyAdd}", fontSize = 11.sp, color = Color(0xFF666666))
+                    }
+                    if (recipe.comprehensionAdd > 0) {
+                        Text(text = "领悟 +${recipe.comprehensionAdd}", fontSize = 11.sp, color = Color(0xFF666666))
+                    }
+                    if (recipe.artifactRefiningAdd > 0) {
+                        Text(text = "炼器 +${recipe.artifactRefiningAdd}", fontSize = 11.sp, color = Color(0xFF666666))
+                    }
+                    if (recipe.pillRefiningAdd > 0) {
+                        Text(text = "炼丹 +${recipe.pillRefiningAdd}", fontSize = 11.sp, color = Color(0xFF666666))
+                    }
+                    if (recipe.spiritPlantingAdd > 0) {
+                        Text(text = "种植 +${recipe.spiritPlantingAdd}", fontSize = 11.sp, color = Color(0xFF666666))
+                    }
+                    if (recipe.teachingAdd > 0) {
+                        Text(text = "传授 +${recipe.teachingAdd}", fontSize = 11.sp, color = Color(0xFF666666))
+                    }
+                    if (recipe.moralityAdd > 0) {
+                        Text(text = "道德 +${recipe.moralityAdd}", fontSize = 11.sp, color = Color(0xFF666666))
                     }
                 }
 

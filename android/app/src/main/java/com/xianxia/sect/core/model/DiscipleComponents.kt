@@ -64,16 +64,20 @@ data class CombatAttributes(
  */
 @Serializable
 data class PillEffects(
-    // 丹药临时属性加成（百分比，如0.1表示+10%）
-    var pillPhysicalAttackBonus: Double = 0.0,
-    var pillMagicAttackBonus: Double = 0.0,
-    var pillPhysicalDefenseBonus: Double = 0.0,
-    var pillMagicDefenseBonus: Double = 0.0,
-    var pillHpBonus: Double = 0.0,
-    var pillMpBonus: Double = 0.0,
-    var pillSpeedBonus: Double = 0.0,
-    // 剩余回合/月数
-    var pillEffectDuration: Int = 0
+    var pillPhysicalAttackBonus: Int = 0,
+    var pillMagicAttackBonus: Int = 0,
+    var pillPhysicalDefenseBonus: Int = 0,
+    var pillMagicDefenseBonus: Int = 0,
+    var pillHpBonus: Int = 0,
+    var pillMpBonus: Int = 0,
+    var pillSpeedBonus: Int = 0,
+    var pillCritRateBonus: Double = 0.0,
+    var pillCritEffectBonus: Double = 0.0,
+    var pillCultivationSpeedBonus: Double = 0.0,
+    var pillSkillExpSpeedBonus: Double = 0.0,
+    var pillNurtureSpeedBonus: Double = 0.0,
+    var pillEffectDuration: Int = 0,
+    var activePillCategory: String = ""
 )
 
 /**
@@ -151,13 +155,9 @@ data class SkillStats(
  */
 @Serializable
 data class UsageTracking(
-    // 本月已使用的功能型丹药ID列表（每月重置）
-    var monthlyUsedPillIds: List<String> = emptyList(),
-    // 已使用过的增寿丹药ID列表（永久记录）
+    var usedFunctionalPillTypes: List<String> = emptyList(),
     var usedExtendLifePillIds: List<String> = emptyList(),
-    // 招募时间（游戏月），用于新弟子保护期
     var recruitedMonth: Int = 0,
-    // 功能型丹药效果标记
     var hasReviveEffect: Boolean = false,
     var hasClearAllEffect: Boolean = false
 )

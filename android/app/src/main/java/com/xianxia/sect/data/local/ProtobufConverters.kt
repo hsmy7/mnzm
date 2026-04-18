@@ -213,7 +213,10 @@ object ProtobufConverters {
     @TypeConverter
     @JvmStatic
     fun toPillCategory(value: String): PillCategory = when (value) {
-        "BATTLE" -> PillCategory.BATTLE_PHYSICAL
+        "BATTLE" -> PillCategory.BATTLE
+        "BATTLE_PHYSICAL", "BATTLE_MAGIC", "BATTLE_STATUS" -> PillCategory.BATTLE
+        "BREAKTHROUGH" -> PillCategory.CULTIVATION
+        "HEALING" -> PillCategory.FUNCTIONAL
         else -> PillCategory.entries.find { it.name == value } ?: PillCategory.CULTIVATION
     }
 

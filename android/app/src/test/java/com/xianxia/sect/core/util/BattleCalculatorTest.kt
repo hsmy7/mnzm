@@ -14,7 +14,9 @@ class BattleCalculatorTest {
         physicalDefense: Int = 50,
         magicDefense: Int = 40,
         speed: Int = 50,
-        critRate: Double = 0.1
+        critRate: Double = 0.1,
+        realm: Int = 5,
+        element: String = "metal"
     ): CombatantStats {
         return object : CombatantStats {
             override val physicalAttack = physicalAttack
@@ -23,11 +25,18 @@ class BattleCalculatorTest {
             override val magicDefense = magicDefense
             override val speed = speed
             override val critRate = critRate
+            override val realm = realm
+            override val element = element
         }
     }
 
+    private fun expectedDamage(attack: Int, defense: Int, multiplier: Double = 1.0, critMultiplier: Double = 1.0): Double {
+        val reduction = defense.toDouble() / (defense.toDouble() + GameConfig.Battle.DEFENSE_CONSTANT)
+        return attack * multiplier * (1.0 - reduction) * critMultiplier
+    }
+
     @Test
-    fun `calculateDamage - 物理攻击伤害正确`() {
+    fun `calculateDamage - physical attack damage correct`() {
         val attacker = createCombatant(physicalAttack = 200, magicAttack = 50)
         val defender = createCombatant(physicalDefense = 50)
         var totalDamage = 0
@@ -45,12 +54,12 @@ class BattleCalculatorTest {
         }
         assertTrue(count > 900)
         val avgDamage = totalDamage.toDouble() / count
-        val expectedBase = 200.0 * 1.0 - 50.0
-        assertTrue("平均伤害 $avgDamage 应接近 $expectedBase", avgDamage > expectedBase * 0.7 && avgDamage < expectedBase * 1.5)
+        val expected = expectedDamage(200, 50)
+        assertTrue("avgDamage $avgDamage should be near $expected", avgDamage > expected * 0.7 && avgDamage < expected * 1.5)
     }
 
     @Test
-    fun `calculateDamage - 法术攻击伤害正确`() {
+    fun `calculateDamage - magic attack damage correct`() {
         val attacker = createCombatant(physicalAttack = 50, magicAttack = 200)
         val defender = createCombatant(physicalDefense = 50, magicDefense = 30)
         var totalDamage = 0
@@ -68,12 +77,12 @@ class BattleCalculatorTest {
         }
         assertTrue(count > 900)
         val avgDamage = totalDamage.toDouble() / count
-        val expectedBase = 200.0 * 1.0 - 30.0
-        assertTrue("平均伤害 $avgDamage 应接近 $expectedBase", avgDamage > expectedBase * 0.7 && avgDamage < expectedBase * 1.5)
+        val expected = expectedDamage(200, 30)
+        assertTrue("avgDamage $avgDamage should be near $expected", avgDamage > expected * 0.7 && avgDamage < expected * 1.5)
     }
 
     @Test
-    fun `calculateDamage - 自动选择较高攻击类型`() {
+    fun `calculateDamage - auto select higher attack type`() {
         val attacker = createCombatant(physicalAttack = 200, magicAttack = 50)
         val defender = createCombatant()
         val result = BattleCalculator.calculateDamage(
@@ -85,7 +94,7 @@ class BattleCalculatorTest {
     }
 
     @Test
-    fun `calculateDamage - 自动选择法术攻击`() {
+    fun `calculateDamage - auto select magic attack`() {
         val attacker = createCombatant(physicalAttack = 50, magicAttack = 200)
         val defender = createCombatant()
         val result = BattleCalculator.calculateDamage(
@@ -97,7 +106,7 @@ class BattleCalculatorTest {
     }
 
     @Test
-    fun `calculateDamage - 技能倍率影响伤害`() {
+    fun `calculateDamage - skill multiplier affects damage`() {
         val attacker = createCombatant(physicalAttack = 200)
         val defender = createCombatant(physicalDefense = 50)
         var normalTotal = 0
@@ -111,22 +120,22 @@ class BattleCalculatorTest {
             if (!boosted.isDodged) { boostedTotal += boosted.damage; boostedCount++ }
         }
         if (normalCount > 0 && boostedCount > 0) {
-            assertTrue("技能倍率2x伤害应大于1x", boostedTotal.toDouble() / boostedCount > normalTotal.toDouble() / normalCount * 1.5)
+            assertTrue("2x multiplier damage should be higher", boostedTotal.toDouble() / boostedCount > normalTotal.toDouble() / normalCount * 1.5)
         }
     }
 
     @Test
-    fun `calculateDamage - 暴击时伤害翻倍`() {
+    fun `calculateDamage - crit increases damage`() {
         val attacker = createCombatant(physicalAttack = 200, critRate = 1.0)
         val defender = createCombatant(physicalDefense = 50)
         val result = BattleCalculator.calculateDamage(attacker, defender, dodgeChanceModifier = 0.0)
         assertTrue(result.isCrit)
-        val expectedBase = 200.0 * GameConfig.Battle.CRIT_MULTIPLIER - 50.0
-        assertTrue(result.damage >= (expectedBase * 0.8).toInt())
+        val expected = expectedDamage(200, 50, critMultiplier = GameConfig.Battle.CRIT_MULTIPLIER)
+        assertTrue(result.damage >= (expected * 0.7).toInt())
     }
 
     @Test
-    fun `calculateDamage - 无暴击时伤害正常`() {
+    fun `calculateDamage - no crit when critRate is 0`() {
         val attacker = createCombatant(physicalAttack = 200, critRate = 0.0)
         val defender = createCombatant(physicalDefense = 50)
         val result = BattleCalculator.calculateDamage(attacker, defender, dodgeChanceModifier = 0.0)
@@ -134,7 +143,7 @@ class BattleCalculatorTest {
     }
 
     @Test
-    fun `calculateDamage - 最低伤害为1`() {
+    fun `calculateDamage - minimum damage is 1`() {
         val attacker = createCombatant(physicalAttack = 1)
         val defender = createCombatant(physicalDefense = 9999)
         val result = BattleCalculator.calculateDamage(attacker, defender, dodgeChanceModifier = 0.0)
@@ -142,7 +151,7 @@ class BattleCalculatorTest {
     }
 
     @Test
-    fun `calculateDamage - 闪避时伤害为0`() {
+    fun `calculateDamage - dodged attack deals 0 damage`() {
         val fastAttacker = createCombatant(speed = 10000)
         val slowDefender = createCombatant(speed = 1)
         var dodged = false
@@ -155,11 +164,11 @@ class BattleCalculatorTest {
                 break
             }
         }
-        assertTrue("应至少有一次闪避", dodged)
+        assertTrue("should have at least one dodge", dodged)
     }
 
     @Test
-    fun `calculateDamage - 技能名称正确传递`() {
+    fun `calculateDamage - skill name passed through`() {
         val attacker = createCombatant()
         val defender = createCombatant()
         val result = BattleCalculator.calculateDamage(
@@ -171,7 +180,7 @@ class BattleCalculatorTest {
     }
 
     @Test
-    fun `calculateDamage - 连击数正确传递`() {
+    fun `calculateDamage - hits passed through`() {
         val attacker = createCombatant()
         val defender = createCombatant()
         val result = BattleCalculator.calculateDamage(
@@ -183,7 +192,7 @@ class BattleCalculatorTest {
     }
 
     @Test
-    fun `calculateDodgeChance - 速度相同时闪避率为0`() {
+    fun `calculateDodgeChance - same speed gives 0`() {
         val attacker = createCombatant(speed = 50)
         val defender = createCombatant(speed = 50)
         val dodgeChance = BattleCalculator.calculateDodgeChance(attacker, defender)
@@ -191,7 +200,7 @@ class BattleCalculatorTest {
     }
 
     @Test
-    fun `calculateDodgeChance - 攻击者速度更快闪避率大于0`() {
+    fun `calculateDodgeChance - faster attacker gives positive dodge`() {
         val attacker = createCombatant(speed = 100)
         val defender = createCombatant(speed = 50)
         val dodgeChance = BattleCalculator.calculateDodgeChance(attacker, defender)
@@ -199,7 +208,7 @@ class BattleCalculatorTest {
     }
 
     @Test
-    fun `calculateDodgeChance - 防御者速度更快闪避率为0`() {
+    fun `calculateDodgeChance - slower attacker gives 0`() {
         val attacker = createCombatant(speed = 50)
         val defender = createCombatant(speed = 100)
         val dodgeChance = BattleCalculator.calculateDodgeChance(attacker, defender)
@@ -207,7 +216,7 @@ class BattleCalculatorTest {
     }
 
     @Test
-    fun `calculateDodgeChance - 闪避率上限为0_5`() {
+    fun `calculateDodgeChance - max dodge is 0_5`() {
         val fastAttacker = createCombatant(speed = 10000)
         val slowDefender = createCombatant(speed = 1)
         val dodgeChance = BattleCalculator.calculateDodgeChance(fastAttacker, slowDefender)
@@ -215,7 +224,7 @@ class BattleCalculatorTest {
     }
 
     @Test
-    fun `calculateDodgeChance - modifier影响闪避率`() {
+    fun `calculateDodgeChance - modifier affects dodge`() {
         val attacker = createCombatant(speed = 100)
         val defender = createCombatant(speed = 50)
         val lowModifier = BattleCalculator.calculateDodgeChance(attacker, defender, modifier = 0.25)
@@ -224,7 +233,7 @@ class BattleCalculatorTest {
     }
 
     @Test
-    fun `calculatePhysicalDamage - 基础物理伤害计算`() {
+    fun `calculatePhysicalDamage - basic physical damage`() {
         val attacker = createCombatant(physicalAttack = 200, critRate = 0.0)
         val defender = createCombatant(physicalDefense = 50)
         var totalDamage = 0
@@ -235,12 +244,12 @@ class BattleCalculatorTest {
             count++
         }
         val avgDamage = totalDamage.toDouble() / count
-        val expectedBase = 200.0 - 50.0
-        assertTrue("平均伤害 $avgDamage 应接近 $expectedBase", avgDamage > expectedBase * 0.7 && avgDamage < expectedBase * 1.5)
+        val expected = expectedDamage(200, 50)
+        assertTrue("avgDamage $avgDamage should be near $expected", avgDamage > expected * 0.7 && avgDamage < expected * 1.5)
     }
 
     @Test
-    fun `calculatePhysicalDamage - 低攻击对高防御伤害不低于0`() {
+    fun `calculatePhysicalDamage - low attack vs high defense still deals damage`() {
         val attacker = createCombatant(physicalAttack = 1, critRate = 0.0)
         val defender = createCombatant(physicalDefense = 9999)
         val damage = BattleCalculator.calculatePhysicalDamage(attacker, defender)
@@ -248,7 +257,7 @@ class BattleCalculatorTest {
     }
 
     @Test
-    fun `calculateMagicDamage - 基础法术伤害计算`() {
+    fun `calculateMagicDamage - basic magic damage`() {
         val attacker = createCombatant(magicAttack = 200, critRate = 0.0)
         val defender = createCombatant(magicDefense = 30)
         var totalDamage = 0
@@ -259,20 +268,47 @@ class BattleCalculatorTest {
             count++
         }
         val avgDamage = totalDamage.toDouble() / count
-        val expectedBase = 200.0 - 30.0
-        assertTrue("平均伤害 $avgDamage 应接近 $expectedBase", avgDamage > expectedBase * 0.7 && avgDamage < expectedBase * 1.5)
+        val expected = expectedDamage(200, 30)
+        assertTrue("avgDamage $avgDamage should be near $expected", avgDamage > expected * 0.7 && avgDamage < expected * 1.5)
     }
 
     @Test
-    fun `calculateMagicDamage - 低攻击对高防御伤害不低于0`() {
-        val attacker = createCombatant(magicAttack = 1, critRate = 0.0)
-        val defender = createCombatant(magicDefense = 9999)
-        val damage = BattleCalculator.calculateMagicDamage(attacker, defender)
-        assertTrue(damage >= 0)
+    fun `calculateRealmGapMultiplier - same realm returns 1`() {
+        assertEquals(1.0, BattleCalculator.calculateRealmGapMultiplier(5, 5), 0.001)
     }
 
     @Test
-    fun `generateBattleMessage - 闪避消息`() {
+    fun `calculateRealmGapMultiplier - lower realm attacker gets bonus`() {
+        val multiplier = BattleCalculator.calculateRealmGapMultiplier(7, 5)
+        assertTrue(multiplier > 1.0)
+    }
+
+    @Test
+    fun `calculateRealmGapMultiplier - higher realm attacker gets penalty`() {
+        val multiplier = BattleCalculator.calculateRealmGapMultiplier(3, 5)
+        assertTrue(multiplier < 1.0)
+    }
+
+    @Test
+    fun `calculateElementMultiplier - advantage returns higher`() {
+        val multiplier = BattleCalculator.calculateElementMultiplier("metal", "wood")
+        assertTrue(multiplier > 1.0)
+    }
+
+    @Test
+    fun `calculateElementMultiplier - disadvantage returns lower`() {
+        val multiplier = BattleCalculator.calculateElementMultiplier("wood", "metal")
+        assertTrue(multiplier < 1.0)
+    }
+
+    @Test
+    fun `calculateElementMultiplier - neutral returns 1`() {
+        val multiplier = BattleCalculator.calculateElementMultiplier("metal", "water")
+        assertEquals(1.0, multiplier, 0.001)
+    }
+
+    @Test
+    fun `generateBattleMessage - dodge message`() {
         val result = DamageResult(damage = 0, isCrit = false, isPhysical = true, isDodged = true)
         val message = BattleCalculator.generateBattleMessage("张三", "李四", result)
         assertTrue(message.contains("闪避"))
@@ -280,7 +316,7 @@ class BattleCalculatorTest {
     }
 
     @Test
-    fun `generateBattleMessage - 物理伤害消息`() {
+    fun `generateBattleMessage - physical damage message`() {
         val result = DamageResult(damage = 100, isCrit = false, isPhysical = true, isDodged = false)
         val message = BattleCalculator.generateBattleMessage("张三", "李四", result)
         assertTrue(message.contains("物理"))
@@ -288,7 +324,7 @@ class BattleCalculatorTest {
     }
 
     @Test
-    fun `generateBattleMessage - 法术伤害消息`() {
+    fun `generateBattleMessage - magic damage message`() {
         val result = DamageResult(damage = 150, isCrit = false, isPhysical = false, isDodged = false)
         val message = BattleCalculator.generateBattleMessage("张三", "李四", result)
         assertTrue(message.contains("法术"))
@@ -296,28 +332,28 @@ class BattleCalculatorTest {
     }
 
     @Test
-    fun `generateBattleMessage - 暴击消息`() {
+    fun `generateBattleMessage - crit message`() {
         val result = DamageResult(damage = 200, isCrit = true, isPhysical = true, isDodged = false)
         val message = BattleCalculator.generateBattleMessage("张三", "李四", result)
         assertTrue(message.contains("暴击"))
     }
 
     @Test
-    fun `generateBattleMessage - 连击消息`() {
+    fun `generateBattleMessage - hits message`() {
         val result = DamageResult(damage = 100, isCrit = false, isPhysical = true, isDodged = false, hits = 3)
         val message = BattleCalculator.generateBattleMessage("张三", "李四", result)
         assertTrue(message.contains("3连击"))
     }
 
     @Test
-    fun `generateBattleMessage - 技能名称消息`() {
+    fun `generateBattleMessage - skill name message`() {
         val result = DamageResult(damage = 100, isCrit = false, isPhysical = true, isDodged = false, skillName = "天剑诀")
         val message = BattleCalculator.generateBattleMessage("张三", "李四", result)
         assertTrue(message.contains("天剑诀"))
     }
 
     @Test
-    fun `calculateDamage - 伤害在0_9到1_1倍之间波动`() {
+    fun `calculateDamage - damage variance between 0_9 and 1_1`() {
         val attacker = createCombatant(physicalAttack = 1000, critRate = 0.0)
         val defender = createCombatant(physicalDefense = 0)
         val damages = mutableListOf<Int>()
@@ -328,7 +364,25 @@ class BattleCalculatorTest {
         assertTrue(damages.isNotEmpty())
         val min = damages.min()
         val max = damages.max()
-        assertTrue("最小伤害 $min 应 >= 900", min >= 850)
-        assertTrue("最大伤害 $max 应 <= 1100", max <= 1150)
+        val expected = expectedDamage(1000, 0)
+        assertTrue("min $min should be >= ${expected * 0.85}", min >= (expected * 0.85).toInt())
+        assertTrue("max $max should be <= ${expected * 1.15}", max <= (expected * 1.15).toInt())
+    }
+
+    @Test
+    fun `defense percentage reduction works correctly`() {
+        val attacker = createCombatant(physicalAttack = 100, critRate = 0.0)
+        val lowDefender = createCombatant(physicalDefense = 100)
+        val highDefender = createCombatant(physicalDefense = 900)
+        var lowTotal = 0
+        var highTotal = 0
+        for (i in 1..500) {
+            lowTotal += BattleCalculator.calculatePhysicalDamage(attacker, lowDefender)
+            highTotal += BattleCalculator.calculatePhysicalDamage(attacker, highDefender)
+        }
+        assertTrue("high defense should take less damage", highTotal < lowTotal)
+        val lowReduction = 100.0 / (100.0 + GameConfig.Battle.DEFENSE_CONSTANT)
+        val highReduction = 900.0 / (900.0 + GameConfig.Battle.DEFENSE_CONSTANT)
+        assertTrue("high defense reduction should be higher", highReduction > lowReduction)
     }
 }

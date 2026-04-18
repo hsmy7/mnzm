@@ -28,7 +28,7 @@ data class DiscipleExtended(
     var parentId2: String? = null,
     var lastChildYear: Int = 0,
     var griefEndYear: Int? = null,
-    var monthlyUsedPillIds: List<String> = emptyList(),
+    var usedFunctionalPillTypes: List<String> = emptyList(),
     var usedExtendLifePillIds: List<String> = emptyList(),
     var hasReviveEffect: Boolean = false,
     var hasClearAllEffect: Boolean = false
@@ -51,7 +51,7 @@ data class DiscipleExtended(
                 parentId2 = disciple.parentId2,
                 lastChildYear = disciple.lastChildYear,
                 griefEndYear = disciple.griefEndYear,
-                monthlyUsedPillIds = disciple.monthlyUsedPillIds,
+                usedFunctionalPillTypes = disciple.monthlyUsedPillIds,
                 usedExtendLifePillIds = disciple.usedExtendLifePillIds,
                 hasReviveEffect = disciple.hasReviveEffect,
                 hasClearAllEffect = disciple.hasClearAllEffect

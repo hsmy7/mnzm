@@ -226,19 +226,21 @@ object DiscipleStatCalculator {
 
         // 丹药临时效果
         if (disciple.pillEffectDuration > 0) {
+            val pe = disciple.pillEffects
             val pillBonus = DiscipleStats(
-                hp = (baseStats.maxHp * disciple.pillHpBonus).toInt(),
-                maxHp = (baseStats.maxHp * disciple.pillHpBonus).toInt(),
-                mp = (baseStats.maxMp * disciple.pillMpBonus).toInt(),
-                maxMp = (baseStats.maxMp * disciple.pillMpBonus).toInt(),
-                physicalAttack = (baseStats.physicalAttack * disciple.pillPhysicalAttackBonus).toInt(),
-                magicAttack = (baseStats.magicAttack * disciple.pillMagicAttackBonus).toInt(),
-                physicalDefense = (baseStats.physicalDefense * disciple.pillPhysicalDefenseBonus).toInt(),
-                magicDefense = (baseStats.magicDefense * disciple.pillMagicDefenseBonus).toInt(),
-                speed = (baseStats.speed * disciple.pillSpeedBonus).toInt(),
-                critRate = 0.0
+                hp = pe.pillHpBonus,
+                maxHp = pe.pillHpBonus,
+                mp = pe.pillMpBonus,
+                maxMp = pe.pillMpBonus,
+                physicalAttack = pe.pillPhysicalAttackBonus,
+                magicAttack = pe.pillMagicAttackBonus,
+                physicalDefense = pe.pillPhysicalDefenseBonus,
+                magicDefense = pe.pillMagicDefenseBonus,
+                speed = pe.pillSpeedBonus,
+                critRate = pe.pillCritRateBonus
             )
             total = total + pillBonus
+            totalCritRate += pe.pillCritRateBonus
         }
 
         return total.copy(critRate = totalCritRate)

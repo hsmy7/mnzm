@@ -3,6 +3,70 @@ package com.xianxia.sect.core
 import com.xianxia.sect.BuildConfig
 import com.xianxia.sect.core.util.GameRandom
 
+enum class SkillType {
+    ATTACK, SUPPORT;
+
+    val displayName: String get() = when (this) {
+        ATTACK -> "攻击"
+        SUPPORT -> "辅助"
+    }
+}
+
+enum class DamageType {
+    PHYSICAL, MAGIC
+}
+
+enum class BuffType {
+    HP_BOOST, MP_BOOST, SPEED_BOOST,
+    PHYSICAL_ATTACK_BOOST, MAGIC_ATTACK_BOOST, PHYSICAL_DEFENSE_BOOST, MAGIC_DEFENSE_BOOST,
+    CRIT_RATE_BOOST,
+    PHYSICAL_ATTACK_REDUCE, MAGIC_ATTACK_REDUCE, PHYSICAL_DEFENSE_REDUCE, MAGIC_DEFENSE_REDUCE,
+    SPEED_REDUCE, CRIT_RATE_REDUCE,
+    POISON, BURN,
+    STUN, FREEZE, SILENCE, TAUNT;
+
+    val displayName: String get() = when (this) {
+        HP_BOOST -> "生命加成"
+        MP_BOOST -> "灵力加成"
+        SPEED_BOOST -> "速度加成"
+        PHYSICAL_ATTACK_BOOST -> "物攻加成"
+        MAGIC_ATTACK_BOOST -> "法攻加成"
+        PHYSICAL_DEFENSE_BOOST -> "物防加成"
+        MAGIC_DEFENSE_BOOST -> "法防加成"
+        CRIT_RATE_BOOST -> "暴击加成"
+        PHYSICAL_ATTACK_REDUCE -> "物攻降低"
+        MAGIC_ATTACK_REDUCE -> "法攻降低"
+        PHYSICAL_DEFENSE_REDUCE -> "物防降低"
+        MAGIC_DEFENSE_REDUCE -> "法防降低"
+        SPEED_REDUCE -> "速度降低"
+        CRIT_RATE_REDUCE -> "暴击降低"
+        POISON -> "中毒"
+        BURN -> "灼烧"
+        STUN -> "眩晕"
+        FREEZE -> "冰冻"
+        SILENCE -> "沉默"
+        TAUNT -> "嘲讽"
+    }
+
+    val isDebuff: Boolean get() = this in setOf(
+        PHYSICAL_ATTACK_REDUCE, MAGIC_ATTACK_REDUCE, PHYSICAL_DEFENSE_REDUCE, MAGIC_DEFENSE_REDUCE,
+        SPEED_REDUCE, CRIT_RATE_REDUCE, POISON, BURN, STUN, FREEZE, SILENCE, TAUNT
+    )
+}
+
+enum class CombatantSide {
+    ATTACKER, DEFENDER
+}
+
+enum class HealType {
+    HP, MP;
+
+    val displayName: String get() = when (this) {
+        HP -> "生命值"
+        MP -> "灵力"
+    }
+}
+
 object GameConfig {
     
     object Game {
@@ -144,14 +208,26 @@ object GameConfig {
     
     object Beast {
         val TYPES = listOf(
-            BeastTypeConfig("虎妖", "狂暴", 1.3, 1.4, 0.7, 1.0, 1.1),
-            BeastTypeConfig("狼妖", "迅捷", 0.6, 1.2, 0.6, 1.5, 1.0),
-            BeastTypeConfig("蛇妖", "剧毒", 0.7, 1.5, 0.5, 1.1, 1.2),
-            BeastTypeConfig("熊妖", "铁甲", 1.5, 0.5, 1.4, 0.5, 1.1),
-            BeastTypeConfig("鹰妖", "神风", 0.5, 1.3, 0.5, 1.6, 1.3),
-            BeastTypeConfig("狐妖", "幻魅", 0.7, 1.0, 0.7, 1.4, 1.4),
-            BeastTypeConfig("龙妖", "远古", 1.2, 1.3, 1.1, 1.0, 1.5),
-            BeastTypeConfig("龟妖", "玄甲", 1.6, 0.4, 1.5, 0.4, 1.0)
+            BeastTypeConfig("虎妖", "狂暴", 1.3, 1.4, 0.7, 1.0, 1.1, "metal",
+                listOf(BeastSkillConfig("猛虎下山", 1.8, 3, 0, SkillType.ATTACK, DamageType.PHYSICAL),
+                       BeastSkillConfig("咆哮", 0.0, 5, 0, SkillType.SUPPORT, DamageType.PHYSICAL, buffType = BuffType.PHYSICAL_ATTACK_BOOST, buffValue = 0.2, buffDuration = 3, targetScope = "team"))),
+            BeastTypeConfig("狼妖", "迅捷", 0.6, 1.2, 0.6, 1.5, 1.0, "wood",
+                listOf(BeastSkillConfig("狼群撕咬", 1.5, 2, 0, SkillType.ATTACK, DamageType.PHYSICAL, hits = 2))),
+            BeastTypeConfig("蛇妖", "剧毒", 0.7, 1.5, 0.5, 1.1, 1.2, "water",
+                listOf(BeastSkillConfig("毒牙", 1.2, 2, 0, SkillType.ATTACK, DamageType.PHYSICAL, buffType = BuffType.POISON, buffValue = 0.05, buffDuration = 3))),
+            BeastTypeConfig("熊妖", "铁甲", 1.5, 0.5, 1.4, 0.5, 1.1, "earth",
+                listOf(BeastSkillConfig("震地", 1.5, 4, 0, SkillType.ATTACK, DamageType.PHYSICAL, isAoe = true),
+                       BeastSkillConfig("铁壁", 0.0, 5, 0, SkillType.SUPPORT, DamageType.PHYSICAL, buffType = BuffType.PHYSICAL_DEFENSE_BOOST, buffValue = 0.4, buffDuration = 3, targetScope = "self"))),
+            BeastTypeConfig("鹰妖", "神风", 0.5, 1.3, 0.5, 1.6, 1.3, "metal",
+                listOf(BeastSkillConfig("俯冲", 2.0, 3, 0, SkillType.ATTACK, DamageType.PHYSICAL))),
+            BeastTypeConfig("狐妖", "幻魅", 0.7, 1.0, 0.7, 1.4, 1.4, "fire",
+                listOf(BeastSkillConfig("妖术", 1.5, 3, 0, SkillType.ATTACK, DamageType.MAGIC, buffType = BuffType.SILENCE, buffValue = 1.0, buffDuration = 1))),
+            BeastTypeConfig("龙妖", "远古", 1.2, 1.3, 1.1, 1.0, 1.5, "fire",
+                listOf(BeastSkillConfig("龙息", 1.8, 4, 0, SkillType.ATTACK, DamageType.MAGIC, isAoe = true),
+                       BeastSkillConfig("龙威", 0.0, 6, 0, SkillType.SUPPORT, DamageType.MAGIC, buffType = BuffType.PHYSICAL_ATTACK_BOOST, buffValue = 0.25, buffDuration = 3, targetScope = "team"))),
+            BeastTypeConfig("龟妖", "玄甲", 1.6, 0.4, 1.5, 0.4, 1.0, "water",
+                listOf(BeastSkillConfig("缩壳", 0.0, 4, 0, SkillType.SUPPORT, DamageType.PHYSICAL, buffType = BuffType.PHYSICAL_DEFENSE_BOOST, buffValue = 0.5, buffDuration = 2, targetScope = "self"),
+                       BeastSkillConfig("水盾", 0.0, 5, 0, SkillType.SUPPORT, DamageType.MAGIC, buffType = BuffType.MAGIC_DEFENSE_BOOST, buffValue = 0.3, buffDuration = 3, targetScope = "team")))
         )
 
         fun getType(index: Int): BeastTypeConfig = TYPES.getOrElse(index) { TYPES[0] }
@@ -295,12 +371,36 @@ object GameConfig {
         const val MIN_BEAST_COUNT = 3
         const val MAX_BEAST_COUNT = 11
         const val MAX_TURNS = 25
-        const val CRIT_MULTIPLIER: Double = 2.0
+        const val CRIT_MULTIPLIER: Double = 1.5
         const val MAX_DODGE_CHANCE: Double = 0.5
         const val MAX_SKILL_DODGE_CHANCE: Double = 0.3
         const val DODGE_PER_SPEED_DIFF: Double = 0.005
         const val MAX_BATTLE_DURATION_MS = 5000L
         const val BATTLE_TIMEOUT_WARNING_MS = 3000L
+        const val DEFENSE_CONSTANT: Double = 500.0
+        const val DAMAGE_VARIANCE_MIN: Double = 0.9
+        const val DAMAGE_VARIANCE_MAX: Double = 1.1
+        const val MIN_DAMAGE: Int = 1
+
+        object Element {
+            const val ADVANTAGE_MULTIPLIER: Double = 1.3
+            const val DISADVANTAGE_MULTIPLIER: Double = 0.8
+            val ADVANTAGES = mapOf(
+                "metal" to "wood",
+                "wood" to "earth",
+                "earth" to "water",
+                "water" to "fire",
+                "fire" to "metal"
+            )
+        }
+
+        object RealmGap {
+            const val DAMAGE_BONUS_PER_REALM: Double = 0.15
+            const val DAMAGE_PENALTY_PER_REALM: Double = 0.12
+            const val MAX_REALM_GAP: Int = 5
+            const val MIN_DAMAGE_RATIO: Double = 0.1
+            const val MAX_DAMAGE_RATIO: Double = 3.0
+        }
     }
     
     /**
@@ -413,7 +513,24 @@ object GameConfig {
         val atkMod: Double,
         val defMod: Double,
         val speedMod: Double,
-        val lootBonus: Double
+        val lootBonus: Double,
+        val element: String = "metal",
+        val skills: List<BeastSkillConfig> = emptyList()
+    )
+
+    data class BeastSkillConfig(
+        val name: String,
+        val damageMultiplier: Double,
+        val cooldown: Int,
+        val mpCost: Int,
+        val skillType: SkillType,
+        val damageType: DamageType,
+        val hits: Int = 1,
+        val isAoe: Boolean = false,
+        val buffType: BuffType? = null,
+        val buffValue: Double = 0.0,
+        val buffDuration: Int = 0,
+        val targetScope: String = "enemy"
     )
     
     object AI {

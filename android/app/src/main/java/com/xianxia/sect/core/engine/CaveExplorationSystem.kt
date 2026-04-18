@@ -2,6 +2,7 @@
 
 package com.xianxia.sect.core.engine
 
+import com.xianxia.sect.core.CombatantSide
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.data.EquipmentDatabase
 import com.xianxia.sect.core.data.ManualDatabase
@@ -77,7 +78,7 @@ object CaveExplorationSystem {
             Combatant(
                 id = disciple.id,
                 name = disciple.name,
-                type = CombatantType.DISCIPLE,
+                side = CombatantSide.DEFENDER,
                 hp = effectiveHp,
                 maxHp = stats.maxHp,
                 mp = effectiveMp,
@@ -98,7 +99,7 @@ object CaveExplorationSystem {
             Combatant(
                 id = aiDisciple.id,
                 name = aiDisciple.name,
-                type = CombatantType.DISCIPLE,
+                side = CombatantSide.ATTACKER,
                 hp = aiDisciple.maxHp,
                 maxHp = aiDisciple.maxHp,
                 mp = aiDisciple.maxHp / 5,
@@ -159,7 +160,7 @@ object CaveExplorationSystem {
             Combatant(
                 id = disciple.id,
                 name = disciple.name,
-                type = CombatantType.DISCIPLE,
+                side = CombatantSide.DEFENDER,
                 hp = effectiveHp,
                 maxHp = stats.maxHp,
                 mp = effectiveMp,
@@ -233,7 +234,7 @@ object CaveExplorationSystem {
         return Combatant(
             id = if (isBoss) "guardian_boss_$index" else "guardian_$index",
             name = guardianName,
-            type = CombatantType.BEAST,
+            side = CombatantSide.ATTACKER,
             hp = hp,
             maxHp = hp,
             mp = (hp * 0.2).toInt(),

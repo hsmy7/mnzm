@@ -1,4 +1,4 @@
-package com.xianxia.sect.ui.game
+﻿package com.xianxia.sect.ui.game
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -1078,7 +1078,7 @@ private fun ManualSelectionDialog(
                             Text("  ${skill.description}", fontSize = 11.sp, color = Color(0xFF333333))
                         }
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text("  伤害类型：${if (skill.damageType == com.xianxia.sect.core.engine.DamageType.PHYSICAL) "物理" else "法术"}", fontSize = 11.sp, color = Color(0xFF666666))
+                        Text("  伤害类型：${if (skill.damageType == com.xianxia.sect.core.DamageType.PHYSICAL) "物理" else "法术"}", fontSize = 11.sp, color = Color(0xFF666666))
                         Text("  伤害倍率：${GameUtils.formatPercent(skill.damageMultiplier)}", fontSize = 11.sp, color = Color(0xFF666666))
                         Text("  连击次数：${skill.hits}", fontSize = 11.sp, color = Color(0xFF666666))
                         Text("  冷却回合：${skill.cooldown}", fontSize = 11.sp, color = Color(0xFF666666))

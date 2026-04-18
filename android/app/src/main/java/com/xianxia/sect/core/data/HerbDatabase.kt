@@ -146,27 +146,27 @@ object HerbDatabase {
     )
     
     private val tier5Seeds = listOf(
-        Seed("spiritGrass13Seed", "仙灵草种", 5, 5, 27, 1, "种植后可收获仙灵草", 1600000),
-        Seed("spiritGrass14Seed", "天灵草种", 5, 5, 27, 1, "种植后可收获天灵草", 1600000),
-        Seed("spiritGrass15Seed", "混沌草种", 5, 5, 27, 1, "种植后可收获混沌草", 1600000),
-        Seed("spiritFlower13Seed", "凤仙花种", 5, 5, 27, 1, "种植后可收获涅槃凤仙花", 1600000),
-        Seed("spiritFlower14Seed", "龙鳞莲种", 5, 5, 27, 1, "种植后可收获龙鳞仙莲", 1600000),
-        Seed("spiritFlower15Seed", "白虎幽兰种", 5, 5, 27, 1, "种植后可收获白虎幽兰", 1600000),
-        Seed("spiritFruit13Seed", "还魂果核", 5, 5, 27, 1, "种植后可收获九叶还魂果", 1600000),
-        Seed("spiritFruit14Seed", "玄天灵果核", 5, 5, 27, 1, "种植后可收获玄天灵果", 1600000),
-        Seed("spiritFruit15Seed", "星陨神果核", 5, 5, 27, 1, "种植后可收获星陨神果", 1600000)
+        Seed("spiritGrass13Seed", "仙灵草种", 5, 5, 30, 1, "种植后可收获仙灵草", 1600000),
+        Seed("spiritGrass14Seed", "天灵草种", 5, 5, 30, 1, "种植后可收获天灵草", 1600000),
+        Seed("spiritGrass15Seed", "混沌草种", 5, 5, 30, 1, "种植后可收获混沌草", 1600000),
+        Seed("spiritFlower13Seed", "凤仙花种", 5, 5, 30, 1, "种植后可收获涅槃凤仙花", 1600000),
+        Seed("spiritFlower14Seed", "龙鳞莲种", 5, 5, 30, 1, "种植后可收获龙鳞仙莲", 1600000),
+        Seed("spiritFlower15Seed", "白虎幽兰种", 5, 5, 30, 1, "种植后可收获白虎幽兰", 1600000),
+        Seed("spiritFruit13Seed", "还魂果核", 5, 5, 30, 1, "种植后可收获九叶还魂果", 1600000),
+        Seed("spiritFruit14Seed", "玄天灵果核", 5, 5, 30, 1, "种植后可收获玄天灵果", 1600000),
+        Seed("spiritFruit15Seed", "星陨神果核", 5, 5, 30, 1, "种植后可收获星陨神果", 1600000)
     )
     
     private val tier6Seeds = listOf(
-        Seed("spiritGrass16Seed", "鸿蒙草种", 6, 6, 36, 1, "种植后可收获鸿蒙草", 4800000),
-        Seed("spiritGrass17Seed", "太初草种", 6, 6, 36, 1, "种植后可收获太初草", 4800000),
-        Seed("spiritGrass18Seed", "永恒草种", 6, 6, 36, 1, "种植后可收获永恒草", 4800000),
-        Seed("spiritFlower16Seed", "永恒花种", 6, 6, 36, 1, "种植后可收获永恒花", 4800000),
-        Seed("spiritFlower17Seed", "混沌仙莲种", 6, 6, 36, 1, "种植后可收获混沌仙莲", 4800000),
-        Seed("spiritFlower18Seed", "造化神花种", 6, 6, 36, 1, "种植后可收获造化神花", 4800000),
-        Seed("spiritFruit16Seed", "瑞麟仙果核", 6, 6, 36, 1, "种植后可收获瑞麟仙果", 4800000),
-        Seed("spiritFruit17Seed", "玄武帝果核", 6, 6, 36, 1, "种植后可收获玄武帝果", 4800000),
-        Seed("spiritFruit18Seed", "混沌神果核", 6, 6, 36, 1, "种植后可收获混沌神果", 4800000)
+        Seed("spiritGrass16Seed", "鸿蒙草种", 6, 6, 48, 1, "种植后可收获鸿蒙草", 4800000),
+        Seed("spiritGrass17Seed", "太初草种", 6, 6, 48, 1, "种植后可收获太初草", 4800000),
+        Seed("spiritGrass18Seed", "永恒草种", 6, 6, 48, 1, "种植后可收获永恒草", 4800000),
+        Seed("spiritFlower16Seed", "永恒花种", 6, 6, 48, 1, "种植后可收获永恒花", 4800000),
+        Seed("spiritFlower17Seed", "混沌仙莲种", 6, 6, 48, 1, "种植后可收获混沌仙莲", 4800000),
+        Seed("spiritFlower18Seed", "造化神花种", 6, 6, 48, 1, "种植后可收获造化神花", 4800000),
+        Seed("spiritFruit16Seed", "瑞麟仙果核", 6, 6, 48, 1, "种植后可收获瑞麟仙果", 4800000),
+        Seed("spiritFruit17Seed", "玄武帝果核", 6, 6, 48, 1, "种植后可收获玄武帝果", 4800000),
+        Seed("spiritFruit18Seed", "混沌神果核", 6, 6, 48, 1, "种植后可收获混沌神果", 4800000)
     )
 
     private val allSeeds = tier1Seeds + tier2Seeds + tier3Seeds + tier4Seeds + tier5Seeds + tier6Seeds

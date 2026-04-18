@@ -55,14 +55,20 @@ data class DiscipleAggregate(
     val magicDefenseVariance: Int get() = combatStats?.magicDefenseVariance ?: 0
     val speedVariance: Int get() = combatStats?.speedVariance ?: 0
     
-    val pillPhysicalAttackBonus: Double get() = combatStats?.pillPhysicalAttackBonus ?: 0.0
-    val pillMagicAttackBonus: Double get() = combatStats?.pillMagicAttackBonus ?: 0.0
-    val pillPhysicalDefenseBonus: Double get() = combatStats?.pillPhysicalDefenseBonus ?: 0.0
-    val pillMagicDefenseBonus: Double get() = combatStats?.pillMagicDefenseBonus ?: 0.0
-    val pillHpBonus: Double get() = combatStats?.pillHpBonus ?: 0.0
-    val pillMpBonus: Double get() = combatStats?.pillMpBonus ?: 0.0
-    val pillSpeedBonus: Double get() = combatStats?.pillSpeedBonus ?: 0.0
+    val pillPhysicalAttackBonus: Int get() = combatStats?.pillPhysicalAttackBonus ?: 0
+    val pillMagicAttackBonus: Int get() = combatStats?.pillMagicAttackBonus ?: 0
+    val pillPhysicalDefenseBonus: Int get() = combatStats?.pillPhysicalDefenseBonus ?: 0
+    val pillMagicDefenseBonus: Int get() = combatStats?.pillMagicDefenseBonus ?: 0
+    val pillHpBonus: Int get() = combatStats?.pillHpBonus ?: 0
+    val pillMpBonus: Int get() = combatStats?.pillMpBonus ?: 0
+    val pillSpeedBonus: Int get() = combatStats?.pillSpeedBonus ?: 0
     val pillEffectDuration: Int get() = combatStats?.pillEffectDuration ?: 0
+    val pillCritRateBonus: Double get() = combatStats?.pillCritRateBonus ?: 0.0
+    val pillCritEffectBonus: Double get() = combatStats?.pillCritEffectBonus ?: 0.0
+    val pillCultivationSpeedBonus: Double get() = combatStats?.pillCultivationSpeedBonus ?: 0.0
+    val pillSkillExpSpeedBonus: Double get() = combatStats?.pillSkillExpSpeedBonus ?: 0.0
+    val pillNurtureSpeedBonus: Double get() = combatStats?.pillNurtureSpeedBonus ?: 0.0
+    val activePillCategory: String get() = combatStats?.activePillCategory ?: ""
     val totalCultivation: Long get() = combatStats?.totalCultivation ?: 0
     val breakthroughCount: Int get() = combatStats?.breakthroughCount ?: 0
     val breakthroughFailCount: Int get() = combatStats?.breakthroughFailCount ?: 0
@@ -94,7 +100,7 @@ data class DiscipleAggregate(
     val parentId2: String? get() = extended?.parentId2
     val lastChildYear: Int get() = extended?.lastChildYear ?: 0
     val griefEndYear: Int? get() = extended?.griefEndYear
-    val monthlyUsedPillIds: List<String> get() = extended?.monthlyUsedPillIds ?: emptyList()
+    val usedFunctionalPillTypes: List<String> get() = extended?.usedFunctionalPillTypes ?: emptyList()
     val usedExtendLifePillIds: List<String> get() = extended?.usedExtendLifePillIds ?: emptyList()
     val hasReviveEffect: Boolean get() = extended?.hasReviveEffect ?: false
     val hasClearAllEffect: Boolean get() = extended?.hasClearAllEffect ?: false
@@ -271,7 +277,20 @@ data class DiscipleAggregate(
                 pillHpBonus = pillHpBonus,
                 pillMpBonus = pillMpBonus,
                 pillSpeedBonus = pillSpeedBonus,
-                pillEffectDuration = pillEffectDuration
+                pillCritRateBonus = pillCritRateBonus,
+                pillCritEffectBonus = pillCritEffectBonus,
+                pillCultivationSpeedBonus = pillCultivationSpeedBonus,
+                pillSkillExpSpeedBonus = pillSkillExpSpeedBonus,
+                pillNurtureSpeedBonus = pillNurtureSpeedBonus,
+                pillEffectDuration = pillEffectDuration,
+                activePillCategory = activePillCategory
+            ),
+            usage = UsageTracking(
+                usedFunctionalPillTypes = usedFunctionalPillTypes,
+                usedExtendLifePillIds = usedExtendLifePillIds,
+                recruitedMonth = recruitedMonth,
+                hasReviveEffect = hasReviveEffect,
+                hasClearAllEffect = hasClearAllEffect
             ),
             equipment = EquipmentSet(
                 weaponId = weaponId,
@@ -307,13 +326,6 @@ data class DiscipleAggregate(
                 morality = morality,
                 salaryPaidCount = salaryPaidCount,
                 salaryMissedCount = salaryMissedCount
-            ),
-            usage = UsageTracking(
-                monthlyUsedPillIds = monthlyUsedPillIds,
-                usedExtendLifePillIds = usedExtendLifePillIds,
-                recruitedMonth = recruitedMonth,
-                hasReviveEffect = hasReviveEffect,
-                hasClearAllEffect = hasClearAllEffect
             )
         )
     }

@@ -159,14 +159,20 @@ class MutableDisciple {
     var cultivationSpeedBonus: Double = 1.0
     var cultivationSpeedDuration: Int = 0
     
-    var pillPhysicalAttackBonus: Double = 0.0
-    var pillMagicAttackBonus: Double = 0.0
-    var pillPhysicalDefenseBonus: Double = 0.0
-    var pillMagicDefenseBonus: Double = 0.0
-    var pillHpBonus: Double = 0.0
-    var pillMpBonus: Double = 0.0
-    var pillSpeedBonus: Double = 0.0
+    var pillPhysicalAttackBonus: Int = 0
+    var pillMagicAttackBonus: Int = 0
+    var pillPhysicalDefenseBonus: Int = 0
+    var pillMagicDefenseBonus: Int = 0
+    var pillHpBonus: Int = 0
+    var pillMpBonus: Int = 0
+    var pillSpeedBonus: Int = 0
+    var pillCritRateBonus: Double = 0.0
+    var pillCritEffectBonus: Double = 0.0
+    var pillCultivationSpeedBonus: Double = 0.0
+    var pillSkillExpSpeedBonus: Double = 0.0
+    var pillNurtureSpeedBonus: Double = 0.0
     var pillEffectDuration: Int = 0
+    var activePillCategory: String = ""
     
     var totalCultivation: Long = 0
     var breakthroughCount: Int = 0
@@ -205,7 +211,7 @@ class MutableDisciple {
     
     var discipleType: String = "outer"
     
-    var monthlyUsedPillIds: MutableList<String> = mutableListOf()
+    var usedFunctionalPillTypes: MutableList<String> = mutableListOf()
     var usedExtendLifePillIds: MutableList<String> = mutableListOf()
     
     var hasReviveEffect: Boolean = false
@@ -250,14 +256,20 @@ class MutableDisciple {
         statusData.clear()
         cultivationSpeedBonus = 1.0
         cultivationSpeedDuration = 0
-        pillPhysicalAttackBonus = 0.0
-        pillMagicAttackBonus = 0.0
-        pillPhysicalDefenseBonus = 0.0
-        pillMagicDefenseBonus = 0.0
-        pillHpBonus = 0.0
-        pillMpBonus = 0.0
-        pillSpeedBonus = 0.0
+        pillPhysicalAttackBonus = 0
+        pillMagicAttackBonus = 0
+        pillPhysicalDefenseBonus = 0
+        pillMagicDefenseBonus = 0
+        pillHpBonus = 0
+        pillMpBonus = 0
+        pillSpeedBonus = 0
+        pillCritRateBonus = 0.0
+        pillCritEffectBonus = 0.0
+        pillCultivationSpeedBonus = 0.0
+        pillSkillExpSpeedBonus = 0.0
+        pillNurtureSpeedBonus = 0.0
         pillEffectDuration = 0
+        activePillCategory = ""
         totalCultivation = 0
         breakthroughCount = 0
         breakthroughFailCount = 0
@@ -288,7 +300,7 @@ class MutableDisciple {
         baseMagicDefense = 3
         baseSpeed = 10
         discipleType = "outer"
-        monthlyUsedPillIds.clear()
+        usedFunctionalPillTypes.clear()
         usedExtendLifePillIds.clear()
         hasReviveEffect = false
         hasClearAllEffect = false
@@ -344,7 +356,13 @@ class MutableDisciple {
         pillHpBonus = disciple.pillHpBonus
         pillMpBonus = disciple.pillMpBonus
         pillSpeedBonus = disciple.pillSpeedBonus
+        pillCritRateBonus = disciple.pillCritRateBonus
+        pillCritEffectBonus = disciple.pillCritEffectBonus
+        pillCultivationSpeedBonus = disciple.pillCultivationSpeedBonus
+        pillSkillExpSpeedBonus = disciple.pillSkillExpSpeedBonus
+        pillNurtureSpeedBonus = disciple.pillNurtureSpeedBonus
         pillEffectDuration = disciple.pillEffectDuration
+        activePillCategory = disciple.activePillCategory
         totalCultivation = disciple.totalCultivation
         breakthroughCount = disciple.breakthroughCount
         breakthroughFailCount = disciple.breakthroughFailCount
@@ -375,8 +393,8 @@ class MutableDisciple {
         baseMagicDefense = disciple.baseMagicDefense
         baseSpeed = disciple.baseSpeed
         discipleType = disciple.discipleType
-        monthlyUsedPillIds.clear()
-        monthlyUsedPillIds.addAll(disciple.monthlyUsedPillIds)
+        usedFunctionalPillTypes.clear()
+        usedFunctionalPillTypes.addAll(disciple.monthlyUsedPillIds)
         usedExtendLifePillIds.clear()
         usedExtendLifePillIds.addAll(disciple.usedExtendLifePillIds)
         hasReviveEffect = disciple.hasReviveEffect
@@ -434,7 +452,13 @@ class MutableDisciple {
                 pillHpBonus = pillHpBonus,
                 pillMpBonus = pillMpBonus,
                 pillSpeedBonus = pillSpeedBonus,
-                pillEffectDuration = pillEffectDuration
+                pillCritRateBonus = pillCritRateBonus,
+                pillCritEffectBonus = pillCritEffectBonus,
+                pillCultivationSpeedBonus = pillCultivationSpeedBonus,
+                pillSkillExpSpeedBonus = pillSkillExpSpeedBonus,
+                pillNurtureSpeedBonus = pillNurtureSpeedBonus,
+                pillEffectDuration = pillEffectDuration,
+                activePillCategory = activePillCategory
             ),
             equipment = EquipmentSet(
                 weaponId = weaponId,
@@ -472,7 +496,7 @@ class MutableDisciple {
                 salaryMissedCount = salaryMissedCount
             ),
             usage = UsageTracking(
-                monthlyUsedPillIds = monthlyUsedPillIds.toList(),
+                usedFunctionalPillTypes = usedFunctionalPillTypes.toList(),
                 usedExtendLifePillIds = usedExtendLifePillIds.toList(),
                 recruitedMonth = recruitedMonth,
                 hasReviveEffect = hasReviveEffect,
