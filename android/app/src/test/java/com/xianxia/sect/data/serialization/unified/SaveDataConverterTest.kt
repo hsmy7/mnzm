@@ -1,4 +1,4 @@
-﻿package com.xianxia.sect.data.serialization.unified
+﻿﻿package com.xianxia.sect.data.serialization.unified
 
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.data.model.SaveData

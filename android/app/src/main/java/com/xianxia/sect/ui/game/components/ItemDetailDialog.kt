@@ -1,4 +1,4 @@
-﻿package com.xianxia.sect.ui.game.components
+package com.xianxia.sect.ui.game.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*

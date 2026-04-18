@@ -480,18 +480,18 @@ object AISectAttackManager {
                 val isAttacker = combatant.side == CombatantSide.ATTACKER
                 val allies = if (isAttacker) currentAttackers else currentDefenders
                 val enemies = if (isAttacker) currentDefenders else currentAttackers
+                val alliesIndexMap = allies.withIndex().associate { it.value.id to it.index }
+                val enemiesIndexMap = enemies.withIndex().associate { it.value.id to it.index }
 
                 val aliveEnemies = enemies.filter { !it.isDead }
                 if (aliveEnemies.isEmpty()) break
 
-                val currentCombatant = allies.find { it.id == combatant.id } ?: continue
+                val combatantIdx = alliesIndexMap[combatant.id] ?: continue
+                val currentCombatant = allies[combatantIdx]
 
                 if (currentCombatant.hasControlEffect) {
-                    val idx = allies.indexOfFirst { it.id == currentCombatant.id }
-                    if (idx >= 0) {
-                        val newBuffs = currentCombatant.buffs.map { it.copy(remainingDuration = maxOf(0, it.remainingDuration - 1)) }.filter { it.remainingDuration > 0 }
-                        allies[idx] = currentCombatant.copy(buffs = newBuffs)
-                    }
+                    val newBuffs = currentCombatant.buffs.map { it.copy(remainingDuration = maxOf(0, it.remainingDuration - 1)) }.filter { it.remainingDuration > 0 }
+                    allies[combatantIdx] = currentCombatant.copy(buffs = newBuffs)
                     continue
                 }
 
@@ -502,15 +502,15 @@ object AISectAttackManager {
                 val isAoeSkill = availableSkill?.isAoe == true && !isSupportSkill
 
                 if (availableSkill != null && isSupportSkill) {
-                    executeSupportAction(currentCombatant, allies.filter { !it.isDead }, availableSkill, allies)
+                    executeSupportAction(currentCombatant, allies.filter { !it.isDead }, availableSkill, allies, alliesIndexMap)
                 } else if (availableSkill != null && isAoeSkill) {
-                    executeAoeAttackAction(currentCombatant, aliveEnemies, availableSkill, allies, enemies, battleSystem)
+                    executeAoeAttackAction(currentCombatant, aliveEnemies, availableSkill, allies, enemies, battleSystem, alliesIndexMap, enemiesIndexMap)
                 } else if (availableSkill != null) {
                     val target = selectAITarget(currentCombatant, aliveEnemies)
-                    executeSingleAttackAction(currentCombatant, target, availableSkill, allies, enemies, battleSystem)
+                    executeSingleAttackAction(currentCombatant, target, availableSkill, allies, enemies, battleSystem, alliesIndexMap, enemiesIndexMap)
                 } else {
                     val target = selectAITarget(currentCombatant, aliveEnemies)
-                    executeNormalAttackAction(currentCombatant, target, allies, enemies, battleSystem)
+                    executeNormalAttackAction(currentCombatant, target, allies, enemies, battleSystem, alliesIndexMap, enemiesIndexMap)
                 }
 
                 currentAttackers = currentAttackers.filter { !it.isDead }.toMutableList()
@@ -542,7 +542,9 @@ object AISectAttackManager {
         target: Combatant,
         allies: MutableList<Combatant>,
         enemies: MutableList<Combatant>,
-        battleSystem: BattleSystem
+        battleSystem: BattleSystem,
+        alliesIndexMap: Map<String, Int>,
+        enemiesIndexMap: Map<String, Int>
     ) {
         val speedDiff = attacker.effectiveSpeed - target.effectiveSpeed
         val dodgeChance = (speedDiff.toDouble() / (attacker.effectiveSpeed + target.effectiveSpeed).coerceAtLeast(1) * 0.5).coerceIn(0.0, GameConfig.Battle.MAX_DODGE_CHANCE)
@@ -565,13 +567,13 @@ object AISectAttackManager {
         val finalDamage = (totalDamage * variance).toInt().coerceAtLeast(GameConfig.Battle.MIN_DAMAGE)
 
         val newHp = maxOf(0, target.hp - finalDamage)
-        val targetIdx = enemies.indexOfFirst { it.id == target.id }
-        if (targetIdx >= 0) {
+        val targetIdx = enemiesIndexMap[target.id]
+        if (targetIdx != null && targetIdx < enemies.size) {
             enemies[targetIdx] = enemies[targetIdx].copy(hp = newHp)
         }
 
-        val combatantIdx = allies.indexOfFirst { it.id == attacker.id }
-        if (combatantIdx >= 0) {
+        val combatantIdx = alliesIndexMap[attacker.id]
+        if (combatantIdx != null && combatantIdx < allies.size) {
             val newBuffs = attacker.buffs.map { it.copy(remainingDuration = maxOf(0, it.remainingDuration - 1)) }.filter { it.remainingDuration > 0 }
             allies[combatantIdx] = attacker.copy(buffs = newBuffs)
         }
@@ -583,14 +585,16 @@ object AISectAttackManager {
         skill: CombatSkill,
         allies: MutableList<Combatant>,
         enemies: MutableList<Combatant>,
-        battleSystem: BattleSystem
+        battleSystem: BattleSystem,
+        alliesIndexMap: Map<String, Int>,
+        enemiesIndexMap: Map<String, Int>
     ) {
         val speedDiff = attacker.effectiveSpeed - target.effectiveSpeed
         val dodgeChance = (speedDiff.toDouble() / (attacker.effectiveSpeed + target.effectiveSpeed).coerceAtLeast(1) * 0.3).coerceIn(0.0, GameConfig.Battle.MAX_SKILL_DODGE_CHANCE)
 
         if (Random.nextDouble() < dodgeChance) {
-            val combatantIdx = allies.indexOfFirst { it.id == attacker.id }
-            if (combatantIdx >= 0) {
+            val combatantIdx = alliesIndexMap[attacker.id]
+            if (combatantIdx != null && combatantIdx < allies.size) {
                 val updatedSkills = attacker.skills.map { s ->
                     if (s.name == skill.name) s.copy(currentCooldown = s.cooldown)
                     else s.copy(currentCooldown = maxOf(0, s.currentCooldown - 1))
@@ -616,8 +620,8 @@ object AISectAttackManager {
         val finalDamage = (totalDamage * variance).toInt().coerceAtLeast(GameConfig.Battle.MIN_DAMAGE)
 
         val newHp = maxOf(0, target.hp - finalDamage)
-        val targetIdx = enemies.indexOfFirst { it.id == target.id }
-        if (targetIdx >= 0) {
+        val targetIdx = enemiesIndexMap[target.id]
+        if (targetIdx != null && targetIdx < enemies.size) {
             var updatedTarget = enemies[targetIdx].copy(hp = newHp)
 
             if (skill.buffType != null && skill.buffDuration > 0) {
@@ -628,8 +632,8 @@ object AISectAttackManager {
             enemies[targetIdx] = updatedTarget
         }
 
-        val combatantIdx = allies.indexOfFirst { it.id == attacker.id }
-        if (combatantIdx >= 0) {
+        val combatantIdx = alliesIndexMap[attacker.id]
+        if (combatantIdx != null && combatantIdx < allies.size) {
             val updatedSkills = attacker.skills.map { s ->
                 if (s.name == skill.name) s.copy(currentCooldown = s.cooldown)
                 else s.copy(currentCooldown = maxOf(0, s.currentCooldown - 1))
@@ -645,7 +649,9 @@ object AISectAttackManager {
         skill: CombatSkill,
         allies: MutableList<Combatant>,
         enemies: MutableList<Combatant>,
-        battleSystem: BattleSystem
+        battleSystem: BattleSystem,
+        alliesIndexMap: Map<String, Int>,
+        enemiesIndexMap: Map<String, Int>
     ) {
         for (target in targets) {
             if (target.isDead) continue
@@ -671,8 +677,8 @@ object AISectAttackManager {
             val finalDamage = (totalDamage * variance).toInt().coerceAtLeast(GameConfig.Battle.MIN_DAMAGE)
 
             val newHp = maxOf(0, target.hp - finalDamage)
-            val targetIdx = enemies.indexOfFirst { it.id == target.id }
-            if (targetIdx >= 0) {
+            val targetIdx = enemiesIndexMap[target.id]
+            if (targetIdx != null && targetIdx < enemies.size) {
                 var updatedTarget = enemies[targetIdx].copy(hp = newHp)
 
                 if (skill.buffType != null && skill.buffDuration > 0) {
@@ -684,8 +690,8 @@ object AISectAttackManager {
             }
         }
 
-        val combatantIdx = allies.indexOfFirst { it.id == attacker.id }
-        if (combatantIdx >= 0) {
+        val combatantIdx = alliesIndexMap[attacker.id]
+        if (combatantIdx != null && combatantIdx < allies.size) {
             val updatedSkills = attacker.skills.map { s ->
                 if (s.name == skill.name) s.copy(currentCooldown = s.cooldown)
                 else s.copy(currentCooldown = maxOf(0, s.currentCooldown - 1))
@@ -699,7 +705,8 @@ object AISectAttackManager {
         caster: Combatant,
         allies: List<Combatant>,
         skill: CombatSkill,
-        alliesList: MutableList<Combatant>
+        alliesList: MutableList<Combatant>,
+        alliesIndexMap: Map<String, Int>
     ) {
         val targets = if (skill.targetScope == "team") allies else listOf(caster)
 
@@ -711,8 +718,8 @@ object AISectAttackManager {
             }
 
             targets.forEach { target ->
-                val idx = alliesList.indexOfFirst { it.id == target.id }
-                if (idx >= 0) {
+                val idx = alliesIndexMap[target.id]
+                if (idx != null && idx < alliesList.size) {
                     if (skill.healType == HealType.MP) {
                         alliesList[idx] = alliesList[idx].copy(mp = minOf(alliesList[idx].mp + healAmount, alliesList[idx].maxMp))
                     } else {
@@ -725,8 +732,8 @@ object AISectAttackManager {
         if (skill.buffType != null && skill.buffDuration > 0) {
             val buff = CombatBuff(type = skill.buffType, value = skill.buffValue, remainingDuration = skill.buffDuration)
             targets.forEach { target ->
-                val idx = alliesList.indexOfFirst { it.id == target.id }
-                if (idx >= 0) {
+                val idx = alliesIndexMap[target.id]
+                if (idx != null && idx < alliesList.size) {
                     alliesList[idx] = alliesList[idx].copy(buffs = alliesList[idx].buffs + buff)
                 }
             }
@@ -735,15 +742,15 @@ object AISectAttackManager {
         for ((buffType, buffValue, buffDuration) in skill.buffs) {
             val buff = CombatBuff(type = buffType, value = buffValue, remainingDuration = buffDuration)
             targets.forEach { target ->
-                val idx = alliesList.indexOfFirst { it.id == target.id }
-                if (idx >= 0) {
+                val idx = alliesIndexMap[target.id]
+                if (idx != null && idx < alliesList.size) {
                     alliesList[idx] = alliesList[idx].copy(buffs = alliesList[idx].buffs + buff)
                 }
             }
         }
 
-        val combatantIdx = alliesList.indexOfFirst { it.id == caster.id }
-        if (combatantIdx >= 0) {
+        val combatantIdx = alliesIndexMap[caster.id]
+        if (combatantIdx != null && combatantIdx < alliesList.size) {
             val updatedSkills = caster.skills.map { s ->
                 if (s.name == skill.name) s.copy(currentCooldown = s.cooldown)
                 else s.copy(currentCooldown = maxOf(0, s.currentCooldown - 1))
@@ -795,6 +802,15 @@ object AISectAttackManager {
         val lowHpAllies = allies.filter { it.hpPercent < 0.3 }
         if (lowHpAllies.isNotEmpty() && supportSkills.isNotEmpty() && Random.nextDouble() < 0.8) {
             return supportSkills.first()
+        }
+
+        val controlSkills = attackSkills.filter { skill ->
+            skill.buffType != null && skill.buffDuration > 0 && skill.buffType.isDebuff &&
+                skill.buffType in setOf(BuffType.STUN, BuffType.FREEZE, BuffType.SILENCE, BuffType.TAUNT)
+        }
+        val uncontrolledEnemies = enemies.filter { enemy -> !enemy.hasControlEffect }
+        if (uncontrolledEnemies.isNotEmpty() && controlSkills.isNotEmpty() && Random.nextDouble() < 0.6) {
+            return controlSkills.first()
         }
 
         val aoeSkills = attackSkills.filter { it.isAoe }

@@ -755,7 +755,7 @@ class BattleSystem @Inject constructor() {
         val absGap = kotlin.math.abs(gap).coerceAtMost(GameConfig.Battle.RealmGap.MAX_REALM_GAP)
         if (absGap == 0) return 1.0
 
-        val ratio = if (gap < 0) {
+        val ratio = if (gap > 0) {
             1.0 + absGap * GameConfig.Battle.RealmGap.DAMAGE_BONUS_PER_REALM
         } else {
             1.0 - absGap * GameConfig.Battle.RealmGap.DAMAGE_PENALTY_PER_REALM
@@ -794,6 +794,15 @@ class BattleSystem @Inject constructor() {
         val lowHpAllies = allies.filter { it.hpPercent < 0.3 }
         if (lowHpAllies.isNotEmpty() && supportSkills.isNotEmpty() && Random.nextDouble() < 0.8) {
             return supportSkills.first()
+        }
+
+        val controlSkills = attackSkills.filter { skill ->
+            skill.buffType != null && skill.buffDuration > 0 && skill.buffType.isDebuff &&
+                skill.buffType in setOf(BuffType.STUN, BuffType.FREEZE, BuffType.SILENCE, BuffType.TAUNT)
+        }
+        val uncontrolledEnemies = enemies.filter { enemy -> !enemy.hasControlEffect }
+        if (uncontrolledEnemies.isNotEmpty() && controlSkills.isNotEmpty() && Random.nextDouble() < 0.6) {
+            return controlSkills.first()
         }
 
         val aoeSkills = attackSkills.filter { it.isAoe }
