@@ -3519,7 +3519,7 @@ class CultivationService @Inject constructor(
     ): MerchantItem {
         val (name, type) = item
         val rarity = forcedRarity ?: itemRarityMap[name] ?: 1
-        val basePrice = itemPriceMap[name] ?: 20
+        val basePrice = itemPriceMap[name] ?: GameConfig.Rarity.get(rarity).materialBasePrice
         val quantity = calculateMerchantStock(type, rarity)
 
         return MerchantItem(
