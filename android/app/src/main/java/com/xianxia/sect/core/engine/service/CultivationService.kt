@@ -27,6 +27,9 @@ import com.xianxia.sect.core.engine.AISectAttackManager
 import com.xianxia.sect.core.engine.AISectDiscipleManager
 import com.xianxia.sect.core.engine.AIBattleWinner
 import com.xianxia.sect.core.engine.DiscipleStatCalculator
+import com.xianxia.sect.core.engine.DiscipleEquipmentManager
+import com.xianxia.sect.core.engine.DiscipleManualManager
+import com.xianxia.sect.core.engine.DisciplePillManager
 import com.xianxia.sect.core.engine.EquipmentNurtureSystem
 import com.xianxia.sect.core.engine.ManualProficiencySystem
 import com.xianxia.sect.core.engine.MissionSystem
@@ -803,6 +806,95 @@ class CultivationService @Inject constructor(
         processDailyRecovery()
     }
 
+    private fun processPillDurationDecay() {
+        currentDisciples = currentDisciples.map { disciple ->
+            var updated = disciple
+
+            if (updated.cultivationSpeedDuration > 0) {
+                val newDuration = updated.cultivationSpeedDuration - 1
+                if (newDuration <= 0) {
+                    updated = updated.copy(
+                        cultivationSpeedBonus = 0.0,
+                        cultivationSpeedDuration = 0
+                    )
+                } else {
+                    updated = updated.copy(cultivationSpeedDuration = newDuration)
+                }
+            }
+
+            if (updated.pillEffectDuration > 0) {
+                val newDuration = updated.pillEffectDuration - 1
+                if (newDuration <= 0) {
+                    updated = updated.copy(pillEffects = PillEffects())
+                } else {
+                    updated = updated.copy(pillEffects = updated.pillEffects.copy(pillEffectDuration = newDuration))
+                }
+            }
+
+            updated
+        }
+    }
+
+    private fun processAutoUseItems(year: Int, month: Int) {
+        val equipmentMap = currentEquipment.associateBy { it.id }
+        val manualMap = currentManuals.associateBy { it.id }
+
+        currentDisciples = currentDisciples.map { disciple ->
+            if (!disciple.isAlive) return@map disciple
+
+            var updatedDisciple = disciple
+
+            val pillResult = DisciplePillManager.processAutoUsePills(
+                disciple = updatedDisciple,
+                gameYear = year,
+                gameMonth = month
+            )
+            if (pillResult.disciple != updatedDisciple) {
+                updatedDisciple = pillResult.disciple
+                pillResult.events.forEach { eventService.addGameEvent(it, EventType.SUCCESS) }
+            }
+
+            val equipResult = DiscipleEquipmentManager.processAutoEquip(
+                disciple = updatedDisciple,
+                equipmentMap = equipmentMap,
+                gameYear = year,
+                gameMonth = month
+            )
+            if (equipResult.disciple != updatedDisciple) {
+                updatedDisciple = equipResult.disciple
+                equipResult.equipmentUpdates.forEach { eq ->
+                    currentEquipment = currentEquipment.map {
+                        if (it.id == eq.id) eq else it
+                    }
+                }
+                equipResult.events.forEach { eventService.addGameEvent(it, EventType.SUCCESS) }
+            }
+
+            val manualResult = DiscipleManualManager.processAutoLearn(
+                disciple = updatedDisciple,
+                manuals = manualMap,
+                gameYear = year,
+                gameMonth = month
+            )
+            if (manualResult.disciple != updatedDisciple) {
+                updatedDisciple = manualResult.disciple
+                manualResult.learnedManual?.let { learned ->
+                    currentManuals = currentManuals.map {
+                        if (it.id == learned.id) learned else it
+                    }
+                }
+                manualResult.replacedManual?.let { replaced ->
+                    currentManuals = currentManuals.map {
+                        if (it.id == replaced.id) replaced else it
+                    }
+                }
+                manualResult.events.forEach { eventService.addGameEvent(it, EventType.SUCCESS) }
+            }
+
+            updatedDisciple
+        }
+    }
+
     private fun processDailyRecovery() {
         val inBattleIds = currentTeams
             .filter { it.status == ExplorationStatus.EXPLORING }
@@ -840,6 +932,12 @@ class CultivationService @Inject constructor(
         // 0-3: 生产/经济逻辑已迁移至 ProductionSubsystem 和 EconomySubsystem
 
         // 4. 藏经阁加成已在 updateRealtimeCultivation() 中实时处理，无需月度处理
+
+        // 5. 丹药效果持续时间递减
+        processPillDurationDecay()
+
+        // 5.5 弟子自动使用储物袋物品（功法/装备/丹药）
+        processAutoUseItems(year, month)
 
         // 6. Process dungeon monthly exploration (秘境月度探索)
         processDungeonMonthlyExploration()
@@ -2788,23 +2886,30 @@ class CultivationService @Inject constructor(
                             category = template.category,
                             breakthroughChance = template.breakthroughChance,
                             targetRealm = template.targetRealm,
-                            cultivationSpeed = template.cultivationSpeed,
-                            duration = template.effectDuration,
-                            cultivationPercent = template.cultivationPercent,
-                            skillExpPercent = template.skillExpPercent,
+                            cultivationSpeedPercent = template.cultivationSpeedPercent,
+                            duration = template.duration,
+                            cultivationAdd = template.cultivationAdd,
+                            skillExpAdd = template.skillExpAdd,
+                            nurtureAdd = template.nurtureAdd,
                             extendLife = template.extendLife,
-                            physicalAttackPercent = template.physicalAttackPercent,
-                            magicAttackPercent = template.magicAttackPercent,
-                            physicalDefensePercent = template.physicalDefensePercent,
-                            magicDefensePercent = template.magicDefensePercent,
-                            hpPercent = template.hpPercent,
-                            mpPercent = template.mpPercent,
-                            speedPercent = template.speedPercent,
-                            healPercent = template.healPercent,
-                            healMaxHpPercent = template.healMaxHpPercent,
-                            heal = template.heal,
-                            battleCount = template.battleCount,
-                            mpRecoverMaxMpPercent = template.mpRecoverMaxMpPercent,
+                            physicalAttackAdd = template.physicalAttackAdd,
+                            magicAttackAdd = template.magicAttackAdd,
+                            physicalDefenseAdd = template.physicalDefenseAdd,
+                            magicDefenseAdd = template.magicDefenseAdd,
+                            hpAdd = template.hpAdd,
+                            mpAdd = template.mpAdd,
+                            speedAdd = template.speedAdd,
+                            critRateAdd = template.critRateAdd,
+                            critEffectAdd = template.critEffectAdd,
+                            intelligenceAdd = template.intelligenceAdd,
+                            charmAdd = template.charmAdd,
+                            loyaltyAdd = template.loyaltyAdd,
+                            comprehensionAdd = template.comprehensionAdd,
+                            artifactRefiningAdd = template.artifactRefiningAdd,
+                            pillRefiningAdd = template.pillRefiningAdd,
+                            spiritPlantingAdd = template.spiritPlantingAdd,
+                            teachingAdd = template.teachingAdd,
+                            moralityAdd = template.moralityAdd,
                             minRealm = GameConfig.Realm.getMinRealmForRarity(template.rarity)
                         )
                         inventorySystem.addPill(pill)

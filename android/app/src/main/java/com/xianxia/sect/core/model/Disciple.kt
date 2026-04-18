@@ -24,7 +24,7 @@ import kotlinx.serialization.Serializable
  * **装备数据** → `disciple.equipment.weaponId`, `disciple.equipment.spiritStones` 等
  * **社交关系** → `disciple.social.partnerId`, `disciple.social.parentId1` 等
  * **技能属性** → `disciple.skills.intelligence`, `disciple.skills.comprehension` 等
- * **使用追踪** → `disciple.usage.monthlyUsedPillIds`, `disciple.usage.recruitedMonth` 等
+ * **使用追踪** → `disciple.usage.usedFunctionalPillTypes`, `disciple.usage.recruitedMonth` 等
  *
  * ## 委托属性
  *
@@ -159,21 +159,33 @@ data class Disciple(
 
     // --- PillEffects 委托 ---
     /** @deprecated 请改用 [pillEffects.pillPhysicalAttackBonus] */
-    var pillPhysicalAttackBonus: Double get() = pillEffects.pillPhysicalAttackBonus; set(value) { pillEffects.pillPhysicalAttackBonus = value }
+    var pillPhysicalAttackBonus: Int get() = pillEffects.pillPhysicalAttackBonus; set(value) { pillEffects.pillPhysicalAttackBonus = value }
     /** @deprecated 请改用 [pillEffects.pillMagicAttackBonus] */
-    var pillMagicAttackBonus: Double get() = pillEffects.pillMagicAttackBonus; set(value) { pillEffects.pillMagicAttackBonus = value }
+    var pillMagicAttackBonus: Int get() = pillEffects.pillMagicAttackBonus; set(value) { pillEffects.pillMagicAttackBonus = value }
     /** @deprecated 请改用 [pillEffects.pillPhysicalDefenseBonus] */
-    var pillPhysicalDefenseBonus: Double get() = pillEffects.pillPhysicalDefenseBonus; set(value) { pillEffects.pillPhysicalDefenseBonus = value }
+    var pillPhysicalDefenseBonus: Int get() = pillEffects.pillPhysicalDefenseBonus; set(value) { pillEffects.pillPhysicalDefenseBonus = value }
     /** @deprecated 请改用 [pillEffects.pillMagicDefenseBonus] */
-    var pillMagicDefenseBonus: Double get() = pillEffects.pillMagicDefenseBonus; set(value) { pillEffects.pillMagicDefenseBonus = value }
+    var pillMagicDefenseBonus: Int get() = pillEffects.pillMagicDefenseBonus; set(value) { pillEffects.pillMagicDefenseBonus = value }
     /** @deprecated 请改用 [pillEffects.pillHpBonus] */
-    var pillHpBonus: Double get() = pillEffects.pillHpBonus; set(value) { pillEffects.pillHpBonus = value }
+    var pillHpBonus: Int get() = pillEffects.pillHpBonus; set(value) { pillEffects.pillHpBonus = value }
     /** @deprecated 请改用 [pillEffects.pillMpBonus] */
-    var pillMpBonus: Double get() = pillEffects.pillMpBonus; set(value) { pillEffects.pillMpBonus = value }
+    var pillMpBonus: Int get() = pillEffects.pillMpBonus; set(value) { pillEffects.pillMpBonus = value }
     /** @deprecated 请改用 [pillEffects.pillSpeedBonus] */
-    var pillSpeedBonus: Double get() = pillEffects.pillSpeedBonus; set(value) { pillEffects.pillSpeedBonus = value }
+    var pillSpeedBonus: Int get() = pillEffects.pillSpeedBonus; set(value) { pillEffects.pillSpeedBonus = value }
     /** @deprecated 请改用 [pillEffects.pillEffectDuration] */
     var pillEffectDuration: Int get() = pillEffects.pillEffectDuration; set(value) { pillEffects.pillEffectDuration = value }
+    /** @deprecated 请改用 [pillEffects.pillCritRateBonus] */
+    var pillCritRateBonus: Double get() = pillEffects.pillCritRateBonus; set(value) { pillEffects.pillCritRateBonus = value }
+    /** @deprecated 请改用 [pillEffects.pillCritEffectBonus] */
+    var pillCritEffectBonus: Double get() = pillEffects.pillCritEffectBonus; set(value) { pillEffects.pillCritEffectBonus = value }
+    /** @deprecated 请改用 [pillEffects.pillCultivationSpeedBonus] */
+    var pillCultivationSpeedBonus: Double get() = pillEffects.pillCultivationSpeedBonus; set(value) { pillEffects.pillCultivationSpeedBonus = value }
+    /** @deprecated 请改用 [pillEffects.pillSkillExpSpeedBonus] */
+    var pillSkillExpSpeedBonus: Double get() = pillEffects.pillSkillExpSpeedBonus; set(value) { pillEffects.pillSkillExpSpeedBonus = value }
+    /** @deprecated 请改用 [pillEffects.pillNurtureSpeedBonus] */
+    var pillNurtureSpeedBonus: Double get() = pillEffects.pillNurtureSpeedBonus; set(value) { pillEffects.pillNurtureSpeedBonus = value }
+    /** @deprecated 请改用 [pillEffects.activePillCategory] */
+    var activePillCategory: String get() = pillEffects.activePillCategory; set(value) { pillEffects.activePillCategory = value }
 
     // --- EquipmentSet 委托 ---
     /** @deprecated 请改用 [equipment.weaponId] */
@@ -243,8 +255,8 @@ data class Disciple(
     var salaryMissedCount: Int get() = skills.salaryMissedCount; set(value) { skills.salaryMissedCount = value }
 
     // --- UsageTracking 委托 ---
-    /** @deprecated 请改用 [usage.monthlyUsedPillIds] */
-    var monthlyUsedPillIds: List<String> get() = usage.monthlyUsedPillIds; set(value) { usage.monthlyUsedPillIds = value }
+    /** @deprecated 请改用 [usage.usedFunctionalPillTypes] */
+    var monthlyUsedPillIds: List<String> get() = usage.usedFunctionalPillTypes; set(value) { usage.usedFunctionalPillTypes = value }
     /** @deprecated 请改用 [usage.usedExtendLifePillIds] */
     var usedExtendLifePillIds: List<String> get() = usage.usedExtendLifePillIds; set(value) { usage.usedExtendLifePillIds = value }
     /** @deprecated 请改用 [usage.recruitedMonth] */
@@ -345,14 +357,20 @@ data class Disciple(
         currentMp: Int = this.currentMp,
 
         // PillEffects
-        pillPhysicalAttackBonus: Double = this.pillPhysicalAttackBonus,
-        pillMagicAttackBonus: Double = this.pillMagicAttackBonus,
-        pillPhysicalDefenseBonus: Double = this.pillPhysicalDefenseBonus,
-        pillMagicDefenseBonus: Double = this.pillMagicDefenseBonus,
-        pillHpBonus: Double = this.pillHpBonus,
-        pillMpBonus: Double = this.pillMpBonus,
-        pillSpeedBonus: Double = this.pillSpeedBonus,
+        pillPhysicalAttackBonus: Int = this.pillPhysicalAttackBonus,
+        pillMagicAttackBonus: Int = this.pillMagicAttackBonus,
+        pillPhysicalDefenseBonus: Int = this.pillPhysicalDefenseBonus,
+        pillMagicDefenseBonus: Int = this.pillMagicDefenseBonus,
+        pillHpBonus: Int = this.pillHpBonus,
+        pillMpBonus: Int = this.pillMpBonus,
+        pillSpeedBonus: Int = this.pillSpeedBonus,
         pillEffectDuration: Int = this.pillEffectDuration,
+        pillCritRateBonus: Double = this.pillCritRateBonus,
+        pillCritEffectBonus: Double = this.pillCritEffectBonus,
+        pillCultivationSpeedBonus: Double = this.pillCultivationSpeedBonus,
+        pillSkillExpSpeedBonus: Double = this.pillSkillExpSpeedBonus,
+        pillNurtureSpeedBonus: Double = this.pillNurtureSpeedBonus,
+        activePillCategory: String = this.activePillCategory,
 
         // EquipmentSet
         weaponId: String = this.weaponId,
@@ -390,7 +408,7 @@ data class Disciple(
         salaryMissedCount: Int = this.salaryMissedCount,
 
         // UsageTracking
-        monthlyUsedPillIds: List<String> = this.monthlyUsedPillIds,
+        usedFunctionalPillTypes: List<String> = this.monthlyUsedPillIds,
         usedExtendLifePillIds: List<String> = this.usedExtendLifePillIds,
         recruitedMonth: Int = this.recruitedMonth,
         hasReviveEffect: Boolean = this.hasReviveEffect,
@@ -444,7 +462,13 @@ data class Disciple(
                 pillHpBonus = pillHpBonus,
                 pillMpBonus = pillMpBonus,
                 pillSpeedBonus = pillSpeedBonus,
-                pillEffectDuration = pillEffectDuration
+                pillCritRateBonus = pillCritRateBonus,
+                pillCritEffectBonus = pillCritEffectBonus,
+                pillCultivationSpeedBonus = pillCultivationSpeedBonus,
+                pillSkillExpSpeedBonus = pillSkillExpSpeedBonus,
+                pillNurtureSpeedBonus = pillNurtureSpeedBonus,
+                pillEffectDuration = pillEffectDuration,
+                activePillCategory = activePillCategory
             ),
             equipment = EquipmentSet(
                 weaponId = weaponId,
@@ -482,7 +506,7 @@ data class Disciple(
                 salaryMissedCount = salaryMissedCount
             ),
             usage = UsageTracking(
-                monthlyUsedPillIds = monthlyUsedPillIds,
+                usedFunctionalPillTypes = usedFunctionalPillTypes,
                 usedExtendLifePillIds = usedExtendLifePillIds,
                 recruitedMonth = recruitedMonth,
                 hasReviveEffect = hasReviveEffect,
@@ -759,27 +783,43 @@ data class StorageBagItem(
 
 @Serializable
 data class ItemEffect(
-    val cultivationSpeed: Double = 1.0,
-    val cultivationPercent: Double = 0.0,
-    val skillExpPercent: Double = 0.0,
+    val cultivationSpeedPercent: Double = 0.0,
+    val skillExpSpeedPercent: Double = 0.0,
+    val nurtureSpeedPercent: Double = 0.0,
     val breakthroughChance: Double = 0.0,
     val targetRealm: Int = 0,
-    val heal: Int = 0,
-    val healPercent: Double = 0.0,
+    val cultivationAdd: Int = 0,
+    val skillExpAdd: Int = 0,
+    val nurtureAdd: Int = 0,
     val healMaxHpPercent: Double = 0.0,
-    val hpPercent: Double = 0.0,
-    val mpPercent: Double = 0.0,
-    val mpRecoverPercent: Double = 0.0,
+    val mpRecoverMaxMpPercent: Double = 0.0,
+    val hpAdd: Int = 0,
+    val mpAdd: Int = 0,
     val extendLife: Int = 0,
-    val battleCount: Int = 0,
-    val physicalAttackPercent: Double = 0.0,
-    val magicAttackPercent: Double = 0.0,
-    val physicalDefensePercent: Double = 0.0,
-    val magicDefensePercent: Double = 0.0,
-    val speedPercent: Double = 0.0,
+    val physicalAttackAdd: Int = 0,
+    val magicAttackAdd: Int = 0,
+    val physicalDefenseAdd: Int = 0,
+    val magicDefenseAdd: Int = 0,
+    val speedAdd: Int = 0,
+    val critRateAdd: Double = 0.0,
+    val critEffectAdd: Double = 0.0,
+    val intelligenceAdd: Int = 0,
+    val charmAdd: Int = 0,
+    val loyaltyAdd: Int = 0,
+    val comprehensionAdd: Int = 0,
+    val artifactRefiningAdd: Int = 0,
+    val pillRefiningAdd: Int = 0,
+    val spiritPlantingAdd: Int = 0,
+    val teachingAdd: Int = 0,
+    val moralityAdd: Int = 0,
     val revive: Boolean = false,
     val clearAll: Boolean = false,
-    val duration: Int = 0
+    val isAscension: Boolean = false,
+    val duration: Int = 0,
+    val cannotStack: Boolean = true,
+    val minRealm: Int = 9,
+    val pillCategory: String = "",
+    val pillType: String = ""
 )
 
 @Serializable
