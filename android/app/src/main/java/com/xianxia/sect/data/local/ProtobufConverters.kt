@@ -368,13 +368,23 @@ object ProtobufConverters {
 
     @TypeConverter
     @JvmStatic
-    fun fromDiscipleList(value: List<Disciple>): String =
-        encodeToBase64(ListSerializer(Disciple.serializer()), value)
+    fun fromDiscipleList(value: List<Disciple>): String {
+        val result = encodeToBase64(ListSerializer(Disciple.serializer()), value)
+        if (result.isEmpty() && value.isNotEmpty()) {
+            Log.e(TAG, "CRITICAL: fromDiscipleList serialization FAILED for ${value.size} disciples! Data will be lost on save!")
+        }
+        return result
+    }
 
     @TypeConverter
     @JvmStatic
-    fun toDiscipleList(value: String): List<Disciple> =
-        decodeFromBase64(ListSerializer(Disciple.serializer()), value) { emptyList() }
+    fun toDiscipleList(value: String): List<Disciple> {
+        val result = decodeFromBase64(ListSerializer(Disciple.serializer()), value) { emptyList() }
+        if (result.isEmpty() && value.isNotEmpty()) {
+            Log.e(TAG, "CRITICAL: toDiscipleList deserialization returned empty list from non-empty data! Encoded length: ${value.length}")
+        }
+        return result
+    }
 
     @TypeConverter
     @JvmStatic

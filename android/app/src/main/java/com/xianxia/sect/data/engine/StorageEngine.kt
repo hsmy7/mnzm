@@ -619,6 +619,7 @@ class StorageEngine @Inject constructor(
     }
 
     private suspend fun writeAllDataToDatabase(slot: Int, data: SaveData) {
+        Log.d(TAG, "writeAllDataToDatabase: slot=$slot, ${data.disciples.size} disciples, recruitList=${data.gameData.recruitList.size} unrecruited disciples")
         val gameDataWithSlot = data.gameData.copy(slotId = slot, id = "game_data_$slot", lastSaveTime = data.timestamp)
         database.gameDataDao().insert(gameDataWithSlot)
 
@@ -768,7 +769,9 @@ class StorageEngine @Inject constructor(
                 battleLogs = battleLogs,
                 alliances = alliances,
                 productionSlots = productionSlots
-            )
+            ).also {
+                Log.d(TAG, "loadFromDatabase: slot=$slot, ${disciples.size} disciples, recruitList=${gameData.recruitList.size} unrecruited disciples")
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to load from database for slot $slot", e)
             null

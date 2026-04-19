@@ -146,7 +146,7 @@ class SaveService @Inject constructor(
             events = events,
             battleLogs = battleLogs
         )
-        Log.d(TAG, "Atomically restored from save: year=${loadedGameData.gameYear}, ${disciples.size} disciples, ${equipment.size} equipment")
+        Log.d(TAG, "Atomically restored from save: year=${loadedGameData.gameYear}, ${disciples.size} disciples, ${equipment.size} equipment, recruitList=${loadedGameData.recruitList.size} unrecruited disciples")
     }
 
     fun validateState(): List<String> {

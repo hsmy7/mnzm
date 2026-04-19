@@ -38,6 +38,12 @@ object GameDatabaseConfig {
     const val QUERY_THREAD_COUNT = 2
 }
 
+val MIGRATION_4_5 = object : androidx.room.migration.Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        Log.i("GameDatabase", "Migrating database from version 4 to 5: recruitList serialization fix (no schema change)")
+    }
+}
+
 @Database(
     entities = [
         GameData::class,
@@ -68,7 +74,7 @@ object GameDatabaseConfig {
         ArchivedGameEvent::class,
         ArchivedDisciple::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = true
 )
 
@@ -341,6 +347,7 @@ abstract class GameDatabase : RoomDatabase() {
                         optimizeDatabase(db)
                     }
                 })
+                .addMigrations(MIGRATION_4_5)
                 .fallbackToDestructiveMigration()
                 .build()
                 .also { db -> applySafetyPragmas(db) }

@@ -151,6 +151,8 @@ class GameEngine @Inject constructor(
             battleLogs = battleLogs
         )
 
+        Log.d(TAG, "loadData: restored game year=${gameData.gameYear}, ${disciples.size} disciples, recruitList=${gameData.recruitList.size} unrecruited disciples")
+
         if (productionSlots.isNotEmpty()) {
             productionCoordinator.repository.restoreSlots(productionSlots)
         }

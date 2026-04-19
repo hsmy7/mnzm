@@ -3704,7 +3704,9 @@ class CultivationService @Inject constructor(
             }
             newRecruitDisciples.add(disciple)
         }
+        val previousRecruitCount = currentGameData.recruitList.size
         currentGameData = currentGameData.copy(recruitList = newRecruitDisciples, lastRecruitYear = year)
+        Log.d(TAG, "refreshRecruitList: year=$year, generated ${newRecruitDisciples.size} new recruits (previous recruitList had $previousRecruitCount)")
     }
 
     private fun processYearlyAging(year: Int) {
