@@ -378,8 +378,7 @@ object GameConfig {
         const val MAX_BATTLE_DURATION_MS = 5000L
         const val BATTLE_TIMEOUT_WARNING_MS = 3000L
         const val DEFENSE_CONSTANT: Double = 500.0
-        const val DAMAGE_VARIANCE_MIN: Double = 0.9
-        const val DAMAGE_VARIANCE_MAX: Double = 1.1
+        const val DAMAGE_VARIANCE_PERCENT: Double = 20.0
         const val MIN_DAMAGE: Int = 1
 
         object Element {

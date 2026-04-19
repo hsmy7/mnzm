@@ -910,13 +910,14 @@ private inline fun <reified T : Enum<T>> safeEnumValueOfIgnoreCase(
 class SaveDataMigrator @Inject constructor() {
     companion object {
         private const val TAG = "SaveDataMigrator"
-        private const val CURRENT_VERSION = "2.0"
+        private const val CURRENT_VERSION = "3.0"
     }
 
     private val migrators = mutableListOf<VersionMigrator>()
 
     init {
         registerMigrator(V1ToV2Migrator())
+        registerMigrator(V2ToV3Migrator())
     }
 
     fun registerMigrator(migrator: VersionMigrator) {
@@ -966,6 +967,15 @@ class V1ToV2Migrator : VersionMigrator {
                 playerProtectionStartYear = data.gameData.playerProtectionStartYear
             )
         )
+    }
+}
+
+class V2ToV3Migrator : VersionMigrator {
+    override val fromVersion: String = "2.0"
+    override val toVersion: String = "3.0"
+
+    override suspend fun migrate(data: SerializableSaveData): SerializableSaveData {
+        return data.copy(version = toVersion)
     }
 }
 

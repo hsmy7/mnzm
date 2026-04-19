@@ -14,6 +14,12 @@ import kotlin.random.Random
 
 object BattleCalculator {
 
+    private fun calculateDamageVariance(): Double {
+        val variancePercent = Random.nextDouble(-GameConfig.Battle.DAMAGE_VARIANCE_PERCENT, GameConfig.Battle.DAMAGE_VARIANCE_PERCENT)
+        val roundedVariancePercent = (variancePercent * 10).toInt() / 10.0
+        return 1.0 + roundedVariancePercent / 100.0
+    }
+
     data class DamageResult(
         val damage: Int,
         val isCrit: Boolean,
@@ -79,7 +85,7 @@ object BattleCalculator {
         val elementMultiplier = calculateElementMultiplier(attacker.element, defender.element)
 
         val baseDamage = (attack * skillDamageMultiplier * (1.0 - reduction) * critMultiplier * realmGapMultiplier * elementMultiplier).toInt()
-        val variance = Random.nextDouble(GameConfig.Battle.DAMAGE_VARIANCE_MIN, GameConfig.Battle.DAMAGE_VARIANCE_MAX)
+        val variance = calculateDamageVariance()
         val finalDamage = (baseDamage * variance).toInt().coerceAtLeast(GameConfig.Battle.MIN_DAMAGE).coerceAtMost(Int.MAX_VALUE / 2)
 
         return DamageResult(
@@ -137,7 +143,7 @@ object BattleCalculator {
         val realmGapMultiplier = calculateRealmGapMultiplier(attacker.realm, defender.realm)
         val elementMultiplier = calculateElementMultiplier(attacker.element, defender.element)
         val baseDamage = (attacker.physicalAttack * multiplier * (1.0 - reduction) * critMultiplier * realmGapMultiplier * elementMultiplier).toInt()
-        val variance = Random.nextDouble(GameConfig.Battle.DAMAGE_VARIANCE_MIN, GameConfig.Battle.DAMAGE_VARIANCE_MAX)
+        val variance = calculateDamageVariance()
         return (baseDamage * variance).toInt().coerceAtLeast(GameConfig.Battle.MIN_DAMAGE).coerceAtMost(Int.MAX_VALUE / 2)
     }
 
@@ -152,7 +158,7 @@ object BattleCalculator {
         val realmGapMultiplier = calculateRealmGapMultiplier(attacker.realm, defender.realm)
         val elementMultiplier = calculateElementMultiplier(attacker.element, defender.element)
         val baseDamage = (attacker.magicAttack * multiplier * (1.0 - reduction) * critMultiplier * realmGapMultiplier * elementMultiplier).toInt()
-        val variance = Random.nextDouble(GameConfig.Battle.DAMAGE_VARIANCE_MIN, GameConfig.Battle.DAMAGE_VARIANCE_MAX)
+        val variance = calculateDamageVariance()
         return (baseDamage * variance).toInt().coerceAtLeast(GameConfig.Battle.MIN_DAMAGE).coerceAtMost(Int.MAX_VALUE / 2)
     }
 
@@ -209,7 +215,7 @@ object BattleCalculator {
         val elementMultiplier = calculateElementMultiplier(attacker.element, defender.element)
 
         val baseDamage = (attack.toDouble() * skillMultiplier * (1.0 - reduction) * critMultiplier * realmGapMultiplier * elementMultiplier).toInt()
-        val variance = Random.nextDouble(GameConfig.Battle.DAMAGE_VARIANCE_MIN, GameConfig.Battle.DAMAGE_VARIANCE_MAX)
+        val variance = calculateDamageVariance()
         val finalDamage = (baseDamage * variance).toInt().coerceAtLeast(GameConfig.Battle.MIN_DAMAGE).coerceAtMost(Int.MAX_VALUE / 2)
 
         return DamageResult(

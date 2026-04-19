@@ -44,6 +44,12 @@ val MIGRATION_4_5 = object : androidx.room.migration.Migration(4, 5) {
     }
 }
 
+val MIGRATION_5_6 = object : androidx.room.migration.Migration(5, 6) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        Log.i("GameDatabase", "Migrating database from version 5 to 6: game balance adjustment - damage variance ±20% with 0.1% precision (no schema change)")
+    }
+}
+
 @Database(
     entities = [
         GameData::class,
@@ -74,7 +80,7 @@ val MIGRATION_4_5 = object : androidx.room.migration.Migration(4, 5) {
         ArchivedGameEvent::class,
         ArchivedDisciple::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = true
 )
 
@@ -347,7 +353,7 @@ abstract class GameDatabase : RoomDatabase() {
                         optimizeDatabase(db)
                     }
                 })
-                .addMigrations(MIGRATION_4_5)
+                .addMigrations(MIGRATION_4_5, MIGRATION_5_6)
                 .fallbackToDestructiveMigration()
                 .build()
                 .also { db -> applySafetyPragmas(db) }

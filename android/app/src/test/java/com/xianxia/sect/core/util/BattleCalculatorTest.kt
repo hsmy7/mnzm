@@ -353,7 +353,7 @@ class BattleCalculatorTest {
     }
 
     @Test
-    fun `calculateDamage - damage variance between 0_9 and 1_1`() {
+    fun `calculateDamage - damage variance between 0_8 and 1_2`() {
         val attacker = createCombatant(physicalAttack = 1000, critRate = 0.0)
         val defender = createCombatant(physicalDefense = 0)
         val damages = mutableListOf<Int>()
@@ -365,8 +365,8 @@ class BattleCalculatorTest {
         val min = damages.min()
         val max = damages.max()
         val expected = expectedDamage(1000, 0)
-        assertTrue("min $min should be >= ${expected * 0.85}", min >= (expected * 0.85).toInt())
-        assertTrue("max $max should be <= ${expected * 1.15}", max <= (expected * 1.15).toInt())
+        assertTrue("min $min should be >= ${expected * 0.75}", min >= (expected * 0.75).toInt())
+        assertTrue("max $max should be <= ${expected * 1.25}", max <= (expected * 1.25).toInt())
     }
 
     @Test
