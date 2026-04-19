@@ -464,15 +464,26 @@ enum class PillGrade {
     }
 
     val multiplier: Double get() = when (this) {
-        LOW -> 0.7
+        LOW -> 0.5
         MEDIUM -> 1.0
-        HIGH -> 1.5
+        HIGH -> 2.0
     }
 
     val priceMultiplier: Double get() = when (this) {
-        LOW -> 0.7
+        LOW -> 0.5
         MEDIUM -> 1.0
-        HIGH -> 1.7
+        HIGH -> 2.0
+    }
+
+    companion object {
+        fun random(): PillGrade {
+            val roll = kotlin.random.Random.nextDouble()
+            return when {
+                roll < 0.06 -> HIGH
+                roll < 0.40 -> MEDIUM
+                else -> LOW
+            }
+        }
     }
 }
 

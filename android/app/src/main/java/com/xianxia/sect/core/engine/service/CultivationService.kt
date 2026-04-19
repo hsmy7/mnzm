@@ -1270,15 +1270,25 @@ class CultivationService @Inject constructor(
             if (slot.isWorking && slot.isFinished(year, month)) {
                 val success = Random.nextDouble() <= slot.successRate
                 if (success) {
-                    val pill = Pill(
-                        name = slot.outputItemName,
-                        rarity = slot.outputItemRarity,
-                        description = "通过炼丹炉炼制而成",
-                        minRealm = GameConfig.Realm.getMinRealmForRarity(slot.outputItemRarity),
-                        quantity = 1
-                    )
+                    val grade = PillGrade.random()
+                    val template = slot.recipeId?.let { rid ->
+                        val baseId = rid.substringBeforeLast("_")
+                        ItemDatabase.getPillById("${baseId}_${grade.name.lowercase()}")
+                    }
+                    val pill = if (template != null) {
+                        ItemDatabase.createPillFromTemplate(template)
+                    } else {
+                        Pill(
+                            name = slot.outputItemName,
+                            rarity = slot.outputItemRarity,
+                            grade = grade,
+                            description = "通过炼丹炉炼制而成",
+                            minRealm = GameConfig.Realm.getMinRealmForRarity(slot.outputItemRarity),
+                            quantity = 1
+                        )
+                    }
                     inventorySystem.addPill(pill)
-                    eventService.addGameEvent("炼制成功！获得${slot.outputItemName}，已放入宗门仓库", EventType.SUCCESS)
+                    eventService.addGameEvent("炼制成功！获得${grade.displayName}${slot.outputItemName}，已放入宗门仓库", EventType.SUCCESS)
                 } else {
                     eventService.addGameEvent("炼制失败，材料损毁", EventType.ERROR)
                 }

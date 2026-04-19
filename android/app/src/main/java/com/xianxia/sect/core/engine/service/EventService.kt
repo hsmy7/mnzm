@@ -430,7 +430,7 @@ class EventService @Inject constructor(
             }
             "pill" -> {
                 val p = MerchantItemConverter.toPill(item).copy(quantity = actualQuantity)
-                val existing = pills.find { it.name == p.name && it.rarity == p.rarity && it.category == p.category }
+                val existing = pills.find { it.name == p.name && it.rarity == p.rarity && it.category == p.category && it.grade == p.grade }
                 if (existing != null) {
                     val newQty = (existing.quantity + p.quantity).coerceAtMost(999)
                     pills = pills.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }

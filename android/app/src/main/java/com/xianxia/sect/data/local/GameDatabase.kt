@@ -68,7 +68,7 @@ object GameDatabaseConfig {
         ArchivedGameEvent::class,
         ArchivedDisciple::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = true
 )
 

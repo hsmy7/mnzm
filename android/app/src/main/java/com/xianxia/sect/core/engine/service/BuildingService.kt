@@ -392,15 +392,26 @@ class BuildingService @Inject constructor(
 
         var pill: Pill? = null
         if (success) {
-            pill = Pill(
-                name = slot.outputItemName,
-                rarity = slot.outputItemRarity,
-                description = "通过炼丹炉炼制而成",
-                minRealm = GameConfig.Realm.getMinRealmForRarity(slot.outputItemRarity),
-                quantity = 1
-            )
+            val grade = PillGrade.random()
+            val recipeId = slot.recipeId
+            val template = recipeId?.let { rid ->
+                val baseId = rid.substringBeforeLast("_")
+                ItemDatabase.getPillById("${baseId}_${grade.name.lowercase()}")
+            }
+            pill = if (template != null) {
+                ItemDatabase.createPillFromTemplate(template)
+            } else {
+                Pill(
+                    name = slot.outputItemName,
+                    rarity = slot.outputItemRarity,
+                    grade = grade,
+                    description = "通过炼丹炉炼制而成",
+                    minRealm = GameConfig.Realm.getMinRealmForRarity(slot.outputItemRarity),
+                    quantity = 1
+                )
+            }
             inventorySystem.addPill(pill)
-            eventService.addGameEvent("炼制成功！获得${slot.outputItemName}，已放入宗门仓库", EventType.INFO)
+            eventService.addGameEvent("炼制成功！获得${grade.displayName}${slot.outputItemName}，已放入宗门仓库", EventType.INFO)
         } else {
             eventService.addGameEvent("炼制失败，材料损毁", EventType.ERROR)
         }
@@ -562,15 +573,23 @@ class BuildingService @Inject constructor(
             "alchemy" -> {
                 val recipe = PillRecipeDatabase.getRecipeById(recipeId)
                 if (recipe != null) {
-                    val pill = Pill(
-                        name = recipe.name,
-                        rarity = recipe.rarity,
-                        description = "通过炼丹炉炼制而成",
-                        minRealm = GameConfig.Realm.getMinRealmForRarity(recipe.rarity),
-                        quantity = 1
-                    )
+                    val grade = PillGrade.random()
+                    val baseId = recipeId.substringBeforeLast("_")
+                    val template = ItemDatabase.getPillById("${baseId}_${grade.name.lowercase()}")
+                    val pill = if (template != null) {
+                        ItemDatabase.createPillFromTemplate(template)
+                    } else {
+                        Pill(
+                            name = recipe.name,
+                            rarity = recipe.rarity,
+                            grade = grade,
+                            description = "通过炼丹炉炼制而成",
+                            minRealm = GameConfig.Realm.getMinRealmForRarity(recipe.rarity),
+                            quantity = 1
+                        )
+                    }
                     inventorySystem.addPill(pill)
-                    eventService.addGameEvent("炼制完成！获得${recipe.name}，已放入宗门仓库", EventType.INFO)
+                    eventService.addGameEvent("炼制完成！获得${grade.displayName}${recipe.name}，已放入宗门仓库", EventType.INFO)
                 } else {
                     eventService.addGameEvent("炼制完成，但配方[$recipeId]不存在", EventType.ERROR)
                 }

@@ -408,7 +408,7 @@ class InventorySystem @Inject constructor(
 
         if (merge) {
             val existing = currentPills.find {
-                it.name == item.name && it.rarity == item.rarity && it.category == item.category
+                it.name == item.name && it.rarity == item.rarity && it.category == item.category && it.grade == item.grade
             }
             if (existing != null) {
                 val newQty = (existing.quantity + item.quantity).coerceAtMost(MAX_STACK_SIZE)
