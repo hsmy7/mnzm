@@ -306,11 +306,8 @@ class GameEngine @Inject constructor(
 
     fun recruitDisciple(): Disciple = discipleService.recruitDisciple()
 
-    fun expelDisciple(discipleId: String): Boolean {
-        gameEngineCore.launchInScope {
-            discipleService.expelDisciple(discipleId)
-        }
-        return true
+    suspend fun expelDisciple(discipleId: String): Boolean {
+        return discipleService.expelDisciple(discipleId)
     }
 
     fun equipEquipment(discipleId: String, equipmentId: String): Boolean =
@@ -637,7 +634,7 @@ class GameEngine @Inject constructor(
         cultivationService.resetHighFrequencyData()
     }
 
-    fun dismissDisciple(discipleId: String) {
+    suspend fun dismissDisciple(discipleId: String) {
         expelDisciple(discipleId)
     }
 

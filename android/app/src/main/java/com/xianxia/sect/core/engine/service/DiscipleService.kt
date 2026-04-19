@@ -518,28 +518,73 @@ class DiscipleService @Inject constructor(
      * Expel disciple from sect
      */
     suspend fun expelDisciple(discipleId: String): Boolean {
-        val disciple = getDiscipleById(discipleId) ?: return false
+        var result = false
+        stateStore.update {
+            val disciple = disciples.find { it.id == discipleId }
+            if (disciple == null) {
+                result = false
+                return@update
+            }
 
-        // Cannot expel if not idle
-        if (!disciple.isAlive) {
-            eventService.addGameEvent("${disciple.name} 已死亡，无法逐出", EventType.WARNING)
-            return false
+            if (!disciple.isAlive) {
+                eventService.addGameEvent("${disciple.name} 已死亡，无法逐出", EventType.WARNING)
+                result = false
+                return@update
+            }
+
+            clearDiscipleFromAllSlots(discipleId)
+
+            disciple.weaponId.takeIf { it.isNotEmpty() }?.let { eid ->
+                equipment = equipment.map { eq ->
+                    if (eq.id == eid) eq.copy(isEquipped = false, ownerId = null, nurtureLevel = 0, nurtureProgress = 0.0) else eq
+                }
+            }
+            disciple.armorId.takeIf { it.isNotEmpty() }?.let { eid ->
+                equipment = equipment.map { eq ->
+                    if (eq.id == eid) eq.copy(isEquipped = false, ownerId = null, nurtureLevel = 0, nurtureProgress = 0.0) else eq
+                }
+            }
+            disciple.bootsId.takeIf { it.isNotEmpty() }?.let { eid ->
+                equipment = equipment.map { eq ->
+                    if (eq.id == eid) eq.copy(isEquipped = false, ownerId = null, nurtureLevel = 0, nurtureProgress = 0.0) else eq
+                }
+            }
+            disciple.accessoryId.takeIf { it.isNotEmpty() }?.let { eid ->
+                equipment = equipment.map { eq ->
+                    if (eq.id == eid) eq.copy(isEquipped = false, ownerId = null, nurtureLevel = 0, nurtureProgress = 0.0) else eq
+                }
+            }
+
+            disciple.storageBagItems.filter { it.itemType == "equipment" }.forEach { bagItem ->
+                equipment = equipment.map { eq ->
+                    if (eq.id == bagItem.itemId) eq.copy(isEquipped = false, ownerId = null, nurtureLevel = 0, nurtureProgress = 0.0) else eq
+                }
+            }
+
+            disciple.storageBagItems.filter { it.itemType == "manual" }.forEach { bagItem ->
+                manuals = manuals.map { m ->
+                    if (m.id == bagItem.itemId) m.copy(isLearned = false, ownerId = null) else m
+                }
+            }
+
+            disciple.manualIds.forEach { manualId ->
+                manuals = manuals.map { m ->
+                    if (m.id == manualId) m.copy(isLearned = false, ownerId = null) else m
+                }
+            }
+
+            val updatedProficiencies = gameData.manualProficiencies.toMutableMap()
+            updatedProficiencies.remove(discipleId)
+            if (updatedProficiencies != gameData.manualProficiencies) {
+                gameData = gameData.copy(manualProficiencies = updatedProficiencies)
+            }
+
+            disciples = disciples.filter { it.id != discipleId }
+
+            eventService.addGameEvent("已将 ${disciple.name} 逐出宗门", EventType.INFO)
+            result = true
         }
-
-        // Clear from all assignments
-        clearDiscipleFromAllSlots(discipleId)
-
-        // Remove equipment
-        disciple.weaponId.takeIf { it.isNotEmpty() }?.let { unequipEquipment(discipleId, it) }
-        disciple.armorId.takeIf { it.isNotEmpty() }?.let { unequipEquipment(discipleId, it) }
-        disciple.bootsId.takeIf { it.isNotEmpty() }?.let { unequipEquipment(discipleId, it) }
-        disciple.accessoryId.takeIf { it.isNotEmpty() }?.let { unequipEquipment(discipleId, it) }
-
-        // Remove disciple
-        removeDisciple(discipleId)
-
-        eventService.addGameEvent("已将 ${disciple.name} 逐出宗门", EventType.INFO)
-        return true
+        return result
     }
 
     // ==================== 装备管理 ====================
@@ -806,14 +851,12 @@ class DiscipleService @Inject constructor(
         }
 
         if (fillCount > 0) {
-            stateStore.update {
-                gameData = gameData.copy(
-                    elderSlots = elderSlots.copy(
-                        lawEnforcementDisciples = updatedActiveSlots.toList(),
-                        lawEnforcementReserveDisciples = updatedReserveSlots.toList()
-                    )
+            currentGameData = currentGameData.copy(
+                elderSlots = currentGameData.elderSlots.copy(
+                    lawEnforcementDisciples = updatedActiveSlots.toList(),
+                    lawEnforcementReserveDisciples = updatedReserveSlots.toList()
                 )
-            }
+            )
 
             syncAllDiscipleStatuses()
         }
