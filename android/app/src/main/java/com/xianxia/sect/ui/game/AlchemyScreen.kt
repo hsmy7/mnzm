@@ -283,7 +283,9 @@ private fun PillSelectionDialog(
 
         val sortedRecipes = remember(recipesWithStatus) {
             val (craftable, uncraftable) = recipesWithStatus.partition { it.canCraft }
-            craftable.sortedByDescending { it.recipe.rarity } + uncraftable
+            val comparator = compareByDescending<RecipeWithStatus> { it.recipe.tier }
+                .thenByDescending { it.recipe.grade.ordinal }
+            craftable.sortedWith(comparator) + uncraftable.sortedWith(comparator)
         }
 
         Column(modifier = Modifier.weight(1f)) {
@@ -323,13 +325,13 @@ private fun PillSelectionDialog(
                                         selectedRecipe = recipe
                                         clickedRecipe = recipe
                                     }
-                                }
-                                .padding(8.dp),
+                                },
                             contentAlignment = Alignment.Center
                         ) {
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
+                                verticalArrangement = Arrangement.Center,
+                                modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 4.dp, bottom = 14.dp)
                             ) {
                                 Text(
                                     text = recipe.name,
@@ -346,6 +348,24 @@ private fun PillSelectionDialog(
                                     color = if (hasEnoughMaterials) Color(0xFF666666) else Color(0xFF999999)
                                 )
                             }
+
+                            Text(
+                                text = PillRecipeDatabase.getTierName(recipe.tier),
+                                fontSize = 9.sp,
+                                color = rarityColor,
+                                modifier = Modifier
+                                    .align(Alignment.BottomStart)
+                                    .padding(start = 4.dp, bottom = 2.dp)
+                            )
+
+                            Text(
+                                text = recipe.grade.displayName,
+                                fontSize = 9.sp,
+                                color = rarityColor,
+                                modifier = Modifier
+                                    .align(Alignment.BottomEnd)
+                                    .padding(end = 4.dp, bottom = 2.dp)
+                            )
                         }
 
                         if (isSelected) {

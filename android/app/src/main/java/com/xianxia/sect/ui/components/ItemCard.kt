@@ -59,12 +59,12 @@ fun UnifiedItemCard(
                     color = if (isSelected) Color(0xFFFFD700) else rarityColor,
                     shape = RoundedCornerShape(6.dp)
                 )
-                .clickable(onClick = onClick)
-                .padding(8.dp),
+                .clickable(onClick = onClick),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = data.name,
+                modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 4.dp, bottom = 14.dp),
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Bold,
                 color = GameColors.TextPrimary,
@@ -77,13 +77,10 @@ fun UnifiedItemCard(
                 Text(
                     text = data.grade,
                     fontSize = 9.sp,
-                    color = Color.White,
+                    color = rarityColor,
                     modifier = Modifier
                         .align(Alignment.BottomStart)
-                        .offset(x = (-2).dp, y = 2.dp)
-                        .clip(RoundedCornerShape(3.dp))
-                        .background(Color.Black.copy(alpha = 0.55f))
-                        .padding(horizontal = 3.dp, vertical = 1.dp)
+                        .padding(start = 4.dp, bottom = 2.dp)
                 )
             }
 
@@ -91,13 +88,10 @@ fun UnifiedItemCard(
                 Text(
                     text = "x${data.quantity}",
                     fontSize = 9.sp,
-                    color = Color.White,
+                    color = rarityColor,
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
-                        .offset(x = 2.dp, y = 2.dp)
-                        .clip(RoundedCornerShape(3.dp))
-                        .background(Color.Black.copy(alpha = 0.55f))
-                        .padding(horizontal = 3.dp, vertical = 1.dp)
+                        .padding(end = 4.dp, bottom = 2.dp)
                 )
             }
         }
