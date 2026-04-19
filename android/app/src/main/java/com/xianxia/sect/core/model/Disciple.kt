@@ -612,8 +612,19 @@ data class Disciple(
     fun calculateCultivationSpeed(
         manuals: Map<String, Manual> = emptyMap(),
         manualProficiencies: Map<String, ManualProficiencyData> = emptyMap(),
-        additionalBonus: Double = 0.0
-    ): Double = DiscipleStatCalculator.calculateCultivationSpeed(this, manuals, manualProficiencies, additionalBonus = additionalBonus)
+        additionalBonus: Double = 0.0,
+        buildingBonus: Double = 1.0,
+        preachingElderBonus: Double = 0.0,
+        preachingMastersBonus: Double = 0.0,
+        cultivationSubsidyBonus: Double = 0.0
+    ): Double = DiscipleStatCalculator.calculateCultivationSpeed(
+        this, manuals, manualProficiencies,
+        buildingBonus = buildingBonus,
+        additionalBonus = additionalBonus,
+        preachingElderBonus = preachingElderBonus,
+        preachingMastersBonus = preachingMastersBonus,
+        cultivationSubsidyBonus = cultivationSubsidyBonus
+    )
 
     /** 判断弟子是否可以突破 */
     fun canBreakthrough(): Boolean = cultivation >= maxCultivation

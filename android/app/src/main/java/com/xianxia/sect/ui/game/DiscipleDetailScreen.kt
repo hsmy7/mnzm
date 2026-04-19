@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.xianxia.sect.core.data.TalentDatabase
+import com.xianxia.sect.core.engine.DiscipleStatCalculator
 import com.xianxia.sect.core.engine.ManualProficiencySystem
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.GameConfig
@@ -42,6 +43,77 @@ import com.xianxia.sect.ui.components.getRarityColor
 import com.xianxia.sect.ui.components.getTalentRarityColor
 import com.xianxia.sect.ui.theme.GameColors
 import java.util.Locale
+
+private fun calculatePreachingBonusesForDisplay(
+    disciple: DiscipleAggregate,
+    elderSlots: ElderSlots?,
+    allDisciples: List<DiscipleAggregate>,
+    sectPolicies: SectPolicies? = null
+): Triple<Double, Double, Double> {
+    if (elderSlots == null) return Triple(0.0, 0.0, 0.0)
+    val allDisciplesById = allDisciples.associateBy { it.id }
+    val dtype = disciple.discipleType
+    val dRealm = disciple.realm
+    var elderBonus = 0.0
+    var mastersBonus = 0.0
+
+    if (dtype == "outer") {
+        val elderId = elderSlots.preachingElder
+        if (elderId.isNotEmpty()) {
+            val elder = allDisciplesById[elderId]
+            if (elder != null && elder.isAlive) {
+                val t = elder.getBaseStats().teaching
+                if (dRealm >= elder.realm && t >= 80) {
+                    elderBonus += (t - 80) * 0.01
+                }
+            }
+        }
+        for (slot in elderSlots.preachingMasters) {
+            val mid = slot.discipleId
+            if (mid.isNotEmpty()) {
+                val m = allDisciplesById[mid]
+                if (m != null && m.isAlive) {
+                    val t = m.getBaseStats().teaching
+                    if (dRealm >= m.realm && t >= 80) {
+                        mastersBonus += (t - 80) * 0.005
+                    }
+                }
+            }
+        }
+    }
+
+    if (dtype == "inner") {
+        val elderId = elderSlots.qingyunPreachingElder
+        if (elderId.isNotEmpty()) {
+            val elder = allDisciplesById[elderId]
+            if (elder != null && elder.isAlive) {
+                val t = elder.getBaseStats().teaching
+                if (dRealm >= elder.realm && t >= 80) {
+                    elderBonus += (t - 80) * 0.01
+                }
+            }
+        }
+        for (slot in elderSlots.qingyunPreachingMasters) {
+            val mid = slot.discipleId
+            if (mid.isNotEmpty()) {
+                val m = allDisciplesById[mid]
+                if (m != null && m.isAlive) {
+                    val t = m.getBaseStats().teaching
+                    if (dRealm >= m.realm && t >= 80) {
+                        mastersBonus += (t - 80) * 0.005
+                    }
+                }
+            }
+        }
+    }
+
+    var cultivationSubsidyBonus = 0.0
+    if (sectPolicies != null && sectPolicies.cultivationSubsidy && dRealm > 5) {
+        cultivationSubsidyBonus = GameConfig.PolicyConfig.CULTIVATION_SUBSIDY_BASE_EFFECT
+    }
+
+    return Triple(elderBonus, mastersBonus, cultivationSubsidyBonus)
+}
 
 @Composable
 fun DiscipleDetailDialog(
@@ -197,7 +269,10 @@ fun DiscipleDetailDialog(
                     allManuals = allManuals,
                     manualProficiencies = manualProficiencies,
                     position = viewModel?.getDisciplePosition(disciple.id),
-                    isWorkStatusPosition = viewModel?.isPositionWorkStatus(disciple.id) ?: false
+                    isWorkStatusPosition = viewModel?.isPositionWorkStatus(disciple.id) ?: false,
+                    elderSlots = viewModel?.gameData?.value?.elderSlots,
+                    allDisciples = allDisciples,
+                    sectPolicies = viewModel?.gameData?.value?.sectPolicies
                 )
                 HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
                 TalentsSection(talents, disciple.statusData)
@@ -1368,7 +1443,10 @@ private fun BasicInfoSection(
     allManuals: List<Manual> = emptyList(),
     manualProficiencies: Map<String, List<ManualProficiencyData>> = emptyMap(),
     position: String? = null,
-    isWorkStatusPosition: Boolean = false
+    isWorkStatusPosition: Boolean = false,
+    elderSlots: ElderSlots? = null,
+    allDisciples: List<DiscipleAggregate> = emptyList(),
+    sectPolicies: SectPolicies? = null
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
@@ -1441,8 +1519,17 @@ private fun BasicInfoSection(
                 val proficiencyMap = remember(manualProficiencies, disciple.id) {
                     manualProficiencies[disciple.id]?.associateBy { it.manualId } ?: emptyMap()
                 }
-                val cultivationSpeed = remember(disciple, manualsMap, proficiencyMap) {
-                    disciple.calculateCultivationSpeed(manualsMap, proficiencyMap)
+                val cultivationSpeed = remember(disciple, manualsMap, proficiencyMap, allDisciples, elderSlots, sectPolicies) {
+                    val (preachingElderBonus, preachingMastersBonus, cultivationSubsidyBonus) = calculatePreachingBonusesForDisplay(
+                        disciple, elderSlots, allDisciples,
+                        sectPolicies = sectPolicies
+                    )
+                    disciple.calculateCultivationSpeed(
+                        manualsMap, proficiencyMap,
+                        preachingElderBonus = preachingElderBonus,
+                        preachingMastersBonus = preachingMastersBonus,
+                        cultivationSubsidyBonus = cultivationSubsidyBonus
+                    )
                 }
                 
                 // 境界、每秒修炼值、当前修为/最大修为在同一行显示

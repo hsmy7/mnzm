@@ -211,10 +211,19 @@ data class DiscipleAggregate(
     fun calculateCultivationSpeed(
         manuals: Map<String, Manual> = emptyMap(),
         manualProficiencies: Map<String, ManualProficiencyData> = emptyMap(),
-        additionalBonus: Double = 0.0
+        additionalBonus: Double = 0.0,
+        buildingBonus: Double = 1.0,
+        preachingElderBonus: Double = 0.0,
+        preachingMastersBonus: Double = 0.0,
+        cultivationSubsidyBonus: Double = 0.0
     ): Double {
         return DiscipleStatCalculator.calculateCultivationSpeed(
-            this.toDisciple(), manuals, manualProficiencies, additionalBonus = additionalBonus
+            this.toDisciple(), manuals, manualProficiencies,
+            buildingBonus = buildingBonus,
+            additionalBonus = additionalBonus,
+            preachingElderBonus = preachingElderBonus,
+            preachingMastersBonus = preachingMastersBonus,
+            cultivationSubsidyBonus = cultivationSubsidyBonus
         )
     }
     
