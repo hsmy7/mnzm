@@ -17,6 +17,7 @@ import kotlin.random.Random
 object MissionSystem {
     const val EXPIRY_MONTHS = 3
     const val REFRESH_INTERVAL_MONTHS = 3
+    const val MAX_REFRESH_COUNT = 5
 
     data class MissionResult(
         val spiritStones: Int = 0,
@@ -41,11 +42,11 @@ object MissionSystem {
         val newMissions = mutableListOf<Mission>()
 
         if (currentMonth % REFRESH_INTERVAL_MONTHS == 0) {
-            for (template in MissionTemplate.entries) {
-                val spawnChance = template.difficulty.spawnChance
-                if (Random.nextDouble() < spawnChance) {
-                    newMissions.add(createMission(template, currentYear, currentMonth))
-                }
+            val refreshCount = Random.nextInt(0, MAX_REFRESH_COUNT + 1)
+            val pool = MissionTemplate.entries
+            repeat(refreshCount) {
+                val template = pool.random()
+                newMissions.add(createMission(template, currentYear, currentMonth))
             }
         }
 

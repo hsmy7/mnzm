@@ -62,7 +62,7 @@ fun MissionHallDialog(
         ) {
             if (availableMissions.isEmpty() && activeMissions.isEmpty()) {
                 Text(
-                    text = "暂无任务，每月概率刷新",
+                    text = "暂无任务，每三月刷新",
                     fontSize = 11.sp,
                     color = Color(0xFF999999),
                     modifier = Modifier

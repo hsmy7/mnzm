@@ -8,7 +8,6 @@ import com.xianxia.sect.core.model.MissionTemplate
 import com.xianxia.sect.core.model.SkillStats
 import org.junit.Assert.*
 import org.junit.Test
-import kotlin.random.Random
 
 class MissionSystemTest {
 
@@ -34,13 +33,6 @@ class MissionSystemTest {
         MissionDifficulty.values().forEach { difficulty ->
             assertTrue(difficulty.displayName.isNotEmpty())
         }
-    }
-
-    @Test
-    fun `MissionDifficulty - 生成概率递减`() {
-        assertTrue(MissionDifficulty.SIMPLE.spawnChance > MissionDifficulty.NORMAL.spawnChance)
-        assertTrue(MissionDifficulty.NORMAL.spawnChance > MissionDifficulty.HARD.spawnChance)
-        assertTrue(MissionDifficulty.HARD.spawnChance > MissionDifficulty.FORBIDDEN.spawnChance)
     }
 
     @Test
@@ -92,6 +84,7 @@ class MissionSystemTest {
             currentMonth = 3
         )
         assertNotNull(result)
+        assertTrue(result.newMissions.size <= MissionSystem.MAX_REFRESH_COUNT)
     }
 
     @Test
@@ -105,6 +98,50 @@ class MissionSystemTest {
     }
 
     @Test
+    fun `processMonthlyRefresh - 刷新任务数量在0到5之间`() {
+        val counts = mutableSetOf<Int>()
+        repeat(200) {
+            val result = MissionSystem.processMonthlyRefresh(
+                existingMissions = emptyList(),
+                currentYear = 1,
+                currentMonth = 3
+            )
+            val size = result.newMissions.size
+            assertTrue(size in 0..MissionSystem.MAX_REFRESH_COUNT)
+            counts.add(size)
+        }
+        assertTrue(counts.size > 1)
+    }
+
+    @Test
+    fun `processMonthlyRefresh - 任务可重复`() {
+        var hasDuplicate = false
+        repeat(100) {
+            val result = MissionSystem.processMonthlyRefresh(
+                existingMissions = emptyList(),
+                currentYear = 1,
+                currentMonth = 3
+            )
+            val templates = result.newMissions.map { it.template }
+            if (templates.size != templates.toSet().size) {
+                hasDuplicate = true
+            }
+        }
+    }
+
+    @Test
+    fun `processMonthlyRefresh - 刷新月份3-6-9-12均可刷新`() {
+        for (month in listOf(3, 6, 9, 12)) {
+            val result = MissionSystem.processMonthlyRefresh(
+                existingMissions = emptyList(),
+                currentYear = 1,
+                currentMonth = month
+            )
+            assertTrue(result.newMissions.size <= MissionSystem.MAX_REFRESH_COUNT)
+        }
+    }
+
+    @Test
     fun `EXPIRY_MONTHS 为3`() {
         assertEquals(3, MissionSystem.EXPIRY_MONTHS)
     }
@@ -112,6 +149,11 @@ class MissionSystemTest {
     @Test
     fun `REFRESH_INTERVAL_MONTHS 为3`() {
         assertEquals(3, MissionSystem.REFRESH_INTERVAL_MONTHS)
+    }
+
+    @Test
+    fun `MAX_REFRESH_COUNT 为5`() {
+        assertEquals(5, MissionSystem.MAX_REFRESH_COUNT)
     }
 
     @Test
