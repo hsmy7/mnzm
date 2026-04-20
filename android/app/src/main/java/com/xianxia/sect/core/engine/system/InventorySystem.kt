@@ -160,7 +160,7 @@ class InventorySystem @Inject constructor(
     fun canAddManual(name: String, rarity: Int, type: ManualType): Boolean {
         val ts = stateStore.currentTransactionMutableState()
         val current = ts?.manuals ?: stateStore.manuals.value
-        val canMerge = current.any { it.name == name && it.rarity == rarity && it.type == type }
+        val canMerge = current.any { it.name == name && it.rarity == rarity && it.type == type && !it.isLearned }
         return canMerge || canAddItem()
     }
 
@@ -286,19 +286,18 @@ class InventorySystem @Inject constructor(
 
         if (merge) {
             val existing = currentManuals.find {
-                it.name == item.name && it.rarity == item.rarity && it.type == item.type
+                it.name == item.name && it.rarity == item.rarity && it.type == item.type && !it.isLearned
             }
             if (existing != null) {
                 val newQty = (existing.quantity + item.quantity).coerceAtMost(MAX_STACK_SIZE)
-                val mergedIsLearned = existing.isLearned && item.isLearned
                 if (ts != null) {
                     ts.manuals = ts.manuals.map {
-                        if (it.id == existing.id) it.copy(quantity = newQty, isLearned = mergedIsLearned) else it
+                        if (it.id == existing.id) it.copy(quantity = newQty) else it
                     }
                 } else {
                     scope.launch { stateStore.update {
                         manuals = manuals.map {
-                            if (it.id == existing.id) it.copy(quantity = newQty, isLearned = mergedIsLearned) else it
+                            if (it.id == existing.id) it.copy(quantity = newQty) else it
                         }
                     } }
                 }

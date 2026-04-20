@@ -317,7 +317,7 @@ class RedeemCodeService @Inject constructor(
                                 quantity = reward.quantity
                             )
                             val existing = manuals.find {
-                                it.name == manual.name && it.rarity == manual.rarity && it.type == manual.type
+                                it.name == manual.name && it.rarity == manual.rarity && it.type == manual.type && !it.isLearned
                             }
                             if (existing != null) {
                                 val newQty = (existing.quantity + manual.quantity).coerceAtMost(999)

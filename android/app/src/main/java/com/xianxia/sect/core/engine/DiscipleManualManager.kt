@@ -12,7 +12,8 @@ object DiscipleManualManager {
         val disciple: Disciple,
         val events: List<String>,
         val learnedManual: Manual? = null,
-        val replacedManual: Manual? = null
+        val replacedManual: Manual? = null,
+        val remainingManual: Manual? = null
     )
     
     fun processAutoLearn(
@@ -87,20 +88,44 @@ object DiscipleManualManager {
         val events = mutableListOf<String>()
         val bestManual = bagManuals.maxByOrNull { it.rarity } ?: return ManualLearnResult(disciple, events)
         
-        var updatedDisciple = disciple.copyWith(
-            manualIds = disciple.manualIds + bestManual.id
-        )
-
-        updatedDisciple = updatedDisciple.copyWith(
-            storageBagItems = updatedDisciple.storageBagItems.filter { it.itemId != bestManual.id }
-        )
+        val learnedManual: Manual
+        val remainingManual: Manual?
         
-        val learnedManual = bestManual.copy(isLearned = true, ownerId = disciple.id)
-        
-        val messagePrefix = if (instantMessage) "立即" else "自动"
-        events.add("${disciple.name} ${messagePrefix}学习了功法 ${bestManual.name}")
-        
-        return ManualLearnResult(updatedDisciple, events, learnedManual)
+        if (bestManual.quantity > 1) {
+            val learnedManualId = java.util.UUID.randomUUID().toString()
+            learnedManual = bestManual.copy(
+                id = learnedManualId,
+                quantity = 1,
+                isLearned = true,
+                ownerId = disciple.id
+            )
+            remainingManual = bestManual.copy(quantity = bestManual.quantity - 1, isLearned = false, ownerId = null)
+            
+            var updatedDisciple = disciple.copyWith(
+                manualIds = disciple.manualIds + learnedManualId
+            )
+            updatedDisciple = updatedDisciple.copyWith(
+                storageBagItems = updatedDisciple.storageBagItems.filter { it.itemId != bestManual.id }
+            )
+            
+            val messagePrefix = if (instantMessage) "立即" else "自动"
+            events.add("${disciple.name} ${messagePrefix}学习了功法 ${bestManual.name}")
+            
+            return ManualLearnResult(updatedDisciple, events, learnedManual, null, remainingManual)
+        } else {
+            var updatedDisciple = disciple.copyWith(
+                manualIds = disciple.manualIds + bestManual.id
+            )
+            updatedDisciple = updatedDisciple.copyWith(
+                storageBagItems = updatedDisciple.storageBagItems.filter { it.itemId != bestManual.id }
+            )
+            learnedManual = bestManual.copy(isLearned = true, ownerId = disciple.id)
+            
+            val messagePrefix = if (instantMessage) "立即" else "自动"
+            events.add("${disciple.name} ${messagePrefix}学习了功法 ${bestManual.name}")
+            
+            return ManualLearnResult(updatedDisciple, events, learnedManual)
+        }
     }
     
     private fun tryReplaceManual(
@@ -128,10 +153,32 @@ object DiscipleManualManager {
         
         var updatedDisciple = disciple
         
-        val updatedManualIds = disciple.manualIds.toMutableList()
-        updatedManualIds.remove(lowestLearned.id)
-        updatedManualIds.add(highestBag.id)
-        updatedDisciple = updatedDisciple.copyWith(manualIds = updatedManualIds)
+        val learnedManual: Manual
+        val remainingManual: Manual?
+        
+        if (highestBag.quantity > 1) {
+            val learnedManualId = java.util.UUID.randomUUID().toString()
+            learnedManual = highestBag.copy(
+                id = learnedManualId,
+                quantity = 1,
+                isLearned = true,
+                ownerId = disciple.id
+            )
+            remainingManual = highestBag.copy(quantity = highestBag.quantity - 1, isLearned = false, ownerId = null)
+            
+            val updatedManualIds = disciple.manualIds.toMutableList()
+            updatedManualIds.remove(lowestLearned.id)
+            updatedManualIds.add(learnedManualId)
+            updatedDisciple = updatedDisciple.copyWith(manualIds = updatedManualIds)
+        } else {
+            val updatedManualIds = disciple.manualIds.toMutableList()
+            updatedManualIds.remove(lowestLearned.id)
+            updatedManualIds.add(highestBag.id)
+            updatedDisciple = updatedDisciple.copyWith(manualIds = updatedManualIds)
+            
+            learnedManual = highestBag.copy(isLearned = true, ownerId = disciple.id)
+            remainingManual = null
+        }
 
         updatedDisciple = updatedDisciple.copyWith(
             storageBagItems = updatedDisciple.storageBagItems.filter { it.itemId != highestBag.id }
@@ -150,13 +197,12 @@ object DiscipleManualManager {
             storageBagItems = updatedDisciple.storageBagItems + oldItem
         )
         
-        val learnedManual = highestBag.copy(isLearned = true, ownerId = disciple.id)
-        val replacedManual = lowestLearned.copy(isLearned = false, ownerId = disciple.id)
+        val replacedManual = lowestLearned.copy(isLearned = false, ownerId = null)
         
         val messagePrefix = if (instantMessage) "立即" else "自动"
         events.add("${disciple.name} ${messagePrefix}替换功法：${lowestLearned.name} → ${highestBag.name}")
         
-        return ManualLearnResult(updatedDisciple, events, learnedManual, replacedManual)
+        return ManualLearnResult(updatedDisciple, events, learnedManual, replacedManual, remainingManual)
     }
     
     fun canLearn(disciple: Disciple, manual: Manual, allManuals: Map<String, Manual>): Boolean {

@@ -68,6 +68,52 @@ val MIGRATION_7_8 = object : androidx.room.migration.Migration(7, 8) {
     }
 }
 
+val MIGRATION_8_9 = object : androidx.room.migration.Migration(8, 9) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        Log.i("GameDatabase", "Migrating database from version 8 to 9: fix stacked learned manuals - split isLearned=1 & quantity>1 into separate records")
+        val cursor = db.query("SELECT id, slot_id, name, rarity, type, description, stats, skillName, skillDescription, skillType, skillDamageType, skillHits, skillDamageMultiplier, skillCooldown, skillMpCost, skillHealPercent, skillHealType, skillBuffType, skillBuffValue, skillBuffDuration, skillBuffsJson, skillIsAoe, skillTargetScope, minRealm, ownerId, quantity FROM manuals WHERE isLearned = 1 AND quantity > 1")
+        cursor.use {
+            while (it.moveToNext()) {
+                val originalId = it.getString(it.getColumnIndex("id"))
+                val slotId = it.getInt(it.getColumnIndex("slot_id"))
+                val name = it.getString(it.getColumnIndex("name"))
+                val rarity = it.getInt(it.getColumnIndex("rarity"))
+                val type = it.getString(it.getColumnIndex("type"))
+                val description = it.getString(it.getColumnIndex("description"))
+                val stats = it.getString(it.getColumnIndex("stats"))
+                val skillName = it.getString(it.getColumnIndex("skillName"))
+                val skillDescription = it.getString(it.getColumnIndex("skillDescription"))
+                val skillType = it.getString(it.getColumnIndex("skillType"))
+                val skillDamageType = it.getString(it.getColumnIndex("skillDamageType"))
+                val skillHits = it.getInt(it.getColumnIndex("skillHits"))
+                val skillDamageMultiplier = it.getDouble(it.getColumnIndex("skillDamageMultiplier"))
+                val skillCooldown = it.getInt(it.getColumnIndex("skillCooldown"))
+                val skillMpCost = it.getInt(it.getColumnIndex("skillMpCost"))
+                val skillHealPercent = it.getDouble(it.getColumnIndex("skillHealPercent"))
+                val skillHealType = it.getString(it.getColumnIndex("skillHealType"))
+                val skillBuffType = it.getString(it.getColumnIndex("skillBuffType"))
+                val skillBuffValue = it.getDouble(it.getColumnIndex("skillBuffValue"))
+                val skillBuffDuration = it.getInt(it.getColumnIndex("skillBuffDuration"))
+                val skillBuffsJson = it.getString(it.getColumnIndex("skillBuffsJson"))
+                val skillIsAoe = it.getInt(it.getColumnIndex("skillIsAoe"))
+                val skillTargetScope = it.getString(it.getColumnIndex("skillTargetScope"))
+                val minRealm = it.getInt(it.getColumnIndex("minRealm"))
+                val ownerId = it.getString(it.getColumnIndex("ownerId"))
+                val quantity = it.getInt(it.getColumnIndex("quantity"))
+                val remainingQty = quantity - 1
+
+                db.execSQL("UPDATE manuals SET quantity = 1 WHERE id = ?", arrayOf(originalId))
+
+                val newId = java.util.UUID.randomUUID().toString()
+                db.execSQL(
+                    "INSERT INTO manuals (id, slot_id, name, rarity, type, description, stats, skillName, skillDescription, skillType, skillDamageType, skillHits, skillDamageMultiplier, skillCooldown, skillMpCost, skillHealPercent, skillHealType, skillBuffType, skillBuffValue, skillBuffDuration, skillBuffsJson, skillIsAoe, skillTargetScope, minRealm, ownerId, isLearned, quantity, isLocked) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    arrayOf(newId, slotId, name, rarity, type, description, stats, skillName, skillDescription, skillType, skillDamageType, skillHits, skillDamageMultiplier, skillCooldown, skillMpCost, skillHealPercent, skillHealType, skillBuffType, skillBuffValue, skillBuffDuration, skillBuffsJson, skillIsAoe, skillTargetScope, minRealm, null, 0, remainingQty, 0)
+                )
+            }
+        }
+    }
+}
+
 @Database(
     entities = [
         GameData::class,
@@ -98,7 +144,7 @@ val MIGRATION_7_8 = object : androidx.room.migration.Migration(7, 8) {
         ArchivedGameEvent::class,
         ArchivedDisciple::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = true
 )
 
@@ -371,7 +417,7 @@ abstract class GameDatabase : RoomDatabase() {
                         optimizeDatabase(db)
                     }
                 })
-                .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+                .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
                 .fallbackToDestructiveMigration()
                 .build()
                 .also { db -> applySafetyPragmas(db) }

@@ -871,13 +871,22 @@ class CultivationService @Inject constructor(
             if (manualResult.disciple != updatedDisciple) {
                 updatedDisciple = manualResult.disciple
                 manualResult.learnedManual?.let { learned ->
-                    currentManuals = currentManuals.map {
-                        if (it.id == learned.id) learned else it
+                    if (currentManuals.none { it.id == learned.id }) {
+                        currentManuals = currentManuals + learned
+                    } else {
+                        currentManuals = currentManuals.map {
+                            if (it.id == learned.id) learned else it
+                        }
                     }
                 }
                 manualResult.replacedManual?.let { replaced ->
                     currentManuals = currentManuals.map {
                         if (it.id == replaced.id) replaced else it
+                    }
+                }
+                manualResult.remainingManual?.let { remaining ->
+                    currentManuals = currentManuals.map {
+                        if (it.id == remaining.id) remaining else it
                     }
                 }
                 manualResult.events.forEach { eventService.addGameEvent(it, EventType.SUCCESS) }

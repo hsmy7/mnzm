@@ -420,7 +420,7 @@ class EventService @Inject constructor(
             }
             "manual" -> {
                 val m = MerchantItemConverter.toManual(item).copy(quantity = actualQuantity)
-                val existing = manuals.find { it.name == m.name && it.rarity == m.rarity && it.type == m.type }
+                val existing = manuals.find { it.name == m.name && it.rarity == m.rarity && it.type == m.type && !it.isLearned }
                 if (existing != null) {
                     val newQty = (existing.quantity + m.quantity).coerceAtMost(999)
                     manuals = manuals.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
@@ -440,7 +440,7 @@ class EventService @Inject constructor(
             }
             "material" -> {
                 val m = MerchantItemConverter.toMaterial(item).copy(quantity = actualQuantity)
-                val existing = materials.find { it.name == m.name && it.rarity == m.rarity && m.category == m.category }
+                val existing = materials.find { it.name == m.name && it.rarity == m.rarity && it.category == m.category }
                 if (existing != null) {
                     val newQty = (existing.quantity + m.quantity).coerceAtMost(999)
                     materials = materials.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
@@ -460,7 +460,7 @@ class EventService @Inject constructor(
             }
             "seed" -> {
                 val s = MerchantItemConverter.toSeed(item).copy(quantity = actualQuantity)
-                val existing = seeds.find { it.name == s.name && it.rarity == s.rarity && s.growTime == s.growTime }
+                val existing = seeds.find { it.name == s.name && it.rarity == s.rarity && it.growTime == s.growTime }
                 if (existing != null) {
                     val newQty = (existing.quantity + s.quantity).coerceAtMost(999)
                     seeds = seeds.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }

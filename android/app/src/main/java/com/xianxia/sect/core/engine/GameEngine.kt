@@ -1022,8 +1022,11 @@ class GameEngine @Inject constructor(
                     val manual = stateStore.manuals.value.find { it.id == item.id }
                     if (manual != null) {
                         learnManual(discipleId, item.id)
-                        val updatedManual = stateStore.manuals.value.find { it.id == item.id }
-                        if (updatedManual != null && !updatedManual.isLearned) {
+                        val updatedDisciple = stateStore.disciples.value.find { it.id == discipleId }
+                        val wasLearned = updatedDisciple?.manualIds?.any { mid ->
+                            stateStore.manuals.value.find { m -> m.id == mid }?.name == manual.name
+                        } == true
+                        if (!wasLearned) {
                             updateDisciple(discipleId) { disciple ->
                                 disciple.copyWith(
                                     storageBagItems = StorageBagUtils.increaseItemQuantity(
@@ -1176,25 +1179,57 @@ class GameEngine @Inject constructor(
         val manual = stateStore.manuals.value.find { it.id == manualId } ?: return
         val data = stateStore.gameData.value
         stateStore.update {
-            disciples = disciples.map {
-                if (it.id == discipleId) {
-                    val storageItem = StorageBagItem(
-                        itemId = manualId,
-                        itemType = "manual",
-                        name = manual.name,
-                        rarity = manual.rarity,
-                        quantity = 1,
-                        obtainedYear = data.gameYear,
-                        obtainedMonth = data.gameMonth
-                    )
-                    it.copyWith(
-                        manualIds = it.manualIds.filter { mid -> mid != manualId },
-                        storageBagItems = StorageBagUtils.increaseItemQuantity(it.storageBagItems, storageItem)
-                    )
-                } else it
+            val existingUnlearned = manuals.find {
+                it.name == manual.name && it.rarity == manual.rarity && it.type == manual.type && !it.isLearned && it.id != manualId
             }
-            manuals = manuals.map {
-                if (it.id == manualId) it.copy(isLearned = false, ownerId = null) else it
+            if (existingUnlearned != null) {
+                val newQty = (existingUnlearned.quantity + 1).coerceAtMost(999)
+                val mergedId = existingUnlearned.id
+                disciples = disciples.map {
+                    if (it.id == discipleId) {
+                        val storageItem = StorageBagItem(
+                            itemId = mergedId,
+                            itemType = "manual",
+                            name = manual.name,
+                            rarity = manual.rarity,
+                            quantity = 1,
+                            obtainedYear = data.gameYear,
+                            obtainedMonth = data.gameMonth
+                        )
+                        it.copyWith(
+                            manualIds = it.manualIds.filter { mid -> mid != manualId },
+                            storageBagItems = StorageBagUtils.increaseItemQuantity(it.storageBagItems, storageItem)
+                        )
+                    } else it
+                }
+                manuals = manuals.map { m ->
+                    when {
+                        m.id == mergedId -> m.copy(quantity = newQty)
+                        m.id == manualId -> null
+                        else -> m
+                    }
+                }.filterNotNull()
+            } else {
+                disciples = disciples.map {
+                    if (it.id == discipleId) {
+                        val storageItem = StorageBagItem(
+                            itemId = manualId,
+                            itemType = "manual",
+                            name = manual.name,
+                            rarity = manual.rarity,
+                            quantity = 1,
+                            obtainedYear = data.gameYear,
+                            obtainedMonth = data.gameMonth
+                        )
+                        it.copyWith(
+                            manualIds = it.manualIds.filter { mid -> mid != manualId },
+                            storageBagItems = StorageBagUtils.increaseItemQuantity(it.storageBagItems, storageItem)
+                        )
+                    } else it
+                }
+                manuals = manuals.map {
+                    if (it.id == manualId) it.copy(isLearned = false, ownerId = null) else it
+                }
             }
         }
     }
@@ -1238,14 +1273,30 @@ class GameEngine @Inject constructor(
                 if (hasMindManual) return@update
             }
 
-            disciples = disciples.map {
-                if (it.id == discipleId && !it.manualIds.contains(manualId)) {
-                    it.copy(manualIds = it.manualIds + manualId)
-                } else it
-            }
-
-            manuals = manuals.map {
-                if (it.id == manualId) it.copy(isLearned = true, ownerId = discipleId) else it
+            if (manual.quantity > 1) {
+                val learnedManualId = java.util.UUID.randomUUID().toString()
+                val learnedManual = manual.copy(
+                    id = learnedManualId,
+                    quantity = 1,
+                    isLearned = true,
+                    ownerId = discipleId
+                )
+                val remainingQuantity = manual.quantity - 1
+                manuals = manuals.map { if (it.id == manualId) it.copy(quantity = remainingQuantity) else it } + learnedManual
+                disciples = disciples.map {
+                    if (it.id == discipleId && !it.manualIds.contains(learnedManualId)) {
+                        it.copy(manualIds = it.manualIds + learnedManualId)
+                    } else it
+                }
+            } else {
+                disciples = disciples.map {
+                    if (it.id == discipleId && !it.manualIds.contains(manualId)) {
+                        it.copy(manualIds = it.manualIds + manualId)
+                    } else it
+                }
+                manuals = manuals.map {
+                    if (it.id == manualId) it.copy(isLearned = true, ownerId = discipleId) else it
+                }
             }
         }
     }
@@ -1298,7 +1349,7 @@ class GameEngine @Inject constructor(
                 }
                 "manual" -> {
                     val m = MerchantItemConverter.toManual(merchantItem).copy(quantity = quantity)
-                    val existing = manuals.find { it.name == m.name && it.rarity == m.rarity && it.type == m.type }
+                    val existing = manuals.find { it.name == m.name && it.rarity == m.rarity && it.type == m.type && !it.isLearned }
                     if (existing != null) {
                         val newQty = (existing.quantity + m.quantity).coerceAtMost(999)
                         manuals = manuals.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
