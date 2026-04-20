@@ -562,7 +562,7 @@ class BuildingService @Inject constructor(
                         rarity = recipe.rarity,
                         description = recipe.description,
                         slot = recipe.type,
-                        minRealm = recipe.tier
+                        minRealm = GameConfig.Realm.getMinRealmForRarity(recipe.rarity)
                     )
                     inventorySystem.addEquipment(equipment)
                     eventService.addGameEvent("锻造完成！获得${recipe.name}，已放入宗门仓库", EventType.INFO)

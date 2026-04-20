@@ -56,6 +56,18 @@ val MIGRATION_6_7 = object : androidx.room.migration.Migration(6, 7) {
     }
 }
 
+val MIGRATION_7_8 = object : androidx.room.migration.Migration(7, 8) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        Log.i("GameDatabase", "Migrating database from version 7 to 8: fix equipment minRealm - was incorrectly set to rarity tier instead of realm level")
+        db.execSQL("UPDATE equipment SET minRealm = 9 WHERE rarity = 1 AND minRealm = 1")
+        db.execSQL("UPDATE equipment SET minRealm = 7 WHERE rarity = 2 AND minRealm = 2")
+        db.execSQL("UPDATE equipment SET minRealm = 6 WHERE rarity = 3 AND minRealm = 3")
+        db.execSQL("UPDATE equipment SET minRealm = 5 WHERE rarity = 4 AND minRealm = 4")
+        db.execSQL("UPDATE equipment SET minRealm = 4 WHERE rarity = 5 AND minRealm = 5")
+        db.execSQL("UPDATE equipment SET minRealm = 2 WHERE rarity = 6 AND minRealm = 6")
+    }
+}
+
 @Database(
     entities = [
         GameData::class,
@@ -86,7 +98,7 @@ val MIGRATION_6_7 = object : androidx.room.migration.Migration(6, 7) {
         ArchivedGameEvent::class,
         ArchivedDisciple::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = true
 )
 
@@ -359,7 +371,7 @@ abstract class GameDatabase : RoomDatabase() {
                         optimizeDatabase(db)
                     }
                 })
-                .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+                .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
                 .fallbackToDestructiveMigration()
                 .build()
                 .also { db -> applySafetyPragmas(db) }
