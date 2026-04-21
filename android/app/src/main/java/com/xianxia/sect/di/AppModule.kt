@@ -53,11 +53,17 @@ object AppModule {
     fun provideDiscipleDao(database: GameDatabase): DiscipleDao = database.discipleDao()
     
     @Provides
-    fun provideEquipmentDao(database: GameDatabase): EquipmentDao = database.equipmentDao()
-    
+    fun provideEquipmentStackDao(database: GameDatabase): EquipmentStackDao = database.equipmentStackDao()
+
     @Provides
-    fun provideManualDao(database: GameDatabase): ManualDao = database.manualDao()
-    
+    fun provideEquipmentInstanceDao(database: GameDatabase): EquipmentInstanceDao = database.equipmentInstanceDao()
+
+    @Provides
+    fun provideManualStackDao(database: GameDatabase): ManualStackDao = database.manualStackDao()
+
+    @Provides
+    fun provideManualInstanceDao(database: GameDatabase): ManualInstanceDao = database.manualInstanceDao()
+
     @Provides
     fun providePillDao(database: GameDatabase): PillDao = database.pillDao()
     
@@ -122,8 +128,10 @@ object AppModule {
         discipleEquipmentDao: DiscipleEquipmentDao,
         discipleExtendedDao: DiscipleExtendedDao,
         discipleAttributesDao: DiscipleAttributesDao,
-        equipmentDao: EquipmentDao,
-        manualDao: ManualDao,
+        equipmentStackDao: EquipmentStackDao,
+        equipmentInstanceDao: EquipmentInstanceDao,
+        manualStackDao: ManualStackDao,
+        manualInstanceDao: ManualInstanceDao,
         pillDao: PillDao,
         materialDao: MaterialDao,
         seedDao: SeedDao,
@@ -147,8 +155,10 @@ object AppModule {
             discipleEquipmentDao,
             discipleExtendedDao,
             discipleAttributesDao,
-            equipmentDao,
-            manualDao,
+            equipmentStackDao,
+            equipmentInstanceDao,
+            manualStackDao,
+            manualInstanceDao,
             pillDao,
             materialDao,
             seedDao,

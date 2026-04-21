@@ -172,8 +172,10 @@ class SavePipeline @Inject constructor(
         val saveData = SaveData(
             gameData = updatedGameData,
             disciples = request.snapshot.disciples,
-            equipment = request.snapshot.equipment,
-            manuals = request.snapshot.manuals,
+            equipmentStacks = request.snapshot.equipmentStacks,
+            equipmentInstances = request.snapshot.equipmentInstances,
+            manualStacks = request.snapshot.manualStacks,
+            manualInstances = request.snapshot.manualInstances,
             pills = request.snapshot.pills,
             materials = request.snapshot.materials,
             herbs = request.snapshot.herbs,

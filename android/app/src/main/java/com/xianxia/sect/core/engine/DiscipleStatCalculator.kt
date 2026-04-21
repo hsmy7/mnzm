@@ -1,5 +1,3 @@
-@file:Suppress("DEPRECATION")
-
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.GameConfig
@@ -7,8 +5,8 @@ import com.xianxia.sect.core.data.ManualDatabase
 import com.xianxia.sect.core.data.TalentDatabase
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStats
-import com.xianxia.sect.core.model.Equipment
-import com.xianxia.sect.core.model.Manual
+import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualProficiencyData
 import kotlin.math.roundToInt
 
@@ -134,7 +132,7 @@ object DiscipleStatCalculator {
      */
     fun getStatsWithEquipment(
         disciple: Disciple,
-        equipments: Map<String, Equipment>
+        equipments: Map<String, EquipmentInstance>
     ): DiscipleStats {
         val base = getBaseStats(disciple)
         var total = base
@@ -175,8 +173,8 @@ object DiscipleStatCalculator {
      */
     fun getFinalStats(
         disciple: Disciple,
-        equipments: Map<String, Equipment>,
-        manuals: Map<String, Manual>,
+        equipments: Map<String, EquipmentInstance>,
+        manuals: Map<String, ManualInstance>,
         manualProficiencies: Map<String, ManualProficiencyData> = emptyMap()
     ): DiscipleStats {
         val baseStats = getBaseStats(disciple)
@@ -275,7 +273,7 @@ object DiscipleStatCalculator {
      */
     fun calculateCultivationSpeed(
         disciple: Disciple,
-        manuals: Map<String, Manual> = emptyMap(),
+        manuals: Map<String, ManualInstance> = emptyMap(),
         manualProficiencies: Map<String, ManualProficiencyData> = emptyMap(),
         buildingBonus: Double = 1.0,
         additionalBonus: Double = 0.0,

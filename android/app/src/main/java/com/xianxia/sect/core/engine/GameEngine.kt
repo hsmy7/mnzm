@@ -1,5 +1,3 @@
-@file:Suppress("DEPRECATION")
-
 package com.xianxia.sect.core.engine
 
 import kotlinx.coroutines.flow.StateFlow
@@ -35,8 +33,10 @@ typealias ElderBonusData = FormulaService.ElderBonusData
 data class GameStateSnapshot(
     val gameData: GameData,
     val disciples: List<Disciple>,
-    val equipment: List<Equipment>,
-    val manuals: List<Manual>,
+    val equipmentStacks: List<EquipmentStack>,
+    val equipmentInstances: List<EquipmentInstance>,
+    val manualStacks: List<ManualStack>,
+    val manualInstances: List<ManualInstance>,
     val pills: List<Pill>,
     val materials: List<Material>,
     val herbs: List<Herb>,
@@ -72,8 +72,10 @@ class GameEngine @Inject constructor(
 
     val gameData: StateFlow<GameData> get() = stateStore.gameData
     val disciples: StateFlow<List<Disciple>> get() = stateStore.disciples
-    val equipment: StateFlow<List<Equipment>> get() = stateStore.equipment
-    val manuals: StateFlow<List<Manual>> get() = stateStore.manuals
+    val equipmentStacks: StateFlow<List<EquipmentStack>> get() = stateStore.equipmentStacks
+    val equipmentInstances: StateFlow<List<EquipmentInstance>> get() = stateStore.equipmentInstances
+    val manualStacks: StateFlow<List<ManualStack>> get() = stateStore.manualStacks
+    val manualInstances: StateFlow<List<ManualInstance>> get() = stateStore.manualInstances
     val pills: StateFlow<List<Pill>> get() = stateStore.pills
     val materials: StateFlow<List<Material>> get() = stateStore.materials
     val herbs: StateFlow<List<Herb>> get() = stateStore.herbs
@@ -125,8 +127,10 @@ class GameEngine @Inject constructor(
     suspend fun loadData(
         gameData: GameData,
         disciples: List<Disciple>,
-        equipment: List<Equipment>,
-        manuals: List<Manual>,
+        equipmentStacks: List<EquipmentStack>,
+        equipmentInstances: List<EquipmentInstance>,
+        manualStacks: List<ManualStack>,
+        manualInstances: List<ManualInstance>,
         pills: List<Pill>,
         materials: List<Material> = emptyList(),
         herbs: List<Herb> = emptyList(),
@@ -140,8 +144,10 @@ class GameEngine @Inject constructor(
         stateStore.loadFromSnapshot(
             gameData = gameData,
             disciples = disciples,
-            equipment = equipment,
-            manuals = manuals,
+            equipmentStacks = equipmentStacks,
+            equipmentInstances = equipmentInstances,
+            manualStacks = manualStacks,
+            manualInstances = manualInstances,
             pills = pills,
             materials = materials,
             herbs = herbs,
@@ -218,7 +224,7 @@ class GameEngine @Inject constructor(
     }
 
     private fun addInitialManual() {
-        val initialManual = Manual(
+        val initialStack = ManualStack(
             id = java.util.UUID.randomUUID().toString(),
             name = "基础心法",
             rarity = 1,
@@ -227,7 +233,7 @@ class GameEngine @Inject constructor(
             stats = mapOf("hp" to 10, "mp" to 10),
             minRealm = 9
         )
-        inventorySystem.addManual(initialManual)
+        inventorySystem.addManualStack(initialStack)
     }
 
     suspend fun updateGameData(update: (GameData) -> GameData) {
@@ -254,11 +260,11 @@ class GameEngine @Inject constructor(
     suspend fun updateRealtimeCultivation(currentTimeMillis: Long) =
         cultivationService.updateRealtimeCultivation(currentTimeMillis)
 
-    fun addEquipment(equipment: Equipment) = inventorySystem.addEquipment(equipment)
+    fun addEquipmentStack(stack: EquipmentStack) = inventorySystem.addEquipmentStack(stack)
 
     fun removeEquipment(equipmentId: String): Boolean = inventorySystem.removeEquipment(equipmentId)
 
-    fun addManualToWarehouse(manual: Manual) = inventorySystem.addManual(manual)
+    fun addManualStackToWarehouse(stack: ManualStack) = inventorySystem.addManualStack(stack)
 
     fun addPillToWarehouse(pill: Pill) = inventorySystem.addPill(pill)
 
@@ -270,13 +276,13 @@ class GameEngine @Inject constructor(
 
     fun sortWarehouse() = inventorySystem.sortWarehouse()
 
-    fun createEquipmentFromRecipe(recipe: ForgeRecipeDatabase.ForgeRecipe): Equipment =
+    fun createEquipmentStackFromRecipe(recipe: ForgeRecipeDatabase.ForgeRecipe): EquipmentStack =
         inventorySystem.createEquipmentFromRecipe(recipe)
 
-    fun createEquipmentFromMerchantItem(item: MerchantItem): Equipment =
+    fun createEquipmentStackFromMerchantItem(item: MerchantItem): EquipmentStack =
         inventorySystem.createEquipmentFromMerchantItem(item)
 
-    fun createManualFromMerchantItem(item: MerchantItem): Manual =
+    fun createManualStackFromMerchantItem(item: MerchantItem): ManualStack =
         inventorySystem.createManualFromMerchantItem(item)
 
     fun createPillFromMerchantItem(item: MerchantItem): Pill =
@@ -480,8 +486,10 @@ class GameEngine @Inject constructor(
         return GameStateSnapshot(
             gameData = stateStore.gameData.value,
             disciples = stateStore.disciples.value,
-            equipment = stateStore.equipment.value,
-            manuals = stateStore.manuals.value,
+            equipmentStacks = stateStore.equipmentStacks.value,
+            equipmentInstances = stateStore.equipmentInstances.value,
+            manualStacks = stateStore.manualStacks.value,
+            manualInstances = stateStore.manualInstances.value,
             pills = stateStore.pills.value,
             materials = stateStore.materials.value,
             herbs = stateStore.herbs.value,
@@ -501,8 +509,10 @@ class GameEngine @Inject constructor(
         return GameStateSnapshot(
             gameData = gd,
             disciples = stateStore.disciples.value,
-            equipment = stateStore.equipment.value,
-            manuals = stateStore.manuals.value,
+            equipmentStacks = stateStore.equipmentStacks.value,
+            equipmentInstances = stateStore.equipmentInstances.value,
+            manualStacks = stateStore.manualStacks.value,
+            manualInstances = stateStore.manualInstances.value,
             pills = stateStore.pills.value,
             materials = stateStore.materials.value,
             herbs = stateStore.herbs.value,
@@ -518,8 +528,10 @@ class GameEngine @Inject constructor(
     suspend fun loadFromSave(
         loadedGameData: GameData,
         disciples: List<Disciple>,
-        equipment: List<Equipment>,
-        manuals: List<Manual>,
+        equipmentStacks: List<EquipmentStack>,
+        equipmentInstances: List<EquipmentInstance>,
+        manualStacks: List<ManualStack>,
+        manualInstances: List<ManualInstance>,
         pills: List<Pill>,
         materials: List<Material>,
         herbs: List<Herb>,
@@ -528,7 +540,7 @@ class GameEngine @Inject constructor(
         battleLogs: List<BattleLog>,
         teams: List<ExplorationTeam>
     ) = saveService.loadFromSave(
-        loadedGameData, disciples, equipment, manuals, pills,
+        loadedGameData, disciples, equipmentStacks, equipmentInstances, manualStacks, manualInstances, pills,
         materials, herbs, seeds, events, battleLogs, teams
     )
 
@@ -544,8 +556,10 @@ class GameEngine @Inject constructor(
         val sb = StringBuilder()
         sb.appendLine("=== 内存使用情况 ===")
         sb.appendLine("弟子数量: ${stateStore.disciples.value.size}")
-        sb.appendLine("装备数量: ${stateStore.equipment.value.size}")
-        sb.appendLine("功法数量: ${stateStore.manuals.value.size}")
+        sb.appendLine("装备栈数量: ${stateStore.equipmentStacks.value.size}")
+        sb.appendLine("装备实例数量: ${stateStore.equipmentInstances.value.size}")
+        sb.appendLine("功法栈数量: ${stateStore.manualStacks.value.size}")
+        sb.appendLine("功法实例数量: ${stateStore.manualInstances.value.size}")
         sb.appendLine("丹药数量: ${stateStore.pills.value.size}")
         sb.appendLine("材料数量: ${stateStore.materials.value.size}")
         sb.appendLine("灵草数量: ${stateStore.herbs.value.size}")
@@ -646,12 +660,12 @@ class GameEngine @Inject constructor(
         }
     }
 
-    fun assignManual(discipleId: String, manualId: String) {
-        gameEngineCore.launchInScope { learnManual(discipleId, manualId) }
+    fun assignManual(discipleId: String, stackId: String) {
+        gameEngineCore.launchInScope { learnManual(discipleId, stackId) }
     }
 
-    fun removeManual(discipleId: String, manualId: String) {
-        gameEngineCore.launchInScope { forgetManual(discipleId, manualId) }
+    fun removeManual(discipleId: String, instanceId: String) {
+        gameEngineCore.launchInScope { forgetManual(discipleId, instanceId) }
     }
 
     fun giftSpiritStones(sectId: String, tier: Int): DiplomacyService.GiftResult =
@@ -995,8 +1009,8 @@ class GameEngine @Inject constructor(
             val quantity = item.quantity.coerceAtLeast(1)
             when (item.type.lowercase(java.util.Locale.getDefault())) {
                 "equipment" -> {
-                    val eq = stateStore.equipment.value.find { it.id == item.id }
-                    if (eq != null) {
+                    val eqStack = stateStore.equipmentStacks.value.find { it.id == item.id }
+                    if (eqStack != null) {
                         val equipped = equipEquipment(discipleId, item.id)
                         if (!equipped) {
                             val updatedDisciple = stateStore.disciples.value.find { it.id == discipleId }
@@ -1010,9 +1024,9 @@ class GameEngine @Inject constructor(
                                             disciple.storageBagItems,
                                             StorageBagItem(
                                                 itemId = item.id,
-                                                itemType = "equipment",
-                                                name = eq.name,
-                                                rarity = eq.rarity,
+                                                itemType = "equipment_stack",
+                                                name = eqStack.name,
+                                                rarity = eqStack.rarity,
                                                 quantity = 1,
                                                 obtainedYear = data.gameYear,
                                                 obtainedMonth = data.gameMonth
@@ -1025,12 +1039,12 @@ class GameEngine @Inject constructor(
                     }
                 }
                 "manual" -> {
-                    val manual = stateStore.manuals.value.find { it.id == item.id }
-                    if (manual != null) {
+                    val manualStack = stateStore.manualStacks.value.find { it.id == item.id }
+                    if (manualStack != null) {
                         learnManual(discipleId, item.id)
                         val updatedDisciple = stateStore.disciples.value.find { it.id == discipleId }
                         val wasLearned = updatedDisciple?.manualIds?.any { mid ->
-                            stateStore.manuals.value.find { m -> m.id == mid }?.name == manual.name
+                            stateStore.manualInstances.value.find { m -> m.id == mid }?.name == manualStack.name
                         } == true
                         if (!wasLearned) {
                             updateDisciple(discipleId) { disciple ->
@@ -1039,9 +1053,9 @@ class GameEngine @Inject constructor(
                                         disciple.storageBagItems,
                                         StorageBagItem(
                                             itemId = item.id,
-                                            itemType = "manual",
-                                            name = manual.name,
-                                            rarity = manual.rarity,
+                                            itemType = "manual_stack",
+                                            name = manualStack.name,
+                                            rarity = manualStack.rarity,
                                             quantity = 1,
                                             obtainedYear = data.gameYear,
                                             obtainedMonth = data.gameMonth
@@ -1180,66 +1194,60 @@ class GameEngine @Inject constructor(
         discipleService.unequipEquipment(discipleId, equipmentId)
     }
 
-    suspend fun forgetManual(discipleId: String, manualId: String) {
+    suspend fun forgetManual(discipleId: String, instanceId: String) {
         val disciple = getDiscipleById(discipleId) ?: return
-        val manual = stateStore.manuals.value.find { it.id == manualId } ?: return
+        val instance = stateStore.manualInstances.value.find { it.id == instanceId } ?: return
         val data = stateStore.gameData.value
         stateStore.update {
-            val existingUnlearned = manuals.find {
-                it.name == manual.name && it.rarity == manual.rarity && it.type == manual.type && !it.isLearned && it.id != manualId
+            val existingStack = manualStacks.find {
+                it.name == instance.name && it.rarity == instance.rarity && it.type == instance.type
             }
-            if (existingUnlearned != null) {
-                val newQty = (existingUnlearned.quantity + 1).coerceAtMost(999)
-                val mergedId = existingUnlearned.id
+            if (existingStack != null) {
+                manualStacks = manualStacks.map {
+                    if (it.id == existingStack.id) it.copy(quantity = it.quantity + 1) else it
+                }
                 disciples = disciples.map {
                     if (it.id == discipleId) {
                         val storageItem = StorageBagItem(
-                            itemId = mergedId,
-                            itemType = "manual",
-                            name = manual.name,
-                            rarity = manual.rarity,
+                            itemId = existingStack.id,
+                            itemType = "manual_stack",
+                            name = instance.name,
+                            rarity = instance.rarity,
                             quantity = 1,
                             obtainedYear = data.gameYear,
                             obtainedMonth = data.gameMonth
                         )
                         it.copyWith(
-                            manualIds = it.manualIds.filter { mid -> mid != manualId },
+                            manualIds = it.manualIds.filter { mid -> mid != instanceId },
                             storageBagItems = StorageBagUtils.increaseItemQuantity(it.storageBagItems, storageItem)
                         )
                     } else it
                 }
-                manuals = manuals.map { m ->
-                    when {
-                        m.id == mergedId -> m.copy(quantity = newQty)
-                        m.id == manualId -> null
-                        else -> m
-                    }
-                }.filterNotNull()
             } else {
+                val newStack = instance.toStack(quantity = 1)
+                manualStacks = manualStacks + newStack
                 disciples = disciples.map {
                     if (it.id == discipleId) {
                         val storageItem = StorageBagItem(
-                            itemId = manualId,
-                            itemType = "manual",
-                            name = manual.name,
-                            rarity = manual.rarity,
+                            itemId = newStack.id,
+                            itemType = "manual_stack",
+                            name = instance.name,
+                            rarity = instance.rarity,
                             quantity = 1,
                             obtainedYear = data.gameYear,
                             obtainedMonth = data.gameMonth
                         )
                         it.copyWith(
-                            manualIds = it.manualIds.filter { mid -> mid != manualId },
+                            manualIds = it.manualIds.filter { mid -> mid != instanceId },
                             storageBagItems = StorageBagUtils.increaseItemQuantity(it.storageBagItems, storageItem)
                         )
                     } else it
                 }
-                manuals = manuals.map {
-                    if (it.id == manualId) it.copy(isLearned = false, ownerId = null) else it
-                }
             }
+            manualInstances = manualInstances.filter { it.id != instanceId }
             val updatedProficiencies = gameData.manualProficiencies.toMutableMap()
             updatedProficiencies[discipleId]?.let { profList ->
-                val filtered = profList.filter { it.manualId != manualId }
+                val filtered = profList.filter { it.manualId != instanceId }
                 if (filtered.isEmpty()) {
                     updatedProficiencies.remove(discipleId)
                 } else {
@@ -1250,69 +1258,54 @@ class GameEngine @Inject constructor(
         }
     }
 
-    fun replaceManual(discipleId: String, oldManualId: String, newManualId: String) {
+    fun replaceManual(discipleId: String, oldInstanceId: String, newStackId: String) {
         gameEngineCore.launchInScope {
-            val oldManual = stateStore.manuals.value.find { it.id == oldManualId }
-            val newManual = stateStore.manuals.value.find { it.id == newManualId }
+            val oldInstance = stateStore.manualInstances.value.find { it.id == oldInstanceId }
+            val newStack = stateStore.manualStacks.value.find { it.id == newStackId }
             val disciple = stateStore.disciples.value.find { it.id == discipleId }
 
-            val blocked = newManual?.type == ManualType.MIND && oldManual?.type != ManualType.MIND && disciple != null && disciple.manualIds
-                .filter { it != oldManualId }
-                .any { mid -> stateStore.manuals.value.find { m -> m.id == mid }?.type == ManualType.MIND }
+            val blocked = newStack?.type == ManualType.MIND && oldInstance?.type != ManualType.MIND && disciple != null && disciple.manualIds
+                .filter { it != oldInstanceId }
+                .any { mid -> stateStore.manualInstances.value.find { m -> m.id == mid }?.type == ManualType.MIND }
 
             if (!blocked) {
-                forgetManual(discipleId, oldManualId)
-                learnManual(discipleId, newManualId)
+                forgetManual(discipleId, oldInstanceId)
+                learnManual(discipleId, newStackId)
             }
         }
     }
 
-    suspend fun learnManual(discipleId: String, manualId: String) {
+    suspend fun learnManual(discipleId: String, stackId: String) {
         stateStore.update {
-            val manual = manuals.find { it.id == manualId }
-            val disciple = disciples.find { it.id == discipleId }
+            val stack = manualStacks.find { it.id == stackId } ?: return@update
+            val disciple = disciples.find { it.id == discipleId } ?: return@update
 
-            if (manual == null || disciple == null) return@update
+            if (!GameConfig.Realm.meetsRealmRequirement(disciple.realm, stack.minRealm)) return@update
 
-            if (!GameConfig.Realm.meetsRealmRequirement(disciple.realm, manual.minRealm)) {
-                return@update
-            }
-
-            if (manual.isLearned && manual.ownerId != null && manual.ownerId != discipleId) {
-                return@update
-            }
-
-            if (manual.type == ManualType.MIND) {
-                val hasMindManual = disciple.manualIds.any { mid ->
-                    manuals.find { it.id == mid }?.type == ManualType.MIND
+            if (stack.type == ManualType.MIND) {
+                val hasMind = disciple.manualIds.any { mid ->
+                    manualInstances.find { it.id == mid }?.type == ManualType.MIND
                 }
-                if (hasMindManual) return@update
+                if (hasMind) return@update
             }
 
-            if (manual.quantity > 1) {
-                val learnedManualId = java.util.UUID.randomUUID().toString()
-                val learnedManual = manual.copy(
-                    id = learnedManualId,
-                    quantity = 1,
-                    isLearned = true,
-                    ownerId = discipleId
-                )
-                val remainingQuantity = manual.quantity - 1
-                manuals = manuals.map { if (it.id == manualId) it.copy(quantity = remainingQuantity) else it } + learnedManual
-                disciples = disciples.map {
-                    if (it.id == discipleId && !it.manualIds.contains(learnedManualId)) {
-                        it.copy(manualIds = it.manualIds + learnedManualId)
-                    } else it
-                }
+            val newQty = stack.quantity - 1
+            if (newQty <= 0) {
+                manualStacks = manualStacks.filter { it.id != stackId }
             } else {
-                disciples = disciples.map {
-                    if (it.id == discipleId && !it.manualIds.contains(manualId)) {
-                        it.copy(manualIds = it.manualIds + manualId)
-                    } else it
+                manualStacks = manualStacks.map {
+                    if (it.id == stackId) it.copy(quantity = newQty) else it
                 }
-                manuals = manuals.map {
-                    if (it.id == manualId) it.copy(isLearned = true, ownerId = discipleId) else it
-                }
+            }
+
+            val instanceId = java.util.UUID.randomUUID().toString()
+            val instance = stack.toInstance(id = instanceId, ownerId = discipleId, isLearned = true)
+            manualInstances = manualInstances + instance
+
+            disciples = disciples.map {
+                if (it.id == discipleId && !it.manualIds.contains(instanceId)) {
+                    it.copy(manualIds = it.manualIds + instanceId)
+                } else it
             }
         }
     }
@@ -1361,23 +1354,21 @@ class GameEngine @Inject constructor(
 
             when (merchantItem.type.lowercase(java.util.Locale.getDefault())) {
                 "equipment" -> {
-                    val eq = MerchantItemConverter.toEquipment(merchantItem).copy(quantity = quantity)
-                    val existing = equipment.find { it.name == eq.name && it.rarity == eq.rarity && it.slot == eq.slot && !it.isEquipped }
+                    val stack = MerchantItemConverter.toEquipment(merchantItem).copy(quantity = quantity)
+                    val existing = equipmentStacks.find { it.name == stack.name && it.rarity == stack.rarity && it.slot == stack.slot }
                     if (existing != null) {
-                        val newQty = (existing.quantity + eq.quantity).coerceAtMost(999)
-                        equipment = equipment.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
+                        equipmentStacks = equipmentStacks.map { if (it.id == existing.id) it.copy(quantity = it.quantity + stack.quantity) else it }
                     } else {
-                        equipment = equipment + eq
+                        equipmentStacks = equipmentStacks + stack
                     }
                 }
                 "manual" -> {
-                    val m = MerchantItemConverter.toManual(merchantItem).copy(quantity = quantity)
-                    val existing = manuals.find { it.name == m.name && it.rarity == m.rarity && it.type == m.type && !it.isLearned }
+                    val stack = MerchantItemConverter.toManual(merchantItem).copy(quantity = quantity)
+                    val existing = manualStacks.find { it.name == stack.name && it.rarity == stack.rarity && it.type == stack.type }
                     if (existing != null) {
-                        val newQty = (existing.quantity + m.quantity).coerceAtMost(999)
-                        manuals = manuals.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
+                        manualStacks = manualStacks.map { if (it.id == existing.id) it.copy(quantity = it.quantity + stack.quantity) else it }
                     } else {
-                        manuals = manuals + m
+                        manualStacks = manualStacks + stack
                     }
                 }
                 "pill" -> {
@@ -1412,7 +1403,7 @@ class GameEngine @Inject constructor(
                 }
                 "seed" -> {
                     val s = MerchantItemConverter.toSeed(merchantItem).copy(quantity = quantity)
-                    val existing = seeds.find { it.name == s.name && it.rarity == s.rarity && it.growTime == s.growTime }
+                    val existing = seeds.find { it.name == s.name && it.rarity == s.rarity && s.growTime == s.growTime }
                     if (existing != null) {
                         val newQty = (existing.quantity + s.quantity).coerceAtMost(999)
                         seeds = seeds.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
@@ -1428,30 +1419,30 @@ class GameEngine @Inject constructor(
         val data = stateStore.gameData.value
         val newItems = mutableListOf<MerchantItem>()
         items.forEach { (itemId, quantity) ->
-            val eq = stateStore.equipment.value.find { it.id == itemId }
-            if (eq != null && !eq.isEquipped) {
+            val eqStack = stateStore.equipmentStacks.value.find { it.id == itemId }
+            if (eqStack != null) {
                 inventorySystem.removeEquipment(itemId)
                 newItems.add(MerchantItem(
                     id = java.util.UUID.randomUUID().toString(),
-                    name = eq.name,
+                    name = eqStack.name,
                     type = "equipment",
                     itemId = itemId,
-                    rarity = eq.rarity,
-                    price = (eq.basePrice * 0.8).toInt(),
+                    rarity = eqStack.rarity,
+                    price = (eqStack.basePrice * 0.8).toInt(),
                     quantity = quantity
                 ))
                 return@forEach
             }
-            val manual = stateStore.manuals.value.find { it.id == itemId }
-            if (manual != null) {
+            val manualStack = stateStore.manualStacks.value.find { it.id == itemId }
+            if (manualStack != null) {
                 inventorySystem.removeManual(itemId, quantity)
                 newItems.add(MerchantItem(
                     id = java.util.UUID.randomUUID().toString(),
-                    name = manual.name,
+                    name = manualStack.name,
                     type = "manual",
                     itemId = itemId,
-                    rarity = manual.rarity,
-                    price = (manual.basePrice * 0.8).toInt(),
+                    rarity = manualStack.rarity,
+                    price = (manualStack.basePrice * 0.8).toInt(),
                     quantity = quantity
                 ))
                 return@forEach
@@ -1521,12 +1512,11 @@ class GameEngine @Inject constructor(
         val item = data.playerListedItems.find { it.id == itemId } ?: return
 
         when (item.type.lowercase(java.util.Locale.getDefault())) {
-            "equipment" -> stateStore.equipment.value.find { it.id == item.itemId }?.let {
-                inventorySystem.addEquipment(it.copy(quantity = (it.quantity + item.quantity).coerceAtMost(999), isEquipped = false, ownerId = null))
-                inventorySystem.removeEquipment(item.itemId)
+            "equipment" -> stateStore.equipmentStacks.value.find { it.id == item.itemId }?.let {
+                inventorySystem.addEquipmentStack(it.copy(quantity = (it.quantity + item.quantity)))
             }
-            "manual" -> stateStore.manuals.value.find { it.id == item.itemId }?.let {
-                addManualToWarehouse(it.copy(quantity = (it.quantity + item.quantity).coerceAtMost(999)))
+            "manual" -> stateStore.manualStacks.value.find { it.id == item.itemId }?.let {
+                inventorySystem.addManualStack(it.copy(quantity = (it.quantity + item.quantity)))
             }
             "pill" -> stateStore.pills.value.find { it.id == item.itemId }?.let {
                 stateStore.update { pills = pills.map { p -> if (p.id == item.itemId) p.copy(quantity = (p.quantity + item.quantity).coerceAtMost(999)) else p } }
@@ -1685,17 +1675,16 @@ class GameEngine @Inject constructor(
     }
 
     fun sellEquipment(equipmentId: String): Boolean {
-        val eq = stateStore.equipment.value.find { it.id == equipmentId } ?: return false
-        if (eq.isEquipped) return false
-        removeEquipment(equipmentId)
-        addSpiritStones((eq.basePrice * 0.8).toInt())
+        val stack = stateStore.equipmentStacks.value.find { it.id == equipmentId } ?: return false
+        if (!inventorySystem.removeEquipment(equipmentId)) return false
+        addSpiritStones((stack.basePrice * 0.8).toInt())
         return true
     }
 
     fun sellManual(manualId: String, quantity: Int): Boolean {
-        val manual = stateStore.manuals.value.find { it.id == manualId } ?: return false
+        val stack = stateStore.manualStacks.value.find { it.id == manualId } ?: return false
         if (!inventorySystem.removeManual(manualId, quantity)) return false
-        addSpiritStones((manual.basePrice * quantity * 0.8).toInt())
+        addSpiritStones((stack.basePrice * quantity * 0.8).toInt())
         return true
     }
 

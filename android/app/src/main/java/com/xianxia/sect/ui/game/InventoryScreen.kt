@@ -32,8 +32,8 @@ import com.xianxia.sect.ui.theme.GameColors
 
 @Composable
 fun InventoryDialog(
-    equipment: List<Equipment>,
-    manuals: List<Manual>,
+    equipment: List<EquipmentStack>,
+    manuals: List<ManualStack>,
     pills: List<Pill>,
     materials: List<Material>,
     herbs: List<Herb>,
@@ -46,10 +46,10 @@ fun InventoryDialog(
     var showBulkSellDialog by remember { mutableStateOf(false) }
 
     val sortedEquipment = remember(equipment) {
-        equipment.filter { it.ownerId == null }.sortedWith(compareByDescending<Equipment> { it.rarity }.thenBy { it.name })
+        equipment.sortedWith(compareByDescending<EquipmentStack> { it.rarity }.thenBy { it.name })
     }
     val sortedManuals = remember(manuals) {
-        manuals.filter { it.ownerId == null }.sortedWith(compareByDescending<Manual> { it.rarity }.thenBy { it.name })
+        manuals.sortedWith(compareByDescending<ManualStack> { it.rarity }.thenBy { it.name })
     }
     val sortedPills = remember(pills) {
         pills.sortedWith(compareByDescending<Pill> { it.rarity }.thenBy { it.name })
@@ -298,8 +298,8 @@ private fun <T> InventoryGrid(
             ) {
                 items(pageItems, key = {
                     when (it) {
-                        is Equipment -> "eq_${it.id}"
-                        is Manual -> "ma_${it.id}"
+                        is EquipmentStack -> "eq_${it.id}"
+                        is ManualStack -> "ma_${it.id}"
                         is Pill -> "pi_${it.id}"
                         is Material -> "mt_${it.id}"
                         is Herb -> "hb_${it.id}"
@@ -374,19 +374,19 @@ private fun SellableItemRow(item: Any) {
     val price: Int
 
     when (item) {
-        is Equipment -> {
+        is EquipmentStack -> {
             name = item.name
             rarity = item.rarity
             type = "装备"
-            quantity = 1
-            price = (item.basePrice * 0.8).toInt()
+            quantity = item.quantity
+            price = (item.basePrice * item.quantity * 0.8).toInt()
         }
-        is Manual -> {
+        is ManualStack -> {
             name = item.name
             rarity = item.rarity
             type = "功法"
-            quantity = 1
-            price = (item.basePrice * 0.8).toInt()
+            quantity = item.quantity
+            price = (item.basePrice * item.quantity * 0.8).toInt()
         }
         is Pill -> {
             name = item.name
@@ -459,8 +459,8 @@ private fun SellableItemRow(item: Any) {
 
 @Composable
 internal fun BulkSellDialog(
-    equipment: List<Equipment>,
-    manuals: List<Manual>,
+    equipment: List<EquipmentStack>,
+    manuals: List<ManualStack>,
     pills: List<Pill>,
     materials: List<Material>,
     herbs: List<Herb>,
@@ -631,19 +631,19 @@ internal fun BulkSellDialog(
                     ) {
                         items(sellableItems) { item ->
                             val cardData = when (item) {
-                                is Equipment -> ItemCardData(
+                                is EquipmentStack -> ItemCardData(
                                     name = item.name,
                                     rarity = item.rarity,
-                                    quantity = 1,
+                                    quantity = item.quantity,
                                     type = "装备",
-                                    price = (item.basePrice * 0.8).toInt()
+                                    price = (item.basePrice * item.quantity * 0.8).toInt()
                                 )
-                                is Manual -> ItemCardData(
+                                is ManualStack -> ItemCardData(
                                     name = item.name,
                                     rarity = item.rarity,
-                                    quantity = 1,
+                                    quantity = item.quantity,
                                     type = "功法",
-                                    price = (item.basePrice * 0.8).toInt()
+                                    price = (item.basePrice * item.quantity * 0.8).toInt()
                                 )
                                 is Pill -> ItemCardData(
                                     name = item.name,
@@ -772,8 +772,8 @@ internal fun BulkSellDialog(
 
 // 计算一键出售的物品和价值
 internal fun calculateBulkSellValue(
-    equipment: List<Equipment>,
-    manuals: List<Manual>,
+    equipment: List<EquipmentStack>,
+    manuals: List<ManualStack>,
     pills: List<Pill>,
     materials: List<Material>,
     herbs: List<Herb>,
@@ -792,7 +792,7 @@ internal fun calculateBulkSellValue(
     if (selectedTypes.contains(ItemType.EQUIPMENT)) {
         equipment.filter { selectedRarities.contains(it.rarity) }.forEach {
             items.add(it)
-            totalValue += (it.basePrice * 0.8).toInt()
+            totalValue += (it.basePrice * it.quantity * 0.8).toInt()
         }
     }
 
@@ -800,7 +800,7 @@ internal fun calculateBulkSellValue(
     if (selectedTypes.contains(ItemType.MANUAL)) {
         manuals.filter { selectedRarities.contains(it.rarity) }.forEach {
             items.add(it)
-            totalValue += (it.basePrice * 0.8).toInt()
+            totalValue += (it.basePrice * it.quantity * 0.8).toInt()
         }
     }
 

@@ -268,12 +268,12 @@ class DiscipleViewModel @Inject constructor(
         gameEngine.syncAllDiscipleStatuses()
     }
     
-    fun getEquipmentById(id: String): Equipment? {
-        return gameEngine.equipment.value.find { it.id == id }
+    fun getEquipmentById(id: String): EquipmentInstance? {
+        return gameEngine.equipmentInstances.value.find { it.id == id }
     }
     
-    fun getManualById(id: String): Manual? {
-        return gameEngine.manuals.value.find { it.id == id }
+    fun getManualById(id: String): ManualInstance? {
+        return gameEngine.manualInstances.value.find { it.id == id }
     }
     
     fun getPillById(id: String): Pill? {
@@ -284,11 +284,11 @@ class DiscipleViewModel @Inject constructor(
         return gameEngine.materials.value.find { it.id == id }
     }
     
-    fun getEquipmentByOwner(discipleId: String): List<Equipment> {
-        return gameEngine.equipment.value.filter { it.ownerId == discipleId }
+    fun getEquipmentByOwner(discipleId: String): List<EquipmentInstance> {
+        return gameEngine.equipmentInstances.value.filter { it.ownerId == discipleId }
     }
     
-    fun getManualsByOwner(discipleId: String): List<Manual> {
-        return gameEngine.manuals.value.filter { it.ownerId == discipleId }
+    fun getManualsByOwner(discipleId: String): List<ManualInstance> {
+        return gameEngine.manualInstances.value.filter { it.ownerId == discipleId }
     }
 }

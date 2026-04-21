@@ -92,12 +92,12 @@ class BuildingService @Inject constructor(
         stateStore.update { materials = value }
     }
 
-    private var currentEquipment: List<Equipment>
-        get() = stateStore.currentTransactionMutableState()?.equipment ?: stateStore.equipment.value
+    private var currentEquipmentInstances: List<EquipmentInstance>
+        get() = stateStore.currentTransactionMutableState()?.equipmentInstances ?: stateStore.equipmentInstances.value
         set(value) {
             val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.equipment = value; return }
-            scope.launch(kotlinx.coroutines.Dispatchers.IO) { stateStore.update { equipment = value } }
+            if (ts != null) { ts.equipmentInstances = value; return }
+            scope.launch(kotlinx.coroutines.Dispatchers.IO) { stateStore.update { equipmentInstances = value } }
         }
 
     private var currentPills: List<Pill>
@@ -557,14 +557,14 @@ class BuildingService @Inject constructor(
             "forge" -> {
                 val recipe = ForgeRecipeDatabase.getRecipeById(recipeId)
                 if (recipe != null) {
-                    val equipment = Equipment(
+                    val equipment = EquipmentStack(
                         name = recipe.name,
                         rarity = recipe.rarity,
                         description = recipe.description,
                         slot = recipe.type,
                         minRealm = GameConfig.Realm.getMinRealmForRarity(recipe.rarity)
                     )
-                    inventorySystem.addEquipment(equipment)
+                    inventorySystem.addEquipmentStack(equipment)
                     eventService.addGameEvent("锻造完成！获得${recipe.name}，已放入宗门仓库", EventType.INFO)
                 } else {
                     eventService.addGameEvent("锻造完成，但配方[$recipeId]不存在", EventType.ERROR)

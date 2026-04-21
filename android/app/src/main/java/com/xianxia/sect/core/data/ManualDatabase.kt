@@ -3,7 +3,7 @@ package com.xianxia.sect.core.data
 import android.content.Context
 import android.util.Log
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.model.Manual
+import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.model.ManualType
 import com.xianxia.sect.proto.templates.*
 import kotlinx.serialization.Serializable
@@ -554,11 +554,11 @@ object ManualDatabase {
         return allManuals.values.filter { it.rarity == rarity }
     }
     
-    fun createFromTemplate(template: ManualTemplate): Manual {
+    fun createFromTemplate(template: ManualTemplate): ManualStack {
         val skillBuffsJson = template.skillBuffs.joinToString("|") { buff ->
             "${buff.type},${buff.value},${buff.duration}"
         }
-        return Manual(
+        return ManualStack(
             id = java.util.UUID.randomUUID().toString(),
             name = template.name,
             type = template.type,
@@ -585,7 +585,7 @@ object ManualDatabase {
         )
     }
     
-    fun generateRandom(minRarity: Int = 1, maxRarity: Int = 6, type: ManualType? = null): Manual {
+    fun generateRandom(minRarity: Int = 1, maxRarity: Int = 6, type: ManualType? = null): ManualStack {
         check(_isInitialized) { "ManualDatabase not initialized. Call initialize() first." }
         
         val rarity = generateRarity(minRarity, maxRarity)

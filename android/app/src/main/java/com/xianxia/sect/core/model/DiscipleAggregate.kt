@@ -164,7 +164,7 @@ data class DiscipleAggregate(
     val comprehensionSpeedBonus: Double get() = comprehension / 100.0
     
     // 已装备的物品映射（简化版，返回空map）
-    val equippedItems: Map<EquipmentSlot, Equipment?> get() = emptyMap()
+    val equippedItems: Map<EquipmentSlot, EquipmentInstance?> get() = emptyMap()
     
     // ==================== 计算方法（委托给 DiscipleStatCalculator）====================
     
@@ -187,7 +187,7 @@ data class DiscipleAggregate(
     /**
      * 计算弟子穿戴装备后的属性（不含功法和丹药）
      */
-    fun getStatsWithEquipment(equipments: Map<String, Equipment>): DiscipleStats {
+    fun getStatsWithEquipment(equipments: Map<String, EquipmentInstance>): DiscipleStats {
         return DiscipleStatCalculator.getStatsWithEquipment(this.toDisciple(), equipments)
     }
     
@@ -196,8 +196,8 @@ data class DiscipleAggregate(
      * 与旧 Disciple.getFinalStats() 保持完全一致
      */
     fun getFinalStats(
-        equipments: Map<String, Equipment>,
-        manuals: Map<String, Manual>,
+        equipments: Map<String, EquipmentInstance>,
+        manuals: Map<String, ManualInstance>,
         manualProficiencies: Map<String, ManualProficiencyData> = emptyMap()
     ): DiscipleStats {
         return DiscipleStatCalculator.getFinalStats(
@@ -209,7 +209,7 @@ data class DiscipleAggregate(
      * 计算修炼速度（支持外部传入功法和熟练度数据）
      */
     fun calculateCultivationSpeed(
-        manuals: Map<String, Manual> = emptyMap(),
+        manuals: Map<String, ManualInstance> = emptyMap(),
         manualProficiencies: Map<String, ManualProficiencyData> = emptyMap(),
         additionalBonus: Double = 0.0,
         buildingBonus: Double = 1.0,

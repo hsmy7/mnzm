@@ -1,5 +1,3 @@
-@file:Suppress("DEPRECATION")
-
 package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.model.*
@@ -47,20 +45,36 @@ class DiplomacyService @Inject constructor(
             scope.launch { stateStore.update { gameData = value } }
         }
 
-    private var currentManuals: List<Manual>
-        get() = stateStore.currentTransactionMutableState()?.manuals ?: stateStore.manuals.value
+    private var currentManualInstances: List<ManualInstance>
+        get() = stateStore.currentTransactionMutableState()?.manualInstances ?: stateStore.manualInstances.value
         set(value) {
             val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.manuals = value; return }
-            scope.launch { stateStore.update { manuals = value } }
+            if (ts != null) { ts.manualInstances = value; return }
+            scope.launch { stateStore.update { manualInstances = value } }
         }
 
-    private var currentEquipment: List<Equipment>
-        get() = stateStore.currentTransactionMutableState()?.equipment ?: stateStore.equipment.value
+    private var currentEquipmentInstances: List<EquipmentInstance>
+        get() = stateStore.currentTransactionMutableState()?.equipmentInstances ?: stateStore.equipmentInstances.value
         set(value) {
             val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.equipment = value; return }
-            scope.launch { stateStore.update { equipment = value } }
+            if (ts != null) { ts.equipmentInstances = value; return }
+            scope.launch { stateStore.update { equipmentInstances = value } }
+        }
+
+    private var currentEquipmentStacks: List<EquipmentStack>
+        get() = stateStore.currentTransactionMutableState()?.equipmentStacks ?: stateStore.equipmentStacks.value
+        set(value) {
+            val ts = stateStore.currentTransactionMutableState()
+            if (ts != null) { ts.equipmentStacks = value; return }
+            scope.launch { stateStore.update { equipmentStacks = value } }
+        }
+
+    private var currentManualStacks: List<ManualStack>
+        get() = stateStore.currentTransactionMutableState()?.manualStacks ?: stateStore.manualStacks.value
+        set(value) {
+            val ts = stateStore.currentTransactionMutableState()
+            if (ts != null) { ts.manualStacks = value; return }
+            scope.launch { stateStore.update { manualStacks = value } }
         }
 
     private var currentPills: List<Pill>
@@ -281,7 +295,7 @@ class DiplomacyService @Inject constructor(
         // 查找物品并获取稀有度
         val (itemRarity, itemName, actualQuantity) = when (itemType) {
             GiftConfig.ItemType.MANUAL -> {
-                val manual = currentManuals.find { it.id == itemId }
+                val manual = currentManualStacks.find { it.id == itemId }
                 if (manual == null) {
                     return GiftResult(
                         success = false,
@@ -289,22 +303,15 @@ class DiplomacyService @Inject constructor(
                         message = "未找到该功法"
                     )
                 }
-                Triple(manual.rarity, manual.name, 1)
+                Triple(manual.rarity, manual.name, quantity.coerceAtLeast(1).coerceAtMost(manual.quantity))
             }
             GiftConfig.ItemType.EQUIPMENT -> {
-                val equipment = currentEquipment.find { it.id == itemId }
+                val equipment = currentEquipmentStacks.find { it.id == itemId }
                 if (equipment == null) {
                     return GiftResult(
                         success = false,
                         responseType = "item_not_found",
                         message = "未找到该装备"
-                    )
-                }
-                if (equipment.isEquipped) {
-                    return GiftResult(
-                        success = false,
-                        responseType = "item_equipped",
-                        message = "该装备已被装备，无法送礼"
                     )
                 }
                 Triple(equipment.rarity, equipment.name, quantity.coerceAtLeast(1).coerceAtMost(equipment.quantity))
@@ -773,14 +780,14 @@ class DiplomacyService @Inject constructor(
     private fun removeGiftItem(itemType: String, itemId: String, quantity: Int) {
         when (itemType) {
             GiftConfig.ItemType.MANUAL -> {
-                currentManuals = currentManuals.map { manual ->
+                currentManualStacks = currentManualStacks.map { manual ->
                     if (manual.id == itemId) {
                         manual.copy(quantity = (manual.quantity - quantity).coerceAtLeast(0))
                     } else manual
                 }.filter { it.quantity > 0 }
             }
             GiftConfig.ItemType.EQUIPMENT -> {
-                currentEquipment = currentEquipment.map { eq ->
+                currentEquipmentStacks = currentEquipmentStacks.map { eq ->
                     if (eq.id == itemId) {
                         eq.copy(quantity = (eq.quantity - quantity).coerceAtLeast(0))
                     } else eq

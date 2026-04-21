@@ -81,8 +81,8 @@ class SaveService @Inject constructor(
             spiritStones = data.spiritStones,
             sectCultivation = data.sectCultivation,
             discipleCount = stateStore.disciples.value.size,
-            equipmentCount = stateStore.equipment.value.size,
-            manualCount = stateStore.manuals.value.size,
+            equipmentCount = stateStore.equipmentStacks.value.size + stateStore.equipmentInstances.value.size,
+            manualCount = stateStore.manualStacks.value.size + stateStore.manualInstances.value.size,
             pillCount = stateStore.pills.value.size,
             materialCount = stateStore.materials.value.size,
             herbCount = stateStore.herbs.value.size,
@@ -123,8 +123,10 @@ class SaveService @Inject constructor(
     suspend fun loadFromSave(
         loadedGameData: GameData,
         disciples: List<Disciple>,
-        equipment: List<Equipment>,
-        manuals: List<Manual>,
+        equipmentStacks: List<EquipmentStack>,
+        equipmentInstances: List<EquipmentInstance>,
+        manualStacks: List<ManualStack>,
+        manualInstances: List<ManualInstance>,
         pills: List<Pill>,
         materials: List<Material>,
         herbs: List<Herb>,
@@ -136,8 +138,10 @@ class SaveService @Inject constructor(
         stateStore.loadFromSnapshot(
             gameData = loadedGameData,
             disciples = disciples,
-            equipment = equipment,
-            manuals = manuals,
+            equipmentStacks = equipmentStacks,
+            equipmentInstances = equipmentInstances,
+            manualStacks = manualStacks,
+            manualInstances = manualInstances,
             pills = pills,
             materials = materials,
             herbs = herbs,
@@ -146,7 +150,7 @@ class SaveService @Inject constructor(
             events = events,
             battleLogs = battleLogs
         )
-        Log.d(TAG, "Atomically restored from save: year=${loadedGameData.gameYear}, ${disciples.size} disciples, ${equipment.size} equipment, recruitList=${loadedGameData.recruitList.size} unrecruited disciples")
+        Log.d(TAG, "Atomically restored from save: year=${loadedGameData.gameYear}, ${disciples.size} disciples, ${equipmentInstances.size} equipment instances, recruitList=${loadedGameData.recruitList.size} unrecruited disciples")
     }
 
     fun validateState(): List<String> {
@@ -172,8 +176,10 @@ class SaveService @Inject constructor(
             }
         }
 
-        val equipmentIds = stateStore.equipment.value.map { it.id }
-        val duplicateEquipmentIds = equipmentIds.groupingBy { it }.eachCount().filter { it.value > 1 }.keys
+        val equipmentStackIds = stateStore.equipmentStacks.value.map { it.id }
+        val equipmentInstanceIds = stateStore.equipmentInstances.value.map { it.id }
+        val allEquipmentIds = equipmentStackIds + equipmentInstanceIds
+        val duplicateEquipmentIds = allEquipmentIds.groupingBy { it }.eachCount().filter { it.value > 1 }.keys
         if (duplicateEquipmentIds.isNotEmpty()) {
             errors.add("Duplicate equipment IDs found: $duplicateEquipmentIds")
         }
@@ -191,9 +197,9 @@ class SaveService @Inject constructor(
             "sectCultivation" to data.sectCultivation,
             "discipleCount" to stateStore.disciples.value.size,
             "aliveDisciples" to stateStore.disciples.value.count { it.isAlive },
-            "equipmentCount" to stateStore.equipment.value.size,
-            "equippedEquipment" to stateStore.equipment.value.count { it.isEquipped },
-            "manualCount" to stateStore.manuals.value.size,
+            "equipmentCount" to (stateStore.equipmentStacks.value.size + stateStore.equipmentInstances.value.size),
+            "equippedEquipment" to stateStore.equipmentInstances.value.count { it.isEquipped },
+            "manualCount" to (stateStore.manualStacks.value.size + stateStore.manualInstances.value.size),
             "pillCount" to stateStore.pills.value.size,
             "materialCount" to stateStore.materials.value.size,
             "herbCount" to stateStore.herbs.value.size,

@@ -14,8 +14,10 @@ import javax.inject.Singleton
 data class UnifiedGameState(
     val gameData: GameData = GameData(),
     val disciples: List<Disciple> = emptyList(),
-    val equipment: List<Equipment> = emptyList(),
-    val manuals: List<Manual> = emptyList(),
+    val equipmentStacks: List<EquipmentStack> = emptyList(),
+    val equipmentInstances: List<EquipmentInstance> = emptyList(),
+    val manualStacks: List<ManualStack> = emptyList(),
+    val manualInstances: List<ManualInstance> = emptyList(),
     val pills: List<Pill> = emptyList(),
     val materials: List<Material> = emptyList(),
     val herbs: List<Herb> = emptyList(),
@@ -43,15 +45,15 @@ data class UnifiedGameState(
 
     fun getDiscipleById(id: String): Disciple? = disciples.find { it.id == id }
 
-    fun getEquipmentById(id: String): Equipment? = equipment.find { it.id == id }
+    fun getEquipmentById(id: String): EquipmentInstance? = equipmentInstances.find { it.id == id }
 
-    fun getManualById(id: String): Manual? = manuals.find { it.id == id }
+    fun getManualById(id: String): ManualInstance? = manualInstances.find { it.id == id }
 
-    fun getEquipmentByOwner(discipleId: String): List<Equipment> =
-        equipment.filter { it.ownerId == discipleId }
+    fun getEquipmentByOwner(discipleId: String): List<EquipmentInstance> =
+        equipmentInstances.filter { it.ownerId == discipleId }
 
-    fun getManualsByOwner(discipleId: String): List<Manual> =
-        manuals.filter { it.ownerId == discipleId }
+    fun getManualsByOwner(discipleId: String): List<ManualInstance> =
+        manualInstances.filter { it.ownerId == discipleId }
 }
 
 interface UnifiedStateObserver {
@@ -96,8 +98,10 @@ class UnifiedGameStateManager @Inject constructor(
         stateStore.loadFromSnapshot(
             gameData = newState.gameData,
             disciples = newState.disciples,
-            equipment = newState.equipment,
-            manuals = newState.manuals,
+            equipmentStacks = newState.equipmentStacks,
+            equipmentInstances = newState.equipmentInstances,
+            manualStacks = newState.manualStacks,
+            manualInstances = newState.manualInstances,
             pills = newState.pills,
             materials = newState.materials,
             herbs = newState.herbs,

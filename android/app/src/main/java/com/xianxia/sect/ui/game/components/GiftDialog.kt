@@ -42,8 +42,8 @@ import com.xianxia.sect.ui.components.GameButton
 fun GiftDialog(
     sect: WorldSect?,
     gameData: GameData?,
-    equipment: List<Equipment>,
-    manuals: List<Manual>,
+    equipment: List<EquipmentInstance>,
+    manuals: List<ManualInstance>,
     pills: List<Pill>,
     viewModel: GameViewModel,
     worldMapViewModel: WorldMapViewModel,
@@ -375,8 +375,8 @@ private fun GiftTierCard(
 private fun ItemGiftTab(
     sect: WorldSect?,
     gameData: GameData?,
-    equipment: List<Equipment>,
-    manuals: List<Manual>,
+    equipment: List<EquipmentInstance>,
+    manuals: List<ManualInstance>,
     pills: List<Pill>,
     hasGiftedThisYear: Boolean,
     viewModel: GameViewModel,

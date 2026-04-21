@@ -26,19 +26,17 @@ sealed class GameItem {
 
 @Serializable
 @Entity(
-    tableName = "equipment",
+    tableName = "equipment_stacks",
     primaryKeys = ["id", "slot_id"],
     indices = [
         Index(value = ["name"]),
         Index(value = ["rarity"]),
         Index(value = ["slot"]),
-        Index(value = ["ownerId"]),
-        Index(value = ["isEquipped"]),
         Index(value = ["rarity", "slot"]),
         Index(value = ["minRealm"])
     ]
 )
-data class Equipment(
+data class EquipmentStack(
     @ColumnInfo(name = "id")
     override val id: String = java.util.UUID.randomUUID().toString(),
 
@@ -48,7 +46,7 @@ data class Equipment(
     override val name: String = "",
     override val rarity: Int = 1,
     override val description: String = "",
-    
+
     val slot: EquipmentSlot = EquipmentSlot.WEAPON,
     val physicalAttack: Int = 0,
     val magicAttack: Int = 0,
@@ -58,22 +56,17 @@ data class Equipment(
     val hp: Int = 0,
     val mp: Int = 0,
     val critChance: Double = 0.0,
-    
-    val nurtureLevel: Int = 0,
-    val nurtureProgress: Double = 0.0,
-    
+
     val minRealm: Int = 9,
-    
-    var ownerId: String? = null,
-    var isEquipped: Boolean = false,
+
     override var quantity: Int = 1,
     override val isLocked: Boolean = false
 ) : GameItem(), StackableItem {
 
-    override fun withQuantity(newQuantity: Int): Equipment = copy(quantity = newQuantity)
-    
+    override fun withQuantity(newQuantity: Int): EquipmentStack = copy(quantity = newQuantity)
+
     val basePrice: Int get() = GameConfig.Rarity.get(rarity).basePrice
-    
+
     val stats: EquipmentStats get() = EquipmentStats(
         physicalAttack = physicalAttack,
         magicAttack = magicAttack,
@@ -83,13 +76,90 @@ data class Equipment(
         hp = hp,
         mp = mp
     )
-    
+
+    fun toInstance(id: String = java.util.UUID.randomUUID().toString(), ownerId: String? = null, isEquipped: Boolean = true): EquipmentInstance = EquipmentInstance(
+        id = id,
+        slotId = slotId,
+        name = name,
+        rarity = rarity,
+        description = description,
+        slot = slot,
+        physicalAttack = physicalAttack,
+        magicAttack = magicAttack,
+        physicalDefense = physicalDefense,
+        magicDefense = magicDefense,
+        speed = speed,
+        hp = hp,
+        mp = mp,
+        critChance = critChance,
+        minRealm = minRealm,
+        ownerId = ownerId,
+        isEquipped = isEquipped
+    )
+}
+
+@Serializable
+@Entity(
+    tableName = "equipment_instances",
+    primaryKeys = ["id", "slot_id"],
+    indices = [
+        Index(value = ["name"]),
+        Index(value = ["rarity"]),
+        Index(value = ["slot"]),
+        Index(value = ["ownerId"]),
+        Index(value = ["rarity", "slot"]),
+        Index(value = ["minRealm"])
+    ]
+)
+data class EquipmentInstance(
+    @ColumnInfo(name = "id")
+    override val id: String = java.util.UUID.randomUUID().toString(),
+
+    @ColumnInfo(name = "slot_id")
+    var slotId: Int = 0,
+
+    override val name: String = "",
+    override val rarity: Int = 1,
+    override val description: String = "",
+
+    val slot: EquipmentSlot = EquipmentSlot.WEAPON,
+    val physicalAttack: Int = 0,
+    val magicAttack: Int = 0,
+    val physicalDefense: Int = 0,
+    val magicDefense: Int = 0,
+    val speed: Int = 0,
+    val hp: Int = 0,
+    val mp: Int = 0,
+    val critChance: Double = 0.0,
+
+    val nurtureLevel: Int = 0,
+    val nurtureProgress: Double = 0.0,
+
+    val minRealm: Int = 9,
+
+    val ownerId: String? = null,
+    val isEquipped: Boolean = false,
+    override val isLocked: Boolean = false
+) : GameItem() {
+
+    val basePrice: Int get() = GameConfig.Rarity.get(rarity).basePrice
+
+    val stats: EquipmentStats get() = EquipmentStats(
+        physicalAttack = physicalAttack,
+        magicAttack = magicAttack,
+        physicalDefense = physicalDefense,
+        magicDefense = magicDefense,
+        speed = speed,
+        hp = hp,
+        mp = mp
+    )
+
     val totalMultiplier: Double
         get() {
             val nurtureMult = getNurtureMultiplier(nurtureLevel)
             return nurtureMult
         }
-    
+
     private fun getNurtureMultiplier(level: Int): Double {
         if (level <= 0) return 1.0
         val maxLevel = 25
@@ -97,7 +167,7 @@ data class Equipment(
         val totalBonus = actualLevel * (actualLevel + 1) / 2.0 * (3.0 / 325.0)
         return (1.0 + totalBonus).coerceAtMost(4.0)
     }
-    
+
     fun getFinalStats(): EquipmentStats {
         val mult = totalMultiplier
         return EquipmentStats(
@@ -110,8 +180,7 @@ data class Equipment(
             mp = (mp * mult).toInt()
         )
     }
-    
-    // 总属性描述
+
     val totalStatsDescription: String
         get() {
             val finalStats = getFinalStats()
@@ -125,6 +194,25 @@ data class Equipment(
             if (finalStats.mp > 0) stats.add("灵力+${finalStats.mp}")
             return if (stats.isEmpty()) "无属性" else stats.joinToString(", ")
         }
+
+    fun toStack(quantity: Int = 1): EquipmentStack = EquipmentStack(
+        id = java.util.UUID.randomUUID().toString(),
+        slotId = slotId,
+        name = name,
+        rarity = rarity,
+        description = description,
+        slot = slot,
+        physicalAttack = physicalAttack,
+        magicAttack = magicAttack,
+        physicalDefense = physicalDefense,
+        magicDefense = magicDefense,
+        speed = speed,
+        hp = hp,
+        mp = mp,
+        critChance = critChance,
+        minRealm = minRealm,
+        quantity = quantity
+    )
 }
 
 @Serializable
@@ -176,19 +264,17 @@ data class EquipmentStats(
 
 @Serializable
 @Entity(
-    tableName = "manuals",
+    tableName = "manual_stacks",
     primaryKeys = ["id", "slot_id"],
     indices = [
         Index(value = ["name"]),
         Index(value = ["rarity"]),
         Index(value = ["type"]),
-        Index(value = ["ownerId"]),
-        Index(value = ["isLearned"]),
-        Index(value = ["minRealm"]),
-        Index(value = ["rarity", "type"])
+        Index(value = ["rarity", "type"]),
+        Index(value = ["minRealm"])
     ]
 )
-data class Manual(
+data class ManualStack(
     @ColumnInfo(name = "id")
     override val id: String = java.util.UUID.randomUUID().toString(),
 
@@ -198,10 +284,10 @@ data class Manual(
     override val name: String = "",
     override val rarity: Int = 1,
     override val description: String = "",
-    
+
     val type: ManualType = ManualType.MIND,
     val stats: Map<String, Int> = emptyMap(),
-    
+
     val skillName: String? = null,
     val skillDescription: String? = null,
     val skillType: String = "attack",
@@ -220,17 +306,98 @@ data class Manual(
     val skillTargetScope: String = "self",
 
     val minRealm: Int = 9,
-    
-    var ownerId: String? = null,
-    var isLearned: Boolean = false,
+
     override var quantity: Int = 1,
     override val isLocked: Boolean = false
 ) : GameItem(), StackableItem {
-    
-    override fun withQuantity(newQuantity: Int): Manual = copy(quantity = newQuantity)
-    
+
+    override fun withQuantity(newQuantity: Int): ManualStack = copy(quantity = newQuantity)
+
     val basePrice: Int get() = GameConfig.Rarity.get(rarity).basePrice
-    
+
+    fun toInstance(id: String = java.util.UUID.randomUUID().toString(), ownerId: String? = null, isLearned: Boolean = true): ManualInstance = ManualInstance(
+        id = id,
+        slotId = slotId,
+        name = name,
+        rarity = rarity,
+        description = description,
+        type = type,
+        stats = stats,
+        skillName = skillName,
+        skillDescription = skillDescription,
+        skillType = skillType,
+        skillDamageType = skillDamageType,
+        skillHits = skillHits,
+        skillDamageMultiplier = skillDamageMultiplier,
+        skillCooldown = skillCooldown,
+        skillMpCost = skillMpCost,
+        skillHealPercent = skillHealPercent,
+        skillHealType = skillHealType,
+        skillBuffType = skillBuffType,
+        skillBuffValue = skillBuffValue,
+        skillBuffDuration = skillBuffDuration,
+        skillBuffsJson = skillBuffsJson,
+        skillIsAoe = skillIsAoe,
+        skillTargetScope = skillTargetScope,
+        minRealm = minRealm,
+        ownerId = ownerId,
+        isLearned = isLearned
+    )
+}
+
+@Serializable
+@Entity(
+    tableName = "manual_instances",
+    primaryKeys = ["id", "slot_id"],
+    indices = [
+        Index(value = ["name"]),
+        Index(value = ["rarity"]),
+        Index(value = ["type"]),
+        Index(value = ["ownerId"]),
+        Index(value = ["minRealm"]),
+        Index(value = ["rarity", "type"])
+    ]
+)
+data class ManualInstance(
+    @ColumnInfo(name = "id")
+    override val id: String = java.util.UUID.randomUUID().toString(),
+
+    @ColumnInfo(name = "slot_id")
+    var slotId: Int = 0,
+
+    override val name: String = "",
+    override val rarity: Int = 1,
+    override val description: String = "",
+
+    val type: ManualType = ManualType.MIND,
+    val stats: Map<String, Int> = emptyMap(),
+
+    val skillName: String? = null,
+    val skillDescription: String? = null,
+    val skillType: String = "attack",
+    val skillDamageType: String = "physical",
+    val skillHits: Int = 1,
+    val skillDamageMultiplier: Double = 1.0,
+    val skillCooldown: Int = 3,
+    val skillMpCost: Int = 10,
+    val skillHealPercent: Double = 0.0,
+    val skillHealType: String = "hp",
+    val skillBuffType: String? = null,
+    val skillBuffValue: Double = 0.0,
+    val skillBuffDuration: Int = 0,
+    val skillBuffsJson: String = "",
+    val skillIsAoe: Boolean = false,
+    val skillTargetScope: String = "self",
+
+    val minRealm: Int = 9,
+
+    val ownerId: String? = null,
+    val isLearned: Boolean = false,
+    override val isLocked: Boolean = false
+) : GameItem() {
+
+    val basePrice: Int get() = GameConfig.Rarity.get(rarity).basePrice
+
     private fun parseBuffType(bt: String): BuffType? = when (bt) {
         "physical_attack" -> BuffType.PHYSICAL_ATTACK_BOOST
         "magic_attack" -> BuffType.MAGIC_ATTACK_BOOST
@@ -242,7 +409,7 @@ data class Manual(
         "crit_rate" -> BuffType.CRIT_RATE_BOOST
         else -> null
     }
-    
+
     private fun parseBuffsJson(json: String): List<Triple<BuffType, Double, Int>> {
         if (json.isBlank()) return emptyList()
         return json.split("|").mapNotNull { buffStr ->
@@ -255,7 +422,7 @@ data class Manual(
             } else null
         }
     }
-    
+
     val skill: ManualSkill? get() = skillName?.let {
         val buffs = parseBuffsJson(skillBuffsJson)
         ManualSkill(
@@ -277,9 +444,37 @@ data class Manual(
             targetScope = skillTargetScope
         )
     }
-    
+
     val cultivationSpeedPercent: Double
         get() = stats["cultivationSpeedPercent"]?.toDouble() ?: 0.0
+
+    fun toStack(quantity: Int = 1): ManualStack = ManualStack(
+        id = java.util.UUID.randomUUID().toString(),
+        slotId = slotId,
+        name = name,
+        rarity = rarity,
+        description = description,
+        type = type,
+        stats = stats,
+        skillName = skillName,
+        skillDescription = skillDescription,
+        skillType = skillType,
+        skillDamageType = skillDamageType,
+        skillHits = skillHits,
+        skillDamageMultiplier = skillDamageMultiplier,
+        skillCooldown = skillCooldown,
+        skillMpCost = skillMpCost,
+        skillHealPercent = skillHealPercent,
+        skillHealType = skillHealType,
+        skillBuffType = skillBuffType,
+        skillBuffValue = skillBuffValue,
+        skillBuffDuration = skillBuffDuration,
+        skillBuffsJson = skillBuffsJson,
+        skillIsAoe = skillIsAoe,
+        skillTargetScope = skillTargetScope,
+        minRealm = minRealm,
+        quantity = quantity
+    )
 }
 
 @Serializable

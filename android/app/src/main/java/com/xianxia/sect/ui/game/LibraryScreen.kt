@@ -28,7 +28,7 @@ import com.xianxia.sect.ui.theme.GameColors
 
 @Composable
 fun LibraryDialog(
-    manuals: List<Manual>,
+    manuals: List<ManualInstance>,
     disciples: List<DiscipleAggregate>,
     gameData: GameData?,
     viewModel: GameViewModel,

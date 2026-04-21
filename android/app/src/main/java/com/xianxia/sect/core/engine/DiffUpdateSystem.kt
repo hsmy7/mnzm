@@ -1,10 +1,10 @@
-@file:Suppress("DEPRECATION")
-
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.model.Disciple
-import com.xianxia.sect.core.model.Equipment
-import com.xianxia.sect.core.model.Manual
+import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.model.EquipmentStack
+import com.xianxia.sect.core.model.ManualInstance
+import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.Herb
@@ -82,10 +82,25 @@ object DiffUpdateSystem {
         )
     }
     
-    fun diffEquipment(
-        oldList: List<Equipment>,
-        newList: List<Equipment>
-    ): DiffResult<Equipment> {
+    fun diffEquipmentStacks(
+        oldList: List<EquipmentStack>,
+        newList: List<EquipmentStack>
+    ): DiffResult<EquipmentStack> {
+        return diffLists(
+            oldList = oldList,
+            newList = newList,
+            idSelector = { it.id },
+            contentComparator = { old, new ->
+                old.id == new.id &&
+                old.quantity == new.quantity
+            }
+        )
+    }
+
+    fun diffEquipmentInstances(
+        oldList: List<EquipmentInstance>,
+        newList: List<EquipmentInstance>
+    ): DiffResult<EquipmentInstance> {
         return diffLists(
             oldList = oldList,
             newList = newList,
@@ -99,11 +114,26 @@ object DiffUpdateSystem {
             }
         )
     }
-    
-    fun diffManuals(
-        oldList: List<Manual>,
-        newList: List<Manual>
-    ): DiffResult<Manual> {
+
+    fun diffManualStacks(
+        oldList: List<ManualStack>,
+        newList: List<ManualStack>
+    ): DiffResult<ManualStack> {
+        return diffLists(
+            oldList = oldList,
+            newList = newList,
+            idSelector = { it.id },
+            contentComparator = { old, new ->
+                old.id == new.id &&
+                old.quantity == new.quantity
+            }
+        )
+    }
+
+    fun diffManualInstances(
+        oldList: List<ManualInstance>,
+        newList: List<ManualInstance>
+    ): DiffResult<ManualInstance> {
         return diffLists(
             oldList = oldList,
             newList = newList,
@@ -251,8 +281,10 @@ object DiffUpdateSystem {
 
 data class IncrementalUpdate(
     val disciples: DiffResult<Disciple>? = null,
-    val equipment: DiffResult<Equipment>? = null,
-    val manuals: DiffResult<Manual>? = null,
+    val equipmentStacks: DiffResult<EquipmentStack>? = null,
+    val equipmentInstances: DiffResult<EquipmentInstance>? = null,
+    val manualStacks: DiffResult<ManualStack>? = null,
+    val manualInstances: DiffResult<ManualInstance>? = null,
     val pills: DiffResult<Pill>? = null,
     val materials: DiffResult<Material>? = null,
     val herbs: DiffResult<Herb>? = null,
@@ -262,8 +294,10 @@ data class IncrementalUpdate(
 ) {
     val hasAnyChanges: Boolean
         get() = (disciples?.hasChanges == true) ||
-                (equipment?.hasChanges == true) ||
-                (manuals?.hasChanges == true) ||
+                (equipmentStacks?.hasChanges == true) ||
+                (equipmentInstances?.hasChanges == true) ||
+                (manualStacks?.hasChanges == true) ||
+                (manualInstances?.hasChanges == true) ||
                 (pills?.hasChanges == true) ||
                 (materials?.hasChanges == true) ||
                 (herbs?.hasChanges == true) ||

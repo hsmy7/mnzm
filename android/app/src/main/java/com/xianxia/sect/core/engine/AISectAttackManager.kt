@@ -298,28 +298,28 @@ object AISectAttackManager {
         val equipmentMap = buildMap {
             disciple.weaponId?.let { weaponId ->
                 EquipmentDatabase.getById(weaponId)?.let { template ->
-                    val eq = EquipmentDatabase.createFromTemplate(template)
+                    val eq = EquipmentDatabase.createFromTemplate(template).toInstance(id = weaponId)
                     val nurture = disciple.weaponNurture
                     put(weaponId, if (nurture.equipmentId == weaponId) eq.copy(nurtureLevel = nurture.nurtureLevel, nurtureProgress = nurture.nurtureProgress) else eq)
                 }
             }
             disciple.armorId?.let { armorId ->
                 EquipmentDatabase.getById(armorId)?.let { template ->
-                    val eq = EquipmentDatabase.createFromTemplate(template)
+                    val eq = EquipmentDatabase.createFromTemplate(template).toInstance(id = armorId)
                     val nurture = disciple.armorNurture
                     put(armorId, if (nurture.equipmentId == armorId) eq.copy(nurtureLevel = nurture.nurtureLevel, nurtureProgress = nurture.nurtureProgress) else eq)
                 }
             }
             disciple.bootsId?.let { bootsId ->
                 EquipmentDatabase.getById(bootsId)?.let { template ->
-                    val eq = EquipmentDatabase.createFromTemplate(template)
+                    val eq = EquipmentDatabase.createFromTemplate(template).toInstance(id = bootsId)
                     val nurture = disciple.bootsNurture
                     put(bootsId, if (nurture.equipmentId == bootsId) eq.copy(nurtureLevel = nurture.nurtureLevel, nurtureProgress = nurture.nurtureProgress) else eq)
                 }
             }
             disciple.accessoryId?.let { accessoryId ->
                 EquipmentDatabase.getById(accessoryId)?.let { template ->
-                    val eq = EquipmentDatabase.createFromTemplate(template)
+                    val eq = EquipmentDatabase.createFromTemplate(template).toInstance(id = accessoryId)
                     val nurture = disciple.accessoryNurture
                     put(accessoryId, if (nurture.equipmentId == accessoryId) eq.copy(nurtureLevel = nurture.nurtureLevel, nurtureProgress = nurture.nurtureProgress) else eq)
                 }
@@ -328,7 +328,7 @@ object AISectAttackManager {
 
         val manualMap = disciple.manualIds.mapNotNull { manualId ->
             ManualDatabase.getById(manualId)?.let { template ->
-                manualId to ManualDatabase.createFromTemplate(template)
+                manualId to ManualDatabase.createFromTemplate(template).toInstance(id = manualId)
             }
         }.toMap()
 
@@ -705,8 +705,8 @@ object AISectAttackManager {
 
     fun createPlayerDefenseTeam(
         disciples: List<Disciple>,
-        equipmentMap: Map<String, com.xianxia.sect.core.model.Equipment>,
-        manualMap: Map<String, com.xianxia.sect.core.model.Manual>,
+        equipmentMap: Map<String, com.xianxia.sect.core.model.EquipmentInstance>,
+        manualMap: Map<String, com.xianxia.sect.core.model.ManualInstance>,
         manualProficiencies: Map<String, Map<String, ManualProficiencyData>>
     ): List<Disciple> {
         return disciples

@@ -1,4 +1,4 @@
-﻿package com.xianxia.sect.ui.game
+package com.xianxia.sect.ui.game
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -119,8 +119,8 @@ private fun calculatePreachingBonusesForDisplay(
 fun DiscipleDetailDialog(
     disciple: DiscipleAggregate,
     allDisciples: List<DiscipleAggregate> = emptyList(),
-    allEquipment: List<Equipment> = emptyList(),
-    allManuals: List<Manual> = emptyList(),
+    allEquipment: List<EquipmentInstance> = emptyList(),
+    allManuals: List<ManualInstance> = emptyList(),
     manualProficiencies: Map<String, List<ManualProficiencyData>> = emptyMap(),
     viewModel: GameViewModel? = null,
     onDismiss: () -> Unit
@@ -133,8 +133,8 @@ fun DiscipleDetailDialog(
     var selectedEquipmentId by remember { mutableStateOf<String?>(null) }
     var showManualSelection by remember { mutableStateOf(false) }
     var selectedManualId by remember { mutableStateOf<String?>(null) }
-    var showManualDetailDialog by remember { mutableStateOf<Manual?>(null) }
-    var showEquipmentDetailDialog by remember { mutableStateOf<Equipment?>(null) }
+    var showManualDetailDialog by remember { mutableStateOf<ManualInstance?>(null) }
+    var showEquipmentDetailDialog by remember { mutableStateOf<EquipmentInstance?>(null) }
 
     val weapon = remember(disciple.weaponId, allEquipment) {
         disciple.weaponId?.let { id -> allEquipment.find { it.id == id } }
@@ -455,7 +455,7 @@ fun DiscipleDetailDialog(
                     allManuals.find { it.id == mid }?.type == ManualType.MIND
                 }
                 allManuals.filter { newManual ->
-                    newManual.id !in disciple.manualIds && !newManual.isLearned &&
+                    newManual.id !in disciple.manualIds &&
                     !(hasMindManual && manual.type != ManualType.MIND && newManual.type == ManualType.MIND) &&
                     GameConfig.Realm.meetsRealmRequirement(disciple.realm, newManual.minRealm)
                 }.sortedByDescending { it.rarity }
@@ -734,7 +734,7 @@ private fun RelationsDialog(
 @Composable
 private fun EquipmentSelectionDialog(
     slotType: String,
-    allEquipment: List<Equipment>,
+    allEquipment: List<EquipmentInstance>,
     currentEquipmentId: String?,
     currentDiscipleId: String,
     selectedEquipmentId: String?,
@@ -754,12 +754,12 @@ private fun EquipmentSelectionDialog(
         val filtered = allEquipment.filter { 
             it.slot.name.lowercase(java.util.Locale.getDefault()) == slotType.lowercase(java.util.Locale.getDefault()) && 
             it.id != currentEquipmentId &&
-            (it.ownerId == null || (it.ownerId == currentDiscipleId && !it.isEquipped))
+            (it.ownerId == null || (it.ownerId == currentDiscipleId))
         }
         filtered.sortedByDescending { it.rarity }
     }
 
-    var showDetailEquipment by remember { mutableStateOf<Equipment?>(null) }
+    var showDetailEquipment by remember { mutableStateOf<EquipmentInstance?>(null) }
     
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -910,7 +910,7 @@ private fun EquipmentSelectionDialog(
 
 @Composable
 private fun EquipmentSelectionCard(
-    equipment: Equipment,
+    equipment: EquipmentInstance,
     isSelected: Boolean = false,
     onSelect: () -> Unit = {},
     onViewDetail: () -> Unit = {}
@@ -976,7 +976,7 @@ private fun EquipmentSelectionCard(
 
 @Composable
 private fun ManualSelectionDialog(
-    allManuals: List<Manual>,
+    allManuals: List<ManualInstance>,
     currentManualIds: List<String>,
     currentDiscipleId: String,
     discipleRealm: Int,
@@ -990,13 +990,12 @@ private fun ManualSelectionDialog(
         allManuals.filter { manual ->
             manual.id !in currentManualIds &&
             (manual.ownerId == null || manual.ownerId == currentDiscipleId) &&
-            !manual.isLearned &&
             !(hasMindManual && manual.type == ManualType.MIND) &&
             GameConfig.Realm.meetsRealmRequirement(discipleRealm, manual.minRealm)
         }.sortedByDescending { it.rarity }
     }
 
-    var showDetailManual by remember { mutableStateOf<Manual?>(null) }
+    var showDetailManual by remember { mutableStateOf<ManualInstance?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1168,7 +1167,7 @@ private fun ManualSelectionDialog(
 
 @Composable
 private fun ManualSelectionCard(
-    manual: Manual,
+    manual: ManualInstance,
     isSelected: Boolean,
     onSelect: () -> Unit,
     onViewDetail: () -> Unit
@@ -1234,15 +1233,15 @@ private fun ManualSelectionCard(
 
 @Composable
 private fun ManualReplaceDialog(
-    currentManual: Manual,
-    allManuals: List<Manual>,
+    currentManual: ManualInstance,
+    allManuals: List<ManualInstance>,
     currentManualIds: List<String>,
     onSelect: (String) -> Unit,
     onForget: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val availableManuals = remember(allManuals, currentManualIds) {
-        allManuals.filter { it.id !in currentManualIds && !it.isLearned }.sortedByDescending { it.rarity }
+        allManuals.filter { it.id !in currentManualIds }.sortedByDescending { it.rarity }
     }
     
     var selectedManualId by remember { mutableStateOf<String?>(null) }
@@ -1440,7 +1439,7 @@ private fun RelationItem(relation: String, disciple: DiscipleAggregate) {
 @Composable
 private fun BasicInfoSection(
     disciple: DiscipleAggregate,
-    allManuals: List<Manual> = emptyList(),
+    allManuals: List<ManualInstance> = emptyList(),
     manualProficiencies: Map<String, List<ManualProficiencyData>> = emptyMap(),
     position: String? = null,
     isWorkStatusPosition: Boolean = false,
@@ -1515,7 +1514,9 @@ private fun BasicInfoSection(
         
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             if (disciple.realm != 0) {
-                val manualsMap = remember(allManuals) { allManuals.associateBy { it.id } }
+                val manualsMap = remember(allManuals) {
+                    allManuals.associateBy { it.id }
+                }
                 val proficiencyMap = remember(manualProficiencies, disciple.id) {
                     manualProficiencies[disciple.id]?.associateBy { it.manualId } ?: emptyMap()
                 }
@@ -1723,15 +1724,15 @@ private fun AttributesSection(disciple: DiscipleAggregate) {
 @Composable
 private fun CombatStatsSection(
     disciple: DiscipleAggregate,
-    weapon: Equipment?,
-    armor: Equipment?,
-    boots: Equipment?,
-    accessory: Equipment?,
-    learnedManuals: List<Manual>,
+    weapon: EquipmentInstance?,
+    armor: EquipmentInstance?,
+    boots: EquipmentInstance?,
+    accessory: EquipmentInstance?,
+    learnedManuals: List<ManualInstance>,
     manualProficiencies: Map<String, List<ManualProficiencyData>>
 ) {
     val equipmentMap = remember(weapon, armor, boots, accessory) {
-        mutableMapOf<String, Equipment>().apply {
+        mutableMapOf<String, EquipmentInstance>().apply {
             weapon?.let { put(it.id, it) }
             armor?.let { put(it.id, it) }
             boots?.let { put(it.id, it) }
@@ -1803,12 +1804,12 @@ private fun CombatStatsSection(
 
 @Composable
 private fun EquipmentSection(
-    weapon: Equipment?,
-    armor: Equipment?,
-    boots: Equipment?,
-    accessory: Equipment?,
+    weapon: EquipmentInstance?,
+    armor: EquipmentInstance?,
+    boots: EquipmentInstance?,
+    accessory: EquipmentInstance?,
     onSlotClick: (String) -> Unit,
-    onEquipmentClick: (Equipment) -> Unit
+    onEquipmentClick: (EquipmentInstance) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
@@ -1833,10 +1834,10 @@ private fun EquipmentSection(
 @Composable
 private fun EquipmentSlot(
     slotName: String, 
-    equipment: Equipment?, 
+    equipment: EquipmentInstance?, 
     modifier: Modifier = Modifier,
     onSlotClick: (String) -> Unit,
-    onEquipmentClick: (Equipment) -> Unit,
+    onEquipmentClick: (EquipmentInstance) -> Unit,
     slotType: String
 ) {
     val rarityColor = remember(equipment?.rarity) {
@@ -1898,12 +1899,12 @@ private fun EquipmentSlot(
 
 @Composable
 private fun ManualsSection(
-    manuals: List<Manual>,
+    manuals: List<ManualInstance>,
     maxSlots: Int,
     manualProficiencies: Map<String, List<ManualProficiencyData>> = emptyMap(),
     discipleId: String = "",
     onSlotClick: () -> Unit,
-    onManualClick: (Manual) -> Unit
+    onManualClick: (ManualInstance) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
@@ -1913,7 +1914,7 @@ private fun ManualsSection(
             color = Color.Black
         )
         
-        val manualSlots = mutableListOf<Manual?>()
+        val manualSlots = mutableListOf<ManualInstance?>()
         manuals.take(maxSlots).forEach { manualSlots.add(it) }
         while (manualSlots.size < maxSlots) manualSlots.add(null)
         
@@ -1953,11 +1954,11 @@ private fun ManualsSection(
 
 @Composable
 private fun ManualSlot(
-    manual: Manual?,
+    manual: ManualInstance?,
     modifier: Modifier = Modifier,
     proficiencyData: ManualProficiencyData? = null,
     onSlotClick: () -> Unit,
-    onManualClick: (Manual) -> Unit
+    onManualClick: (ManualInstance) -> Unit
 ) {
     val rarityColor = remember(manual?.rarity) {
         when (manual?.rarity) {
@@ -2282,16 +2283,15 @@ private fun RewardItemsDialog(
     var detailItem by remember { mutableStateOf<Any?>(null) }
     var isRewarding by remember { mutableStateOf(false) }
 
-    val equipment by viewModel.equipment.collectAsState()
-    val manuals by viewModel.manuals.collectAsState()
+    val equipmentStacks by viewModel.equipmentStacks.collectAsState()
+    val manualStacks by viewModel.manualStacks.collectAsState()
     val pills by viewModel.pills.collectAsState()
     val materials by viewModel.materials.collectAsState()
     val herbs by viewModel.herbs.collectAsState()
     val seeds by viewModel.seeds.collectAsState()
 
-    // 过滤掉已学习的功法（已学习的功法不可再次赏赐）
-    val availableManuals = manuals.filter { !it.isLearned }
-    val availableEquipment = equipment.filter { !it.isEquipped }
+    val availableManuals = manualStacks
+    val availableEquipment = equipmentStacks
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -2555,8 +2555,8 @@ private fun <T> RewardItemGrid(
                 items = items,
                 key = { item ->
                     when (item) {
-                        is Equipment -> "equipment_${item.id}"
-                        is Manual -> "manual_${item.id}"
+                        is EquipmentStack -> "equipment_${item.id}"
+                        is ManualStack -> "manual_${item.id}"
                         is Pill -> "pill_${item.id}_${item.quantity}"
                         is Material -> "material_${item.id}_${item.quantity}"
                         is Herb -> "herb_${item.id}_${item.quantity}"
@@ -2567,8 +2567,8 @@ private fun <T> RewardItemGrid(
             ) { item ->
                 val currentSelectedItem = remember(item) {
                     when (item) {
-                        is Equipment -> RewardSelectedItem(item.id, "equipment", item.name, item.rarity, 1)
-                        is Manual -> RewardSelectedItem(item.id, "manual", item.name, item.rarity, 1)
+                        is EquipmentStack -> RewardSelectedItem(item.id, "equipment", item.name, item.rarity, 1)
+                        is ManualStack -> RewardSelectedItem(item.id, "manual", item.name, item.rarity, 1)
                         is Pill -> RewardSelectedItem(item.id, "pill", item.name, item.rarity, item.quantity, item.grade.displayName)
                         is Material -> RewardSelectedItem(item.id, "material", item.name, item.rarity, item.quantity)
                         is Herb -> RewardSelectedItem(item.id, "herb", item.name, item.rarity, item.quantity)
@@ -2599,8 +2599,8 @@ private fun <T> RewardItemGrid(
 
 @Composable
 private fun RewardAllItemsGrid(
-    equipment: List<Equipment>,
-    manuals: List<Manual>,
+    equipment: List<EquipmentStack>,
+    manuals: List<ManualStack>,
     pills: List<Pill>,
     materials: List<Material>,
     herbs: List<Herb>,
@@ -2609,7 +2609,7 @@ private fun RewardAllItemsGrid(
     onItemSelect: (RewardSelectedItem) -> Unit,
     onViewDetail: (Any) -> Unit = {}
 ) {
-    val allItems = equipment + manuals + pills + materials + herbs + seeds
+    val allItems: List<GameItem> = equipment + manuals + pills + materials + herbs + seeds
 
     if (allItems.isEmpty()) {
         EmptyListMessage("暂无道具")
@@ -2626,8 +2626,8 @@ private fun RewardAllItemsGrid(
                 items = allItems,
                 key = { item ->
                     when (item) {
-                        is Equipment -> "equipment_${item.id}"
-                        is Manual -> "manual_${item.id}"
+                        is EquipmentStack -> "equipment_${item.id}"
+                        is ManualStack -> "manual_${item.id}"
                         is Pill -> "pill_${item.id}_${item.quantity}"
                         is Material -> "material_${item.id}_${item.quantity}"
                         is Herb -> "herb_${item.id}_${item.quantity}"
@@ -2638,8 +2638,8 @@ private fun RewardAllItemsGrid(
             ) { item ->
                 val currentSelectedItem = remember(item) {
                     when (item) {
-                        is Equipment -> RewardSelectedItem(item.id, "equipment", item.name, item.rarity, 1)
-                        is Manual -> RewardSelectedItem(item.id, "manual", item.name, item.rarity, 1)
+                        is EquipmentStack -> RewardSelectedItem(item.id, "equipment", item.name, item.rarity, 1)
+                        is ManualStack -> RewardSelectedItem(item.id, "manual", item.name, item.rarity, 1)
                         is Pill -> RewardSelectedItem(item.id, "pill", item.name, item.rarity, item.quantity, item.grade.displayName)
                         is Material -> RewardSelectedItem(item.id, "material", item.name, item.rarity, item.quantity)
                         is Herb -> RewardSelectedItem(item.id, "herb", item.name, item.rarity, item.quantity)

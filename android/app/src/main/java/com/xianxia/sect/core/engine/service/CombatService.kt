@@ -57,21 +57,19 @@ class CombatService @Inject constructor(
             if (ts != null) { ts.disciples = value; return }
             scope.launch { stateStore.update { disciples = value } }
         }
-
-    private var currentEquipment: List<Equipment>
-        get() = stateStore.currentTransactionMutableState()?.equipment ?: stateStore.equipment.value
+    private var currentEquipmentInstances: List<EquipmentInstance>
+        get() = stateStore.currentTransactionMutableState()?.equipmentInstances ?: stateStore.equipmentInstances.value
         set(value) {
             val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.equipment = value; return }
-            scope.launch { stateStore.update { equipment = value } }
+            if (ts != null) { ts.equipmentInstances = value; return }
+            scope.launch { stateStore.update { equipmentInstances = value } }
         }
-
-    private var currentManuals: List<Manual>
-        get() = stateStore.currentTransactionMutableState()?.manuals ?: stateStore.manuals.value
+    private var currentManualInstances: List<ManualInstance>
+        get() = stateStore.currentTransactionMutableState()?.manualInstances ?: stateStore.manualInstances.value
         set(value) {
             val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.manuals = value; return }
-            scope.launch { stateStore.update { manuals = value } }
+            if (ts != null) { ts.manualInstances = value; return }
+            scope.launch { stateStore.update { manualInstances = value } }
         }
 
     private var currentBattleLogs: List<BattleLog>
@@ -104,8 +102,8 @@ class CombatService @Inject constructor(
     ): BattleSystemResult {
         val data = currentGameData
 
-        val equipmentMap = currentEquipment.associateBy { it.id }
-        val manualMap = currentManuals.associateBy { it.id }
+        val equipmentMap = currentEquipmentInstances.associateBy { it.id }
+        val manualMap = currentManualInstances.associateBy { it.id }
         val allProficiencies = data.manualProficiencies.mapValues { (_, list) ->
             list.associateBy { it.manualId }
         }
@@ -130,8 +128,8 @@ class CombatService @Inject constructor(
     ): BattleSystemResult {
         val data = currentGameData
 
-        val equipmentMap = currentEquipment.associateBy { it.id }
-        val manualMap = currentManuals.associateBy { it.id }
+        val equipmentMap = currentEquipmentInstances.associateBy { it.id }
+        val manualMap = currentManualInstances.associateBy { it.id }
         val allProficiencies = data.manualProficiencies.mapValues { (_, list) ->
             list.associateBy { it.manualId }
         }
@@ -181,71 +179,23 @@ class CombatService @Inject constructor(
                 disciple.armorId?.let { returnEquipIds.add(it) }
                 disciple.bootsId?.let { returnEquipIds.add(it) }
                 disciple.accessoryId?.let { returnEquipIds.add(it) }
-                disciple.storageBagItems.filter { it.itemType == "equipment" }.forEach { returnEquipIds.add(it.itemId) }
+                disciple.storageBagItems.filter { it.itemType == "equipment_stack" || it.itemType == "equipment_instance" }.forEach { returnEquipIds.add(it.itemId) }
 
                 returnEquipIds.forEach { eid ->
-                    val eq = currentEquipment.find { it.id == eid } ?: return@forEach
-                    val existingUnequipped = currentEquipment.find {
-                        it.name == eq.name && it.rarity == eq.rarity && it.slot == eq.slot && !it.isEquipped && it.id != eid
-                    }
-                    if (existingUnequipped != null) {
-                        val newQty = (existingUnequipped.quantity + eq.quantity).coerceAtMost(999)
-                        currentEquipment = currentEquipment.map { e ->
-                            when {
-                                e.id == existingUnequipped.id -> e.copy(quantity = newQty)
-                                e.id == eid -> null
-                                else -> e
-                            }
-                        }.filterNotNull()
-                    } else {
-                        currentEquipment = currentEquipment.map { e ->
-                            if (e.id == eid) e.copy(isEquipped = false, ownerId = null, nurtureLevel = 0, nurtureProgress = 0.0) else e
-                        }
+                    val eq = currentEquipmentInstances.find { it.id == eid } ?: return@forEach
+                    currentEquipmentInstances = currentEquipmentInstances.map { e ->
+                        if (e.id == eid) e.copy(isEquipped = false, ownerId = null) else e
                     }
                 }
 
                 disciple.manualIds.forEach { manualId ->
-                    val m = currentManuals.find { it.id == manualId }
-                    val existingUnlearned = m?.let { manual ->
-                        currentManuals.find {
-                            it.name == manual.name && it.rarity == manual.rarity && it.type == manual.type && !it.isLearned && it.id != manualId
-                        }
-                    }
-                    if (existingUnlearned != null) {
-                        val newQty = (existingUnlearned.quantity + (m?.quantity ?: 1)).coerceAtMost(999)
-                        currentManuals = currentManuals.map { item ->
-                            when {
-                                item.id == existingUnlearned.id -> item.copy(quantity = newQty)
-                                item.id == manualId -> null
-                                else -> item
-                            }
-                        }.filterNotNull()
-                    } else {
-                        currentManuals = currentManuals.map {
-                            if (it.id == manualId) it.copy(isLearned = false, ownerId = null) else it
-                        }
+                    currentManualInstances = currentManualInstances.map {
+                        if (it.id == manualId) it.copy(isLearned = false, ownerId = null) else it
                     }
                 }
-                disciple.storageBagItems.filter { it.itemType == "manual" }.forEach { bagItem ->
-                    val m = currentManuals.find { it.id == bagItem.itemId }
-                    val existingUnlearned = m?.let { manual ->
-                        currentManuals.find {
-                            it.name == manual.name && it.rarity == manual.rarity && it.type == manual.type && !it.isLearned && it.id != bagItem.itemId
-                        }
-                    }
-                    if (existingUnlearned != null) {
-                        val newQty = (existingUnlearned.quantity + (m?.quantity ?: 1)).coerceAtMost(999)
-                        currentManuals = currentManuals.map { item ->
-                            when {
-                                item.id == existingUnlearned.id -> item.copy(quantity = newQty)
-                                item.id == bagItem.itemId -> null
-                                else -> item
-                            }
-                        }.filterNotNull()
-                    } else {
-                        currentManuals = currentManuals.map {
-                            if (it.id == bagItem.itemId) it.copy(isLearned = false, ownerId = null) else it
-                        }
+                disciple.storageBagItems.filter { it.itemType == "manual_stack" || it.itemType == "manual_instance" }.forEach { bagItem ->
+                    currentManualInstances = currentManualInstances.map {
+                        if (it.id == bagItem.itemId) it.copy(isLearned = false, ownerId = null) else it
                     }
                 }
                 val updatedProficiencies = currentGameData.manualProficiencies.toMutableMap()

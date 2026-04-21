@@ -2,6 +2,7 @@ package com.xianxia.sect.data.engine
 
 import android.content.Context
 import android.util.Log
+import com.xianxia.sect.core.state.fixStorageBagReferences
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.data.archive.ArchivedBattleLog
 import com.xianxia.sect.data.archive.ArchivedDisciple
@@ -115,8 +116,10 @@ class StorageEngine @Inject constructor(
             var size = StorageConstants.ESTIMATE_BASE_OVERHEAD
 
             size += data.disciples.size * es.DISCIPLE
-            size += data.equipment.size * es.EQUIPMENT
-            size += data.manuals.size * es.MANUAL
+            size += data.equipmentStacks.size * es.EQUIPMENT
+            size += data.equipmentInstances.size * es.EQUIPMENT
+            size += data.manualStacks.size * es.MANUAL
+            size += data.manualInstances.size * es.MANUAL
             size += data.pills.size * es.PILL
             size += data.materials.size * es.MATERIAL
             size += data.herbs.size * es.HERB
@@ -264,8 +267,10 @@ class StorageEngine @Inject constructor(
                     database.discipleEquipmentDao().deleteAll(slot)
                     database.discipleExtendedDao().deleteAll(slot)
                     database.discipleAttributesDao().deleteAll(slot)
-                    database.equipmentDao().deleteAll(slot)
-                    database.manualDao().deleteAll(slot)
+                    database.equipmentStackDao().deleteAll(slot)
+                    database.equipmentInstanceDao().deleteAll(slot)
+                    database.manualStackDao().deleteAll(slot)
+                    database.manualInstanceDao().deleteAll(slot)
                     database.pillDao().deleteAll(slot)
                     database.materialDao().deleteAll(slot)
                     database.seedDao().deleteAll(slot)
@@ -465,8 +470,6 @@ class StorageEngine @Inject constructor(
                 SaveData(
                     gameData = gameData,
                     disciples = emptyList(),
-                    equipment = emptyList(),
-                    manuals = emptyList(),
                     pills = emptyList(),
                     materials = emptyList(),
                     herbs = emptyList(),
@@ -640,15 +643,19 @@ class StorageEngine @Inject constructor(
             database.discipleAttributesDao().insertAll(batch.map { d -> DiscipleAttributes.fromDisciple(d).copy(slotId = slot) })
         }
 
-        database.equipmentDao().deleteAll(slot)
-        database.manualDao().deleteAll(slot)
+        database.equipmentStackDao().deleteAll(slot)
+        database.equipmentInstanceDao().deleteAll(slot)
+        database.manualStackDao().deleteAll(slot)
+        database.manualInstanceDao().deleteAll(slot)
         database.pillDao().deleteAll(slot)
         database.materialDao().deleteAll(slot)
         database.herbDao().deleteAll(slot)
         database.seedDao().deleteAll(slot)
 
-        data.equipment.chunked(MAX_BATCH_SIZE).forEach { database.equipmentDao().insertAll(it.map { e -> e.copy(slotId = slot) }) }
-        data.manuals.chunked(MAX_BATCH_SIZE).forEach { database.manualDao().insertAll(it.map { m -> m.copy(slotId = slot) }) }
+        data.equipmentStacks.chunked(MAX_BATCH_SIZE).forEach { database.equipmentStackDao().insertAll(it.map { e -> e.copy(slotId = slot) }) }
+        data.equipmentInstances.chunked(MAX_BATCH_SIZE).forEach { database.equipmentInstanceDao().insertAll(it.map { e -> e.copy(slotId = slot) }) }
+        data.manualStacks.chunked(MAX_BATCH_SIZE).forEach { database.manualStackDao().insertAll(it.map { m -> m.copy(slotId = slot) }) }
+        data.manualInstances.chunked(MAX_BATCH_SIZE).forEach { database.manualInstanceDao().insertAll(it.map { m -> m.copy(slotId = slot) }) }
         data.pills.chunked(MAX_BATCH_SIZE).forEach { database.pillDao().insertAll(it.map { p -> p.copy(slotId = slot) }) }
         data.materials.chunked(MAX_BATCH_SIZE).forEach { database.materialDao().insertAll(it.map { m -> m.copy(slotId = slot) }) }
         data.herbs.chunked(MAX_BATCH_SIZE).forEach { database.herbDao().insertAll(it.map { h -> h.copy(slotId = slot) }) }
@@ -735,8 +742,10 @@ class StorageEngine @Inject constructor(
             val gameData = database.gameDataDao().getGameDataSync(slot) ?: return null
 
             val disciples = database.discipleDao().getAllSync(slot)
-            val equipment = database.equipmentDao().getAllSync(slot)
-            val manuals = database.manualDao().getAllSync(slot)
+            val equipmentStacks = database.equipmentStackDao().getAllSync(slot)
+            val equipmentInstances = database.equipmentInstanceDao().getAllSync(slot)
+            val manualStacks = database.manualStackDao().getAllSync(slot)
+            val manualInstances = database.manualInstanceDao().getAllSync(slot)
             val pills = database.pillDao().getAllSync(slot)
             val materials = database.materialDao().getAllSync(slot)
             val herbs = database.herbDao().getAllSync(slot)
@@ -755,11 +764,21 @@ class StorageEngine @Inject constructor(
                 }
             }
 
+            val fixedDisciples = fixStorageBagReferences(
+                equipmentStacks = equipmentStacks,
+                equipmentInstances = equipmentInstances,
+                manualStacks = manualStacks,
+                manualInstances = manualInstances,
+                disciples = disciples
+            )
+
             SaveData(
                 gameData = gameData,
-                disciples = disciples,
-                equipment = equipment,
-                manuals = manuals,
+                disciples = fixedDisciples,
+                equipmentStacks = equipmentStacks,
+                equipmentInstances = equipmentInstances,
+                manualStacks = manualStacks,
+                manualInstances = manualInstances,
                 pills = pills,
                 materials = materials,
                 herbs = herbs,

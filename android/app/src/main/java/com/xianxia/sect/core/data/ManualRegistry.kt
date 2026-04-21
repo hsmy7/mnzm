@@ -3,7 +3,7 @@ package com.xianxia.sect.core.data
 import android.content.Context
 import android.util.Log
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.model.Manual
+import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.model.ManualType
 
 /**
@@ -132,7 +132,7 @@ class ManualRegistry : BaseTemplateRegistry<ManualDatabase.ManualTemplate>() {
      * @param template 功法模板
      * @return 新生成的功法实例
      */
-    fun createFromTemplate(template: ManualDatabase.ManualTemplate): Manual {
+    fun createFromTemplate(template: ManualDatabase.ManualTemplate): ManualStack {
         checkInitialization()
         return ManualDatabase.createFromTemplate(template)
     }
@@ -149,7 +149,7 @@ class ManualRegistry : BaseTemplateRegistry<ManualDatabase.ManualTemplate>() {
         minRarity: Int = 1,
         maxRarity: Int = 6,
         type: ManualType? = null
-    ): Manual {
+    ): ManualStack {
         checkInitialization()
         return ManualDatabase.generateRandom(minRarity, maxRarity, type)
     }

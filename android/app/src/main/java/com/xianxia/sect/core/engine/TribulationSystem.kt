@@ -1,10 +1,8 @@
-@file:Suppress("DEPRECATION")
-
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.model.Disciple
-import com.xianxia.sect.core.model.Equipment
-import com.xianxia.sect.core.model.Manual
+import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualProficiencyData
 import com.xianxia.sect.core.GameConfig
 import kotlin.random.Random
@@ -44,15 +42,15 @@ object TribulationSystem {
     
     fun trialThunderTribulation(
         disciple: Disciple,
-        equipmentMap: Map<String, Equipment> = emptyMap(),
-        manualMap: Map<String, Manual> = emptyMap(),
+        equipmentInstanceMap: Map<String, EquipmentInstance> = emptyMap(),
+        manualInstanceMap: Map<String, ManualInstance> = emptyMap(),
         manualProficiencies: Map<String, ManualProficiencyData> = emptyMap()
     ): TribulationResult {
         val newRealmIndex = disciple.realm - 1
         val thunderTribulation = createThunderTribulation(newRealmIndex)
         val newRealmName = GameConfig.Realm.getName(newRealmIndex)
         
-        val finalStats = disciple.getFinalStats(equipmentMap, manualMap, manualProficiencies)
+        val finalStats = disciple.getFinalStats(equipmentInstanceMap, manualInstanceMap, manualProficiencies)
         
         var discipleHp = finalStats.maxHp
         var totalDamage = 0

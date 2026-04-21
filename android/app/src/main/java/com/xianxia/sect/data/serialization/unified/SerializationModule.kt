@@ -991,8 +991,8 @@ class SaveDataConverter @Inject constructor() {
             timestamp = saveData.timestamp ?: System.currentTimeMillis(),
             gameData = convertGameData(saveData.gameData),
             disciples = saveData.disciples?.map { convertDisciple(it) } ?: emptyList(),
-            equipment = saveData.equipment?.map { convertEquipment(it) } ?: emptyList(),
-            manuals = saveData.manuals?.map { convertManual(it) } ?: emptyList(),
+            equipment = saveData.equipmentInstances?.map { convertEquipment(it) } ?: emptyList(),
+            manuals = saveData.manualInstances?.map { convertManual(it) } ?: emptyList(),
             pills = saveData.pills?.map { convertPill(it) } ?: emptyList(),
             materials = saveData.materials?.map { convertMaterial(it) } ?: emptyList(),
             herbs = saveData.herbs?.map { convertHerb(it) } ?: emptyList(),
@@ -1010,8 +1010,10 @@ class SaveDataConverter @Inject constructor() {
             timestamp = data.timestamp,
             gameData = convertBackGameData(data.gameData),
             disciples = data.disciples.map { convertBackDisciple(it) },
-            equipment = data.equipment.map { convertBackEquipment(it) },
-            manuals = data.manuals.map { convertBackManual(it) },
+            equipmentStacks = emptyList(),
+            equipmentInstances = data.equipment.map { convertBackEquipment(it) },
+            manualStacks = emptyList(),
+            manualInstances = data.manuals.map { convertBackManual(it) },
             pills = data.pills.map { convertBackPill(it) },
             materials = data.materials.map { convertBackMaterial(it) },
             herbs = data.herbs.map { convertBackHerb(it) },
@@ -1495,7 +1497,7 @@ class SaveDataConverter @Inject constructor() {
         )
     }
 
-    private fun convertEquipment(equipment: com.xianxia.sect.core.model.Equipment): SerializableEquipment {
+    private fun convertEquipment(equipment: com.xianxia.sect.core.model.EquipmentInstance): SerializableEquipment {
         return SerializableEquipment(
             id = equipment.id,
             name = equipment.name,
@@ -1518,14 +1520,14 @@ class SaveDataConverter @Inject constructor() {
             nurtureProgress = equipment.nurtureProgress,
             minRealm = equipment.minRealm,
             ownerId = equipment.ownerId ?: "",
-            quantity = equipment.quantity
+            quantity = 1
         )
     }
 
-    private fun convertBackEquipment(data: SerializableEquipment): com.xianxia.sect.core.model.Equipment {
+    private fun convertBackEquipment(data: SerializableEquipment): com.xianxia.sect.core.model.EquipmentInstance {
         val ownerId = data.ownerId.ifEmpty { null }
 
-        return com.xianxia.sect.core.model.Equipment(
+        return com.xianxia.sect.core.model.EquipmentInstance(
             id = data.id,
             name = data.name,
             rarity = data.rarity,
@@ -1543,12 +1545,11 @@ class SaveDataConverter @Inject constructor() {
             nurtureProgress = data.nurtureProgress,
             minRealm = data.minRealm ?: 9,
             ownerId = ownerId,
-            isEquipped = data.isEquipped,
-            quantity = data.quantity ?: 1
+            isEquipped = data.isEquipped
         )
     }
 
-    private fun convertManual(manual: com.xianxia.sect.core.model.Manual): SerializableManual {
+    private fun convertManual(manual: com.xianxia.sect.core.model.ManualInstance): SerializableManual {
         return SerializableManual(
             id = manual.id,
             name = manual.name,
@@ -1559,14 +1560,16 @@ class SaveDataConverter @Inject constructor() {
         )
     }
 
-    private fun convertBackManual(data: SerializableManual): com.xianxia.sect.core.model.Manual {
-        return com.xianxia.sect.core.model.Manual(
+    private fun convertBackManual(data: SerializableManual): com.xianxia.sect.core.model.ManualInstance {
+        return com.xianxia.sect.core.model.ManualInstance(
             id = data.id,
             name = data.name,
             rarity = data.rarity,
             type = safeEnumValueOf(data.type, com.xianxia.sect.core.model.ManualType.MIND, "type", "Manual"),
             stats = data.stats,
-            description = data.description
+            description = data.description,
+            ownerId = null,
+            isLearned = false
         )
     }
 

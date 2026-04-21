@@ -1,4 +1,4 @@
-﻿package com.xianxia.sect.ui.game.components
+package com.xianxia.sect.ui.game.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -41,13 +41,25 @@ fun ItemDetailDialog(
     val effects: List<String>
     
     when (item) {
-        is Equipment -> {
+        is EquipmentStack -> {
+            name = item.name
+            rarity = item.rarity
+            description = item.description
+            effects = getEquipmentStackEffects(item)
+        }
+        is EquipmentInstance -> {
             name = item.name
             rarity = item.rarity
             description = item.description
             effects = getEquipmentEffects(item)
         }
-        is Manual -> {
+        is ManualStack -> {
+            name = item.name
+            rarity = item.rarity
+            description = item.description
+            effects = getManualStackEffects(item)
+        }
+        is ManualInstance -> {
             name = item.name
             rarity = item.rarity
             description = item.description
@@ -171,9 +183,10 @@ fun ItemDetailDialog(
     )
 }
 
+@Suppress("DEPRECATION")
 @Composable
 fun LearnedManualDetailDialog(
-    manual: Manual,
+    manual: ManualInstance,
     proficiencyData: ManualProficiencyData?,
     onForget: () -> Unit,
     onDismiss: () -> Unit,
@@ -362,8 +375,9 @@ fun LearnedManualDetailDialog(
 }
 
 @Composable
+@Suppress("DEPRECATION")
 private fun ManualStatsContent(
-    manual: Manual,
+    manual: ManualInstance,
     bonusMultiplier: Double,
     rarityColor: Color
 ) {
@@ -488,7 +502,28 @@ private fun ManualStatsContent(
     }
 }
 
-private fun getEquipmentEffects(item: Equipment): List<String> = buildList {
+@Suppress("DEPRECATION")
+private fun getEquipmentStackEffects(item: EquipmentStack): List<String> = buildList {
+    add("部位: ${item.slot.displayName}")
+    add("稀有度: ${getRarityName(item.rarity)}")
+    add("数量: ${item.quantity}")
+    if (item.minRealm < 9) {
+        add("需求境界: ${GameConfig.Realm.getName(item.minRealm)}")
+    }
+    add("")
+    add("属性:")
+    if (item.physicalAttack > 0) add("  物理攻击 +${item.physicalAttack}")
+    if (item.magicAttack > 0) add("  法术攻击 +${item.magicAttack}")
+    if (item.physicalDefense > 0) add("  物理防御 +${item.physicalDefense}")
+    if (item.magicDefense > 0) add("  法术防御 +${item.magicDefense}")
+    if (item.speed > 0) add("  速度 +${item.speed}")
+    if (item.hp > 0) add("  生命 +${item.hp}")
+    if (item.mp > 0) add("  灵力 +${item.mp}")
+    if (item.critChance > 0) add("  暴击率 +${String.format(Locale.getDefault(), "%.1f", item.critChance * 100)}%")
+}
+
+@Suppress("DEPRECATION")
+private fun getEquipmentEffects(item: EquipmentInstance): List<String> = buildList {
     add("部位: ${item.slot.displayName}")
     add("稀有度: ${getRarityName(item.rarity)}")
     if (item.minRealm < 9) {
@@ -543,7 +578,39 @@ private fun getEquipmentEffects(item: Equipment): List<String> = buildList {
     if (item.critChance > 0) add("  暴击率 +${String.format(Locale.getDefault(), "%.1f", item.critChance * 100)}%")
 }
 
-private fun getManualEffects(item: Manual): List<String> = buildList {
+@Suppress("DEPRECATION")
+private fun getManualStackEffects(item: ManualStack): List<String> = buildList {
+    add("类型: ${item.type.displayName}")
+    add("数量: ${item.quantity}")
+    if (item.minRealm < 9) {
+        add("需求境界: ${GameConfig.Realm.getName(item.minRealm)}")
+    }
+    add("")
+    val stats = item.stats
+    if (stats.isNotEmpty()) {
+        add("属性加成:")
+        stats.forEach { (key, value) ->
+            val statName = getStatDisplayName(key)
+            if (key.contains("Percent")) {
+                add("  $statName +$value%")
+            } else {
+                add("  $statName +$value")
+            }
+        }
+    }
+    item.skillName?.let { sName ->
+        add("")
+        add("技能: $sName")
+        item.skillDescription?.let { sDesc ->
+            if (sDesc.isNotEmpty()) {
+                add("  $sDesc")
+            }
+        }
+    }
+}
+
+@Suppress("DEPRECATION")
+private fun getManualEffects(item: ManualInstance): List<String> = buildList {
     add("类型: ${item.type.displayName}")
     if (item.minRealm < 9) {
         add("需求境界: ${GameConfig.Realm.getName(item.minRealm)}")

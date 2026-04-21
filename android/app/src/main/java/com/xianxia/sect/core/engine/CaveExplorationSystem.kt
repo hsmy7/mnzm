@@ -1,5 +1,3 @@
-@file:Suppress("DEPRECATION")
-
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.CombatantSide
@@ -45,8 +43,8 @@ object CaveExplorationSystem {
     
     fun createAIBattle(
         playerDisciples: List<Disciple>,
-        playerEquipmentMap: Map<String, Equipment>,
-        playerManualMap: Map<String, Manual>,
+        playerEquipmentMap: Map<String, EquipmentInstance>,
+        playerManualMap: Map<String, ManualInstance>,
         playerManualProficiencies: Map<String, Map<String, ManualProficiencyData>>,
         aiTeam: AICaveTeam
     ): Battle {
@@ -129,8 +127,8 @@ object CaveExplorationSystem {
     
     fun createGuardianBattle(
         playerDisciples: List<Disciple>,
-        playerEquipmentMap: Map<String, Equipment>,
-        playerManualMap: Map<String, Manual>,
+        playerEquipmentMap: Map<String, EquipmentInstance>,
+        playerManualMap: Map<String, ManualInstance>,
         playerManualProficiencies: Map<String, Map<String, ManualProficiencyData>>,
         cave: CultivatorCave
     ): Battle {

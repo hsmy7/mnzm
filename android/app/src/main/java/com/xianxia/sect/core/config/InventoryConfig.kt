@@ -26,8 +26,10 @@ class InventoryConfig @Inject constructor() {
         typeSpecificStackLimits["material"] = 9999
         typeSpecificStackLimits["herb"] = 999
         typeSpecificStackLimits["seed"] = 99
-        typeSpecificStackLimits["manual"] = 99
-        typeSpecificStackLimits["equipment"] = 1
+        typeSpecificStackLimits["manual_stack"] = 99
+        typeSpecificStackLimits["manual_instance"] = 1
+        typeSpecificStackLimits["equipment_stack"] = 99
+        typeSpecificStackLimits["equipment_instance"] = 1
     }
     
     fun getMaxStackSize(itemType: String): Int = typeSpecificStackLimits[itemType.lowercase()] ?: maxStackSize
@@ -126,8 +128,10 @@ class InventoryConfig @Inject constructor() {
         typeSpecificStackLimits["material"] = 9999
         typeSpecificStackLimits["herb"] = 999
         typeSpecificStackLimits["seed"] = 99
-        typeSpecificStackLimits["manual"] = 99
-        typeSpecificStackLimits["equipment"] = 1
+        typeSpecificStackLimits["manual_stack"] = 99
+        typeSpecificStackLimits["manual_instance"] = 1
+        typeSpecificStackLimits["equipment_stack"] = 99
+        typeSpecificStackLimits["equipment_instance"] = 1
     }
     
     companion object {

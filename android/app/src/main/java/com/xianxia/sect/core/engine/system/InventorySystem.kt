@@ -2,16 +2,14 @@ package com.xianxia.sect.core.engine.system
 
 import android.util.Log
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.data.BeastMaterialDatabase
+import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.data.EquipmentDatabase
-import com.xianxia.sect.core.data.HerbDatabase
-import com.xianxia.sect.core.data.ItemDatabase
-import com.xianxia.sect.core.data.ManualDatabase
-import com.xianxia.sect.core.data.PillRecipeDatabase
 import com.xianxia.sect.core.data.ForgeRecipeDatabase.ForgeRecipe
-import com.xianxia.sect.core.model.Equipment
+import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.Herb
-import com.xianxia.sect.core.model.Manual
+import com.xianxia.sect.core.model.ManualInstance
+import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.ManualType
 import com.xianxia.sect.core.model.Material
@@ -45,25 +43,33 @@ data class CapacityInfo(
     val isFull: Boolean
 )
 
+data class StackUpdate(
+    val stackId: String,
+    val newQuantity: Int,
+    val isDeletion: Boolean = false
+)
+
 @SystemPriority(order = 50)
 @Singleton
 class InventorySystem @Inject constructor(
     private val stateStore: GameStateStore,
-    private val applicationScopeProvider: ApplicationScopeProvider
+    private val applicationScopeProvider: ApplicationScopeProvider,
+    private val inventoryConfig: InventoryConfig
 ) : GameSystem, ItemAdder {
 
     companion object {
         private const val TAG = "InventorySystem"
         const val SYSTEM_NAME = "InventorySystem"
         const val MAX_INVENTORY_SIZE = 2000
-        const val MAX_STACK_SIZE = 999
         private val VALID_RARITY_RANGE = 1..6
     }
 
     private val scope get() = applicationScopeProvider.scope
 
-    val equipment: StateFlow<List<Equipment>> get() = stateStore.equipment
-    val manuals: StateFlow<List<Manual>> get() = stateStore.manuals
+    val equipmentStacks: StateFlow<List<EquipmentStack>> get() = stateStore.equipmentStacks
+    val equipmentInstances: StateFlow<List<EquipmentInstance>> get() = stateStore.equipmentInstances
+    val manualStacks: StateFlow<List<ManualStack>> get() = stateStore.manualStacks
+    val manualInstances: StateFlow<List<ManualInstance>> get() = stateStore.manualInstances
     val pills: StateFlow<List<Pill>> get() = stateStore.pills
     val materials: StateFlow<List<Material>> get() = stateStore.materials
     val herbs: StateFlow<List<Herb>> get() = stateStore.herbs
@@ -81,8 +87,10 @@ class InventorySystem @Inject constructor(
 
     override suspend fun clear() {
         stateStore.update {
-            equipment = emptyList()
-            manuals = emptyList()
+            equipmentStacks = emptyList()
+            equipmentInstances = emptyList()
+            manualStacks = emptyList()
+            manualInstances = emptyList()
             pills = emptyList()
             materials = emptyList()
             herbs = emptyList()
@@ -91,8 +99,10 @@ class InventorySystem @Inject constructor(
     }
 
     fun loadInventory(
-        equipmentList: List<Equipment>,
-        manualsList: List<Manual>,
+        equipmentStacksList: List<EquipmentStack>,
+        equipmentInstancesList: List<EquipmentInstance>,
+        manualStacksList: List<ManualStack>,
+        manualInstancesList: List<ManualInstance>,
         pillsList: List<Pill>,
         materialsList: List<Material>,
         herbsList: List<Herb>,
@@ -100,16 +110,20 @@ class InventorySystem @Inject constructor(
     ) {
         val ts = stateStore.currentTransactionMutableState()
         if (ts != null) {
-            ts.equipment = equipmentList
-            ts.manuals = manualsList
+            ts.equipmentStacks = equipmentStacksList
+            ts.equipmentInstances = equipmentInstancesList
+            ts.manualStacks = manualStacksList
+            ts.manualInstances = manualInstancesList
             ts.pills = pillsList
             ts.materials = materialsList
             ts.herbs = herbsList
             ts.seeds = seedsList
         } else {
             scope.launch { stateStore.update {
-                equipment = equipmentList
-                manuals = manualsList
+                equipmentStacks = equipmentStacksList
+                equipmentInstances = equipmentInstancesList
+                manualStacks = manualStacksList
+                manualInstances = manualInstancesList
                 pills = pillsList
                 materials = materialsList
                 herbs = herbsList
@@ -128,9 +142,13 @@ class InventorySystem @Inject constructor(
 
     private fun logWarning(msg: String) = Log.w(TAG, msg)
 
+    private fun getMaxStackForType(type: String): Int = inventoryConfig.getMaxStackSize(type)
+
     private fun getTotalSlotCount(): Int {
-        return stateStore.equipment.value.size +
-               stateStore.manuals.value.size +
+        return stateStore.equipmentStacks.value.size +
+               stateStore.equipmentInstances.value.size +
+               stateStore.manualStacks.value.size +
+               stateStore.manualInstances.value.size +
                stateStore.pills.value.size +
                stateStore.materials.value.size +
                stateStore.herbs.value.size +
@@ -153,8 +171,8 @@ class InventorySystem @Inject constructor(
 
     fun canAddEquipment(name: String, rarity: Int, slot: EquipmentSlot): Boolean {
         val ts = stateStore.currentTransactionMutableState()
-        val current = ts?.equipment ?: stateStore.equipment.value
-        val canMerge = current.any { it.name == name && it.rarity == rarity && it.slot == slot && !it.isEquipped }
+        val current = ts?.equipmentStacks ?: stateStore.equipmentStacks.value
+        val canMerge = current.any { it.name == name && it.rarity == rarity && it.slot == slot }
         return canMerge || canAddItem()
     }
 
@@ -167,8 +185,8 @@ class InventorySystem @Inject constructor(
 
     fun canAddManual(name: String, rarity: Int, type: ManualType): Boolean {
         val ts = stateStore.currentTransactionMutableState()
-        val current = ts?.manuals ?: stateStore.manuals.value
-        val canMerge = current.any { it.name == name && it.rarity == rarity && it.type == type && !it.isLearned }
+        val current = ts?.manualStacks ?: stateStore.manualStacks.value
+        val canMerge = current.any { it.name == name && it.rarity == rarity && it.type == type }
         return canMerge || canAddItem()
     }
 
@@ -193,13 +211,6 @@ class InventorySystem @Inject constructor(
         return canMerge || canAddItem()
     }
 
-    private fun validateEquipment(item: Equipment): AddResult {
-        if (item.id.isBlank()) return AddResult.INVALID_ID
-        if (item.name.isBlank()) return AddResult.INVALID_NAME
-        if (item.rarity !in VALID_RARITY_RANGE) return AddResult.INVALID_RARITY
-        return AddResult.SUCCESS
-    }
-
     private fun validateStackableItem(name: String, rarity: Int, quantity: Int): AddResult {
         if (name.isBlank()) return AddResult.INVALID_NAME
         if (rarity !in VALID_RARITY_RANGE) return AddResult.INVALID_RARITY
@@ -207,25 +218,26 @@ class InventorySystem @Inject constructor(
         return AddResult.SUCCESS
     }
 
-    override fun addEquipment(item: Equipment): AddResult {
-        val validation = validateEquipment(item)
+    override fun addEquipmentStack(item: EquipmentStack): AddResult {
+        val validation = validateStackableItem(item.name, item.rarity, item.quantity)
         if (validation != AddResult.SUCCESS) return validation
 
         val ts = stateStore.currentTransactionMutableState()
-        val currentEquipment = ts?.equipment ?: stateStore.equipment.value
+        val currentStacks = ts?.equipmentStacks ?: stateStore.equipmentStacks.value
+        val maxStack = getMaxStackForType("equipment_stack")
 
-        val existing = currentEquipment.find {
-            it.name == item.name && it.rarity == item.rarity && it.slot == item.slot && !it.isEquipped
+        val existing = currentStacks.find {
+            it.name == item.name && it.rarity == item.rarity && it.slot == item.slot
         }
         if (existing != null) {
-            val newQty = (existing.quantity + item.quantity).coerceAtMost(MAX_STACK_SIZE)
+            val newQty = (existing.quantity + item.quantity).coerceAtMost(maxStack)
             if (ts != null) {
-                ts.equipment = ts.equipment.map {
+                ts.equipmentStacks = ts.equipmentStacks.map {
                     if (it.id == existing.id) it.copy(quantity = newQty) else it
                 }
             } else {
                 scope.launch { stateStore.update {
-                    equipment = equipment.map {
+                    equipmentStacks = equipmentStacks.map {
                         if (it.id == existing.id) it.copy(quantity = newQty) else it
                     }
                 } }
@@ -234,94 +246,56 @@ class InventorySystem @Inject constructor(
         }
         if (!canAddItem()) return AddResult.FULL
         if (ts != null) {
-            ts.equipment = ts.equipment + item
+            ts.equipmentStacks = ts.equipmentStacks + item
         } else {
             scope.launch { stateStore.update {
-                equipment = equipment + item
+                equipmentStacks = equipmentStacks + item
             } }
         }
         return AddResult.SUCCESS
     }
 
-    fun removeEquipment(id: String, quantity: Int = 1): Boolean {
-        if (!validateQuantity(quantity, "remove quantity")) return false
-        val existing = stateStore.equipment.value.find { it.id == id }
-        if (existing?.isLocked == true) {
-            logWarning("Cannot remove locked equipment: ${existing.name}")
-            return false
-        }
+    override fun addEquipmentInstance(item: EquipmentInstance): AddResult {
+        if (item.id.isBlank()) return AddResult.INVALID_ID
+        if (item.name.isBlank()) return AddResult.INVALID_NAME
+        if (item.rarity !in VALID_RARITY_RANGE) return AddResult.INVALID_RARITY
 
-        var removed = 0
         val ts = stateStore.currentTransactionMutableState()
+        val currentInstances = ts?.equipmentInstances ?: stateStore.equipmentInstances.value
+        if (currentInstances.any { it.id == item.id }) return AddResult.DUPLICATE_ID
+        if (!canAddItem()) return AddResult.FULL
+
         if (ts != null) {
-            val newList = ts.equipment.filterNot { eq ->
-                if (eq.id == id && removed < quantity) {
-                    removed++
-                    true
-                } else false
-            }
-            ts.equipment = newList
+            ts.equipmentInstances = ts.equipmentInstances + item
         } else {
             scope.launch { stateStore.update {
-                val newList = equipment.filterNot { eq ->
-                    if (eq.id == id && removed < quantity) {
-                        removed++
-                        true
-                    } else false
-                }
-                equipment = newList
+                equipmentInstances = equipmentInstances + item
             } }
         }
-        return removed > 0
+        return AddResult.SUCCESS
     }
 
-    fun updateEquipment(id: String, transform: (Equipment) -> Equipment): Boolean {
-        var found = false
-        val ts = stateStore.currentTransactionMutableState()
-        if (ts != null) {
-            ts.equipment = ts.equipment.map {
-                if (it.id == id) {
-                    found = true
-                    transform(it)
-                } else it
-            }
-        } else {
-            scope.launch { stateStore.update {
-                equipment = equipment.map {
-                    if (it.id == id) {
-                        found = true
-                        transform(it)
-                    } else it
-                }
-            } }
-        }
-        return found
-    }
-
-    fun getEquipmentById(id: String): Equipment? {
-        return stateStore.equipment.value.find { it.id == id }
-    }
-
-    fun addManual(item: Manual, merge: Boolean = true): AddResult {
+    override fun addManualStack(item: ManualStack, merge: Boolean): AddResult {
         val validation = validateStackableItem(item.name, item.rarity, item.quantity)
         if (validation != AddResult.SUCCESS) return validation
 
         val ts = stateStore.currentTransactionMutableState()
-        val currentManuals = ts?.manuals ?: stateStore.manuals.value
+        val currentStacks = ts?.manualStacks ?: stateStore.manualStacks.value
+        val maxStack = getMaxStackForType("manual_stack")
 
         if (merge) {
-            val existing = currentManuals.find {
-                it.name == item.name && it.rarity == item.rarity && it.type == item.type && !it.isLearned
+            val existing = currentStacks.find {
+                it.name == item.name && it.rarity == item.rarity && it.type == item.type
             }
             if (existing != null) {
-                val newQty = (existing.quantity + item.quantity).coerceAtMost(MAX_STACK_SIZE)
+                val newQty = (existing.quantity + item.quantity).coerceAtMost(maxStack)
                 if (ts != null) {
-                    ts.manuals = ts.manuals.map {
+                    ts.manualStacks = ts.manualStacks.map {
                         if (it.id == existing.id) it.copy(quantity = newQty) else it
                     }
                 } else {
                     scope.launch { stateStore.update {
-                        manuals = manuals.map {
+                        manualStacks = manualStacks.map {
                             if (it.id == existing.id) it.copy(quantity = newQty) else it
                         }
                     } }
@@ -331,33 +305,123 @@ class InventorySystem @Inject constructor(
         }
         if (!canAddItem()) return AddResult.FULL
         if (ts != null) {
-            ts.manuals = ts.manuals + item
+            ts.manualStacks = ts.manualStacks + item
         } else {
             scope.launch { stateStore.update {
-                manuals = manuals + item
+                manualStacks = manualStacks + item
             } }
         }
         return AddResult.SUCCESS
     }
 
-    fun removeManual(id: String, quantity: Int = 1): Boolean {
+    override fun addManualInstance(item: ManualInstance): AddResult {
+        if (item.id.isBlank()) return AddResult.INVALID_ID
+        if (item.name.isBlank()) return AddResult.INVALID_NAME
+        if (item.rarity !in VALID_RARITY_RANGE) return AddResult.INVALID_RARITY
+
+        val ts = stateStore.currentTransactionMutableState()
+        val currentInstances = ts?.manualInstances ?: stateStore.manualInstances.value
+        if (currentInstances.any { it.id == item.id }) return AddResult.DUPLICATE_ID
+        if (!canAddItem()) return AddResult.FULL
+
+        if (ts != null) {
+            ts.manualInstances = ts.manualInstances + item
+        } else {
+            scope.launch { stateStore.update {
+                manualInstances = manualInstances + item
+            } }
+        }
+        return AddResult.SUCCESS
+    }
+
+    fun returnEquipmentToStack(instance: EquipmentInstance): AddResult {
+        val ts = stateStore.currentTransactionMutableState()
+        val currentStacks = ts?.equipmentStacks ?: stateStore.equipmentStacks.value
+        val maxStack = getMaxStackForType("equipment_stack")
+
+        val existing = currentStacks.find {
+            it.name == instance.name && it.rarity == instance.rarity && it.slot == instance.slot
+        }
+        if (existing != null) {
+            val newQty = (existing.quantity + 1).coerceAtMost(maxStack)
+            if (ts != null) {
+                ts.equipmentStacks = ts.equipmentStacks.map {
+                    if (it.id == existing.id) it.copy(quantity = newQty) else it
+                }
+            } else {
+                scope.launch { stateStore.update {
+                    equipmentStacks = equipmentStacks.map {
+                        if (it.id == existing.id) it.copy(quantity = newQty) else it
+                    }
+                } }
+            }
+            return AddResult.SUCCESS
+        }
+        if (!canAddItem()) return AddResult.FULL
+        val newStack = instance.toStack(quantity = 1)
+        if (ts != null) {
+            ts.equipmentStacks = ts.equipmentStacks + newStack
+        } else {
+            scope.launch { stateStore.update {
+                equipmentStacks = equipmentStacks + newStack
+            } }
+        }
+        return AddResult.SUCCESS
+    }
+
+    fun returnManualToStack(instance: ManualInstance): AddResult {
+        val ts = stateStore.currentTransactionMutableState()
+        val currentStacks = ts?.manualStacks ?: stateStore.manualStacks.value
+        val maxStack = getMaxStackForType("manual_stack")
+
+        val existing = currentStacks.find {
+            it.name == instance.name && it.rarity == instance.rarity && it.type == instance.type
+        }
+        if (existing != null) {
+            val newQty = (existing.quantity + 1).coerceAtMost(maxStack)
+            if (ts != null) {
+                ts.manualStacks = ts.manualStacks.map {
+                    if (it.id == existing.id) it.copy(quantity = newQty) else it
+                }
+            } else {
+                scope.launch { stateStore.update {
+                    manualStacks = manualStacks.map {
+                        if (it.id == existing.id) it.copy(quantity = newQty) else it
+                    }
+                } }
+            }
+            return AddResult.SUCCESS
+        }
+        if (!canAddItem()) return AddResult.FULL
+        val newStack = instance.toStack(quantity = 1)
+        if (ts != null) {
+            ts.manualStacks = ts.manualStacks + newStack
+        } else {
+            scope.launch { stateStore.update {
+                manualStacks = manualStacks + newStack
+            } }
+        }
+        return AddResult.SUCCESS
+    }
+
+    fun removeEquipment(id: String, quantity: Int = 1): Boolean {
         if (!validateQuantity(quantity, "remove quantity")) return false
-        val existing = stateStore.manuals.value.find { it.id == id }
+        val existing = stateStore.equipmentStacks.value.find { it.id == id }
         if (existing?.isLocked == true) {
-            logWarning("Cannot remove locked manual: ${existing.name}")
+            logWarning("Cannot remove locked equipment stack: ${existing.name}")
             return false
         }
 
         var removed = false
         val ts = stateStore.currentTransactionMutableState()
         if (ts != null) {
-            ts.manuals = ts.manuals.mapNotNull { manual ->
-                if (manual.id == id && !removed) {
-                    val newQty = manual.quantity - quantity
+            ts.equipmentStacks = ts.equipmentStacks.mapNotNull { stack ->
+                if (stack.id == id && !removed) {
+                    val newQty = stack.quantity - quantity
                     when {
                         newQty < 0 -> {
-                            logWarning("Cannot remove $quantity items, only ${manual.quantity} available")
-                            manual
+                            logWarning("Cannot remove $quantity items, only ${stack.quantity} available")
+                            stack
                         }
                         newQty == 0 -> {
                             removed = true
@@ -365,20 +429,20 @@ class InventorySystem @Inject constructor(
                         }
                         else -> {
                             removed = true
-                            manual.copy(quantity = newQty)
+                            stack.copy(quantity = newQty)
                         }
                     }
-                } else manual
+                } else stack
             }
         } else {
             scope.launch { stateStore.update {
-                manuals = manuals.mapNotNull { manual ->
-                    if (manual.id == id && !removed) {
-                        val newQty = manual.quantity - quantity
+                equipmentStacks = equipmentStacks.mapNotNull { stack ->
+                    if (stack.id == id && !removed) {
+                        val newQty = stack.quantity - quantity
                         when {
                             newQty < 0 -> {
-                                logWarning("Cannot remove $quantity items, only ${manual.quantity} available")
-                                manual
+                                logWarning("Cannot remove $quantity items, only ${stack.quantity} available")
+                                stack
                             }
                             newQty == 0 -> {
                                 removed = true
@@ -386,21 +450,44 @@ class InventorySystem @Inject constructor(
                             }
                             else -> {
                                 removed = true
-                                manual.copy(quantity = newQty)
+                                stack.copy(quantity = newQty)
                             }
                         }
-                    } else manual
+                    } else stack
                 }
             } }
         }
         return removed
     }
 
-    fun updateManual(id: String, transform: (Manual) -> Manual): Boolean {
+    fun removeEquipmentInstance(id: String): Boolean {
+        val existing = stateStore.equipmentInstances.value.find { it.id == id }
+        if (existing?.isLocked == true) {
+            logWarning("Cannot remove locked equipment instance: ${existing.name}")
+            return false
+        }
+
+        var removed = false
+        val ts = stateStore.currentTransactionMutableState()
+        if (ts != null) {
+            val oldSize = ts.equipmentInstances.size
+            ts.equipmentInstances = ts.equipmentInstances.filter { it.id != id }
+            removed = ts.equipmentInstances.size < oldSize
+        } else {
+            scope.launch { stateStore.update {
+                val oldSize = equipmentInstances.size
+                equipmentInstances = equipmentInstances.filter { it.id != id }
+                removed = equipmentInstances.size < oldSize
+            } }
+        }
+        return removed
+    }
+
+    fun updateEquipmentStack(id: String, transform: (EquipmentStack) -> EquipmentStack): Boolean {
         var found = false
         val ts = stateStore.currentTransactionMutableState()
         if (ts != null) {
-            ts.manuals = ts.manuals.map {
+            ts.equipmentStacks = ts.equipmentStacks.map {
                 if (it.id == id) {
                     found = true
                     transform(it)
@@ -408,7 +495,7 @@ class InventorySystem @Inject constructor(
             }
         } else {
             scope.launch { stateStore.update {
-                manuals = manuals.map {
+                equipmentStacks = equipmentStacks.map {
                     if (it.id == id) {
                         found = true
                         transform(it)
@@ -419,8 +506,168 @@ class InventorySystem @Inject constructor(
         return found
     }
 
-    fun getManualById(id: String): Manual? {
-        return stateStore.manuals.value.find { it.id == id }
+    fun updateEquipmentInstance(id: String, transform: (EquipmentInstance) -> EquipmentInstance): Boolean {
+        var found = false
+        val ts = stateStore.currentTransactionMutableState()
+        if (ts != null) {
+            ts.equipmentInstances = ts.equipmentInstances.map {
+                if (it.id == id) {
+                    found = true
+                    transform(it)
+                } else it
+            }
+        } else {
+            scope.launch { stateStore.update {
+                equipmentInstances = equipmentInstances.map {
+                    if (it.id == id) {
+                        found = true
+                        transform(it)
+                    } else it
+                }
+            } }
+        }
+        return found
+    }
+
+    fun getEquipmentStackById(id: String): EquipmentStack? {
+        return stateStore.equipmentStacks.value.find { it.id == id }
+    }
+
+    fun getEquipmentInstanceById(id: String): EquipmentInstance? {
+        return stateStore.equipmentInstances.value.find { it.id == id }
+    }
+
+    fun removeManual(id: String, quantity: Int = 1): Boolean {
+        if (!validateQuantity(quantity, "remove quantity")) return false
+        val existing = stateStore.manualStacks.value.find { it.id == id }
+        if (existing?.isLocked == true) {
+            logWarning("Cannot remove locked manual stack: ${existing.name}")
+            return false
+        }
+
+        var removed = false
+        val ts = stateStore.currentTransactionMutableState()
+        if (ts != null) {
+            ts.manualStacks = ts.manualStacks.mapNotNull { stack ->
+                if (stack.id == id && !removed) {
+                    val newQty = stack.quantity - quantity
+                    when {
+                        newQty < 0 -> {
+                            logWarning("Cannot remove $quantity items, only ${stack.quantity} available")
+                            stack
+                        }
+                        newQty == 0 -> {
+                            removed = true
+                            null
+                        }
+                        else -> {
+                            removed = true
+                            stack.copy(quantity = newQty)
+                        }
+                    }
+                } else stack
+            }
+        } else {
+            scope.launch { stateStore.update {
+                manualStacks = manualStacks.mapNotNull { stack ->
+                    if (stack.id == id && !removed) {
+                        val newQty = stack.quantity - quantity
+                        when {
+                            newQty < 0 -> {
+                                logWarning("Cannot remove $quantity items, only ${stack.quantity} available")
+                                stack
+                            }
+                            newQty == 0 -> {
+                                removed = true
+                                null
+                            }
+                            else -> {
+                                removed = true
+                                stack.copy(quantity = newQty)
+                            }
+                        }
+                    } else stack
+                }
+            } }
+        }
+        return removed
+    }
+
+    fun removeManualInstance(id: String): Boolean {
+        val existing = stateStore.manualInstances.value.find { it.id == id }
+        if (existing?.isLocked == true) {
+            logWarning("Cannot remove locked manual instance: ${existing.name}")
+            return false
+        }
+
+        var removed = false
+        val ts = stateStore.currentTransactionMutableState()
+        if (ts != null) {
+            val oldSize = ts.manualInstances.size
+            ts.manualInstances = ts.manualInstances.filter { it.id != id }
+            removed = ts.manualInstances.size < oldSize
+        } else {
+            scope.launch { stateStore.update {
+                val oldSize = manualInstances.size
+                manualInstances = manualInstances.filter { it.id != id }
+                removed = manualInstances.size < oldSize
+            } }
+        }
+        return removed
+    }
+
+    fun updateManualStack(id: String, transform: (ManualStack) -> ManualStack): Boolean {
+        var found = false
+        val ts = stateStore.currentTransactionMutableState()
+        if (ts != null) {
+            ts.manualStacks = ts.manualStacks.map {
+                if (it.id == id) {
+                    found = true
+                    transform(it)
+                } else it
+            }
+        } else {
+            scope.launch { stateStore.update {
+                manualStacks = manualStacks.map {
+                    if (it.id == id) {
+                        found = true
+                        transform(it)
+                    } else it
+                }
+            } }
+        }
+        return found
+    }
+
+    fun updateManualInstance(id: String, transform: (ManualInstance) -> ManualInstance): Boolean {
+        var found = false
+        val ts = stateStore.currentTransactionMutableState()
+        if (ts != null) {
+            ts.manualInstances = ts.manualInstances.map {
+                if (it.id == id) {
+                    found = true
+                    transform(it)
+                } else it
+            }
+        } else {
+            scope.launch { stateStore.update {
+                manualInstances = manualInstances.map {
+                    if (it.id == id) {
+                        found = true
+                        transform(it)
+                    } else it
+                }
+            } }
+        }
+        return found
+    }
+
+    fun getManualStackById(id: String): ManualStack? {
+        return stateStore.manualStacks.value.find { it.id == id }
+    }
+
+    fun getManualInstanceById(id: String): ManualInstance? {
+        return stateStore.manualInstances.value.find { it.id == id }
     }
 
     fun addPill(item: Pill, merge: Boolean = true): AddResult {
@@ -435,7 +682,8 @@ class InventorySystem @Inject constructor(
                 it.name == item.name && it.rarity == item.rarity && it.category == item.category && it.grade == item.grade
             }
             if (existing != null) {
-                val newQty = (existing.quantity + item.quantity).coerceAtMost(MAX_STACK_SIZE)
+                val maxStack = getMaxStackForType("pill")
+                val newQty = (existing.quantity + item.quantity).coerceAtMost(maxStack)
                 if (ts != null) {
                     ts.pills = ts.pills.map {
                         if (it.id == existing.id) it.copy(quantity = newQty) else it
@@ -618,7 +866,8 @@ class InventorySystem @Inject constructor(
                 it.name == item.name && it.rarity == item.rarity && it.category == item.category
             }
             if (existing != null) {
-                val newQty = (existing.quantity + item.quantity).coerceAtMost(MAX_STACK_SIZE)
+                val maxStack = getMaxStackForType("material")
+                val newQty = (existing.quantity + item.quantity).coerceAtMost(maxStack)
                 if (ts != null) {
                     ts.materials = ts.materials.map {
                         if (it.id == existing.id) it.copy(quantity = newQty) else it
@@ -801,7 +1050,8 @@ class InventorySystem @Inject constructor(
                 it.name == item.name && it.rarity == item.rarity && it.category == item.category
             }
             if (existing != null) {
-                val newQty = (existing.quantity + item.quantity).coerceAtMost(MAX_STACK_SIZE)
+                val maxStack = getMaxStackForType("herb")
+                val newQty = (existing.quantity + item.quantity).coerceAtMost(maxStack)
                 if (ts != null) {
                     ts.herbs = ts.herbs.map {
                         if (it.id == existing.id) it.copy(quantity = newQty) else it
@@ -984,7 +1234,8 @@ class InventorySystem @Inject constructor(
                 it.name == item.name && it.rarity == item.rarity && it.growTime == item.growTime
             }
             if (existing != null) {
-                val newQty = (existing.quantity + item.quantity).coerceAtMost(MAX_STACK_SIZE)
+                val maxStack = getMaxStackForType("seed")
+                val newQty = (existing.quantity + item.quantity).coerceAtMost(maxStack)
                 if (ts != null) {
                     ts.seeds = ts.seeds.map {
                         if (it.id == existing.id) it.copy(quantity = newQty) else it
@@ -1022,7 +1273,8 @@ class InventorySystem @Inject constructor(
                     it.name == item.name && it.rarity == item.rarity && it.growTime == item.growTime
                 }
                 if (existing != null) {
-                    val newQty = (existing.quantity + item.quantity).coerceAtMost(MAX_STACK_SIZE)
+                    val maxStack = getMaxStackForType("seed")
+                    val newQty = (existing.quantity + item.quantity).coerceAtMost(maxStack)
                     ts.seeds = ts.seeds.map {
                         if (it.id == existing.id) it.copy(quantity = newQty) else it
                     }
@@ -1050,7 +1302,8 @@ class InventorySystem @Inject constructor(
                     it.name == item.name && it.rarity == item.rarity && it.growTime == item.growTime
                 }
                 if (existing != null) {
-                    val newQty = (existing.quantity + item.quantity).coerceAtMost(MAX_STACK_SIZE)
+                    val maxStack = getMaxStackForType("seed")
+                    val newQty = (existing.quantity + item.quantity).coerceAtMost(maxStack)
                     seeds = seeds.map {
                         if (it.id == existing.id) it.copy(quantity = newQty) else it
                     }
@@ -1280,8 +1533,12 @@ class InventorySystem @Inject constructor(
 
     fun getItemCountByType(type: String): Int {
         return when (type.lowercase(java.util.Locale.getDefault())) {
-            "equipment" -> stateStore.equipment.value.size
-            "manual" -> stateStore.manuals.value.size
+            "equipment_stack" -> stateStore.equipmentStacks.value.size
+            "equipment_instance" -> stateStore.equipmentInstances.value.size
+            "manual_stack" -> stateStore.manualStacks.value.size
+            "manual_instance" -> stateStore.manualInstances.value.size
+            "equipment" -> stateStore.equipmentStacks.value.size + stateStore.equipmentInstances.value.size
+            "manual" -> stateStore.manualStacks.value.size + stateStore.manualInstances.value.size
             "pill" -> stateStore.pills.value.size
             "material" -> stateStore.materials.value.size
             "herb" -> stateStore.herbs.value.size
@@ -1293,16 +1550,20 @@ class InventorySystem @Inject constructor(
     fun sortWarehouse() {
         val ts = stateStore.currentTransactionMutableState()
         if (ts != null) {
-            ts.equipment = ts.equipment.sortedWith(compareByDescending<Equipment> { it.rarity }.thenBy { it.name })
-            ts.manuals = ts.manuals.sortedWith(compareByDescending<Manual> { it.rarity }.thenBy { it.name })
+            ts.equipmentStacks = ts.equipmentStacks.sortedWith(compareByDescending<EquipmentStack> { it.rarity }.thenBy { it.name })
+            ts.equipmentInstances = ts.equipmentInstances.sortedWith(compareByDescending<EquipmentInstance> { it.rarity }.thenBy { it.name })
+            ts.manualStacks = ts.manualStacks.sortedWith(compareByDescending<ManualStack> { it.rarity }.thenBy { it.name })
+            ts.manualInstances = ts.manualInstances.sortedWith(compareByDescending<ManualInstance> { it.rarity }.thenBy { it.name })
             ts.pills = ts.pills.sortedWith(compareByDescending<Pill> { it.rarity }.thenBy { it.name })
             ts.materials = ts.materials.sortedWith(compareByDescending<Material> { it.rarity }.thenBy { it.name })
             ts.herbs = ts.herbs.sortedWith(compareByDescending<Herb> { it.rarity }.thenBy { it.name })
             ts.seeds = ts.seeds.sortedWith(compareByDescending<Seed> { it.rarity }.thenBy { it.name })
         } else {
             scope.launch { stateStore.update {
-                equipment = equipment.sortedWith(compareByDescending<Equipment> { it.rarity }.thenBy { it.name })
-                manuals = manuals.sortedWith(compareByDescending<Manual> { it.rarity }.thenBy { it.name })
+                equipmentStacks = equipmentStacks.sortedWith(compareByDescending<EquipmentStack> { it.rarity }.thenBy { it.name })
+                equipmentInstances = equipmentInstances.sortedWith(compareByDescending<EquipmentInstance> { it.rarity }.thenBy { it.name })
+                manualStacks = manualStacks.sortedWith(compareByDescending<ManualStack> { it.rarity }.thenBy { it.name })
+                manualInstances = manualInstances.sortedWith(compareByDescending<ManualInstance> { it.rarity }.thenBy { it.name })
                 pills = pills.sortedWith(compareByDescending<Pill> { it.rarity }.thenBy { it.name })
                 materials = materials.sortedWith(compareByDescending<Material> { it.rarity }.thenBy { it.name })
                 herbs = herbs.sortedWith(compareByDescending<Herb> { it.rarity }.thenBy { it.name })
@@ -1349,10 +1610,10 @@ class InventorySystem @Inject constructor(
         return result
     }
 
-    fun createEquipmentFromRecipe(recipe: ForgeRecipe): Equipment {
+    fun createEquipmentFromRecipe(recipe: ForgeRecipe): EquipmentStack {
         val template = EquipmentDatabase.getTemplateByName(recipe.name)
         if (template != null) {
-            return Equipment(
+            return EquipmentStack(
                 id = java.util.UUID.randomUUID().toString(),
                 name = template.name,
                 slot = template.slot,
@@ -1374,11 +1635,15 @@ class InventorySystem @Inject constructor(
         )
     }
 
-    fun createEquipmentFromMerchantItem(item: MerchantItem): Equipment =
-        MerchantItemConverter.toEquipment(item)
+    fun createEquipmentFromMerchantItem(item: MerchantItem): EquipmentStack {
+        val eq = MerchantItemConverter.toEquipment(item)
+        return eq.copy(quantity = 1)
+    }
 
-    fun createManualFromMerchantItem(item: MerchantItem): Manual =
-        MerchantItemConverter.toManual(item)
+    fun createManualFromMerchantItem(item: MerchantItem): ManualStack {
+        val manual = MerchantItemConverter.toManual(item)
+        return manual.copy(quantity = 1)
+    }
 
     fun createPillFromMerchantItem(item: MerchantItem): Pill =
         MerchantItemConverter.toPill(item)
@@ -1392,7 +1657,6 @@ class InventorySystem @Inject constructor(
     fun createSeedFromMerchantItem(item: MerchantItem): Seed =
         MerchantItemConverter.toSeed(item)
 
-    override fun addManual(item: Manual): AddResult = addManual(item, merge = true)
     override fun addPill(item: Pill): AddResult = addPill(item, merge = true)
     override fun addMaterial(item: Material): AddResult = addMaterial(item, merge = true)
     override fun addHerb(item: Herb): AddResult = addHerb(item, merge = true)

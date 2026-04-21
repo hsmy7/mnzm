@@ -1,5 +1,3 @@
-@file:Suppress("DEPRECATION")
-
 package com.xianxia.sect.data.local
 
 import androidx.room.*
@@ -148,160 +146,202 @@ interface DiscipleDao {
 }
 
 @Dao
-interface EquipmentDao {
-    @Query("SELECT * FROM equipment WHERE slot_id = :slotId AND (ownerId IS NULL OR isEquipped = 0)")
-    fun getUnequipped(slotId: Int): Flow<List<Equipment>>
+interface EquipmentStackDao {
+    @Query("SELECT * FROM equipment_stacks WHERE slot_id = :slotId")
+    fun getAll(slotId: Int): Flow<List<EquipmentStack>>
 
-    @Query("SELECT * FROM equipment WHERE slot_id = :slotId")
-    fun getAll(slotId: Int): Flow<List<Equipment>>
+    @Query("SELECT * FROM equipment_stacks WHERE slot_id = :slotId")
+    suspend fun getAllSync(slotId: Int): List<EquipmentStack>
 
-    @Query("SELECT * FROM equipment WHERE slot_id = :slotId")
-    suspend fun getAllSync(slotId: Int): List<Equipment>
+    @Query("SELECT * FROM equipment_stacks WHERE slot_id = :slotId AND id = :id")
+    suspend fun getById(slotId: Int, id: String): EquipmentStack?
 
-    // 通过主键ID查询，全局唯一，但建议也加 slotId 用于安全校验
-    @Query("SELECT * FROM equipment WHERE slot_id = :slotId AND id = :id")
-    suspend fun getById(slotId: Int, id: String): Equipment?
+    @Query("SELECT * FROM equipment_stacks WHERE slot_id = :slotId AND slot = :slot")
+    fun getBySlot(slotId: Int, slot: EquipmentSlot): Flow<List<EquipmentStack>>
 
-    // 通过外键 ownerId 查询，ownerId 关联弟子表，建议加 slotId 过滤
-    @Query("SELECT * FROM equipment WHERE slot_id = :slotId AND ownerId = :discipleId")
-    suspend fun getByOwner(slotId: Int, discipleId: String): List<Equipment>
+    @Query("SELECT * FROM equipment_stacks WHERE slot_id = :slotId AND rarity = :rarity ORDER BY name ASC")
+    fun getByRarity(slotId: Int, rarity: Int): Flow<List<EquipmentStack>>
 
-    @Query("SELECT * FROM equipment WHERE slot_id = :slotId AND slot = :slot AND (ownerId IS NULL OR isEquipped = 0)")
-    fun getUnequippedBySlot(slotId: Int, slot: EquipmentSlot): Flow<List<Equipment>>
-
-    @Query("SELECT * FROM equipment WHERE slot_id = :slotId AND rarity = :rarity ORDER BY name ASC")
-    fun getByRarity(slotId: Int, rarity: Int): Flow<List<Equipment>>
-
-    @Query("SELECT * FROM equipment WHERE slot_id = :slotId AND slot = :slot AND rarity >= :minRarity ORDER BY rarity DESC")
-    fun getBySlotAndMinRarity(slotId: Int, slot: EquipmentSlot, minRarity: Int): Flow<List<Equipment>>
-
-    @Query("SELECT * FROM equipment WHERE slot_id = :slotId AND minRealm <= :realm AND (ownerId IS NULL OR isEquipped = 0) ORDER BY rarity DESC")
-    fun getEquippableForRealm(slotId: Int, realm: Int): Flow<List<Equipment>>
-
-    @Query("SELECT * FROM equipment WHERE slot_id = :slotId AND name LIKE '%' || :keyword || '%'")
-    suspend fun searchByName(slotId: Int, keyword: String): List<Equipment>
-
-    @Query("SELECT * FROM equipment WHERE slot_id = :slotId AND ownerId IS NULL ORDER BY rarity DESC, name ASC")
-    fun getUnowned(slotId: Int): Flow<List<Equipment>>
-
-    @Query("SELECT COUNT(*) FROM equipment WHERE slot_id = :slotId AND rarity = :rarity")
-    suspend fun getCountByRarity(slotId: Int, rarity: Int): Int
-
-    @Query("SELECT * FROM equipment WHERE slot_id = :slotId AND nurtureLevel > 0 ORDER BY nurtureLevel DESC")
-    fun getNurtured(slotId: Int): Flow<List<Equipment>>
-
-    // Insert/Update/Delete 操作基于实体，实体层负责设置正确的 slot_id
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insert(equipment: Equipment)
+    @Query("SELECT * FROM equipment_stacks WHERE slot_id = :slotId AND minRealm <= :realm ORDER BY rarity DESC")
+    fun getByRealm(slotId: Int, realm: Int): Flow<List<EquipmentStack>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertAll(equipments: List<Equipment>)
+    suspend fun insert(equipmentStack: EquipmentStack)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(equipmentStacks: List<EquipmentStack>)
 
     @Update
-    suspend fun update(equipment: Equipment)
+    suspend fun update(equipmentStack: EquipmentStack)
 
     @Update
-    suspend fun updateAll(equipments: List<Equipment>)
+    suspend fun updateAll(equipmentStacks: List<EquipmentStack>)
 
-    /** 获取指定槽位下已有的实体 ID 集合（用于 UPSERT 差量写入） */
-    @Query("SELECT id FROM equipment WHERE slot_id = :slotId")
+    @Query("SELECT id FROM equipment_stacks WHERE slot_id = :slotId")
     suspend fun getIdsBySlot(slotId: Int): List<String>
 
     @Delete
-    suspend fun delete(equipment: Equipment)
+    suspend fun delete(equipmentStack: EquipmentStack)
 
-    @Query("DELETE FROM equipment WHERE slot_id = :slotId AND id = :id")
+    @Query("DELETE FROM equipment_stacks WHERE slot_id = :slotId AND id = :id")
     suspend fun deleteById(slotId: Int, id: String)
 
-    @Query("DELETE FROM equipment WHERE slot_id = :slotId AND ownerId IS NULL")
-    suspend fun deleteUnowned(slotId: Int): Int
-
-    @Query("DELETE FROM equipment WHERE slot_id = :slotId")
+    @Query("DELETE FROM equipment_stacks WHERE slot_id = :slotId")
     suspend fun deleteAll(slotId: Int)
 
-    // 全局删除（管理员操作用）
-    @Query("DELETE FROM equipment")
+    @Query("DELETE FROM equipment_stacks")
     suspend fun deleteAllGlobal()
 
     @Transaction
-    suspend fun updateBatch(equipments: List<Equipment>) {
-        equipments.forEach { update(it) }
+    suspend fun updateBatch(equipmentStacks: List<EquipmentStack>) {
+        equipmentStacks.forEach { update(it) }
     }
 }
 
 @Dao
-interface ManualDao {
-    @Query("SELECT * FROM manuals WHERE slot_id = :slotId")
-    fun getAll(slotId: Int): Flow<List<Manual>>
+interface EquipmentInstanceDao {
+    @Query("SELECT * FROM equipment_instances WHERE slot_id = :slotId")
+    fun getAll(slotId: Int): Flow<List<EquipmentInstance>>
 
-    @Query("SELECT * FROM manuals WHERE slot_id = :slotId")
-    suspend fun getAllSync(slotId: Int): List<Manual>
+    @Query("SELECT * FROM equipment_instances WHERE slot_id = :slotId")
+    suspend fun getAllSync(slotId: Int): List<EquipmentInstance>
 
-    @Query("SELECT * FROM manuals WHERE slot_id = :slotId AND ownerId IS NULL")
-    fun getUnlearned(slotId: Int): Flow<List<Manual>>
+    @Query("SELECT * FROM equipment_instances WHERE slot_id = :slotId AND id = :id")
+    suspend fun getById(slotId: Int, id: String): EquipmentInstance?
 
-    // 通过外键 ownerId 查询，建议加 slotId 过滤
-    @Query("SELECT * FROM manuals WHERE slot_id = :slotId AND ownerId = :discipleId")
-    suspend fun getByOwner(slotId: Int, discipleId: String): List<Manual>
-
-    // 通过主键ID查询，全局唯一，但建议也加 slotId 用于安全校验
-    @Query("SELECT * FROM manuals WHERE slot_id = :slotId AND id = :id")
-    suspend fun getById(slotId: Int, id: String): Manual?
-
-    @Query("SELECT * FROM manuals WHERE slot_id = :slotId AND type = :type ORDER BY rarity DESC")
-    fun getByType(slotId: Int, type: ManualType): Flow<List<Manual>>
-
-    @Query("SELECT * FROM manuals WHERE slot_id = :slotId AND rarity = :rarity AND ownerId IS NULL")
-    fun getUnlearnedByRarity(slotId: Int, rarity: Int): Flow<List<Manual>>
-
-    @Query("SELECT * FROM manuals WHERE slot_id = :slotId AND minRealm <= :realm AND ownerId IS NULL ORDER BY rarity DESC")
-    fun getLearnableForRealm(slotId: Int, realm: Int): Flow<List<Manual>>
-
-    @Query("SELECT * FROM manuals WHERE slot_id = :slotId AND name LIKE '%' || :keyword || '%'")
-    suspend fun searchByName(slotId: Int, keyword: String): List<Manual>
-
-    @Query("SELECT * FROM manuals WHERE slot_id = :slotId AND ownerId IS NULL AND quantity > 0 ORDER BY rarity DESC")
-    fun getAvailableManuals(slotId: Int): Flow<List<Manual>>
-
-    @Query("SELECT COUNT(*) FROM manuals WHERE slot_id = :slotId AND ownerId IS NOT NULL")
-    fun getLearnedCount(slotId: Int): Flow<Int>
-
-    // Insert/Update/Delete 操作基于实体，实体层负责设置正确的 slot_id
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insert(manual: Manual)
+    @Query("SELECT * FROM equipment_instances WHERE slot_id = :slotId AND ownerId = :discipleId")
+    suspend fun getByOwner(slotId: Int, discipleId: String): List<EquipmentInstance>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertAll(manuals: List<Manual>)
+    suspend fun insert(equipmentInstance: EquipmentInstance)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(equipmentInstances: List<EquipmentInstance>)
 
     @Update
-    suspend fun update(manual: Manual)
+    suspend fun update(equipmentInstance: EquipmentInstance)
 
     @Update
-    suspend fun updateAll(manuals: List<Manual>)
+    suspend fun updateAll(equipmentInstances: List<EquipmentInstance>)
 
-    /** 获取指定槽位下已有的实体 ID 集合（用于 UPSERT 差量写入） */
-    @Query("SELECT id FROM manuals WHERE slot_id = :slotId")
+    @Query("SELECT id FROM equipment_instances WHERE slot_id = :slotId")
     suspend fun getIdsBySlot(slotId: Int): List<String>
 
     @Delete
-    suspend fun delete(manual: Manual)
+    suspend fun delete(equipmentInstance: EquipmentInstance)
 
-    @Query("DELETE FROM manuals WHERE slot_id = :slotId AND id = :id")
+    @Query("DELETE FROM equipment_instances WHERE slot_id = :slotId AND id = :id")
     suspend fun deleteById(slotId: Int, id: String)
 
-    @Query("DELETE FROM manuals WHERE slot_id = :slotId AND ownerId IS NULL AND quantity <= 0")
-    suspend fun deleteEmptyUnlearned(slotId: Int): Int
-
-    @Query("DELETE FROM manuals WHERE slot_id = :slotId")
+    @Query("DELETE FROM equipment_instances WHERE slot_id = :slotId")
     suspend fun deleteAll(slotId: Int)
 
-    // 全局删除（管理员操作用）
-    @Query("DELETE FROM manuals")
+    @Query("DELETE FROM equipment_instances")
     suspend fun deleteAllGlobal()
 
     @Transaction
-    suspend fun updateBatch(manuals: List<Manual>) {
-        manuals.forEach { update(it) }
+    suspend fun updateBatch(equipmentInstances: List<EquipmentInstance>) {
+        equipmentInstances.forEach { update(it) }
+    }
+}
+
+@Dao
+interface ManualStackDao {
+    @Query("SELECT * FROM manual_stacks WHERE slot_id = :slotId")
+    fun getAll(slotId: Int): Flow<List<ManualStack>>
+
+    @Query("SELECT * FROM manual_stacks WHERE slot_id = :slotId")
+    suspend fun getAllSync(slotId: Int): List<ManualStack>
+
+    @Query("SELECT * FROM manual_stacks WHERE slot_id = :slotId AND id = :id")
+    suspend fun getById(slotId: Int, id: String): ManualStack?
+
+    @Query("SELECT * FROM manual_stacks WHERE slot_id = :slotId AND type = :type ORDER BY rarity DESC")
+    fun getByType(slotId: Int, type: ManualType): Flow<List<ManualStack>>
+
+    @Query("SELECT * FROM manual_stacks WHERE slot_id = :slotId AND rarity = :rarity ORDER BY name ASC")
+    fun getByRarity(slotId: Int, rarity: Int): Flow<List<ManualStack>>
+
+    @Query("SELECT * FROM manual_stacks WHERE slot_id = :slotId AND minRealm <= :realm ORDER BY rarity DESC")
+    fun getByRealm(slotId: Int, realm: Int): Flow<List<ManualStack>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(manualStack: ManualStack)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(manualStacks: List<ManualStack>)
+
+    @Update
+    suspend fun update(manualStack: ManualStack)
+
+    @Update
+    suspend fun updateAll(manualStacks: List<ManualStack>)
+
+    @Query("SELECT id FROM manual_stacks WHERE slot_id = :slotId")
+    suspend fun getIdsBySlot(slotId: Int): List<String>
+
+    @Delete
+    suspend fun delete(manualStack: ManualStack)
+
+    @Query("DELETE FROM manual_stacks WHERE slot_id = :slotId AND id = :id")
+    suspend fun deleteById(slotId: Int, id: String)
+
+    @Query("DELETE FROM manual_stacks WHERE slot_id = :slotId")
+    suspend fun deleteAll(slotId: Int)
+
+    @Query("DELETE FROM manual_stacks")
+    suspend fun deleteAllGlobal()
+
+    @Transaction
+    suspend fun updateBatch(manualStacks: List<ManualStack>) {
+        manualStacks.forEach { update(it) }
+    }
+}
+
+@Dao
+interface ManualInstanceDao {
+    @Query("SELECT * FROM manual_instances WHERE slot_id = :slotId")
+    fun getAll(slotId: Int): Flow<List<ManualInstance>>
+
+    @Query("SELECT * FROM manual_instances WHERE slot_id = :slotId")
+    suspend fun getAllSync(slotId: Int): List<ManualInstance>
+
+    @Query("SELECT * FROM manual_instances WHERE slot_id = :slotId AND id = :id")
+    suspend fun getById(slotId: Int, id: String): ManualInstance?
+
+    @Query("SELECT * FROM manual_instances WHERE slot_id = :slotId AND ownerId = :discipleId")
+    suspend fun getByOwner(slotId: Int, discipleId: String): List<ManualInstance>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(manualInstance: ManualInstance)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(manualInstances: List<ManualInstance>)
+
+    @Update
+    suspend fun update(manualInstance: ManualInstance)
+
+    @Update
+    suspend fun updateAll(manualInstances: List<ManualInstance>)
+
+    @Query("SELECT id FROM manual_instances WHERE slot_id = :slotId")
+    suspend fun getIdsBySlot(slotId: Int): List<String>
+
+    @Delete
+    suspend fun delete(manualInstance: ManualInstance)
+
+    @Query("DELETE FROM manual_instances WHERE slot_id = :slotId AND id = :id")
+    suspend fun deleteById(slotId: Int, id: String)
+
+    @Query("DELETE FROM manual_instances WHERE slot_id = :slotId")
+    suspend fun deleteAll(slotId: Int)
+
+    @Query("DELETE FROM manual_instances")
+    suspend fun deleteAllGlobal()
+
+    @Transaction
+    suspend fun updateBatch(manualInstances: List<ManualInstance>) {
+        manualInstances.forEach { update(it) }
     }
 }
 

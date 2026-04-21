@@ -19,8 +19,10 @@ import javax.inject.Singleton
 data class MutableGameState(
     var gameData: GameData,
     var disciples: List<Disciple>,
-    var equipment: List<Equipment>,
-    var manuals: List<Manual>,
+    var equipmentStacks: List<EquipmentStack>,
+    var equipmentInstances: List<EquipmentInstance>,
+    var manualStacks: List<ManualStack>,
+    var manualInstances: List<ManualInstance>,
     var pills: List<Pill>,
     var materials: List<Material>,
     var herbs: List<Herb>,
@@ -59,11 +61,19 @@ class GameStateStore @Inject constructor(
         .distinctUntilChanged()
         .stateIn(applicationScopeProvider.scope, SharingStarted.Eagerly, emptyList())
 
-    val equipment: StateFlow<List<Equipment>> = _state.map { it.equipment }
+    val equipmentStacks: StateFlow<List<EquipmentStack>> = _state.map { it.equipmentStacks }
         .distinctUntilChanged()
         .stateIn(applicationScopeProvider.scope, SharingStarted.Eagerly, emptyList())
 
-    val manuals: StateFlow<List<Manual>> = _state.map { it.manuals }
+    val equipmentInstances: StateFlow<List<EquipmentInstance>> = _state.map { it.equipmentInstances }
+        .distinctUntilChanged()
+        .stateIn(applicationScopeProvider.scope, SharingStarted.Eagerly, emptyList())
+
+    val manualStacks: StateFlow<List<ManualStack>> = _state.map { it.manualStacks }
+        .distinctUntilChanged()
+        .stateIn(applicationScopeProvider.scope, SharingStarted.Eagerly, emptyList())
+
+    val manualInstances: StateFlow<List<ManualInstance>> = _state.map { it.manualInstances }
         .distinctUntilChanged()
         .stateIn(applicationScopeProvider.scope, SharingStarted.Eagerly, emptyList())
 
@@ -125,8 +135,10 @@ class GameStateStore @Inject constructor(
     private val reusableMutableState = MutableGameState(
         gameData = GameData(),
         disciples = emptyList(),
-        equipment = emptyList(),
-        manuals = emptyList(),
+        equipmentStacks = emptyList(),
+        equipmentInstances = emptyList(),
+        manualStacks = emptyList(),
+        manualInstances = emptyList(),
         pills = emptyList(),
         materials = emptyList(),
         herbs = emptyList(),
@@ -149,8 +161,10 @@ class GameStateStore @Inject constructor(
             reusableMutableState.apply {
                 gameData = current.gameData
                 disciples = current.disciples
-                equipment = current.equipment
-                manuals = current.manuals
+                equipmentStacks = current.equipmentStacks
+                equipmentInstances = current.equipmentInstances
+                manualStacks = current.manualStacks
+                manualInstances = current.manualInstances
                 pills = current.pills
                 materials = current.materials
                 herbs = current.herbs
@@ -168,8 +182,10 @@ class GameStateStore @Inject constructor(
                 _state.value = UnifiedGameState(
                     gameData = reusableMutableState.gameData,
                     disciples = reusableMutableState.disciples,
-                    equipment = reusableMutableState.equipment,
-                    manuals = reusableMutableState.manuals,
+                    equipmentStacks = reusableMutableState.equipmentStacks,
+                    equipmentInstances = reusableMutableState.equipmentInstances,
+                    manualStacks = reusableMutableState.manualStacks,
+                    manualInstances = reusableMutableState.manualInstances,
                     pills = reusableMutableState.pills,
                     materials = reusableMutableState.materials,
                     herbs = reusableMutableState.herbs,
@@ -191,8 +207,10 @@ class GameStateStore @Inject constructor(
     suspend fun loadFromSnapshot(
         gameData: GameData,
         disciples: List<Disciple>,
-        equipment: List<Equipment>,
-        manuals: List<Manual>,
+        equipmentStacks: List<EquipmentStack> = emptyList(),
+        equipmentInstances: List<EquipmentInstance> = emptyList(),
+        manualStacks: List<ManualStack> = emptyList(),
+        manualInstances: List<ManualInstance> = emptyList(),
         pills: List<Pill>,
         materials: List<Material>,
         herbs: List<Herb>,
@@ -208,8 +226,10 @@ class GameStateStore @Inject constructor(
             _state.value = UnifiedGameState(
                 gameData = gameData,
                 disciples = disciples,
-                equipment = equipment,
-                manuals = manuals,
+                equipmentStacks = equipmentStacks,
+                equipmentInstances = equipmentInstances,
+                manualStacks = manualStacks,
+                manualInstances = manualInstances,
                 pills = pills,
                 materials = materials,
                 herbs = herbs,
@@ -229,5 +249,41 @@ class GameStateStore @Inject constructor(
         transactionMutex.withLock {
             _state.value = UnifiedGameState()
         }
+    }
+}
+
+fun fixStorageBagReferences(
+    equipmentStacks: List<EquipmentStack>,
+    equipmentInstances: List<EquipmentInstance>,
+    manualStacks: List<ManualStack>,
+    manualInstances: List<ManualInstance>,
+    disciples: List<Disciple>
+): List<Disciple> {
+    val stackIds = equipmentStacks.map { it.id }.toSet()
+    val instanceIds = equipmentInstances.map { it.id }.toSet()
+    val manualStackIds = manualStacks.map { it.id }.toSet()
+    val manualInstanceIds = manualInstances.map { it.id }.toSet()
+
+    return disciples.map { disciple ->
+        val fixedItems = disciple.storageBagItems.map { item ->
+            when {
+                item.itemType == "equipment" -> {
+                    when {
+                        instanceIds.contains(item.itemId) -> item.copy(itemType = "equipment_instance")
+                        stackIds.contains(item.itemId) -> item.copy(itemType = "equipment_stack")
+                        else -> item
+                    }
+                }
+                item.itemType == "manual" -> {
+                    when {
+                        manualInstanceIds.contains(item.itemId) -> item.copy(itemType = "manual_instance")
+                        manualStackIds.contains(item.itemId) -> item.copy(itemType = "manual_stack")
+                        else -> item
+                    }
+                }
+                else -> item
+            }
+        }
+        disciple.copyWith(storageBagItems = fixedItems)
     }
 }

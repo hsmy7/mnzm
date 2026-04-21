@@ -194,10 +194,22 @@ class GameViewModel @Inject constructor(
         .map { data -> data.recruitList.map { it.toAggregate() } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val equipment: StateFlow<List<Equipment>> = gameEngine.equipment
+    val equipment: StateFlow<List<EquipmentInstance>> = gameEngine.equipmentInstances
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val manuals: StateFlow<List<Manual>> = gameEngine.manuals
+    val manuals: StateFlow<List<ManualInstance>> = gameEngine.manualInstances
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val equipmentStacks: StateFlow<List<EquipmentStack>> = gameEngine.equipmentStacks
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val equipmentInstances: StateFlow<List<EquipmentInstance>> = gameEngine.equipmentInstances
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val manualStacks: StateFlow<List<ManualStack>> = gameEngine.manualStacks
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val manualInstances: StateFlow<List<ManualInstance>> = gameEngine.manualInstances
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val pills: StateFlow<List<Pill>> = gameEngine.pills
@@ -644,8 +656,17 @@ class GameViewModel @Inject constructor(
         return discipleAggregates.value.find { it.id == id }
     }
 
-    fun getManualById(id: String): Manual? {
+    @Suppress("DEPRECATION")
+    fun getManualById(id: String): ManualInstance? {
         return manuals.value.find { it.id == id }
+    }
+
+    fun getManualInstanceById(id: String): ManualInstance? {
+        return manualInstances.value.find { it.id == id }
+    }
+
+    fun getEquipmentInstanceById(id: String): EquipmentInstance? {
+        return equipmentInstances.value.find { it.id == id }
     }
 
     // 一键出售物品（原子性操作，排除锁定物品）
@@ -663,19 +684,17 @@ class GameViewModel @Inject constructor(
                 val sellOperations = mutableListOf<SuspendableSellOperation>()
                 
                 if (selectedTypes.contains("EQUIPMENT")) {
-                    equipment.value.filter { 
+                    equipmentStacks.value.filter { 
                         selectedRarities.contains(it.rarity) && 
-                        !it.isEquipped && 
                         !it.isLocked
                     }.forEach { item ->
-                        sellOperations.add(SuspendableSellOperation.Equipment(item.id, item.name, (item.basePrice * 0.8).toInt()))
+                        sellOperations.add(SuspendableSellOperation.Equipment(item.id, item.name, (item.basePrice * item.quantity * 0.8).toInt()))
                     }
                 }
 
                 if (selectedTypes.contains("MANUAL")) {
-                    manuals.value.filter { 
+                    manualStacks.value.filter { 
                         selectedRarities.contains(it.rarity) && 
-                        !it.isLearned &&
                         !it.isLocked
                     }.forEach { item ->
                         sellOperations.add(SuspendableSellOperation.Manual(item.id, item.name, item.quantity, (item.basePrice * item.quantity * 0.8).toInt()))
@@ -790,7 +809,7 @@ class GameViewModel @Inject constructor(
         }
     }
 
-    fun getEquipmentById(id: String): Equipment? {
+    fun getEquipmentById(id: String): EquipmentInstance? {
         return equipment.value.find { it.id == id }
     }
 
@@ -934,8 +953,10 @@ class GameViewModel @Inject constructor(
                 val saveData = SaveData(
                     gameData = snapshotToSave.gameData,
                     disciples = snapshotToSave.disciples,
-                    equipment = snapshotToSave.equipment,
-                    manuals = snapshotToSave.manuals,
+                    equipmentStacks = snapshotToSave.equipmentStacks,
+                    equipmentInstances = snapshotToSave.equipmentInstances,
+                    manualStacks = snapshotToSave.manualStacks,
+                    manualInstances = snapshotToSave.manualInstances,
                     pills = snapshotToSave.pills,
                     materials = snapshotToSave.materials,
                     herbs = snapshotToSave.herbs,

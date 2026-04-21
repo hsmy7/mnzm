@@ -247,8 +247,10 @@ class SaveLoadViewModel @Inject constructor(
         return SaveData(
             gameData = snapshot.gameData,
             disciples = snapshot.disciples,
-            equipment = snapshot.equipment,
-            manuals = snapshot.manuals,
+            equipmentStacks = snapshot.equipmentStacks,
+            equipmentInstances = snapshot.equipmentInstances,
+            manualStacks = snapshot.manualStacks,
+            manualInstances = snapshot.manualInstances,
             pills = snapshot.pills,
             materials = snapshot.materials,
             herbs = snapshot.herbs,
@@ -550,8 +552,10 @@ class SaveLoadViewModel @Inject constructor(
                 gameEngine.loadData(
                     gameData = saveData.gameData.copy(currentSlot = effectiveSlot),
                     disciples = saveData.disciples,
-                    equipment = saveData.equipment,
-                    manuals = saveData.manuals,
+                    equipmentStacks = saveData.equipmentStacks,
+                    equipmentInstances = saveData.equipmentInstances,
+                    manualStacks = saveData.manualStacks,
+                    manualInstances = saveData.manualInstances,
                     pills = saveData.pills,
                     materials = saveData.materials,
                     herbs = saveData.herbs,
@@ -572,7 +576,7 @@ class SaveLoadViewModel @Inject constructor(
                 Log.i(TAG, "=== loadGame SUCCESS === " +
                     "sectName=${gd.sectName}, year=${gd.gameYear}, month=${gd.gameMonth}, day=${gd.gameDay}, " +
                     "spiritStones=${gd.spiritStones}, disciples=${gameEngine.disciples.value.size}, " +
-                    "equipment=${gameEngine.equipment.value.size}, manuals=${gameEngine.manuals.value.size}, " +
+                    "equipment=${gameEngine.equipmentInstances.value.size}, manuals=${gameEngine.manualInstances.value.size}, " +
                     "elapsed=${System.currentTimeMillis() - startTime}ms")
             } catch (e: Exception) {
                 Log.e(TAG, "=== loadGame FAILED === error=${e.message}", e)
@@ -650,8 +654,10 @@ class SaveLoadViewModel @Inject constructor(
                     gameEngine.loadData(
                         gameData = saveData.gameData.copy(currentSlot = effectiveSlot),
                         disciples = saveData.disciples,
-                        equipment = saveData.equipment,
-                        manuals = saveData.manuals,
+                        equipmentStacks = saveData.equipmentStacks,
+                    equipmentInstances = saveData.equipmentInstances,
+                        manualStacks = saveData.manualStacks,
+                    manualInstances = saveData.manualInstances,
                         pills = saveData.pills,
                         materials = saveData.materials,
                         herbs = saveData.herbs,
@@ -674,7 +680,7 @@ class SaveLoadViewModel @Inject constructor(
                     Log.i(TAG, "=== loadGameFromSlot SUCCESS === " +
                         "sectName=${gd.sectName}, year=${gd.gameYear}, month=${gd.gameMonth}, day=${gd.gameDay}, " +
                         "spiritStones=${gd.spiritStones}, disciples=${gameEngine.disciples.value.size}, " +
-                        "equipment=${gameEngine.equipment.value.size}, manuals=${gameEngine.manuals.value.size}, " +
+                        "equipment=${gameEngine.equipmentInstances.value.size}, manuals=${gameEngine.manualInstances.value.size}, " +
                         "elapsed=${System.currentTimeMillis() - startTime}ms")
                 } else {
                     val elapsed = System.currentTimeMillis() - loadStartTime
@@ -761,8 +767,8 @@ class SaveLoadViewModel @Inject constructor(
                             "sectName=${snapshot.gameData.sectName}, year=${snapshot.gameData.gameYear}, " +
                             "month=${snapshot.gameData.gameMonth}, day=${snapshot.gameData.gameDay}, " +
                             "spiritStones=${snapshot.gameData.spiritStones}, " +
-                            "disciples=${saveData.disciples.size}, equipment=${saveData.equipment.size}, " +
-                            "manuals=${saveData.manuals.size}, elapsed=${System.currentTimeMillis() - startTime}ms")
+                            "disciples=${saveData.disciples.size}, equipment=${saveData.equipmentInstances.size}, " +
+                            "manuals=${saveData.manualInstances.size}, elapsed=${System.currentTimeMillis() - startTime}ms")
                     } else {
                         storageFacade.setCurrentSlot(previousSlot)
                         val errorMsg = if (saveResult == null) "保存超时，请重试" else "保存失败，请重试"
@@ -943,8 +949,10 @@ class SaveLoadViewModel @Inject constructor(
                 val saveData = SaveData(
                     gameData = snapshot.gameData,
                     disciples = snapshot.disciples,
-                    equipment = snapshot.equipment,
-                    manuals = snapshot.manuals,
+                    equipmentStacks = snapshot.equipmentStacks,
+                    equipmentInstances = snapshot.equipmentInstances,
+                    manualStacks = snapshot.manualStacks,
+                    manualInstances = snapshot.manualInstances,
                     pills = snapshot.pills,
                     materials = snapshot.materials,
                     herbs = snapshot.herbs,
@@ -1033,8 +1041,10 @@ class SaveLoadViewModel @Inject constructor(
             val saveData = SaveData(
                 gameData = snapshot.gameData,
                 disciples = snapshot.disciples,
-                equipment = snapshot.equipment,
-                manuals = snapshot.manuals,
+                equipmentStacks = snapshot.equipmentStacks,
+                    equipmentInstances = snapshot.equipmentInstances,
+                manualStacks = snapshot.manualStacks,
+                    manualInstances = snapshot.manualInstances,
                 pills = snapshot.pills,
                 materials = snapshot.materials,
                 herbs = snapshot.herbs,
@@ -1095,8 +1105,10 @@ class SaveLoadViewModel @Inject constructor(
                 val saveData = SaveData(
                     gameData = snapshotToSave.gameData,
                     disciples = snapshotToSave.disciples,
-                    equipment = snapshotToSave.equipment,
-                    manuals = snapshotToSave.manuals,
+                    equipmentStacks = snapshotToSave.equipmentStacks,
+                    equipmentInstances = snapshotToSave.equipmentInstances,
+                    manualStacks = snapshotToSave.manualStacks,
+                    manualInstances = snapshotToSave.manualInstances,
                     pills = snapshotToSave.pills,
                     materials = snapshotToSave.materials,
                     herbs = snapshotToSave.herbs,

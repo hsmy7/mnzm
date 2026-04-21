@@ -1,5 +1,3 @@
-@file:Suppress("DEPRECATION")
-
 package com.xianxia.sect.data.model
 
 import com.xianxia.sect.core.GameConfig
@@ -33,8 +31,10 @@ data class SaveData(
     val timestamp: Long = System.currentTimeMillis(),
     val gameData: GameData,
     val disciples: List<Disciple>,
-    val equipment: List<Equipment>,
-    val manuals: List<Manual>,
+    val equipmentStacks: List<EquipmentStack> = emptyList(),
+    val equipmentInstances: List<EquipmentInstance> = emptyList(),
+    val manualStacks: List<ManualStack> = emptyList(),
+    val manualInstances: List<ManualInstance> = emptyList(),
     val pills: List<Pill>,
     val materials: List<Material>,
     val herbs: List<Herb>,

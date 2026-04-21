@@ -672,7 +672,7 @@ object RedeemCodeManager {
         )
     }
 
-    private fun generateRandomEquipment(rarity: Int): Equipment {
+    private fun generateRandomEquipment(rarity: Int): EquipmentStack {
         return EquipmentDatabase.generateRandom(minRarity = rarity, maxRarity = rarity)
     }
 

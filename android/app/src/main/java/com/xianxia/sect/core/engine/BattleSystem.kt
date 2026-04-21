@@ -1,5 +1,3 @@
-@file:Suppress("DEPRECATION")
-
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.BuffType
@@ -20,8 +18,8 @@ class BattleSystem @Inject constructor() {
 
     fun createBattle(
         disciples: List<Disciple>,
-        equipmentMap: Map<String, Equipment>,
-        manualMap: Map<String, Manual>,
+        equipmentMap: Map<String, EquipmentInstance>,
+        manualMap: Map<String, ManualInstance>,
         beastLevel: Int,
         beastCount: Int? = null,
         beastType: String? = null,
@@ -54,8 +52,8 @@ class BattleSystem @Inject constructor() {
 
     fun convertDiscipleToCombatant(
         disciple: Disciple,
-        equipmentMap: Map<String, Equipment>,
-        manualMap: Map<String, Manual>,
+        equipmentMap: Map<String, EquipmentInstance>,
+        manualMap: Map<String, ManualInstance>,
         manualProficiencies: Map<String, Map<String, ManualProficiencyData>>,
         side: CombatantSide = CombatantSide.DEFENDER
     ): Combatant {

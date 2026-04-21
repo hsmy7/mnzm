@@ -218,6 +218,6 @@ data class ForgeRecipe(
 @Serializable
 data class ForgeResult(
     val success: Boolean,
-    val equipment: Equipment? = null,
+    val equipment: EquipmentStack? = null,
     val message: String = ""
 )

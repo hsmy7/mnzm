@@ -416,22 +416,22 @@ class EventService @Inject constructor(
         when (item.type.lowercase()) {
             "equipment" -> {
                 val eq = MerchantItemConverter.toEquipment(item).copy(quantity = actualQuantity)
-                val existing = equipment.find { it.name == eq.name && it.rarity == eq.rarity && it.slot == eq.slot && !it.isEquipped }
+                val existing = equipmentStacks.find { it.name == eq.name && it.rarity == eq.rarity && it.slot == eq.slot }
                 if (existing != null) {
                     val newQty = (existing.quantity + eq.quantity).coerceAtMost(999)
-                    equipment = equipment.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
+                    equipmentStacks = equipmentStacks.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
                 } else {
-                    equipment = equipment + eq
+                    equipmentStacks = equipmentStacks + eq
                 }
             }
             "manual" -> {
                 val m = MerchantItemConverter.toManual(item).copy(quantity = actualQuantity)
-                val existing = manuals.find { it.name == m.name && it.rarity == m.rarity && it.type == m.type && !it.isLearned }
+                val existing = manualStacks.find { it.name == m.name && it.rarity == m.rarity && it.type == m.type }
                 if (existing != null) {
                     val newQty = (existing.quantity + m.quantity).coerceAtMost(999)
-                    manuals = manuals.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
+                    manualStacks = manualStacks.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
                 } else {
-                    manuals = manuals + m
+                    manualStacks = manualStacks + m
                 }
             }
             "pill" -> {

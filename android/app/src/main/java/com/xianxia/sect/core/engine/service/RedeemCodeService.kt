@@ -145,12 +145,12 @@ class RedeemCodeService @Inject constructor(
                             minRarity = reward.rarity,
                             maxRarity = reward.rarity
                         ).copy(quantity = qty)
-                        val existing = equipment.find { it.name == newEquipment.name && it.rarity == newEquipment.rarity && it.slot == newEquipment.slot && !it.isEquipped }
+                        val existing = equipmentStacks.find { it.name == newEquipment.name && it.rarity == newEquipment.rarity && it.slot == newEquipment.slot }
                         if (existing != null) {
                             val newQty = (existing.quantity + newEquipment.quantity).coerceAtMost(999)
-                            equipment = equipment.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
+                            equipmentStacks = equipmentStacks.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
                         } else {
-                            equipment = equipment + newEquipment
+                            equipmentStacks = equipmentStacks + newEquipment
                         }
                     }
                     "manual" -> {
@@ -158,14 +158,14 @@ class RedeemCodeService @Inject constructor(
                         if (template != null) {
                             val qty = reward.quantity.coerceAtLeast(1)
                             val manual = ManualDatabase.createFromTemplate(template).copy(quantity = qty)
-                            val existing = manuals.find {
-                                it.name == manual.name && it.rarity == manual.rarity && it.type == manual.type && !it.isLearned
+                            val existing = manualStacks.find {
+                                it.name == manual.name && it.rarity == manual.rarity && it.type == manual.type
                             }
                             if (existing != null) {
                                 val newQty = (existing.quantity + manual.quantity).coerceAtMost(999)
-                                manuals = manuals.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
+                                manualStacks = manualStacks.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
                             } else {
-                                manuals = manuals + manual
+                                manualStacks = manualStacks + manual
                             }
                         }
                     }
@@ -340,18 +340,18 @@ class RedeemCodeService @Inject constructor(
                             minRarity = redeemCodeData.rarity,
                             maxRarity = redeemCodeData.rarity
                         ).copy(quantity = qty)
-                        val existing = equipment.find { it.name == newEquipment.name && it.rarity == newEquipment.rarity && it.slot == newEquipment.slot && !it.isEquipped }
+                        val existing = equipmentStacks.find { it.name == newEquipment.name && it.rarity == newEquipment.rarity && it.slot == newEquipment.slot }
                         if (existing != null) {
                             val newQty = (existing.quantity + newEquipment.quantity).coerceAtMost(999)
-                            equipment = equipment.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
+                            equipmentStacks = equipmentStacks.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
                         } else {
-                            equipment = equipment + newEquipment
+                            equipmentStacks = equipmentStacks + newEquipment
                         }
                     }
                     "manual" -> {
                         val template = ManualDatabase.getByNameAndRarity(reward.name, reward.rarity)
                         if (template != null) {
-                            val manual = Manual(
+                            val manual = ManualStack(
                                 id = java.util.UUID.randomUUID().toString(),
                                 name = template.name,
                                 rarity = reward.rarity,
@@ -374,16 +374,16 @@ class RedeemCodeService @Inject constructor(
                                 minRealm = GameConfig.Realm.getMinRealmForRarity(reward.rarity),
                                 quantity = reward.quantity
                             )
-                            val existing = manuals.find {
-                                it.name == manual.name && it.rarity == manual.rarity && it.type == manual.type && !it.isLearned
+                            val existing = manualStacks.find {
+                                it.name == manual.name && it.rarity == manual.rarity && it.type == manual.type
                             }
                             if (existing != null) {
                                 val newQty = (existing.quantity + manual.quantity).coerceAtMost(999)
-                                manuals = manuals.map {
+                                manualStacks = manualStacks.map {
                                     if (it.id == existing.id) it.copy(quantity = newQty) else it
                                 }
                             } else {
-                                manuals = manuals + manual
+                                manualStacks = manualStacks + manual
                             }
                         } else {
                             Log.w(TAG, "无法找到功法模板: ${reward.name}, rarity: ${reward.rarity}")

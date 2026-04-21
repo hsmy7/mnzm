@@ -299,8 +299,8 @@ data class Disciple(
     val hpPercent: Double get() = if (maxHp > 0) baseHp.toDouble() / maxHp * 100 else 100.0
     val mpPercent: Double get() = if (maxMp > 0) baseMp.toDouble() / maxMp * 100 else 100.0
 
-    val equippedItems: Map<EquipmentSlot, Equipment?> get() = emptyMap()
-    val learnedManuals: List<Manual> get() = emptyList()
+    val equippedItems: Map<EquipmentSlot, EquipmentInstance?> get() = emptyMap()
+    val learnedManuals: List<ManualInstance> get() = emptyList()
 
     val genderName: String get() = if (gender == "male") "男" else "女"
     val genderSymbol: String get() = if (gender == "male") "\u2642" else "\u2640"
@@ -593,7 +593,7 @@ data class Disciple(
      * @deprecated 建议直接使用 [DiscipleStatCalculator.getStatsWithEquipment]
      * 计算弟子穿戴装备后的属性（不含功法和丹药）
      */
-    fun getStatsWithEquipment(equipments: Map<String, Equipment>): DiscipleStats =
+    fun getStatsWithEquipment(equipments: Map<String, EquipmentInstance>): DiscipleStats =
         DiscipleStatCalculator.getStatsWithEquipment(this, equipments)
 
     /**
@@ -601,8 +601,8 @@ data class Disciple(
      * 计算弟子的最终完整属性
      */
     fun getFinalStats(
-        equipments: Map<String, Equipment>,
-        manuals: Map<String, Manual>,
+        equipments: Map<String, EquipmentInstance>,
+        manuals: Map<String, ManualInstance>,
         manualProficiencies: Map<String, ManualProficiencyData> = emptyMap()
     ): DiscipleStats = DiscipleStatCalculator.getFinalStats(this, equipments, manuals, manualProficiencies)
 
@@ -610,7 +610,7 @@ data class Disciple(
      * 计算修炼速度（支持外部传入功法和熟练度数据）
      */
     fun calculateCultivationSpeed(
-        manuals: Map<String, Manual> = emptyMap(),
+        manuals: Map<String, ManualInstance> = emptyMap(),
         manualProficiencies: Map<String, ManualProficiencyData> = emptyMap(),
         additionalBonus: Double = 0.0,
         buildingBonus: Double = 1.0,

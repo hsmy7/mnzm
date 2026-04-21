@@ -51,12 +51,14 @@ import com.xianxia.sect.core.model.DirectDiscipleSlot
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.ElderSlots
-import com.xianxia.sect.core.model.Equipment
+import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GameEvent
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.SectScoutInfo
-import com.xianxia.sect.core.model.Manual
+import com.xianxia.sect.core.model.ManualInstance
+import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.MerchantItem
 import com.xianxia.sect.core.model.Pill
@@ -168,12 +170,12 @@ fun MainGameScreen(
     val events by viewModel.events.collectAsState()
     val teams by viewModel.teams.collectAsState()
 
-    // [M7-OPT-4] 仓库数据延迟收集策略
-    // 这些数据仅在 WAREHOUSE Tab 或特定 Dialog 显示时才需要
-    // 当前在顶层收集是为了简化参数传递
-    // TODO: 后续可考虑移到 WarehouseTab 内部收集以进一步减少常驻订阅
     val equipment by viewModel.equipment.collectAsState()
     val manuals by viewModel.manuals.collectAsState()
+    val equipmentStacks by viewModel.equipmentStacks.collectAsState()
+    val equipmentInstances by viewModel.equipmentInstances.collectAsState()
+    val manualStacks by viewModel.manualStacks.collectAsState()
+    val manualInstances by viewModel.manualInstances.collectAsState()
     val pills by viewModel.pills.collectAsState()
     val materials by viewModel.materials.collectAsState()
     val herbs by viewModel.herbs.collectAsState()
@@ -730,8 +732,8 @@ private fun BottomNavigationBar(
 private fun DisciplesTab(
     gameData: GameData?,
     disciples: List<DiscipleAggregate>,
-    equipment: List<Equipment>,
-    manuals: List<Manual>,
+    equipment: List<EquipmentInstance>,
+    manuals: List<ManualInstance>,
     viewModel: GameViewModel
 ) {
     var selectedRealmFilter by remember { mutableStateOf<Int?>(null) }
@@ -3435,19 +3437,19 @@ private enum class WarehouseFilter(val displayName: String) {
 
 @Composable
 private fun WarehouseTab(viewModel: GameViewModel) {
-    val allEquipment by viewModel.equipment.collectAsState()
-    val allManuals by viewModel.manuals.collectAsState()
+    val equipmentStacks by viewModel.equipmentStacks.collectAsState()
+    val manualStacks by viewModel.manualStacks.collectAsState()
     val pills by viewModel.pills.collectAsState()
     val materials by viewModel.materials.collectAsState()
     val herbs by viewModel.herbs.collectAsState()
     val seeds by viewModel.seeds.collectAsState()
     
-    val equipment = remember(allEquipment) {
-        allEquipment.filter { !it.isEquipped }.sortedWith(compareByDescending<Equipment> { it.rarity }.thenBy { it.name })
+    val equipment = remember(equipmentStacks) {
+        equipmentStacks.sortedWith(compareByDescending<EquipmentStack> { it.rarity }.thenBy { it.name })
     }
     
-    val manuals = remember(allManuals) {
-        allManuals.filter { !it.isLearned }.sortedWith(compareByDescending<Manual> { it.rarity }.thenBy { it.name })
+    val manuals = remember(manualStacks) {
+        manualStacks.sortedWith(compareByDescending<ManualStack> { it.rarity }.thenBy { it.name })
     }
     
     val sortedPills = remember(pills) {
@@ -3692,8 +3694,8 @@ private fun WarehouseTab(viewModel: GameViewModel) {
                                             name = warehouseItem.name,
                                             rarity = warehouseItem.rarity,
                                             quantity = when (val item = warehouseItem.item) {
-                                                is Equipment -> item.quantity
-                                                is Manual -> item.quantity
+                                                is EquipmentStack -> item.quantity
+                                                is ManualStack -> item.quantity
                                                 is Pill -> item.quantity
                                                 is Material -> item.quantity
                                                 is Herb -> item.quantity
@@ -3736,8 +3738,8 @@ private fun WarehouseTab(viewModel: GameViewModel) {
     if (showDetailDialog) {
         selectedItem?.let { item ->
             val itemId = when (item) {
-                is Equipment -> item.id
-                is Manual -> item.id
+                is EquipmentStack -> item.id
+                is ManualStack -> item.id
                 is Pill -> item.id
                 is Material -> item.id
                 is Herb -> item.id
@@ -3745,8 +3747,8 @@ private fun WarehouseTab(viewModel: GameViewModel) {
                 else -> ""
             }
             val itemType = when (item) {
-                is Equipment -> "equipment"
-                is Manual -> "manual"
+                is EquipmentStack -> "equipment"
+                is ManualStack -> "manual"
                 is Pill -> "pill"
                 is Material -> "material"
                 is Herb -> "herb"
@@ -3754,8 +3756,8 @@ private fun WarehouseTab(viewModel: GameViewModel) {
                 else -> ""
             }
             val itemQuantity = when (item) {
-                is Equipment -> 1
-                is Manual -> 1
+                is EquipmentStack -> item.quantity
+                is ManualStack -> item.quantity
                 is Pill -> item.quantity
                 is Material -> item.quantity
                 is Herb -> item.quantity
@@ -3763,8 +3765,8 @@ private fun WarehouseTab(viewModel: GameViewModel) {
                 else -> 0
             }
             val itemRarity = when (item) {
-                is Equipment -> item.rarity
-                is Manual -> item.rarity
+                is EquipmentStack -> item.rarity
+                is ManualStack -> item.rarity
                 is Pill -> item.rarity
                 is Material -> item.rarity
                 is Herb -> item.rarity
@@ -3772,8 +3774,8 @@ private fun WarehouseTab(viewModel: GameViewModel) {
                 else -> 1
             }
             val itemName = when (item) {
-                is Equipment -> item.name
-                is Manual -> item.name
+                is EquipmentStack -> item.name
+                is ManualStack -> item.name
                 is Pill -> item.name
                 is Material -> item.name
                 is Herb -> item.name
@@ -3833,22 +3835,22 @@ private fun DiscipleSelectForRewardDialog(
     val materials by viewModel.materials.collectAsState()
     val herbs by viewModel.herbs.collectAsState()
     val seeds by viewModel.seeds.collectAsState()
-    val equipment by viewModel.equipment.collectAsState()
-    val manuals by viewModel.manuals.collectAsState()
+    val equipmentStacks by viewModel.equipmentStacks.collectAsState()
+    val manualStacks by viewModel.manualStacks.collectAsState()
     
     val aliveDisciples = remember(disciples) {
         disciples.filter { it.isAlive && it.status != DiscipleStatus.REFLECTING }
     }
     
-    val currentQuantity by remember(pills, materials, herbs, seeds, equipment, manuals, itemType, itemId) {
+    val currentQuantity by remember(pills, materials, herbs, seeds, equipmentStacks, manualStacks, itemType, itemId) {
         derivedStateOf {
             when (itemType) {
                 "pill" -> pills.find { it.id == itemId }?.quantity ?: 0
                 "material" -> materials.find { it.id == itemId }?.quantity ?: 0
                 "herb" -> herbs.find { it.id == itemId }?.quantity ?: 0
                 "seed" -> seeds.find { it.id == itemId }?.quantity ?: 0
-                "equipment" -> if (equipment.any { it.id == itemId }) 1 else 0
-                "manual" -> manuals.find { it.id == itemId }?.quantity ?: 0
+                "equipment" -> equipmentStacks.find { it.id == itemId }?.quantity ?: 0
+                "manual" -> manualStacks.find { it.id == itemId }?.quantity ?: 0
                 else -> 0
             }
         }
@@ -3996,19 +3998,19 @@ private fun BulkSellDialog(
     viewModel: GameViewModel,
     onDismiss: () -> Unit
 ) {
-    val allEquipment by viewModel.equipment.collectAsState()
-    val allManuals by viewModel.manuals.collectAsState()
+    val equipmentStacks by viewModel.equipmentStacks.collectAsState()
+    val manualStacks by viewModel.manualStacks.collectAsState()
     val pills by viewModel.pills.collectAsState()
     val materials by viewModel.materials.collectAsState()
     val herbs by viewModel.herbs.collectAsState()
     val seeds by viewModel.seeds.collectAsState()
     
-    val equipment = remember(allEquipment) {
-        allEquipment.filter { !it.isEquipped }
+    val equipment = remember(equipmentStacks) {
+        equipmentStacks
     }
     
-    val manuals = remember(allManuals) {
-        allManuals.filter { !it.isLearned }
+    val manuals = remember(manualStacks) {
+        manualStacks
     }
     
     var selectedRarities by remember { mutableStateOf<Set<Int>>(emptySet()) }

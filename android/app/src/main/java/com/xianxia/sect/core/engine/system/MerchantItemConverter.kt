@@ -7,9 +7,9 @@ import com.xianxia.sect.core.data.HerbDatabase
 import com.xianxia.sect.core.data.ItemDatabase
 import com.xianxia.sect.core.data.ManualDatabase
 import com.xianxia.sect.core.data.PillRecipeDatabase
-import com.xianxia.sect.core.model.Equipment
+import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.Herb
-import com.xianxia.sect.core.model.Manual
+import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.model.ManualType
 import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.MaterialCategory
@@ -21,10 +21,10 @@ import com.xianxia.sect.core.model.Seed
 import java.util.UUID
 
 object MerchantItemConverter {
-    fun toEquipment(item: MerchantItem): Equipment {
+    fun toEquipment(item: MerchantItem): EquipmentStack {
         val template = EquipmentDatabase.getTemplateByName(item.name)
         if (template != null) {
-            return Equipment(
+            return EquipmentStack(
                 id = UUID.randomUUID().toString(),
                 name = template.name,
                 slot = template.slot,
@@ -46,38 +46,37 @@ object MerchantItemConverter {
         )
     }
 
-    fun toEquipmentBatch(item: MerchantItem, quantity: Int): List<Equipment> {
+    fun toEquipmentBatch(item: MerchantItem, quantity: Int): EquipmentStack {
         val template = EquipmentDatabase.getTemplateByName(item.name)
-        return (1..quantity).map {
-            if (template != null) {
-                Equipment(
-                    id = UUID.randomUUID().toString(),
-                    name = template.name,
-                    slot = template.slot,
-                    rarity = item.rarity,
-                    physicalAttack = template.physicalAttack,
-                    magicAttack = template.magicAttack,
-                    physicalDefense = template.physicalDefense,
-                    magicDefense = template.magicDefense,
-                    speed = template.speed,
-                    hp = template.hp,
-                    mp = template.mp,
-                    description = template.description,
-                    minRealm = GameConfig.Realm.getMinRealmForRarity(item.rarity)
-                )
-            } else {
-                EquipmentDatabase.generateRandom(item.rarity, item.rarity).copy(
-                    id = UUID.randomUUID().toString(),
-                    rarity = item.rarity
-                )
-            }
+        if (template != null) {
+            return EquipmentStack(
+                id = UUID.randomUUID().toString(),
+                name = template.name,
+                slot = template.slot,
+                rarity = item.rarity,
+                physicalAttack = template.physicalAttack,
+                magicAttack = template.magicAttack,
+                physicalDefense = template.physicalDefense,
+                magicDefense = template.magicDefense,
+                speed = template.speed,
+                hp = template.hp,
+                mp = template.mp,
+                description = template.description,
+                minRealm = GameConfig.Realm.getMinRealmForRarity(item.rarity),
+                quantity = quantity
+            )
         }
+        return EquipmentDatabase.generateRandom(item.rarity, item.rarity).copy(
+            id = UUID.randomUUID().toString(),
+            rarity = item.rarity,
+            quantity = quantity
+        )
     }
 
-    fun toManual(item: MerchantItem): Manual {
+    fun toManual(item: MerchantItem): ManualStack {
         val template = ManualDatabase.getByName(item.name)
         if (template != null) {
-            return Manual(
+            return ManualStack(
                 id = UUID.randomUUID().toString(),
                 name = template.name,
                 rarity = item.rarity,

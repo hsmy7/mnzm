@@ -56,13 +56,19 @@ class DiscipleService @Inject constructor(
             if (ts != null) { ts.disciples = value; return }
             scope.launch { stateStore.update { disciples = value } }
         }
-
-    private var currentEquipment: List<Equipment>
-        get() = stateStore.currentTransactionMutableState()?.equipment ?: stateStore.unifiedState.value.equipment
+    private var currentEquipmentInstances: List<EquipmentInstance>
+        get() = stateStore.currentTransactionMutableState()?.equipmentInstances ?: stateStore.unifiedState.value.equipmentInstances
         set(value) {
             val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.equipment = value; return }
-            scope.launch { stateStore.update { equipment = value } }
+            if (ts != null) { ts.equipmentInstances = value; return }
+            scope.launch { stateStore.update { equipmentInstances = value } }
+        }
+    private var currentEquipmentStacks: List<EquipmentStack>
+        get() = stateStore.currentTransactionMutableState()?.equipmentStacks ?: stateStore.unifiedState.value.equipmentStacks
+        set(value) {
+            val ts = stateStore.currentTransactionMutableState()
+            if (ts != null) { ts.equipmentStacks = value; return }
+            scope.launch { stateStore.update { equipmentStacks = value } }
         }
 
     private var currentTeams: List<ExplorationTeam>
@@ -539,72 +545,60 @@ class DiscipleService @Inject constructor(
             disciple.armorId.takeIf { it.isNotEmpty() }?.let { returnEquipIds.add(it) }
             disciple.bootsId.takeIf { it.isNotEmpty() }?.let { returnEquipIds.add(it) }
             disciple.accessoryId.takeIf { it.isNotEmpty() }?.let { returnEquipIds.add(it) }
-            disciple.storageBagItems.filter { it.itemType == "equipment" }.forEach { returnEquipIds.add(it.itemId) }
+            disciple.storageBagItems.filter { it.itemType == "equipment_stack" || it.itemType == "equipment_instance" }.forEach { returnEquipIds.add(it.itemId) }
 
             returnEquipIds.forEach { eid ->
-                val eq = equipment.find { it.id == eid } ?: return@forEach
-                val existingUnequipped = equipment.find {
-                    it.name == eq.name && it.rarity == eq.rarity && it.slot == eq.slot && !it.isEquipped && it.id != eid
+                val eq = equipmentInstances.find { it.id == eid } ?: return@forEach
+                val stack = eq.toStack()
+                val existingStack = equipmentStacks.find {
+                    it.name == stack.name && it.rarity == stack.rarity && it.slot == stack.slot
                 }
-                if (existingUnequipped != null) {
-                    val newQty = (existingUnequipped.quantity + eq.quantity).coerceAtMost(999)
-                    equipment = equipment.map { e ->
-                        when {
-                            e.id == existingUnequipped.id -> e.copy(quantity = newQty)
-                            e.id == eid -> null
-                            else -> e
-                        }
-                    }.filterNotNull()
-                } else {
-                    equipment = equipment.map { e ->
-                        if (e.id == eid) e.copy(isEquipped = false, ownerId = null, nurtureLevel = 0, nurtureProgress = 0.0) else e
+                if (existingStack != null) {
+                    val newQty = (existingStack.quantity + stack.quantity).coerceAtMost(999)
+                    equipmentStacks = equipmentStacks.map { s ->
+                        if (s.id == existingStack.id) s.copy(quantity = newQty) else s
                     }
+                } else {
+                    equipmentStacks = equipmentStacks + stack
                 }
+                equipmentInstances = equipmentInstances.filter { it.id != eid }
             }
 
-            disciple.storageBagItems.filter { it.itemType == "manual" }.forEach { bagItem ->
-                val m = manuals.find { it.id == bagItem.itemId }
-                val existingUnlearned = m?.let { manual ->
-                    manuals.find {
-                        it.name == manual.name && it.rarity == manual.rarity && it.type == manual.type && !it.isLearned && it.id != bagItem.itemId
+            disciple.storageBagItems.filter { it.itemType == "manual_stack" || it.itemType == "manual_instance" }.forEach { bagItem ->
+                val m = manualInstances.find { it.id == bagItem.itemId }
+                if (m != null) {
+                    val stack = m.toStack()
+                    val existingStack = manualStacks.find {
+                        it.name == stack.name && it.rarity == stack.rarity && it.type == stack.type
                     }
-                }
-                if (existingUnlearned != null) {
-                    val newQty = (existingUnlearned.quantity + (m.quantity)).coerceAtMost(999)
-                    manuals = manuals.map { item ->
-                        when {
-                            item.id == existingUnlearned.id -> item.copy(quantity = newQty)
-                            item.id == bagItem.itemId -> null
-                            else -> item
+                    if (existingStack != null) {
+                        val newQty = (existingStack.quantity + stack.quantity).coerceAtMost(999)
+                        manualStacks = manualStacks.map { s ->
+                            if (s.id == existingStack.id) s.copy(quantity = newQty) else s
                         }
-                    }.filterNotNull()
-                } else {
-                    manuals = manuals.map { item ->
-                        if (item.id == bagItem.itemId) item.copy(isLearned = false, ownerId = null) else item
+                    } else {
+                        manualStacks = manualStacks + stack
                     }
+                    manualInstances = manualInstances.filter { it.id != bagItem.itemId }
                 }
             }
 
             disciple.manualIds.forEach { manualId ->
-                val m = manuals.find { it.id == manualId }
-                val existingUnlearned = m?.let { manual ->
-                    manuals.find {
-                        it.name == manual.name && it.rarity == manual.rarity && it.type == manual.type && !it.isLearned && it.id != manualId
+                val m = manualInstances.find { it.id == manualId }
+                if (m != null) {
+                    val stack = m.toStack()
+                    val existingStack = manualStacks.find {
+                        it.name == stack.name && it.rarity == stack.rarity && it.type == stack.type
                     }
-                }
-                if (existingUnlearned != null) {
-                    val newQty = (existingUnlearned.quantity + (m?.quantity ?: 1)).coerceAtMost(999)
-                    manuals = manuals.map { item ->
-                        when {
-                            item.id == existingUnlearned.id -> item.copy(quantity = newQty)
-                            item.id == manualId -> null
-                            else -> item
+                    if (existingStack != null) {
+                        val newQty = (existingStack.quantity + stack.quantity).coerceAtMost(999)
+                        manualStacks = manualStacks.map { s ->
+                            if (s.id == existingStack.id) s.copy(quantity = newQty) else s
                         }
-                    }.filterNotNull()
-                } else {
-                    manuals = manuals.map { item ->
-                        if (item.id == manualId) item.copy(isLearned = false, ownerId = null) else item
+                    } else {
+                        manualStacks = manualStacks + stack
                     }
+                    manualInstances = manualInstances.filter { it.id != manualId }
                 }
             }
 
@@ -633,20 +627,31 @@ class DiscipleService @Inject constructor(
         val discipleIndex = currentDisciples.indexOfFirst { it.id == discipleId }
         if (discipleIndex < 0) return false
 
-        val equipment = currentEquipment.find { it.id == equipmentId } ?: return false
         val disciple = currentDisciples[discipleIndex]
 
-        if (equipment.isEquipped && equipment.ownerId != null && equipment.ownerId != discipleId) {
-            eventService.addGameEvent("${equipment.name} 已被其他弟子装备，无法重复穿戴", EventType.WARNING)
-            return false
+        val equipmentStack = currentEquipmentStacks.find { it.id == equipmentId }
+        val equipmentInstance = currentEquipmentInstances.find { it.id == equipmentId }
+
+        if (equipmentStack == null && equipmentInstance == null) return false
+
+        if (equipmentInstance != null) {
+            if (equipmentInstance.isEquipped && equipmentInstance.ownerId != null && equipmentInstance.ownerId != discipleId) {
+                eventService.addGameEvent("${equipmentInstance.name} 已被其他弟子装备，无法重复穿戴", EventType.WARNING)
+                return false
+            }
+            if (!GameConfig.Realm.meetsRealmRequirement(disciple.realm, equipmentInstance.minRealm)) {
+                eventService.addGameEvent("${disciple.name} 境界不足，无法装备 ${equipmentInstance.name}", EventType.WARNING)
+                return false
+            }
+        } else if (equipmentStack != null) {
+            if (!GameConfig.Realm.meetsRealmRequirement(disciple.realm, equipmentStack.minRealm)) {
+                eventService.addGameEvent("${disciple.name} 境界不足，无法装备 ${equipmentStack.name}", EventType.WARNING)
+                return false
+            }
         }
 
-        if (!GameConfig.Realm.meetsRealmRequirement(disciple.realm, equipment.minRealm)) {
-            eventService.addGameEvent("${disciple.name} 境界不足，无法装备 ${equipment.name}", EventType.WARNING)
-            return false
-        }
-
-        when (equipment.slot) {
+        val slot = equipmentInstance?.slot ?: equipmentStack!!.slot
+        when (slot) {
             EquipmentSlot.WEAPON -> disciple.weaponId.takeIf { it.isNotEmpty() }?.let { unequipEquipment(discipleId, it) }
             EquipmentSlot.ARMOR -> disciple.armorId.takeIf { it.isNotEmpty() }?.let { unequipEquipment(discipleId, it) }
             EquipmentSlot.BOOTS -> disciple.bootsId.takeIf { it.isNotEmpty() }?.let { unequipEquipment(discipleId, it) }
@@ -656,20 +661,20 @@ class DiscipleService @Inject constructor(
 
         val currentDisciple = currentDisciples[discipleIndex]
 
-        if (equipment.quantity > 1) {
+        if (equipmentStack != null) {
             val equippedId = java.util.UUID.randomUUID().toString()
-            val equippedItem = equipment.copy(
-                id = equippedId,
-                quantity = 1,
-                isEquipped = true,
-                ownerId = discipleId
-            )
-            val remainingQuantity = equipment.quantity - 1
-            currentEquipment = currentEquipment.map {
-                if (it.id == equipmentId) it.copy(quantity = remainingQuantity) else it
-            } + equippedItem
+            val equippedItem = equipmentStack.toInstance(id = equippedId, ownerId = discipleId, isEquipped = true)
 
-            val updatedDisciple = when (equipment.slot) {
+            if (equipmentStack.quantity > 1) {
+                currentEquipmentStacks = currentEquipmentStacks.map {
+                    if (it.id == equipmentId) it.copy(quantity = it.quantity - 1) else it
+                }
+            } else {
+                currentEquipmentStacks = currentEquipmentStacks.filter { it.id != equipmentId }
+            }
+            currentEquipmentInstances = currentEquipmentInstances + equippedItem
+
+            val updatedDisciple = when (slot) {
                 EquipmentSlot.WEAPON -> currentDisciple.copyWith(weaponId = equippedId)
                 EquipmentSlot.ARMOR -> currentDisciple.copyWith(armorId = equippedId)
                 EquipmentSlot.BOOTS -> currentDisciple.copyWith(bootsId = equippedId)
@@ -678,7 +683,7 @@ class DiscipleService @Inject constructor(
             }
             currentDisciples = currentDisciples.toMutableList().also { it[discipleIndex] = updatedDisciple }
         } else {
-            val updatedDisciple = when (equipment.slot) {
+            val updatedDisciple = when (slot) {
                 EquipmentSlot.WEAPON -> currentDisciple.copyWith(weaponId = equipmentId)
                 EquipmentSlot.ARMOR -> currentDisciple.copyWith(armorId = equipmentId)
                 EquipmentSlot.BOOTS -> currentDisciple.copyWith(bootsId = equipmentId)
@@ -686,12 +691,13 @@ class DiscipleService @Inject constructor(
                 else -> currentDisciple
             }
             currentDisciples = currentDisciples.toMutableList().also { it[discipleIndex] = updatedDisciple }
-            currentEquipment = currentEquipment.map {
+            currentEquipmentInstances = currentEquipmentInstances.map {
                 if (it.id == equipmentId) it.copy(isEquipped = true, ownerId = discipleId) else it
             }
         }
 
-        eventService.addGameEvent("${disciple.name} 装备了 ${equipment.name}", EventType.INFO)
+        val equipName = equipmentStack?.name ?: equipmentInstance?.name ?: ""
+        eventService.addGameEvent("${disciple.name} 装备了 $equipName", EventType.INFO)
         return true
     }
 
@@ -713,55 +719,54 @@ class DiscipleService @Inject constructor(
         }
 
         if (updatedDisciple != disciple) {
-            val eq = currentEquipment.find { it.id == equipmentId }
+            val eq = currentEquipmentInstances.find { it.id == equipmentId }
             val data = currentGameData
 
-            val existingUnequipped = currentEquipment.find {
-                it.name == eq?.name && it.rarity == eq?.rarity && it.slot == eq?.slot && !it.isEquipped && it.id != equipmentId
-            }
+            if (eq != null) {
+                val existingStack = currentEquipmentStacks.find {
+                    it.name == eq.name && it.rarity == eq.rarity && it.slot == eq.slot
+                }
 
-            if (existingUnequipped != null && eq != null) {
-                val newQty = (existingUnequipped.quantity + 1).coerceAtMost(999)
-                val mergedId = existingUnequipped.id
-                val storageItem = StorageBagItem(
-                    itemId = mergedId,
-                    itemType = "equipment",
-                    name = eq.name,
-                    rarity = eq.rarity,
-                    quantity = 1,
-                    obtainedYear = data.gameYear,
-                    obtainedMonth = data.gameMonth
-                )
-                val discipleWithBag = updatedDisciple.copyWith(
-                    storageBagItems = StorageBagUtils.increaseItemQuantity(updatedDisciple.storageBagItems, storageItem)
-                )
-                currentDisciples = currentDisciples.toMutableList().also { it[discipleIndex] = discipleWithBag }
-                currentEquipment = currentEquipment.map { e ->
-                    when {
-                        e.id == mergedId -> e.copy(quantity = newQty)
-                        e.id == equipmentId -> null
-                        else -> e
-                    }
-                }.filterNotNull()
-            } else {
-                val discipleWithBag = if (eq != null) {
+                if (existingStack != null) {
+                    val newQty = (existingStack.quantity + 1).coerceAtMost(999)
+                    val mergedId = existingStack.id
                     val storageItem = StorageBagItem(
-                        itemId = equipmentId,
-                        itemType = "equipment",
+                        itemId = mergedId,
+                        itemType = "equipment_stack",
                         name = eq.name,
                         rarity = eq.rarity,
                         quantity = 1,
                         obtainedYear = data.gameYear,
                         obtainedMonth = data.gameMonth
                     )
-                    updatedDisciple.copyWith(
+                    val discipleWithBag = updatedDisciple.copyWith(
                         storageBagItems = StorageBagUtils.increaseItemQuantity(updatedDisciple.storageBagItems, storageItem)
                     )
-                } else updatedDisciple
-                currentDisciples = currentDisciples.toMutableList().also { it[discipleIndex] = discipleWithBag }
-                currentEquipment = currentEquipment.map {
-                    if (it.id == equipmentId) it.copy(isEquipped = false, ownerId = null, nurtureLevel = 0, nurtureProgress = 0.0) else it
+                    currentDisciples = currentDisciples.toMutableList().also { it[discipleIndex] = discipleWithBag }
+                    currentEquipmentStacks = currentEquipmentStacks.map { s ->
+                        if (s.id == mergedId) s.copy(quantity = newQty) else s
+                    }
+                    currentEquipmentInstances = currentEquipmentInstances.filter { it.id != equipmentId }
+                } else {
+                    val newStack = eq.toStack(quantity = 1)
+                    val storageItem = StorageBagItem(
+                        itemId = newStack.id,
+                        itemType = "equipment_stack",
+                        name = eq.name,
+                        rarity = eq.rarity,
+                        quantity = 1,
+                        obtainedYear = data.gameYear,
+                        obtainedMonth = data.gameMonth
+                    )
+                    val discipleWithBag = updatedDisciple.copyWith(
+                        storageBagItems = StorageBagUtils.increaseItemQuantity(updatedDisciple.storageBagItems, storageItem)
+                    )
+                    currentDisciples = currentDisciples.toMutableList().also { it[discipleIndex] = discipleWithBag }
+                    currentEquipmentStacks = currentEquipmentStacks + newStack
+                    currentEquipmentInstances = currentEquipmentInstances.filter { it.id != equipmentId }
                 }
+            } else {
+                currentDisciples = currentDisciples.toMutableList().also { it[discipleIndex] = updatedDisciple }
             }
 
             return true

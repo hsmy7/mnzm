@@ -1,17 +1,16 @@
-@file:Suppress("DEPRECATION")
-
 package com.xianxia.sect.core.engine
 
-import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.engine.system.StackUpdate
 import com.xianxia.sect.core.model.*
 
 object DiscipleEquipmentManager {
-    
+
     data class EquipmentProcessResult(
         val disciple: Disciple,
-        val equipmentUpdates: List<Equipment>,
-        val events: List<String>,
-        val remainingEquipment: Equipment? = null
+        val newInstance: EquipmentInstance?,
+        val replacedInstance: EquipmentInstance?,
+        val stackUpdate: StackUpdate?,
+        val events: List<String>
     )
 
     private data class SlotConfig(
@@ -19,7 +18,7 @@ object DiscipleEquipmentManager {
         val currentEquipIdGetter: (Disciple) -> String?,
         val equipSetter: (Disciple, String) -> Disciple
     )
-    
+
     private val slotConfigs = listOf(
         SlotConfig(
             slotType = EquipmentSlot.WEAPON,
@@ -42,91 +41,94 @@ object DiscipleEquipmentManager {
             equipSetter = { d, id -> d.copyWith(accessoryId = id) }
         )
     )
-    
+
     fun processAutoEquip(
         disciple: Disciple,
-        equipmentMap: Map<String, Equipment>,
+        equipmentStacks: List<EquipmentStack>,
+        equipmentInstances: Map<String, EquipmentInstance>,
         gameYear: Int,
         gameMonth: Int,
         instantMessage: Boolean = false
     ): EquipmentProcessResult {
-        val equipmentUpdates = mutableListOf<Equipment>()
         val events = mutableListOf<String>()
         var updatedDisciple = disciple
-        var lastRemaining: Equipment? = null
-        
-        val bagEquipments = disciple.storageBagItems
-            .filter { it.itemType == "equipment" }
-            .mapNotNull { equipmentMap[it.itemId] }
-            .filter { disciple.realm <= it.minRealm }
-        
-        if (bagEquipments.isEmpty()) {
-            return EquipmentProcessResult(disciple, emptyList(), emptyList())
+        var lastNewInstance: EquipmentInstance? = null
+        var lastReplacedInstance: EquipmentInstance? = null
+        var lastStackUpdate: StackUpdate? = null
+
+        val bagStackRefs = disciple.storageBagItems
+            .filter { it.itemType == "equipment_stack" }
+
+        if (bagStackRefs.isEmpty()) {
+            return EquipmentProcessResult(disciple, null, null, null, emptyList())
         }
-        
+
         slotConfigs.forEach { config ->
             val result = processSlot(
                 disciple = updatedDisciple,
                 config = config,
-                equipmentMap = equipmentMap,
-                bagEquipments = bagEquipments,
+                equipmentStacks = equipmentStacks,
+                equipmentInstances = equipmentInstances,
+                bagStackRefs = bagStackRefs,
                 gameYear = gameYear,
                 gameMonth = gameMonth,
                 instantMessage = instantMessage
             )
-            
-            if (result.disciple != updatedDisciple) {
+
+            if (result.newInstance != null) {
                 updatedDisciple = result.disciple
-                equipmentUpdates.addAll(result.equipmentUpdates)
+                lastNewInstance = result.newInstance
+                lastReplacedInstance = result.replacedInstance
+                lastStackUpdate = result.stackUpdate
                 events.addAll(result.events)
-                result.remainingEquipment?.let { lastRemaining = it }
             }
         }
-        
-        return EquipmentProcessResult(updatedDisciple, equipmentUpdates, events, lastRemaining)
+
+        return EquipmentProcessResult(updatedDisciple, lastNewInstance, lastReplacedInstance, lastStackUpdate, events)
     }
-    
+
     private fun processSlot(
         disciple: Disciple,
         config: SlotConfig,
-        equipmentMap: Map<String, Equipment>,
-        bagEquipments: List<Equipment>,
+        equipmentStacks: List<EquipmentStack>,
+        equipmentInstances: Map<String, EquipmentInstance>,
+        bagStackRefs: List<StorageBagItem>,
         gameYear: Int,
         gameMonth: Int,
         instantMessage: Boolean
     ): EquipmentProcessResult {
-        val equipmentUpdates = mutableListOf<Equipment>()
         val events = mutableListOf<String>()
         var updatedDisciple = disciple
-        
-        val slotEquipments = bagEquipments.filter {
-            it.slot == config.slotType
+
+        val slotStacks = bagStackRefs.mapNotNull { ref ->
+            equipmentStacks.find { it.id == ref.itemId && it.slot == config.slotType }
+        }.filter { disciple.realm <= it.minRealm }
+
+        if (slotStacks.isEmpty()) {
+            return EquipmentProcessResult(disciple, null, null, null, emptyList())
         }
-        
-        if (slotEquipments.isEmpty()) {
-            return EquipmentProcessResult(disciple, emptyList(), emptyList())
-        }
-        
+
         val currentEquipId = config.currentEquipIdGetter(disciple)
-        val currentEquip = currentEquipId?.let { equipmentMap[it] }
-        val currentRarity = currentEquip?.rarity ?: 0
-        
-        val betterEquip = slotEquipments
+        val currentInstance = currentEquipId?.let { equipmentInstances[it] }
+        val currentRarity = currentInstance?.rarity ?: 0
+
+        val bestStack = slotStacks
             .filter { it.rarity > currentRarity }
             .maxByOrNull { it.rarity }
-        
-        if (betterEquip == null) {
-            return EquipmentProcessResult(disciple, emptyList(), emptyList())
+
+        if (bestStack == null) {
+            return EquipmentProcessResult(disciple, null, null, null, emptyList())
         }
-        
-        currentEquip?.let { oldEquip ->
-            equipmentUpdates.add(oldEquip.copy(ownerId = disciple.id, isEquipped = false, nurtureLevel = 0, nurtureProgress = 0.0))
-            
+
+        var replacedInstance: EquipmentInstance? = null
+        currentInstance?.let { oldInstance ->
+            replacedInstance = oldInstance
+
             val oldItem = StorageBagItem(
-                itemId = oldEquip.id,
-                itemType = "equipment",
-                name = oldEquip.name,
-                rarity = oldEquip.rarity,
+                itemId = oldInstance.id,
+                itemType = "equipment_instance",
+                name = oldInstance.name,
+                rarity = oldInstance.rarity,
                 quantity = 1,
                 obtainedYear = gameYear,
                 obtainedMonth = gameMonth
@@ -135,40 +137,37 @@ object DiscipleEquipmentManager {
                 storageBagItems = updatedDisciple.storageBagItems + oldItem
             )
         }
-        
-        val remainingEquipment: Equipment?
-        if (betterEquip.quantity > 1) {
-            val equippedId = java.util.UUID.randomUUID().toString()
-            val equippedItem = betterEquip.copy(
-                id = equippedId,
-                quantity = 1,
-                isEquipped = true,
-                ownerId = disciple.id
-            )
-            remainingEquipment = betterEquip.copy(quantity = betterEquip.quantity - 1, isEquipped = false, ownerId = null)
-            equipmentUpdates.add(equippedItem)
-            updatedDisciple = config.equipSetter(updatedDisciple, equippedId)
+
+        val instanceId = java.util.UUID.randomUUID().toString()
+        val newInstance = bestStack.toInstance(id = instanceId, ownerId = disciple.id, isEquipped = true)
+
+        val newQty = bestStack.quantity - 1
+        val stackUpdate = if (newQty <= 0) {
+            StackUpdate(stackId = bestStack.id, newQuantity = 0, isDeletion = true)
         } else {
-            updatedDisciple = config.equipSetter(updatedDisciple, betterEquip.id)
-            equipmentUpdates.add(betterEquip.copy(ownerId = disciple.id, isEquipped = true))
-            remainingEquipment = null
+            StackUpdate(stackId = bestStack.id, newQuantity = newQty, isDeletion = false)
         }
-        
+
+        updatedDisciple = config.equipSetter(updatedDisciple, instanceId)
+
         updatedDisciple = updatedDisciple.copyWith(
-            storageBagItems = updatedDisciple.storageBagItems.filter { it.itemId != betterEquip.id }
+            storageBagItems = updatedDisciple.storageBagItems.filter { it.itemId != bestStack.id || it.itemType != "equipment_stack" }
         )
-        
+
         val messagePrefix = if (instantMessage) "立即" else "自动"
-        events.add("${disciple.name} ${messagePrefix}装备了 ${betterEquip.name}")
-        
-        return EquipmentProcessResult(updatedDisciple, equipmentUpdates, events, remainingEquipment)
+        events.add("${disciple.name} ${messagePrefix}装备了 ${bestStack.name}")
+
+        return EquipmentProcessResult(updatedDisciple, newInstance, replacedInstance, stackUpdate, events)
     }
 
-    fun canEquip(disciple: Disciple, equipment: Equipment): Boolean {
-        if (equipment.ownerId != null && equipment.ownerId != disciple.id) return false
-        return disciple.realm <= equipment.minRealm
+    fun canEquip(disciple: Disciple, stack: EquipmentStack): Boolean {
+        return disciple.realm <= stack.minRealm
     }
-    
+
+    fun canEquip(disciple: Disciple, instance: EquipmentInstance): Boolean {
+        return disciple.realm <= instance.minRealm
+    }
+
     fun getEquipSlot(disciple: Disciple, slot: EquipmentSlot): String? {
         return when (slot) {
             EquipmentSlot.WEAPON -> disciple.weaponId

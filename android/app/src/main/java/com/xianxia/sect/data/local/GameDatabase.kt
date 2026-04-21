@@ -160,6 +160,175 @@ val MIGRATION_10_11 = object : androidx.room.migration.Migration(10, 11) {
     }
 }
 
+val MIGRATION_11_12 = object : androidx.room.migration.Migration(11, 12) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        Log.i("GameDatabase", "Migrating database from version 11 to 12: split equipment and manuals into stack/instance tables")
+
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS equipment_stacks (
+                id TEXT NOT NULL,
+                slot_id INTEGER NOT NULL,
+                name TEXT NOT NULL DEFAULT '',
+                rarity INTEGER NOT NULL DEFAULT 1,
+                description TEXT NOT NULL DEFAULT '',
+                slot TEXT NOT NULL DEFAULT 'WEAPON',
+                physicalAttack INTEGER NOT NULL DEFAULT 0,
+                magicAttack INTEGER NOT NULL DEFAULT 0,
+                physicalDefense INTEGER NOT NULL DEFAULT 0,
+                magicDefense INTEGER NOT NULL DEFAULT 0,
+                speed INTEGER NOT NULL DEFAULT 0,
+                hp INTEGER NOT NULL DEFAULT 0,
+                mp INTEGER NOT NULL DEFAULT 0,
+                critChance REAL NOT NULL DEFAULT 0.0,
+                minRealm INTEGER NOT NULL DEFAULT 9,
+                quantity INTEGER NOT NULL DEFAULT 1,
+                isLocked INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY(id, slot_id)
+            )
+        """)
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_equipment_stacks_name ON equipment_stacks(name)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_equipment_stacks_rarity ON equipment_stacks(rarity)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_equipment_stacks_slot ON equipment_stacks(slot)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_equipment_stacks_rarity_slot ON equipment_stacks(rarity, slot)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_equipment_stacks_minRealm ON equipment_stacks(minRealm)")
+
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS equipment_instances (
+                id TEXT NOT NULL,
+                slot_id INTEGER NOT NULL,
+                name TEXT NOT NULL DEFAULT '',
+                rarity INTEGER NOT NULL DEFAULT 1,
+                description TEXT NOT NULL DEFAULT '',
+                slot TEXT NOT NULL DEFAULT 'WEAPON',
+                physicalAttack INTEGER NOT NULL DEFAULT 0,
+                magicAttack INTEGER NOT NULL DEFAULT 0,
+                physicalDefense INTEGER NOT NULL DEFAULT 0,
+                magicDefense INTEGER NOT NULL DEFAULT 0,
+                speed INTEGER NOT NULL DEFAULT 0,
+                hp INTEGER NOT NULL DEFAULT 0,
+                mp INTEGER NOT NULL DEFAULT 0,
+                critChance REAL NOT NULL DEFAULT 0.0,
+                nurtureLevel INTEGER NOT NULL DEFAULT 0,
+                nurtureProgress REAL NOT NULL DEFAULT 0.0,
+                minRealm INTEGER NOT NULL DEFAULT 9,
+                ownerId TEXT,
+                isEquipped INTEGER NOT NULL DEFAULT 0,
+                isLocked INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY(id, slot_id)
+            )
+        """)
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_equipment_instances_name ON equipment_instances(name)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_equipment_instances_rarity ON equipment_instances(rarity)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_equipment_instances_slot ON equipment_instances(slot)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_equipment_instances_ownerId ON equipment_instances(ownerId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_equipment_instances_rarity_slot ON equipment_instances(rarity, slot)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_equipment_instances_minRealm ON equipment_instances(minRealm)")
+
+        db.execSQL("""
+            INSERT INTO equipment_stacks (id, slot_id, name, rarity, description, slot, physicalAttack, magicAttack, physicalDefense, magicDefense, speed, hp, mp, critChance, minRealm, quantity, isLocked)
+            SELECT id, slot_id, name, rarity, description, slot, physicalAttack, magicAttack, physicalDefense, magicDefense, speed, hp, mp, critChance, minRealm, quantity, isLocked
+            FROM equipment WHERE ownerId IS NULL OR isEquipped = 0
+        """)
+
+        db.execSQL("""
+            INSERT INTO equipment_instances (id, slot_id, name, rarity, description, slot, physicalAttack, magicAttack, physicalDefense, magicDefense, speed, hp, mp, critChance, nurtureLevel, nurtureProgress, minRealm, ownerId, isEquipped, isLocked)
+            SELECT id, slot_id, name, rarity, description, slot, physicalAttack, magicAttack, physicalDefense, magicDefense, speed, hp, mp, critChance, nurtureLevel, nurtureProgress, minRealm, ownerId, isEquipped, 0
+            FROM equipment WHERE ownerId IS NOT NULL AND isEquipped = 1
+        """)
+
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS manual_stacks (
+                id TEXT NOT NULL,
+                slot_id INTEGER NOT NULL,
+                name TEXT NOT NULL DEFAULT '',
+                rarity INTEGER NOT NULL DEFAULT 1,
+                description TEXT NOT NULL DEFAULT '',
+                type TEXT NOT NULL DEFAULT 'MIND',
+                stats TEXT NOT NULL DEFAULT '{}',
+                skillName TEXT,
+                skillDescription TEXT,
+                skillType TEXT NOT NULL DEFAULT 'attack',
+                skillDamageType TEXT NOT NULL DEFAULT 'physical',
+                skillHits INTEGER NOT NULL DEFAULT 1,
+                skillDamageMultiplier REAL NOT NULL DEFAULT 1.0,
+                skillCooldown INTEGER NOT NULL DEFAULT 3,
+                skillMpCost INTEGER NOT NULL DEFAULT 10,
+                skillHealPercent REAL NOT NULL DEFAULT 0.0,
+                skillHealType TEXT NOT NULL DEFAULT 'hp',
+                skillBuffType TEXT,
+                skillBuffValue REAL NOT NULL DEFAULT 0.0,
+                skillBuffDuration INTEGER NOT NULL DEFAULT 0,
+                skillBuffsJson TEXT NOT NULL DEFAULT '',
+                skillIsAoe INTEGER NOT NULL DEFAULT 0,
+                skillTargetScope TEXT NOT NULL DEFAULT 'self',
+                minRealm INTEGER NOT NULL DEFAULT 9,
+                quantity INTEGER NOT NULL DEFAULT 1,
+                isLocked INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY(id, slot_id)
+            )
+        """)
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_manual_stacks_name ON manual_stacks(name)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_manual_stacks_rarity ON manual_stacks(rarity)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_manual_stacks_type ON manual_stacks(type)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_manual_stacks_rarity_type ON manual_stacks(rarity, type)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_manual_stacks_minRealm ON manual_stacks(minRealm)")
+
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS manual_instances (
+                id TEXT NOT NULL,
+                slot_id INTEGER NOT NULL,
+                name TEXT NOT NULL DEFAULT '',
+                rarity INTEGER NOT NULL DEFAULT 1,
+                description TEXT NOT NULL DEFAULT '',
+                type TEXT NOT NULL DEFAULT 'MIND',
+                stats TEXT NOT NULL DEFAULT '{}',
+                skillName TEXT,
+                skillDescription TEXT,
+                skillType TEXT NOT NULL DEFAULT 'attack',
+                skillDamageType TEXT NOT NULL DEFAULT 'physical',
+                skillHits INTEGER NOT NULL DEFAULT 1,
+                skillDamageMultiplier REAL NOT NULL DEFAULT 1.0,
+                skillCooldown INTEGER NOT NULL DEFAULT 3,
+                skillMpCost INTEGER NOT NULL DEFAULT 10,
+                skillHealPercent REAL NOT NULL DEFAULT 0.0,
+                skillHealType TEXT NOT NULL DEFAULT 'hp',
+                skillBuffType TEXT,
+                skillBuffValue REAL NOT NULL DEFAULT 0.0,
+                skillBuffDuration INTEGER NOT NULL DEFAULT 0,
+                skillBuffsJson TEXT NOT NULL DEFAULT '',
+                skillIsAoe INTEGER NOT NULL DEFAULT 0,
+                skillTargetScope TEXT NOT NULL DEFAULT 'self',
+                minRealm INTEGER NOT NULL DEFAULT 9,
+                ownerId TEXT,
+                isLearned INTEGER NOT NULL DEFAULT 0,
+                isLocked INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY(id, slot_id)
+            )
+        """)
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_manual_instances_name ON manual_instances(name)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_manual_instances_rarity ON manual_instances(rarity)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_manual_instances_type ON manual_instances(type)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_manual_instances_ownerId ON manual_instances(ownerId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_manual_instances_minRealm ON manual_instances(minRealm)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_manual_instances_rarity_type ON manual_instances(rarity, type)")
+
+        db.execSQL("""
+            INSERT INTO manual_stacks (id, slot_id, name, rarity, description, type, stats, skillName, skillDescription, skillType, skillDamageType, skillHits, skillDamageMultiplier, skillCooldown, skillMpCost, skillHealPercent, skillHealType, skillBuffType, skillBuffValue, skillBuffDuration, skillBuffsJson, skillIsAoe, skillTargetScope, minRealm, quantity, isLocked)
+            SELECT id, slot_id, name, rarity, description, type, stats, skillName, skillDescription, skillType, skillDamageType, skillHits, skillDamageMultiplier, skillCooldown, skillMpCost, skillHealPercent, skillHealType, skillBuffType, skillBuffValue, skillBuffDuration, skillBuffsJson, skillIsAoe, skillTargetScope, minRealm, quantity, isLocked
+            FROM manuals WHERE ownerId IS NULL OR isLearned = 0
+        """)
+
+        db.execSQL("""
+            INSERT INTO manual_instances (id, slot_id, name, rarity, description, type, stats, skillName, skillDescription, skillType, skillDamageType, skillHits, skillDamageMultiplier, skillCooldown, skillMpCost, skillHealPercent, skillHealType, skillBuffType, skillBuffValue, skillBuffDuration, skillBuffsJson, skillIsAoe, skillTargetScope, minRealm, ownerId, isLearned, isLocked)
+            SELECT id, slot_id, name, rarity, description, type, stats, skillName, skillDescription, skillType, skillDamageType, skillHits, skillDamageMultiplier, skillCooldown, skillMpCost, skillHealPercent, skillHealType, skillBuffType, skillBuffValue, skillBuffDuration, skillBuffsJson, skillIsAoe, skillTargetScope, minRealm, ownerId, isLearned, 0
+            FROM manuals WHERE ownerId IS NOT NULL AND isLearned = 1
+        """)
+
+        db.execSQL("DROP TABLE IF EXISTS equipment")
+        db.execSQL("DROP TABLE IF EXISTS manuals")
+    }
+}
+
 @Database(
     entities = [
         GameData::class,
@@ -169,8 +338,10 @@ val MIGRATION_10_11 = object : androidx.room.migration.Migration(10, 11) {
         DiscipleEquipment::class,
         DiscipleExtended::class,
         DiscipleAttributes::class,
-        Equipment::class,
-        Manual::class,
+        EquipmentStack::class,
+        EquipmentInstance::class,
+        ManualStack::class,
+        ManualInstance::class,
         Pill::class,
         Material::class,
         Seed::class,
@@ -190,7 +361,7 @@ val MIGRATION_10_11 = object : androidx.room.migration.Migration(10, 11) {
         ArchivedGameEvent::class,
         ArchivedDisciple::class
     ],
-    version = 11,
+    version = 12,
     exportSchema = true
 )
 
@@ -204,8 +375,10 @@ abstract class GameDatabase : RoomDatabase() {
     abstract fun discipleEquipmentDao(): DiscipleEquipmentDao
     abstract fun discipleExtendedDao(): DiscipleExtendedDao
     abstract fun discipleAttributesDao(): DiscipleAttributesDao
-    abstract fun equipmentDao(): EquipmentDao
-    abstract fun manualDao(): ManualDao
+    abstract fun equipmentStackDao(): EquipmentStackDao
+    abstract fun equipmentInstanceDao(): EquipmentInstanceDao
+    abstract fun manualStackDao(): ManualStackDao
+    abstract fun manualInstanceDao(): ManualInstanceDao
     abstract fun pillDao(): PillDao
     abstract fun materialDao(): MaterialDao
     abstract fun seedDao(): SeedDao
@@ -463,7 +636,7 @@ abstract class GameDatabase : RoomDatabase() {
                         optimizeDatabase(db)
                     }
                 })
-                .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
+                .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
                 .fallbackToDestructiveMigration()
                 .build()
                 .also { db -> applySafetyPragmas(db) }

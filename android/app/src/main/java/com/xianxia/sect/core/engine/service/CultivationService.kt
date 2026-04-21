@@ -99,21 +99,36 @@ class CultivationService @Inject constructor(
             if (ts != null) { ts.disciples = value; return }
             scope.launch(Dispatchers.IO) { stateStore.update { disciples = value } }
         }
-
-    private var currentEquipment: List<Equipment>
-        get() = stateStore.currentTransactionMutableState()?.equipment ?: stateStore.equipment.value
+    private var currentEquipmentStacks: List<EquipmentStack>
+        get() = stateStore.currentTransactionMutableState()?.equipmentStacks ?: stateStore.equipmentStacks.value
         set(value) {
             val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.equipment = value; return }
-            scope.launch(Dispatchers.IO) { stateStore.update { equipment = value } }
+            if (ts != null) { ts.equipmentStacks = value; return }
+            scope.launch(Dispatchers.IO) { stateStore.update { equipmentStacks = value } }
         }
 
-    private var currentManuals: List<Manual>
-        get() = stateStore.currentTransactionMutableState()?.manuals ?: stateStore.manuals.value
+    private var currentEquipmentInstances: List<EquipmentInstance>
+        get() = stateStore.currentTransactionMutableState()?.equipmentInstances ?: stateStore.equipmentInstances.value
         set(value) {
             val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.manuals = value; return }
-            scope.launch(Dispatchers.IO) { stateStore.update { manuals = value } }
+            if (ts != null) { ts.equipmentInstances = value; return }
+            scope.launch(Dispatchers.IO) { stateStore.update { equipmentInstances = value } }
+        }
+
+    private var currentManualStacks: List<ManualStack>
+        get() = stateStore.currentTransactionMutableState()?.manualStacks ?: stateStore.manualStacks.value
+        set(value) {
+            val ts = stateStore.currentTransactionMutableState()
+            if (ts != null) { ts.manualStacks = value; return }
+            scope.launch(Dispatchers.IO) { stateStore.update { manualStacks = value } }
+        }
+
+    private var currentManualInstances: List<ManualInstance>
+        get() = stateStore.currentTransactionMutableState()?.manualInstances ?: stateStore.manualInstances.value
+        set(value) {
+            val ts = stateStore.currentTransactionMutableState()
+            if (ts != null) { ts.manualInstances = value; return }
+            scope.launch(Dispatchers.IO) { stateStore.update { manualInstances = value } }
         }
 
     private var currentPills: List<Pill>
@@ -264,8 +279,8 @@ class CultivationService @Inject constructor(
         val cultivationUpdates = mutableMapOf<String, Double>()
         val gainMap = mutableMapOf<String, Double>()
         
-        val equipmentMap = (state?.equipment ?: currentEquipment).associateBy { it.id }
-        val manualMap = (state?.manuals ?: currentManuals).associateBy { it.id }
+        val equipmentInstanceMap = (state?.equipmentInstances ?: currentEquipmentInstances).associateBy { it.id }
+        val manualInstanceMap = (state?.manualInstances ?: currentManualInstances).associateBy { it.id }
 
             idleDisciples.forEach { disciple ->
                 val cultivationPerSecond = calculateDiscipleCultivationPerSecond(disciple, data)
@@ -279,7 +294,7 @@ class CultivationService @Inject constructor(
             }
 
             var updatedManualProficiencies = data.manualProficiencies.toMutableMap()
-            val equipmentUpdates = mutableMapOf<String, Equipment>()
+            val equipmentInstanceUpdates = mutableMapOf<String, EquipmentInstance>()
             val updatedDisciples = (state?.disciples ?: currentDisciples).map { disciple ->
                 gainMap[disciple.id]?.let { gain ->
                     var d = disciple.copy(cultivation = (disciple.cultivation + gain).coerceIn(0.0, Double.MAX_VALUE))
@@ -289,7 +304,7 @@ class CultivationService @Inject constructor(
                     val baseProficiencyRate = if (data.sectPolicies.manualResearch) 6.0 else 5.0
                     val proficiencyGain = baseProficiencyRate * (1.0 + libraryBonus) * elapsedSeconds
                     d.manualIds.forEach { manualId ->
-                        val manual = manualMap[manualId] ?: return@forEach
+                        val manual = manualInstanceMap[manualId] ?: return@forEach
                         val proficiencyList = updatedManualProficiencies.getOrPut(disciple.id) { mutableListOf<ManualProficiencyData>() } as MutableList<ManualProficiencyData>
                         val existingIndex = proficiencyList.indexOfFirst { it.manualId == manualId }
                         val existing = if (existingIndex >= 0) proficiencyList[existingIndex] else null
@@ -318,24 +333,24 @@ class CultivationService @Inject constructor(
                     val nurtureGain = 5.0 * elapsedSeconds
 
                     d.weaponId?.let { eqId ->
-                        val eq = equipmentMap[eqId] ?: return@let
+                        val eq = equipmentInstanceMap[eqId] ?: return@let
                         val result = EquipmentNurtureSystem.updateNurtureExp(eq, nurtureGain)
-                        equipmentUpdates[eqId] = result.equipment
+                        equipmentInstanceUpdates[eqId] = result.equipment
                     }
                     d.armorId?.let { eqId ->
-                        val eq = equipmentMap[eqId] ?: return@let
+                        val eq = equipmentInstanceMap[eqId] ?: return@let
                         val result = EquipmentNurtureSystem.updateNurtureExp(eq, nurtureGain)
-                        equipmentUpdates[eqId] = result.equipment
+                        equipmentInstanceUpdates[eqId] = result.equipment
                     }
                     d.bootsId?.let { eqId ->
-                        val eq = equipmentMap[eqId] ?: return@let
+                        val eq = equipmentInstanceMap[eqId] ?: return@let
                         val result = EquipmentNurtureSystem.updateNurtureExp(eq, nurtureGain)
-                        equipmentUpdates[eqId] = result.equipment
+                        equipmentInstanceUpdates[eqId] = result.equipment
                     }
                     d.accessoryId?.let { eqId ->
-                        val eq = equipmentMap[eqId] ?: return@let
+                        val eq = equipmentInstanceMap[eqId] ?: return@let
                         val result = EquipmentNurtureSystem.updateNurtureExp(eq, nurtureGain)
-                        equipmentUpdates[eqId] = result.equipment
+                        equipmentInstanceUpdates[eqId] = result.equipment
                     }
 
                     d
@@ -343,11 +358,11 @@ class CultivationService @Inject constructor(
             }
 
             if (state != null) state.disciples = updatedDisciples else currentDisciples = updatedDisciples
-            if (equipmentUpdates.isNotEmpty()) {
+            if (equipmentInstanceUpdates.isNotEmpty()) {
                 if (state != null) {
-                    state.equipment = state.equipment.map { eq -> equipmentUpdates[eq.id] ?: eq }
+                    state.equipmentInstances = state.equipmentInstances.map { eq -> equipmentInstanceUpdates[eq.id] ?: eq }
                 } else {
-                    currentEquipment = currentEquipment.map { eq -> equipmentUpdates[eq.id] ?: eq }
+                    currentEquipmentInstances = currentEquipmentInstances.map { eq -> equipmentInstanceUpdates[eq.id] ?: eq }
                 }
             }
             if (updatedManualProficiencies != data.manualProficiencies) {
@@ -552,7 +567,7 @@ class CultivationService @Inject constructor(
             cultivationSubsidyBonus = GameConfig.PolicyConfig.CULTIVATION_SUBSIDY_BASE_EFFECT
         }
 
-        val manualMap = currentManuals.associateBy { it.id }
+        val manualInstanceMap = currentManualInstances.associateBy { it.id }
         val allProficiencies = data.manualProficiencies.mapValues { (_, list) ->
             list.associateBy { it.manualId }
         }
@@ -560,7 +575,7 @@ class CultivationService @Inject constructor(
 
         return DiscipleStatCalculator.calculateCultivationSpeed(
             disciple = disciple,
-            manuals = manualMap,
+            manuals = manualInstanceMap,
             manualProficiencies = discipleProficiencies,
             buildingBonus = buildingBonus,
             preachingElderBonus = wenDaoElderBonus + qingyunElderBonus,
@@ -828,8 +843,10 @@ class CultivationService @Inject constructor(
     }
 
     private fun processAutoUseItems(year: Int, month: Int) {
-        val equipmentMap = currentEquipment.associateBy { it.id }
-        val manualMap = currentManuals.associateBy { it.id }
+        val equipmentStacksList = currentEquipmentStacks
+        val equipmentInstancesMap = currentEquipmentInstances.associateBy { it.id }
+        val manualStacksList = currentManualStacks
+        val manualInstancesMap = currentManualInstances.associateBy { it.id }
 
         currentDisciples = currentDisciples.map { disciple ->
             if (!disciple.isAlive) return@map disciple
@@ -848,24 +865,28 @@ class CultivationService @Inject constructor(
 
             val equipResult = DiscipleEquipmentManager.processAutoEquip(
                 disciple = updatedDisciple,
-                equipmentMap = equipmentMap,
+                equipmentStacks = equipmentStacksList,
+                equipmentInstances = equipmentInstancesMap,
                 gameYear = year,
                 gameMonth = month
             )
-            if (equipResult.disciple != updatedDisciple) {
+            if (equipResult.newInstance != null) {
                 updatedDisciple = equipResult.disciple
-                equipResult.equipmentUpdates.forEach { eq ->
-                    if (currentEquipment.none { it.id == eq.id }) {
-                        currentEquipment = currentEquipment + eq
-                    } else {
-                        currentEquipment = currentEquipment.map {
-                            if (it.id == eq.id) eq else it
-                        }
+                equipResult.newInstance.let { newInstance ->
+                    currentEquipmentInstances = currentEquipmentInstances + newInstance
+                }
+                equipResult.replacedInstance?.let { replaced ->
+                    currentEquipmentInstances = currentEquipmentInstances.map {
+                        if (it.id == replaced.id) replaced else it
                     }
                 }
-                equipResult.remainingEquipment?.let { remaining ->
-                    currentEquipment = currentEquipment.map {
-                        if (it.id == remaining.id) remaining else it
+                equipResult.stackUpdate?.let { update ->
+                    if (update.isDeletion) {
+                        currentEquipmentStacks = currentEquipmentStacks.filter { it.id != update.stackId }
+                    } else {
+                        currentEquipmentStacks = currentEquipmentStacks.map {
+                            if (it.id == update.stackId) it.copy(quantity = update.newQuantity) else it
+                        }
                     }
                 }
                 equipResult.events.forEach { eventService.addGameEvent(it, EventType.SUCCESS) }
@@ -873,25 +894,17 @@ class CultivationService @Inject constructor(
 
             val manualResult = DiscipleManualManager.processAutoLearn(
                 disciple = updatedDisciple,
-                manuals = manualMap,
+                manualStacks = manualStacksList,
+                manualInstances = manualInstancesMap,
                 gameYear = year,
                 gameMonth = month
             )
-            if (manualResult.disciple != updatedDisciple) {
+            if (manualResult.newInstance != null) {
                 updatedDisciple = manualResult.disciple
-                manualResult.learnedManual?.let { learned ->
-                    if (currentManuals.none { it.id == learned.id }) {
-                        currentManuals = currentManuals + learned
-                    } else {
-                        currentManuals = currentManuals.map {
-                            if (it.id == learned.id) learned else it
-                        }
-                    }
+                manualResult.newInstance.let { newInstance ->
+                    currentManualInstances = currentManualInstances + newInstance
                 }
-                manualResult.replacedManual?.let { replaced ->
-                    currentManuals = currentManuals.map {
-                        if (it.id == replaced.id) replaced else it
-                    }
+                manualResult.replacedInstance?.let { replaced ->
                     val updatedProficiencies = currentGameData.manualProficiencies.toMutableMap()
                     updatedProficiencies[updatedDisciple.id]?.let { profList ->
                         val filtered = profList.filter { it.manualId != replaced.id }
@@ -903,9 +916,13 @@ class CultivationService @Inject constructor(
                     }
                     currentGameData = currentGameData.copy(manualProficiencies = updatedProficiencies)
                 }
-                manualResult.remainingManual?.let { remaining ->
-                    currentManuals = currentManuals.map {
-                        if (it.id == remaining.id) remaining else it
+                manualResult.stackUpdate?.let { update ->
+                    if (update.isDeletion) {
+                        currentManualStacks = currentManualStacks.filter { it.id != update.stackId }
+                    } else {
+                        currentManualStacks = currentManualStacks.map {
+                            if (it.id == update.stackId) it.copy(quantity = update.newQuantity) else it
+                        }
                     }
                 }
                 manualResult.events.forEach { eventService.addGameEvent(it, EventType.SUCCESS) }
@@ -1133,7 +1150,7 @@ class CultivationService @Inject constructor(
             disciple.accessoryId?.let { removeEquipmentFromDisciple(disciple.id, it) }
 
             disciple.manualIds.forEach { manualId ->
-                currentManuals = currentManuals.map {
+                currentManualInstances = currentManualInstances.map {
                     if (it.id == manualId) it.copy(isLearned = false, ownerId = null) else it
                 }
             }
@@ -1150,53 +1167,19 @@ class CultivationService @Inject constructor(
             disciple.bootsId?.let { returnEquipmentToWarehouse(it) }
             disciple.accessoryId?.let { returnEquipmentToWarehouse(it) }
 
-            disciple.storageBagItems.filter { it.itemType == "equipment" }.forEach { bagItem ->
+            disciple.storageBagItems.filter { it.itemType == "equipment_stack" || it.itemType == "equipment_instance" }.forEach { bagItem ->
                 returnEquipmentToWarehouse(bagItem.itemId)
             }
 
-            disciple.storageBagItems.filter { it.itemType == "manual" }.forEach { bagItem ->
-                val m = currentManuals.find { it.id == bagItem.itemId }
-                val existingUnlearned = m?.let { manual ->
-                    currentManuals.find {
-                        it.name == manual.name && it.rarity == manual.rarity && it.type == manual.type && !it.isLearned && it.id != bagItem.itemId
-                    }
-                }
-                if (existingUnlearned != null) {
-                    val newQty = (existingUnlearned.quantity + (m?.quantity ?: 1)).coerceAtMost(999)
-                    currentManuals = currentManuals.map { item ->
-                        when {
-                            item.id == existingUnlearned.id -> item.copy(quantity = newQty)
-                            item.id == bagItem.itemId -> null
-                            else -> item
-                        }
-                    }.filterNotNull()
-                } else {
-                    currentManuals = currentManuals.map {
-                        if (it.id == bagItem.itemId) it.copy(isLearned = false, ownerId = null) else it
-                    }
+            disciple.storageBagItems.filter { it.itemType == "manual_stack" || it.itemType == "manual_instance" }.forEach { bagItem ->
+                currentManualInstances = currentManualInstances.map {
+                    if (it.id == bagItem.itemId) it.copy(isLearned = false, ownerId = null) else it
                 }
             }
 
             disciple.manualIds.forEach { manualId ->
-                val m = currentManuals.find { it.id == manualId }
-                val existingUnlearned = m?.let { manual ->
-                    currentManuals.find {
-                        it.name == manual.name && it.rarity == manual.rarity && it.type == manual.type && !it.isLearned && it.id != manualId
-                    }
-                }
-                if (existingUnlearned != null) {
-                    val newQty = (existingUnlearned.quantity + (m?.quantity ?: 1)).coerceAtMost(999)
-                    currentManuals = currentManuals.map { item ->
-                        when {
-                            item.id == existingUnlearned.id -> item.copy(quantity = newQty)
-                            item.id == manualId -> null
-                            else -> item
-                        }
-                    }.filterNotNull()
-                } else {
-                    currentManuals = currentManuals.map {
-                        if (it.id == manualId) it.copy(isLearned = false, ownerId = null) else it
-                    }
+                currentManualInstances = currentManualInstances.map {
+                    if (it.id == manualId) it.copy(isLearned = false, ownerId = null) else it
                 }
             }
 
@@ -1294,14 +1277,14 @@ class CultivationService @Inject constructor(
                 if (recipeId != null) {
                     val recipe = ForgeRecipeDatabase.getRecipeById(recipeId)
                     if (recipe != null) {
-                        val equipment = Equipment(
+                        val equipment = EquipmentStack(
                             name = recipe.name,
                             rarity = recipe.rarity,
                             description = recipe.description,
                             slot = recipe.type,
                             minRealm = GameConfig.Realm.getMinRealmForRarity(recipe.rarity)
                         )
-                        inventorySystem.addEquipment(equipment)
+                        inventorySystem.addEquipmentStack(equipment)
                         eventService.addGameEvent("锻造完成！获得${recipe.name}，已放入宗门仓库", EventType.SUCCESS)
                     } else {
                         eventService.addGameEvent("锻造完成，但配方[$recipeId]不存在", EventType.ERROR)
@@ -2043,8 +2026,8 @@ class CultivationService @Inject constructor(
         val data = currentGameData
         val playerDefenseTeam = AISectAttackManager.createPlayerDefenseTeam(
             disciples = currentDisciples,
-            equipmentMap = currentEquipment.associateBy { it.id },
-            manualMap = currentManuals.associateBy { it.id },
+            equipmentMap = currentEquipmentInstances.associateBy { it.id },
+            manualMap = currentManualInstances.associateBy { it.id },
             manualProficiencies = data.manualProficiencies.mapValues { (_, list) ->
                 list.associateBy { it.manualId }
             }
@@ -2298,12 +2281,12 @@ class CultivationService @Inject constructor(
                 }
                 "equipment" -> {
                     val equipment = EquipmentDatabase.generateRandom(rarity, rarity)
-                    inventorySystem.addEquipment(equipment)
+                    inventorySystem.addEquipmentStack(equipment)
                     rewardCounts[equipment.name] = rewardCounts.getOrDefault(equipment.name, 0) + 1
                 }
                 "manual" -> {
                     val manual = ManualDatabase.generateRandom(rarity, rarity)
-                    inventorySystem.addManual(manual)
+                    inventorySystem.addManualStack(manual)
                     rewardCounts[manual.name] = rewardCounts.getOrDefault(manual.name, 0) + 1
                 }
                 "pill" -> {
@@ -2366,20 +2349,16 @@ class CultivationService @Inject constructor(
                 return
             }
         }
-        val equipmentMap = currentEquipment.associateBy { it.id }
-        val manualMap = currentManuals.associateBy { it.id }
+        val equipmentMap = currentEquipmentInstances.associateBy { it.id }
+        val manualMap = currentManualInstances.associateBy { it.id }
         val allProficiencies = data.manualProficiencies.mapValues { (_, list) ->
             list.associateBy { it.manualId }
         }
-
-        val beastCount = (GameConfig.Battle.MIN_BEAST_COUNT..GameConfig.Battle.MAX_BEAST_COUNT).random()
-
         val battle = battleSystem.createBattle(
             disciples = teamMembers,
             equipmentMap = equipmentMap,
             manualMap = manualMap,
             beastLevel = avgRealm,
-            beastCount = beastCount,
             beastType = dungeonConfig.beastType,
             manualProficiencies = allProficiencies
         )
@@ -2500,11 +2479,11 @@ class CultivationService @Inject constructor(
 
     private suspend fun applyDungeonVictoryBonuses(memberIds: List<String>) {
         val data = currentGameData
-            val equipmentMap = currentEquipment.associateBy { it.id }
-            val manualMap = currentManuals.associateBy { it.id }
+            val equipmentInstanceMap = currentEquipmentInstances.associateBy { it.id }
+            val manualInstanceMap = currentManualInstances.associateBy { it.id }
             var updatedManualProficiencies = data.manualProficiencies.toMutableMap()
             val discipleUpdates = mutableMapOf<Int, Disciple>()
-            val equipmentUpdates = mutableMapOf<String, Equipment>()
+            val equipmentInstanceUpdates = mutableMapOf<String, EquipmentInstance>()
 
             memberIds.forEach { memberId ->
                 val discipleIndex = currentDisciples.indexOfFirst { it.id == memberId }
@@ -2542,7 +2521,7 @@ class CultivationService @Inject constructor(
                 }
 
                 disciple.manualIds.forEach { manualId ->
-                    val manual = manualMap[manualId] ?: return@forEach
+                    val manual = manualInstanceMap[manualId] ?: return@forEach
                     val proficiencyList = updatedManualProficiencies.getOrPut(memberId) { mutableListOf<ManualProficiencyData>() } as MutableList<ManualProficiencyData>
                     val existingIndex = proficiencyList.indexOfFirst { it.manualId == manualId }
                     val existing = if (existingIndex >= 0) proficiencyList[existingIndex] else null
@@ -2570,28 +2549,28 @@ class CultivationService @Inject constructor(
                 }
 
                 updatedDisciple.weaponId?.let { eqId ->
-                    val eq = equipmentMap[eqId] ?: return@let
+                    val eq = equipmentInstanceMap[eqId] ?: return@let
                     val expRequired = EquipmentNurtureSystem.getExpRequiredForLevelUp(eq.nurtureLevel, eq.rarity)
                     val result = EquipmentNurtureSystem.updateNurtureExp(eq, expRequired * 0.03)
-                    equipmentUpdates[eqId] = result.equipment
+                    equipmentInstanceUpdates[eqId] = result.equipment
                 }
                 updatedDisciple.armorId?.let { eqId ->
-                    val eq = equipmentMap[eqId] ?: return@let
+                    val eq = equipmentInstanceMap[eqId] ?: return@let
                     val expRequired = EquipmentNurtureSystem.getExpRequiredForLevelUp(eq.nurtureLevel, eq.rarity)
                     val result = EquipmentNurtureSystem.updateNurtureExp(eq, expRequired * 0.03)
-                    equipmentUpdates[eqId] = result.equipment
+                    equipmentInstanceUpdates[eqId] = result.equipment
                 }
                 updatedDisciple.bootsId?.let { eqId ->
-                    val eq = equipmentMap[eqId] ?: return@let
+                    val eq = equipmentInstanceMap[eqId] ?: return@let
                     val expRequired = EquipmentNurtureSystem.getExpRequiredForLevelUp(eq.nurtureLevel, eq.rarity)
                     val result = EquipmentNurtureSystem.updateNurtureExp(eq, expRequired * 0.03)
-                    equipmentUpdates[eqId] = result.equipment
+                    equipmentInstanceUpdates[eqId] = result.equipment
                 }
                 updatedDisciple.accessoryId?.let { eqId ->
-                    val eq = equipmentMap[eqId] ?: return@let
+                    val eq = equipmentInstanceMap[eqId] ?: return@let
                     val expRequired = EquipmentNurtureSystem.getExpRequiredForLevelUp(eq.nurtureLevel, eq.rarity)
                     val result = EquipmentNurtureSystem.updateNurtureExp(eq, expRequired * 0.03)
-                    equipmentUpdates[eqId] = result.equipment
+                    equipmentInstanceUpdates[eqId] = result.equipment
                 }
 
                 discipleUpdates[discipleIndex] = updatedDisciple
@@ -2602,8 +2581,8 @@ class CultivationService @Inject constructor(
                     discipleUpdates.forEach { (index, d) -> list[index] = d }
                 }
             }
-            if (equipmentUpdates.isNotEmpty()) {
-                currentEquipment = currentEquipment.map { eq -> equipmentUpdates[eq.id] ?: eq }
+            if (equipmentInstanceUpdates.isNotEmpty()) {
+                currentEquipmentInstances = currentEquipmentInstances.map { eq -> equipmentInstanceUpdates[eq.id] ?: eq }
             }
 
             if (updatedManualProficiencies != data.manualProficiencies) {
@@ -2824,8 +2803,8 @@ class CultivationService @Inject constructor(
         }
 
         val data = currentGameData
-        val equipmentMap = currentEquipment.associateBy { it.id }
-        val manualMap = currentManuals.associateBy { it.id }
+        val equipmentMap = currentEquipmentInstances.associateBy { it.id }
+        val manualMap = currentManualInstances.associateBy { it.id }
         val allProficiencies = data.manualProficiencies.mapValues { (_, list) ->
             list.associateBy { it.manualId }
         }
@@ -2919,7 +2898,7 @@ class CultivationService @Inject constructor(
                             rarity = reward.rarity,
                             quantity = reward.quantity
                         )
-                        inventorySystem.addEquipment(equipment)
+                        inventorySystem.addEquipmentStack(equipment)
                         eventService.addGameEvent("获得装备 ${template.name} x${reward.quantity}", EventType.SUCCESS)
                     } else {
                         eventService.addGameEvent("警告：无法找到装备模板 ${reward.itemId}，奖励跳过", EventType.WARNING)
@@ -2932,7 +2911,7 @@ class CultivationService @Inject constructor(
                             rarity = reward.rarity,
                             quantity = reward.quantity
                         )
-                        inventorySystem.addManual(manual)
+                        inventorySystem.addManualStack(manual)
                         eventService.addGameEvent("获得功法 ${template.name} x${reward.quantity}", EventType.SUCCESS)
                     } else {
                         eventService.addGameEvent("警告：无法找到功法模板 ${reward.itemId}，奖励跳过", EventType.WARNING)
@@ -3386,33 +3365,27 @@ class CultivationService @Inject constructor(
     }
 
     private fun returnEquipmentToWarehouse(equipmentId: String) {
-        val eq = currentEquipment.find { it.id == equipmentId } ?: return
-        val existingUnequipped = currentEquipment.find {
-            it.name == eq.name && it.rarity == eq.rarity && it.slot == eq.slot && !it.isEquipped && it.id != equipmentId
+        val eq = currentEquipmentInstances.find { it.id == equipmentId } ?: return
+        val stack = eq.toStack()
+        val existingStack = currentEquipmentStacks.find {
+            it.name == stack.name && it.rarity == stack.rarity && it.slot == stack.slot
         }
-        if (existingUnequipped != null) {
-            val newQty = (existingUnequipped.quantity + eq.quantity).coerceAtMost(999)
-            currentEquipment = currentEquipment.map { e ->
-                when {
-                    e.id == existingUnequipped.id -> e.copy(quantity = newQty)
-                    e.id == equipmentId -> null
-                    else -> e
-                }
-            }.filterNotNull()
-        } else {
-            currentEquipment = currentEquipment.map { e ->
-                if (e.id == equipmentId) {
-                    e.copy(isEquipped = false, ownerId = null, nurtureLevel = 0, nurtureProgress = 0.0)
-                } else e
+        if (existingStack != null) {
+            val newQty = (existingStack.quantity + stack.quantity).coerceAtMost(999)
+            currentEquipmentStacks = currentEquipmentStacks.map { s ->
+                if (s.id == existingStack.id) s.copy(quantity = newQty) else s
             }
+        } else {
+            currentEquipmentStacks = currentEquipmentStacks + stack
         }
+        currentEquipmentInstances = currentEquipmentInstances.filter { it.id != equipmentId }
     }
 
     private fun removeEquipmentFromDisciple(discipleId: String, equipmentId: String) {
-        val equipment = currentEquipment.find { it.id == equipmentId } ?: return
+        val equipment = currentEquipmentInstances.find { it.id == equipmentId } ?: return
         if (!equipment.isEquipped) return
 
-        currentEquipment = currentEquipment.map { eq ->
+        currentEquipmentInstances = currentEquipmentInstances.map { eq ->
             if (eq.id == equipmentId) {
                 eq.copy(isEquipped = false, ownerId = null, nurtureLevel = 0, nurtureProgress = 0.0)
             } else eq

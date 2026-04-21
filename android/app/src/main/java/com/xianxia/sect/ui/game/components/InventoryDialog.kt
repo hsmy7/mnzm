@@ -13,8 +13,8 @@ import com.xianxia.sect.ui.components.GameButton
 @Suppress("UNUSED_PARAMETER")
 @Composable
 fun InventoryDialog(
-    equipment: List<Equipment>,
-    manuals: List<Manual>,
+    equipment: List<EquipmentStack>,
+    manuals: List<ManualStack>,
     pills: List<Pill>,
     materials: List<Material>,
     herbs: List<Herb>,
@@ -24,8 +24,8 @@ fun InventoryDialog(
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("装备", "功法", "丹药", "材料", "灵草")
 
-    val filteredEquipment = remember(equipment) { equipment.filter { it.ownerId == null } }
-    val filteredManuals = remember(manuals) { manuals.filter { it.ownerId == null } }
+    val filteredEquipment = remember(equipment) { equipment }
+    val filteredManuals = remember(manuals) { manuals }
     
     AlertDialog(
         onDismissRequest = onDismiss,

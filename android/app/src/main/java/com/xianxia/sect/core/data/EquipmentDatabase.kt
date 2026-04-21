@@ -1,7 +1,7 @@
 package com.xianxia.sect.core.data
 
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.model.Equipment
+import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.EquipmentSlot
 import kotlin.random.Random
 
@@ -148,7 +148,7 @@ object EquipmentDatabase {
     fun getByRarity(rarity: Int): List<EquipmentTemplate> =
         allTemplates.values.filter { it.rarity == rarity }
 
-    fun generateRandom(minRarity: Int = 1, maxRarity: Int = 6): Equipment {
+    fun generateRandom(minRarity: Int = 1, maxRarity: Int = 6): EquipmentStack {
         val rarity = if (minRarity == maxRarity) {
             minRarity
         } else {
@@ -159,14 +159,14 @@ object EquipmentDatabase {
         return createFromTemplate(template)
     }
 
-    fun generateRandomBySlot(slot: EquipmentSlot, rarity: Int): Equipment {
+    fun generateRandomBySlot(slot: EquipmentSlot, rarity: Int): EquipmentStack {
         val templates = getBySlot(slot).filter { it.rarity == rarity }
         val template = if (templates.isNotEmpty()) templates.random() else getBySlot(slot).random()
         return createFromTemplate(template)
     }
 
-    fun createFromTemplate(template: EquipmentTemplate): Equipment {
-        return Equipment(
+    fun createFromTemplate(template: EquipmentTemplate): EquipmentStack {
+        return EquipmentStack(
             id = java.util.UUID.randomUUID().toString(),
             name = template.name,
             rarity = template.rarity,

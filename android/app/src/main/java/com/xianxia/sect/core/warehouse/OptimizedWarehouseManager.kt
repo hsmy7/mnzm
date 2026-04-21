@@ -90,7 +90,7 @@ object OptimizedWarehouseManager {
                 return WarehouseItemPool.acquire(
                     itemId = template.id,
                     itemName = template.name,
-                    itemType = "equipment",
+                    itemType = "equipment_stack",
                     rarity = currentRarity,
                     quantity = 1
                 )
@@ -111,7 +111,7 @@ object OptimizedWarehouseManager {
                 return WarehouseItemPool.acquire(
                     itemId = template.id,
                     itemName = template.name,
-                    itemType = "manual",
+                    itemType = "manual_stack",
                     rarity = currentRarity,
                     quantity = 1
                 )

@@ -31,11 +31,13 @@ import com.xianxia.sect.core.data.ForgeRecipeDatabase
 import com.xianxia.sect.core.data.HerbDatabase
 import com.xianxia.sect.core.data.ManualDatabase
 import com.xianxia.sect.core.data.PillRecipeDatabase
-import com.xianxia.sect.core.model.Equipment
+import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GameItem
 import com.xianxia.sect.core.model.Herb
-import com.xianxia.sect.core.model.Manual
+import com.xianxia.sect.core.model.ManualInstance
+import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.MerchantItem
 import com.xianxia.sect.core.model.Pill
@@ -615,11 +617,7 @@ private fun <T : GameItem> filterAndSortItems(
 ): List<T> {
     return items
         .filter { item ->
-            item.id !in listedItemIds && when (item) {
-                is Equipment -> item.ownerId == null
-                is Manual -> item.ownerId == null
-                else -> true
-            }
+            item.id !in listedItemIds
         }
         .sortedWith(compareByDescending<T> { it.rarity }.thenBy { it.name })
 }
@@ -649,8 +647,8 @@ fun InventorySelectDialog(
     viewModel: GameViewModel,
     onDismiss: () -> Unit
 ) {
-    val equipment by viewModel.equipment.collectAsState()
-    val manuals by viewModel.manuals.collectAsState()
+    val equipment by viewModel.equipmentStacks.collectAsState()
+    val manuals by viewModel.manualStacks.collectAsState()
     val pills by viewModel.pills.collectAsState()
     val materials by viewModel.materials.collectAsState()
     val herbs by viewModel.herbs.collectAsState()
@@ -889,8 +887,8 @@ private fun <T> InventorySelectGrid(
         ) {
             items(items) { item ->
                 val (id, name, description, rarity, quantity) = when (item) {
-                    is Equipment -> Tuple5(item.id, item.name, item.description, item.rarity, 1)
-                    is Manual -> Tuple5(item.id, item.name, item.description, item.rarity, 1)
+                    is EquipmentStack -> Tuple5(item.id, item.name, item.description, item.rarity, item.quantity)
+                    is ManualStack -> Tuple5(item.id, item.name, item.description, item.rarity, item.quantity)
                     is Pill -> Tuple5(item.id, item.name, item.description, item.rarity, item.quantity)
                     is Material -> Tuple5(item.id, item.name, item.description, item.rarity, item.quantity)
                     is Herb -> Tuple5(item.id, item.name, item.description, item.rarity, item.quantity)
@@ -967,8 +965,8 @@ private fun ListingFilterButton(
 
 @Composable
 private fun AllItemsSelectGrid(
-    equipment: List<Equipment>,
-    manuals: List<Manual>,
+    equipment: List<EquipmentStack>,
+    manuals: List<ManualStack>,
     pills: List<Pill>,
     materials: List<Material>,
     herbs: List<Herb>,
@@ -988,8 +986,8 @@ private fun AllItemsSelectGrid(
         items.addAll(seeds)
         items.sortedWith(compareByDescending<Any> {
             when (it) {
-                is Equipment -> it.rarity
-                is Manual -> it.rarity
+                is EquipmentStack -> it.rarity
+                is ManualStack -> it.rarity
                 is Pill -> it.rarity
                 is Material -> it.rarity
                 is Herb -> it.rarity
@@ -998,8 +996,8 @@ private fun AllItemsSelectGrid(
             }
         }.thenBy {
             when (it) {
-                is Equipment -> it.name
-                is Manual -> it.name
+                is EquipmentStack -> it.name
+                is ManualStack -> it.name
                 is Pill -> it.name
                 is Material -> it.name
                 is Herb -> it.name
@@ -1031,8 +1029,8 @@ private fun AllItemsSelectGrid(
         ) {
             items(allItems) { item ->
                 val (id, name, description, rarity, quantity) = when (item) {
-                    is Equipment -> Tuple5(item.id, item.name, item.description, item.rarity, 1)
-                    is Manual -> Tuple5(item.id, item.name, item.description, item.rarity, 1)
+                    is EquipmentStack -> Tuple5(item.id, item.name, item.description, item.rarity, item.quantity)
+                    is ManualStack -> Tuple5(item.id, item.name, item.description, item.rarity, item.quantity)
                     is Pill -> Tuple5(item.id, item.name, item.description, item.rarity, item.quantity)
                     is Material -> Tuple5(item.id, item.name, item.description, item.rarity, item.quantity)
                     is Herb -> Tuple5(item.id, item.name, item.description, item.rarity, item.quantity)
