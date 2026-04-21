@@ -1310,20 +1310,10 @@ class InventorySystem @Inject constructor(
             return AddResult.SUCCESS
         }
 
-        val currentSeedsSnapshot = stateStore.seeds.value
-        val canMerge = merge && currentSeedsSnapshot.find {
-            it.name == item.name && it.rarity == item.rarity && it.growTime == item.growTime
-        } != null
-
-        if (!canMerge && currentSeedsSnapshot.size >= MAX_INVENTORY_SIZE) {
-            return AddResult.FULL
-        }
-
         var overflowResult: AddResult = AddResult.SUCCESS
         stateStore.update {
-            val currentSeeds = seeds
             if (merge) {
-                val existing = currentSeeds.find {
+                val existing = seeds.find {
                     it.name == item.name && it.rarity == item.rarity && it.growTime == item.growTime
                 }
                 if (existing != null) {
@@ -1338,6 +1328,7 @@ class InventorySystem @Inject constructor(
                 }
             }
             if (seeds.size >= MAX_INVENTORY_SIZE) {
+                overflowResult = AddResult.FULL
                 return@update
             }
             seeds = seeds + item

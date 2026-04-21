@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.warehouse
 
+import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.data.EquipmentDatabase
 import com.xianxia.sect.core.data.ManualDatabase
@@ -22,6 +23,8 @@ object OptimizedWarehouseManager {
     const val MIN_YEARLY_ITEMS = 30
     const val MAX_YEARLY_ITEMS = 50
     const val MAX_RARITY = 4
+    
+    var inventoryConfig: InventoryConfig = InventoryConfig.DEFAULT
     
     private val itemIndex = ConcurrentHashMap<String, Int>()
     private val typeIndex = ConcurrentHashMap<String, MutableList<Int>>()
@@ -293,7 +296,9 @@ object OptimizedWarehouseManager {
         val newWarehouse = if (existingIndex != null && existingIndex >= 0 && existingIndex < warehouse.items.size) {
             val updatedItems = warehouse.items.toMutableList()
             val existing = updatedItems[existingIndex]
-            updatedItems[existingIndex] = existing.copy(quantity = existing.quantity + item.quantity)
+            val maxStack = inventoryConfig.getMaxStackSize(item.itemType)
+            val newQty = (existing.quantity + item.quantity).coerceAtMost(maxStack)
+            updatedItems[existingIndex] = existing.copy(quantity = newQty)
             warehouse.copy(items = updatedItems)
         } else {
             val newItems = warehouse.items + item
@@ -324,7 +329,8 @@ object OptimizedWarehouseManager {
             val key = generateKey(newItem)
             val existing = itemMap[key]
             if (existing != null) {
-                itemMap[key] = existing.copy(quantity = existing.quantity + newItem.quantity)
+                val maxStack = inventoryConfig.getMaxStackSize(newItem.itemType)
+                itemMap[key] = existing.copy(quantity = (existing.quantity + newItem.quantity).coerceAtMost(maxStack))
             } else {
                 itemMap[key] = newItem
             }

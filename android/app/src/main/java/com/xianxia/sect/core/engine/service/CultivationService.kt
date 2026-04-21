@@ -35,6 +35,7 @@ import com.xianxia.sect.core.engine.ManualProficiencySystem
 import com.xianxia.sect.core.engine.MissionSystem
 import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.core.model.production.ProductionSlot
+import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.di.ApplicationScopeProvider
 import android.util.Log
@@ -62,6 +63,7 @@ data class HighFrequencyData(
 class CultivationService @Inject constructor(
     private val stateStore: GameStateStore,
     private val inventorySystem: InventorySystem,
+    private val inventoryConfig: InventoryConfig,
     private val battleSystem: BattleSystem,
     private val productionCoordinator: ProductionCoordinator,
     private val productionSlotRepository: ProductionSlotRepository,
@@ -3371,7 +3373,7 @@ class CultivationService @Inject constructor(
             it.name == stack.name && it.rarity == stack.rarity && it.slot == stack.slot
         }
         if (existingStack != null) {
-            val newQty = (existingStack.quantity + stack.quantity).coerceAtMost(999)
+            val newQty = (existingStack.quantity + stack.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("equipment_stack"))
             currentEquipmentStacks = currentEquipmentStacks.map { s ->
                 if (s.id == existingStack.id) s.copy(quantity = newQty) else s
             }

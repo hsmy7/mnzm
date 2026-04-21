@@ -19,6 +19,7 @@ import com.xianxia.sect.core.data.HerbDatabase
 import com.xianxia.sect.core.engine.HerbGardenSystem
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.util.StorageBagUtils
+import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.event.EventBus
@@ -53,6 +54,7 @@ class GameEngine @Inject constructor(
     private val gameEngineCore: GameEngineCore,
     private val stateStore: GameStateStore,
     private val inventorySystem: InventorySystem,
+    private val inventoryConfig: InventoryConfig,
     private val battleSystem: BattleSystem,
     private val productionCoordinator: ProductionCoordinator,
     private val eventService: EventService,
@@ -1375,7 +1377,7 @@ class GameEngine @Inject constructor(
                     val p = MerchantItemConverter.toPill(merchantItem).copy(quantity = quantity)
                     val existing = pills.find { it.name == p.name && it.rarity == p.rarity && it.category == p.category && it.grade == p.grade }
                     if (existing != null) {
-                        val newQty = (existing.quantity + p.quantity).coerceAtMost(999)
+                        val newQty = (existing.quantity + p.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("pill"))
                         pills = pills.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
                     } else {
                         pills = pills + p
@@ -1385,7 +1387,7 @@ class GameEngine @Inject constructor(
                     val m = MerchantItemConverter.toMaterial(merchantItem).copy(quantity = quantity)
                     val existing = materials.find { it.name == m.name && it.rarity == m.rarity && it.category == m.category }
                     if (existing != null) {
-                        val newQty = (existing.quantity + m.quantity).coerceAtMost(999)
+                        val newQty = (existing.quantity + m.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("material"))
                         materials = materials.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
                     } else {
                         materials = materials + m
@@ -1395,7 +1397,7 @@ class GameEngine @Inject constructor(
                     val h = MerchantItemConverter.toHerb(merchantItem).copy(quantity = quantity)
                     val existing = herbs.find { it.name == h.name && it.rarity == h.rarity && it.category == h.category }
                     if (existing != null) {
-                        val newQty = (existing.quantity + h.quantity).coerceAtMost(999)
+                        val newQty = (existing.quantity + h.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("herb"))
                         herbs = herbs.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
                     } else {
                         herbs = herbs + h
@@ -1405,7 +1407,7 @@ class GameEngine @Inject constructor(
                     val s = MerchantItemConverter.toSeed(merchantItem).copy(quantity = quantity)
                     val existing = seeds.find { it.name == s.name && it.rarity == s.rarity && s.growTime == s.growTime }
                     if (existing != null) {
-                        val newQty = (existing.quantity + s.quantity).coerceAtMost(999)
+                        val newQty = (existing.quantity + s.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("seed"))
                         seeds = seeds.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
                     } else {
                         seeds = seeds + s
@@ -1519,16 +1521,16 @@ class GameEngine @Inject constructor(
                 inventorySystem.addManualStack(it.copy(quantity = (it.quantity + item.quantity)))
             }
             "pill" -> stateStore.pills.value.find { it.id == item.itemId }?.let {
-                stateStore.update { pills = pills.map { p -> if (p.id == item.itemId) p.copy(quantity = (p.quantity + item.quantity).coerceAtMost(999)) else p } }
+                stateStore.update { pills = pills.map { p -> if (p.id == item.itemId) p.copy(quantity = (p.quantity + item.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("pill"))) else p } }
             }
             "material" -> stateStore.materials.value.find { it.id == item.itemId }?.let {
-                stateStore.update { materials = materials.map { m -> if (m.id == item.itemId) m.copy(quantity = (m.quantity + item.quantity).coerceAtMost(999)) else m } }
+                stateStore.update { materials = materials.map { m -> if (m.id == item.itemId) m.copy(quantity = (m.quantity + item.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("material"))) else m } }
             }
             "herb" -> stateStore.herbs.value.find { it.id == item.itemId }?.let {
-                stateStore.update { herbs = herbs.map { h -> if (h.id == item.itemId) h.copy(quantity = (h.quantity + item.quantity).coerceAtMost(999)) else h } }
+                stateStore.update { herbs = herbs.map { h -> if (h.id == item.itemId) h.copy(quantity = (h.quantity + item.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("herb"))) else h } }
             }
             "seed" -> stateStore.seeds.value.find { it.id == item.itemId }?.let {
-                stateStore.update { seeds = seeds.map { s -> if (s.id == item.itemId) s.copy(quantity = (s.quantity + item.quantity).coerceAtMost(999)) else s } }
+                stateStore.update { seeds = seeds.map { s -> if (s.id == item.itemId) s.copy(quantity = (s.quantity + item.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("seed"))) else s } }
             }
         }
         updateGameData { it.copy(playerListedItems = it.playerListedItems.filter { it.id != itemId }) }

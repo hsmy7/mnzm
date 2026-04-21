@@ -5,6 +5,7 @@ import kotlinx.coroutines.launch
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.data.*
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.di.ApplicationScopeProvider
 import com.xianxia.sect.core.state.MutableGameState
@@ -26,7 +27,8 @@ import kotlin.random.Random
 class EventService @Inject constructor(
     private val stateStore: GameStateStore,
     private val applicationScopeProvider: ApplicationScopeProvider,
-    private val inventorySystem: InventorySystem
+    private val inventorySystem: InventorySystem,
+    private val inventoryConfig: InventoryConfig
 ) : GameSystem {
     override val systemName: String = "EventService"
     private val scope get() = applicationScopeProvider.scope
@@ -418,7 +420,7 @@ class EventService @Inject constructor(
                 val eq = MerchantItemConverter.toEquipment(item).copy(quantity = actualQuantity)
                 val existing = equipmentStacks.find { it.name == eq.name && it.rarity == eq.rarity && it.slot == eq.slot }
                 if (existing != null) {
-                    val newQty = (existing.quantity + eq.quantity).coerceAtMost(999)
+                    val newQty = (existing.quantity + eq.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("equipment_stack"))
                     equipmentStacks = equipmentStacks.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
                 } else {
                     equipmentStacks = equipmentStacks + eq
@@ -428,7 +430,7 @@ class EventService @Inject constructor(
                 val m = MerchantItemConverter.toManual(item).copy(quantity = actualQuantity)
                 val existing = manualStacks.find { it.name == m.name && it.rarity == m.rarity && it.type == m.type }
                 if (existing != null) {
-                    val newQty = (existing.quantity + m.quantity).coerceAtMost(999)
+                    val newQty = (existing.quantity + m.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("manual_stack"))
                     manualStacks = manualStacks.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
                 } else {
                     manualStacks = manualStacks + m
@@ -438,7 +440,7 @@ class EventService @Inject constructor(
                 val p = MerchantItemConverter.toPill(item).copy(quantity = actualQuantity)
                 val existing = pills.find { it.name == p.name && it.rarity == p.rarity && it.category == p.category && it.grade == p.grade }
                 if (existing != null) {
-                    val newQty = (existing.quantity + p.quantity).coerceAtMost(999)
+                    val newQty = (existing.quantity + p.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("pill"))
                     pills = pills.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
                 } else {
                     pills = pills + p
@@ -448,7 +450,7 @@ class EventService @Inject constructor(
                 val m = MerchantItemConverter.toMaterial(item).copy(quantity = actualQuantity)
                 val existing = materials.find { it.name == m.name && it.rarity == m.rarity && it.category == m.category }
                 if (existing != null) {
-                    val newQty = (existing.quantity + m.quantity).coerceAtMost(999)
+                    val newQty = (existing.quantity + m.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("material"))
                     materials = materials.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
                 } else {
                     materials = materials + m
@@ -458,7 +460,7 @@ class EventService @Inject constructor(
                 val h = MerchantItemConverter.toHerb(item).copy(quantity = actualQuantity)
                 val existing = herbs.find { it.name == h.name && it.rarity == h.rarity && it.category == h.category }
                 if (existing != null) {
-                    val newQty = (existing.quantity + h.quantity).coerceAtMost(999)
+                    val newQty = (existing.quantity + h.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("herb"))
                     herbs = herbs.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
                 } else {
                     herbs = herbs + h
@@ -468,7 +470,7 @@ class EventService @Inject constructor(
                 val s = MerchantItemConverter.toSeed(item).copy(quantity = actualQuantity)
                 val existing = seeds.find { it.name == s.name && it.rarity == s.rarity && it.growTime == s.growTime }
                 if (existing != null) {
-                    val newQty = (existing.quantity + s.quantity).coerceAtMost(999)
+                    val newQty = (existing.quantity + s.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("seed"))
                     seeds = seeds.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
                 } else {
                     seeds = seeds + s

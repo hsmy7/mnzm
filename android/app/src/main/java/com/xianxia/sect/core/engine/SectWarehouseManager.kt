@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.engine
 
+import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.data.EquipmentDatabase
 import com.xianxia.sect.core.data.ManualDatabase
@@ -28,6 +29,7 @@ object SectWarehouseManager {
     const val MAX_RARITY = 4
     
     private var useOptimized = true
+    var inventoryConfig: InventoryConfig = InventoryConfig.DEFAULT
     
     fun generateYearlyItemsForAISect(sect: WorldSect): SectWarehouse {
         val itemCount = Random.nextInt(MIN_YEARLY_ITEMS, MAX_YEARLY_ITEMS + 1)
@@ -209,7 +211,9 @@ object SectWarehouseManager {
         return if (existingIndex >= 0) {
             val updatedItems = warehouse.items.toMutableList()
             val existing = updatedItems[existingIndex]
-            updatedItems[existingIndex] = existing.copy(quantity = existing.quantity + item.quantity)
+            val maxStack = inventoryConfig.getMaxStackSize(item.itemType)
+            val newQty = (existing.quantity + item.quantity).coerceAtMost(maxStack)
+            updatedItems[existingIndex] = existing.copy(quantity = newQty)
             warehouse.copy(items = updatedItems)
         } else {
             warehouse.copy(items = warehouse.items + item)

@@ -7,6 +7,7 @@ import com.xianxia.sect.BuildConfig
 import com.xianxia.sect.core.data.*
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.engine.RedeemCodeManager
 import com.xianxia.sect.core.engine.system.GameSystem
@@ -43,6 +44,7 @@ data class RedeemApiReward(
 @Singleton
 class RedeemCodeService @Inject constructor(
     private val stateStore: GameStateStore,
+    private val inventoryConfig: InventoryConfig,
     private val eventService: EventService,
     private val secureClient: SecureHttpClient,
     @ApplicationContext private val appContext: Context
@@ -147,7 +149,7 @@ class RedeemCodeService @Inject constructor(
                         ).copy(quantity = qty)
                         val existing = equipmentStacks.find { it.name == newEquipment.name && it.rarity == newEquipment.rarity && it.slot == newEquipment.slot }
                         if (existing != null) {
-                            val newQty = (existing.quantity + newEquipment.quantity).coerceAtMost(999)
+                            val newQty = (existing.quantity + newEquipment.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("equipment_stack"))
                             equipmentStacks = equipmentStacks.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
                         } else {
                             equipmentStacks = equipmentStacks + newEquipment
@@ -162,7 +164,7 @@ class RedeemCodeService @Inject constructor(
                                 it.name == manual.name && it.rarity == manual.rarity && it.type == manual.type
                             }
                             if (existing != null) {
-                                val newQty = (existing.quantity + manual.quantity).coerceAtMost(999)
+                                val newQty = (existing.quantity + manual.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("manual_stack"))
                                 manualStacks = manualStacks.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
                             } else {
                                 manualStacks = manualStacks + manual
@@ -177,7 +179,7 @@ class RedeemCodeService @Inject constructor(
                         ).copy(quantity = qty)
                         val existing = pills.find { it.name == pill.name && it.rarity == pill.rarity && it.category == pill.category }
                         if (existing != null) {
-                            val newQty = (existing.quantity + pill.quantity).coerceAtMost(999)
+                            val newQty = (existing.quantity + pill.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("pill"))
                             pills = pills.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
                         } else {
                             pills = pills + pill
@@ -191,7 +193,7 @@ class RedeemCodeService @Inject constructor(
                         ).copy(quantity = qty)
                         val existing = materials.find { it.name == material.name && it.rarity == material.rarity && it.category == material.category }
                         if (existing != null) {
-                            val newQty = (existing.quantity + material.quantity).coerceAtMost(999)
+                            val newQty = (existing.quantity + material.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("material"))
                             materials = materials.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
                         } else {
                             materials = materials + material
@@ -213,7 +215,7 @@ class RedeemCodeService @Inject constructor(
                         )
                         val existing = herbs.find { it.name == herb.name && it.rarity == herb.rarity && it.category == herb.category }
                         if (existing != null) {
-                            val newQty = (existing.quantity + herb.quantity).coerceAtMost(999)
+                            val newQty = (existing.quantity + herb.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("herb"))
                             herbs = herbs.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
                         } else {
                             herbs = herbs + herb
@@ -236,7 +238,7 @@ class RedeemCodeService @Inject constructor(
                         )
                         val existing = seeds.find { it.name == seed.name && it.rarity == seed.rarity && it.growTime == seed.growTime }
                         if (existing != null) {
-                            val newQty = (existing.quantity + seed.quantity).coerceAtMost(999)
+                            val newQty = (existing.quantity + seed.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("seed"))
                             seeds = seeds.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
                         } else {
                             seeds = seeds + seed
@@ -342,7 +344,7 @@ class RedeemCodeService @Inject constructor(
                         ).copy(quantity = qty)
                         val existing = equipmentStacks.find { it.name == newEquipment.name && it.rarity == newEquipment.rarity && it.slot == newEquipment.slot }
                         if (existing != null) {
-                            val newQty = (existing.quantity + newEquipment.quantity).coerceAtMost(999)
+                            val newQty = (existing.quantity + newEquipment.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("equipment_stack"))
                             equipmentStacks = equipmentStacks.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
                         } else {
                             equipmentStacks = equipmentStacks + newEquipment
@@ -378,7 +380,7 @@ class RedeemCodeService @Inject constructor(
                                 it.name == manual.name && it.rarity == manual.rarity && it.type == manual.type
                             }
                             if (existing != null) {
-                                val newQty = (existing.quantity + manual.quantity).coerceAtMost(999)
+                                val newQty = (existing.quantity + manual.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("manual_stack"))
                                 manualStacks = manualStacks.map {
                                     if (it.id == existing.id) it.copy(quantity = newQty) else it
                                 }
@@ -397,7 +399,7 @@ class RedeemCodeService @Inject constructor(
                         ).copy(quantity = qty)
                         val existing = pills.find { it.name == pill.name && it.rarity == pill.rarity && it.category == pill.category }
                         if (existing != null) {
-                            val newQty = (existing.quantity + pill.quantity).coerceAtMost(999)
+                            val newQty = (existing.quantity + pill.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("pill"))
                             pills = pills.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
                         } else {
                             pills = pills + pill
@@ -411,7 +413,7 @@ class RedeemCodeService @Inject constructor(
                         ).copy(quantity = qty)
                         val existing = materials.find { it.name == material.name && it.rarity == material.rarity && it.category == material.category }
                         if (existing != null) {
-                            val newQty = (existing.quantity + material.quantity).coerceAtMost(999)
+                            val newQty = (existing.quantity + material.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("material"))
                             materials = materials.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
                         } else {
                             materials = materials + material
@@ -433,7 +435,7 @@ class RedeemCodeService @Inject constructor(
                         )
                         val existing = herbs.find { it.name == herb.name && it.rarity == herb.rarity && it.category == herb.category }
                         if (existing != null) {
-                            val newQty = (existing.quantity + herb.quantity).coerceAtMost(999)
+                            val newQty = (existing.quantity + herb.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("herb"))
                             herbs = herbs.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
                         } else {
                             herbs = herbs + herb
@@ -456,7 +458,7 @@ class RedeemCodeService @Inject constructor(
                         )
                         val existing = seeds.find { it.name == seed.name && it.rarity == seed.rarity && it.growTime == seed.growTime }
                         if (existing != null) {
-                            val newQty = (existing.quantity + seed.quantity).coerceAtMost(999)
+                            val newQty = (existing.quantity + seed.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("seed"))
                             seeds = seeds.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
                         } else {
                             seeds = seeds + seed

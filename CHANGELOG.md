@@ -3,8 +3,22 @@
 ## [2.3.10] - 2026-04-22
 
 ### 修复
-- 统一 removeXxxByName 方法（removePillByName/removeMaterialByName/removeHerbByName/removeSeedByName）的 newQty<=0 逻辑与 removeXxx 方法一致
-- 将 newQty<=0 单分支拆分为 newQty<0（记录警告并保留原物品）和 newQty==0（标记移除并返回null）两个分支，增强防御性编程
+- **P0-1**: 修正 InventoryConfig 堆叠上限与游戏设定不符（equipment_stack: 99→999, manual_stack: 99→999, herb: 999→9999, seed: 99→9999）
+- **P0-2**: StackableItemUtils（addStackable/addStackableSuspend/addStackableBatch）增加 maxStack 参数和上限检查，合并时 coerceAtMost(maxStack)
+- **P0-3**: DiscipleService/CultivationService/GameEngine/RedeemCodeService/EventService 中共 31 处硬编码 coerceAtMost(999) 改为 InventoryConfig.getMaxStackSize()
+- **P0-4**: AddResult 新增 PARTIAL_SUCCESS 枚举值，所有 addXxx 方法溢出时返回 PARTIAL_SUCCESS 而非 SUCCESS
+- **P1-1**: canAddXxx 方法增加堆叠上限检查（quantity < maxStack），堆叠已满时不再误报可合并
+- **P1-2/P1-3**: OptimizedWarehouseManager/SectWarehouseManager 合并时增加 maxStack 上限检查
+- **P1-4**: 统一 removeXxxByName 与 removeXxx 边界处理逻辑（newQty<=0 拆分为 newQty<0 和 newQty==0 两个分支）
+- **P1-5**: addSeedSync 去掉快照预检查，所有逻辑在 stateStore.update 块内完成，消除竞态条件
+
+### 测试
+- 补充 maxStack 上限截断测试（Pill/Equipment/Herb/Seed）
+- 补充溢出返回 PARTIAL_SUCCESS 测试
+- 补充 Herb/Seed 合并测试
+- 补充 returnEquipmentToStack/returnManualToStack 测试
+- 补充 canAddXxx 堆叠已满时的行为测试
+- 补充 InventoryConfig 默认值与游戏设定一致性测试
 
 ## [2.3.08] - 2026-04-22
 

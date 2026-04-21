@@ -280,6 +280,7 @@ object StackableItemUtils {
         item: T,
         merge: Boolean = true,
         matchPredicate: ((T, T) -> Boolean)? = null,
+        maxStack: Int = Int.MAX_VALUE,
         getName: (T) -> String,
         getRarity: (T) -> Int,
         getQuantity: (T) -> Int,
@@ -298,7 +299,7 @@ object StackableItemUtils {
                 }
                 if (existingIndex >= 0) {
                     val existing = flow.value[existingIndex]
-                    val newQty = getQuantity(existing) + getQuantity(item)
+                    val newQty = (getQuantity(existing) + getQuantity(item)).coerceAtMost(maxStack)
                     flow.value = flow.value.mapIndexed { index, listItem ->
                         if (index == existingIndex) withQuantity(listItem, newQty) else listItem
                     }
@@ -314,6 +315,7 @@ object StackableItemUtils {
         item: T,
         merge: Boolean = true,
         noinline matchPredicate: ((T, T) -> Boolean)? = null,
+        maxStack: Int = Int.MAX_VALUE,
         crossinline getName: (T) -> String,
         crossinline getRarity: (T) -> Int,
         crossinline getQuantity: (T) -> Int,
@@ -331,7 +333,7 @@ object StackableItemUtils {
             }
             if (existingIndex >= 0) {
                 val existing = flow.value[existingIndex]
-                val newQty = getQuantity(existing) + getQuantity(item)
+                val newQty = (getQuantity(existing) + getQuantity(item)).coerceAtMost(maxStack)
                 flow.value = flow.value.mapIndexed { index, listItem ->
                     if (index == existingIndex) withQuantity(listItem, newQty) else listItem
                 }
@@ -346,6 +348,7 @@ object StackableItemUtils {
         items: List<T>,
         merge: Boolean = true,
         noinline matchPredicate: ((T, T) -> Boolean)? = null,
+        maxStack: Int = Int.MAX_VALUE,
         crossinline getName: (T) -> String,
         crossinline getRarity: (T) -> Int,
         crossinline getQuantity: (T) -> Int,
@@ -367,7 +370,7 @@ object StackableItemUtils {
                 }
                 if (existingIndex >= 0) {
                     val existing = currentList[existingIndex]
-                    val newQty = getQuantity(existing) + getQuantity(item)
+                    val newQty = (getQuantity(existing) + getQuantity(item)).coerceAtMost(maxStack)
                     currentList = currentList.mapIndexed { index, listItem ->
                         if (index == existingIndex) withQuantity(listItem, newQty) else listItem
                     }

@@ -24,11 +24,11 @@ class InventoryConfig @Inject constructor() {
     init {
         typeSpecificStackLimits["pill"] = 999
         typeSpecificStackLimits["material"] = 9999
-        typeSpecificStackLimits["herb"] = 999
-        typeSpecificStackLimits["seed"] = 99
-        typeSpecificStackLimits["manual_stack"] = 99
+        typeSpecificStackLimits["herb"] = 9999
+        typeSpecificStackLimits["seed"] = 9999
+        typeSpecificStackLimits["manual_stack"] = 999
         typeSpecificStackLimits["manual_instance"] = 1
-        typeSpecificStackLimits["equipment_stack"] = 99
+        typeSpecificStackLimits["equipment_stack"] = 999
         typeSpecificStackLimits["equipment_instance"] = 1
     }
     
@@ -126,11 +126,11 @@ class InventoryConfig @Inject constructor() {
         
         typeSpecificStackLimits["pill"] = 999
         typeSpecificStackLimits["material"] = 9999
-        typeSpecificStackLimits["herb"] = 999
-        typeSpecificStackLimits["seed"] = 99
-        typeSpecificStackLimits["manual_stack"] = 99
+        typeSpecificStackLimits["herb"] = 9999
+        typeSpecificStackLimits["seed"] = 9999
+        typeSpecificStackLimits["manual_stack"] = 999
         typeSpecificStackLimits["manual_instance"] = 1
-        typeSpecificStackLimits["equipment_stack"] = 99
+        typeSpecificStackLimits["equipment_stack"] = 999
         typeSpecificStackLimits["equipment_instance"] = 1
     }
     

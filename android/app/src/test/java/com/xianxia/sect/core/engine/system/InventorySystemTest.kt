@@ -1,14 +1,18 @@
 package com.xianxia.sect.core.engine.system
 
 import com.xianxia.sect.core.config.InventoryConfig
+import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualStack
+import com.xianxia.sect.core.model.ManualInstance
+import com.xianxia.sect.core.model.ManualType
 import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.PillCategory
 import com.xianxia.sect.core.model.Material
-import com.xianxia.sect.core.model.ManualType
 import com.xianxia.sect.core.model.MaterialCategory
+import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.delay
@@ -338,5 +342,176 @@ class InventorySystemTest {
         assertEquals(0, system.getCapacityInfo().currentSlots)
         assertNull(system.getEquipmentStackById("e1"))
         assertNull(system.getPillById("p1"))
+    }
+
+    @Test
+    fun `addPill - maxStack truncation returns PARTIAL_SUCCESS`() = runBlocking {
+        val maxStack = inventoryConfig.getMaxStackSize("pill")
+        var result = AddResult.SUCCESS
+        stateStore.update {
+            system.addPill(Pill(id = "p1", name = "筑基丹", rarity = 2, category = PillCategory.FUNCTIONAL, quantity = maxStack - 5))
+            result = system.addPill(Pill(id = "p2", name = "筑基丹", rarity = 2, category = PillCategory.FUNCTIONAL, quantity = 10))
+        }
+        assertEquals(AddResult.PARTIAL_SUCCESS, result)
+        assertEquals(maxStack, system.getPillQuantity("p1"))
+    }
+
+    @Test
+    fun `addPill - merge within maxStack returns SUCCESS`() = runBlocking {
+        val maxStack = inventoryConfig.getMaxStackSize("pill")
+        var result = AddResult.SUCCESS
+        stateStore.update {
+            system.addPill(Pill(id = "p1", name = "筑基丹", rarity = 2, category = PillCategory.FUNCTIONAL, quantity = maxStack - 10))
+            result = system.addPill(Pill(id = "p2", name = "筑基丹", rarity = 2, category = PillCategory.FUNCTIONAL, quantity = 5))
+        }
+        assertEquals(AddResult.SUCCESS, result)
+        assertEquals(maxStack - 5, system.getPillQuantity("p1"))
+    }
+
+    @Test
+    fun `addEquipmentStack - maxStack truncation returns PARTIAL_SUCCESS`() = runBlocking {
+        val maxStack = inventoryConfig.getMaxStackSize("equipment_stack")
+        var result = AddResult.SUCCESS
+        stateStore.update {
+            system.addEquipmentStack(EquipmentStack(id = "e1", name = "铁剑", rarity = 1, quantity = maxStack - 5))
+            result = system.addEquipmentStack(EquipmentStack(id = "e2", name = "铁剑", rarity = 1, quantity = 10))
+        }
+        assertEquals(AddResult.PARTIAL_SUCCESS, result)
+        assertEquals(maxStack, system.getEquipmentStackById("e1")!!.quantity)
+    }
+
+    @Test
+    fun `addHerb - merge same name rarity category`() = runBlocking {
+        stateStore.update {
+            system.addHerb(Herb(id = "h1", name = "灵草", rarity = 1, category = "common", quantity = 5))
+            system.addHerb(Herb(id = "h2", name = "灵草", rarity = 1, category = "common", quantity = 3))
+        }
+        assertEquals(8, system.getHerbById("h1")!!.quantity)
+        assertNull(system.getHerbById("h2"))
+    }
+
+    @Test
+    fun `addHerb - maxStack truncation returns PARTIAL_SUCCESS`() = runBlocking {
+        val maxStack = inventoryConfig.getMaxStackSize("herb")
+        var result = AddResult.SUCCESS
+        stateStore.update {
+            system.addHerb(Herb(id = "h1", name = "灵草", rarity = 1, category = "common", quantity = maxStack - 5))
+            result = system.addHerb(Herb(id = "h2", name = "灵草", rarity = 1, category = "common", quantity = 10))
+        }
+        assertEquals(AddResult.PARTIAL_SUCCESS, result)
+        assertEquals(maxStack, system.getHerbById("h1")!!.quantity)
+    }
+
+    @Test
+    fun `addSeed - merge same name rarity growTime`() = runBlocking {
+        stateStore.update {
+            system.addSeed(Seed(id = "s1", name = "灵草种子", rarity = 1, growTime = 3, quantity = 5))
+            system.addSeed(Seed(id = "s2", name = "灵草种子", rarity = 1, growTime = 3, quantity = 3))
+        }
+        assertEquals(8, system.getSeedById("s1")!!.quantity)
+        assertNull(system.getSeedById("s2"))
+    }
+
+    @Test
+    fun `addSeed - maxStack truncation returns PARTIAL_SUCCESS`() = runBlocking {
+        val maxStack = inventoryConfig.getMaxStackSize("seed")
+        var result = AddResult.SUCCESS
+        stateStore.update {
+            system.addSeed(Seed(id = "s1", name = "灵草种子", rarity = 1, growTime = 3, quantity = maxStack - 5))
+            result = system.addSeed(Seed(id = "s2", name = "灵草种子", rarity = 1, growTime = 3, quantity = 10))
+        }
+        assertEquals(AddResult.PARTIAL_SUCCESS, result)
+        assertEquals(maxStack, system.getSeedById("s1")!!.quantity)
+    }
+
+    @Test
+    fun `returnEquipmentToStack - merge into existing stack`() = runBlocking {
+        var result = AddResult.SUCCESS
+        stateStore.update {
+            system.addEquipmentStack(EquipmentStack(id = "e1", name = "铁剑", rarity = 1, slot = EquipmentSlot.WEAPON, quantity = 5))
+            val instance = EquipmentInstance(id = "ei1", name = "铁剑", rarity = 1, slot = EquipmentSlot.WEAPON)
+            result = system.returnEquipmentToStack(instance)
+        }
+        assertEquals(AddResult.SUCCESS, result)
+        val stack = stateStore.equipmentStacks.value.find { it.name == "铁剑" }
+        assertNotNull(stack)
+        assertEquals(6, stack!!.quantity)
+    }
+
+    @Test
+    fun `returnEquipmentToStack - create new stack when no match`() = runBlocking {
+        var result = AddResult.SUCCESS
+        stateStore.update {
+            val instance = EquipmentInstance(id = "ei1", name = "铁剑", rarity = 1, slot = EquipmentSlot.WEAPON)
+            result = system.returnEquipmentToStack(instance)
+        }
+        assertEquals(AddResult.SUCCESS, result)
+        val stack = stateStore.equipmentStacks.value.find { it.name == "铁剑" }
+        assertNotNull(stack)
+        assertEquals(1, stack!!.quantity)
+    }
+
+    @Test
+    fun `returnManualToStack - merge into existing stack`() = runBlocking {
+        var result = AddResult.SUCCESS
+        stateStore.update {
+            system.addManualStack(ManualStack(id = "m1", name = "基础功法", rarity = 1, type = ManualType.MIND, quantity = 5))
+            val instance = ManualInstance(id = "mi1", name = "基础功法", rarity = 1, type = ManualType.MIND)
+            result = system.returnManualToStack(instance)
+        }
+        assertEquals(AddResult.SUCCESS, result)
+        assertEquals(6, system.getManualStackById("m1")!!.quantity)
+    }
+
+    @Test
+    fun `canAddPill - returns false when stack is at maxStack and inventory is full`() = runBlocking {
+        val maxStack = inventoryConfig.getMaxStackSize("pill")
+        stateStore.update {
+            system.addPill(Pill(id = "p1", name = "筑基丹", rarity = 2, category = PillCategory.FUNCTIONAL, quantity = maxStack))
+            for (i in 0 until InventorySystem.MAX_INVENTORY_SIZE - 1) {
+                system.addPill(Pill(id = "fill$i", name = "填充丹药$i", rarity = 1, category = PillCategory.FUNCTIONAL, quantity = 1))
+            }
+        }
+        assertFalse(system.canAddPill("筑基丹", 2, PillCategory.FUNCTIONAL))
+    }
+
+    @Test
+    fun `canAddPill - returns true when stack is at maxStack but has free slots`() = runBlocking {
+        val maxStack = inventoryConfig.getMaxStackSize("pill")
+        stateStore.update {
+            system.addPill(Pill(id = "p1", name = "筑基丹", rarity = 2, category = PillCategory.FUNCTIONAL, quantity = maxStack))
+        }
+        assertTrue(system.canAddPill("筑基丹", 2, PillCategory.FUNCTIONAL))
+    }
+
+    @Test
+    fun `canAddPill - returns true when stack is below maxStack`() = runBlocking {
+        val maxStack = inventoryConfig.getMaxStackSize("pill")
+        stateStore.update {
+            system.addPill(Pill(id = "p1", name = "筑基丹", rarity = 2, category = PillCategory.FUNCTIONAL, quantity = maxStack - 1))
+        }
+        assertTrue(system.canAddPill("筑基丹", 2, PillCategory.FUNCTIONAL))
+    }
+
+    @Test
+    fun `canAddEquipment - returns false when stack is at maxStack and inventory is full`() = runBlocking {
+        val maxStack = inventoryConfig.getMaxStackSize("equipment_stack")
+        stateStore.update {
+            system.addEquipmentStack(EquipmentStack(id = "e1", name = "铁剑", rarity = 1, slot = EquipmentSlot.WEAPON, quantity = maxStack))
+            for (i in 0 until InventorySystem.MAX_INVENTORY_SIZE - 1) {
+                system.addEquipmentStack(EquipmentStack(id = "fill$i", name = "填充装备$i", rarity = 1, slot = EquipmentSlot.WEAPON, quantity = 1))
+            }
+        }
+        assertFalse(system.canAddEquipment("铁剑", 1, EquipmentSlot.WEAPON))
+    }
+
+    @Test
+    fun `InventoryConfig - default stack limits match game design`() {
+        assertEquals(999, inventoryConfig.getMaxStackSize("equipment_stack"))
+        assertEquals(999, inventoryConfig.getMaxStackSize("manual_stack"))
+        assertEquals(999, inventoryConfig.getMaxStackSize("pill"))
+        assertEquals(9999, inventoryConfig.getMaxStackSize("material"))
+        assertEquals(9999, inventoryConfig.getMaxStackSize("herb"))
+        assertEquals(9999, inventoryConfig.getMaxStackSize("seed"))
     }
 }

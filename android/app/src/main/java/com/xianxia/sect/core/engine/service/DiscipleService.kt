@@ -13,6 +13,7 @@ import com.xianxia.sect.di.ApplicationScopeProvider
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.engine.system.GameSystem
 import com.xianxia.sect.core.engine.system.SystemPriority
+import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.util.StorageBagUtils
 import android.util.Log
 import java.util.UUID
@@ -26,7 +27,8 @@ class DiscipleService @Inject constructor(
     private val stateStore: GameStateStore,
     private val productionSlotRepository: ProductionSlotRepository,
     private val eventService: EventService,
-    private val applicationScopeProvider: ApplicationScopeProvider
+    private val applicationScopeProvider: ApplicationScopeProvider,
+    private val inventoryConfig: InventoryConfig
 ) : GameSystem {
     override val systemName: String = "DiscipleService"
     private val scope get() = applicationScopeProvider.scope
@@ -554,7 +556,8 @@ class DiscipleService @Inject constructor(
                     it.name == stack.name && it.rarity == stack.rarity && it.slot == stack.slot
                 }
                 if (existingStack != null) {
-                    val newQty = (existingStack.quantity + stack.quantity).coerceAtMost(999)
+                    val maxStack = inventoryConfig.getMaxStackSize("equipment_stack")
+                    val newQty = (existingStack.quantity + stack.quantity).coerceAtMost(maxStack)
                     equipmentStacks = equipmentStacks.map { s ->
                         if (s.id == existingStack.id) s.copy(quantity = newQty) else s
                     }
@@ -572,7 +575,8 @@ class DiscipleService @Inject constructor(
                         it.name == stack.name && it.rarity == stack.rarity && it.type == stack.type
                     }
                     if (existingStack != null) {
-                        val newQty = (existingStack.quantity + stack.quantity).coerceAtMost(999)
+                        val maxStack = inventoryConfig.getMaxStackSize("manual_stack")
+                        val newQty = (existingStack.quantity + stack.quantity).coerceAtMost(maxStack)
                         manualStacks = manualStacks.map { s ->
                             if (s.id == existingStack.id) s.copy(quantity = newQty) else s
                         }
@@ -591,7 +595,8 @@ class DiscipleService @Inject constructor(
                         it.name == stack.name && it.rarity == stack.rarity && it.type == stack.type
                     }
                     if (existingStack != null) {
-                        val newQty = (existingStack.quantity + stack.quantity).coerceAtMost(999)
+                        val maxStack = inventoryConfig.getMaxStackSize("manual_stack")
+                        val newQty = (existingStack.quantity + stack.quantity).coerceAtMost(maxStack)
                         manualStacks = manualStacks.map { s ->
                             if (s.id == existingStack.id) s.copy(quantity = newQty) else s
                         }
@@ -728,7 +733,8 @@ class DiscipleService @Inject constructor(
                 }
 
                 if (existingStack != null) {
-                    val newQty = (existingStack.quantity + 1).coerceAtMost(999)
+                    val maxStack = inventoryConfig.getMaxStackSize("equipment_stack")
+                    val newQty = (existingStack.quantity + 1).coerceAtMost(maxStack)
                     val mergedId = existingStack.id
                     val storageItem = StorageBagItem(
                         itemId = mergedId,
