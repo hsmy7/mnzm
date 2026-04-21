@@ -310,8 +310,8 @@ class BattleSystem @Inject constructor() {
 
         var team = battle.team.toMutableList()
         var beasts = battle.beasts.toMutableList()
-        val teamIndexMap = team.withIndex().associate { it.value.id to it.index }
-        val beastsIndexMap = beasts.withIndex().associate { it.value.id to it.index }
+        var teamIndexMap = team.withIndex().associate { it.value.id to it.index }
+        var beastsIndexMap = beasts.withIndex().associate { it.value.id to it.index }
         val actions = mutableListOf<BattleActionData>()
 
         for (combatant in allCombatants) {
@@ -475,6 +475,8 @@ class BattleSystem @Inject constructor() {
 
                 team = team.filter { !it.isDead }.toMutableList()
                 beasts = beasts.filter { !it.isDead }.toMutableList()
+                teamIndexMap = team.withIndex().associate { it.value.id to it.index }
+                beastsIndexMap = beasts.withIndex().associate { it.value.id to it.index }
             }
 
             if (availableSkill != null) {
@@ -541,14 +543,11 @@ class BattleSystem @Inject constructor() {
         )
     }
 
-    private fun updateCombatantBuffs(combatant: Combatant, list: List<Combatant>, indexMap: Map<String, Int>) {
+    private fun updateCombatantBuffs(combatant: Combatant, list: MutableList<Combatant>, indexMap: Map<String, Int>) {
         val idx = indexMap[combatant.id] ?: return
         if (idx >= list.size) return
         val updated = BattleCalculator.updateCombatantBuffsOnly(combatant)
-        if (list === list) {
-            @Suppress("UNCHECKED_CAST")
-            (list as MutableList<Combatant>)[idx] = updated
-        }
+        list[idx] = updated
     }
 
     private fun processDotEffects(team: MutableList<Combatant>, beasts: MutableList<Combatant>, actions: MutableList<BattleActionData>) {

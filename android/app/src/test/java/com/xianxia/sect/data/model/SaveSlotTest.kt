@@ -89,8 +89,6 @@ class SaveDataTest {
         val data = SaveData(
             gameData = com.xianxia.sect.core.model.GameData(),
             disciples = emptyList(),
-            equipment = emptyList(),
-            manuals = emptyList(),
             pills = emptyList(),
             materials = emptyList(),
             herbs = emptyList(),
@@ -107,8 +105,6 @@ class SaveDataTest {
         val data = SaveData(
             gameData = com.xianxia.sect.core.model.GameData(),
             disciples = emptyList(),
-            equipment = emptyList(),
-            manuals = emptyList(),
             pills = emptyList(),
             materials = emptyList(),
             herbs = emptyList(),
@@ -125,8 +121,6 @@ class SaveDataTest {
         val data = SaveData(
             gameData = com.xianxia.sect.core.model.GameData(),
             disciples = emptyList(),
-            equipment = emptyList(),
-            manuals = emptyList(),
             pills = emptyList(),
             materials = emptyList(),
             herbs = emptyList(),
@@ -142,8 +136,6 @@ class SaveDataTest {
         val data = SaveData(
             gameData = com.xianxia.sect.core.model.GameData(),
             disciples = emptyList(),
-            equipment = emptyList(),
-            manuals = emptyList(),
             pills = emptyList(),
             materials = emptyList(),
             herbs = emptyList(),
@@ -159,8 +151,6 @@ class SaveDataTest {
         val data = SaveData(
             gameData = com.xianxia.sect.core.model.GameData(),
             disciples = emptyList(),
-            equipment = emptyList(),
-            manuals = emptyList(),
             pills = emptyList(),
             materials = emptyList(),
             herbs = emptyList(),
@@ -178,8 +168,6 @@ class SaveDataTest {
             timestamp = 123456789L,
             gameData = com.xianxia.sect.core.model.GameData(),
             disciples = listOf(com.xianxia.sect.core.model.Disciple()),
-            equipment = emptyList(),
-            manuals = emptyList(),
             pills = emptyList(),
             materials = emptyList(),
             herbs = emptyList(),

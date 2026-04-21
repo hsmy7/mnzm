@@ -59,7 +59,7 @@ data class EquipmentStack(
     val minRealm: Int = 9,
 
     override var quantity: Int = 1,
-    val isLocked: Boolean = false
+    override val isLocked: Boolean = false
 ) : GameItem(), StackableItem {
 
     override fun withQuantity(newQuantity: Int): EquipmentStack = copy(quantity = newQuantity)
@@ -306,7 +306,7 @@ data class ManualStack(
     val minRealm: Int = 9,
 
     override var quantity: Int = 1,
-    val isLocked: Boolean = false
+    override val isLocked: Boolean = false
 ) : GameItem(), StackableItem {
 
     override fun withQuantity(newQuantity: Int): ManualStack = copy(quantity = newQuantity)
@@ -591,7 +591,7 @@ data class Pill(
     val minRealm: Int = 9,
     
     override var quantity: Int = 1,
-    val isLocked: Boolean = false
+    override val isLocked: Boolean = false
 ) : GameItem(), StackableItem {
     
     override fun withQuantity(newQuantity: Int): Pill = copy(quantity = newQuantity)
@@ -743,7 +743,7 @@ data class Material(
     
     val category: MaterialCategory = MaterialCategory.BEAST_HIDE,
     override var quantity: Int = 1,
-    val isLocked: Boolean = false
+    override val isLocked: Boolean = false
 ) : GameItem(), StackableItem {
     
     override fun withQuantity(newQuantity: Int): Material = copy(quantity = newQuantity)
@@ -804,7 +804,7 @@ data class Herb(
 
     val category: String = "",
     override var quantity: Int = 1,
-    val isLocked: Boolean = false
+    override val isLocked: Boolean = false
 ) : GameItem(), StackableItem {
     
     override fun withQuantity(newQuantity: Int): Herb = copy(quantity = newQuantity)
@@ -836,7 +836,7 @@ data class Seed(
     val growTime: Int = 3,
     val yield: Int = 1,
     override var quantity: Int = 1,
-    val isLocked: Boolean = false
+    override val isLocked: Boolean = false
 ) : GameItem(), StackableItem {
     
     override fun withQuantity(newQuantity: Int): Seed = copy(quantity = newQuantity)

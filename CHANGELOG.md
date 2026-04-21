@@ -1,5 +1,17 @@
 # 模拟宗门 - 更新日志
 
+## [2.3.08] - 2026-04-22
+
+### 修复
+- 修复 StackableItem 子类（EquipmentStack/ManualStack/Pill/Material/Herb/Seed）isLocked 属性缺少 override 修饰符导致编译错误
+- 修复战斗系统多角色战斗中角色死亡后索引映射未更新导致 IndexOutOfBoundsException 的严重 bug
+- 修复战斗系统 updateCombatantBuffs 方法中永真条件判断和不安全类型转换
+- 修复测试文件中 SaveData 字段名与重构后的模型不匹配（equipment→equipmentStacks/equipmentInstances, manuals→manualStacks/manualInstances）
+- 修复测试文件中 Equipment/Manual 类名与重构后的 EquipmentInstance/ManualInstance 不匹配
+- 修复 InventorySystemTest 异步状态更新导致测试间歇性失败
+- 修复 CacheKeyTest DEFAULT_TTL 断言值与实际值不一致（1小时→1天）
+- 删除过时的 ProductionSubsystemTest（API 已完全重构）
+
 ## [2.3.07] - 2026-04-21
 
 ### 修复

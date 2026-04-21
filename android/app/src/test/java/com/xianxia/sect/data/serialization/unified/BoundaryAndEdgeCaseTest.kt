@@ -94,8 +94,10 @@ class BoundaryAndEdgeCaseTest {
             timestamp = System.currentTimeMillis(),
             gameData = GameData(sectName = "大宗门"),
             disciples = disciples,
-            equipment = emptyList(),
-            manuals = emptyList(),
+            equipmentStacks = emptyList(),
+            equipmentInstances = emptyList(),
+            manualStacks = emptyList(),
+            manualInstances = emptyList(),
             pills = emptyList(),
             materials = emptyList(),
             herbs = emptyList(),
@@ -156,10 +158,10 @@ class BoundaryAndEdgeCaseTest {
                 breakthroughCount = 8, breakthroughFailCount = 3
             ),
             pillEffects = PillEffects(
-                pillPhysicalAttackBonus = 5.0, pillMagicAttackBonus = 3.0,
-                pillPhysicalDefenseBonus = 2.0, pillMagicDefenseBonus = 4.0,
-                pillHpBonus = 100.0, pillMpBonus = 50.0,
-                pillSpeedBonus = 1.5, pillEffectDuration = 5
+                pillPhysicalAttackBonus = 5, pillMagicAttackBonus = 3,
+                pillPhysicalDefenseBonus = 2, pillMagicDefenseBonus = 4,
+                pillHpBonus = 100, pillMpBonus = 50,
+                pillSpeedBonus = 1, pillEffectDuration = 5
             ),
             equipment = EquipmentSet(
                 weaponId = "weapon_1", armorId = "armor_1",
@@ -189,8 +191,10 @@ class BoundaryAndEdgeCaseTest {
             timestamp = System.currentTimeMillis(),
             gameData = GameData(),
             disciples = listOf(disciple),
-            equipment = emptyList(),
-            manuals = emptyList(),
+            equipmentStacks = emptyList(),
+            equipmentInstances = emptyList(),
+            manualStacks = emptyList(),
+            manualInstances = emptyList(),
             pills = emptyList(),
             materials = emptyList(),
             herbs = emptyList(),
@@ -220,13 +224,13 @@ class BoundaryAndEdgeCaseTest {
         assertEquals(DiscipleStatus.ON_MISSION, r.status)
         assertEquals(15.5, r.cultivationSpeedBonus, 0.001)
         assertEquals(10, r.cultivationSpeedDuration)
-        assertEquals(5.0, r.pillPhysicalAttackBonus, 0.001)
-        assertEquals(3.0, r.pillMagicAttackBonus, 0.001)
-        assertEquals(2.0, r.pillPhysicalDefenseBonus, 0.001)
-        assertEquals(4.0, r.pillMagicDefenseBonus, 0.001)
-        assertEquals(100.0, r.pillHpBonus, 0.001)
-        assertEquals(50.0, r.pillMpBonus, 0.001)
-        assertEquals(1.5, r.pillSpeedBonus, 0.001)
+        assertEquals(5, r.pillPhysicalAttackBonus)
+        assertEquals(3, r.pillMagicAttackBonus)
+        assertEquals(2, r.pillPhysicalDefenseBonus)
+        assertEquals(4, r.pillMagicDefenseBonus)
+        assertEquals(100, r.pillHpBonus)
+        assertEquals(50, r.pillMpBonus)
+        assertEquals(1, r.pillSpeedBonus)
         assertEquals(5, r.pillEffectDuration)
         assertEquals(150000L, r.totalCultivation)
         assertEquals(8, r.breakthroughCount)
@@ -298,8 +302,10 @@ class BoundaryAndEdgeCaseTest {
             timestamp = 0L,
             gameData = GameData(),
             disciples = listOf(disciple),
-            equipment = emptyList(),
-            manuals = emptyList(),
+            equipmentStacks = emptyList(),
+            equipmentInstances = emptyList(),
+            manualStacks = emptyList(),
+            manualInstances = emptyList(),
             pills = emptyList(),
             materials = emptyList(),
             herbs = emptyList(),
@@ -376,8 +382,10 @@ class BoundaryAndEdgeCaseTest {
             timestamp = Long.MAX_VALUE,
             gameData = GameData(spiritStones = Long.MAX_VALUE),
             disciples = listOf(disciple),
-            equipment = emptyList(),
-            manuals = emptyList(),
+            equipmentStacks = emptyList(),
+            equipmentInstances = emptyList(),
+            manualStacks = emptyList(),
+            manualInstances = emptyList(),
             pills = emptyList(),
             materials = emptyList(),
             herbs = emptyList(),
@@ -438,8 +446,10 @@ class BoundaryAndEdgeCaseTest {
             timestamp = -1L,
             gameData = GameData(spiritStones = -999L),
             disciples = listOf(disciple),
-            equipment = emptyList(),
-            manuals = emptyList(),
+            equipmentStacks = emptyList(),
+            equipmentInstances = emptyList(),
+            manualStacks = emptyList(),
+            manualInstances = emptyList(),
             pills = emptyList(),
             materials = emptyList(),
             herbs = emptyList(),
@@ -497,8 +507,10 @@ class BoundaryAndEdgeCaseTest {
             timestamp = System.currentTimeMillis(),
             gameData = GameData(sectName = longName),
             disciples = listOf(disciple),
-            equipment = emptyList(),
-            manuals = emptyList(),
+            equipmentStacks = emptyList(),
+            equipmentInstances = emptyList(),
+            manualStacks = emptyList(),
+            manualInstances = emptyList(),
             pills = emptyList(),
             materials = emptyList(),
             herbs = emptyList(),
@@ -523,8 +535,10 @@ class BoundaryAndEdgeCaseTest {
             timestamp = System.currentTimeMillis(),
             gameData = GameData(sectName = specialName),
             disciples = emptyList(),
-            equipment = emptyList(),
-            manuals = emptyList(),
+            equipmentStacks = emptyList(),
+            equipmentInstances = emptyList(),
+            manualStacks = emptyList(),
+            manualInstances = emptyList(),
             pills = emptyList(),
             materials = emptyList(),
             herbs = emptyList(),
@@ -678,7 +692,7 @@ class BoundaryAndEdgeCaseTest {
     fun `SaveDataConverter - large number of equipment preserves all`() {
         val converter = SaveDataConverter()
         val equipment = (1..500).map { i ->
-            Equipment(
+            EquipmentInstance(
                 id = "equip_$i",
                 name = "装备$i",
                 slot = listOf(EquipmentSlot.WEAPON, EquipmentSlot.ARMOR, EquipmentSlot.BOOTS, EquipmentSlot.ACCESSORY)[i % 4],
@@ -696,8 +710,7 @@ class BoundaryAndEdgeCaseTest {
                 nurtureLevel = i % 10,
                 nurtureProgress = (i % 100) / 100.0,
                 minRealm = i % 20,
-                ownerId = if (i % 2 == 0) "d_${i % 100}" else null,
-                quantity = 1
+                ownerId = if (i % 2 == 0) "d_${i % 100}" else null
             )
         }
 
@@ -706,8 +719,10 @@ class BoundaryAndEdgeCaseTest {
             timestamp = System.currentTimeMillis(),
             gameData = GameData(),
             disciples = emptyList(),
-            equipment = equipment,
-            manuals = emptyList(),
+            equipmentStacks = emptyList(),
+            equipmentInstances = equipment,
+            manualStacks = emptyList(),
+            manualInstances = emptyList(),
             pills = emptyList(),
             materials = emptyList(),
             herbs = emptyList(),
@@ -719,9 +734,9 @@ class BoundaryAndEdgeCaseTest {
         val serializable = converter.toSerializable(original)
         val restored = converter.fromSerializable(serializable)
 
-        assertEquals(500, restored.equipment.size)
+        assertEquals(500, restored.equipmentInstances.size)
         for (i in 1..500) {
-            val r = restored.equipment[i - 1]
+            val r = restored.equipmentInstances[i - 1]
             assertEquals("equip_$i", r.id)
             assertEquals("装备$i", r.name)
             assertEquals((i % 6) + 1, r.rarity)

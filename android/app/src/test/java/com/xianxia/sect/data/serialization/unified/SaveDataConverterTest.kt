@@ -1,4 +1,4 @@
-﻿package com.xianxia.sect.data.serialization.unified
+package com.xianxia.sect.data.serialization.unified
 
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.data.model.SaveData
@@ -22,8 +22,10 @@ class SaveDataConverterTest {
             timestamp = System.currentTimeMillis(),
             gameData = GameData(),
             disciples = emptyList(),
-            equipment = emptyList(),
-            manuals = emptyList(),
+            equipmentStacks = emptyList(),
+            equipmentInstances = emptyList(),
+            manualStacks = emptyList(),
+            manualInstances = emptyList(),
             pills = emptyList(),
             materials = emptyList(),
             herbs = emptyList(),
@@ -122,7 +124,7 @@ class SaveDataConverterTest {
             )
         )
 
-        val equipment = Equipment(
+        val equipment = EquipmentInstance(
             id = "weapon_1",
             name = "青锋剑",
             slot = EquipmentSlot.WEAPON,
@@ -135,11 +137,10 @@ class SaveDataConverterTest {
             ownerId = "disciple_1",
             nurtureLevel = 2,
             nurtureProgress = 0.5,
-            minRealm = 0,
-            quantity = 1
+            minRealm = 0
         )
 
-        val manual = Manual(
+        val manual = ManualInstance(
             id = "manual_1",
             name = "烈火诀",
             type = ManualType.MIND,
@@ -264,8 +265,10 @@ class SaveDataConverterTest {
                 playerHasAttackedAI = false
             ),
             disciples = listOf(disciple),
-            equipment = listOf(equipment),
-            manuals = listOf(manual),
+            equipmentStacks = emptyList(),
+            equipmentInstances = listOf(equipment),
+            manualStacks = emptyList(),
+            manualInstances = listOf(manual),
             pills = listOf(pill),
             materials = listOf(material),
             herbs = listOf(herb),
@@ -360,7 +363,7 @@ class SaveDataConverterTest {
         val original = createRichSaveData()
         val serializable = converter.toSerializable(original)
         val sEquip = serializable.equipment[0]
-        val oEquip = original.equipment[0]
+        val oEquip = original.equipmentInstances[0]
 
         assertEquals(oEquip.id, sEquip.id)
         assertEquals(oEquip.name, sEquip.name)
@@ -403,8 +406,8 @@ class SaveDataConverterTest {
         val restored = converter.fromSerializable(serializable)
 
         assertTrue(restored.disciples.isEmpty())
-        assertTrue(restored.equipment.isEmpty())
-        assertTrue(restored.manuals.isEmpty())
+        assertTrue(restored.equipmentInstances.isEmpty())
+        assertTrue(restored.manualInstances.isEmpty())
         assertTrue(restored.pills.isEmpty())
         assertTrue(restored.materials.isEmpty())
         assertTrue(restored.herbs.isEmpty())
@@ -420,8 +423,8 @@ class SaveDataConverterTest {
         val restored = converter.fromSerializable(serializable)
 
         assertEquals(original.disciples.size, restored.disciples.size)
-        assertEquals(original.equipment.size, restored.equipment.size)
-        assertEquals(original.manuals.size, restored.manuals.size)
+        assertEquals(original.equipmentInstances.size, restored.equipmentInstances.size)
+        assertEquals(original.manualInstances.size, restored.manualInstances.size)
         assertEquals(original.pills.size, restored.pills.size)
         assertEquals(original.materials.size, restored.materials.size)
         assertEquals(original.herbs.size, restored.herbs.size)
@@ -497,8 +500,8 @@ class SaveDataConverterTest {
         val original = createRichSaveData()
         val serializable = converter.toSerializable(original)
         val restored = converter.fromSerializable(serializable)
-        val oEquip = original.equipment[0]
-        val rEquip = restored.equipment[0]
+        val oEquip = original.equipmentInstances[0]
+        val rEquip = restored.equipmentInstances[0]
 
         assertEquals(oEquip.id, rEquip.id)
         assertEquals(oEquip.name, rEquip.name)
@@ -509,7 +512,6 @@ class SaveDataConverterTest {
         assertEquals(oEquip.description, rEquip.description)
         assertEquals(oEquip.critChance, rEquip.critChance, 0.001)
         assertEquals(oEquip.minRealm, rEquip.minRealm)
-        assertEquals(oEquip.quantity, rEquip.quantity)
         assertEquals(oEquip.nurtureLevel, rEquip.nurtureLevel)
         assertEquals(oEquip.nurtureProgress, rEquip.nurtureProgress, 0.001)
         assertEquals(oEquip.isEquipped, rEquip.isEquipped)
@@ -556,8 +558,8 @@ class SaveDataConverterTest {
         assertEquals(original.gameData.sectName, restored.gameData.sectName)
         assertEquals(original.gameData.spiritStones, restored.gameData.spiritStones)
         assertEquals(original.disciples.size, restored.disciples.size)
-        assertEquals(original.equipment.size, restored.equipment.size)
-        assertEquals(original.manuals.size, restored.manuals.size)
+        assertEquals(original.equipmentInstances.size, restored.equipmentInstances.size)
+        assertEquals(original.manualInstances.size, restored.manualInstances.size)
         assertEquals(original.pills.size, restored.pills.size)
         assertEquals(original.materials.size, restored.materials.size)
         assertEquals(original.herbs.size, restored.herbs.size)
@@ -571,8 +573,10 @@ class SaveDataConverterTest {
             timestamp = System.currentTimeMillis(),
             gameData = GameData(),
             disciples = emptyList(),
-            equipment = emptyList(),
-            manuals = emptyList(),
+            equipmentStacks = emptyList(),
+            equipmentInstances = emptyList(),
+            manualStacks = emptyList(),
+            manualInstances = emptyList(),
             pills = emptyList(),
             materials = emptyList(),
             herbs = emptyList(),

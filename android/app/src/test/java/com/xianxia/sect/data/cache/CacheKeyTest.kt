@@ -25,8 +25,8 @@ class CacheKeyTest {
     // ==================== DEFAULT_TTL ====================
 
     @Test
-    fun `DEFAULT_TTL is 1 hour`() {
-        assertEquals(3600_000L, CacheKey.DEFAULT_TTL)
+    fun `DEFAULT_TTL is 1 day`() {
+        assertEquals(86400_000L, CacheKey.DEFAULT_TTL)
     }
 
     // ==================== Type constants ====================
