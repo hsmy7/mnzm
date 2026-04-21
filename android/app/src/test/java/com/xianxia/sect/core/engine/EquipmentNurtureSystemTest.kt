@@ -1,6 +1,6 @@
 package com.xianxia.sect.core.engine
 
-import com.xianxia.sect.core.model.Equipment
+import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentSlot
 import org.junit.Assert.*
 import org.junit.Test
@@ -62,14 +62,14 @@ class EquipmentNurtureSystemTest {
 
     @Test
     fun `calculateExpGain - 胜利时获得经验`() {
-        val equipment = Equipment(id = "e1", name = "铁剑", rarity = 1, slot = EquipmentSlot.WEAPON)
+        val equipment = EquipmentInstance(id = "e1", name = "铁剑", rarity = 1, slot = EquipmentSlot.WEAPON)
         val exp = EquipmentNurtureSystem.calculateExpGain(equipment, isVictory = true)
         assertTrue(exp > 0)
     }
 
     @Test
     fun `calculateExpGain - 失败时不获得经验`() {
-        val equipment = Equipment(id = "e1", name = "铁剑", rarity = 1, slot = EquipmentSlot.WEAPON)
+        val equipment = EquipmentInstance(id = "e1", name = "铁剑", rarity = 1, slot = EquipmentSlot.WEAPON)
         val exp = EquipmentNurtureSystem.calculateExpGain(equipment, isVictory = false)
         assertEquals(0.0, exp, 0.01)
     }
@@ -94,7 +94,7 @@ class EquipmentNurtureSystemTest {
     @Test
     fun `updateNurtureExp - 满级不再升级`() {
         val maxLevel = EquipmentNurtureSystem.getMaxNurtureLevel(1)
-        val equipment = Equipment(
+        val equipment = EquipmentInstance(
             id = "e1",
             name = "铁剑",
             rarity = 1,
@@ -108,7 +108,7 @@ class EquipmentNurtureSystemTest {
 
     @Test
     fun `updateNurtureExp - 经验不足不升级`() {
-        val equipment = Equipment(
+        val equipment = EquipmentInstance(
             id = "e1",
             name = "铁剑",
             rarity = 1,

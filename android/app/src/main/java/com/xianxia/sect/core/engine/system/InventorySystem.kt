@@ -146,9 +146,7 @@ class InventorySystem @Inject constructor(
 
     private fun getTotalSlotCount(): Int {
         return stateStore.equipmentStacks.value.size +
-               stateStore.equipmentInstances.value.size +
                stateStore.manualStacks.value.size +
-               stateStore.manualInstances.value.size +
                stateStore.pills.value.size +
                stateStore.materials.value.size +
                stateStore.herbs.value.size +
@@ -263,7 +261,6 @@ class InventorySystem @Inject constructor(
         val ts = stateStore.currentTransactionMutableState()
         val currentInstances = ts?.equipmentInstances ?: stateStore.equipmentInstances.value
         if (currentInstances.any { it.id == item.id }) return AddResult.DUPLICATE_ID
-        if (!canAddItem()) return AddResult.FULL
 
         if (ts != null) {
             ts.equipmentInstances = ts.equipmentInstances + item
@@ -322,7 +319,6 @@ class InventorySystem @Inject constructor(
         val ts = stateStore.currentTransactionMutableState()
         val currentInstances = ts?.manualInstances ?: stateStore.manualInstances.value
         if (currentInstances.any { it.id == item.id }) return AddResult.DUPLICATE_ID
-        if (!canAddItem()) return AddResult.FULL
 
         if (ts != null) {
             ts.manualInstances = ts.manualInstances + item
@@ -461,12 +457,6 @@ class InventorySystem @Inject constructor(
     }
 
     fun removeEquipmentInstance(id: String): Boolean {
-        val existing = stateStore.equipmentInstances.value.find { it.id == id }
-        if (existing?.isLocked == true) {
-            logWarning("Cannot remove locked equipment instance: ${existing.name}")
-            return false
-        }
-
         var removed = false
         val ts = stateStore.currentTransactionMutableState()
         if (ts != null) {
@@ -594,12 +584,6 @@ class InventorySystem @Inject constructor(
     }
 
     fun removeManualInstance(id: String): Boolean {
-        val existing = stateStore.manualInstances.value.find { it.id == id }
-        if (existing?.isLocked == true) {
-            logWarning("Cannot remove locked manual instance: ${existing.name}")
-            return false
-        }
-
         var removed = false
         val ts = stateStore.currentTransactionMutableState()
         if (ts != null) {

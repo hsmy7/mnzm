@@ -326,6 +326,133 @@ val MIGRATION_11_12 = object : androidx.room.migration.Migration(11, 12) {
 
         db.execSQL("DROP TABLE IF EXISTS equipment")
         db.execSQL("DROP TABLE IF EXISTS manuals")
+
+        mergeStacks(db, "equipment_stacks", "name, rarity, slot, slot_id", 99)
+        mergeStacks(db, "manual_stacks", "name, rarity, type, slot_id", 99)
+    }
+}
+
+val MIGRATION_12_13 = object : androidx.room.migration.Migration(12, 13) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        Log.i("GameDatabase", "Migrating database from version 12 to 13: remove isLocked from instance tables, merge duplicate stacks")
+
+        db.execSQL("""
+            CREATE TABLE equipment_instances_new (
+                id TEXT NOT NULL,
+                slot_id INTEGER NOT NULL,
+                name TEXT NOT NULL DEFAULT '',
+                rarity INTEGER NOT NULL DEFAULT 1,
+                description TEXT NOT NULL DEFAULT '',
+                slot TEXT NOT NULL DEFAULT 'WEAPON',
+                physicalAttack INTEGER NOT NULL DEFAULT 0,
+                magicAttack INTEGER NOT NULL DEFAULT 0,
+                physicalDefense INTEGER NOT NULL DEFAULT 0,
+                magicDefense INTEGER NOT NULL DEFAULT 0,
+                speed INTEGER NOT NULL DEFAULT 0,
+                hp INTEGER NOT NULL DEFAULT 0,
+                mp INTEGER NOT NULL DEFAULT 0,
+                critChance REAL NOT NULL DEFAULT 0.0,
+                nurtureLevel INTEGER NOT NULL DEFAULT 0,
+                nurtureProgress REAL NOT NULL DEFAULT 0.0,
+                minRealm INTEGER NOT NULL DEFAULT 9,
+                ownerId TEXT,
+                isEquipped INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY(id, slot_id)
+            )
+        """)
+        db.execSQL("""
+            INSERT INTO equipment_instances_new (id, slot_id, name, rarity, description, slot, physicalAttack, magicAttack, physicalDefense, magicDefense, speed, hp, mp, critChance, nurtureLevel, nurtureProgress, minRealm, ownerId, isEquipped)
+            SELECT id, slot_id, name, rarity, description, slot, physicalAttack, magicAttack, physicalDefense, magicDefense, speed, hp, mp, critChance, nurtureLevel, nurtureProgress, minRealm, ownerId, isEquipped
+            FROM equipment_instances
+        """)
+        db.execSQL("DROP TABLE equipment_instances")
+        db.execSQL("ALTER TABLE equipment_instances_new RENAME TO equipment_instances")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_equipment_instances_name ON equipment_instances(name)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_equipment_instances_rarity ON equipment_instances(rarity)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_equipment_instances_slot ON equipment_instances(slot)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_equipment_instances_ownerId ON equipment_instances(ownerId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_equipment_instances_rarity_slot ON equipment_instances(rarity, slot)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_equipment_instances_minRealm ON equipment_instances(minRealm)")
+
+        db.execSQL("""
+            CREATE TABLE manual_instances_new (
+                id TEXT NOT NULL,
+                slot_id INTEGER NOT NULL,
+                name TEXT NOT NULL DEFAULT '',
+                rarity INTEGER NOT NULL DEFAULT 1,
+                description TEXT NOT NULL DEFAULT '',
+                type TEXT NOT NULL DEFAULT 'MIND',
+                stats TEXT NOT NULL DEFAULT '{}',
+                skillName TEXT,
+                skillDescription TEXT,
+                skillType TEXT NOT NULL DEFAULT 'attack',
+                skillDamageType TEXT NOT NULL DEFAULT 'physical',
+                skillHits INTEGER NOT NULL DEFAULT 1,
+                skillDamageMultiplier REAL NOT NULL DEFAULT 1.0,
+                skillCooldown INTEGER NOT NULL DEFAULT 3,
+                skillMpCost INTEGER NOT NULL DEFAULT 10,
+                skillHealPercent REAL NOT NULL DEFAULT 0.0,
+                skillHealType TEXT NOT NULL DEFAULT 'hp',
+                skillBuffType TEXT,
+                skillBuffValue REAL NOT NULL DEFAULT 0.0,
+                skillBuffDuration INTEGER NOT NULL DEFAULT 0,
+                skillBuffsJson TEXT NOT NULL DEFAULT '',
+                skillIsAoe INTEGER NOT NULL DEFAULT 0,
+                skillTargetScope TEXT NOT NULL DEFAULT 'self',
+                minRealm INTEGER NOT NULL DEFAULT 9,
+                ownerId TEXT,
+                isLearned INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY(id, slot_id)
+            )
+        """)
+        db.execSQL("""
+            INSERT INTO manual_instances_new (id, slot_id, name, rarity, description, type, stats, skillName, skillDescription, skillType, skillDamageType, skillHits, skillDamageMultiplier, skillCooldown, skillMpCost, skillHealPercent, skillHealType, skillBuffType, skillBuffValue, skillBuffDuration, skillBuffsJson, skillIsAoe, skillTargetScope, minRealm, ownerId, isLearned)
+            SELECT id, slot_id, name, rarity, description, type, stats, skillName, skillDescription, skillType, skillDamageType, skillHits, skillDamageMultiplier, skillCooldown, skillMpCost, skillHealPercent, skillHealType, skillBuffType, skillBuffValue, skillBuffDuration, skillBuffsJson, skillIsAoe, skillTargetScope, minRealm, ownerId, isLearned
+            FROM manual_instances
+        """)
+        db.execSQL("DROP TABLE manual_instances")
+        db.execSQL("ALTER TABLE manual_instances_new RENAME TO manual_instances")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_manual_instances_name ON manual_instances(name)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_manual_instances_rarity ON manual_instances(rarity)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_manual_instances_type ON manual_instances(type)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_manual_instances_ownerId ON manual_instances(ownerId)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_manual_instances_minRealm ON manual_instances(minRealm)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_manual_instances_rarity_type ON manual_instances(rarity, type)")
+
+        // v12期间可能通过returnEquipmentToStack产生新的重复Stack，再次合并确保数据一致性
+        mergeStacks(db, "equipment_stacks", "name, rarity, slot, slot_id", 99)
+        mergeStacks(db, "manual_stacks", "name, rarity, type, slot_id", 99)
+    }
+}
+
+private fun mergeStacks(
+    db: SupportSQLiteDatabase,
+    tableName: String,
+    groupByColumns: String,
+    maxStackSize: Int
+) {
+    val cursor = db.query("""
+        SELECT $groupByColumns, GROUP_CONCAT(id) as ids, SUM(quantity) as total_qty
+        FROM $tableName
+        GROUP BY $groupByColumns
+        HAVING COUNT(*) > 1
+    """)
+    cursor.use {
+        while (it.moveToNext()) {
+            val ids = it.getString(it.getColumnIndex("ids")).split(",")
+            val totalQty = it.getInt(it.getColumnIndex("total_qty"))
+            val clampedQty = totalQty.coerceAtMost(maxStackSize)
+            val slotIdIdx = groupByColumns.lastIndexOf("slot_id")
+            val slotId = if (slotIdIdx >= 0) {
+                it.getInt(it.getColumnIndex("slot_id"))
+            } else 0
+            db.execSQL("UPDATE $tableName SET quantity = ? WHERE id = ? AND slot_id = ?",
+                arrayOf<Any>(clampedQty, ids[0], slotId))
+            for (i in 1 until ids.size) {
+                db.execSQL("DELETE FROM $tableName WHERE id = ? AND slot_id = ?",
+                    arrayOf<Any>(ids[i], slotId))
+            }
+        }
     }
 }
 
@@ -361,7 +488,7 @@ val MIGRATION_11_12 = object : androidx.room.migration.Migration(11, 12) {
         ArchivedGameEvent::class,
         ArchivedDisciple::class
     ],
-    version = 12,
+    version = 13,
     exportSchema = true
 )
 
@@ -636,7 +763,7 @@ abstract class GameDatabase : RoomDatabase() {
                         optimizeDatabase(db)
                     }
                 })
-                .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
+                .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
                 .fallbackToDestructiveMigration()
                 .build()
                 .also { db -> applySafetyPragmas(db) }
