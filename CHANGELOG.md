@@ -1,5 +1,11 @@
 # 模拟宗门 - 更新日志
 
+## [2.3.10] - 2026-04-22
+
+### 修复
+- 统一 removeXxxByName 方法（removePillByName/removeMaterialByName/removeHerbByName/removeSeedByName）的 newQty<=0 逻辑与 removeXxx 方法一致
+- 将 newQty<=0 单分支拆分为 newQty<0（记录警告并保留原物品）和 newQty==0（标记移除并返回null）两个分支，增强防御性编程
+
 ## [2.3.08] - 2026-04-22
 
 ### 修复
