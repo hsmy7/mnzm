@@ -27,6 +27,7 @@ import javax.inject.Singleton
 
 enum class AddResult {
     SUCCESS,
+    PARTIAL_SUCCESS,
     FULL,
     INVALID_ID,
     INVALID_NAME,
@@ -170,42 +171,48 @@ class InventorySystem @Inject constructor(
     fun canAddEquipment(name: String, rarity: Int, slot: EquipmentSlot): Boolean {
         val ts = stateStore.currentTransactionMutableState()
         val current = ts?.equipmentStacks ?: stateStore.equipmentStacks.value
-        val canMerge = current.any { it.name == name && it.rarity == rarity && it.slot == slot }
+        val maxStack = getMaxStackForType("equipment_stack")
+        val canMerge = current.any { it.name == name && it.rarity == rarity && it.slot == slot && it.quantity < maxStack }
         return canMerge || canAddItem()
     }
 
     fun canAddPill(name: String, rarity: Int, category: PillCategory): Boolean {
         val ts = stateStore.currentTransactionMutableState()
         val current = ts?.pills ?: stateStore.pills.value
-        val canMerge = current.any { it.name == name && it.rarity == rarity && it.category == category }
+        val maxStack = getMaxStackForType("pill")
+        val canMerge = current.any { it.name == name && it.rarity == rarity && it.category == category && it.quantity < maxStack }
         return canMerge || canAddItem()
     }
 
     fun canAddManual(name: String, rarity: Int, type: ManualType): Boolean {
         val ts = stateStore.currentTransactionMutableState()
         val current = ts?.manualStacks ?: stateStore.manualStacks.value
-        val canMerge = current.any { it.name == name && it.rarity == rarity && it.type == type }
+        val maxStack = getMaxStackForType("manual_stack")
+        val canMerge = current.any { it.name == name && it.rarity == rarity && it.type == type && it.quantity < maxStack }
         return canMerge || canAddItem()
     }
 
     fun canAddMaterial(name: String, rarity: Int, category: MaterialCategory): Boolean {
         val ts = stateStore.currentTransactionMutableState()
         val current = ts?.materials ?: stateStore.materials.value
-        val canMerge = current.any { it.name == name && it.rarity == rarity && it.category == category }
+        val maxStack = getMaxStackForType("material")
+        val canMerge = current.any { it.name == name && it.rarity == rarity && it.category == category && it.quantity < maxStack }
         return canMerge || canAddItem()
     }
 
     fun canAddHerb(name: String, rarity: Int, category: String): Boolean {
         val ts = stateStore.currentTransactionMutableState()
         val current = ts?.herbs ?: stateStore.herbs.value
-        val canMerge = current.any { it.name == name && it.rarity == rarity && it.category == category }
+        val maxStack = getMaxStackForType("herb")
+        val canMerge = current.any { it.name == name && it.rarity == rarity && it.category == category && it.quantity < maxStack }
         return canMerge || canAddItem()
     }
 
     fun canAddSeed(name: String, rarity: Int, growTime: Int): Boolean {
         val ts = stateStore.currentTransactionMutableState()
         val current = ts?.seeds ?: stateStore.seeds.value
-        val canMerge = current.any { it.name == name && it.rarity == rarity && it.growTime == growTime }
+        val maxStack = getMaxStackForType("seed")
+        val canMerge = current.any { it.name == name && it.rarity == rarity && it.growTime == growTime && it.quantity < maxStack }
         return canMerge || canAddItem()
     }
 
@@ -228,7 +235,8 @@ class InventorySystem @Inject constructor(
             it.name == item.name && it.rarity == item.rarity && it.slot == item.slot
         }
         if (existing != null) {
-            val newQty = (existing.quantity + item.quantity).coerceAtMost(maxStack)
+            val totalQty = existing.quantity + item.quantity
+            val newQty = totalQty.coerceAtMost(maxStack)
             if (ts != null) {
                 ts.equipmentStacks = ts.equipmentStacks.map {
                     if (it.id == existing.id) it.copy(quantity = newQty) else it
@@ -240,7 +248,7 @@ class InventorySystem @Inject constructor(
                     }
                 } }
             }
-            return AddResult.SUCCESS
+            return if (totalQty > maxStack) AddResult.PARTIAL_SUCCESS else AddResult.SUCCESS
         }
         if (!canAddItem()) return AddResult.FULL
         if (ts != null) {
@@ -285,7 +293,8 @@ class InventorySystem @Inject constructor(
                 it.name == item.name && it.rarity == item.rarity && it.type == item.type
             }
             if (existing != null) {
-                val newQty = (existing.quantity + item.quantity).coerceAtMost(maxStack)
+                val totalQty = existing.quantity + item.quantity
+                val newQty = totalQty.coerceAtMost(maxStack)
                 if (ts != null) {
                     ts.manualStacks = ts.manualStacks.map {
                         if (it.id == existing.id) it.copy(quantity = newQty) else it
@@ -297,7 +306,7 @@ class InventorySystem @Inject constructor(
                         }
                     } }
                 }
-                return AddResult.SUCCESS
+                return if (totalQty > maxStack) AddResult.PARTIAL_SUCCESS else AddResult.SUCCESS
             }
         }
         if (!canAddItem()) return AddResult.FULL
@@ -339,7 +348,8 @@ class InventorySystem @Inject constructor(
             it.name == instance.name && it.rarity == instance.rarity && it.slot == instance.slot
         }
         if (existing != null) {
-            val newQty = (existing.quantity + 1).coerceAtMost(maxStack)
+            val totalQty = existing.quantity + 1
+            val newQty = totalQty.coerceAtMost(maxStack)
             if (ts != null) {
                 ts.equipmentStacks = ts.equipmentStacks.map {
                     if (it.id == existing.id) it.copy(quantity = newQty) else it
@@ -351,7 +361,7 @@ class InventorySystem @Inject constructor(
                     }
                 } }
             }
-            return AddResult.SUCCESS
+            return if (totalQty > maxStack) AddResult.PARTIAL_SUCCESS else AddResult.SUCCESS
         }
         if (!canAddItem()) return AddResult.FULL
         val newStack = instance.toStack(quantity = 1)
@@ -374,7 +384,8 @@ class InventorySystem @Inject constructor(
             it.name == instance.name && it.rarity == instance.rarity && it.type == instance.type
         }
         if (existing != null) {
-            val newQty = (existing.quantity + 1).coerceAtMost(maxStack)
+            val totalQty = existing.quantity + 1
+            val newQty = totalQty.coerceAtMost(maxStack)
             if (ts != null) {
                 ts.manualStacks = ts.manualStacks.map {
                     if (it.id == existing.id) it.copy(quantity = newQty) else it
@@ -386,7 +397,7 @@ class InventorySystem @Inject constructor(
                     }
                 } }
             }
-            return AddResult.SUCCESS
+            return if (totalQty > maxStack) AddResult.PARTIAL_SUCCESS else AddResult.SUCCESS
         }
         if (!canAddItem()) return AddResult.FULL
         val newStack = instance.toStack(quantity = 1)
@@ -667,7 +678,8 @@ class InventorySystem @Inject constructor(
             }
             if (existing != null) {
                 val maxStack = getMaxStackForType("pill")
-                val newQty = (existing.quantity + item.quantity).coerceAtMost(maxStack)
+                val totalQty = existing.quantity + item.quantity
+                val newQty = totalQty.coerceAtMost(maxStack)
                 if (ts != null) {
                     ts.pills = ts.pills.map {
                         if (it.id == existing.id) it.copy(quantity = newQty) else it
@@ -679,7 +691,7 @@ class InventorySystem @Inject constructor(
                         }
                     } }
                 }
-                return AddResult.SUCCESS
+                return if (totalQty > maxStack) AddResult.PARTIAL_SUCCESS else AddResult.SUCCESS
             }
         }
         if (!canAddItem()) return AddResult.FULL
@@ -769,7 +781,11 @@ class InventorySystem @Inject constructor(
                 if (pill.id == existing.id && !removed) {
                     val newQty = pill.quantity - quantity
                     when {
-                        newQty <= 0 -> {
+                        newQty < 0 -> {
+                            logWarning("Cannot remove $quantity items, only ${pill.quantity} available")
+                            pill
+                        }
+                        newQty == 0 -> {
                             removed = true
                             null
                         }
@@ -786,7 +802,11 @@ class InventorySystem @Inject constructor(
                     if (pill.id == existing.id && !removed) {
                         val newQty = pill.quantity - quantity
                         when {
-                            newQty <= 0 -> {
+                            newQty < 0 -> {
+                                logWarning("Cannot remove $quantity items, only ${pill.quantity} available")
+                                pill
+                            }
+                            newQty == 0 -> {
                                 removed = true
                                 null
                             }
@@ -851,7 +871,8 @@ class InventorySystem @Inject constructor(
             }
             if (existing != null) {
                 val maxStack = getMaxStackForType("material")
-                val newQty = (existing.quantity + item.quantity).coerceAtMost(maxStack)
+                val totalQty = existing.quantity + item.quantity
+                val newQty = totalQty.coerceAtMost(maxStack)
                 if (ts != null) {
                     ts.materials = ts.materials.map {
                         if (it.id == existing.id) it.copy(quantity = newQty) else it
@@ -863,7 +884,7 @@ class InventorySystem @Inject constructor(
                         }
                     } }
                 }
-                return AddResult.SUCCESS
+                return if (totalQty > maxStack) AddResult.PARTIAL_SUCCESS else AddResult.SUCCESS
             }
         }
         if (!canAddItem()) return AddResult.FULL
@@ -953,7 +974,11 @@ class InventorySystem @Inject constructor(
                 if (material.id == existing.id && !removed) {
                     val newQty = material.quantity - quantity
                     when {
-                        newQty <= 0 -> {
+                        newQty < 0 -> {
+                            logWarning("Cannot remove $quantity items, only ${material.quantity} available")
+                            material
+                        }
+                        newQty == 0 -> {
                             removed = true
                             null
                         }
@@ -970,7 +995,11 @@ class InventorySystem @Inject constructor(
                     if (material.id == existing.id && !removed) {
                         val newQty = material.quantity - quantity
                         when {
-                            newQty <= 0 -> {
+                            newQty < 0 -> {
+                                logWarning("Cannot remove $quantity items, only ${material.quantity} available")
+                                material
+                            }
+                            newQty == 0 -> {
                                 removed = true
                                 null
                             }
@@ -1035,7 +1064,8 @@ class InventorySystem @Inject constructor(
             }
             if (existing != null) {
                 val maxStack = getMaxStackForType("herb")
-                val newQty = (existing.quantity + item.quantity).coerceAtMost(maxStack)
+                val totalQty = existing.quantity + item.quantity
+                val newQty = totalQty.coerceAtMost(maxStack)
                 if (ts != null) {
                     ts.herbs = ts.herbs.map {
                         if (it.id == existing.id) it.copy(quantity = newQty) else it
@@ -1047,7 +1077,7 @@ class InventorySystem @Inject constructor(
                         }
                     } }
                 }
-                return AddResult.SUCCESS
+                return if (totalQty > maxStack) AddResult.PARTIAL_SUCCESS else AddResult.SUCCESS
             }
         }
         if (!canAddItem()) return AddResult.FULL
@@ -1137,7 +1167,11 @@ class InventorySystem @Inject constructor(
                 if (herb.id == existing.id && !removed) {
                     val newQty = herb.quantity - quantity
                     when {
-                        newQty <= 0 -> {
+                        newQty < 0 -> {
+                            logWarning("Cannot remove $quantity items, only ${herb.quantity} available")
+                            herb
+                        }
+                        newQty == 0 -> {
                             removed = true
                             null
                         }
@@ -1154,7 +1188,11 @@ class InventorySystem @Inject constructor(
                     if (herb.id == existing.id && !removed) {
                         val newQty = herb.quantity - quantity
                         when {
-                            newQty <= 0 -> {
+                            newQty < 0 -> {
+                                logWarning("Cannot remove $quantity items, only ${herb.quantity} available")
+                                herb
+                            }
+                            newQty == 0 -> {
                                 removed = true
                                 null
                             }
@@ -1219,7 +1257,8 @@ class InventorySystem @Inject constructor(
             }
             if (existing != null) {
                 val maxStack = getMaxStackForType("seed")
-                val newQty = (existing.quantity + item.quantity).coerceAtMost(maxStack)
+                val totalQty = existing.quantity + item.quantity
+                val newQty = totalQty.coerceAtMost(maxStack)
                 if (ts != null) {
                     ts.seeds = ts.seeds.map {
                         if (it.id == existing.id) it.copy(quantity = newQty) else it
@@ -1231,7 +1270,7 @@ class InventorySystem @Inject constructor(
                         }
                     } }
                 }
-                return AddResult.SUCCESS
+                return if (totalQty > maxStack) AddResult.PARTIAL_SUCCESS else AddResult.SUCCESS
             }
         }
         if (!canAddItem()) return AddResult.FULL
@@ -1258,11 +1297,12 @@ class InventorySystem @Inject constructor(
                 }
                 if (existing != null) {
                     val maxStack = getMaxStackForType("seed")
-                    val newQty = (existing.quantity + item.quantity).coerceAtMost(maxStack)
+                    val totalQty = existing.quantity + item.quantity
+                    val newQty = totalQty.coerceAtMost(maxStack)
                     ts.seeds = ts.seeds.map {
                         if (it.id == existing.id) it.copy(quantity = newQty) else it
                     }
-                    return AddResult.SUCCESS
+                    return if (totalQty > maxStack) AddResult.PARTIAL_SUCCESS else AddResult.SUCCESS
                 }
             }
             if (!canAddItem()) return AddResult.FULL
@@ -1279,6 +1319,7 @@ class InventorySystem @Inject constructor(
             return AddResult.FULL
         }
 
+        var overflowResult: AddResult = AddResult.SUCCESS
         stateStore.update {
             val currentSeeds = seeds
             if (merge) {
@@ -1287,10 +1328,12 @@ class InventorySystem @Inject constructor(
                 }
                 if (existing != null) {
                     val maxStack = getMaxStackForType("seed")
-                    val newQty = (existing.quantity + item.quantity).coerceAtMost(maxStack)
+                    val totalQty = existing.quantity + item.quantity
+                    val newQty = totalQty.coerceAtMost(maxStack)
                     seeds = seeds.map {
                         if (it.id == existing.id) it.copy(quantity = newQty) else it
                     }
+                    overflowResult = if (totalQty > maxStack) AddResult.PARTIAL_SUCCESS else AddResult.SUCCESS
                     return@update
                 }
             }
@@ -1299,7 +1342,7 @@ class InventorySystem @Inject constructor(
             }
             seeds = seeds + item
         }
-        return AddResult.SUCCESS
+        return overflowResult
     }
 
     fun removeSeed(id: String, quantity: Int = 1): Boolean {
@@ -1446,7 +1489,11 @@ class InventorySystem @Inject constructor(
                 if (seed.id == existing.id && !removed) {
                     val newQty = seed.quantity - quantity
                     when {
-                        newQty <= 0 -> {
+                        newQty < 0 -> {
+                            logWarning("Cannot remove $quantity items, only ${seed.quantity} available")
+                            seed
+                        }
+                        newQty == 0 -> {
                             removed = true
                             null
                         }
@@ -1463,7 +1510,11 @@ class InventorySystem @Inject constructor(
                     if (seed.id == existing.id && !removed) {
                         val newQty = seed.quantity - quantity
                         when {
-                            newQty <= 0 -> {
+                            newQty < 0 -> {
+                                logWarning("Cannot remove $quantity items, only ${seed.quantity} available")
+                                seed
+                            }
+                            newQty == 0 -> {
                                 removed = true
                                 null
                             }
