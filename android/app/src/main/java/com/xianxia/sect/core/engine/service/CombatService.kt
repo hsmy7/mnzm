@@ -170,6 +170,11 @@ class CombatService @Inject constructor(
 
             if (isOutsideSect) {
                 eventBus.emitSync(DeathEvent(disciple.id, disciple.name, "战斗阵亡"))
+                val updatedProficiencies = currentGameData.manualProficiencies.toMutableMap()
+                updatedProficiencies.remove(disciple.id)
+                if (updatedProficiencies != currentGameData.manualProficiencies) {
+                    currentGameData = currentGameData.copy(manualProficiencies = updatedProficiencies)
+                }
             } else {
                 disciple.weaponId?.let { eqId ->
                     currentEquipment = currentEquipment.map { eq ->
@@ -196,6 +201,16 @@ class CombatService @Inject constructor(
                         if (it.id == manualId) it.copy(isLearned = false, ownerId = null) else it
                     }
                 }
+                val updatedProficiencies = currentGameData.manualProficiencies.toMutableMap()
+                updatedProficiencies[disciple.id]?.let { profList ->
+                    val filtered = profList.filter { prof -> prof.manualId !in disciple.manualIds }
+                    if (filtered.isEmpty()) {
+                        updatedProficiencies.remove(disciple.id)
+                    } else {
+                        updatedProficiencies[disciple.id] = filtered
+                    }
+                }
+                currentGameData = currentGameData.copy(manualProficiencies = updatedProficiencies)
             }
         }
 

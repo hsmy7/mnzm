@@ -999,21 +999,27 @@ class GameEngine @Inject constructor(
                     if (eq != null) {
                         val equipped = equipEquipment(discipleId, item.id)
                         if (!equipped) {
-                            updateDisciple(discipleId) { disciple ->
-                                disciple.copyWith(
-                                    storageBagItems = StorageBagUtils.increaseItemQuantity(
-                                        disciple.storageBagItems,
-                                        StorageBagItem(
-                                            itemId = item.id,
-                                            itemType = "equipment",
-                                            name = eq.name,
-                                            rarity = eq.rarity,
-                                            quantity = 1,
-                                            obtainedYear = data.gameYear,
-                                            obtainedMonth = data.gameMonth
+                            val updatedDisciple = stateStore.disciples.value.find { it.id == discipleId }
+                            val wasEquipped = updatedDisciple?.let { d ->
+                                d.weaponId == item.id || d.armorId == item.id || d.bootsId == item.id || d.accessoryId == item.id
+                            } == true
+                            if (!wasEquipped) {
+                                updateDisciple(discipleId) { disciple ->
+                                    disciple.copyWith(
+                                        storageBagItems = StorageBagUtils.increaseItemQuantity(
+                                            disciple.storageBagItems,
+                                            StorageBagItem(
+                                                itemId = item.id,
+                                                itemType = "equipment",
+                                                name = eq.name,
+                                                rarity = eq.rarity,
+                                                quantity = 1,
+                                                obtainedYear = data.gameYear,
+                                                obtainedMonth = data.gameMonth
+                                            )
                                         )
                                     )
-                                )
+                                }
                             }
                         }
                     }
@@ -1231,6 +1237,16 @@ class GameEngine @Inject constructor(
                     if (it.id == manualId) it.copy(isLearned = false, ownerId = null) else it
                 }
             }
+            val updatedProficiencies = gameData.manualProficiencies.toMutableMap()
+            updatedProficiencies[discipleId]?.let { profList ->
+                val filtered = profList.filter { it.manualId != manualId }
+                if (filtered.isEmpty()) {
+                    updatedProficiencies.remove(discipleId)
+                } else {
+                    updatedProficiencies[discipleId] = filtered
+                }
+            }
+            gameData = gameData.copy(manualProficiencies = updatedProficiencies)
         }
     }
 
@@ -1308,7 +1324,8 @@ class GameEngine @Inject constructor(
 
         when (merchantItem.type.lowercase(java.util.Locale.getDefault())) {
             "equipment" -> {
-                if (!inventorySystem.canAddItems(quantity)) return
+                val eq = MerchantItemConverter.toEquipment(merchantItem)
+                if (!inventorySystem.canAddEquipment(eq.name, eq.rarity, eq.slot)) return
             }
             "manual" -> {
                 val m = MerchantItemConverter.toManual(merchantItem)
@@ -1344,8 +1361,14 @@ class GameEngine @Inject constructor(
 
             when (merchantItem.type.lowercase(java.util.Locale.getDefault())) {
                 "equipment" -> {
-                    val eqList = MerchantItemConverter.toEquipmentBatch(merchantItem, quantity)
-                    equipment = equipment + eqList
+                    val eq = MerchantItemConverter.toEquipment(merchantItem).copy(quantity = quantity)
+                    val existing = equipment.find { it.name == eq.name && it.rarity == eq.rarity && it.slot == eq.slot && !it.isEquipped }
+                    if (existing != null) {
+                        val newQty = (existing.quantity + eq.quantity).coerceAtMost(999)
+                        equipment = equipment.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
+                    } else {
+                        equipment = equipment + eq
+                    }
                 }
                 "manual" -> {
                     val m = MerchantItemConverter.toManual(merchantItem).copy(quantity = quantity)
@@ -1499,7 +1522,8 @@ class GameEngine @Inject constructor(
 
         when (item.type.lowercase(java.util.Locale.getDefault())) {
             "equipment" -> stateStore.equipment.value.find { it.id == item.itemId }?.let {
-                addEquipment(it.copy(quantity = (it.quantity + item.quantity).coerceAtMost(999)))
+                inventorySystem.addEquipment(it.copy(quantity = (it.quantity + item.quantity).coerceAtMost(999), isEquipped = false, ownerId = null))
+                inventorySystem.removeEquipment(item.itemId)
             }
             "manual" -> stateStore.manuals.value.find { it.id == item.itemId }?.let {
                 addManualToWarehouse(it.copy(quantity = (it.quantity + item.quantity).coerceAtMost(999)))

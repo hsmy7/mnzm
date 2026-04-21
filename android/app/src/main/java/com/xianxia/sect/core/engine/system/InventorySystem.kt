@@ -12,6 +12,7 @@ import com.xianxia.sect.core.data.ForgeRecipeDatabase.ForgeRecipe
 import com.xianxia.sect.core.model.Equipment
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.Manual
+import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.ManualType
 import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.MaterialCategory
@@ -150,6 +151,13 @@ class InventorySystem @Inject constructor(
 
     fun canAddItems(count: Int): Boolean = getTotalSlotCount() + count <= MAX_INVENTORY_SIZE
 
+    fun canAddEquipment(name: String, rarity: Int, slot: EquipmentSlot): Boolean {
+        val ts = stateStore.currentTransactionMutableState()
+        val current = ts?.equipment ?: stateStore.equipment.value
+        val canMerge = current.any { it.name == name && it.rarity == rarity && it.slot == slot && !it.isEquipped }
+        return canMerge || canAddItem()
+    }
+
     fun canAddPill(name: String, rarity: Int, category: PillCategory): Boolean {
         val ts = stateStore.currentTransactionMutableState()
         val current = ts?.pills ?: stateStore.pills.value
@@ -205,9 +213,26 @@ class InventorySystem @Inject constructor(
 
         val ts = stateStore.currentTransactionMutableState()
         val currentEquipment = ts?.equipment ?: stateStore.equipment.value
-        if (currentEquipment.any { it.id == item.id }) return AddResult.DUPLICATE_ID
-        if (!canAddItem()) return AddResult.FULL
 
+        val existing = currentEquipment.find {
+            it.name == item.name && it.rarity == item.rarity && it.slot == item.slot && !it.isEquipped
+        }
+        if (existing != null) {
+            val newQty = (existing.quantity + item.quantity).coerceAtMost(MAX_STACK_SIZE)
+            if (ts != null) {
+                ts.equipment = ts.equipment.map {
+                    if (it.id == existing.id) it.copy(quantity = newQty) else it
+                }
+            } else {
+                scope.launch { stateStore.update {
+                    equipment = equipment.map {
+                        if (it.id == existing.id) it.copy(quantity = newQty) else it
+                    }
+                } }
+            }
+            return AddResult.SUCCESS
+        }
+        if (!canAddItem()) return AddResult.FULL
         if (ts != null) {
             ts.equipment = ts.equipment + item
         } else {

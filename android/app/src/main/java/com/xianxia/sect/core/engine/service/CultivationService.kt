@@ -855,8 +855,17 @@ class CultivationService @Inject constructor(
             if (equipResult.disciple != updatedDisciple) {
                 updatedDisciple = equipResult.disciple
                 equipResult.equipmentUpdates.forEach { eq ->
+                    if (currentEquipment.none { it.id == eq.id }) {
+                        currentEquipment = currentEquipment + eq
+                    } else {
+                        currentEquipment = currentEquipment.map {
+                            if (it.id == eq.id) eq else it
+                        }
+                    }
+                }
+                equipResult.remainingEquipment?.let { remaining ->
                     currentEquipment = currentEquipment.map {
-                        if (it.id == eq.id) eq else it
+                        if (it.id == remaining.id) remaining else it
                     }
                 }
                 equipResult.events.forEach { eventService.addGameEvent(it, EventType.SUCCESS) }
@@ -883,6 +892,16 @@ class CultivationService @Inject constructor(
                     currentManuals = currentManuals.map {
                         if (it.id == replaced.id) replaced else it
                     }
+                    val updatedProficiencies = currentGameData.manualProficiencies.toMutableMap()
+                    updatedProficiencies[updatedDisciple.id]?.let { profList ->
+                        val filtered = profList.filter { it.manualId != replaced.id }
+                        if (filtered.isEmpty()) {
+                            updatedProficiencies.remove(updatedDisciple.id)
+                        } else {
+                            updatedProficiencies[updatedDisciple.id] = filtered
+                        }
+                    }
+                    currentGameData = currentGameData.copy(manualProficiencies = updatedProficiencies)
                 }
                 manualResult.remainingManual?.let { remaining ->
                     currentManuals = currentManuals.map {
@@ -1115,7 +1134,7 @@ class CultivationService @Inject constructor(
 
             disciple.manualIds.forEach { manualId ->
                 currentManuals = currentManuals.map {
-                    if (it.id == manualId) it.copy(isLearned = false, ownerId = disciple.id) else it
+                    if (it.id == manualId) it.copy(isLearned = false, ownerId = null) else it
                 }
             }
 
@@ -3346,7 +3365,7 @@ class CultivationService @Inject constructor(
 
         currentEquipment = currentEquipment.map { eq ->
             if (eq.id == equipmentId) {
-                eq.copy(isEquipped = false, ownerId = discipleId, nurtureLevel = 0, nurtureProgress = 0.0)
+                eq.copy(isEquipped = false, ownerId = null, nurtureLevel = 0, nurtureProgress = 0.0)
             } else eq
         }
     }

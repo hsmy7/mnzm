@@ -620,18 +620,40 @@ class DiscipleService @Inject constructor(
         }
 
         val currentDisciple = currentDisciples[discipleIndex]
-        val updatedDisciple = when (equipment.slot) {
-            EquipmentSlot.WEAPON -> currentDisciple.copyWith(weaponId = equipmentId)
-            EquipmentSlot.ARMOR -> currentDisciple.copyWith(armorId = equipmentId)
-            EquipmentSlot.BOOTS -> currentDisciple.copyWith(bootsId = equipmentId)
-            EquipmentSlot.ACCESSORY -> currentDisciple.copyWith(accessoryId = equipmentId)
-            else -> currentDisciple
-        }
 
-        currentDisciples = currentDisciples.toMutableList().also { it[discipleIndex] = updatedDisciple }
+        if (equipment.quantity > 1) {
+            val equippedId = java.util.UUID.randomUUID().toString()
+            val equippedItem = equipment.copy(
+                id = equippedId,
+                quantity = 1,
+                isEquipped = true,
+                ownerId = discipleId
+            )
+            val remainingQuantity = equipment.quantity - 1
+            currentEquipment = currentEquipment.map {
+                if (it.id == equipmentId) it.copy(quantity = remainingQuantity) else it
+            } + equippedItem
 
-        currentEquipment = currentEquipment.map {
-            if (it.id == equipmentId) it.copy(isEquipped = true, ownerId = discipleId) else it
+            val updatedDisciple = when (equipment.slot) {
+                EquipmentSlot.WEAPON -> currentDisciple.copyWith(weaponId = equippedId)
+                EquipmentSlot.ARMOR -> currentDisciple.copyWith(armorId = equippedId)
+                EquipmentSlot.BOOTS -> currentDisciple.copyWith(bootsId = equippedId)
+                EquipmentSlot.ACCESSORY -> currentDisciple.copyWith(accessoryId = equippedId)
+                else -> currentDisciple
+            }
+            currentDisciples = currentDisciples.toMutableList().also { it[discipleIndex] = updatedDisciple }
+        } else {
+            val updatedDisciple = when (equipment.slot) {
+                EquipmentSlot.WEAPON -> currentDisciple.copyWith(weaponId = equipmentId)
+                EquipmentSlot.ARMOR -> currentDisciple.copyWith(armorId = equipmentId)
+                EquipmentSlot.BOOTS -> currentDisciple.copyWith(bootsId = equipmentId)
+                EquipmentSlot.ACCESSORY -> currentDisciple.copyWith(accessoryId = equipmentId)
+                else -> currentDisciple
+            }
+            currentDisciples = currentDisciples.toMutableList().also { it[discipleIndex] = updatedDisciple }
+            currentEquipment = currentEquipment.map {
+                if (it.id == equipmentId) it.copy(isEquipped = true, ownerId = discipleId) else it
+            }
         }
 
         eventService.addGameEvent("${disciple.name} 装备了 ${equipment.name}", EventType.INFO)
@@ -658,9 +680,16 @@ class DiscipleService @Inject constructor(
         if (updatedDisciple != disciple) {
             val eq = currentEquipment.find { it.id == equipmentId }
             val data = currentGameData
-            val discipleWithBag = if (eq != null) {
+
+            val existingUnequipped = currentEquipment.find {
+                it.name == eq?.name && it.rarity == eq?.rarity && it.slot == eq?.slot && !it.isEquipped && it.id != equipmentId
+            }
+
+            if (existingUnequipped != null && eq != null) {
+                val newQty = (existingUnequipped.quantity + 1).coerceAtMost(999)
+                val mergedId = existingUnequipped.id
                 val storageItem = StorageBagItem(
-                    itemId = equipmentId,
+                    itemId = mergedId,
                     itemType = "equipment",
                     name = eq.name,
                     rarity = eq.rarity,
@@ -668,15 +697,36 @@ class DiscipleService @Inject constructor(
                     obtainedYear = data.gameYear,
                     obtainedMonth = data.gameMonth
                 )
-                updatedDisciple.copyWith(
+                val discipleWithBag = updatedDisciple.copyWith(
                     storageBagItems = StorageBagUtils.increaseItemQuantity(updatedDisciple.storageBagItems, storageItem)
                 )
-            } else updatedDisciple
-
-            currentDisciples = currentDisciples.toMutableList().also { it[discipleIndex] = discipleWithBag }
-
-            currentEquipment = currentEquipment.map {
-                if (it.id == equipmentId) it.copy(isEquipped = false, ownerId = null) else it
+                currentDisciples = currentDisciples.toMutableList().also { it[discipleIndex] = discipleWithBag }
+                currentEquipment = currentEquipment.map { e ->
+                    when {
+                        e.id == mergedId -> e.copy(quantity = newQty)
+                        e.id == equipmentId -> null
+                        else -> e
+                    }
+                }.filterNotNull()
+            } else {
+                val discipleWithBag = if (eq != null) {
+                    val storageItem = StorageBagItem(
+                        itemId = equipmentId,
+                        itemType = "equipment",
+                        name = eq.name,
+                        rarity = eq.rarity,
+                        quantity = 1,
+                        obtainedYear = data.gameYear,
+                        obtainedMonth = data.gameMonth
+                    )
+                    updatedDisciple.copyWith(
+                        storageBagItems = StorageBagUtils.increaseItemQuantity(updatedDisciple.storageBagItems, storageItem)
+                    )
+                } else updatedDisciple
+                currentDisciples = currentDisciples.toMutableList().also { it[discipleIndex] = discipleWithBag }
+                currentEquipment = currentEquipment.map {
+                    if (it.id == equipmentId) it.copy(isEquipped = false, ownerId = null, nurtureLevel = 0, nurtureProgress = 0.0) else it
+                }
             }
 
             return true

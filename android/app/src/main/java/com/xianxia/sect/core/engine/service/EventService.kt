@@ -415,8 +415,14 @@ class EventService @Inject constructor(
     private fun MutableGameState.addSectTradeItemToMutableState(item: MerchantItem, actualQuantity: Int) {
         when (item.type.lowercase()) {
             "equipment" -> {
-                val eqList = MerchantItemConverter.toEquipmentBatch(item, actualQuantity)
-                equipment = equipment + eqList
+                val eq = MerchantItemConverter.toEquipment(item).copy(quantity = actualQuantity)
+                val existing = equipment.find { it.name == eq.name && it.rarity == eq.rarity && it.slot == eq.slot && !it.isEquipped }
+                if (existing != null) {
+                    val newQty = (existing.quantity + eq.quantity).coerceAtMost(999)
+                    equipment = equipment.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
+                } else {
+                    equipment = equipment + eq
+                }
             }
             "manual" -> {
                 val m = MerchantItemConverter.toManual(item).copy(quantity = actualQuantity)

@@ -10,7 +10,8 @@ object DiscipleEquipmentManager {
     data class EquipmentProcessResult(
         val disciple: Disciple,
         val equipmentUpdates: List<Equipment>,
-        val events: List<String>
+        val events: List<String>,
+        val remainingEquipment: Equipment? = null
     )
 
     private data class SlotConfig(
@@ -52,6 +53,7 @@ object DiscipleEquipmentManager {
         val equipmentUpdates = mutableListOf<Equipment>()
         val events = mutableListOf<String>()
         var updatedDisciple = disciple
+        var lastRemaining: Equipment? = null
         
         val bagEquipments = disciple.storageBagItems
             .filter { it.itemType == "equipment" }
@@ -77,10 +79,11 @@ object DiscipleEquipmentManager {
                 updatedDisciple = result.disciple
                 equipmentUpdates.addAll(result.equipmentUpdates)
                 events.addAll(result.events)
+                result.remainingEquipment?.let { lastRemaining = it }
             }
         }
         
-        return EquipmentProcessResult(updatedDisciple, equipmentUpdates, events)
+        return EquipmentProcessResult(updatedDisciple, equipmentUpdates, events, lastRemaining)
     }
     
     private fun processSlot(
@@ -133,8 +136,23 @@ object DiscipleEquipmentManager {
             )
         }
         
-        updatedDisciple = config.equipSetter(updatedDisciple, betterEquip.id)
-        equipmentUpdates.add(betterEquip.copy(ownerId = disciple.id, isEquipped = true))
+        val remainingEquipment: Equipment?
+        if (betterEquip.quantity > 1) {
+            val equippedId = java.util.UUID.randomUUID().toString()
+            val equippedItem = betterEquip.copy(
+                id = equippedId,
+                quantity = 1,
+                isEquipped = true,
+                ownerId = disciple.id
+            )
+            remainingEquipment = betterEquip.copy(quantity = betterEquip.quantity - 1, isEquipped = false, ownerId = null)
+            equipmentUpdates.add(equippedItem)
+            updatedDisciple = config.equipSetter(updatedDisciple, equippedId)
+        } else {
+            updatedDisciple = config.equipSetter(updatedDisciple, betterEquip.id)
+            equipmentUpdates.add(betterEquip.copy(ownerId = disciple.id, isEquipped = true))
+            remainingEquipment = null
+        }
         
         updatedDisciple = updatedDisciple.copyWith(
             storageBagItems = updatedDisciple.storageBagItems.filter { it.itemId != betterEquip.id }
@@ -143,7 +161,7 @@ object DiscipleEquipmentManager {
         val messagePrefix = if (instantMessage) "立即" else "自动"
         events.add("${disciple.name} ${messagePrefix}装备了 ${betterEquip.name}")
         
-        return EquipmentProcessResult(updatedDisciple, equipmentUpdates, events)
+        return EquipmentProcessResult(updatedDisciple, equipmentUpdates, events, remainingEquipment)
     }
 
     fun canEquip(disciple: Disciple, equipment: Equipment): Boolean {

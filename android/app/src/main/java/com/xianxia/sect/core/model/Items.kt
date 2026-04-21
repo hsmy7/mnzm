@@ -66,9 +66,11 @@ data class Equipment(
     
     var ownerId: String? = null,
     var isEquipped: Boolean = false,
-    var quantity: Int = 1,
+    override var quantity: Int = 1,
     override val isLocked: Boolean = false
-) : GameItem() {
+) : GameItem(), StackableItem {
+
+    override fun withQuantity(newQuantity: Int): Equipment = copy(quantity = newQuantity)
     
     val basePrice: Int get() = GameConfig.Rarity.get(rarity).basePrice
     

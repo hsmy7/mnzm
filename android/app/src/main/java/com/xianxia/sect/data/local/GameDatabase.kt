@@ -114,6 +114,52 @@ val MIGRATION_8_9 = object : androidx.room.migration.Migration(8, 9) {
     }
 }
 
+val MIGRATION_9_10 = object : androidx.room.migration.Migration(9, 10) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        Log.i("GameDatabase", "Migrating database from version 9 to 10: fix stacked equipped equipment - split isEquipped=1 & quantity>1 into separate records")
+        val cursor = db.query("SELECT id, slot_id, name, rarity, slot, description, physicalAttack, magicAttack, physicalDefense, magicDefense, speed, hp, mp, critChance, nurtureLevel, nurtureProgress, minRealm, ownerId, quantity FROM equipment WHERE isEquipped = 1 AND quantity > 1")
+        cursor.use {
+            while (it.moveToNext()) {
+                val originalId = it.getString(it.getColumnIndex("id"))
+                val slotId = it.getInt(it.getColumnIndex("slot_id"))
+                val name = it.getString(it.getColumnIndex("name"))
+                val rarity = it.getInt(it.getColumnIndex("rarity"))
+                val slot = it.getString(it.getColumnIndex("slot"))
+                val description = it.getString(it.getColumnIndex("description"))
+                val physicalAttack = it.getInt(it.getColumnIndex("physicalAttack"))
+                val magicAttack = it.getInt(it.getColumnIndex("magicAttack"))
+                val physicalDefense = it.getInt(it.getColumnIndex("physicalDefense"))
+                val magicDefense = it.getInt(it.getColumnIndex("magicDefense"))
+                val speed = it.getInt(it.getColumnIndex("speed"))
+                val hp = it.getInt(it.getColumnIndex("hp"))
+                val mp = it.getInt(it.getColumnIndex("mp"))
+                val critChance = it.getDouble(it.getColumnIndex("critChance"))
+                val nurtureLevel = it.getInt(it.getColumnIndex("nurtureLevel"))
+                val nurtureProgress = it.getDouble(it.getColumnIndex("nurtureProgress"))
+                val minRealm = it.getInt(it.getColumnIndex("minRealm"))
+                val ownerId = it.getString(it.getColumnIndex("ownerId"))
+                val quantity = it.getInt(it.getColumnIndex("quantity"))
+                val remainingQty = quantity - 1
+
+                db.execSQL("UPDATE equipment SET quantity = 1 WHERE id = ?", arrayOf(originalId))
+
+                val newId = java.util.UUID.randomUUID().toString()
+                db.execSQL(
+                    "INSERT INTO equipment (id, slot_id, name, rarity, slot, description, physicalAttack, magicAttack, physicalDefense, magicDefense, speed, hp, mp, critChance, nurtureLevel, nurtureProgress, minRealm, ownerId, isEquipped, quantity, isLocked) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    arrayOf(newId, slotId, name, rarity, slot, description, physicalAttack, magicAttack, physicalDefense, magicDefense, speed, hp, mp, critChance, nurtureLevel, nurtureProgress, minRealm, null, 0, remainingQty, 0)
+                )
+            }
+        }
+    }
+}
+
+val MIGRATION_10_11 = object : androidx.room.migration.Migration(10, 11) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        Log.i("GameDatabase", "Migrating database from version 10 to 11: clear nurtureLevel/nurtureProgress on unequipped items, clear orphaned manual proficiencies")
+        db.execSQL("UPDATE equipment SET nurtureLevel = 0, nurtureProgress = 0.0 WHERE isEquipped = 0 AND (nurtureLevel > 0 OR nurtureProgress > 0.0)")
+    }
+}
+
 @Database(
     entities = [
         GameData::class,
@@ -144,7 +190,7 @@ val MIGRATION_8_9 = object : androidx.room.migration.Migration(8, 9) {
         ArchivedGameEvent::class,
         ArchivedDisciple::class
     ],
-    version = 9,
+    version = 11,
     exportSchema = true
 )
 
@@ -417,7 +463,7 @@ abstract class GameDatabase : RoomDatabase() {
                         optimizeDatabase(db)
                     }
                 })
-                .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+                .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
                 .fallbackToDestructiveMigration()
                 .build()
                 .also { db -> applySafetyPragmas(db) }
