@@ -655,13 +655,8 @@ class GameViewModel @Inject constructor(
     ) {
         viewModelScope.launch {
             try {
-                val equippedIds = mutableSetOf<String>()
                 val learnedManualIds = mutableSetOf<String>()
                 disciples.value.filter { it.isAlive }.forEach { disciple ->
-                    disciple.weaponId?.let { equippedIds.add(it) }
-                    disciple.armorId?.let { equippedIds.add(it) }
-                    disciple.bootsId?.let { equippedIds.add(it) }
-                    disciple.accessoryId?.let { equippedIds.add(it) }
                     learnedManualIds.addAll(disciple.manualIds)
                 }
                 
@@ -670,7 +665,7 @@ class GameViewModel @Inject constructor(
                 if (selectedTypes.contains("EQUIPMENT")) {
                     equipment.value.filter { 
                         selectedRarities.contains(it.rarity) && 
-                        !equippedIds.contains(it.id) && 
+                        !it.isEquipped && 
                         !it.isLocked
                     }.forEach { item ->
                         sellOperations.add(SuspendableSellOperation.Equipment(item.id, item.name, (item.basePrice * 0.8).toInt()))
@@ -680,7 +675,7 @@ class GameViewModel @Inject constructor(
                 if (selectedTypes.contains("MANUAL")) {
                     manuals.value.filter { 
                         selectedRarities.contains(it.rarity) && 
-                        !learnedManualIds.contains(it.id) &&
+                        !it.isLearned &&
                         !it.isLocked
                     }.forEach { item ->
                         sellOperations.add(SuspendableSellOperation.Manual(item.id, item.name, item.quantity, (item.basePrice * item.quantity * 0.8).toInt()))

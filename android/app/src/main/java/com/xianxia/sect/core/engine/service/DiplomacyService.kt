@@ -307,7 +307,7 @@ class DiplomacyService @Inject constructor(
                         message = "该装备已被装备，无法送礼"
                     )
                 }
-                Triple(equipment.rarity, equipment.name, 1)
+                Triple(equipment.rarity, equipment.name, quantity.coerceAtLeast(1).coerceAtMost(equipment.quantity))
             }
             GiftConfig.ItemType.PILL -> {
                 val pill = currentPills.find { it.id == itemId }
@@ -780,7 +780,11 @@ class DiplomacyService @Inject constructor(
                 }.filter { it.quantity > 0 }
             }
             GiftConfig.ItemType.EQUIPMENT -> {
-                currentEquipment = currentEquipment.filter { it.id != itemId }
+                currentEquipment = currentEquipment.map { eq ->
+                    if (eq.id == itemId) {
+                        eq.copy(quantity = (eq.quantity - quantity).coerceAtLeast(0))
+                    } else eq
+                }.filter { it.quantity > 0 }
             }
             GiftConfig.ItemType.PILL -> {
                 currentPills = currentPills.map { pill ->

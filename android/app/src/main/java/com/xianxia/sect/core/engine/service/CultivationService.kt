@@ -1155,14 +1155,48 @@ class CultivationService @Inject constructor(
             }
 
             disciple.storageBagItems.filter { it.itemType == "manual" }.forEach { bagItem ->
-                currentManuals = currentManuals.map {
-                    if (it.id == bagItem.itemId) it.copy(isLearned = false, ownerId = null) else it
+                val m = currentManuals.find { it.id == bagItem.itemId }
+                val existingUnlearned = m?.let { manual ->
+                    currentManuals.find {
+                        it.name == manual.name && it.rarity == manual.rarity && it.type == manual.type && !it.isLearned && it.id != bagItem.itemId
+                    }
+                }
+                if (existingUnlearned != null) {
+                    val newQty = (existingUnlearned.quantity + (m?.quantity ?: 1)).coerceAtMost(999)
+                    currentManuals = currentManuals.map { item ->
+                        when {
+                            item.id == existingUnlearned.id -> item.copy(quantity = newQty)
+                            item.id == bagItem.itemId -> null
+                            else -> item
+                        }
+                    }.filterNotNull()
+                } else {
+                    currentManuals = currentManuals.map {
+                        if (it.id == bagItem.itemId) it.copy(isLearned = false, ownerId = null) else it
+                    }
                 }
             }
 
             disciple.manualIds.forEach { manualId ->
-                currentManuals = currentManuals.map {
-                    if (it.id == manualId) it.copy(isLearned = false, ownerId = null) else it
+                val m = currentManuals.find { it.id == manualId }
+                val existingUnlearned = m?.let { manual ->
+                    currentManuals.find {
+                        it.name == manual.name && it.rarity == manual.rarity && it.type == manual.type && !it.isLearned && it.id != manualId
+                    }
+                }
+                if (existingUnlearned != null) {
+                    val newQty = (existingUnlearned.quantity + (m?.quantity ?: 1)).coerceAtMost(999)
+                    currentManuals = currentManuals.map { item ->
+                        when {
+                            item.id == existingUnlearned.id -> item.copy(quantity = newQty)
+                            item.id == manualId -> null
+                            else -> item
+                        }
+                    }.filterNotNull()
+                } else {
+                    currentManuals = currentManuals.map {
+                        if (it.id == manualId) it.copy(isLearned = false, ownerId = null) else it
+                    }
                 }
             }
 
@@ -3352,10 +3386,25 @@ class CultivationService @Inject constructor(
     }
 
     private fun returnEquipmentToWarehouse(equipmentId: String) {
-        currentEquipment = currentEquipment.map { eq ->
-            if (eq.id == equipmentId) {
-                eq.copy(isEquipped = false, ownerId = null, nurtureLevel = 0, nurtureProgress = 0.0)
-            } else eq
+        val eq = currentEquipment.find { it.id == equipmentId } ?: return
+        val existingUnequipped = currentEquipment.find {
+            it.name == eq.name && it.rarity == eq.rarity && it.slot == eq.slot && !it.isEquipped && it.id != equipmentId
+        }
+        if (existingUnequipped != null) {
+            val newQty = (existingUnequipped.quantity + eq.quantity).coerceAtMost(999)
+            currentEquipment = currentEquipment.map { e ->
+                when {
+                    e.id == existingUnequipped.id -> e.copy(quantity = newQty)
+                    e.id == equipmentId -> null
+                    else -> e
+                }
+            }.filterNotNull()
+        } else {
+            currentEquipment = currentEquipment.map { e ->
+                if (e.id == equipmentId) {
+                    e.copy(isEquipped = false, ownerId = null, nurtureLevel = 0, nurtureProgress = 0.0)
+                } else e
+            }
         }
     }
 

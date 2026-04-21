@@ -534,42 +534,77 @@ class DiscipleService @Inject constructor(
 
             clearDiscipleFromAllSlots(discipleId)
 
-            disciple.weaponId.takeIf { it.isNotEmpty() }?.let { eid ->
-                equipment = equipment.map { eq ->
-                    if (eq.id == eid) eq.copy(isEquipped = false, ownerId = null, nurtureLevel = 0, nurtureProgress = 0.0) else eq
-                }
-            }
-            disciple.armorId.takeIf { it.isNotEmpty() }?.let { eid ->
-                equipment = equipment.map { eq ->
-                    if (eq.id == eid) eq.copy(isEquipped = false, ownerId = null, nurtureLevel = 0, nurtureProgress = 0.0) else eq
-                }
-            }
-            disciple.bootsId.takeIf { it.isNotEmpty() }?.let { eid ->
-                equipment = equipment.map { eq ->
-                    if (eq.id == eid) eq.copy(isEquipped = false, ownerId = null, nurtureLevel = 0, nurtureProgress = 0.0) else eq
-                }
-            }
-            disciple.accessoryId.takeIf { it.isNotEmpty() }?.let { eid ->
-                equipment = equipment.map { eq ->
-                    if (eq.id == eid) eq.copy(isEquipped = false, ownerId = null, nurtureLevel = 0, nurtureProgress = 0.0) else eq
-                }
-            }
+            val returnEquipIds = mutableListOf<String>()
+            disciple.weaponId.takeIf { it.isNotEmpty() }?.let { returnEquipIds.add(it) }
+            disciple.armorId.takeIf { it.isNotEmpty() }?.let { returnEquipIds.add(it) }
+            disciple.bootsId.takeIf { it.isNotEmpty() }?.let { returnEquipIds.add(it) }
+            disciple.accessoryId.takeIf { it.isNotEmpty() }?.let { returnEquipIds.add(it) }
+            disciple.storageBagItems.filter { it.itemType == "equipment" }.forEach { returnEquipIds.add(it.itemId) }
 
-            disciple.storageBagItems.filter { it.itemType == "equipment" }.forEach { bagItem ->
-                equipment = equipment.map { eq ->
-                    if (eq.id == bagItem.itemId) eq.copy(isEquipped = false, ownerId = null, nurtureLevel = 0, nurtureProgress = 0.0) else eq
+            returnEquipIds.forEach { eid ->
+                val eq = equipment.find { it.id == eid } ?: return@forEach
+                val existingUnequipped = equipment.find {
+                    it.name == eq.name && it.rarity == eq.rarity && it.slot == eq.slot && !it.isEquipped && it.id != eid
+                }
+                if (existingUnequipped != null) {
+                    val newQty = (existingUnequipped.quantity + eq.quantity).coerceAtMost(999)
+                    equipment = equipment.map { e ->
+                        when {
+                            e.id == existingUnequipped.id -> e.copy(quantity = newQty)
+                            e.id == eid -> null
+                            else -> e
+                        }
+                    }.filterNotNull()
+                } else {
+                    equipment = equipment.map { e ->
+                        if (e.id == eid) e.copy(isEquipped = false, ownerId = null, nurtureLevel = 0, nurtureProgress = 0.0) else e
+                    }
                 }
             }
 
             disciple.storageBagItems.filter { it.itemType == "manual" }.forEach { bagItem ->
-                manuals = manuals.map { m ->
-                    if (m.id == bagItem.itemId) m.copy(isLearned = false, ownerId = null) else m
+                val m = manuals.find { it.id == bagItem.itemId }
+                val existingUnlearned = m?.let { manual ->
+                    manuals.find {
+                        it.name == manual.name && it.rarity == manual.rarity && it.type == manual.type && !it.isLearned && it.id != bagItem.itemId
+                    }
+                }
+                if (existingUnlearned != null) {
+                    val newQty = (existingUnlearned.quantity + (m.quantity)).coerceAtMost(999)
+                    manuals = manuals.map { item ->
+                        when {
+                            item.id == existingUnlearned.id -> item.copy(quantity = newQty)
+                            item.id == bagItem.itemId -> null
+                            else -> item
+                        }
+                    }.filterNotNull()
+                } else {
+                    manuals = manuals.map { item ->
+                        if (item.id == bagItem.itemId) item.copy(isLearned = false, ownerId = null) else item
+                    }
                 }
             }
 
             disciple.manualIds.forEach { manualId ->
-                manuals = manuals.map { m ->
-                    if (m.id == manualId) m.copy(isLearned = false, ownerId = null) else m
+                val m = manuals.find { it.id == manualId }
+                val existingUnlearned = m?.let { manual ->
+                    manuals.find {
+                        it.name == manual.name && it.rarity == manual.rarity && it.type == manual.type && !it.isLearned && it.id != manualId
+                    }
+                }
+                if (existingUnlearned != null) {
+                    val newQty = (existingUnlearned.quantity + (m?.quantity ?: 1)).coerceAtMost(999)
+                    manuals = manuals.map { item ->
+                        when {
+                            item.id == existingUnlearned.id -> item.copy(quantity = newQty)
+                            item.id == manualId -> null
+                            else -> item
+                        }
+                    }.filterNotNull()
+                } else {
+                    manuals = manuals.map { item ->
+                        if (item.id == manualId) item.copy(isLearned = false, ownerId = null) else item
+                    }
                 }
             }
 

@@ -140,27 +140,65 @@ class RedeemCodeService @Inject constructor(
                         )
                     }
                     "equipment" -> {
+                        val qty = reward.quantity.coerceAtLeast(1)
                         val newEquipment = EquipmentDatabase.generateRandom(
                             minRarity = reward.rarity,
                             maxRarity = reward.rarity
-                        )
-                        equipment = equipment + newEquipment
+                        ).copy(quantity = qty)
+                        val existing = equipment.find { it.name == newEquipment.name && it.rarity == newEquipment.rarity && it.slot == newEquipment.slot && !it.isEquipped }
+                        if (existing != null) {
+                            val newQty = (existing.quantity + newEquipment.quantity).coerceAtMost(999)
+                            equipment = equipment.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
+                        } else {
+                            equipment = equipment + newEquipment
+                        }
+                    }
+                    "manual" -> {
+                        val template = ManualDatabase.getByNameAndRarity(reward.name, reward.rarity)
+                        if (template != null) {
+                            val qty = reward.quantity.coerceAtLeast(1)
+                            val manual = ManualDatabase.createFromTemplate(template).copy(quantity = qty)
+                            val existing = manuals.find {
+                                it.name == manual.name && it.rarity == manual.rarity && it.type == manual.type && !it.isLearned
+                            }
+                            if (existing != null) {
+                                val newQty = (existing.quantity + manual.quantity).coerceAtMost(999)
+                                manuals = manuals.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
+                            } else {
+                                manuals = manuals + manual
+                            }
+                        }
                     }
                     "pill" -> {
+                        val qty = reward.quantity.coerceAtLeast(1)
                         val pill = ItemDatabase.generateRandomPill(
                             minRarity = reward.rarity,
                             maxRarity = reward.rarity
-                        )
-                        pills = pills + pill
+                        ).copy(quantity = qty)
+                        val existing = pills.find { it.name == pill.name && it.rarity == pill.rarity && it.category == pill.category }
+                        if (existing != null) {
+                            val newQty = (existing.quantity + pill.quantity).coerceAtMost(999)
+                            pills = pills.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
+                        } else {
+                            pills = pills + pill
+                        }
                     }
                     "material" -> {
+                        val qty = reward.quantity.coerceAtLeast(1)
                         val material = ItemDatabase.generateRandomMaterial(
                             minRarity = reward.rarity,
                             maxRarity = reward.rarity
-                        )
-                        materials = materials + material
+                        ).copy(quantity = qty)
+                        val existing = materials.find { it.name == material.name && it.rarity == material.rarity && it.category == material.category }
+                        if (existing != null) {
+                            val newQty = (existing.quantity + material.quantity).coerceAtMost(999)
+                            materials = materials.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
+                        } else {
+                            materials = materials + material
+                        }
                     }
                     "herb" -> {
+                        val qty = reward.quantity.coerceAtLeast(1)
                         val herbTemplate = HerbDatabase.generateRandomHerb(
                             minRarity = reward.rarity,
                             maxRarity = reward.rarity
@@ -171,11 +209,18 @@ class RedeemCodeService @Inject constructor(
                             rarity = herbTemplate.rarity,
                             description = herbTemplate.description,
                             category = herbTemplate.category,
-                            quantity = 1
+                            quantity = qty
                         )
-                        herbs = herbs + herb
+                        val existing = herbs.find { it.name == herb.name && it.rarity == herb.rarity && it.category == herb.category }
+                        if (existing != null) {
+                            val newQty = (existing.quantity + herb.quantity).coerceAtMost(999)
+                            herbs = herbs.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
+                        } else {
+                            herbs = herbs + herb
+                        }
                     }
                     "seed" -> {
+                        val qty = reward.quantity.coerceAtLeast(1)
                         val seedTemplate = HerbDatabase.generateRandomSeed(
                             minRarity = reward.rarity,
                             maxRarity = reward.rarity
@@ -187,9 +232,15 @@ class RedeemCodeService @Inject constructor(
                             description = seedTemplate.description,
                             growTime = seedTemplate.growTime,
                             yield = seedTemplate.yield,
-                            quantity = 1
+                            quantity = qty
                         )
-                        seeds = seeds + seed
+                        val existing = seeds.find { it.name == seed.name && it.rarity == seed.rarity && it.growTime == seed.growTime }
+                        if (existing != null) {
+                            val newQty = (existing.quantity + seed.quantity).coerceAtMost(999)
+                            seeds = seeds.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
+                        } else {
+                            seeds = seeds + seed
+                        }
                     }
                     "disciple" -> {
                         val currentMonthValue = gameData.gameYear * 12 + gameData.gameMonth
@@ -284,11 +335,18 @@ class RedeemCodeService @Inject constructor(
                         )
                     }
                     "equipment" -> {
+                        val qty = reward.quantity.coerceAtLeast(1)
                         val newEquipment = EquipmentDatabase.generateRandom(
                             minRarity = redeemCodeData.rarity,
                             maxRarity = redeemCodeData.rarity
-                        )
-                        equipment = equipment + newEquipment
+                        ).copy(quantity = qty)
+                        val existing = equipment.find { it.name == newEquipment.name && it.rarity == newEquipment.rarity && it.slot == newEquipment.slot && !it.isEquipped }
+                        if (existing != null) {
+                            val newQty = (existing.quantity + newEquipment.quantity).coerceAtMost(999)
+                            equipment = equipment.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
+                        } else {
+                            equipment = equipment + newEquipment
+                        }
                     }
                     "manual" -> {
                         val template = ManualDatabase.getByNameAndRarity(reward.name, reward.rarity)
@@ -332,20 +390,35 @@ class RedeemCodeService @Inject constructor(
                         }
                     }
                     "pill" -> {
+                        val qty = reward.quantity.coerceAtLeast(1)
                         val pill = ItemDatabase.generateRandomPill(
                             minRarity = redeemCodeData.rarity,
                             maxRarity = redeemCodeData.rarity
-                        )
-                        pills = pills + pill
+                        ).copy(quantity = qty)
+                        val existing = pills.find { it.name == pill.name && it.rarity == pill.rarity && it.category == pill.category }
+                        if (existing != null) {
+                            val newQty = (existing.quantity + pill.quantity).coerceAtMost(999)
+                            pills = pills.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
+                        } else {
+                            pills = pills + pill
+                        }
                     }
                     "material" -> {
+                        val qty = reward.quantity.coerceAtLeast(1)
                         val material = ItemDatabase.generateRandomMaterial(
                             minRarity = redeemCodeData.rarity,
                             maxRarity = redeemCodeData.rarity
-                        )
-                        materials = materials + material
+                        ).copy(quantity = qty)
+                        val existing = materials.find { it.name == material.name && it.rarity == material.rarity && it.category == material.category }
+                        if (existing != null) {
+                            val newQty = (existing.quantity + material.quantity).coerceAtMost(999)
+                            materials = materials.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
+                        } else {
+                            materials = materials + material
+                        }
                     }
                     "herb" -> {
+                        val qty = reward.quantity.coerceAtLeast(1)
                         val herbTemplate = HerbDatabase.generateRandomHerb(
                             minRarity = redeemCodeData.rarity,
                             maxRarity = redeemCodeData.rarity
@@ -356,11 +429,18 @@ class RedeemCodeService @Inject constructor(
                             rarity = herbTemplate.rarity,
                             description = herbTemplate.description,
                             category = herbTemplate.category,
-                            quantity = 1
+                            quantity = qty
                         )
-                        herbs = herbs + herb
+                        val existing = herbs.find { it.name == herb.name && it.rarity == herb.rarity && it.category == herb.category }
+                        if (existing != null) {
+                            val newQty = (existing.quantity + herb.quantity).coerceAtMost(999)
+                            herbs = herbs.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
+                        } else {
+                            herbs = herbs + herb
+                        }
                     }
                     "seed" -> {
+                        val qty = reward.quantity.coerceAtLeast(1)
                         val seedTemplate = HerbDatabase.generateRandomSeed(
                             minRarity = redeemCodeData.rarity,
                             maxRarity = redeemCodeData.rarity
@@ -372,9 +452,15 @@ class RedeemCodeService @Inject constructor(
                             description = seedTemplate.description,
                             growTime = seedTemplate.growTime,
                             yield = seedTemplate.yield,
-                            quantity = 1
+                            quantity = qty
                         )
-                        seeds = seeds + seed
+                        val existing = seeds.find { it.name == seed.name && it.rarity == seed.rarity && it.growTime == seed.growTime }
+                        if (existing != null) {
+                            val newQty = (existing.quantity + seed.quantity).coerceAtMost(999)
+                            seeds = seeds.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
+                        } else {
+                            seeds = seeds + seed
+                        }
                     }
                 }
             }

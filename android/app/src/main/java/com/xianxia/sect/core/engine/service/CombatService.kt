@@ -176,41 +176,83 @@ class CombatService @Inject constructor(
                     currentGameData = currentGameData.copy(manualProficiencies = updatedProficiencies)
                 }
             } else {
-                disciple.weaponId?.let { eqId ->
-                    currentEquipment = currentEquipment.map { eq ->
-                        if (eq.id == eqId) eq.copy(isEquipped = false, ownerId = null, nurtureLevel = 0, nurtureProgress = 0.0) else eq
+                val returnEquipIds = mutableListOf<String>()
+                disciple.weaponId?.let { returnEquipIds.add(it) }
+                disciple.armorId?.let { returnEquipIds.add(it) }
+                disciple.bootsId?.let { returnEquipIds.add(it) }
+                disciple.accessoryId?.let { returnEquipIds.add(it) }
+                disciple.storageBagItems.filter { it.itemType == "equipment" }.forEach { returnEquipIds.add(it.itemId) }
+
+                returnEquipIds.forEach { eid ->
+                    val eq = currentEquipment.find { it.id == eid } ?: return@forEach
+                    val existingUnequipped = currentEquipment.find {
+                        it.name == eq.name && it.rarity == eq.rarity && it.slot == eq.slot && !it.isEquipped && it.id != eid
+                    }
+                    if (existingUnequipped != null) {
+                        val newQty = (existingUnequipped.quantity + eq.quantity).coerceAtMost(999)
+                        currentEquipment = currentEquipment.map { e ->
+                            when {
+                                e.id == existingUnequipped.id -> e.copy(quantity = newQty)
+                                e.id == eid -> null
+                                else -> e
+                            }
+                        }.filterNotNull()
+                    } else {
+                        currentEquipment = currentEquipment.map { e ->
+                            if (e.id == eid) e.copy(isEquipped = false, ownerId = null, nurtureLevel = 0, nurtureProgress = 0.0) else e
+                        }
                     }
                 }
-                disciple.armorId?.let { eqId ->
-                    currentEquipment = currentEquipment.map { eq ->
-                        if (eq.id == eqId) eq.copy(isEquipped = false, ownerId = null, nurtureLevel = 0, nurtureProgress = 0.0) else eq
-                    }
-                }
-                disciple.bootsId?.let { eqId ->
-                    currentEquipment = currentEquipment.map { eq ->
-                        if (eq.id == eqId) eq.copy(isEquipped = false, ownerId = null, nurtureLevel = 0, nurtureProgress = 0.0) else eq
-                    }
-                }
-                disciple.accessoryId?.let { eqId ->
-                    currentEquipment = currentEquipment.map { eq ->
-                        if (eq.id == eqId) eq.copy(isEquipped = false, ownerId = null, nurtureLevel = 0, nurtureProgress = 0.0) else eq
-                    }
-                }
+
                 disciple.manualIds.forEach { manualId ->
-                    currentManuals = currentManuals.map {
-                        if (it.id == manualId) it.copy(isLearned = false, ownerId = null) else it
+                    val m = currentManuals.find { it.id == manualId }
+                    val existingUnlearned = m?.let { manual ->
+                        currentManuals.find {
+                            it.name == manual.name && it.rarity == manual.rarity && it.type == manual.type && !it.isLearned && it.id != manualId
+                        }
+                    }
+                    if (existingUnlearned != null) {
+                        val newQty = (existingUnlearned.quantity + (m?.quantity ?: 1)).coerceAtMost(999)
+                        currentManuals = currentManuals.map { item ->
+                            when {
+                                item.id == existingUnlearned.id -> item.copy(quantity = newQty)
+                                item.id == manualId -> null
+                                else -> item
+                            }
+                        }.filterNotNull()
+                    } else {
+                        currentManuals = currentManuals.map {
+                            if (it.id == manualId) it.copy(isLearned = false, ownerId = null) else it
+                        }
+                    }
+                }
+                disciple.storageBagItems.filter { it.itemType == "manual" }.forEach { bagItem ->
+                    val m = currentManuals.find { it.id == bagItem.itemId }
+                    val existingUnlearned = m?.let { manual ->
+                        currentManuals.find {
+                            it.name == manual.name && it.rarity == manual.rarity && it.type == manual.type && !it.isLearned && it.id != bagItem.itemId
+                        }
+                    }
+                    if (existingUnlearned != null) {
+                        val newQty = (existingUnlearned.quantity + (m?.quantity ?: 1)).coerceAtMost(999)
+                        currentManuals = currentManuals.map { item ->
+                            when {
+                                item.id == existingUnlearned.id -> item.copy(quantity = newQty)
+                                item.id == bagItem.itemId -> null
+                                else -> item
+                            }
+                        }.filterNotNull()
+                    } else {
+                        currentManuals = currentManuals.map {
+                            if (it.id == bagItem.itemId) it.copy(isLearned = false, ownerId = null) else it
+                        }
                     }
                 }
                 val updatedProficiencies = currentGameData.manualProficiencies.toMutableMap()
-                updatedProficiencies[disciple.id]?.let { profList ->
-                    val filtered = profList.filter { prof -> prof.manualId !in disciple.manualIds }
-                    if (filtered.isEmpty()) {
-                        updatedProficiencies.remove(disciple.id)
-                    } else {
-                        updatedProficiencies[disciple.id] = filtered
-                    }
+                updatedProficiencies.remove(disciple.id)
+                if (updatedProficiencies != currentGameData.manualProficiencies) {
+                    currentGameData = currentGameData.copy(manualProficiencies = updatedProficiencies)
                 }
-                currentGameData = currentGameData.copy(manualProficiencies = updatedProficiencies)
             }
         }
 
