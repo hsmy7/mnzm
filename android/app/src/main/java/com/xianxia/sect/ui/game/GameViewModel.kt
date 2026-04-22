@@ -450,10 +450,8 @@ class GameViewModel @Inject constructor(
         }
     }
 
-    fun rewardItemsToDisciple(discipleId: String, items: List<RewardSelectedItem>) {
-        viewModelScope.launch {
-            gameEngine.rewardItemsToDisciple(discipleId, items)
-        }
+    suspend fun rewardItemsToDisciple(discipleId: String, items: List<RewardSelectedItem>) {
+        gameEngine.rewardItemsToDisciple(discipleId, items)
     }
 
     fun recruitAllDisciples() {

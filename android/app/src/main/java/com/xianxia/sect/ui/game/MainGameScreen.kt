@@ -3969,17 +3969,20 @@ private fun DiscipleSelectForRewardDialog(
                                     if (!isRewarding && currentQuantity > 0) {
                                         scope.launch {
                                             isRewarding = true
-                                            viewModel.rewardItemsToDisciple(
-                                                disciple.id,
-                                                listOf(RewardSelectedItem(
-                                                    id = itemId,
-                                                    type = itemType,
-                                                    name = itemName,
-                                                    rarity = itemRarity,
-                                                    quantity = 1
-                                                ))
-                                            )
-                                            isRewarding = false
+                                            try {
+                                                viewModel.rewardItemsToDisciple(
+                                                    disciple.id,
+                                                    listOf(RewardSelectedItem(
+                                                        id = itemId,
+                                                        type = itemType,
+                                                        name = itemName,
+                                                        rarity = itemRarity,
+                                                        quantity = 1
+                                                    ))
+                                                )
+                                            } finally {
+                                                isRewarding = false
+                                            }
                                         }
                                     }
                                 }

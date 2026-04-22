@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -2282,6 +2283,7 @@ private fun RewardItemsDialog(
     var showDetailDialog by remember { mutableStateOf(false) }
     var detailItem by remember { mutableStateOf<Any?>(null) }
     var isRewarding by remember { mutableStateOf(false) }
+    val rewardScope = rememberCoroutineScope()
 
     val equipmentStacks by viewModel.equipmentStacks.collectAsState()
     val manualStacks by viewModel.manualStacks.collectAsState()
@@ -2478,10 +2480,15 @@ private fun RewardItemsDialog(
                         val item = selectedItem
                         if (item != null && rewardQuantity > 0 && !isRewarding) {
                             isRewarding = true
-                            viewModel.rewardItemsToDisciple(disciple.id, listOf(item.copy(quantity = rewardQuantity)))
-                            selectedItem = null
-                            rewardQuantity = 1
-                            isRewarding = false
+                            rewardScope.launch {
+                                try {
+                                    viewModel.rewardItemsToDisciple(disciple.id, listOf(item.copy(quantity = rewardQuantity)))
+                                } finally {
+                                    selectedItem = null
+                                    rewardQuantity = 1
+                                    isRewarding = false
+                                }
+                            }
                         }
                     }
                 )

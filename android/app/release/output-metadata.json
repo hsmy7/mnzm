@@ -11,8 +11,8 @@
       "type": "SINGLE",
       "filters": [],
       "attributes": [],
-      "versionCode": 2012,
-      "versionName": "2.2.0",
+      "versionCode": 2023,
+      "versionName": "2.3.10",
       "outputFile": "app-release.apk"
     }
   ],

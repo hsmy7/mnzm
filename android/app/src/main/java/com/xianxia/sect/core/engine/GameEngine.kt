@@ -1011,32 +1011,142 @@ class GameEngine @Inject constructor(
             val quantity = item.quantity.coerceAtLeast(1)
             when (item.type.lowercase(java.util.Locale.getDefault())) {
                 "equipment" -> {
-                    val eqStack = stateStore.equipmentStacks.value.find { it.id == item.id }
-                    if (eqStack != null) {
-                        val equipped = equipEquipment(discipleId, item.id)
-                        if (!equipped) {
-                            val updatedDisciple = stateStore.disciples.value.find { it.id == discipleId }
-                            val wasEquipped = updatedDisciple?.let { d ->
-                                d.weaponId == item.id || d.armorId == item.id || d.bootsId == item.id || d.accessoryId == item.id
-                            } == true
-                            if (!wasEquipped) {
-                                updateDisciple(discipleId) { disciple ->
-                                    disciple.copyWith(
+                    stateStore.update {
+                        val stack = equipmentStacks.find { it.id == item.id }
+                        if (stack == null || stack.quantity < 1) return@update
+
+                        val disciple = disciples.find { it.id == discipleId }
+                        if (disciple == null) return@update
+
+                        val canEquip = GameConfig.Realm.meetsRealmRequirement(disciple.realm, stack.minRealm)
+
+                        if (canEquip) {
+                            val slot = stack.slot
+                            val oldEquipId = when (slot) {
+                                EquipmentSlot.WEAPON -> disciple.weaponId
+                                EquipmentSlot.ARMOR -> disciple.armorId
+                                EquipmentSlot.BOOTS -> disciple.bootsId
+                                EquipmentSlot.ACCESSORY -> disciple.accessoryId
+                                else -> ""
+                            }
+
+                            var updatedDisciple = disciple
+
+                            if (oldEquipId.isNotEmpty()) {
+                                val oldInstance = equipmentInstances.find { it.id == oldEquipId }
+                                if (oldInstance != null) {
+                                    val existingStack = equipmentStacks.find {
+                                        it.name == oldInstance.name && it.rarity == oldInstance.rarity && it.slot == oldInstance.slot && it.id != stack.id
+                                    }
+                                    val storageItemId: String
+                                    if (existingStack != null) {
+                                        val maxStack = inventoryConfig.getMaxStackSize("equipment_stack")
+                                        val newQty = (existingStack.quantity + 1).coerceAtMost(maxStack)
+                                        equipmentStacks = equipmentStacks.map { s ->
+                                            if (s.id == existingStack.id) s.copy(quantity = newQty) else s
+                                        }
+                                        storageItemId = existingStack.id
+                                    } else {
+                                        val newStack = oldInstance.toStack(quantity = 1)
+                                        equipmentStacks = equipmentStacks + newStack
+                                        storageItemId = newStack.id
+                                    }
+                                    equipmentInstances = equipmentInstances.filter { it.id != oldEquipId }
+
+                                    updatedDisciple = updatedDisciple.copyWith(
                                         storageBagItems = StorageBagUtils.increaseItemQuantity(
-                                            disciple.storageBagItems,
+                                            updatedDisciple.storageBagItems,
                                             StorageBagItem(
-                                                itemId = item.id,
+                                                itemId = storageItemId,
                                                 itemType = "equipment_stack",
-                                                name = eqStack.name,
-                                                rarity = eqStack.rarity,
+                                                name = oldInstance.name,
+                                                rarity = oldInstance.rarity,
                                                 quantity = 1,
-                                                obtainedYear = data.gameYear,
-                                                obtainedMonth = data.gameMonth
+                                                obtainedYear = gameData.gameYear,
+                                                obtainedMonth = gameData.gameMonth
                                             )
                                         )
                                     )
                                 }
+
+                                updatedDisciple = when (slot) {
+                                    EquipmentSlot.WEAPON -> updatedDisciple.copyWith(weaponId = "")
+                                    EquipmentSlot.ARMOR -> updatedDisciple.copyWith(armorId = "")
+                                    EquipmentSlot.BOOTS -> updatedDisciple.copyWith(bootsId = "")
+                                    EquipmentSlot.ACCESSORY -> updatedDisciple.copyWith(accessoryId = "")
+                                    else -> updatedDisciple
+                                }
                             }
+
+                            if (stack.quantity > 1) {
+                                equipmentStacks = equipmentStacks.map { s ->
+                                    if (s.id == item.id) s.copy(quantity = s.quantity - 1) else s
+                                }
+                            } else {
+                                equipmentStacks = equipmentStacks.filter { it.id != item.id }
+                            }
+
+                            val instanceId = java.util.UUID.randomUUID().toString()
+                            val instance = stack.toInstance(id = instanceId, ownerId = discipleId, isEquipped = true)
+                            equipmentInstances = equipmentInstances + instance
+
+                            updatedDisciple = when (slot) {
+                                EquipmentSlot.WEAPON -> updatedDisciple.copyWith(weaponId = instanceId)
+                                EquipmentSlot.ARMOR -> updatedDisciple.copyWith(armorId = instanceId)
+                                EquipmentSlot.BOOTS -> updatedDisciple.copyWith(bootsId = instanceId)
+                                EquipmentSlot.ACCESSORY -> updatedDisciple.copyWith(accessoryId = instanceId)
+                                else -> updatedDisciple
+                            }
+
+                            disciples = disciples.map { if (it.id == discipleId) updatedDisciple else it }
+
+                            eventService.addGameEvent("${disciple.name} 装备了 ${stack.name}", EventType.INFO)
+                        } else {
+                            if (stack.quantity > 1) {
+                                equipmentStacks = equipmentStacks.map { s ->
+                                    if (s.id == item.id) s.copy(quantity = s.quantity - 1) else s
+                                }
+                            } else {
+                                equipmentStacks = equipmentStacks.filter { it.id != item.id }
+                            }
+
+                            val bagStackId: String
+                            val existingBagStack = equipmentStacks.find {
+                                it.name == stack.name && it.rarity == stack.rarity && it.slot == stack.slot && it.id != item.id
+                            }
+                            if (existingBagStack != null) {
+                                val maxStack = inventoryConfig.getMaxStackSize("equipment_stack")
+                                val newQty = (existingBagStack.quantity + 1).coerceAtMost(maxStack)
+                                equipmentStacks = equipmentStacks.map { s ->
+                                    if (s.id == existingBagStack.id) s.copy(quantity = newQty) else s
+                                }
+                                bagStackId = existingBagStack.id
+                            } else {
+                                val newStack = stack.copy(id = java.util.UUID.randomUUID().toString(), quantity = 1)
+                                equipmentStacks = equipmentStacks + newStack
+                                bagStackId = newStack.id
+                            }
+
+                            disciples = disciples.map { d ->
+                                if (d.id == discipleId) {
+                                    d.copyWith(
+                                        storageBagItems = StorageBagUtils.increaseItemQuantity(
+                                            d.storageBagItems,
+                                            StorageBagItem(
+                                                itemId = bagStackId,
+                                                itemType = "equipment_stack",
+                                                name = stack.name,
+                                                rarity = stack.rarity,
+                                                quantity = 1,
+                                                obtainedYear = gameData.gameYear,
+                                                obtainedMonth = gameData.gameMonth
+                                            )
+                                        )
+                                    )
+                                } else d
+                            }
+
+                            eventService.addGameEvent("${disciple.name} 境界不足，${stack.name}已放入储物袋", EventType.WARNING)
                         }
                     }
                 }

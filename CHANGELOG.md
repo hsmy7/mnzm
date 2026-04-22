@@ -1,5 +1,17 @@
 # 模拟宗门 - 更新日志
 
+## [2.3.11] - 2026-04-22
+
+### 修复
+- **严重**: 修复宗门仓库装备赏赐弟子时数量未正常扣除的问题（原代码equipEquipment失败时未从仓库扣除数量）
+- **严重**: 修复连续快速赏赐装备给弟子导致游戏闪退的问题（竞态条件：DiscipleService.equipEquipment异步更新状态导致重复分配）
+- **严重**: 修复rewardItemsToDisciple中wasEquipped判断逻辑错误（用EquipmentStack ID与EquipmentInstance ID比较永远不匹配）
+- 修复装备赏赐改为原子操作（stateStore.update），消除竞态条件
+- 修复无法装备时储物袋物品悬空引用问题（确保StorageBagItem引用有效的equipmentStack）
+- 修复DiscipleDetailScreen中isRewarding未正确等待协程完成（赏赐按钮保护失效）
+- 修复MainGameScreen/DiscipleDetailScreen中isRewarding异常时永久锁死问题（添加try-finally保护）
+- GameViewModel.rewardItemsToDisciple改为suspend函数，确保调用方正确等待完成
+
 ## [2.3.10] - 2026-04-22
 
 ### 修复
