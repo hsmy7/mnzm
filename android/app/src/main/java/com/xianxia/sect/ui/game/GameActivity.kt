@@ -187,6 +187,12 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
 
     override fun onPause() {
         super.onPause()
+        try {
+            gameEngineCore.pauseForBackground()
+            Log.d(TAG, "onPause: game engine paused for background")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error pausing game engine in onPause", e)
+        }
     }
 
     override fun onStop() {
@@ -200,12 +206,14 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
 
     override fun onResume() {
         super.onResume()
-        Log.d(TAG, "onResume: isGameLoaded=${saveLoadViewModel.isGameAlreadyLoaded()}, isLoading=${saveLoadViewModel.isLoading.value}")
         hideSystemBars()
-        try {
-            saveLoadViewModel.resumeGameLoop()
-        } catch (e: Exception) {
-            Log.e(TAG, "Error during onResume", e)
+        if (gameEngineCore.wasPausedByBackground) {
+            gameEngineCore.clearBackgroundPauseFlag()
+            try {
+                saveLoadViewModel.resumeGameLoop()
+            } catch (e: Exception) {
+                Log.e(TAG, "Error during onResume", e)
+            }
         }
     }
 

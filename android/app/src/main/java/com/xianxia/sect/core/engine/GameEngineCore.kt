@@ -189,6 +189,8 @@ class GameEngineCore @Inject constructor(
         Log.i(TAG, "GameEngineCore shutdown complete")
     }
     
+    val isGameLoopRunning: Boolean get() = gameLoopJob?.isActive == true
+
     suspend fun pause() {
         stateManager.setPaused(true)
         systemManager.getSystem(CultivationService::class).resetHighFrequencyData()
@@ -196,6 +198,26 @@ class GameEngineCore @Inject constructor(
     
     suspend fun resume() {
         stateManager.setPaused(false)
+    }
+
+    fun pauseForBackground() {
+        if (!stateStore.unifiedState.value.isPaused) {
+            runBlocking { stateManager.setPaused(true) }
+            engineScope.launch {
+                systemManager.getSystem(CultivationService::class).resetHighFrequencyData()
+            }
+            _wasPausedByBackground = true
+        } else {
+            _wasPausedByBackground = false
+        }
+    }
+
+    @Volatile
+    private var _wasPausedByBackground = false
+    val wasPausedByBackground: Boolean get() = _wasPausedByBackground
+
+    fun clearBackgroundPauseFlag() {
+        _wasPausedByBackground = false
     }
     
     private suspend fun tick() {

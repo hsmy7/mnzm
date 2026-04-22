@@ -1143,6 +1143,9 @@ class SaveLoadViewModel @Inject constructor(
         viewModelScope.launch {
             if (gameEngineCore.state.value.isPaused) {
                 gameEngineCore.resume()
+                if (!gameEngineCore.isGameLoopRunning) {
+                    startGameLoop()
+                }
             } else {
                 gameEngineCore.pause()
             }
@@ -1163,6 +1166,9 @@ class SaveLoadViewModel @Inject constructor(
         if (gameEngineCore.state.value.isPaused) {
             viewModelScope.launch {
                 gameEngineCore.resume()
+                if (!gameEngineCore.isGameLoopRunning) {
+                    startGameLoop()
+                }
             }
         }
     }
