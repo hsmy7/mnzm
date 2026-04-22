@@ -106,7 +106,7 @@ val MIGRATION_8_9 = object : androidx.room.migration.Migration(8, 9) {
 
                 val newId = java.util.UUID.randomUUID().toString()
                 db.execSQL(
-                    "INSERT INTO manuals (id, slot_id, name, rarity, type, description, stats, skillName, skillDescription, skillType, skillDamageType, skillHits, skillDamageMultiplier, skillCooldown, skillMpCost, skillHealPercent, skillHealType, skillBuffType, skillBuffValue, skillBuffDuration, skillBuffsJson, skillIsAoe, skillTargetScope, minRealm, ownerId, isLearned, quantity, isLocked) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    "INSERT INTO manuals (id, slot_id, name, rarity, type, description, stats, skillName, skillDescription, skillType, skillDamageType, skillHits, skillDamageMultiplier, skillCooldown, skillMpCost, skillHealPercent, skillHealType, skillBuffType, skillBuffValue, skillBuffDuration, skillBuffsJson, skillIsAoe, skillTargetScope, minRealm, ownerId, isLearned, quantity, isLocked) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     arrayOf(newId, slotId, name, rarity, type, description, stats, skillName, skillDescription, skillType, skillDamageType, skillHits, skillDamageMultiplier, skillCooldown, skillMpCost, skillHealPercent, skillHealType, skillBuffType, skillBuffValue, skillBuffDuration, skillBuffsJson, skillIsAoe, skillTargetScope, minRealm, null, 0, remainingQty, 0)
                 )
             }
