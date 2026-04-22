@@ -284,7 +284,7 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
         if (now - lastEmergencySaveTime > emergencySaveDebounceMs) {
             lastEmergencySaveTime = now
             try {
-                saveLoadViewModel.performAutoSave()
+                saveLoadViewModel.performEmergencySave()
             } catch (e: Exception) {
                 Log.e(TAG, "紧急保存失败", e)
             }

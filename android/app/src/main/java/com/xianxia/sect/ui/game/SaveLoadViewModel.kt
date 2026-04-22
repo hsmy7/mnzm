@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.*
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 
 @HiltViewModel
@@ -45,7 +46,7 @@ class SaveLoadViewModel @Inject constructor(
     }
 
     private val saveLock = AtomicBoolean(false)
-    private val pendingAutoSave = AtomicBoolean(false)
+    private val pendingAutoSave = AtomicReference<SavePipeline.SaveSource?>(null)
     private val saveLockAcquireTime = AtomicLong(0L)
     private val consecutiveSaveFailures = AtomicInteger(0)
 
@@ -115,6 +116,10 @@ class SaveLoadViewModel @Inject constructor(
             while (isActive) {
                 gameEngineCore.autoSaveTrigger.collect {
                     try {
+                        if (gameEngine.gameData.value?.autoSaveIntervalMonths ?: 0 <= 0) {
+                            Log.d(TAG, "Auto save trigger received but auto-save is disabled, skipping")
+                            return@collect
+                        }
                         withTimeoutOrNull(30_000L) {
                             performAutoSave()
                         } ?: Log.w(TAG, "Auto save cancelled due to timeout")
@@ -288,7 +293,7 @@ class SaveLoadViewModel @Inject constructor(
         }
 
         if (!saveLock.compareAndSet(false, true)) {
-            pendingAutoSave.set(true)
+            pendingAutoSave.set(source)
             Log.w(TAG, "Already saving, marking pending auto save (source=$source)")
             return
         }
@@ -324,9 +329,14 @@ class SaveLoadViewModel @Inject constructor(
                 }
             } finally {
                 saveLock.set(false)
-                if (pendingAutoSave.compareAndSet(true, false)) {
-                    Log.d(TAG, "Processing pending auto save")
-                    enqueueAutoSave(source)
+                val pendingSource = pendingAutoSave.getAndSet(null)
+                if (pendingSource != null) {
+                    if (pendingSource == SavePipeline.SaveSource.AUTO && (gameEngine.gameData.value?.autoSaveIntervalMonths ?: 0) <= 0) {
+                        Log.d(TAG, "Discarding pending auto save because auto-save is disabled")
+                    } else {
+                        Log.d(TAG, "Processing pending auto save (source=$pendingSource)")
+                        enqueueAutoSave(pendingSource)
+                    }
                 }
             }
         }
@@ -334,6 +344,10 @@ class SaveLoadViewModel @Inject constructor(
 
     fun performAutoSave() {
         enqueueAutoSave(SavePipeline.SaveSource.AUTO)
+    }
+
+    fun performEmergencySave() {
+        enqueueAutoSave(SavePipeline.SaveSource.EMERGENCY)
     }
 
     suspend fun createSaveData(): SaveData {
@@ -836,7 +850,7 @@ class SaveLoadViewModel @Inject constructor(
             val autoRequest = SavePipeline.SaveRequest(
                 slot = autoSaveSlot,
                 snapshot = snapshot,
-                source = SavePipeline.SaveSource.AUTO
+                source = SavePipeline.SaveSource.EMERGENCY
             )
             val autoEnqueued = savePipeline.enqueue(autoRequest)
             if (!autoEnqueued) {

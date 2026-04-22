@@ -1,5 +1,12 @@
 # 模拟宗门 - 更新日志
 
+## [2.3.16] - 2026-04-22
+
+### 修复
+- **严重**: 修复点击停止自动存档后，自动存档仍在后台继续执行的问题
+- 根因：SaveLoadViewModel 的 autoSaveTrigger 收集器不检查 autoSaveIntervalMonths，收到触发信号后无条件执行存档；pendingAutoSave 机制不记录来源也不检查自动存档是否已禁用，导致 pending 存档链式执行
+- 修复方案：在 autoSaveTrigger 收集器中添加 autoSaveIntervalMonths 检查，禁用时跳过存档；将 pendingAutoSave 从 AtomicBoolean 改为 AtomicReference<SaveSource> 记录实际来源，处理 pending 时检查来源和自动存档状态；新增 EMERGENCY 存档来源类型，区分紧急存档和定时自动存档，确保紧急存档不受自动存档开关影响
+
 ## [2.3.15] - 2026-04-22
 
 ### 修复

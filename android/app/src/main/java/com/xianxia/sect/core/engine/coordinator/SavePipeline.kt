@@ -58,7 +58,7 @@ class SavePipeline @Inject constructor(
     /**
      * 存档来源枚举
      */
-    enum class SaveSource { AUTO, MANUAL }
+    enum class SaveSource { AUTO, MANUAL, EMERGENCY }
 
     /**
      * 存档执行结果
@@ -164,6 +164,7 @@ class SavePipeline @Inject constructor(
         val startTime = System.currentTimeMillis()
         val timeoutMs = when (request.source) {
             SaveSource.AUTO -> AUTO_SAVE_TIMEOUT_MS
+            SaveSource.EMERGENCY -> AUTO_SAVE_TIMEOUT_MS
             else -> MANUAL_SAVE_TIMEOUT_MS
         }
 
@@ -189,6 +190,7 @@ class SavePipeline @Inject constructor(
 
         val operationType = when (request.source) {
             SaveSource.AUTO -> SaveLoadCoordinator.OperationType.AUTO_SAVE
+            SaveSource.EMERGENCY -> SaveLoadCoordinator.OperationType.AUTO_SAVE
             SaveSource.MANUAL -> SaveLoadCoordinator.OperationType.MANUAL_SAVE
         }
 
