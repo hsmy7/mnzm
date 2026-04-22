@@ -1,5 +1,14 @@
 # 模拟宗门 - 更新日志
 
+## [2.3.14] - 2026-04-22
+
+### 修复
+- **严重**: 修复游戏处于后台时游戏时间继续流逝的问题
+- 根因：GameActivity.onPause() 为空，仅在 onStop() 中暂停游戏循环，而 Android 中 onPause 到 onStop 存在延迟，期间游戏时间持续流逝
+- 修复方案：在 onPause() 中同步设置 isPaused=true 立即暂停游戏时间，新增 wasPausedByBackground 标志追踪暂停来源
+- 修复用户手动暂停后进入后台再回来时游戏自动恢复的问题（保留用户手动暂停状态）
+- 修复游戏循环被 stopGameLoop() 停止后，togglePause()/setTimeSpeed() 无法正确恢复游戏循环的问题
+
 ## [2.3.13] - 2026-04-22
 
 ### 新增
