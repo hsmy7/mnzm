@@ -295,9 +295,16 @@ class WorldMapViewModel @Inject constructor(
         _showOuterTournamentDialog.value = true
     }
 
-    fun closeOuterTournamentDialog() {
+    private fun closeOuterTournamentDialogUi() {
         _isOuterTournamentManuallyClosed = true
         _showOuterTournamentDialog.value = false
+    }
+
+    fun closeOuterTournamentDialog() {
+        closeOuterTournamentDialogUi()
+        viewModelScope.launch {
+            gameEngine.updateGameData { it.copy(pendingCompetitionResults = emptyList()) }
+        }
     }
 
     fun resetOuterTournamentClosedFlag() {
@@ -336,10 +343,12 @@ class WorldMapViewModel @Inject constructor(
                     gameEngine.syncAllDiscipleStatuses()
                 }
 
-                closeOuterTournamentDialog()
+                closeOuterTournamentDialogUi()
+                gameEngine.updateGameData { it.copy(pendingCompetitionResults = emptyList()) }
             } catch (e: Exception) {
                 _errorMessage.value = "晋升弟子失败: ${e.message}"
-                closeOuterTournamentDialog()
+                closeOuterTournamentDialogUi()
+                gameEngine.updateGameData { it.copy(pendingCompetitionResults = emptyList()) }
             }
         }
     }
