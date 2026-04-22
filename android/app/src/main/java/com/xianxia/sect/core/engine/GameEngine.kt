@@ -1030,6 +1030,11 @@ class GameEngine @Inject constructor(
                         val disciple = disciples.find { it.id == discipleId }
                         if (disciple == null) return@update
 
+                        val bagStackIds = disciples.flatMap { it.storageBagItems }
+                            .filter { it.itemType == "equipment_stack" }
+                            .map { it.itemId }
+                            .toSet()
+
                         val canEquip = GameConfig.Realm.meetsRealmRequirement(disciple.realm, stack.minRealm)
 
                         if (canEquip) {
@@ -1048,7 +1053,7 @@ class GameEngine @Inject constructor(
                                 val oldInstance = equipmentInstances.find { it.id == oldEquipId }
                                 if (oldInstance != null) {
                                     val existingStack = equipmentStacks.find {
-                                        it.name == oldInstance.name && it.rarity == oldInstance.rarity && it.slot == oldInstance.slot && it.id != stack.id
+                                        it.name == oldInstance.name && it.rarity == oldInstance.rarity && it.slot == oldInstance.slot && it.id != stack.id && it.id in bagStackIds
                                     }
                                     val storageItemId: String
                                     if (existingStack != null) {
@@ -1124,7 +1129,7 @@ class GameEngine @Inject constructor(
 
                             val bagStackId: String
                             val existingBagStack = equipmentStacks.find {
-                                it.name == stack.name && it.rarity == stack.rarity && it.slot == stack.slot && it.id != item.id
+                                it.name == stack.name && it.rarity == stack.rarity && it.slot == stack.slot && it.id != item.id && it.id in bagStackIds
                             }
                             if (existingBagStack != null) {
                                 val maxStack = inventoryConfig.getMaxStackSize("equipment_stack")

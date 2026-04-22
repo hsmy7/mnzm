@@ -200,14 +200,32 @@ class GameViewModel @Inject constructor(
     val manuals: StateFlow<List<ManualInstance>> = gameEngine.manualInstances
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val equipmentStacks: StateFlow<List<EquipmentStack>> = gameEngine.equipmentStacks
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val equipmentStacks: StateFlow<List<EquipmentStack>> = combine(
+        gameEngine.equipmentStacks,
+        gameEngine.disciples
+    ) { stacks, disciples ->
+        val bagStackIds = disciples.filter { it.isAlive }
+            .flatMap { it.storageBagItems }
+            .filter { it.itemType == "equipment_stack" }
+            .map { it.itemId }
+            .toSet()
+        stacks.filter { it.id !in bagStackIds }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val equipmentInstances: StateFlow<List<EquipmentInstance>> = gameEngine.equipmentInstances
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val manualStacks: StateFlow<List<ManualStack>> = gameEngine.manualStacks
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val manualStacks: StateFlow<List<ManualStack>> = combine(
+        gameEngine.manualStacks,
+        gameEngine.disciples
+    ) { stacks, disciples ->
+        val bagStackIds = disciples.filter { it.isAlive }
+            .flatMap { it.storageBagItems }
+            .filter { it.itemType == "manual_stack" }
+            .map { it.itemId }
+            .toSet()
+        stacks.filter { it.id !in bagStackIds }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val manualInstances: StateFlow<List<ManualInstance>> = gameEngine.manualInstances
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())

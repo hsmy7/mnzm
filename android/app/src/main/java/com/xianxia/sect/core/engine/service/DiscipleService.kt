@@ -549,11 +549,16 @@ class DiscipleService @Inject constructor(
             disciple.accessoryId.takeIf { it.isNotEmpty() }?.let { returnEquipIds.add(it) }
             disciple.storageBagItems.filter { it.itemType == "equipment_stack" || it.itemType == "equipment_instance" }.forEach { returnEquipIds.add(it.itemId) }
 
+            val bagStackIds = disciples.flatMap { it.storageBagItems }
+                .filter { it.itemType == "equipment_stack" }
+                .map { it.itemId }
+                .toSet()
+
             returnEquipIds.forEach { eid ->
                 val eq = equipmentInstances.find { it.id == eid } ?: return@forEach
                 val stack = eq.toStack()
                 val existingStack = equipmentStacks.find {
-                    it.name == stack.name && it.rarity == stack.rarity && it.slot == stack.slot
+                    it.name == stack.name && it.rarity == stack.rarity && it.slot == stack.slot && it.id !in bagStackIds
                 }
                 if (existingStack != null) {
                     val maxStack = inventoryConfig.getMaxStackSize("equipment_stack")
@@ -728,8 +733,13 @@ class DiscipleService @Inject constructor(
             val data = currentGameData
 
             if (eq != null) {
+                val bagStackIds = currentDisciples.flatMap { it.storageBagItems }
+                    .filter { it.itemType == "equipment_stack" }
+                    .map { it.itemId }
+                    .toSet()
+
                 val existingStack = currentEquipmentStacks.find {
-                    it.name == eq.name && it.rarity == eq.rarity && it.slot == eq.slot
+                    it.name == eq.name && it.rarity == eq.rarity && it.slot == eq.slot && it.id in bagStackIds
                 }
 
                 if (existingStack != null) {

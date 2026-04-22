@@ -1,5 +1,17 @@
 # 模拟宗门 - 更新日志
 
+## [2.3.17] - 2026-04-22
+
+### 修复
+- **严重**: 修复宗门仓库赏赐装备给弟子后，弟子因境界不足无法穿戴时装备被送入储物袋，但宗门仓库中该装备未被正常扣除导致一件装备同时出现在仓库和储物袋中的问题
+- 根因：equipmentStacks 同时作为仓库显示数据和储物袋装备底层数据源，装备进入储物袋时在 equipmentStacks 中创建/合并新堆导致仓库显示重复；合并逻辑可能将储物袋装备与仓库堆合并导致仓库堆数量虚增
+- 修复方案：
+  - GameEngine.rewardItemsToDisciple：装备进入储物袋时仅与已在储物袋中的堆合并（bagStackIds过滤），不再与仓库堆合并
+  - DiscipleService.unequipEquipment：卸下装备入储物袋时同样仅与储物袋堆合并
+  - DiscipleService.expelDisciple：逐出弟子归还装备时仅与仓库堆合并（排除储物袋堆），避免仓库物品被ViewModel过滤隐藏
+  - GameViewModel：equipmentStacks 和 manualStacks 过滤掉被存活弟子储物袋引用的堆，确保仓库UI仅显示仓库物品
+- 同步修复功法赏赐后学习失败时功法同时出现在仓库和储物袋的同类问题
+
 ## [2.3.16] - 2026-04-22
 
 ### 修复
