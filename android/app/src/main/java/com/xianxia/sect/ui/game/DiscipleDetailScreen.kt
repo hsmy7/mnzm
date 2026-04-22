@@ -124,7 +124,8 @@ fun DiscipleDetailDialog(
     allManuals: List<ManualInstance> = emptyList(),
     manualProficiencies: Map<String, List<ManualProficiencyData>> = emptyMap(),
     viewModel: GameViewModel? = null,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onNavigateToDisciple: ((DiscipleAggregate) -> Unit)? = null
 ) {
     val talents = remember(disciple.talentIds) {
         TalentDatabase.getTalentsByIds(disciple.talentIds)
@@ -165,154 +166,211 @@ fun DiscipleDetailDialog(
     var showStorageBagDialog by remember { mutableStateOf(false) }
     var showExpelConfirmDialog by remember { mutableStateOf(false) }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
-        title = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+    val currentIndex = allDisciples.indexOfFirst { it.id == disciple.id }
+    val hasPrev = currentIndex > 0
+    val hasNext = currentIndex >= 0 && currentIndex < allDisciples.size - 1
+
+    Dialog(onDismissRequest = onDismiss) {
+        key(disciple.id) {
+        Box(
+            modifier = Modifier.fillMaxWidth(),
+            contentAlignment = Alignment.Center
+        ) {
+            Surface(
+                shape = RoundedCornerShape(28.dp),
+                color = GameColors.PageBackground,
+                tonalElevation = 6.dp
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp)
                 ) {
-                    Text(
-                        text = disciple.name,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(Color(0xFF4CAF50))
-                            .clickable { showRelationsDialog = true }
-                            .padding(horizontal = 6.dp, vertical = 2.dp),
-                        contentAlignment = Alignment.Center
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "关系",
-                            fontSize = 10.sp,
-                            color = Color.White
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = disciple.name,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Black
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(Color(0xFF4CAF50))
+                                    .clickable { showRelationsDialog = true }
+                                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "关系",
+                                    fontSize = 10.sp,
+                                    color = Color.White
+                                )
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(Color(0xFF2196F3))
+                                    .clickable { showStorageBagDialog = true }
+                                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "储物袋",
+                                    fontSize = 10.sp,
+                                    color = Color.White
+                                )
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(if (disciple.isFollowed) Color(0xFFFFD700) else Color(0xFF999999))
+                                    .clickable { viewModel?.toggleFollowDisciple(disciple.id) }
+                                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = if (disciple.isFollowed) "已关注" else "关注",
+                                    fontSize = 10.sp,
+                                    color = Color.White
+                                )
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(Color(0xFFE74C3C))
+                                    .clickable { showExpelConfirmDialog = true }
+                                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "驱逐",
+                                    fontSize = 10.sp,
+                                    color = Color.White
+                                )
+                            }
+                        }
+                        Box(
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clip(CircleShape)
+                                .clickable { onDismiss() }
+                                .background(GameColors.CardBackground),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "×",
+                                fontSize = 16.sp,
+                                color = Color(0xFF666666)
+                            )
+                        }
                     }
-                    Box(
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Column(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(Color(0xFF2196F3))
-                            .clickable { showStorageBagDialog = true }
-                            .padding(horizontal = 6.dp, vertical = 2.dp),
-                        contentAlignment = Alignment.Center
+                            .fillMaxWidth()
+                            .heightIn(max = 500.dp)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Text(
-                            text = "储物袋",
-                            fontSize = 10.sp,
-                            color = Color.White
+                        BasicInfoSection(
+                            disciple = disciple,
+                            allManuals = allManuals,
+                            manualProficiencies = manualProficiencies,
+                            position = viewModel?.getDisciplePosition(disciple.id),
+                            isWorkStatusPosition = viewModel?.isPositionWorkStatus(disciple.id) ?: false,
+                            elderSlots = viewModel?.gameData?.value?.elderSlots,
+                            allDisciples = allDisciples,
+                            sectPolicies = viewModel?.gameData?.value?.sectPolicies
                         )
-                    }
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(if (disciple.isFollowed) Color(0xFFFFD700) else Color(0xFF999999))
-                            .clickable { viewModel?.toggleFollowDisciple(disciple.id) }
-                            .padding(horizontal = 6.dp, vertical = 2.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = if (disciple.isFollowed) "已关注" else "关注",
-                            fontSize = 10.sp,
-                            color = Color.White
+                        HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
+                        TalentsSection(talents, disciple.statusData)
+                        HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
+                        AttributesSection(disciple)
+                        HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
+                        CombatStatsSection(
+                            disciple = disciple,
+                            weapon = weapon,
+                            armor = armor,
+                            boots = boots,
+                            accessory = accessory,
+                            learnedManuals = learnedManuals,
+                            manualProficiencies = manualProficiencies
                         )
-                    }
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(Color(0xFFE74C3C))
-                            .clickable { showExpelConfirmDialog = true }
-                            .padding(horizontal = 6.dp, vertical = 2.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "驱逐",
-                            fontSize = 10.sp,
-                            color = Color.White
+                        HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
+                        EquipmentSection(
+                            weapon = weapon,
+                            armor = armor,
+                            boots = boots,
+                            accessory = accessory,
+                            onSlotClick = { slotType -> showEquipmentSelection = slotType },
+                            onEquipmentClick = { equipment -> showEquipmentDetailDialog = equipment }
+                        )
+                        HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
+                        ManualsSection(
+                            manuals = learnedManuals,
+                            maxSlots = maxManualSlots,
+                            manualProficiencies = manualProficiencies,
+                            discipleId = disciple.id,
+                            onSlotClick = { showManualSelection = true },
+                            onManualClick = { manual ->
+                                showManualDetailDialog = manual
+                            }
                         )
                     }
                 }
+            }
+
+            if (hasPrev && onNavigateToDisciple != null) {
                 Box(
                     modifier = Modifier
-                        .size(24.dp)
+                        .align(Alignment.CenterStart)
+                        .padding(start = 4.dp)
+                        .size(32.dp)
                         .clip(CircleShape)
-                        .clickable { onDismiss() }
-                        .background(GameColors.CardBackground),
+                        .background(Color(0x99000000))
+                        .clickable { onNavigateToDisciple(allDisciples[currentIndex - 1]) },
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "×",
-                        fontSize = 16.sp,
-                        color = Color(0xFF666666)
+                        text = "‹",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
                     )
                 }
             }
-        },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 500.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                BasicInfoSection(
-                    disciple = disciple,
-                    allManuals = allManuals,
-                    manualProficiencies = manualProficiencies,
-                    position = viewModel?.getDisciplePosition(disciple.id),
-                    isWorkStatusPosition = viewModel?.isPositionWorkStatus(disciple.id) ?: false,
-                    elderSlots = viewModel?.gameData?.value?.elderSlots,
-                    allDisciples = allDisciples,
-                    sectPolicies = viewModel?.gameData?.value?.sectPolicies
-                )
-                HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
-                TalentsSection(talents, disciple.statusData)
-                HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
-                AttributesSection(disciple)
-                HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
-                CombatStatsSection(
-                    disciple = disciple,
-                    weapon = weapon,
-                    armor = armor,
-                    boots = boots,
-                    accessory = accessory,
-                    learnedManuals = learnedManuals,
-                    manualProficiencies = manualProficiencies
-                )
-                HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
-                EquipmentSection(
-                    weapon = weapon,
-                    armor = armor,
-                    boots = boots,
-                    accessory = accessory,
-                    onSlotClick = { slotType -> showEquipmentSelection = slotType },
-                    onEquipmentClick = { equipment -> showEquipmentDetailDialog = equipment }
-                )
-                HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
-                ManualsSection(
-                    manuals = learnedManuals,
-                    maxSlots = maxManualSlots,
-                    manualProficiencies = manualProficiencies,
-                    discipleId = disciple.id,
-                    onSlotClick = { showManualSelection = true },
-                    onManualClick = { manual ->
-                        showManualDetailDialog = manual
-                    }
-                )
+
+            if (hasNext && onNavigateToDisciple != null) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = 4.dp)
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(Color(0x99000000))
+                        .clickable { onNavigateToDisciple(allDisciples[currentIndex + 1]) },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "›",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
             }
-        },
-        confirmButton = {}
-    )
+        }
+        }
+    }
 
     if (showRelationsDialog) {
         RelationsDialog(

@@ -821,7 +821,8 @@ private fun DisciplesTab(
             allManuals = manuals,
             manualProficiencies = gameData?.manualProficiencies ?: emptyMap(),
             viewModel = viewModel,
-            onDismiss = { selectedDisciple = null }
+            onDismiss = { selectedDisciple = null },
+            onNavigateToDisciple = { disciple -> selectedDisciple = disciple }
         )
     }
 }
@@ -2309,7 +2310,8 @@ private fun ExplorationTeamDialog(
             allManuals = manuals,
             manualProficiencies = gameData?.manualProficiencies ?: emptyMap(),
             viewModel = viewModel,
-            onDismiss = { selectedDisciple = null }
+            onDismiss = { selectedDisciple = null },
+            onNavigateToDisciple = { d -> selectedDisciple = d }
         )
     }
     
