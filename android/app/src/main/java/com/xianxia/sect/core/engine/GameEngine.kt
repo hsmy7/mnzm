@@ -164,8 +164,20 @@ class GameEngine @Inject constructor(
         if (productionSlots.isNotEmpty()) {
             productionCoordinator.repository.restoreSlots(productionSlots)
         }
-        // Auto-harvest any slots that were in COMPLETED state from a save
         checkAndCollectCompletedSlots()
+
+        val currentData = stateStore.gameData.value
+        if (currentData.travelingMerchantItems.isEmpty() || currentData.recruitList.isEmpty()) {
+            Log.w(TAG, "loadData: detected empty merchant items or recruit list after load, refreshing...")
+            stateStore.update {
+                if (this.gameData.travelingMerchantItems.isEmpty()) {
+                    cultivationService.refreshTravelingMerchant(this.gameData.gameYear, this.gameData.gameMonth)
+                }
+                if (this.gameData.recruitList.isEmpty()) {
+                    cultivationService.refreshRecruitList(this.gameData.gameYear)
+                }
+            }
+        }
     }
 
     suspend fun createNewGame(sectName: String, currentSlot: Int = 1) {
