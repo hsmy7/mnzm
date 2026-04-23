@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlin.random.Random
+import kotlin.math.roundToInt
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.data.*
@@ -3500,40 +3501,40 @@ class CultivationService @Inject constructor(
         EquipmentDatabase.allTemplates.values.forEach { t ->
             pools.poolByRarity.getOrPut(t.rarity) { mutableListOf() }.add(t.name to "equipment")
             pools.rarityMap[t.name] = t.rarity
-            pools.priceMap[t.name] = t.price
+            pools.priceMap[t.name] = (t.price * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt()
         }
 
         if (ManualDatabase.isInitialized) {
             ManualDatabase.allManuals.values.forEach { t ->
                 pools.poolByRarity.getOrPut(t.rarity) { mutableListOf() }.add(t.name to "manual")
                 pools.rarityMap[t.name] = t.rarity
-                pools.priceMap[t.name] = t.price
+                pools.priceMap[t.name] = (t.price * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt()
             }
         }
 
         ItemDatabase.allPills.values.forEach { t ->
             pools.poolByRarity.getOrPut(t.rarity) { mutableListOf() }.add(t.name to "pill")
             pools.rarityMap[t.name] = t.rarity
-            pools.priceMap[t.name] = t.price
+            pools.priceMap[t.name] = (t.price * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt()
             pools.gradeMap[t.name] = t.grade.displayName
         }
 
         ItemDatabase.allMaterials.values.forEach { t ->
             pools.poolByRarity.getOrPut(t.rarity) { mutableListOf() }.add(t.name to "material")
             pools.rarityMap[t.name] = t.rarity
-            pools.priceMap[t.name] = t.price
+            pools.priceMap[t.name] = (t.price * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt()
         }
 
         HerbDatabase.getAllHerbs().forEach { h ->
             pools.poolByRarity.getOrPut(h.rarity) { mutableListOf() }.add(h.name to "herb")
             pools.rarityMap[h.name] = h.rarity
-            pools.priceMap[h.name] = h.price
+            pools.priceMap[h.name] = (h.price * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt()
         }
 
         HerbDatabase.getAllSeeds().forEach { s ->
             pools.poolByRarity.getOrPut(s.rarity) { mutableListOf() }.add(s.name to "seed")
             pools.rarityMap[s.name] = s.rarity
-            pools.priceMap[s.name] = s.price
+            pools.priceMap[s.name] = (s.price * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt()
         }
 
         return pools
@@ -3589,7 +3590,7 @@ class CultivationService @Inject constructor(
     ): MerchantItem {
         val (name, type) = item
         val rarity = forcedRarity ?: pools.rarityMap[name] ?: 1
-        val basePrice = pools.priceMap[name] ?: GameConfig.Rarity.get(rarity).materialBasePrice
+        val basePrice = pools.priceMap[name] ?: (GameConfig.Rarity.get(rarity).materialBasePrice * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt()
         val quantity = calculateMerchantStock(type, rarity)
         val grade = if (type == "pill") pools.gradeMap[name] else null
 

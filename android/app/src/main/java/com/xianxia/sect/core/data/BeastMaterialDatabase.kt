@@ -1,7 +1,8 @@
-﻿package com.xianxia.sect.core.data
+package com.xianxia.sect.core.data
 
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.MaterialCategory
+import kotlin.math.roundToInt
 
 object BeastMaterialDatabase {
     
@@ -15,7 +16,7 @@ object BeastMaterialDatabase {
         val icon: String,
         val dropWeight: Double = 1.0
     ) {
-        val price: Int get() = GameConfig.Rarity.get(rarity).materialBasePrice
+        val price: Int get() = (GameConfig.Rarity.get(rarity).materialBasePrice * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt()
         val materialCategory: MaterialCategory get() = when (category) {
             "hide" -> MaterialCategory.BEAST_HIDE
             "bone" -> MaterialCategory.BEAST_BONE

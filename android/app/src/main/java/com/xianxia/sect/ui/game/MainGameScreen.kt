@@ -4057,7 +4057,15 @@ private fun WarehouseTab(viewModel: GameViewModel) {
                 is Seed -> item.name
                 else -> ""
             }
-            val isLocked = getWarehouseItemIsLocked(item)
+            val isLocked = when (itemType) {
+                "equipment" -> equipment.find { it.id == itemId }?.isLocked ?: false
+                "manual" -> manuals.find { it.id == itemId }?.isLocked ?: false
+                "pill" -> sortedPills.find { it.id == itemId }?.isLocked ?: false
+                "material" -> sortedMaterials.find { it.id == itemId }?.isLocked ?: false
+                "herb" -> sortedHerbs.find { it.id == itemId }?.isLocked ?: false
+                "seed" -> sortedSeeds.find { it.id == itemId }?.isLocked ?: false
+                else -> false
+            }
             val basePrice = getWarehouseItemBasePrice(item)
             var showDiscipleSelectDialog by remember { mutableStateOf(false) }
             var showSellDialog by remember { mutableStateOf(false) }

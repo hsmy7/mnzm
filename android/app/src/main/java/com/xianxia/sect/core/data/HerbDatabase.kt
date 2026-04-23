@@ -1,6 +1,7 @@
-﻿package com.xianxia.sect.core.data
+package com.xianxia.sect.core.data
 
 import com.xianxia.sect.core.GameConfig
+import kotlin.math.roundToInt
 
 object HerbDatabase {
     
@@ -12,7 +13,7 @@ object HerbDatabase {
         val category: String,
         val description: String
     ) {
-        val price: Int get() = GameConfig.Rarity.get(rarity).materialBasePrice
+        val price: Int get() = (GameConfig.Rarity.get(rarity).materialBasePrice * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt()
     }
     
     data class Seed(
@@ -24,7 +25,7 @@ object HerbDatabase {
         val yield: Int,
         val description: String
     ) {
-        val price: Int get() = GameConfig.Rarity.get(rarity).materialBasePrice
+        val price: Int get() = (GameConfig.Rarity.get(rarity).materialBasePrice * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt()
     }
 
     private val tier1Herbs = listOf(

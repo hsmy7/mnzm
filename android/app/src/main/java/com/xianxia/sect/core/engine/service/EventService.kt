@@ -21,6 +21,7 @@ import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.random.Random
+import kotlin.math.roundToInt
 
 @SystemPriority(order = 260)
 @Singleton
@@ -144,7 +145,7 @@ class EventService @Inject constructor(
                 "equipment" -> {
                     val equipment = EquipmentDatabase.generateRandom(rarity, rarity)
                     val template = EquipmentDatabase.getTemplateByName(equipment.name)
-                    val basePrice = template?.price ?: GameConfig.Rarity.get(rarity).basePrice
+                    val basePrice = ((template?.price ?: GameConfig.Rarity.get(rarity).basePrice) * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt()
                     MerchantItem(
                         id = UUID.randomUUID().toString(),
                         name = equipment.name,
@@ -160,7 +161,7 @@ class EventService @Inject constructor(
                 "manual" -> {
                     val manual = ManualDatabase.generateRandom(rarity, rarity)
                     val template = ManualDatabase.getByName(manual.name)
-                    val basePrice = template?.price ?: GameConfig.Rarity.get(rarity).basePrice
+                    val basePrice = ((template?.price ?: GameConfig.Rarity.get(rarity).basePrice) * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt()
                     MerchantItem(
                         id = UUID.randomUUID().toString(),
                         name = manual.name,
@@ -178,7 +179,7 @@ class EventService @Inject constructor(
                     if (pillTemplates.isEmpty()) continue
                     val template = pillTemplates.random(random)
                     val pill = ItemDatabase.createPillFromTemplate(template)
-                    val basePrice = template.price
+                    val basePrice = (template.price * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt()
                     MerchantItem(
                         id = UUID.randomUUID().toString(),
                         name = pill.name,
@@ -196,7 +197,7 @@ class EventService @Inject constructor(
                     val materials = BeastMaterialDatabase.getMaterialsByRarity(rarity)
                     if (materials.isEmpty()) continue
                     val material = materials.random(random)
-                    val basePrice = material.price
+                    val basePrice = (material.price * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt()
                     MerchantItem(
                         id = UUID.randomUUID().toString(),
                         name = material.name,
@@ -213,7 +214,7 @@ class EventService @Inject constructor(
                     val herbs = HerbDatabase.getByRarity(rarity)
                     if (herbs.isEmpty()) continue
                     val herb = herbs.random(random)
-                    val basePrice = herb.price
+                    val basePrice = (herb.price * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt()
                     MerchantItem(
                         id = UUID.randomUUID().toString(),
                         name = herb.name,
@@ -230,7 +231,7 @@ class EventService @Inject constructor(
                     val seeds = HerbDatabase.getSeedsByRarity(rarity)
                     if (seeds.isEmpty()) continue
                     val seed = seeds.random(random)
-                    val basePrice = seed.price
+                    val basePrice = (seed.price * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt()
                     MerchantItem(
                         id = UUID.randomUUID().toString(),
                         name = seed.name,
