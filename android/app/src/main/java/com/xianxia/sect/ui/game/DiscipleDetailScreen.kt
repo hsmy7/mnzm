@@ -41,6 +41,7 @@ import com.xianxia.sect.ui.components.ItemCardData
 import com.xianxia.sect.ui.components.TalentDetailDialog
 import com.xianxia.sect.ui.components.UnifiedItemCard
 import com.xianxia.sect.ui.components.getRarityColor
+import com.xianxia.sect.ui.components.getRarityName
 import com.xianxia.sect.ui.components.getTalentRarityColor
 import com.xianxia.sect.ui.theme.GameColors
 import java.util.Locale
@@ -122,6 +123,8 @@ fun DiscipleDetailDialog(
     allDisciples: List<DiscipleAggregate> = emptyList(),
     allEquipment: List<EquipmentInstance> = emptyList(),
     allManuals: List<ManualInstance> = emptyList(),
+    manualStacks: List<ManualStack> = emptyList(),
+    equipmentStacks: List<EquipmentStack> = emptyList(),
     manualProficiencies: Map<String, List<ManualProficiencyData>> = emptyMap(),
     viewModel: GameViewModel? = null,
     onDismiss: () -> Unit,
@@ -435,6 +438,7 @@ fun DiscipleDetailDialog(
         EquipmentSelectionDialog(
             slotType = slotType,
             allEquipment = allEquipment,
+            equipmentStacks = equipmentStacks,
             currentEquipmentId = when (slotType) {
                 "weapon" -> disciple.weaponId
                 "armor" -> disciple.armorId
@@ -443,6 +447,7 @@ fun DiscipleDetailDialog(
                 else -> null
             },
             currentDiscipleId = disciple.id,
+            discipleRealm = disciple.realm,
             selectedEquipmentId = selectedEquipmentId,
             onSelect = { id -> 
                 selectedEquipmentId = if (selectedEquipmentId == id) null else id
@@ -463,6 +468,7 @@ fun DiscipleDetailDialog(
     
     if (showManualSelection) {
         ManualSelectionDialog(
+            manualStacks = manualStacks,
             allManuals = allManuals,
             currentManualIds = disciple.manualIds,
             currentDiscipleId = disciple.id,
@@ -510,14 +516,13 @@ fun DiscipleDetailDialog(
         )
 
         if (showManualReplaceSelection) {
-            val availableManuals = remember(allManuals, disciple.manualIds, manual, disciple.realm) {
+            val availableManualStacks = remember(manualStacks, allManuals, disciple.manualIds, manual, disciple.realm) {
                 val hasMindManual = disciple.manualIds.any { mid ->
                     allManuals.find { it.id == mid }?.type == ManualType.MIND
                 }
-                allManuals.filter { newManual ->
-                    newManual.id !in disciple.manualIds &&
-                    !(hasMindManual && manual.type != ManualType.MIND && newManual.type == ManualType.MIND) &&
-                    GameConfig.Realm.meetsRealmRequirement(disciple.realm, newManual.minRealm)
+                manualStacks.filter { stack ->
+                    !(hasMindManual && manual.type != ManualType.MIND && stack.type == ManualType.MIND) &&
+                    GameConfig.Realm.meetsRealmRequirement(disciple.realm, stack.minRealm)
                 }.sortedByDescending { it.rarity }
             }
             var selectedReplaceManualId by remember { mutableStateOf<String?>(null) }
@@ -554,71 +559,39 @@ fun DiscipleDetailDialog(
                     }
                 },
                 text = {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 400.dp)
-                            .verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        if (availableManuals.isEmpty()) {
-                            Text(
-                                text = "暂无可更换的功法",
-                                fontSize = 12.sp,
-                                color = Color(0xFF999999)
-                            )
-                        } else {
-                            availableManuals.forEach { newManual ->
-                                val newManualRarityColor = when (newManual.rarity) {
-                                    1 -> Color(0xFF95A5A6)
-                                    2 -> Color(0xFF27AE60)
-                                    3 -> Color(0xFF3498DB)
-                                    4 -> Color(0xFF9B59B6)
-                                    5 -> Color(0xFFF39C12)
-                                    6 -> Color(0xFFE74C3C)
-                                    else -> Color(0xFF95A5A6)
-                                }
-
-                                val isSelected = selectedReplaceManualId == newManual.id
-
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(if (isSelected) Color(0xFFE3F2FD) else GameColors.PageBackground)
-                                        .border(
-                                            width = if (isSelected) 2.dp else 1.dp,
-                                            color = if (isSelected) Color(0xFF2196F3) else GameColors.Border,
-                                            shape = RoundedCornerShape(6.dp)
-                                        )
-                                        .clickable { selectedReplaceManualId = newManual.id }
-                                        .padding(12.dp)
-                                ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Column {
-                                            Text(
-                                                text = newManual.name,
-                                                fontSize = 12.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = newManualRarityColor
-                                            )
-                                            Text(
-                                                text = getRarityText(newManual.rarity),
-                                                fontSize = 10.sp,
-                                                color = newManualRarityColor
-                                            )
-                                        }
-                                        Text(
-                                            text = "修炼速度+${(newManual.cultivationSpeedPercent).toInt()}%",
-                                            fontSize = 10.sp,
-                                            color = Color(0xFF666666)
-                                        )
-                                    }
-                                }
+                    if (availableManualStacks.isEmpty()) {
+                        Text(
+                            text = "暂无可更换的功法",
+                            fontSize = 12.sp,
+                            color = Color(0xFF999999),
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp)
+                        )
+                    } else {
+                        LazyVerticalGrid(
+                            columns = GridCells.Adaptive(56.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 400.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            items(availableManualStacks, key = { it.id }) { stack ->
+                                UnifiedItemCard(
+                                    data = ItemCardData(
+                                        id = stack.id,
+                                        name = stack.name,
+                                        rarity = stack.rarity,
+                                        quantity = stack.quantity,
+                                        grade = getRarityName(stack.rarity),
+                                        isLocked = stack.isLocked
+                                    ),
+                                    isSelected = selectedReplaceManualId == stack.id,
+                                    showViewButton = true,
+                                    onClick = {
+                                        selectedReplaceManualId = if (selectedReplaceManualId == stack.id) null else stack.id
+                                    },
+                                    onViewDetail = { selectedReplaceManualId = stack.id }
+                                )
                             }
                         }
                     }
@@ -795,8 +768,10 @@ private fun RelationsDialog(
 private fun EquipmentSelectionDialog(
     slotType: String,
     allEquipment: List<EquipmentInstance>,
+    equipmentStacks: List<EquipmentStack>,
     currentEquipmentId: String?,
     currentDiscipleId: String,
+    discipleRealm: Int,
     selectedEquipmentId: String?,
     onSelect: (String) -> Unit,
     onConfirm: () -> Unit,
@@ -809,18 +784,29 @@ private fun EquipmentSelectionDialog(
         "accessory" -> "饰品"
         else -> "装备"
     }
-    
-    val availableEquipment = remember(allEquipment, slotType, currentEquipmentId, currentDiscipleId) {
-        val filtered = allEquipment.filter { 
-            it.slot.name.lowercase(java.util.Locale.getDefault()) == slotType.lowercase(java.util.Locale.getDefault()) && 
-            it.id != currentEquipmentId &&
-            (it.ownerId == null || (it.ownerId == currentDiscipleId))
+
+    val availableItems = remember(allEquipment, equipmentStacks, slotType, currentEquipmentId, currentDiscipleId, discipleRealm) {
+        val slotEnum = try {
+            EquipmentSlot.valueOf(slotType.uppercase(Locale.getDefault()))
+        } catch (_: Exception) {
+            EquipmentSlot.WEAPON
         }
-        filtered.sortedByDescending { it.rarity }
+
+        val stacks = equipmentStacks.filter { stack ->
+            stack.slot == slotEnum &&
+            GameConfig.Realm.meetsRealmRequirement(discipleRealm, stack.minRealm)
+        }.map { stack -> EquipmentSelectionItem(stack.id, stack.name, stack.rarity, stack.quantity, stack.isLocked, true) }
+
+        val instances = allEquipment.filter {
+            it.slot == slotEnum &&
+            it.id != currentEquipmentId &&
+            (it.ownerId == null || it.ownerId == currentDiscipleId) &&
+            GameConfig.Realm.meetsRealmRequirement(discipleRealm, it.minRealm)
+        }.map { inst -> EquipmentSelectionItem(inst.id, inst.name, inst.rarity, 1, false, false) }
+
+        (stacks + instances).sortedByDescending { it.rarity }
     }
 
-    var showDetailEquipment by remember { mutableStateOf<EquipmentInstance?>(null) }
-    
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = GameColors.PageBackground,
@@ -853,29 +839,38 @@ private fun EquipmentSelectionDialog(
             }
         },
         text = {
-            if (availableEquipment.isEmpty()) {
+            if (availableItems.isEmpty()) {
                 Text(
                     text = "暂无可用的$slotTypeText",
                     fontSize = 12.sp,
-                    color = Color(0xFF999999)
+                    color = Color(0xFF999999),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp)
                 )
             } else {
                 LazyVerticalGrid(
-                    columns = GridCells.Fixed(5),
+                    columns = GridCells.Adaptive(56.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(320.dp),
+                        .heightIn(max = 400.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    items(availableEquipment) { equipment ->
-                        EquipmentSelectionCard(
-                            equipment = equipment,
-                            isSelected = selectedEquipmentId == equipment.id,
-                            onSelect = { 
-                                onSelect(if (selectedEquipmentId == equipment.id) "" else equipment.id)
+                    items(availableItems, key = { it.id }) { item ->
+                        UnifiedItemCard(
+                            data = ItemCardData(
+                                id = item.id,
+                                name = item.name,
+                                rarity = item.rarity,
+                                quantity = item.quantity,
+                                grade = getRarityName(item.rarity),
+                                isLocked = item.isLocked
+                            ),
+                            isSelected = selectedEquipmentId == item.id,
+                            showViewButton = true,
+                            onClick = {
+                                onSelect(item.id)
                             },
-                            onViewDetail = { showDetailEquipment = equipment }
+                            onViewDetail = { onSelect(item.id) }
                         )
                     }
                 }
@@ -897,145 +892,20 @@ private fun EquipmentSelectionDialog(
             }
         }
     )
-
-    showDetailEquipment?.let { equipment ->
-        val rarityColor = when (equipment.rarity) {
-            1 -> Color(0xFF95A5A6)
-            2 -> Color(0xFF27AE60)
-            3 -> Color(0xFF3498DB)
-            4 -> Color(0xFF9B59B6)
-            5 -> Color(0xFFF39C12)
-            6 -> Color(0xFFE74C3C)
-            else -> Color(0xFF95A5A6)
-        }
-        AlertDialog(
-            onDismissRequest = { showDetailEquipment = null },
-            containerColor = GameColors.PageBackground,
-            title = {
-                Text(
-                    text = equipment.name,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = rarityColor
-                )
-            },
-            text = {
-                Column {
-                    Text(
-                        text = getRarityText(equipment.rarity),
-                        fontSize = 11.sp,
-                        color = Color(0xFF666666)
-                    )
-                    if (equipment.minRealm < 9) {
-                        Text(
-                            text = "需求境界：${com.xianxia.sect.core.GameConfig.Realm.getName(equipment.minRealm)}",
-                            fontSize = 11.sp,
-                            color = Color(0xFFE74C3C)
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = equipment.description,
-                        fontSize = 12.sp,
-                        color = Color(0xFF333333)
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    Text("部位：${equipment.slot.displayName}", fontSize = 11.sp, color = Color(0xFF666666))
-                    if (equipment.nurtureLevel > 0) {
-                        Text("孕养等级：Lv.${equipment.nurtureLevel}", fontSize = 11.sp, color = Color(0xFF666666))
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    Text("属性：", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF3498DB))
-                    Spacer(modifier = Modifier.height(4.dp))
-                    
-                    val finalStats = equipment.getFinalStats()
-                    if (finalStats.physicalAttack > 0) Text("  物理攻击 +${finalStats.physicalAttack}", fontSize = 11.sp, color = Color(0xFF666666))
-                    if (finalStats.magicAttack > 0) Text("  法术攻击 +${finalStats.magicAttack}", fontSize = 11.sp, color = Color(0xFF666666))
-                    if (finalStats.physicalDefense > 0) Text("  物理防御 +${finalStats.physicalDefense}", fontSize = 11.sp, color = Color(0xFF666666))
-                    if (finalStats.magicDefense > 0) Text("  法术防御 +${finalStats.magicDefense}", fontSize = 11.sp, color = Color(0xFF666666))
-                    if (finalStats.speed > 0) Text("  速度 +${finalStats.speed}", fontSize = 11.sp, color = Color(0xFF666666))
-                    if (finalStats.hp > 0) Text("  生命 +${finalStats.hp}", fontSize = 11.sp, color = Color(0xFF666666))
-                    if (finalStats.mp > 0) Text("  灵力 +${finalStats.mp}", fontSize = 11.sp, color = Color(0xFF666666))
-                    if (equipment.critChance > 0) Text("  暴击率 +${GameUtils.formatPercent(equipment.critChance)}", fontSize = 11.sp, color = Color(0xFF666666))
-                }
-            },
-            confirmButton = {}
-        )
-    }
 }
 
-@Composable
-private fun EquipmentSelectionCard(
-    equipment: EquipmentInstance,
-    isSelected: Boolean = false,
-    onSelect: () -> Unit = {},
-    onViewDetail: () -> Unit = {}
-) {
-    val rarityColor = when (equipment.rarity) {
-        1 -> Color(0xFF95A5A6)
-        2 -> Color(0xFF27AE60)
-        3 -> Color(0xFF3498DB)
-        4 -> Color(0xFF9B59B6)
-        5 -> Color(0xFFF39C12)
-        6 -> Color(0xFFE74C3C)
-        else -> Color(0xFF95A5A6)
-    }
-    
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .aspectRatio(1f)
-            .clip(RoundedCornerShape(6.dp))
-            .border(
-                width = if (isSelected) 3.dp else 2.dp,
-                color = if (isSelected) Color(0xFFFFD700) else rarityColor,
-                shape = RoundedCornerShape(6.dp)
-            )
-            .background(if (isSelected) Color(0xFFFFF8E1) else GameColors.PageBackground)
-            .clickable { onSelect() }
-            .padding(8.dp)
-    ) {
-        Text(
-            text = equipment.name,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold,
-            color = rarityColor,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Center,
-            modifier = Modifier
-                .align(Alignment.Center)
-                .padding(horizontal = 2.dp)
-        )
-
-        if (isSelected) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .offset(x = (-2).dp, y = 2.dp)
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(Color(0xFFFFD700))
-                    .clickable { onViewDetail() }
-                    .padding(horizontal = 6.dp, vertical = 2.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "查看",
-                    fontSize = 8.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-            }
-        }
-    }
-}
+private data class EquipmentSelectionItem(
+    val id: String,
+    val name: String,
+    val rarity: Int,
+    val quantity: Int,
+    val isLocked: Boolean,
+    val isStack: Boolean
+)
 
 @Composable
 private fun ManualSelectionDialog(
+    manualStacks: List<ManualStack>,
     allManuals: List<ManualInstance>,
     currentManualIds: List<String>,
     currentDiscipleId: String,
@@ -1045,17 +915,13 @@ private fun ManualSelectionDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    val availableManuals = remember(allManuals, currentManualIds, currentDiscipleId, discipleRealm) {
+    val availableManualStacks = remember(manualStacks, allManuals, currentManualIds, discipleRealm) {
         val hasMindManual = currentManualIds.any { mid -> allManuals.find { it.id == mid }?.type == ManualType.MIND }
-        allManuals.filter { manual ->
-            manual.id !in currentManualIds &&
-            (manual.ownerId == null || manual.ownerId == currentDiscipleId) &&
-            !(hasMindManual && manual.type == ManualType.MIND) &&
-            GameConfig.Realm.meetsRealmRequirement(discipleRealm, manual.minRealm)
+        manualStacks.filter { stack ->
+            !(hasMindManual && stack.type == ManualType.MIND) &&
+            GameConfig.Realm.meetsRealmRequirement(discipleRealm, stack.minRealm)
         }.sortedByDescending { it.rarity }
     }
-
-    var showDetailManual by remember { mutableStateOf<ManualInstance?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1089,7 +955,7 @@ private fun ManualSelectionDialog(
             }
         },
         text = {
-            if (availableManuals.isEmpty()) {
+            if (availableManualStacks.isEmpty()) {
                 Text(
                     text = "暂无可学习的功法",
                     fontSize = 12.sp,
@@ -1098,22 +964,29 @@ private fun ManualSelectionDialog(
                 )
             } else {
                 LazyVerticalGrid(
-                    columns = GridCells.Fixed(5),
+                    columns = GridCells.Adaptive(56.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = 400.dp)
-                        .padding(horizontal = 4.dp),
+                        .heightIn(max = 400.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    items(availableManuals, key = { it.id }) { manual ->
-                        ManualSelectionCard(
-                            manual = manual,
-                            isSelected = selectedManualId == manual.id,
-                            onSelect = {
-                                onSelect(if (selectedManualId == manual.id) "" else manual.id)
+                    items(availableManualStacks, key = { it.id }) { stack ->
+                        UnifiedItemCard(
+                            data = ItemCardData(
+                                id = stack.id,
+                                name = stack.name,
+                                rarity = stack.rarity,
+                                quantity = stack.quantity,
+                                grade = getRarityName(stack.rarity),
+                                isLocked = stack.isLocked
+                            ),
+                            isSelected = selectedManualId == stack.id,
+                            showViewButton = true,
+                            onClick = {
+                                onSelect(stack.id)
                             },
-                            onViewDetail = { showDetailManual = manual }
+                            onViewDetail = { onSelect(stack.id) }
                         )
                     }
                 }
@@ -1130,325 +1003,6 @@ private fun ManualSelectionDialog(
                 GameButton(
                     text = "确认学习",
                     onClick = onConfirm,
-                    enabled = selectedManualId != null
-                )
-            }
-        }
-    )
-
-    showDetailManual?.let { manual ->
-        val rarityColor = when (manual.rarity) {
-            1 -> Color(0xFF95A5A6)
-            2 -> Color(0xFF27AE60)
-            3 -> Color(0xFF3498DB)
-            4 -> Color(0xFF9B59B6)
-            5 -> Color(0xFFF39C12)
-            6 -> Color(0xFFE74C3C)
-            else -> Color(0xFF95A5A6)
-        }
-        AlertDialog(
-            onDismissRequest = { showDetailManual = null },
-            containerColor = GameColors.PageBackground,
-            title = {
-                Text(
-                    text = manual.name,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = rarityColor
-                )
-            },
-            text = {
-                Column {
-                    Text(
-                        text = getRarityText(manual.rarity),
-                        fontSize = 11.sp,
-                        color = Color(0xFF666666)
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = manual.description,
-                        fontSize = 12.sp,
-                        color = Color(0xFF333333)
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Text("类型：${manual.type.displayName}", fontSize = 11.sp, color = Color(0xFF666666))
-                    if (manual.minRealm < 9) {
-                        Text("需求境界：${com.xianxia.sect.core.GameConfig.Realm.getName(manual.minRealm)}", fontSize = 11.sp, color = Color(0xFF666666))
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    val stats = manual.stats
-                    if (stats.isNotEmpty()) {
-                        Text("属性加成：", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF3498DB))
-                        Spacer(modifier = Modifier.height(4.dp))
-                        stats.forEach { (key, value) ->
-                            val statName = when (key) {
-                                "cultivationSpeedPercent" -> "修炼速度"
-                                "physicalAttack" -> "物理攻击"
-                                "magicAttack" -> "法术攻击"
-                                "physicalDefense" -> "物理防御"
-                                "magicDefense" -> "法术防御"
-                                "hp" -> "生命"
-                                "mp" -> "灵力"
-                                "speed" -> "速度"
-                                "critRate" -> "暴击率"
-                                else -> key
-                            }
-                            if (key.contains("Percent")) {
-                                Text("  $statName +$value%", fontSize = 11.sp, color = Color(0xFF666666))
-                            } else {
-                                Text("  $statName +$value", fontSize = 11.sp, color = Color(0xFF666666))
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
-                    }
-
-                    manual.skill?.let { skill ->
-                        Text("技能：${skill.name}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF3498DB))
-                        if (skill.description.isNotEmpty()) {
-                            Text("  ${skill.description}", fontSize = 11.sp, color = Color(0xFF333333))
-                        }
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text("  伤害类型：${if (skill.damageType == com.xianxia.sect.core.DamageType.PHYSICAL) "物理" else "法术"}", fontSize = 11.sp, color = Color(0xFF666666))
-                        Text("  伤害倍率：${GameUtils.formatPercent(skill.damageMultiplier)}", fontSize = 11.sp, color = Color(0xFF666666))
-                        Text("  连击次数：${skill.hits}", fontSize = 11.sp, color = Color(0xFF666666))
-                        Text("  冷却回合：${skill.cooldown}", fontSize = 11.sp, color = Color(0xFF666666))
-                        Text("  灵力消耗：${skill.mpCost}", fontSize = 11.sp, color = Color(0xFF666666))
-                    }
-                }
-            },
-            confirmButton = {}
-        )
-    }
-}
-
-@Composable
-private fun ManualSelectionCard(
-    manual: ManualInstance,
-    isSelected: Boolean,
-    onSelect: () -> Unit,
-    onViewDetail: () -> Unit
-) {
-    val rarityColor = when (manual.rarity) {
-        1 -> Color(0xFF95A5A6)
-        2 -> Color(0xFF27AE60)
-        3 -> Color(0xFF3498DB)
-        4 -> Color(0xFF9B59B6)
-        5 -> Color(0xFFF39C12)
-        6 -> Color(0xFFE74C3C)
-        else -> Color(0xFF95A5A6)
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .aspectRatio(1f)
-            .clip(RoundedCornerShape(6.dp))
-            .border(
-                width = if (isSelected) 3.dp else 2.dp,
-                color = if (isSelected) Color(0xFFFFD700) else rarityColor,
-                shape = RoundedCornerShape(6.dp)
-            )
-            .background(if (isSelected) Color(0xFFFFF8E1) else GameColors.PageBackground)
-            .clickable { onSelect() }
-            .padding(8.dp)
-    ) {
-        Text(
-            text = manual.name,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold,
-            color = rarityColor,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Center,
-            modifier = Modifier
-                .align(Alignment.Center)
-                .padding(horizontal = 2.dp)
-        )
-
-        if (isSelected) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .offset(x = (-2).dp, y = 2.dp)
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(Color(0xFFFFD700))
-                    .clickable { onViewDetail() }
-                    .padding(horizontal = 6.dp, vertical = 2.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "查看",
-                    fontSize = 8.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ManualReplaceDialog(
-    currentManual: ManualInstance,
-    allManuals: List<ManualInstance>,
-    currentManualIds: List<String>,
-    onSelect: (String) -> Unit,
-    onForget: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    val availableManuals = remember(allManuals, currentManualIds) {
-        allManuals.filter { it.id !in currentManualIds }.sortedByDescending { it.rarity }
-    }
-    
-    var selectedManualId by remember { mutableStateOf<String?>(null) }
-    
-    val rarityColor = when (currentManual.rarity) {
-        1 -> Color(0xFF95A5A6)
-        2 -> Color(0xFF27AE60)
-        3 -> Color(0xFF3498DB)
-        4 -> Color(0xFF9B59B6)
-        5 -> Color(0xFFF39C12)
-        6 -> Color(0xFFE74C3C)
-        else -> Color(0xFF95A5A6)
-    }
-    
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
-        title = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "功法操作",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-                Box(
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clip(CircleShape)
-                        .clickable { onDismiss() }
-                        .background(GameColors.CardBackground),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "×",
-                        fontSize = 16.sp,
-                        color = Color(0xFF666666)
-                    )
-                }
-            }
-        },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 400.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(
-                    text = "当前功法: ${currentManual.name}",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = rarityColor
-                )
-                
-                HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
-                
-                Text(
-                    text = "选择新功法进行更换:",
-                    fontSize = 12.sp,
-                    color = Color.Black
-                )
-                
-                if (availableManuals.isEmpty()) {
-                    Text(
-                        text = "暂无可更换的功法",
-                        fontSize = 12.sp,
-                        color = Color(0xFF999999)
-                    )
-                } else {
-                    availableManuals.forEach { manual ->
-                        val manualRarityColor = when (manual.rarity) {
-                            1 -> Color(0xFF95A5A6)
-                            2 -> Color(0xFF27AE60)
-                            3 -> Color(0xFF3498DB)
-                            4 -> Color(0xFF9B59B6)
-                            5 -> Color(0xFFF39C12)
-                            6 -> Color(0xFFE74C3C)
-                            else -> Color(0xFF95A5A6)
-                        }
-                        
-                        val isSelected = selectedManualId == manual.id
-                        
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(if (isSelected) Color(0xFFE3F2FD) else GameColors.PageBackground)
-                                .border(
-                                    width = if (isSelected) 2.dp else 1.dp,
-                                    color = if (isSelected) Color(0xFF2196F3) else GameColors.Border,
-                                    shape = RoundedCornerShape(6.dp)
-                                )
-                                .clickable { selectedManualId = manual.id }
-                                .padding(12.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column {
-                                    Text(
-                                        text = manual.name,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = manualRarityColor
-                                    )
-                                    Text(
-                                        text = getRarityText(manual.rarity),
-                                        fontSize = 10.sp,
-                                        color = manualRarityColor
-                                    )
-                                }
-                                Text(
-                                    text = "修炼速度+${(manual.cultivationSpeedPercent)}%",
-                                    fontSize = 10.sp,
-                                    color = Color(0xFF666666)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                GameButton(
-                    text = "取消",
-                    onClick = onDismiss
-                )
-                GameButton(
-                    text = "遗忘",
-                    onClick = onForget
-                )
-                GameButton(
-                    text = "更换",
-                    onClick = { 
-                        selectedManualId?.let { onSelect(it) }
-                    },
                     enabled = selectedManualId != null
                 )
             }
@@ -2157,17 +1711,6 @@ private fun InfoRow(label: String, value: String) {
             fontWeight = FontWeight.Bold,
             color = Color.Black
         )
-    }
-}
-
-private fun getRarityText(rarity: Int): String {
-    return when (rarity) {
-        1 -> "普通"
-        2 -> "优秀"
-        3 -> "稀有"
-        4 -> "史诗"
-        5 -> "传说"
-        else -> "普通"
     }
 }
 

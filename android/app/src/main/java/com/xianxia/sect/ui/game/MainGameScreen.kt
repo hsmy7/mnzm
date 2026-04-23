@@ -246,6 +246,8 @@ fun MainGameScreen(
                         disciples = aliveDisciples.value,
                         equipment = equipment,
                         manuals = manuals,
+                        manualStacks = manualStacks,
+                        equipmentStacks = equipmentStacks,
                         viewModel = viewModel
                     )
                     MainTab.BUILDINGS -> BuildingsTab(viewModel = viewModel, productionViewModel = productionViewModel)
@@ -959,6 +961,8 @@ private fun DisciplesTab(
     disciples: List<DiscipleAggregate>,
     equipment: List<EquipmentInstance>,
     manuals: List<ManualInstance>,
+    manualStacks: List<ManualStack>,
+    equipmentStacks: List<EquipmentStack>,
     viewModel: GameViewModel
 ) {
     var selectedRealmFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
@@ -1048,6 +1052,8 @@ private fun DisciplesTab(
             allDisciples = disciples,
             allEquipment = equipment,
             allManuals = manuals,
+            manualStacks = manualStacks,
+            equipmentStacks = equipmentStacks,
             manualProficiencies = gameData?.manualProficiencies ?: emptyMap(),
             viewModel = viewModel,
             onDismiss = { selectedDisciple = null },
@@ -2372,6 +2378,8 @@ private fun ExplorationTeamDialog(
     val disciples by viewModel.discipleAggregates.collectAsState()
     val equipment by viewModel.equipment.collectAsState()
     val manuals by viewModel.manuals.collectAsState()
+    val manualStacks by viewModel.manualStacks.collectAsState()
+    val equipmentStacks by viewModel.equipmentStacks.collectAsState()
     val gameData by viewModel.gameData.collectAsState()
     val battleLogs by viewModel.battleLogs.collectAsState()
     var selectedDisciple by remember { mutableStateOf<DiscipleAggregate?>(null) }
@@ -2580,6 +2588,8 @@ private fun ExplorationTeamDialog(
             allDisciples = disciples,
             allEquipment = equipment,
             allManuals = manuals,
+            manualStacks = manualStacks,
+            equipmentStacks = equipmentStacks,
             manualProficiencies = gameData?.manualProficiencies ?: emptyMap(),
             viewModel = viewModel,
             onDismiss = { selectedDisciple = null },
