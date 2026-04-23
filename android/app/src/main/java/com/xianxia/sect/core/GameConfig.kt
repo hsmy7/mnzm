@@ -117,6 +117,7 @@ object GameConfig {
         fun get(rarity: Int): RarityConfig = CONFIGS[rarity] ?: CONFIGS.getValue(1)
         
         const val PRICE_MULTIPLIER = 0.9
+        const val SELL_PRICE_MULTIPLIER = 0.8
         
         fun getColor(rarity: Int): String = get(rarity).color
         

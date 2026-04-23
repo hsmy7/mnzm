@@ -1,5 +1,22 @@
 # 模拟宗门 - 更新日志
 
+## [2.3.33] - 2026-04-24
+
+### 修复
+- 修复售卖价格计算整数溢出漏洞（天品物品大量出售时 basePrice * quantity 超出 Int 范围）
+- 修复 buyMerchantItem 中 cost 计算可能溢出的问题
+- 修复 InventoryScreen 中 totalValue 使用 Int 类型可能溢出的问题
+
+### 改进
+- 售卖价格乘数 0.8 提取为 GameConfig.Rarity.SELL_PRICE_MULTIPLIER 常量，消除全项目硬编码
+- addSpiritStones 参数类型从 Int 改为 Long，与 spiritStones 字段类型一致
+- 提取 calculateSellPrice 辅助方法，消除 6 个 sell 方法中重复的价格计算逻辑
+- SuspendableSellOperation 重构：displayName 和 price 计算逻辑提取到基类，消除 6 个子类重复代码
+- SellConfirmDialog 移除未使用的 itemId/itemType 参数
+- SellConfirmDialog 数量输入框添加键盘完成动作和焦点丢失自动退出编辑模式
+- bulkSellItems 添加成功反馈消息（显示出售件数和获得灵石数）
+- 移除 bulkSellItems 中未使用的 learnedManualIds 变量
+
 ## [2.3.32] - 2026-04-24
 
 ### 改进

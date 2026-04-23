@@ -706,19 +706,12 @@ class GameViewModel @Inject constructor(
         }
         return result
     }
-
-    // 一键出售物品（原子性操作，排除锁定物品）
     fun bulkSellItems(
         selectedRarities: Set<Int>,
         selectedTypes: Set<String>
     ) {
         viewModelScope.launch {
             try {
-                val learnedManualIds = mutableSetOf<String>()
-                disciples.value.filter { it.isAlive }.forEach { disciple ->
-                    learnedManualIds.addAll(disciple.manualIds)
-                }
-                
                 val sellOperations = mutableListOf<SuspendableSellOperation>()
                 
                 if (selectedTypes.contains("EQUIPMENT")) {
@@ -726,7 +719,7 @@ class GameViewModel @Inject constructor(
                         selectedRarities.contains(it.rarity) && 
                         !it.isLocked
                     }.forEach { item ->
-                        sellOperations.add(SuspendableSellOperation.Equipment(item.id, item.name, item.quantity, (item.basePrice.toLong() * item.quantity * 0.8).toInt()))
+                        sellOperations.add(SuspendableSellOperation.Equipment(item.id, item.name, item.quantity, (item.basePrice.toLong() * item.quantity * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).toLong()))
                     }
                 }
 
@@ -735,7 +728,7 @@ class GameViewModel @Inject constructor(
                         selectedRarities.contains(it.rarity) && 
                         !it.isLocked
                     }.forEach { item ->
-                        sellOperations.add(SuspendableSellOperation.Manual(item.id, item.name, item.quantity, (item.basePrice.toLong() * item.quantity * 0.8).toInt()))
+                        sellOperations.add(SuspendableSellOperation.Manual(item.id, item.name, item.quantity, (item.basePrice.toLong() * item.quantity * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).toLong()))
                     }
                 }
 
@@ -743,7 +736,7 @@ class GameViewModel @Inject constructor(
                     pills.value.filter { 
                         selectedRarities.contains(it.rarity) && !it.isLocked
                     }.forEach { item ->
-                        sellOperations.add(SuspendableSellOperation.Pill(item.id, item.name, item.quantity, (item.basePrice.toLong() * item.quantity * 0.8).toInt()))
+                        sellOperations.add(SuspendableSellOperation.Pill(item.id, item.name, item.quantity, (item.basePrice.toLong() * item.quantity * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).toLong()))
                     }
                 }
 
@@ -751,7 +744,7 @@ class GameViewModel @Inject constructor(
                     materials.value.filter { 
                         selectedRarities.contains(it.rarity) && !it.isLocked
                     }.forEach { item ->
-                        sellOperations.add(SuspendableSellOperation.Material(item.id, item.name, item.quantity, (item.basePrice.toLong() * item.quantity * 0.8).toInt()))
+                        sellOperations.add(SuspendableSellOperation.Material(item.id, item.name, item.quantity, (item.basePrice.toLong() * item.quantity * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).toLong()))
                     }
                 }
 
@@ -759,7 +752,7 @@ class GameViewModel @Inject constructor(
                     herbs.value.filter { 
                         selectedRarities.contains(it.rarity) && !it.isLocked
                     }.forEach { item ->
-                        sellOperations.add(SuspendableSellOperation.Herb(item.id, item.name, item.quantity, (item.basePrice.toLong() * item.quantity * 0.8).toInt()))
+                        sellOperations.add(SuspendableSellOperation.Herb(item.id, item.name, item.quantity, (item.basePrice.toLong() * item.quantity * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).toLong()))
                     }
                 }
 
@@ -767,7 +760,7 @@ class GameViewModel @Inject constructor(
                     seeds.value.filter { 
                         selectedRarities.contains(it.rarity) && !it.isLocked
                     }.forEach { item ->
-                        sellOperations.add(SuspendableSellOperation.Seed(item.id, item.name, item.quantity, (item.basePrice.toLong() * item.quantity * 0.8).toInt()))
+                        sellOperations.add(SuspendableSellOperation.Seed(item.id, item.name, item.quantity, (item.basePrice.toLong() * item.quantity * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).toLong()))
                     }
                 }
 
@@ -777,6 +770,7 @@ class GameViewModel @Inject constructor(
                 }
 
                 val soldItems = mutableListOf<String>()
+                var totalEarned = 0L
                 
                 try {
                     for (op in sellOperations) {
@@ -803,7 +797,11 @@ class GameViewModel @Inject constructor(
                         
                         if (success) {
                             soldItems.add(op.displayName)
+                            totalEarned += op.price
                         }
+                    }
+                    if (soldItems.isNotEmpty()) {
+                        _successMessage.value = "成功出售 ${soldItems.size} 件物品，获得 $totalEarned 灵石"
                     }
                 } catch (e: Exception) {
                     _errorMessage.value = "出售过程中发生错误: ${e.message}"
@@ -816,27 +814,18 @@ class GameViewModel @Inject constructor(
     
     private sealed class SuspendableSellOperation {
         abstract val id: String
-        abstract val displayName: String
-        abstract val price: Int
+        abstract val name: String
+        abstract val quantity: Int
+        abstract val price: Long
         
-        data class Equipment(override val id: String, val name: String, val quantity: Int, override val price: Int) : SuspendableSellOperation() {
-            override val displayName: String = if (quantity > 1) "$name x$quantity" else name
-        }
-        data class Manual(override val id: String, val name: String, val quantity: Int, override val price: Int) : SuspendableSellOperation() {
-            override val displayName: String = "$name x$quantity"
-        }
-        data class Pill(override val id: String, val name: String, val quantity: Int, override val price: Int) : SuspendableSellOperation() {
-            override val displayName: String = "$name x$quantity"
-        }
-        data class Material(override val id: String, val name: String, val quantity: Int, override val price: Int) : SuspendableSellOperation() {
-            override val displayName: String = "$name x$quantity"
-        }
-        data class Herb(override val id: String, val name: String, val quantity: Int, override val price: Int) : SuspendableSellOperation() {
-            override val displayName: String = "$name x$quantity"
-        }
-        data class Seed(override val id: String, val name: String, val quantity: Int, override val price: Int) : SuspendableSellOperation() {
-            override val displayName: String = "$name x$quantity"
-        }
+        val displayName: String get() = if (quantity > 1) "$name x$quantity" else name
+        
+        data class Equipment(override val id: String, override val name: String, override val quantity: Int, override val price: Long) : SuspendableSellOperation()
+        data class Manual(override val id: String, override val name: String, override val quantity: Int, override val price: Long) : SuspendableSellOperation()
+        data class Pill(override val id: String, override val name: String, override val quantity: Int, override val price: Long) : SuspendableSellOperation()
+        data class Material(override val id: String, override val name: String, override val quantity: Int, override val price: Long) : SuspendableSellOperation()
+        data class Herb(override val id: String, override val name: String, override val quantity: Int, override val price: Long) : SuspendableSellOperation()
+        data class Seed(override val id: String, override val name: String, override val quantity: Int, override val price: Long) : SuspendableSellOperation()
     }
 
     fun getEquipmentById(id: String): EquipmentInstance? {

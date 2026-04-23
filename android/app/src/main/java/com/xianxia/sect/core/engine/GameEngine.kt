@@ -1441,7 +1441,7 @@ class GameEngine @Inject constructor(
 
     suspend fun buyMerchantItem(itemId: String, quantity: Int) {
         val merchantItem = stateStore.gameData.value.travelingMerchantItems.find { it.id == itemId } ?: return
-        val cost = merchantItem.price * quantity
+        val cost = merchantItem.price.toLong() * quantity
         if (stateStore.gameData.value.spiritStones < cost || quantity > merchantItem.quantity) return
 
         when (merchantItem.type.lowercase(java.util.Locale.getDefault())) {
@@ -1557,7 +1557,7 @@ class GameEngine @Inject constructor(
                     type = "equipment",
                     itemId = itemId,
                     rarity = eqStack.rarity,
-                    price = (eqStack.basePrice * 0.8).toInt(),
+                    price = (eqStack.basePrice * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).toInt(),
                     quantity = quantity
                 ))
                 return@forEach
@@ -1571,7 +1571,7 @@ class GameEngine @Inject constructor(
                     type = "manual",
                     itemId = itemId,
                     rarity = manualStack.rarity,
-                    price = (manualStack.basePrice * 0.8).toInt(),
+                    price = (manualStack.basePrice * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).toInt(),
                     quantity = quantity
                 ))
                 return@forEach
@@ -1585,7 +1585,7 @@ class GameEngine @Inject constructor(
                     type = "pill",
                     itemId = itemId,
                     rarity = pill.rarity,
-                    price = (pill.basePrice * 0.8).toInt(),
+                    price = (pill.basePrice * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).toInt(),
                     quantity = quantity
                 ))
                 return@forEach
@@ -1599,7 +1599,7 @@ class GameEngine @Inject constructor(
                     type = "material",
                     itemId = itemId,
                     rarity = material.rarity,
-                    price = (material.basePrice * 0.8).toInt(),
+                    price = (material.basePrice * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).toInt(),
                     quantity = quantity
                 ))
                 return@forEach
@@ -1613,7 +1613,7 @@ class GameEngine @Inject constructor(
                     type = "herb",
                     itemId = itemId,
                     rarity = herb.rarity,
-                    price = (herb.basePrice * 0.8).toInt(),
+                    price = (herb.basePrice * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).toInt(),
                     quantity = quantity
                 ))
                 return@forEach
@@ -1627,7 +1627,7 @@ class GameEngine @Inject constructor(
                     type = "seed",
                     itemId = itemId,
                     rarity = seed.rarity,
-                    price = (seed.basePrice * 0.8).toInt(),
+                    price = (seed.basePrice * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).toInt(),
                     quantity = quantity
                 ))
                 return@forEach
@@ -1803,12 +1803,16 @@ class GameEngine @Inject constructor(
         }
     }
 
+    private fun calculateSellPrice(basePrice: Int, quantity: Int): Long {
+        return (basePrice.toLong() * quantity * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).toLong()
+    }
+
     fun sellEquipment(equipmentId: String, quantity: Int = 1): Boolean {
         val stack = stateStore.equipmentStacks.value.find { it.id == equipmentId } ?: return false
         if (stack.isLocked) return false
         if (quantity < 1 || quantity > stack.quantity) return false
         if (!inventorySystem.removeEquipment(equipmentId, quantity)) return false
-        addSpiritStones((stack.basePrice.toLong() * quantity * 0.8).toInt())
+        addSpiritStones(calculateSellPrice(stack.basePrice, quantity))
         return true
     }
 
@@ -1817,7 +1821,7 @@ class GameEngine @Inject constructor(
         if (stack.isLocked) return false
         if (quantity < 1 || quantity > stack.quantity) return false
         if (!inventorySystem.removeManual(manualId, quantity)) return false
-        addSpiritStones((stack.basePrice.toLong() * quantity * 0.8).toInt())
+        addSpiritStones(calculateSellPrice(stack.basePrice, quantity))
         return true
     }
 
@@ -1826,7 +1830,7 @@ class GameEngine @Inject constructor(
         if (pill.isLocked) return false
         if (quantity < 1 || quantity > pill.quantity) return false
         if (!inventorySystem.removePill(pillId, quantity)) return false
-        addSpiritStones((pill.basePrice.toLong() * quantity * 0.8).toInt())
+        addSpiritStones(calculateSellPrice(pill.basePrice, quantity))
         return true
     }
 
@@ -1835,7 +1839,7 @@ class GameEngine @Inject constructor(
         if (material.isLocked) return false
         if (quantity < 1 || quantity > material.quantity) return false
         if (!inventorySystem.removeMaterial(materialId, quantity)) return false
-        addSpiritStones((material.basePrice.toLong() * quantity * 0.8).toInt())
+        addSpiritStones(calculateSellPrice(material.basePrice, quantity))
         return true
     }
 
@@ -1844,7 +1848,7 @@ class GameEngine @Inject constructor(
         if (herb.isLocked) return false
         if (quantity < 1 || quantity > herb.quantity) return false
         if (!inventorySystem.removeHerb(herbId, quantity)) return false
-        addSpiritStones((herb.basePrice.toLong() * quantity * 0.8).toInt())
+        addSpiritStones(calculateSellPrice(herb.basePrice, quantity))
         return true
     }
 
@@ -1853,7 +1857,7 @@ class GameEngine @Inject constructor(
         if (seed.isLocked) return false
         if (quantity < 1 || quantity > seed.quantity) return false
         if (!inventorySystem.removeSeed(seedId, quantity)) return false
-        addSpiritStones((seed.basePrice.toLong() * quantity * 0.8).toInt())
+        addSpiritStones(calculateSellPrice(seed.basePrice, quantity))
         return true
     }
 
@@ -1884,7 +1888,7 @@ class GameEngine @Inject constructor(
         }
     }
 
-    fun addSpiritStones(amount: Int) {
+    fun addSpiritStones(amount: Long) {
         updateGameDataSync { it.copy(spiritStones = it.spiritStones + amount) }
     }
 
@@ -1954,7 +1958,7 @@ class GameEngine @Inject constructor(
     }
 
     private fun applyMissionResult(result: MissionSystem.MissionResult) {
-        if (result.spiritStones > 0) addSpiritStones(result.spiritStones)
+        if (result.spiritStones > 0) addSpiritStones(result.spiritStones.toLong())
         result.materials.forEach { inventorySystem.addMaterial(it) }
     }
 

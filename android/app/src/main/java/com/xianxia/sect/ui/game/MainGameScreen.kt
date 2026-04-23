@@ -41,6 +41,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.xianxia.sect.core.GameConfig
@@ -4092,8 +4093,6 @@ private fun WarehouseTab(viewModel: GameViewModel) {
             if (showSellDialog) {
                 SellConfirmDialog(
                     itemName = itemName,
-                    itemId = itemId,
-                    itemType = itemType,
                     maxQuantity = itemQuantity,
                     basePrice = basePrice,
                     onConfirm = { quantity ->
@@ -4324,8 +4323,6 @@ private fun DiscipleSelectForRewardDialog(
 @Composable
 private fun SellConfirmDialog(
     itemName: String,
-    itemId: String,
-    itemType: String,
     maxQuantity: Int,
     basePrice: Int,
     onConfirm: (Int) -> Unit,
@@ -4343,7 +4340,7 @@ private fun SellConfirmDialog(
         }
     }
 
-    val totalPrice = (basePrice.toLong() * sellQuantity * 0.8).toInt()
+    val totalPrice = (basePrice.toLong() * sellQuantity * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).toLong()
 
     LaunchedEffect(isEditingQuantity) {
         if (isEditingQuantity) {
@@ -4441,7 +4438,13 @@ private fun SellConfirmDialog(
                             },
                             modifier = Modifier
                                 .width(80.dp)
-                                .focusRequester(focusRequester),
+                                .focusRequester(focusRequester)
+                                .onFocusChanged { focusState ->
+                                    if (!focusState.isFocused && isEditingQuantity) {
+                                        isEditingQuantity = false
+                                        quantityInput = sellQuantity.toString()
+                                    }
+                                },
                             singleLine = true,
                             textStyle = androidx.compose.ui.text.TextStyle(
                                 fontSize = 16.sp,
@@ -4449,7 +4452,14 @@ private fun SellConfirmDialog(
                                 textAlign = TextAlign.Center
                             ),
                             keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                                keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                                keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
+                                imeAction = androidx.compose.ui.text.input.ImeAction.Done
+                            ),
+                            keyboardActions = androidx.compose.foundation.text.KeyboardActions(
+                                onDone = {
+                                    isEditingQuantity = false
+                                    quantityInput = sellQuantity.toString()
+                                }
                             ),
                             colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = GameColors.Primary,
@@ -4514,7 +4524,7 @@ private fun SellConfirmDialog(
                         color = Color(0xFF666666)
                     )
                     Text(
-                        text = "${(basePrice.toLong() * 0.8).toInt()} 灵石",
+                        text = "${(basePrice.toLong() * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).toLong()} 灵石",
                         fontSize = 12.sp,
                         color = Color(0xFF666666)
                     )
