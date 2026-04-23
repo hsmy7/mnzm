@@ -1,5 +1,21 @@
 # 模拟宗门 - 更新日志
 
+## [2.4.0] - 2026-04-24
+
+### 新功能
+- 宗门任务系统全面升级：24个任务模板覆盖4种难度（简单/普通/困难/禁忌）
+- 三种任务类型：无战斗（必定成功）、必战斗（胜负决定奖励）、概率突发战斗（40%-70%触发率）
+- 人型敌人系统：装备0-4件（每槽位最多1件，含孕养等级）、功法0-5本（心法最多1本，含熟练度）
+- 奖励差异化：灵石/材料/丹药/装备/功法按难度递增，概率突发战斗有基础奖励（30%灵石）
+- 弟子准入规则严格化：按难度限制弟子类型和境界（简单=外门无限制，普通=金丹+，困难=内门化神+，禁忌=内门合体+）
+- 执行弟子数量统一为6人
+
+### 修复
+- BattleSystem.createBattle 的 beastLevel 参数现在正确生效（之前被忽略，始终用弟子平均境界）
+- GameEngine 和 CultivationService 现在正确传入 battleSystem，战斗任务不再默认失败
+- 旧存档 MissionTemplate 枚举名兼容（ESCORT→ESCORT_CARAVAN, SUPPRESS_BEASTS→SUPPRESS_LOW_BEASTS, SUPPRESS_BEASTS_NORMAL→SUPPRESS_JINDAN_BEASTS）
+- MissionRewardConfig 序列化完整保存所有字段（丹药/装备/功法/基础奖励）
+
 ## [2.3.33] - 2026-04-24
 
 ### 修复

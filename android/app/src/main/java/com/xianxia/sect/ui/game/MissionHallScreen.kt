@@ -515,7 +515,8 @@ private fun DiscipleSelectionDialog(
         disciple.isAlive &&
         disciple.status == DiscipleStatus.IDLE &&
         disciple.id !in busyDiscipleIds &&
-        disciplePosition in mission.difficulty.allowedPositions
+        disciplePosition in mission.difficulty.allowedPositions &&
+        disciple.realm <= mission.difficulty.minRealm
     }
 
     val spiritRootCounts = remember(eligibleDisciples) {
@@ -547,7 +548,7 @@ private fun DiscipleSelectionDialog(
                     color = Color(0xFF666666)
                 )
                 Text(
-                    text = "要求：${mission.difficulty.allowedPositions.joinToString("/")}，空闲状态",
+                    text = "要求：${mission.difficulty.allowedPositions.joinToString("/")}，${com.xianxia.sect.core.GameConfig.Realm.getName(mission.difficulty.minRealm)}及以上，空闲状态",
                     fontSize = 11.sp,
                     color = Color(0xFF666666)
                 )

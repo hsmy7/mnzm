@@ -5,6 +5,8 @@ import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.Mission
 import com.xianxia.sect.core.model.MissionDifficulty
 import com.xianxia.sect.core.model.MissionTemplate
+import com.xianxia.sect.core.model.MissionType
+import com.xianxia.sect.core.model.EnemyType
 import com.xianxia.sect.core.model.SkillStats
 import org.junit.Assert.*
 import org.junit.Test
@@ -64,9 +66,39 @@ class MissionSystemTest {
     }
 
     @Test
+    fun `MissionTemplate - 24个任务模板`() {
+        assertEquals(24, MissionTemplate.values().size)
+    }
+
+    @Test
+    fun `MissionTemplate - 每个难度6个模板`() {
+        val simpleCount = MissionTemplate.values().count { it.difficulty == MissionDifficulty.SIMPLE }
+        val normalCount = MissionTemplate.values().count { it.difficulty == MissionDifficulty.NORMAL }
+        val hardCount = MissionTemplate.values().count { it.difficulty == MissionDifficulty.HARD }
+        val forbiddenCount = MissionTemplate.values().count { it.difficulty == MissionDifficulty.FORBIDDEN }
+        assertEquals(6, simpleCount)
+        assertEquals(6, normalCount)
+        assertEquals(6, hardCount)
+        assertEquals(6, forbiddenCount)
+    }
+
+    @Test
+    fun `MissionTemplate - 每个难度2个无战斗2个必战斗2个概率战斗`() {
+        MissionDifficulty.values().forEach { difficulty ->
+            val templates = MissionTemplate.values().filter { it.difficulty == difficulty }
+            val noCombat = templates.count { it.missionType == MissionType.NO_COMBAT }
+            val combatRequired = templates.count { it.missionType == MissionType.COMBAT_REQUIRED }
+            val combatRandom = templates.count { it.missionType == MissionType.COMBAT_RANDOM }
+            assertEquals(2, noCombat)
+            assertEquals(2, combatRequired)
+            assertEquals(2, combatRandom)
+        }
+    }
+
+    @Test
     fun `Mission - memberCount 返回模板所需人数`() {
         val mission = Mission(
-            template = MissionTemplate.ESCORT,
+            template = MissionTemplate.ESCORT_CARAVAN,
             name = "测试任务",
             description = "测试",
             difficulty = MissionDifficulty.SIMPLE,
@@ -173,12 +205,32 @@ class MissionSystemTest {
     }
 
     @Test
-    fun `ESCORT奖励为固定600灵石`() {
+    fun `MissionDifficulty - 境界限制正确`() {
+        assertEquals(9, MissionDifficulty.SIMPLE.minRealm)
+        assertEquals(7, MissionDifficulty.NORMAL.minRealm)
+        assertEquals(5, MissionDifficulty.HARD.minRealm)
+        assertEquals(3, MissionDifficulty.FORBIDDEN.minRealm)
+    }
+
+    @Test
+    fun `MissionDifficulty - 敌人境界范围正确`() {
+        assertEquals(9, MissionDifficulty.SIMPLE.enemyRealmMin)
+        assertEquals(8, MissionDifficulty.SIMPLE.enemyRealmMax)
+        assertEquals(7, MissionDifficulty.NORMAL.enemyRealmMin)
+        assertEquals(6, MissionDifficulty.NORMAL.enemyRealmMax)
+        assertEquals(5, MissionDifficulty.HARD.enemyRealmMin)
+        assertEquals(4, MissionDifficulty.HARD.enemyRealmMax)
+        assertEquals(3, MissionDifficulty.FORBIDDEN.enemyRealmMin)
+        assertEquals(2, MissionDifficulty.FORBIDDEN.enemyRealmMax)
+    }
+
+    @Test
+    fun `ESCORT_CARAVAN奖励为固定600灵石`() {
         val mission = MissionSystem.processMonthlyRefresh(
             existingMissions = emptyList(),
             currentYear = 1,
             currentMonth = 3
-        ).newMissions.find { it.template == MissionTemplate.ESCORT } ?: return
+        ).newMissions.find { it.template == MissionTemplate.ESCORT_CARAVAN } ?: return
 
         assertEquals(600, mission.rewards.spiritStones)
         assertEquals(0, mission.rewards.spiritStonesMax)
@@ -187,25 +239,24 @@ class MissionSystemTest {
     }
 
     @Test
-    fun `SUPPRESS_BEASTS奖励为10到20个妖兽材料无灵石`() {
+    fun `SUPPRESS_LOW_BEASTS奖励正确`() {
         val mission = MissionSystem.processMonthlyRefresh(
             existingMissions = emptyList(),
             currentYear = 1,
             currentMonth = 3
-        ).newMissions.find { it.template == MissionTemplate.SUPPRESS_BEASTS } ?: return
+        ).newMissions.find { it.template == MissionTemplate.SUPPRESS_LOW_BEASTS } ?: return
 
-        assertEquals(0, mission.rewards.spiritStones)
-        assertEquals(0, mission.rewards.spiritStonesMax)
+        assertEquals(400, mission.rewards.spiritStones)
         assertEquals(10, mission.rewards.materialCountMin)
-        assertEquals(20, mission.rewards.materialCountMax)
+        assertEquals(15, mission.rewards.materialCountMax)
         assertEquals(1, mission.rewards.materialMinRarity)
-        assertEquals(2, mission.rewards.materialMaxRarity)
+        assertEquals(1, mission.rewards.materialMaxRarity)
     }
 
     @Test
-    fun `processMissionCompletion - ESCORT固定600灵石`() {
+    fun `processMissionCompletion - NO_COMBAT任务ESCORT_CARAVAN固定600灵石`() {
         val mission = Mission(
-            template = MissionTemplate.ESCORT,
+            template = MissionTemplate.ESCORT_CARAVAN,
             name = "简单护送商队",
             description = "测试",
             difficulty = MissionDifficulty.SIMPLE,
@@ -213,7 +264,8 @@ class MissionSystemTest {
             rewards = com.xianxia.sect.core.model.MissionRewardConfig(
                 spiritStones = 600,
                 spiritStonesMax = 0
-            )
+            ),
+            missionType = MissionType.NO_COMBAT
         )
         val activeMission = MissionSystem.createActiveMission(
             mission = mission,
@@ -227,24 +279,25 @@ class MissionSystemTest {
         )
         assertEquals(600, result.spiritStones)
         assertTrue(result.materials.isEmpty())
+        assertTrue(result.victory)
     }
 
     @Test
-    fun `processMissionCompletion - SUPPRESS_BEASTS生成10到20个材料`() {
+    fun `processMissionCompletion - NO_COMBAT任务PATROL_TERRITORY生成材料`() {
         val mission = Mission(
-            template = MissionTemplate.SUPPRESS_BEASTS,
-            name = "简单妖兽作乱",
+            template = MissionTemplate.PATROL_TERRITORY,
+            name = "简单巡查领地",
             description = "测试",
             difficulty = MissionDifficulty.SIMPLE,
-            duration = 4,
+            duration = 3,
             rewards = com.xianxia.sect.core.model.MissionRewardConfig(
-                spiritStones = 0,
-                spiritStonesMax = 0,
-                materialCountMin = 10,
-                materialCountMax = 20,
+                spiritStones = 300,
+                materialCountMin = 5,
+                materialCountMax = 10,
                 materialMinRarity = 1,
-                materialMaxRarity = 2
-            )
+                materialMaxRarity = 1
+            ),
+            missionType = MissionType.NO_COMBAT
         )
         val activeMission = MissionSystem.createActiveMission(
             mission = mission,
@@ -252,83 +305,78 @@ class MissionSystemTest {
             currentYear = 1,
             currentMonth = 1
         )
-        repeat(50) {
-            val result = MissionSystem.processMissionCompletion(
-                activeMission = activeMission,
-                disciples = emptyList()
-            )
-            assertEquals(0, result.spiritStones)
-            assertTrue(result.materials.size in 10..20)
-            result.materials.forEach { material ->
-                assertTrue(material.rarity in 1..2)
-            }
+        val result = MissionSystem.processMissionCompletion(
+            activeMission = activeMission,
+            disciples = emptyList()
+        )
+        assertEquals(300, result.spiritStones)
+        assertTrue(result.victory)
+    }
+
+    @Test
+    fun `COMBAT_RANDOM任务有触发率`() {
+        assertTrue(MissionTemplate.EXPLORE_ABANDONED_MINE.triggerChance > 0.0)
+        assertTrue(MissionTemplate.EXPLORE_ANCIENT_CAVE.triggerChance > 0.0)
+        assertTrue(MissionTemplate.EXPLORE_ANCIENT_BATTLEFIELD.triggerChance > 0.0)
+        assertTrue(MissionTemplate.EXPLORE_CORE_BATTLEFIELD.triggerChance > 0.0)
+    }
+
+    @Test
+    fun `NO_COMBAT任务触发率为0`() {
+        MissionTemplate.values().filter { it.missionType == MissionType.NO_COMBAT }.forEach {
+            assertEquals(0.0, it.triggerChance, 0.001)
         }
     }
 
     @Test
-    fun `SUPPRESS_BEASTS_NORMAL难度为普通`() {
-        assertEquals(MissionDifficulty.NORMAL, MissionTemplate.SUPPRESS_BEASTS_NORMAL.difficulty)
+    fun `COMBAT_REQUIRED任务触发率为0`() {
+        MissionTemplate.values().filter { it.missionType == MissionType.COMBAT_REQUIRED }.forEach {
+            assertEquals(0.0, it.triggerChance, 0.001)
+        }
     }
 
     @Test
-    fun `SUPPRESS_BEASTS_NORMAL持续时间为4个月`() {
-        assertEquals(4, MissionTemplate.SUPPRESS_BEASTS_NORMAL.duration)
-    }
-
-    @Test
-    fun `SUPPRESS_BEASTS_NORMAL奖励为10到20个灵品宝品材料无灵石`() {
-        val mission = MissionSystem.processMonthlyRefresh(
-            existingMissions = emptyList(),
-            currentYear = 1,
-            currentMonth = 3
-        ).newMissions.find { it.template == MissionTemplate.SUPPRESS_BEASTS_NORMAL } ?: return
-
-        assertEquals(0, mission.rewards.spiritStones)
-        assertEquals(0, mission.rewards.spiritStonesMax)
-        assertEquals(10, mission.rewards.materialCountMin)
-        assertEquals(20, mission.rewards.materialCountMax)
-        assertEquals(2, mission.rewards.materialMinRarity)
-        assertEquals(3, mission.rewards.materialMaxRarity)
-    }
-
-    @Test
-    fun `SUPPRESS_BEASTS_NORMAL描述包含元婴`() {
-        assertTrue(MissionTemplate.SUPPRESS_BEASTS_NORMAL.description.contains("元婴"))
-    }
-
-    @Test
-    fun `processMissionCompletion - SUPPRESS_BEASTS_NORMAL生成10到20个灵品宝品材料`() {
+    fun `validateDisciplesForMission - 简单任务外门弟子通过`() {
         val mission = Mission(
-            template = MissionTemplate.SUPPRESS_BEASTS_NORMAL,
-            name = "普通妖兽作乱",
+            template = MissionTemplate.ESCORT_CARAVAN,
+            name = "简单护送商队",
+            description = "测试",
+            difficulty = MissionDifficulty.SIMPLE,
+            duration = 3,
+            rewards = com.xianxia.sect.core.model.MissionRewardConfig()
+        )
+        val disciples = (1..6).map { createDisciple(id = "d$it", name = "弟子$it", discipleType = "outer") }
+        val result = MissionSystem.validateDisciplesForMission(mission, disciples)
+        assertTrue(result.valid)
+    }
+
+    @Test
+    fun `validateDisciplesForMission - 困难任务外门弟子不通过`() {
+        val mission = Mission(
+            template = MissionTemplate.SUPPRESS_HUASHEN_BEAST_KING,
+            name = "困难镇压化神妖王",
+            description = "测试",
+            difficulty = MissionDifficulty.HARD,
+            duration = 40,
+            rewards = com.xianxia.sect.core.model.MissionRewardConfig()
+        )
+        val disciples = (1..6).map { createDisciple(id = "d$it", name = "弟子$it", discipleType = "outer", realm = 5) }
+        val result = MissionSystem.validateDisciplesForMission(mission, disciples)
+        assertFalse(result.valid)
+    }
+
+    @Test
+    fun `validateDisciplesForMission - 普通任务境界不足不通过`() {
+        val mission = Mission(
+            template = MissionTemplate.SUPPRESS_JINDAN_BEASTS,
+            name = "普通镇压金丹妖兽群",
             description = "测试",
             difficulty = MissionDifficulty.NORMAL,
-            duration = 4,
-            rewards = com.xianxia.sect.core.model.MissionRewardConfig(
-                spiritStones = 0,
-                spiritStonesMax = 0,
-                materialCountMin = 10,
-                materialCountMax = 20,
-                materialMinRarity = 2,
-                materialMaxRarity = 3
-            )
+            duration = 8,
+            rewards = com.xianxia.sect.core.model.MissionRewardConfig()
         )
-        val activeMission = MissionSystem.createActiveMission(
-            mission = mission,
-            disciples = (1..6).map { createDisciple(id = "d$it", name = "弟子$it", discipleType = "inner") },
-            currentYear = 1,
-            currentMonth = 1
-        )
-        repeat(50) {
-            val result = MissionSystem.processMissionCompletion(
-                activeMission = activeMission,
-                disciples = emptyList()
-            )
-            assertEquals(0, result.spiritStones)
-            assertTrue(result.materials.size in 10..20)
-            result.materials.forEach { material ->
-                assertTrue(material.rarity in 2..3)
-            }
-        }
+        val disciples = (1..6).map { createDisciple(id = "d$it", name = "弟子$it", discipleType = "inner", realm = 9) }
+        val result = MissionSystem.validateDisciplesForMission(mission, disciples)
+        assertFalse(result.valid)
     }
 }

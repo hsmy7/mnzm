@@ -821,7 +821,22 @@ data class SerializableActiveMission(
     @ProtoNumber(30) val seedCountMin: Int = 0,
     @ProtoNumber(31) val seedCountMax: Int = 0,
     @ProtoNumber(32) val seedMinRarity: Int = 1,
-    @ProtoNumber(33) val seedMaxRarity: Int = 1
+    @ProtoNumber(33) val seedMaxRarity: Int = 1,
+    @ProtoNumber(36) val pillCountMin: Int = 0,
+    @ProtoNumber(37) val pillCountMax: Int = 0,
+    @ProtoNumber(38) val pillMinRarity: Int = 1,
+    @ProtoNumber(39) val pillMaxRarity: Int = 1,
+    @ProtoNumber(40) val equipmentChance: Double = 0.0,
+    @ProtoNumber(41) val equipmentMinRarity: Int = 1,
+    @ProtoNumber(42) val equipmentMaxRarity: Int = 1,
+    @ProtoNumber(43) val manualChance: Double = 0.0,
+    @ProtoNumber(44) val manualMinRarity: Int = 1,
+    @ProtoNumber(45) val manualMaxRarity: Int = 1,
+    @ProtoNumber(46) val baseSpiritStones: Int = 0,
+    @ProtoNumber(47) val baseMaterialCountMin: Int = 0,
+    @ProtoNumber(48) val baseMaterialCountMax: Int = 0,
+    @ProtoNumber(49) val baseMaterialMinRarity: Int = 1,
+    @ProtoNumber(50) val baseMaterialMaxRarity: Int = 1
 )
 
 @Serializable
@@ -857,7 +872,22 @@ data class SerializableMission(
     @ProtoNumber(29) val seedCountMin: Int = 0,
     @ProtoNumber(30) val seedCountMax: Int = 0,
     @ProtoNumber(31) val seedMinRarity: Int = 1,
-    @ProtoNumber(32) val seedMaxRarity: Int = 1
+    @ProtoNumber(32) val seedMaxRarity: Int = 1,
+    @ProtoNumber(36) val pillCountMin: Int = 0,
+    @ProtoNumber(37) val pillCountMax: Int = 0,
+    @ProtoNumber(38) val pillMinRarity: Int = 1,
+    @ProtoNumber(39) val pillMaxRarity: Int = 1,
+    @ProtoNumber(40) val equipmentChance: Double = 0.0,
+    @ProtoNumber(41) val equipmentMinRarity: Int = 1,
+    @ProtoNumber(42) val equipmentMaxRarity: Int = 1,
+    @ProtoNumber(43) val manualChance: Double = 0.0,
+    @ProtoNumber(44) val manualMinRarity: Int = 1,
+    @ProtoNumber(45) val manualMaxRarity: Int = 1,
+    @ProtoNumber(46) val baseSpiritStones: Int = 0,
+    @ProtoNumber(47) val baseMaterialCountMin: Int = 0,
+    @ProtoNumber(48) val baseMaterialCountMax: Int = 0,
+    @ProtoNumber(49) val baseMaterialMinRarity: Int = 1,
+    @ProtoNumber(50) val baseMaterialMaxRarity: Int = 1
 )
 
 @Serializable

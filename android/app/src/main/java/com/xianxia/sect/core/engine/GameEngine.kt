@@ -1924,9 +1924,20 @@ class GameEngine @Inject constructor(
                 if (allDead) {
                     addEvent("任务「${activeMission.missionName}」失败，执行弟子全部阵亡", EventType.WARNING)
                 } else {
-                    val result = MissionSystem.processMissionCompletion(activeMission, aliveDisciples)
+                    val equipMap = stateStore.equipmentInstances.value.associateBy { it.id }
+                    val manualMap = stateStore.manualInstances.value.associateBy { it.id }
+                    val proficiencies = data.manualProficiencies.mapValues { (_, list) ->
+                        list.associateBy { it.manualId }
+                    }
+                    val result = MissionSystem.processMissionCompletion(
+                        activeMission, aliveDisciples, equipMap, manualMap, proficiencies, battleSystem
+                    )
                     applyMissionResult(result)
-                    addEvent("任务「${activeMission.missionName}」已完成，获得奖励", EventType.SUCCESS)
+                    if (result.victory) {
+                        addEvent("任务「${activeMission.missionName}」已完成，获得奖励", EventType.SUCCESS)
+                    } else {
+                        addEvent("任务「${activeMission.missionName}」战斗失败，未获得奖励", EventType.WARNING)
+                    }
                 }
 
                 for (did in activeMission.discipleIds) {
@@ -1960,6 +1971,9 @@ class GameEngine @Inject constructor(
     private fun applyMissionResult(result: MissionSystem.MissionResult) {
         if (result.spiritStones > 0) addSpiritStones(result.spiritStones.toLong())
         result.materials.forEach { inventorySystem.addMaterial(it) }
+        result.pills.forEach { pill -> inventorySystem.addPill(pill) }
+        result.equipmentStacks.forEach { equip -> inventorySystem.addEquipmentStack(equip) }
+        result.manualStacks.forEach { manual -> inventorySystem.addManualStack(manual) }
     }
 
     fun startExploration(name: String, memberIds: List<String>, location: String, duration: Int) {

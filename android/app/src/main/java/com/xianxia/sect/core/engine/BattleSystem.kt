@@ -29,11 +29,15 @@ class BattleSystem @Inject constructor() {
             convertDiscipleToCombatant(disciple, equipmentMap, manualMap, manualProficiencies, CombatantSide.DEFENDER)
         }
 
-        val beastRealm = GameUtils.calculateBeastRealm(
-            disciples,
-            realmExtractor = { it.realm },
-            layerExtractor = { it.realmLayer }
-        )
+        val beastRealm = if (beastLevel in 0..9) {
+            beastLevel
+        } else {
+            GameUtils.calculateBeastRealm(
+                disciples,
+                realmExtractor = { it.realm },
+                layerExtractor = { it.realmLayer }
+            )
+        }
 
         val actualBeastCount = beastCount ?: Random.nextInt(GameConfig.Battle.MIN_BEAST_COUNT, GameConfig.Battle.MAX_BEAST_COUNT + 1)
 

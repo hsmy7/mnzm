@@ -2759,18 +2759,29 @@ class SaveDataConverter @Inject constructor() {
             materialCountMin = mission.rewards.materialCountMin,
             materialCountMax = mission.rewards.materialCountMax,
             materialMinRarity = mission.rewards.materialMinRarity,
-            materialMaxRarity = mission.rewards.materialMaxRarity
+            materialMaxRarity = mission.rewards.materialMaxRarity,
+            pillCountMin = mission.rewards.pillCountMin,
+            pillCountMax = mission.rewards.pillCountMax,
+            pillMinRarity = mission.rewards.pillMinRarity,
+            pillMaxRarity = mission.rewards.pillMaxRarity,
+            equipmentChance = mission.rewards.equipmentChance,
+            equipmentMinRarity = mission.rewards.equipmentMinRarity,
+            equipmentMaxRarity = mission.rewards.equipmentMaxRarity,
+            manualChance = mission.rewards.manualChance,
+            manualMinRarity = mission.rewards.manualMinRarity,
+            manualMaxRarity = mission.rewards.manualMaxRarity,
+            baseSpiritStones = mission.rewards.baseSpiritStones,
+            baseMaterialCountMin = mission.rewards.baseMaterialCountMin,
+            baseMaterialCountMax = mission.rewards.baseMaterialCountMax,
+            baseMaterialMinRarity = mission.rewards.baseMaterialMinRarity,
+            baseMaterialMaxRarity = mission.rewards.baseMaterialMaxRarity
         )
     }
 
     private fun convertBackActiveMission(data: SerializableActiveMission): com.xianxia.sect.core.model.ActiveMission {
         val difficulty = com.xianxia.sect.core.model.MissionDifficulty.entries.getOrNull(data.difficulty)
             ?: com.xianxia.sect.core.model.MissionDifficulty.SIMPLE
-        val template = try {
-            com.xianxia.sect.core.model.MissionTemplate.valueOf(data.missionType)
-        } catch (e: Exception) {
-            com.xianxia.sect.core.model.MissionTemplate.ESCORT
-        }
+        val template = migrateMissionTemplate(data.missionType)
 
         return com.xianxia.sect.core.model.ActiveMission(
             id = data.id,
@@ -2790,8 +2801,26 @@ class SaveDataConverter @Inject constructor() {
                 materialCountMin = data.materialCountMin,
                 materialCountMax = data.materialCountMax,
                 materialMinRarity = data.materialMinRarity,
-                materialMaxRarity = data.materialMaxRarity
-            )
+                materialMaxRarity = data.materialMaxRarity,
+                pillCountMin = data.pillCountMin,
+                pillCountMax = data.pillCountMax,
+                pillMinRarity = data.pillMinRarity,
+                pillMaxRarity = data.pillMaxRarity,
+                equipmentChance = data.equipmentChance,
+                equipmentMinRarity = data.equipmentMinRarity,
+                equipmentMaxRarity = data.equipmentMaxRarity,
+                manualChance = data.manualChance,
+                manualMinRarity = data.manualMinRarity,
+                manualMaxRarity = data.manualMaxRarity,
+                baseSpiritStones = data.baseSpiritStones,
+                baseMaterialCountMin = data.baseMaterialCountMin,
+                baseMaterialCountMax = data.baseMaterialCountMax,
+                baseMaterialMinRarity = data.baseMaterialMinRarity,
+                baseMaterialMaxRarity = data.baseMaterialMaxRarity
+            ),
+            missionType = template.missionType,
+            enemyType = template.enemyType,
+            triggerChance = template.triggerChance
         )
     }
 
@@ -2814,18 +2843,29 @@ class SaveDataConverter @Inject constructor() {
             materialCountMin = mission.rewards.materialCountMin,
             materialCountMax = mission.rewards.materialCountMax,
             materialMinRarity = mission.rewards.materialMinRarity,
-            materialMaxRarity = mission.rewards.materialMaxRarity
+            materialMaxRarity = mission.rewards.materialMaxRarity,
+            pillCountMin = mission.rewards.pillCountMin,
+            pillCountMax = mission.rewards.pillCountMax,
+            pillMinRarity = mission.rewards.pillMinRarity,
+            pillMaxRarity = mission.rewards.pillMaxRarity,
+            equipmentChance = mission.rewards.equipmentChance,
+            equipmentMinRarity = mission.rewards.equipmentMinRarity,
+            equipmentMaxRarity = mission.rewards.equipmentMaxRarity,
+            manualChance = mission.rewards.manualChance,
+            manualMinRarity = mission.rewards.manualMinRarity,
+            manualMaxRarity = mission.rewards.manualMaxRarity,
+            baseSpiritStones = mission.rewards.baseSpiritStones,
+            baseMaterialCountMin = mission.rewards.baseMaterialCountMin,
+            baseMaterialCountMax = mission.rewards.baseMaterialCountMax,
+            baseMaterialMinRarity = mission.rewards.baseMaterialMinRarity,
+            baseMaterialMaxRarity = mission.rewards.baseMaterialMaxRarity
         )
     }
 
     private fun convertBackMission(data: SerializableMission): com.xianxia.sect.core.model.Mission {
         val difficulty = com.xianxia.sect.core.model.MissionDifficulty.entries.getOrNull(data.difficulty)
             ?: com.xianxia.sect.core.model.MissionDifficulty.SIMPLE
-        val template = try {
-            com.xianxia.sect.core.model.MissionTemplate.valueOf(data.type)
-        } catch (e: Exception) {
-            com.xianxia.sect.core.model.MissionTemplate.ESCORT
-        }
+        val template = migrateMissionTemplate(data.type)
 
         return com.xianxia.sect.core.model.Mission(
             id = data.id,
@@ -2840,10 +2880,41 @@ class SaveDataConverter @Inject constructor() {
                 materialCountMin = data.materialCountMin,
                 materialCountMax = data.materialCountMax,
                 materialMinRarity = data.materialMinRarity,
-                materialMaxRarity = data.materialMaxRarity
+                materialMaxRarity = data.materialMaxRarity,
+                pillCountMin = data.pillCountMin,
+                pillCountMax = data.pillCountMax,
+                pillMinRarity = data.pillMinRarity,
+                pillMaxRarity = data.pillMaxRarity,
+                equipmentChance = data.equipmentChance,
+                equipmentMinRarity = data.equipmentMinRarity,
+                equipmentMaxRarity = data.equipmentMaxRarity,
+                manualChance = data.manualChance,
+                manualMinRarity = data.manualMinRarity,
+                manualMaxRarity = data.manualMaxRarity,
+                baseSpiritStones = data.baseSpiritStones,
+                baseMaterialCountMin = data.baseMaterialCountMin,
+                baseMaterialCountMax = data.baseMaterialCountMax,
+                baseMaterialMinRarity = data.baseMaterialMinRarity,
+                baseMaterialMaxRarity = data.baseMaterialMaxRarity
             ),
+            missionType = template.missionType,
+            enemyType = template.enemyType,
+            triggerChance = template.triggerChance,
             createdYear = data.createdYear,
             createdMonth = data.createdMonth
         )
+    }
+
+    private fun migrateMissionTemplate(name: String): com.xianxia.sect.core.model.MissionTemplate {
+        return when (name) {
+            "ESCORT" -> com.xianxia.sect.core.model.MissionTemplate.ESCORT_CARAVAN
+            "SUPPRESS_BEASTS" -> com.xianxia.sect.core.model.MissionTemplate.SUPPRESS_LOW_BEASTS
+            "SUPPRESS_BEASTS_NORMAL" -> com.xianxia.sect.core.model.MissionTemplate.SUPPRESS_JINDAN_BEASTS
+            else -> try {
+                com.xianxia.sect.core.model.MissionTemplate.valueOf(name)
+            } catch (e: Exception) {
+                com.xianxia.sect.core.model.MissionTemplate.ESCORT_CARAVAN
+            }
+        }
     }
 }

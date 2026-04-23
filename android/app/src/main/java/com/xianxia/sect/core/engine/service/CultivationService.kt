@@ -1029,7 +1029,14 @@ class CultivationService @Inject constructor(
                 if (allDead) {
                     eventService.addGameEvent("任务「${activeMission.missionName}」失败，执行弟子全部阵亡", EventType.WARNING)
                 } else {
-                    val result = MissionSystem.processMissionCompletion(activeMission, aliveDisciples)
+                    val equipMap = currentEquipmentInstances.associateBy { it.id }
+                    val manualMap = currentManualInstances.associateBy { it.id }
+                    val proficiencies = currentGameData.manualProficiencies.mapValues { (_, list) ->
+                        list.associateBy { it.manualId }
+                    }
+                    val result = MissionSystem.processMissionCompletion(
+                        activeMission, aliveDisciples, equipMap, manualMap, proficiencies, battleSystem
+                    )
                     if (result.spiritStones > 0) {
                         currentGameData = currentGameData.copy(
                             spiritStones = currentGameData.spiritStones + result.spiritStones.toLong()
@@ -1038,7 +1045,14 @@ class CultivationService @Inject constructor(
                     result.materials.forEach { material ->
                         inventorySystem.addMaterial(material)
                     }
-                    eventService.addGameEvent("任务「${activeMission.missionName}」已完成，获得奖励", EventType.SUCCESS)
+                    result.pills.forEach { pill -> inventorySystem.addPill(pill) }
+                    result.equipmentStacks.forEach { equip -> inventorySystem.addEquipmentStack(equip) }
+                    result.manualStacks.forEach { manual -> inventorySystem.addManualStack(manual) }
+                    if (result.victory) {
+                        eventService.addGameEvent("任务「${activeMission.missionName}」已完成，获得奖励", EventType.SUCCESS)
+                    } else {
+                        eventService.addGameEvent("任务「${activeMission.missionName}」战斗失败，未获得奖励", EventType.WARNING)
+                    }
                 }
 
                 for (did in activeMission.discipleIds) {
