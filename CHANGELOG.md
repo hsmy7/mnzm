@@ -1,5 +1,12 @@
 # 模拟宗门 - 更新日志
 
+## [2.3.32] - 2026-04-24
+
+### 改进
+- 物品详情对话框中 itemQuantity 和 isLocked 统一从响应式 StateFlow 列表读取，合并为单次 find 查找，消除重复遍历
+- 移除 DiscipleSelectForRewardDialog 中未使用的 itemQuantity 参数
+- SellConfirmDialog 增加 maxQuantity 变化时 sellQuantity 自动校正，防止数量越界
+
 ## [2.3.31] - 2026-04-24
 
 ### 改进

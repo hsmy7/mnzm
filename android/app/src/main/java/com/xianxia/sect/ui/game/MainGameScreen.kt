@@ -4030,15 +4030,17 @@ private fun WarehouseTab(viewModel: GameViewModel) {
                 is Seed -> "seed"
                 else -> ""
             }
-            val itemQuantity = when (item) {
-                is EquipmentStack -> item.quantity
-                is ManualStack -> item.quantity
-                is Pill -> item.quantity
-                is Material -> item.quantity
-                is Herb -> item.quantity
-                is Seed -> item.quantity
-                else -> 0
+            val currentItem = when (itemType) {
+                "equipment" -> equipment.find { it.id == itemId }
+                "manual" -> manuals.find { it.id == itemId }
+                "pill" -> sortedPills.find { it.id == itemId }
+                "material" -> sortedMaterials.find { it.id == itemId }
+                "herb" -> sortedHerbs.find { it.id == itemId }
+                "seed" -> sortedSeeds.find { it.id == itemId }
+                else -> null
             }
+            val itemQuantity = currentItem?.quantity ?: 0
+            val isLocked = currentItem?.isLocked ?: false
             val itemRarity = when (item) {
                 is EquipmentStack -> item.rarity
                 is ManualStack -> item.rarity
@@ -4056,15 +4058,6 @@ private fun WarehouseTab(viewModel: GameViewModel) {
                 is Herb -> item.name
                 is Seed -> item.name
                 else -> ""
-            }
-            val isLocked = when (itemType) {
-                "equipment" -> equipment.find { it.id == itemId }?.isLocked ?: false
-                "manual" -> manuals.find { it.id == itemId }?.isLocked ?: false
-                "pill" -> sortedPills.find { it.id == itemId }?.isLocked ?: false
-                "material" -> sortedMaterials.find { it.id == itemId }?.isLocked ?: false
-                "herb" -> sortedHerbs.find { it.id == itemId }?.isLocked ?: false
-                "seed" -> sortedSeeds.find { it.id == itemId }?.isLocked ?: false
-                else -> false
             }
             val basePrice = getWarehouseItemBasePrice(item)
             var showDiscipleSelectDialog by remember { mutableStateOf(false) }
@@ -4120,7 +4113,6 @@ private fun WarehouseTab(viewModel: GameViewModel) {
                     itemName = itemName,
                     itemId = itemId,
                     itemType = itemType,
-                    itemQuantity = itemQuantity,
                     itemRarity = itemRarity,
                     viewModel = viewModel,
                     onDismiss = { showDiscipleSelectDialog = false }
@@ -4142,7 +4134,6 @@ private fun DiscipleSelectForRewardDialog(
     itemName: String,
     itemId: String,
     itemType: String,
-    itemQuantity: Int,
     itemRarity: Int,
     viewModel: GameViewModel,
     onDismiss: () -> Unit
@@ -4344,6 +4335,13 @@ private fun SellConfirmDialog(
     var isEditingQuantity by remember { mutableStateOf(false) }
     var quantityInput by remember { mutableStateOf("1") }
     val focusRequester = remember { androidx.compose.ui.focus.FocusRequester() }
+
+    LaunchedEffect(maxQuantity) {
+        if (sellQuantity > maxQuantity) {
+            sellQuantity = maxQuantity.coerceAtLeast(1)
+            quantityInput = sellQuantity.toString()
+        }
+    }
 
     val totalPrice = (basePrice.toLong() * sellQuantity * 0.8).toInt()
 
