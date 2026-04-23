@@ -98,8 +98,6 @@ object GiftConfig {
             6 to RarityFavor(6, 50, 15)
         )
 
-        fun getFavor(rarity: Int): Int = CONFIGS[rarity]?.favor ?: 1
-
         fun getBaseFavor(rarity: Int): Int = CONFIGS[rarity]?.baseFavor ?: 1
 
         fun getConfig(rarity: Int): RarityFavor? = CONFIGS[rarity]

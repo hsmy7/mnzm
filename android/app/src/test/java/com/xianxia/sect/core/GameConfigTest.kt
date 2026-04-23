@@ -1176,11 +1176,6 @@ class GameConfigTest {
     }
 
     @Test
-    fun `破盟好感度惩罚应为30`() {
-        assertEquals(30, GameConfig.Diplomacy.BreakPenalty.FAVOR_PENALTY)
-    }
-
-    @Test
     fun `破盟灵石惩罚比例应为0点1`() {
         assertEquals(0.1, GameConfig.Diplomacy.BreakPenalty.SPIRIT_STONE_PENALTY_RATIO, 0.001)
     }

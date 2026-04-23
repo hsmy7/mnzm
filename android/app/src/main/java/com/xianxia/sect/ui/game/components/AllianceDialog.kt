@@ -57,7 +57,7 @@ fun AllianceDialog(
             (it.sectId1 == sect.id && it.sectId2 == playerSect.id)
         }?.favor ?: 0
     } else 0
-    val meetsFavorRequirement = relation >= 90
+    val meetsFavorRequirement = relation >= GameConfig.Diplomacy.MIN_ALLIANCE_FAVOR
     val hasOtherAlliance = sect?.allianceId?.isNotEmpty() == true && !isAlly
     var showAlreadyAllianceDialog by remember { mutableStateOf(false) }
 
@@ -247,7 +247,7 @@ private fun NonAllySection(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        ConditionItem("好感度达到90以上", meetsFavorRequirement)
+        ConditionItem("好感度达到${GameConfig.Diplomacy.MIN_ALLIANCE_FAVOR}以上", meetsFavorRequirement)
         ConditionItem("灵石充足", canAfford)
         ConditionItem("派遣弟子游说", true)
         ConditionItem("对方无其他盟友", !hasOtherAlliance)

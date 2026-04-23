@@ -13,6 +13,16 @@
   - 选中文字：GameColors.GoldDark
 - 涉及界面：山峰弟子选择、执法堂弟子选择、任务大厅弟子选择、藏经阁弟子选择、联盟游说/探查弟子选择、灵矿场弟子选择
 
+## [2.3.22] - 2026-04-23
+
+### 修复
+- 修复宗门仓库物品详情对话框缺少功法技能描述的问题
+  - 修复 MerchantItemConverter.toManual() 未复制技能字段导致仓库中功法缺少技能信息
+  - 补全功法技能详细属性展示（伤害类型/倍率/连击/冷却/灵力消耗/Buff/治疗）
+  - 新增旧存档兼容：ManualStack.skillName 为空时回退查询 ManualDatabase
+  - 补全 BuffType 字符串映射（REDUCE/POISON/BURN/STUN/FREEZE/SILENCE/TAUNT）
+  - 同步修复 ManualInstance.parseBuffType() 的 BuffType 映射不完整问题
+
 ## [2.3.21] - 2026-04-23
 
 ### 修复

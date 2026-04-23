@@ -589,7 +589,6 @@ object GameConfig {
         }
         
         object BreakPenalty {
-            const val FAVOR_PENALTY = 30
             const val SPIRIT_STONE_PENALTY_RATIO = 0.1
         }
     }
