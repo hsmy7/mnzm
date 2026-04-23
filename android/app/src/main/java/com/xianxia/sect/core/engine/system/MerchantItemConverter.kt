@@ -76,6 +76,9 @@ object MerchantItemConverter {
     fun toManual(item: MerchantItem): ManualStack {
         val template = ManualDatabase.getByName(item.name)
         if (template != null) {
+            val skillBuffsJson = template.skillBuffs.joinToString("|") { buff ->
+                "${buff.type},${buff.value},${buff.duration}"
+            }
             return ManualStack(
                 id = UUID.randomUUID().toString(),
                 name = template.name,
@@ -83,6 +86,22 @@ object MerchantItemConverter {
                 description = template.description,
                 type = template.type,
                 stats = template.stats,
+                skillName = template.skillName,
+                skillDescription = template.skillDescription,
+                skillType = template.skillType,
+                skillDamageType = template.skillDamageType,
+                skillHits = template.skillHits,
+                skillDamageMultiplier = template.skillDamageMultiplier,
+                skillCooldown = template.skillCooldown,
+                skillMpCost = template.skillMpCost,
+                skillHealPercent = template.skillHealPercent,
+                skillHealType = template.skillHealType,
+                skillBuffType = template.skillBuffType,
+                skillBuffValue = template.skillBuffValue,
+                skillBuffDuration = template.skillBuffDuration,
+                skillBuffsJson = skillBuffsJson,
+                skillIsAoe = template.skillIsAoe,
+                skillTargetScope = template.skillTargetScope,
                 minRealm = GameConfig.Realm.getMinRealmForRarity(item.rarity),
                 quantity = 1
             )

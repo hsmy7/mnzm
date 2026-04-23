@@ -598,12 +598,86 @@ private fun getManualStackEffects(item: ManualStack): List<String> = buildList {
             }
         }
     }
-    item.skillName?.let { sName ->
+    val effectiveSkillName = item.skillName
+    if (effectiveSkillName != null) {
         add("")
-        add("技能: $sName")
+        add("技能: $effectiveSkillName")
         item.skillDescription?.let { sDesc ->
             if (sDesc.isNotEmpty()) {
                 add("  $sDesc")
+            }
+        }
+        if (item.skillType == "support") {
+            add("  类型: 辅助")
+        }
+        if (item.skillTargetScope == "team") {
+            add("  作用范围: 全队")
+        }
+        if (item.skillHealPercent > 0) {
+            val healTypeName = if (item.skillHealType == "mp") "灵力" else "生命"
+            add("  治疗: ${(item.skillHealPercent * 100).toInt()}% $healTypeName")
+        }
+        if (item.skillDamageMultiplier > 0 && item.skillType != "support") {
+            add("  伤害类型: ${if (item.skillDamageType == "magic") "法术" else "物理"}")
+            add("  伤害倍率: ${(item.skillDamageMultiplier * 100).toInt()}%")
+        }
+        add("  连击次数: ${item.skillHits}")
+        if (item.skillCooldown > 0) {
+            add("  冷却回合: ${item.skillCooldown}")
+        }
+        if (item.skillMpCost > 0) {
+            add("  灵力消耗: ${item.skillMpCost}")
+        }
+        val buffs = parseManualStackBuffs(item.skillBuffsJson)
+        buffs.forEach { (buffType, value, duration) ->
+            val buffName = getBuffTypeName(buffType)
+            add("  $buffName +${(value * 100).toInt()}% (${duration}回合)")
+        }
+        if (buffs.isEmpty() && item.skillBuffType != null && item.skillBuffValue > 0) {
+            val buffName = getBuffTypeName(item.skillBuffType)
+            val durationText = if (item.skillBuffDuration > 0) " (${item.skillBuffDuration}回合)" else ""
+            add("  $buffName +${(item.skillBuffValue * 100).toInt()}%$durationText")
+        }
+    } else {
+        val template = ManualDatabase.getByName(item.name)
+        if (template != null) {
+            template.skillName?.let { sName ->
+                add("")
+                add("技能: $sName")
+                val sDesc = template.skillDescription
+                if (!sDesc.isNullOrEmpty()) {
+                    add("  $sDesc")
+                }
+                if (template.skillType == "support") {
+                    add("  类型: 辅助")
+                }
+                if (template.skillTargetScope == "team") {
+                    add("  作用范围: 全队")
+                }
+                if (template.skillHealPercent > 0) {
+                    val healTypeName = if (template.skillHealType == "mp") "灵力" else "生命"
+                    add("  治疗: ${(template.skillHealPercent * 100).toInt()}% $healTypeName")
+                }
+                if (template.skillDamageMultiplier > 0 && template.skillType != "support") {
+                    add("  伤害类型: ${if (template.skillDamageType == "magic") "法术" else "物理"}")
+                    add("  伤害倍率: ${(template.skillDamageMultiplier * 100).toInt()}%")
+                }
+                add("  连击次数: ${template.skillHits}")
+                if (template.skillCooldown > 0) {
+                    add("  冷却回合: ${template.skillCooldown}")
+                }
+                if (template.skillMpCost > 0) {
+                    add("  灵力消耗: ${template.skillMpCost}")
+                }
+                template.skillBuffs.forEach { buff ->
+                    val buffName = getBuffTypeName(buff.type)
+                    add("  $buffName +${(buff.value * 100).toInt()}% (${buff.duration}回合)")
+                }
+                if (template.skillBuffs.isEmpty() && template.skillBuffType != null && template.skillBuffValue > 0) {
+                    val buffName = getBuffTypeName(template.skillBuffType)
+                    val durationText = if (template.skillBuffDuration > 0) " (${template.skillBuffDuration}回合)" else ""
+                    add("  $buffName +${(template.skillBuffValue * 100).toInt()}%$durationText")
+                }
             }
         }
     }
@@ -771,6 +845,65 @@ private fun getSeedEffects(item: Seed): List<String> = buildList {
 
 fun getBuffTypeName(buffType: com.xianxia.sect.core.BuffType): String = buffType.displayName
 
+private fun getBuffTypeName(buffType: String): String = when (buffType) {
+    "physical_attack" -> com.xianxia.sect.core.BuffType.PHYSICAL_ATTACK_BOOST.displayName
+    "magic_attack" -> com.xianxia.sect.core.BuffType.MAGIC_ATTACK_BOOST.displayName
+    "physical_defense" -> com.xianxia.sect.core.BuffType.PHYSICAL_DEFENSE_BOOST.displayName
+    "magic_defense" -> com.xianxia.sect.core.BuffType.MAGIC_DEFENSE_BOOST.displayName
+    "hp" -> com.xianxia.sect.core.BuffType.HP_BOOST.displayName
+    "mp" -> com.xianxia.sect.core.BuffType.MP_BOOST.displayName
+    "speed" -> com.xianxia.sect.core.BuffType.SPEED_BOOST.displayName
+    "crit_rate" -> com.xianxia.sect.core.BuffType.CRIT_RATE_BOOST.displayName
+    "physical_attack_reduce" -> com.xianxia.sect.core.BuffType.PHYSICAL_ATTACK_REDUCE.displayName
+    "magic_attack_reduce" -> com.xianxia.sect.core.BuffType.MAGIC_ATTACK_REDUCE.displayName
+    "physical_defense_reduce" -> com.xianxia.sect.core.BuffType.PHYSICAL_DEFENSE_REDUCE.displayName
+    "magic_defense_reduce" -> com.xianxia.sect.core.BuffType.MAGIC_DEFENSE_REDUCE.displayName
+    "speed_reduce" -> com.xianxia.sect.core.BuffType.SPEED_REDUCE.displayName
+    "crit_rate_reduce" -> com.xianxia.sect.core.BuffType.CRIT_RATE_REDUCE.displayName
+    "poison" -> com.xianxia.sect.core.BuffType.POISON.displayName
+    "burn" -> com.xianxia.sect.core.BuffType.BURN.displayName
+    "stun" -> com.xianxia.sect.core.BuffType.STUN.displayName
+    "freeze" -> com.xianxia.sect.core.BuffType.FREEZE.displayName
+    "silence" -> com.xianxia.sect.core.BuffType.SILENCE.displayName
+    "taunt" -> com.xianxia.sect.core.BuffType.TAUNT.displayName
+    else -> buffType
+}
+
+private fun parseManualStackBuffs(json: String): List<Triple<com.xianxia.sect.core.BuffType, Double, Int>> {
+    if (json.isBlank()) return emptyList()
+    return json.split("|").mapNotNull { buffStr ->
+        val parts = buffStr.split(",")
+        if (parts.size == 3) {
+            val type = when (parts[0]) {
+                "physical_attack" -> com.xianxia.sect.core.BuffType.PHYSICAL_ATTACK_BOOST
+                "magic_attack" -> com.xianxia.sect.core.BuffType.MAGIC_ATTACK_BOOST
+                "physical_defense" -> com.xianxia.sect.core.BuffType.PHYSICAL_DEFENSE_BOOST
+                "magic_defense" -> com.xianxia.sect.core.BuffType.MAGIC_DEFENSE_BOOST
+                "hp" -> com.xianxia.sect.core.BuffType.HP_BOOST
+                "mp" -> com.xianxia.sect.core.BuffType.MP_BOOST
+                "speed" -> com.xianxia.sect.core.BuffType.SPEED_BOOST
+                "crit_rate" -> com.xianxia.sect.core.BuffType.CRIT_RATE_BOOST
+                "physical_attack_reduce" -> com.xianxia.sect.core.BuffType.PHYSICAL_ATTACK_REDUCE
+                "magic_attack_reduce" -> com.xianxia.sect.core.BuffType.MAGIC_ATTACK_REDUCE
+                "physical_defense_reduce" -> com.xianxia.sect.core.BuffType.PHYSICAL_DEFENSE_REDUCE
+                "magic_defense_reduce" -> com.xianxia.sect.core.BuffType.MAGIC_DEFENSE_REDUCE
+                "speed_reduce" -> com.xianxia.sect.core.BuffType.SPEED_REDUCE
+                "crit_rate_reduce" -> com.xianxia.sect.core.BuffType.CRIT_RATE_REDUCE
+                "poison" -> com.xianxia.sect.core.BuffType.POISON
+                "burn" -> com.xianxia.sect.core.BuffType.BURN
+                "stun" -> com.xianxia.sect.core.BuffType.STUN
+                "freeze" -> com.xianxia.sect.core.BuffType.FREEZE
+                "silence" -> com.xianxia.sect.core.BuffType.SILENCE
+                "taunt" -> com.xianxia.sect.core.BuffType.TAUNT
+                else -> return@mapNotNull null
+            }
+            val value = parts[1].toDoubleOrNull() ?: return@mapNotNull null
+            val duration = parts[2].toIntOrNull() ?: return@mapNotNull null
+            Triple(type, value, duration)
+        } else null
+    }
+}
+
 private fun getStatDisplayName(key: String): String = when (key) {
     "cultivationSpeedPercent" -> "修炼速度"
     "physicalAttack" -> "物理攻击"
@@ -838,6 +971,36 @@ private fun getMerchantItemEffects(item: MerchantItem): List<String> = buildList
             val sDesc = manualTemplate.skillDescription
             if (!sDesc.isNullOrEmpty()) {
                 add("  $sDesc")
+            }
+            if (manualTemplate.skillType == "support") {
+                add("  类型: 辅助")
+            }
+            if (manualTemplate.skillTargetScope == "team") {
+                add("  作用范围: 全队")
+            }
+            if (manualTemplate.skillHealPercent > 0) {
+                val healTypeName = if (manualTemplate.skillHealType == "mp") "灵力" else "生命"
+                add("  治疗: ${(manualTemplate.skillHealPercent * 100).toInt()}% $healTypeName")
+            }
+            if (manualTemplate.skillDamageMultiplier > 0 && manualTemplate.skillType != "support") {
+                add("  伤害类型: ${if (manualTemplate.skillDamageType == "magic") "法术" else "物理"}")
+                add("  伤害倍率: ${(manualTemplate.skillDamageMultiplier * 100).toInt()}%")
+            }
+            add("  连击次数: ${manualTemplate.skillHits}")
+            if (manualTemplate.skillCooldown > 0) {
+                add("  冷却回合: ${manualTemplate.skillCooldown}")
+            }
+            if (manualTemplate.skillMpCost > 0) {
+                add("  灵力消耗: ${manualTemplate.skillMpCost}")
+            }
+            manualTemplate.skillBuffs.forEach { buff ->
+                val buffName = getBuffTypeName(buff.type)
+                add("  $buffName +${(buff.value * 100).toInt()}% (${buff.duration}回合)")
+            }
+            if (manualTemplate.skillBuffs.isEmpty() && manualTemplate.skillBuffType != null && manualTemplate.skillBuffValue > 0) {
+                val buffName = getBuffTypeName(manualTemplate.skillBuffType)
+                val durationText = if (manualTemplate.skillBuffDuration > 0) " (${manualTemplate.skillBuffDuration}回合)" else ""
+                add("  $buffName +${(manualTemplate.skillBuffValue * 100).toInt()}%$durationText")
             }
         }
         return@buildList

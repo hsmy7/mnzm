@@ -404,6 +404,18 @@ data class ManualInstance(
         "mp" -> BuffType.MP_BOOST
         "speed" -> BuffType.SPEED_BOOST
         "crit_rate" -> BuffType.CRIT_RATE_BOOST
+        "physical_attack_reduce" -> BuffType.PHYSICAL_ATTACK_REDUCE
+        "magic_attack_reduce" -> BuffType.MAGIC_ATTACK_REDUCE
+        "physical_defense_reduce" -> BuffType.PHYSICAL_DEFENSE_REDUCE
+        "magic_defense_reduce" -> BuffType.MAGIC_DEFENSE_REDUCE
+        "speed_reduce" -> BuffType.SPEED_REDUCE
+        "crit_rate_reduce" -> BuffType.CRIT_RATE_REDUCE
+        "poison" -> BuffType.POISON
+        "burn" -> BuffType.BURN
+        "stun" -> BuffType.STUN
+        "freeze" -> BuffType.FREEZE
+        "silence" -> BuffType.SILENCE
+        "taunt" -> BuffType.TAUNT
         else -> null
     }
 
