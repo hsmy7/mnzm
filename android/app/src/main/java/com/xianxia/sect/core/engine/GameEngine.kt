@@ -1806,6 +1806,7 @@ class GameEngine @Inject constructor(
 
     fun sellEquipment(equipmentId: String): Boolean {
         val stack = stateStore.equipmentStacks.value.find { it.id == equipmentId } ?: return false
+        if (stack.isLocked) return false
         if (!inventorySystem.removeEquipment(equipmentId)) return false
         addSpiritStones((stack.basePrice * 0.8).toInt())
         return true
@@ -1813,6 +1814,7 @@ class GameEngine @Inject constructor(
 
     fun sellManual(manualId: String, quantity: Int): Boolean {
         val stack = stateStore.manualStacks.value.find { it.id == manualId } ?: return false
+        if (stack.isLocked) return false
         if (!inventorySystem.removeManual(manualId, quantity)) return false
         addSpiritStones((stack.basePrice * quantity * 0.8).toInt())
         return true
@@ -1820,6 +1822,7 @@ class GameEngine @Inject constructor(
 
     fun sellPill(pillId: String, quantity: Int): Boolean {
         val pill = stateStore.pills.value.find { it.id == pillId } ?: return false
+        if (pill.isLocked) return false
         if (!inventorySystem.removePill(pillId, quantity)) return false
         addSpiritStones((pill.basePrice * quantity * 0.8).toInt())
         return true
@@ -1827,6 +1830,7 @@ class GameEngine @Inject constructor(
 
     fun sellMaterial(materialId: String, quantity: Int): Boolean {
         val material = stateStore.materials.value.find { it.id == materialId } ?: return false
+        if (material.isLocked) return false
         if (!inventorySystem.removeMaterial(materialId, quantity)) return false
         addSpiritStones((material.basePrice * quantity * 0.8).toInt())
         return true
@@ -1834,6 +1838,7 @@ class GameEngine @Inject constructor(
 
     fun sellHerb(herbId: String, quantity: Int): Boolean {
         val herb = stateStore.herbs.value.find { it.id == herbId } ?: return false
+        if (herb.isLocked) return false
         if (!inventorySystem.removeHerb(herbId, quantity)) return false
         addSpiritStones((herb.basePrice * quantity * 0.8).toInt())
         return true
@@ -1841,6 +1846,7 @@ class GameEngine @Inject constructor(
 
     fun sellSeed(seedId: String, quantity: Int): Boolean {
         val seed = stateStore.seeds.value.find { it.id == seedId } ?: return false
+        if (seed.isLocked) return false
         if (!inventorySystem.removeSeed(seedId, quantity)) return false
         addSpiritStones((seed.basePrice * quantity * 0.8).toInt())
         return true

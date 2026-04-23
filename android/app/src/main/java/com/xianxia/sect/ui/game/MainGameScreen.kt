@@ -1612,6 +1612,16 @@ private fun DirectDiscipleSelectionDialog(
     )
 }
 
+private fun getWarehouseItemIsLocked(item: Any): Boolean = when (item) {
+    is EquipmentStack -> item.isLocked
+    is ManualStack -> item.isLocked
+    is Pill -> item.isLocked
+    is Material -> item.isLocked
+    is Herb -> item.isLocked
+    is Seed -> item.isLocked
+    else -> false
+}
+
 @Composable
 private fun RedeemCodeDialog(
     viewModel: GameViewModel,
@@ -3956,15 +3966,7 @@ private fun WarehouseTab(viewModel: GameViewModel) {
                                                 else -> 1
                                             },
                                             grade = (warehouseItem.item as? Pill)?.grade?.displayName,
-                                            isLocked = when (val item = warehouseItem.item) {
-                                                is EquipmentStack -> item.isLocked
-                                                is ManualStack -> item.isLocked
-                                                is Pill -> item.isLocked
-                                                is Material -> item.isLocked
-                                                is Herb -> item.isLocked
-                                                is Seed -> item.isLocked
-                                                else -> false
-                                            }
+                                            isLocked = getWarehouseItemIsLocked(warehouseItem.item)
                                         ),
                                         isSelected = selectedItemId == warehouseItem.id,
                                         showViewButton = true,
@@ -4044,15 +4046,7 @@ private fun WarehouseTab(viewModel: GameViewModel) {
                 is Seed -> item.name
                 else -> ""
             }
-            val isLocked = when (item) {
-                is EquipmentStack -> item.isLocked
-                is ManualStack -> item.isLocked
-                is Pill -> item.isLocked
-                is Material -> item.isLocked
-                is Herb -> item.isLocked
-                is Seed -> item.isLocked
-                else -> false
-            }
+            val isLocked = getWarehouseItemIsLocked(item)
             var showDiscipleSelectDialog by remember { mutableStateOf(false) }
 
             ItemDetailDialog(
