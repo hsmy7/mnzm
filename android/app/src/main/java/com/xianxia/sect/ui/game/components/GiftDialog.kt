@@ -84,7 +84,7 @@ fun GiftDialog(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column {
+                            Column(modifier = Modifier.weight(1f)) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -114,36 +114,55 @@ fun GiftDialog(
                                 FavorProgressBar(currentFavor = relation, maxFavor = 100)
                             }
                             
-                            Column(horizontalAlignment = Alignment.End) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    Text(
-                                        text = "灵石",
-                                        fontSize = 12.sp,
-                                        color = Color.White.copy(alpha = 0.8f)
-                                    )
-                                    Text(
-                                        text = formatSpiritStones(gameData?.spiritStones ?: 0),
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFFFFD700)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(4.dp))
-                                if (hasGiftedThisYear) {
-                                    Surface(
-                                        shape = RoundedCornerShape(4.dp),
-                                        color = Color(0xFFE74C3C).copy(alpha = 0.9f)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                                     ) {
                                         Text(
-                                            text = "本年已送礼",
-                                            fontSize = 11.sp,
-                                            color = Color.White,
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                            text = "灵石",
+                                            fontSize = 12.sp,
+                                            color = Color.White.copy(alpha = 0.8f)
+                                        )
+                                        Text(
+                                            text = formatSpiritStones(gameData?.spiritStones ?: 0),
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFFFFD700)
                                         )
                                     }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    if (hasGiftedThisYear) {
+                                        Surface(
+                                            shape = RoundedCornerShape(4.dp),
+                                            color = Color(0xFFE74C3C).copy(alpha = 0.9f)
+                                        ) {
+                                            Text(
+                                                text = "本年已送礼",
+                                                fontSize = 11.sp,
+                                                color = Color.White,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .size(24.dp)
+                                        .clip(CircleShape)
+                                        .clickable { onDismiss() }
+                                        .background(Color.White.copy(alpha = 0.2f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "×",
+                                        fontSize = 16.sp,
+                                        color = Color.White
+                                    )
                                 }
                             }
                         }
