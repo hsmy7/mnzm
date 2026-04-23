@@ -33,8 +33,6 @@ object GiftConfig {
         fun getTier(tier: Int): SpiritStoneGiftTier? = TIERS[tier]
 
         fun getAllTiers(): List<SpiritStoneGiftTier> = TIERS.values.toList()
-
-        fun getTierByName(name: String): SpiritStoneGiftTier? = TIERS.values.find { it.name == name }
     }
 
     /**
@@ -77,11 +75,10 @@ object GiftConfig {
     /**
      * 稀有度基础好感度配置
      * @param rarity 稀有度等级 (1=凡品, 2=灵品, 3=宝品, 4=玄品, 5=地品, 6=天品)
-     * @param favor 增加的好感度
+     * @param baseFavor 基础好感度
      */
     data class RarityFavor(
         val rarity: Int,
-        val favor: Int,
         val baseFavor: Int = 0
     )
 
@@ -90,17 +87,15 @@ object GiftConfig {
      */
     object RarityFavorConfig {
         val CONFIGS = mapOf(
-            1 to RarityFavor(1, 1, 1),
-            2 to RarityFavor(2, 5, 2),
-            3 to RarityFavor(3, 15, 5),
-            4 to RarityFavor(4, 25, 8),
-            5 to RarityFavor(5, 35, 12),
-            6 to RarityFavor(6, 50, 15)
+            1 to RarityFavor(1, 1),
+            2 to RarityFavor(2, 2),
+            3 to RarityFavor(3, 5),
+            4 to RarityFavor(4, 8),
+            5 to RarityFavor(5, 12),
+            6 to RarityFavor(6, 15)
         )
 
         fun getBaseFavor(rarity: Int): Int = CONFIGS[rarity]?.baseFavor ?: 1
-
-        fun getConfig(rarity: Int): RarityFavor? = CONFIGS[rarity]
     }
 
     /**

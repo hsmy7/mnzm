@@ -13,7 +13,6 @@ import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.engine.system.GameSystem
 import com.xianxia.sect.core.engine.system.SystemPriority
 import android.util.Log
-import java.security.SecureRandom
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.random.Random
@@ -182,7 +181,7 @@ class DiplomacyService @Inject constructor(
         )
         val rejectProbability = (baseRejectProbability + preferenceRejectModifier).coerceIn(0, 100)
 
-        val isRejected = SecureRandom().nextInt(100) < rejectProbability
+        val isRejected = Random.nextInt(100) < rejectProbability
 
         if (isRejected) {
             val responseText = SectResponseTexts.getRejectResponse(sect.level, "spirit_stones", tierConfig.name)
@@ -347,32 +346,28 @@ class DiplomacyService @Inject constructor(
         // 计算好感度（使用百分比增长）
         val favorPercentage = GiftConfig.ItemFavorPercentageConfig.getFavorPercentage(sect.level, itemRarity)
 
-        val playerSectForFavor = currentGameData.worldMapSects.find { it.isPlayerSect }
+        val playerSectForFavor = data.worldMapSects.find { it.isPlayerSect }
         val currentFavorValue = if (playerSectForFavor != null) {
-            currentGameData.sectRelations.find {
+            data.sectRelations.find {
                 (it.sectId1 == playerSectForFavor.id && it.sectId2 == sectId) ||
                 (it.sectId1 == sectId && it.sectId2 == playerSectForFavor.id)
             }?.favor ?: 0
         } else 0
 
         val baseFavor = GiftConfig.RarityFavorConfig.getBaseFavor(itemRarity)
-        val baseFavorIncrease = if (favorPercentage != null) {
-            if (currentFavorValue == 0) {
-                baseFavor
-            } else {
-                baseFavor + (currentFavorValue * favorPercentage / 100).coerceAtLeast(0)
-            }
-        } else {
-            baseFavor
-        }
-
         val preferenceMultiplier = calculatePreferenceMultiplier(
             sectDetail.giftPreference,
             itemType,
             isSpiritStone = false
         )
-        val adjustedFavor = (baseFavorIncrease * preferenceMultiplier).toInt().coerceAtLeast(1)
-        val totalFavor = adjustedFavor * actualQuantity
+        val favorIncrease = if (favorPercentage != null) {
+            val percentageIncrease = (currentFavorValue * favorPercentage / 100).coerceAtLeast(0)
+            val adjustedIncrease = ((baseFavor + percentageIncrease) * preferenceMultiplier).toInt()
+            if (adjustedIncrease == 0) 1 else adjustedIncrease
+        } else {
+            (baseFavor * preferenceMultiplier).toInt().coerceAtLeast(1)
+        }
+        val totalFavor = favorIncrease * actualQuantity
 
         // 计算拒绝概率
         val baseRejectProbability = getRejectProbability(sect.level, itemRarity)
@@ -403,17 +398,17 @@ class DiplomacyService @Inject constructor(
 
         val newFavor = (currentFavorValue + totalFavor).coerceAtMost(100)
 
-        val updatedSectDetails = currentGameData.sectDetails.toMutableMap()
-        updatedSectDetails[sectId] = (currentGameData.sectDetails[sectId] ?: SectDetail(sectId = sectId))
+        val updatedSectDetails = data.sectDetails.toMutableMap()
+        updatedSectDetails[sectId] = (data.sectDetails[sectId] ?: SectDetail(sectId = sectId))
             .copy(lastGiftYear = currentYear)
 
         val updatedRelations = if (playerSectForFavor != null) {
-            updateSectRelationFavor(currentGameData.sectRelations, playerSectForFavor.id, sectId, newFavor, currentYear)
+            updateSectRelationFavor(data.sectRelations, playerSectForFavor.id, sectId, newFavor, currentYear)
         } else {
-            currentGameData.sectRelations
+            data.sectRelations
         }
 
-        currentGameData = currentGameData.copy(sectDetails = updatedSectDetails, sectRelations = updatedRelations)
+        currentGameData = data.copy(sectDetails = updatedSectDetails, sectRelations = updatedRelations)
 
         val responseText = SectResponseTexts.getAcceptResponse(sect.level, itemType, itemName, totalFavor)
         val quantityText = if (actualQuantity > 1) "x$actualQuantity " else ""

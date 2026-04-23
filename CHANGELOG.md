@@ -1,5 +1,18 @@
 # 模拟宗门 - 更新日志
 
+## [2.3.29] - 2026-04-23
+
+### 改进
+- 统一灵石送礼和物品送礼的好感度计算公式结构，消除两条路径的代码不一致
+- 物品送礼路径统一使用数据快照，修复潜在的数据竞争问题
+- 送礼拒绝判定统一使用 Random 替代 SecureRandom，消除不必要的性能开销
+- 移除 RarityFavor 中废弃的 favor 字段和未使用的 getConfig() 方法
+- 移除 SpiritStoneGiftConfig 中未使用的 getTierByName() 方法
+- 修正 RarityFavor 注释中 @param favor 与实际字段 baseFavor 不匹配的问题
+
+### 修复
+- 修复 processFavorDecay 变更检测只比较 favor 忽略 noGiftYears，导致 noGiftYears 更新丢失的问题
+
 ## [2.3.28] - 2026-04-23
 
 ### 改进

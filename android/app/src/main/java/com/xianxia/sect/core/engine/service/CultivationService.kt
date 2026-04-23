@@ -3880,7 +3880,7 @@ class CultivationService @Inject constructor(
             relation.copy(favor = newFavor, noGiftYears = relation.noGiftYears + 1)
         }
 
-        val hasChanges = updatedRelations.zip(data.sectRelations).any { (a, b) -> a.favor != b.favor }
+        val hasChanges = updatedRelations.zip(data.sectRelations).any { (a, b) -> a != b }
         if (hasChanges) {
             currentGameData = data.copy(sectRelations = updatedRelations)
         }
