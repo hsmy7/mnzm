@@ -4508,7 +4508,7 @@ private fun SellConfirmDialog(
                         color = Color(0xFF666666)
                     )
                     Text(
-                        text = "${(basePrice * 0.8).toInt()} 灵石",
+                        text = "${(basePrice.toLong() * 0.8).toInt()} 灵石",
                         fontSize = 12.sp,
                         color = Color(0xFF666666)
                     )
