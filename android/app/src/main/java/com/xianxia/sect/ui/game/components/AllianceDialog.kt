@@ -321,7 +321,7 @@ fun EnvoyDiscipleSelectDialog(
 ) {
     var selectedDisciple by remember { mutableStateOf<DiscipleAggregate?>(null) }
     var selectedSpiritRootFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
-    var selectedAttributeSort by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
     var spiritRootExpanded by remember { mutableStateOf(false) }
     var attributeExpanded by remember { mutableStateOf(false) }
     val sectLevel = sect?.level ?: 0
@@ -381,8 +381,7 @@ fun EnvoyDiscipleSelectDialog(
                     spiritRootCounts = spiritRootCounts,
                     onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
                     onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
-                    onAttributeSortSelected = { selectedAttributeSort = selectedAttributeSort + it },
-                    onAttributeSortRemoved = { selectedAttributeSort = selectedAttributeSort - it },
+                    onAttributeSortSelected = { selectedAttributeSort = it },
                     onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
                     onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
                     isCompact = true
@@ -583,7 +582,7 @@ fun ScoutDiscipleSelectDialog(
     var selectedDisciples by remember { mutableStateOf<Set<String>>(emptySet()) }
     var selectedRealmFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
     var selectedSpiritRootFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
-    var selectedAttributeSort by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
     var spiritRootExpanded by remember { mutableStateOf(false) }
     var attributeExpanded by remember { mutableStateOf(false) }
     val maxSelectCount = 7
@@ -649,8 +648,7 @@ fun ScoutDiscipleSelectDialog(
                     spiritRootCounts = spiritRootCounts,
                     onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
                     onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
-                    onAttributeSortSelected = { selectedAttributeSort = selectedAttributeSort + it },
-                    onAttributeSortRemoved = { selectedAttributeSort = selectedAttributeSort - it },
+                    onAttributeSortSelected = { selectedAttributeSort = it },
                     onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
                     onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
                     isCompact = true

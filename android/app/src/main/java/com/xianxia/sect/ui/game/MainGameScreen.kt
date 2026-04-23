@@ -784,14 +784,13 @@ internal fun DiscipleAggregate.getSpiritRootCount(): Int = spiritRoot.types.size
 internal fun List<DiscipleAggregate>.applyFilters(
     realmFilter: Set<Int>,
     spiritRootFilter: Set<Int>,
-    attributeSort: Set<String>,
+    attributeSort: String?,
     defaultSortAttribute: String? = null
 ): List<DiscipleAggregate> {
-    val attrSort = attributeSort.firstOrNull()
-    val sorted = if (attrSort != null) {
+    val sorted = if (attributeSort != null) {
         sortedWith(
             compareByDescending<DiscipleAggregate> { it.isFollowed }
-                .thenByDescending { it.getAttributeValue(attrSort) }
+                .thenByDescending { it.getAttributeValue(attributeSort) }
                 .thenBy { it.realm }
                 .thenByDescending { it.realmLayer }
         )
@@ -799,7 +798,12 @@ internal fun List<DiscipleAggregate>.applyFilters(
         sortedByFollowAttributeAndRealm(defaultSortAttribute)
     }
     val realmFiltered = if (realmFilter.isNotEmpty()) sorted.filter { it.realm in realmFilter } else sorted
-    return if (spiritRootFilter.isNotEmpty()) realmFiltered.filter { it.getSpiritRootCount() in spiritRootFilter } else realmFiltered
+    return if (spiritRootFilter.isNotEmpty()) {
+        realmFiltered.filter { it.getSpiritRootCount() in spiritRootFilter }
+            .sortedBy { it.getSpiritRootCount() }
+    } else {
+        realmFiltered
+    }
 }
 
 @Composable
@@ -841,14 +845,13 @@ internal fun DropdownFilterButton(
 @Composable
 internal fun SpiritRootAttributeFilterBar(
     selectedSpiritRootFilter: Set<Int>,
-    selectedAttributeSort: Set<String>,
+    selectedAttributeSort: String?,
     spiritRootExpanded: Boolean,
     attributeExpanded: Boolean,
     spiritRootCounts: Map<Int, Int>,
     onSpiritRootFilterSelected: (Int) -> Unit,
     onSpiritRootFilterRemoved: (Int) -> Unit,
-    onAttributeSortSelected: (String) -> Unit,
-    onAttributeSortRemoved: (String) -> Unit,
+    onAttributeSortSelected: (String?) -> Unit,
     onSpiritRootExpandToggle: () -> Unit,
     onAttributeExpandToggle: () -> Unit,
     isCompact: Boolean = false
@@ -874,7 +877,7 @@ internal fun SpiritRootAttributeFilterBar(
             )
             DropdownFilterButton(
                 displayText = "属性",
-                hasSelection = selectedAttributeSort.isNotEmpty(),
+                hasSelection = selectedAttributeSort != null,
                 isExpanded = attributeExpanded,
                 onClick = onAttributeExpandToggle,
                 isCompact = isCompact,
@@ -923,12 +926,12 @@ internal fun SpiritRootAttributeFilterBar(
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         row.forEach { option ->
-                            val isSelected = option.key in selectedAttributeSort
+                            val isSelected = option.key == selectedAttributeSort
                             FilterChip(
                                 text = option.name,
                                 isSelected = isSelected,
                                 onClick = {
-                                    if (isSelected) onAttributeSortRemoved(option.key)
+                                    if (isSelected) onAttributeSortSelected(null)
                                     else onAttributeSortSelected(option.key)
                                 },
                                 modifier = Modifier.weight(1f),
@@ -957,7 +960,7 @@ private fun DisciplesTab(
 ) {
     var selectedRealmFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
     var selectedSpiritRootFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
-    var selectedAttributeSort by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
     var spiritRootExpanded by remember { mutableStateOf(false) }
     var attributeExpanded by remember { mutableStateOf(false) }
     var selectedDisciple by remember { mutableStateOf<DiscipleAggregate?>(null) }
@@ -987,8 +990,7 @@ private fun DisciplesTab(
             spiritRootCounts = spiritRootCounts,
             onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
             onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
-            onAttributeSortSelected = { selectedAttributeSort = selectedAttributeSort + it },
-            onAttributeSortRemoved = { selectedAttributeSort = selectedAttributeSort - it },
+            onAttributeSortSelected = { selectedAttributeSort = it },
             onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
             onAttributeExpandToggle = { attributeExpanded = !attributeExpanded }
         )
@@ -1390,7 +1392,7 @@ private fun DirectDiscipleSelectionDialog(
 ) {
     var selectedRealmFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
     var selectedSpiritRootFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
-    var selectedAttributeSort by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
     var spiritRootExpanded by remember { mutableStateOf(false) }
     var attributeExpanded by remember { mutableStateOf(false) }
 
@@ -1461,8 +1463,7 @@ private fun DirectDiscipleSelectionDialog(
                     spiritRootCounts = spiritRootCounts,
                     onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
                     onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
-                    onAttributeSortSelected = { selectedAttributeSort = selectedAttributeSort + it },
-                    onAttributeSortRemoved = { selectedAttributeSort = selectedAttributeSort - it },
+                    onAttributeSortSelected = { selectedAttributeSort = it },
                     onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
                     onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
                     isCompact = true
@@ -2043,7 +2044,7 @@ private fun DispatchTeamDialog(
     val maxTeamSize = 7
     var selectedRealmFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
     var selectedSpiritRootFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
-    var selectedAttributeSort by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
     var spiritRootExpanded by remember { mutableStateOf(false) }
     var attributeExpanded by remember { mutableStateOf(false) }
 
@@ -2158,8 +2159,7 @@ private fun DispatchTeamDialog(
                     spiritRootCounts = spiritRootCounts,
                     onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
                     onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
-                    onAttributeSortSelected = { selectedAttributeSort = selectedAttributeSort + it },
-                    onAttributeSortRemoved = { selectedAttributeSort = selectedAttributeSort - it },
+                    onAttributeSortSelected = { selectedAttributeSort = it },
                     onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
                     onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
                     isCompact = true
@@ -3232,7 +3232,7 @@ private fun ElderDiscipleSelectionDialog(
 ) {
     var selectedRealmFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
     var selectedSpiritRootFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
-    var selectedAttributeSort by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
     var spiritRootExpanded by remember { mutableStateOf(false) }
     var attributeExpanded by remember { mutableStateOf(false) }
 
@@ -3303,8 +3303,7 @@ private fun ElderDiscipleSelectionDialog(
                     spiritRootCounts = spiritRootCounts,
                     onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
                     onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
-                    onAttributeSortSelected = { selectedAttributeSort = selectedAttributeSort + it },
-                    onAttributeSortRemoved = { selectedAttributeSort = selectedAttributeSort - it },
+                    onAttributeSortSelected = { selectedAttributeSort = it },
                     onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
                     onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
                     isCompact = true
@@ -4129,7 +4128,7 @@ private fun DiscipleSelectForRewardDialog(
     var isRewarding by remember { mutableStateOf(false) }
     var selectedRealmFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
     var selectedSpiritRootFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
-    var selectedAttributeSort by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
     var spiritRootExpanded by remember { mutableStateOf(false) }
     var attributeExpanded by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -4203,8 +4202,7 @@ private fun DiscipleSelectForRewardDialog(
                     spiritRootCounts = spiritRootCounts,
                     onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
                     onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
-                    onAttributeSortSelected = { selectedAttributeSort = selectedAttributeSort + it },
-                    onAttributeSortRemoved = { selectedAttributeSort = selectedAttributeSort - it },
+                    onAttributeSortSelected = { selectedAttributeSort = it },
                     onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
                     onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
                     isCompact = true
@@ -6776,7 +6774,7 @@ private fun CaveDiscipleSelectionDialog(
 ) {
     var selectedRealmFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
     var selectedSpiritRootFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
-    var selectedAttributeSort by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
     var spiritRootExpanded by remember { mutableStateOf(false) }
     var attributeExpanded by remember { mutableStateOf(false) }
     var currentSelected by remember(selectedDisciples) { @Suppress("MutableCollectionMutableState") mutableStateOf(selectedDisciples.toMutableList()) }
@@ -6878,8 +6876,7 @@ private fun CaveDiscipleSelectionDialog(
                         spiritRootCounts = spiritRootCounts,
                         onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
                         onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
-                        onAttributeSortSelected = { selectedAttributeSort = selectedAttributeSort + it },
-                        onAttributeSortRemoved = { selectedAttributeSort = selectedAttributeSort - it },
+                        onAttributeSortSelected = { selectedAttributeSort = it },
                         onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
                         onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
                         isCompact = true
@@ -7896,7 +7893,7 @@ private fun BattleTeamDiscipleSelectionDialog(
 ) {
     var selectedRealmFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
     var selectedSpiritRootFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
-    var selectedAttributeSort by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
     var spiritRootExpanded by remember { mutableStateOf(false) }
     var attributeExpanded by remember { mutableStateOf(false) }
 
@@ -7996,8 +7993,7 @@ private fun BattleTeamDiscipleSelectionDialog(
                         spiritRootCounts = spiritRootCounts,
                         onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
                         onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
-                        onAttributeSortSelected = { selectedAttributeSort = selectedAttributeSort + it },
-                        onAttributeSortRemoved = { selectedAttributeSort = selectedAttributeSort - it },
+                        onAttributeSortSelected = { selectedAttributeSort = it },
                         onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
                         onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
                         isCompact = true

@@ -492,7 +492,7 @@ private fun HerbGardenElderSelectionDialog(
 ) {
     var selectedRealmFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
     var selectedSpiritRootFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
-    var selectedAttributeSort by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
     var spiritRootExpanded by remember { mutableStateOf(false) }
     var attributeExpanded by remember { mutableStateOf(false) }
 
@@ -591,8 +591,7 @@ private fun HerbGardenElderSelectionDialog(
                     spiritRootCounts = spiritRootCounts,
                     onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
                     onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
-                    onAttributeSortSelected = { selectedAttributeSort = selectedAttributeSort + it },
-                    onAttributeSortRemoved = { selectedAttributeSort = selectedAttributeSort - it },
+                    onAttributeSortSelected = { selectedAttributeSort = it },
                     onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
                     onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
                     isCompact = true
@@ -757,7 +756,7 @@ private fun HerbGardenDirectDiscipleSelectionDialog(
 ) {
     var selectedRealmFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
     var selectedSpiritRootFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
-    var selectedAttributeSort by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
     var spiritRootExpanded by remember { mutableStateOf(false) }
     var attributeExpanded by remember { mutableStateOf(false) }
 
@@ -855,8 +854,7 @@ private fun HerbGardenDirectDiscipleSelectionDialog(
                     spiritRootCounts = spiritRootCounts,
                     onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
                     onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
-                    onAttributeSortSelected = { selectedAttributeSort = selectedAttributeSort + it },
-                    onAttributeSortRemoved = { selectedAttributeSort = selectedAttributeSort - it },
+                    onAttributeSortSelected = { selectedAttributeSort = it },
                     onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
                     onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
                     isCompact = true
