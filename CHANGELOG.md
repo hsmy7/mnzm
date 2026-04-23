@@ -1,6 +1,6 @@
 # 模拟宗门 - 更新日志
 
-## [2.4.1] - 2026-04-24
+## [2.4.01] - 2026-04-24
 
 ### 修复
 - 修复 enemyRealmMin > enemyRealmMax 导致 Random.nextInt 抛出 IllegalArgumentException，所有战斗任务完成时崩溃
