@@ -1,6 +1,7 @@
 package com.xianxia.sect.ui.game.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -243,6 +244,7 @@ fun LearnedManualDetailDialog(
                     modifier = Modifier
                         .size(24.dp)
                         .clip(RoundedCornerShape(12.dp))
+                        .clickable { onDismiss() }
                         .background(GameColors.CardBackground)
                         .padding(4.dp),
                     contentAlignment = Alignment.Center
