@@ -526,6 +526,7 @@ fun DiscipleDetailDialog(
                 }.sortedByDescending { it.rarity }
             }
             var selectedReplaceManualId by remember { mutableStateOf<String?>(null) }
+            var showReplaceDetailStack by remember { mutableStateOf<ManualStack?>(null) }
 
             AlertDialog(
                 onDismissRequest = { showManualReplaceSelection = false },
@@ -590,7 +591,7 @@ fun DiscipleDetailDialog(
                                     onClick = {
                                         selectedReplaceManualId = if (selectedReplaceManualId == stack.id) null else stack.id
                                     },
-                                    onViewDetail = { selectedReplaceManualId = stack.id }
+                                    onViewDetail = { showReplaceDetailStack = stack }
                                 )
                             }
                         }
@@ -618,6 +619,13 @@ fun DiscipleDetailDialog(
                     }
                 }
             )
+
+            showReplaceDetailStack?.let { stack ->
+                ItemDetailDialog(
+                    item = stack,
+                    onDismiss = { showReplaceDetailStack = null }
+                )
+            }
         }
     }
 
@@ -807,6 +815,8 @@ private fun EquipmentSelectionDialog(
         (stacks + instances).sortedByDescending { it.rarity }
     }
 
+    var showDetailItem by remember { mutableStateOf<Any?>(null) }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = GameColors.PageBackground,
@@ -870,7 +880,13 @@ private fun EquipmentSelectionDialog(
                             onClick = {
                                 onSelect(item.id)
                             },
-                            onViewDetail = { onSelect(item.id) }
+                            onViewDetail = {
+                                if (item.isStack) {
+                                    equipmentStacks.find { it.id == item.id }?.let { showDetailItem = it }
+                                } else {
+                                    allEquipment.find { it.id == item.id }?.let { showDetailItem = it }
+                                }
+                            }
                         )
                     }
                 }
@@ -892,6 +908,13 @@ private fun EquipmentSelectionDialog(
             }
         }
     )
+
+    showDetailItem?.let { item ->
+        ItemDetailDialog(
+            item = item,
+            onDismiss = { showDetailItem = null }
+        )
+    }
 }
 
 private data class EquipmentSelectionItem(
@@ -922,6 +945,8 @@ private fun ManualSelectionDialog(
             GameConfig.Realm.meetsRealmRequirement(discipleRealm, stack.minRealm)
         }.sortedByDescending { it.rarity }
     }
+
+    var showDetailStack by remember { mutableStateOf<ManualStack?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -986,7 +1011,7 @@ private fun ManualSelectionDialog(
                             onClick = {
                                 onSelect(stack.id)
                             },
-                            onViewDetail = { onSelect(stack.id) }
+                            onViewDetail = { showDetailStack = stack }
                         )
                     }
                 }
@@ -1008,6 +1033,13 @@ private fun ManualSelectionDialog(
             }
         }
     )
+
+    showDetailStack?.let { stack ->
+        ItemDetailDialog(
+            item = stack,
+            onDismiss = { showDetailStack = null }
+        )
+    }
 }
 
 @Composable
