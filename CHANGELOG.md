@@ -1,5 +1,20 @@
 # 模拟宗门 - 更新日志
 
+## [2.4.1] - 2026-04-24
+
+### 修复
+- 修复 enemyRealmMin > enemyRealmMax 导致 Random.nextInt 抛出 IllegalArgumentException，所有战斗任务完成时崩溃
+- 修复 EnemyGenerator 心法强制分配逻辑：功法生成时最后一本不再强制为心法类型，心法最多1本但非必须
+- 修复任务刷新使用均匀随机而非 spawnChance 权重，导致禁忌任务出现概率远高于设计值
+
+### 改进
+- 任务刷新现在按难度权重生成：简单25%/普通12%/困难3%/禁忌0.5%
+- 探索古修士洞府和上古战场遭遇的敌人类型从妖兽调整为人型（守护禁制/战魂）
+- 重构 generateMaterials/generateBaseMaterials 为 generateMaterialBatch 消除重复代码
+- 权重随机添加防御性检查，避免 spawnChance 总和为0时崩溃
+- 修正测试中任务类型分布断言（3无战斗+2必战斗+1概率战斗）
+- 新增测试覆盖：enemyRealmMin<=enemyRealmMax、权重刷新、敌人类型、触发率递增
+
 ## [2.4.0] - 2026-04-24
 
 ### 新功能

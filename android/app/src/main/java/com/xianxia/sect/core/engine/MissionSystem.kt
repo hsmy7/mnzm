@@ -54,9 +54,9 @@ object MissionSystem {
 
         if (currentMonth % REFRESH_INTERVAL_MONTHS == 0) {
             val refreshCount = Random.nextInt(0, MAX_REFRESH_COUNT + 1)
-            val pool = MissionTemplate.entries
+            val weightedPool = buildWeightedPool()
             repeat(refreshCount) {
-                val template = pool.random()
+                val template = weightedRandom(weightedPool)
                 newMissions.add(createMission(template, currentYear, currentMonth))
             }
         }
@@ -545,57 +545,17 @@ object MissionSystem {
     }
 
     private fun generateMaterials(rewards: MissionRewardConfig): List<Material> {
-        if (rewards.materialCountMin <= 0) return emptyList()
-
-        val count = Random.nextInt(rewards.materialCountMin, rewards.materialCountMax + 1)
-        val materials = mutableListOf<Material>()
-
-        repeat(count) {
-            val eligibleMaterials = BeastMaterialDatabase.getAllMaterials()
-                .filter { it.rarity in rewards.materialMinRarity..rewards.materialMaxRarity }
-            if (eligibleMaterials.isNotEmpty()) {
-                val template = eligibleMaterials.random()
-                materials.add(ItemDatabase.createMaterialFromTemplate(
-                    ItemDatabase.MaterialTemplate(
-                        id = template.id,
-                        name = template.name,
-                        category = template.materialCategory,
-                        rarity = template.rarity,
-                        description = template.description,
-                        price = template.price
-                    )
-                ))
-            }
-        }
-
-        return materials
+        return generateMaterialBatch(
+            rewards.materialCountMin, rewards.materialCountMax,
+            rewards.materialMinRarity, rewards.materialMaxRarity
+        )
     }
 
     private fun generateBaseMaterials(rewards: MissionRewardConfig): List<Material> {
-        if (rewards.baseMaterialCountMin <= 0) return emptyList()
-
-        val count = Random.nextInt(rewards.baseMaterialCountMin, rewards.baseMaterialCountMax + 1)
-        val materials = mutableListOf<Material>()
-
-        repeat(count) {
-            val eligibleMaterials = BeastMaterialDatabase.getAllMaterials()
-                .filter { it.rarity in rewards.baseMaterialMinRarity..rewards.baseMaterialMaxRarity }
-            if (eligibleMaterials.isNotEmpty()) {
-                val template = eligibleMaterials.random()
-                materials.add(ItemDatabase.createMaterialFromTemplate(
-                    ItemDatabase.MaterialTemplate(
-                        id = template.id,
-                        name = template.name,
-                        category = template.materialCategory,
-                        rarity = template.rarity,
-                        description = template.description,
-                        price = template.price
-                    )
-                ))
-            }
-        }
-
-        return materials
+        return generateMaterialBatch(
+            rewards.baseMaterialCountMin, rewards.baseMaterialCountMax,
+            rewards.baseMaterialMinRarity, rewards.baseMaterialMaxRarity
+        )
     }
 
     private fun generatePills(rewards: MissionRewardConfig): List<Pill> {
@@ -644,5 +604,57 @@ object MissionSystem {
         val monthDiff = currentMonth - mission.createdMonth
         val totalMonths = yearDiff * 12 + monthDiff
         return totalMonths >= EXPIRY_MONTHS
+    }
+
+    private data class WeightedEntry(
+        val template: MissionTemplate,
+        val cumulativeWeight: Double
+    )
+
+    private fun buildWeightedPool(): List<WeightedEntry> {
+        var cumulative = 0.0
+        return MissionTemplate.entries.map { template ->
+            cumulative += template.difficulty.spawnChance
+            WeightedEntry(template, cumulative)
+        }
+    }
+
+    private fun weightedRandom(pool: List<WeightedEntry>): MissionTemplate {
+        val totalWeight = pool.lastOrNull()?.cumulativeWeight ?: 0.0
+        if (totalWeight <= 0.0) return MissionTemplate.entries.random()
+        val roll = Random.nextDouble() * totalWeight
+        return pool.first { roll < it.cumulativeWeight }.template
+    }
+
+    private fun generateMaterialBatch(
+        countMin: Int,
+        countMax: Int,
+        minRarity: Int,
+        maxRarity: Int
+    ): List<Material> {
+        if (countMin <= 0) return emptyList()
+
+        val count = Random.nextInt(countMin, countMax + 1)
+        val materials = mutableListOf<Material>()
+
+        repeat(count) {
+            val eligibleMaterials = BeastMaterialDatabase.getAllMaterials()
+                .filter { it.rarity in minRarity..maxRarity }
+            if (eligibleMaterials.isNotEmpty()) {
+                val template = eligibleMaterials.random()
+                materials.add(ItemDatabase.createMaterialFromTemplate(
+                    ItemDatabase.MaterialTemplate(
+                        id = template.id,
+                        name = template.name,
+                        category = template.materialCategory,
+                        rarity = template.rarity,
+                        description = template.description,
+                        price = template.price
+                    )
+                ))
+            }
+        }
+
+        return materials
     }
 }

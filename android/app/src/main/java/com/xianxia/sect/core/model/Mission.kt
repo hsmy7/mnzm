@@ -53,17 +53,17 @@ enum class MissionDifficulty {
     }
 
     val enemyRealmMin: Int get() = when (this) {
-        SIMPLE -> 9
-        NORMAL -> 7
-        HARD -> 5
-        FORBIDDEN -> 3
-    }
-
-    val enemyRealmMax: Int get() = when (this) {
         SIMPLE -> 8
         NORMAL -> 6
         HARD -> 4
         FORBIDDEN -> 2
+    }
+
+    val enemyRealmMax: Int get() = when (this) {
+        SIMPLE -> 9
+        NORMAL -> 7
+        HARD -> 5
+        FORBIDDEN -> 3
     }
 }
 
@@ -209,13 +209,14 @@ enum class MissionTemplate {
 
     val enemyType: EnemyType get() = when (this) {
         SUPPRESS_LOW_BEASTS, SUPPRESS_JINDAN_BEASTS,
-        SUPPRESS_HUASHEN_BEAST_KING, SUPPRESS_ANCIENT_FIEND -> EnemyType.BEAST
+        SUPPRESS_HUASHEN_BEAST_KING, SUPPRESS_ANCIENT_FIEND,
+        EXPLORE_ABANDONED_MINE -> EnemyType.BEAST
 
         CLEAR_BANDITS, DESTROY_MAGIC_OUTPOST,
-        DESTROY_MAGIC_BRANCH, DESTROY_MAGIC_HEADQUARTERS -> EnemyType.HUMAN
+        DESTROY_MAGIC_BRANCH, DESTROY_MAGIC_HEADQUARTERS,
+        EXPLORE_ANCIENT_CAVE, EXPLORE_ANCIENT_BATTLEFIELD -> EnemyType.HUMAN
 
-        EXPLORE_ABANDONED_MINE, EXPLORE_ANCIENT_CAVE,
-        EXPLORE_ANCIENT_BATTLEFIELD, EXPLORE_CORE_BATTLEFIELD -> EnemyType.BEAST
+        EXPLORE_CORE_BATTLEFIELD -> EnemyType.BEAST
 
         else -> EnemyType.BEAST
     }

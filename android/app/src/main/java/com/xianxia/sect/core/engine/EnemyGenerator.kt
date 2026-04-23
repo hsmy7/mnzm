@@ -68,9 +68,7 @@ object EnemyGenerator {
         var hasMindManual = false
 
         for (i in 0 until manualCount) {
-            val type = if (!hasMindManual && i == manualCount - 1) {
-                ManualType.MIND
-            } else if (!hasMindManual && Random.nextDouble() < 0.2) {
+            val type = if (!hasMindManual && Random.nextDouble() < 0.2) {
                 ManualType.MIND
             } else {
                 listOf(ManualType.ATTACK, ManualType.DEFENSE, ManualType.SUPPORT).random()

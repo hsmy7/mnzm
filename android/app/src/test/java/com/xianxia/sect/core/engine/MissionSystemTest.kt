@@ -83,15 +83,15 @@ class MissionSystemTest {
     }
 
     @Test
-    fun `MissionTemplate - 每个难度2个无战斗2个必战斗2个概率战斗`() {
+    fun `MissionTemplate - 每个难度3个无战斗2个必战斗1个概率战斗`() {
         MissionDifficulty.values().forEach { difficulty ->
             val templates = MissionTemplate.values().filter { it.difficulty == difficulty }
             val noCombat = templates.count { it.missionType == MissionType.NO_COMBAT }
             val combatRequired = templates.count { it.missionType == MissionType.COMBAT_REQUIRED }
             val combatRandom = templates.count { it.missionType == MissionType.COMBAT_RANDOM }
-            assertEquals(2, noCombat)
+            assertEquals(3, noCombat)
             assertEquals(2, combatRequired)
-            assertEquals(2, combatRandom)
+            assertEquals(1, combatRandom)
         }
     }
 
@@ -213,15 +213,21 @@ class MissionSystemTest {
     }
 
     @Test
-    fun `MissionDifficulty - 敌人境界范围正确`() {
-        assertEquals(9, MissionDifficulty.SIMPLE.enemyRealmMin)
-        assertEquals(8, MissionDifficulty.SIMPLE.enemyRealmMax)
-        assertEquals(7, MissionDifficulty.NORMAL.enemyRealmMin)
-        assertEquals(6, MissionDifficulty.NORMAL.enemyRealmMax)
-        assertEquals(5, MissionDifficulty.HARD.enemyRealmMin)
-        assertEquals(4, MissionDifficulty.HARD.enemyRealmMax)
-        assertEquals(3, MissionDifficulty.FORBIDDEN.enemyRealmMin)
-        assertEquals(2, MissionDifficulty.FORBIDDEN.enemyRealmMax)
+    fun `MissionDifficulty - 敌人境界范围正确且Min小于Max`() {
+        MissionDifficulty.values().forEach { difficulty ->
+            assertTrue(
+                "enemyRealmMin(${difficulty.enemyRealmMin}) should be <= enemyRealmMax(${difficulty.enemyRealmMax}) for $difficulty",
+                difficulty.enemyRealmMin <= difficulty.enemyRealmMax
+            )
+        }
+        assertEquals(8, MissionDifficulty.SIMPLE.enemyRealmMin)
+        assertEquals(9, MissionDifficulty.SIMPLE.enemyRealmMax)
+        assertEquals(6, MissionDifficulty.NORMAL.enemyRealmMin)
+        assertEquals(7, MissionDifficulty.NORMAL.enemyRealmMax)
+        assertEquals(4, MissionDifficulty.HARD.enemyRealmMin)
+        assertEquals(5, MissionDifficulty.HARD.enemyRealmMax)
+        assertEquals(2, MissionDifficulty.FORBIDDEN.enemyRealmMin)
+        assertEquals(3, MissionDifficulty.FORBIDDEN.enemyRealmMax)
     }
 
     @Test
@@ -378,5 +384,71 @@ class MissionSystemTest {
         val disciples = (1..6).map { createDisciple(id = "d$it", name = "弟子$it", discipleType = "inner", realm = 9) }
         val result = MissionSystem.validateDisciplesForMission(mission, disciples)
         assertFalse(result.valid)
+    }
+
+    @Test
+    fun `MissionDifficulty - spawnChance权重递减`() {
+        assertTrue(MissionDifficulty.SIMPLE.spawnChance > MissionDifficulty.NORMAL.spawnChance)
+        assertTrue(MissionDifficulty.NORMAL.spawnChance > MissionDifficulty.HARD.spawnChance)
+        assertTrue(MissionDifficulty.HARD.spawnChance > MissionDifficulty.FORBIDDEN.spawnChance)
+    }
+
+    @Test
+    fun `processMonthlyRefresh - 权重刷新简单任务出现概率远高于禁忌任务`() {
+        val templateCounts = mutableMapOf<MissionDifficulty, Int>()
+        repeat(500) {
+            val result = MissionSystem.processMonthlyRefresh(
+                existingMissions = emptyList(),
+                currentYear = 1,
+                currentMonth = 3
+            )
+            result.newMissions.forEach { mission ->
+                templateCounts[mission.difficulty] = (templateCounts[mission.difficulty] ?: 0) + 1
+            }
+        }
+        val simpleCount = templateCounts[MissionDifficulty.SIMPLE] ?: 0
+        val forbiddenCount = templateCounts[MissionDifficulty.FORBIDDEN] ?: 0
+        assertTrue(
+            "简单任务($simpleCount)应远多于禁忌任务($forbiddenCount)",
+            simpleCount > forbiddenCount * 5
+        )
+    }
+
+    @Test
+    fun `COMBAT_RANDOM任务敌人类型 - 古修士洞府和上古战场为人型`() {
+        assertEquals(EnemyType.HUMAN, MissionTemplate.EXPLORE_ANCIENT_CAVE.enemyType)
+        assertEquals(EnemyType.HUMAN, MissionTemplate.EXPLORE_ANCIENT_BATTLEFIELD.enemyType)
+    }
+
+    @Test
+    fun `COMBAT_RANDOM任务敌人类型 - 废弃矿洞和核心战场为妖兽`() {
+        assertEquals(EnemyType.BEAST, MissionTemplate.EXPLORE_ABANDONED_MINE.enemyType)
+        assertEquals(EnemyType.BEAST, MissionTemplate.EXPLORE_CORE_BATTLEFIELD.enemyType)
+    }
+
+    @Test
+    fun `COMBAT_REQUIRED任务敌人类型 - 镇压类为妖兽剿灭类为人型`() {
+        assertEquals(EnemyType.BEAST, MissionTemplate.SUPPRESS_LOW_BEASTS.enemyType)
+        assertEquals(EnemyType.BEAST, MissionTemplate.SUPPRESS_JINDAN_BEASTS.enemyType)
+        assertEquals(EnemyType.BEAST, MissionTemplate.SUPPRESS_HUASHEN_BEAST_KING.enemyType)
+        assertEquals(EnemyType.BEAST, MissionTemplate.SUPPRESS_ANCIENT_FIEND.enemyType)
+        assertEquals(EnemyType.HUMAN, MissionTemplate.CLEAR_BANDITS.enemyType)
+        assertEquals(EnemyType.HUMAN, MissionTemplate.DESTROY_MAGIC_OUTPOST.enemyType)
+        assertEquals(EnemyType.HUMAN, MissionTemplate.DESTROY_MAGIC_BRANCH.enemyType)
+        assertEquals(EnemyType.HUMAN, MissionTemplate.DESTROY_MAGIC_HEADQUARTERS.enemyType)
+    }
+
+    @Test
+    fun `NO_COMBAT任务敌人类型默认为BEAST`() {
+        MissionTemplate.values().filter { it.missionType == MissionType.NO_COMBAT }.forEach {
+            assertEquals(EnemyType.BEAST, it.enemyType)
+        }
+    }
+
+    @Test
+    fun `COMBAT_RANDOM触发率递增`() {
+        assertTrue(MissionTemplate.EXPLORE_ABANDONED_MINE.triggerChance < MissionTemplate.EXPLORE_ANCIENT_CAVE.triggerChance)
+        assertTrue(MissionTemplate.EXPLORE_ANCIENT_CAVE.triggerChance < MissionTemplate.EXPLORE_ANCIENT_BATTLEFIELD.triggerChance)
+        assertTrue(MissionTemplate.EXPLORE_ANCIENT_BATTLEFIELD.triggerChance < MissionTemplate.EXPLORE_CORE_BATTLEFIELD.triggerChance)
     }
 }
