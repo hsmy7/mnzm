@@ -166,6 +166,8 @@ fun DiscipleDetailDialog(
     var showStorageBagDialog by remember { mutableStateOf(false) }
     var showExpelConfirmDialog by remember { mutableStateOf(false) }
 
+    val gameData by viewModel?.gameData?.collectAsState() ?: remember { mutableStateOf(null) }
+
     val currentIndex = allDisciples.indexOfFirst { it.id == disciple.id }
     val hasPrev = currentIndex > 0
     val hasNext = currentIndex >= 0 && currentIndex < allDisciples.size - 1
@@ -287,9 +289,9 @@ fun DiscipleDetailDialog(
                             manualProficiencies = manualProficiencies,
                             position = viewModel?.getDisciplePosition(disciple.id),
                             isWorkStatusPosition = viewModel?.isPositionWorkStatus(disciple.id) ?: false,
-                            elderSlots = viewModel?.gameData?.value?.elderSlots,
+                            elderSlots = gameData?.elderSlots,
                             allDisciples = allDisciples,
-                            sectPolicies = viewModel?.gameData?.value?.sectPolicies
+                            sectPolicies = gameData?.sectPolicies
                         )
                         HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
                         TalentsSection(talents, disciple.statusData)
@@ -381,13 +383,12 @@ fun DiscipleDetailDialog(
     }
 
     if (showStorageBagDialog) {
-        @Suppress("StateFlowValueCalledInComposition")
         StorageBagDialog(
             items = disciple.storageBagItems,
             spiritStones = disciple.storageBagSpiritStones,
             disciple = disciple,
             viewModel = viewModel,
-            gameData = viewModel?.gameData?.value,
+            gameData = gameData,
             onDismiss = { showStorageBagDialog = false }
         )
     }

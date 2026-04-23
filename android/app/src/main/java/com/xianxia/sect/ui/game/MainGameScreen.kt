@@ -808,8 +808,8 @@ internal fun DropdownFilterButton(
     hasSelection: Boolean,
     isExpanded: Boolean,
     onClick: () -> Unit,
-    isCompact: Boolean = false,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isCompact: Boolean = false
 ) {
     Row(
         modifier = modifier
@@ -831,6 +831,7 @@ internal fun DropdownFilterButton(
         )
         Icon(
             imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+            contentDescription = null,
             modifier = Modifier.size(if (isCompact) 14.dp else 18.dp),
             tint = Color.Black
         )

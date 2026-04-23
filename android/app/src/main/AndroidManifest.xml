@@ -85,12 +85,14 @@
             android:name="com.taptap.sdk.kit.internal.TapTapKitInitProvider"
             android:authorities="${applicationId}.TapTapKitInitProvider"
             android:exported="false"
-            tools:node="remove" />
+            tools:node="remove"
+            tools:ignore="MissingClass" />
         <provider
             android:name="com.taptap.sdk.themis.lite.ThemisProvider"
             android:authorities="${applicationId}.themisLite"
             android:exported="false"
-            tools:node="remove" />
+            tools:node="remove"
+            tools:ignore="MissingClass" />
 
     </application>
 
