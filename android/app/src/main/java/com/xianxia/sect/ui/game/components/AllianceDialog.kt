@@ -33,6 +33,9 @@ import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.core.util.sortedByFollowAndRealm
+import com.xianxia.sect.ui.game.getSpiritRootCount
+import com.xianxia.sect.ui.game.applyFilters
+import com.xianxia.sect.ui.game.SpiritRootAttributeFilterBar
 
 @Composable
 fun AllianceDialog(
@@ -317,6 +320,10 @@ fun EnvoyDiscipleSelectDialog(
     onDismiss: () -> Unit
 ) {
     var selectedDisciple by remember { mutableStateOf<DiscipleAggregate?>(null) }
+    var selectedSpiritRootFilter by remember { mutableStateOf<Int?>(null) }
+    var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
+    var spiritRootExpanded by remember { mutableStateOf(false) }
+    var attributeExpanded by remember { mutableStateOf(false) }
     val sectLevel = sect?.level ?: 0
     val requiredRealm = GameConfig.Realm.getName(
         when (sectLevel) {
@@ -327,6 +334,14 @@ fun EnvoyDiscipleSelectDialog(
             else -> 7
         }
     )
+
+    val spiritRootCounts = remember(disciples) {
+        disciples.groupingBy { it.getSpiritRootCount() }.eachCount()
+    }
+
+    val filteredDisciples = remember(disciples, selectedSpiritRootFilter, selectedAttributeSort) {
+        disciples.applyFilters(null, selectedSpiritRootFilter, selectedAttributeSort)
+    }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -358,7 +373,20 @@ fun EnvoyDiscipleSelectDialog(
                     }
                 }
 
-                if (disciples.isEmpty()) {
+                SpiritRootAttributeFilterBar(
+                    selectedSpiritRootFilter = selectedSpiritRootFilter,
+                    selectedAttributeSort = selectedAttributeSort,
+                    spiritRootExpanded = spiritRootExpanded,
+                    attributeExpanded = attributeExpanded,
+                    spiritRootCounts = spiritRootCounts,
+                    onSpiritRootFilterSelected = { selectedSpiritRootFilter = it },
+                    onAttributeSortSelected = { selectedAttributeSort = it },
+                    onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
+                    onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
+                    isCompact = true
+                )
+
+                if (filteredDisciples.isEmpty()) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -379,7 +407,7 @@ fun EnvoyDiscipleSelectDialog(
                             .padding(12.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(disciples, key = { it.id }) { disciple ->
+                        items(filteredDisciples, key = { it.id }) { disciple ->
                             DiscipleSelectCard(
                                 disciple = disciple,
                                 isSelected = selectedDisciple?.id == disciple.id,
@@ -552,6 +580,10 @@ fun ScoutDiscipleSelectDialog(
 ) {
     var selectedDisciples by remember { mutableStateOf<Set<String>>(emptySet()) }
     var selectedRealmFilter by remember { mutableStateOf<Int?>(null) }
+    var selectedSpiritRootFilter by remember { mutableStateOf<Int?>(null) }
+    var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
+    var spiritRootExpanded by remember { mutableStateOf(false) }
+    var attributeExpanded by remember { mutableStateOf(false) }
     val maxSelectCount = 7
 
     val realmFilters = listOf(
@@ -567,12 +599,14 @@ fun ScoutDiscipleSelectDialog(
         9 to "炼气"
     )
 
-    val realmCounts = disciples.groupingBy { it.realm }.eachCount()
+    val realmCounts = remember(disciples) { disciples.groupingBy { it.realm }.eachCount() }
 
-    val filteredDisciples = if (selectedRealmFilter == null) {
-        disciples.sortedByFollowAndRealm()
-    } else {
-        disciples.filter { it.realm == selectedRealmFilter }.sortedByFollowAndRealm()
+    val spiritRootCounts = remember(disciples) {
+        disciples.groupingBy { it.getSpiritRootCount() }.eachCount()
+    }
+
+    val filteredDisciples = remember(disciples, selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort) {
+        disciples.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort)
     }
 
     Dialog(onDismissRequest = onDismiss) {
@@ -604,6 +638,19 @@ fun ScoutDiscipleSelectDialog(
                         )
                     }
                 }
+
+                SpiritRootAttributeFilterBar(
+                    selectedSpiritRootFilter = selectedSpiritRootFilter,
+                    selectedAttributeSort = selectedAttributeSort,
+                    spiritRootExpanded = spiritRootExpanded,
+                    attributeExpanded = attributeExpanded,
+                    spiritRootCounts = spiritRootCounts,
+                    onSpiritRootFilterSelected = { selectedSpiritRootFilter = it },
+                    onAttributeSortSelected = { selectedAttributeSort = it },
+                    onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
+                    onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
+                    isCompact = true
+                )
 
                 ScoutRealmFilterBar(
                     filters = realmFilters,

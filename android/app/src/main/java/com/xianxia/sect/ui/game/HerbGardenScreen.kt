@@ -491,6 +491,10 @@ private fun HerbGardenElderSelectionDialog(
     onSelect: (String) -> Unit
 ) {
     var selectedRealmFilter by remember { mutableStateOf<Int?>(null) }
+    var selectedSpiritRootFilter by remember { mutableStateOf<Int?>(null) }
+    var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
+    var spiritRootExpanded by remember { mutableStateOf(false) }
+    var attributeExpanded by remember { mutableStateOf(false) }
 
     val realmFilters = listOf(
         0 to "仙人",
@@ -523,16 +527,16 @@ private fun HerbGardenElderSelectionDialog(
         filteredDisciplesBase.groupingBy { it.realm }.eachCount()
     }
 
+    val spiritRootCounts = remember(filteredDisciplesBase) {
+        filteredDisciplesBase.groupingBy { it.getSpiritRootCount() }.eachCount()
+    }
+
     val sortedDisciples = remember(filteredDisciplesBase) {
         filteredDisciplesBase.sortedByFollowAttributeAndRealm("spiritPlanting")
     }
 
-    val filteredDisciples = remember(sortedDisciples, selectedRealmFilter) {
-        if (selectedRealmFilter == null) {
-            sortedDisciples
-        } else {
-            sortedDisciples.filter { it.realm == selectedRealmFilter }
-        }
+    val filteredDisciples = remember(sortedDisciples, selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort) {
+        sortedDisciples.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort, "spiritPlanting")
     }
 
     AlertDialog(
@@ -577,6 +581,19 @@ private fun HerbGardenElderSelectionDialog(
                     fontSize = 10.sp,
                     color = Color(0xFF999999),
                     modifier = Modifier.padding(bottom = 8.dp)
+                )
+
+                SpiritRootAttributeFilterBar(
+                    selectedSpiritRootFilter = selectedSpiritRootFilter,
+                    selectedAttributeSort = selectedAttributeSort,
+                    spiritRootExpanded = spiritRootExpanded,
+                    attributeExpanded = attributeExpanded,
+                    spiritRootCounts = spiritRootCounts,
+                    onSpiritRootFilterSelected = { selectedSpiritRootFilter = it },
+                    onAttributeSortSelected = { selectedAttributeSort = it },
+                    onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
+                    onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
+                    isCompact = true
                 )
 
                 Column(
@@ -737,6 +754,10 @@ private fun HerbGardenDirectDiscipleSelectionDialog(
     onSelect: (String) -> Unit
 ) {
     var selectedRealmFilter by remember { mutableStateOf<Int?>(null) }
+    var selectedSpiritRootFilter by remember { mutableStateOf<Int?>(null) }
+    var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
+    var spiritRootExpanded by remember { mutableStateOf(false) }
+    var attributeExpanded by remember { mutableStateOf(false) }
 
     val realmFilters = listOf(
         0 to "仙人",
@@ -768,16 +789,16 @@ private fun HerbGardenDirectDiscipleSelectionDialog(
         filteredDisciplesBase.groupingBy { it.realm }.eachCount()
     }
 
+    val spiritRootCounts = remember(filteredDisciplesBase) {
+        filteredDisciplesBase.groupingBy { it.getSpiritRootCount() }.eachCount()
+    }
+
     val sortedDisciples = remember(filteredDisciplesBase) {
         filteredDisciplesBase.sortedByFollowAttributeAndRealm("spiritPlanting")
     }
 
-    val filteredDisciples = remember(sortedDisciples, selectedRealmFilter) {
-        if (selectedRealmFilter == null) {
-            sortedDisciples
-        } else {
-            sortedDisciples.filter { it.realm == selectedRealmFilter }
-        }
+    val filteredDisciples = remember(sortedDisciples, selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort) {
+        sortedDisciples.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort, "spiritPlanting")
     }
 
     AlertDialog(
@@ -822,6 +843,19 @@ private fun HerbGardenDirectDiscipleSelectionDialog(
                     fontSize = 10.sp,
                     color = Color(0xFF999999),
                     modifier = Modifier.padding(bottom = 8.dp)
+                )
+
+                SpiritRootAttributeFilterBar(
+                    selectedSpiritRootFilter = selectedSpiritRootFilter,
+                    selectedAttributeSort = selectedAttributeSort,
+                    spiritRootExpanded = spiritRootExpanded,
+                    attributeExpanded = attributeExpanded,
+                    spiritRootCounts = spiritRootCounts,
+                    onSpiritRootFilterSelected = { selectedSpiritRootFilter = it },
+                    onAttributeSortSelected = { selectedAttributeSort = it },
+                    onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
+                    onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
+                    isCompact = true
                 )
 
                 Column(

@@ -192,6 +192,10 @@ private fun LibraryDiscipleSelectionDialog(
     onDismiss: () -> Unit
 ) {
     var selectedRealmFilter by remember { mutableStateOf<Int?>(null) }
+    var selectedSpiritRootFilter by remember { mutableStateOf<Int?>(null) }
+    var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
+    var spiritRootExpanded by remember { mutableStateOf(false) }
+    var attributeExpanded by remember { mutableStateOf(false) }
 
     val realmFilters = listOf(
         0 to "仙人",
@@ -210,16 +214,16 @@ private fun LibraryDiscipleSelectionDialog(
         disciples.filter { it.realmLayer > 0 && it.age >= 5 }.groupingBy { it.realm }.eachCount()
     }
 
+    val spiritRootCounts = remember(disciples) {
+        disciples.filter { it.realmLayer > 0 && it.age >= 5 }.groupingBy { it.getSpiritRootCount() }.eachCount()
+    }
+
     val sortedDisciples = remember(disciples) {
         disciples.filter { it.realmLayer > 0 && it.age >= 5 }.sortedByFollowAndRealm()
     }
 
-    val filteredDisciples = remember(sortedDisciples, selectedRealmFilter) {
-        if (selectedRealmFilter == null) {
-            sortedDisciples
-        } else {
-            sortedDisciples.filter { it.realm == selectedRealmFilter }
-        }
+    val filteredDisciples = remember(sortedDisciples, selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort) {
+        sortedDisciples.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort)
     }
 
     AlertDialog(
@@ -273,6 +277,19 @@ private fun LibraryDiscipleSelectionDialog(
                         .fillMaxWidth()
                         .heightIn(max = 500.dp)
                 ) {
+                    SpiritRootAttributeFilterBar(
+                        selectedSpiritRootFilter = selectedSpiritRootFilter,
+                        selectedAttributeSort = selectedAttributeSort,
+                        spiritRootExpanded = spiritRootExpanded,
+                        attributeExpanded = attributeExpanded,
+                        spiritRootCounts = spiritRootCounts,
+                        onSpiritRootFilterSelected = { selectedSpiritRootFilter = it },
+                        onAttributeSortSelected = { selectedAttributeSort = it },
+                        onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
+                        onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
+                        isCompact = true
+                    )
+
                     Column(
                         modifier = Modifier.fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(6.dp)

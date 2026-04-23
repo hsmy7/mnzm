@@ -728,6 +728,224 @@ private fun BottomNavigationBar(
 }
 
 // 其他Tab的占位实现
+internal data class AttributeFilterOption(
+    val key: String,
+    val name: String
+)
+
+internal val SPIRIT_ROOT_FILTER_OPTIONS = listOf(
+    1 to "单灵根",
+    2 to "双灵根",
+    3 to "三灵根",
+    4 to "四灵根",
+    5 to "五灵根"
+)
+
+internal val ATTRIBUTE_FILTER_OPTIONS = listOf(
+    AttributeFilterOption("comprehension", "悟性"),
+    AttributeFilterOption("intelligence", "智力"),
+    AttributeFilterOption("charm", "魅力"),
+    AttributeFilterOption("loyalty", "忠诚"),
+    AttributeFilterOption("artifactRefining", "炼器"),
+    AttributeFilterOption("pillRefining", "炼丹"),
+    AttributeFilterOption("spiritPlanting", "灵植"),
+    AttributeFilterOption("teaching", "传道"),
+    AttributeFilterOption("morality", "道德")
+)
+
+private val REALM_FILTER_OPTIONS = listOf(
+    0 to "仙人",
+    1 to "渡劫",
+    2 to "大乘",
+    3 to "合体",
+    4 to "炼虚",
+    5 to "化神",
+    6 to "元婴",
+    7 to "金丹",
+    8 to "筑基",
+    9 to "炼气"
+)
+
+internal fun DiscipleAggregate.getAttributeValue(key: String): Int = when (key) {
+    "comprehension" -> comprehension
+    "intelligence" -> intelligence
+    "charm" -> charm
+    "loyalty" -> loyalty
+    "artifactRefining" -> artifactRefining
+    "pillRefining" -> pillRefining
+    "spiritPlanting" -> spiritPlanting
+    "teaching" -> teaching
+    "morality" -> morality
+    else -> 0
+}
+
+internal fun DiscipleAggregate.getSpiritRootCount(): Int = spiritRoot.types.size
+
+internal fun List<DiscipleAggregate>.applyFilters(
+    realmFilter: Int?,
+    spiritRootFilter: Int?,
+    attributeSort: String?,
+    defaultSortAttribute: String? = null
+): List<DiscipleAggregate> {
+    val attrSort = attributeSort
+    val sorted = if (attrSort != null) {
+        sortedWith(
+            compareByDescending<DiscipleAggregate> { it.isFollowed }
+                .thenByDescending { it.getAttributeValue(attrSort) }
+                .thenBy { it.realm }
+                .thenByDescending { it.realmLayer }
+        )
+    } else {
+        sortedByFollowAttributeAndRealm(defaultSortAttribute)
+    }
+    val realmFiltered = if (realmFilter != null) sorted.filter { it.realm == realmFilter } else sorted
+    return if (spiritRootFilter != null) realmFiltered.filter { it.getSpiritRootCount() == spiritRootFilter } else realmFiltered
+}
+
+@Composable
+internal fun DropdownFilterButton(
+    displayText: String,
+    hasSelection: Boolean,
+    isExpanded: Boolean,
+    onClick: () -> Unit,
+    isCompact: Boolean = false,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(4.dp))
+            .background(if (hasSelection) GameColors.Border else GameColors.PageBackground)
+            .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
+            .clickable { onClick() }
+            .padding(vertical = if (isCompact) 4.dp else 8.dp, horizontal = 8.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = displayText,
+            fontSize = if (isCompact) 9.sp else 12.sp,
+            fontWeight = if (hasSelection) FontWeight.Bold else FontWeight.Normal,
+            color = Color.Black,
+            modifier = Modifier.weight(1f),
+            textAlign = TextAlign.Center
+        )
+        Icon(
+            imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+            contentDescription = null,
+            modifier = Modifier.size(if (isCompact) 14.dp else 18.dp),
+            tint = Color.Black
+        )
+    }
+}
+
+@Composable
+internal fun SpiritRootAttributeFilterBar(
+    selectedSpiritRootFilter: Int?,
+    selectedAttributeSort: String?,
+    spiritRootExpanded: Boolean,
+    attributeExpanded: Boolean,
+    spiritRootCounts: Map<Int, Int>,
+    onSpiritRootFilterSelected: (Int?) -> Unit,
+    onAttributeSortSelected: (String?) -> Unit,
+    onSpiritRootExpandToggle: () -> Unit,
+    onAttributeExpandToggle: () -> Unit,
+    isCompact: Boolean = false
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(GameColors.PageBackground)
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            val spiritRootDisplayText = if (selectedSpiritRootFilter != null) {
+                SPIRIT_ROOT_FILTER_OPTIONS.find { it.first == selectedSpiritRootFilter }?.second ?: "灵根"
+            } else "灵根"
+            val attributeDisplayText = if (selectedAttributeSort != null) {
+                ATTRIBUTE_FILTER_OPTIONS.find { it.key == selectedAttributeSort }?.name ?: "属性"
+            } else "属性"
+
+            DropdownFilterButton(
+                displayText = spiritRootDisplayText,
+                hasSelection = selectedSpiritRootFilter != null,
+                isExpanded = spiritRootExpanded,
+                onClick = onSpiritRootExpandToggle,
+                isCompact = isCompact,
+                modifier = Modifier.weight(1f)
+            )
+            DropdownFilterButton(
+                displayText = attributeDisplayText,
+                hasSelection = selectedAttributeSort != null,
+                isExpanded = attributeExpanded,
+                onClick = onAttributeExpandToggle,
+                isCompact = isCompact,
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        AnimatedVisibility(
+            visible = spiritRootExpanded,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut()
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                SPIRIT_ROOT_FILTER_OPTIONS.forEach { (count, name) ->
+                    val isSelected = selectedSpiritRootFilter == count
+                    val cnt = spiritRootCounts[count] ?: 0
+                    FilterChip(
+                        text = "$name $cnt",
+                        isSelected = isSelected,
+                        onClick = { onSpiritRootFilterSelected(if (isSelected) null else count) },
+                        modifier = Modifier.weight(1f),
+                        isCompact = isCompact
+                    )
+                }
+            }
+        }
+
+        AnimatedVisibility(
+            visible = attributeExpanded,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut()
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                ATTRIBUTE_FILTER_OPTIONS.chunked(5).forEach { row ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        row.forEach { option ->
+                            val isSelected = selectedAttributeSort == option.key
+                            FilterChip(
+                                text = option.name,
+                                isSelected = isSelected,
+                                onClick = { onAttributeSortSelected(if (isSelected) null else option.key) },
+                                modifier = Modifier.weight(1f),
+                                isCompact = isCompact
+                            )
+                        }
+                        if (row.size < 5) {
+                            repeat(5 - row.size) {
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun DisciplesTab(
     gameData: GameData?,
@@ -737,32 +955,22 @@ private fun DisciplesTab(
     viewModel: GameViewModel
 ) {
     var selectedRealmFilter by remember { mutableStateOf<Int?>(null) }
+    var selectedSpiritRootFilter by remember { mutableStateOf<Int?>(null) }
+    var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
+    var spiritRootExpanded by remember { mutableStateOf(false) }
+    var attributeExpanded by remember { mutableStateOf(false) }
     var selectedDisciple by remember { mutableStateOf<DiscipleAggregate?>(null) }
-
-    val realmFilters = listOf(
-        0 to "仙人",
-        1 to "渡劫",
-        2 to "大乘",
-        3 to "合体",
-        4 to "炼虚",
-        5 to "化神",
-        6 to "元婴",
-        7 to "金丹",
-        8 to "筑基",
-        9 to "炼气"
-    )
 
     val realmCounts = remember(disciples) {
         disciples.groupingBy { it.realm }.eachCount()
     }
 
-    val filteredDisciples = remember(disciples, selectedRealmFilter) {
-        val sorted = disciples.sortedByFollowAndRealm()
-        if (selectedRealmFilter == null) {
-            sorted
-        } else {
-            sorted.filter { it.realm == selectedRealmFilter }
-        }
+    val spiritRootCounts = remember(disciples) {
+        disciples.groupingBy { it.getSpiritRootCount() }.eachCount()
+    }
+
+    val filteredDisciples = remember(disciples, selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort) {
+        disciples.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort)
     }
 
     Column(
@@ -770,8 +978,20 @@ private fun DisciplesTab(
             .fillMaxSize()
             .background(GameColors.PageBackground)
     ) {
+        SpiritRootAttributeFilterBar(
+            selectedSpiritRootFilter = selectedSpiritRootFilter,
+            selectedAttributeSort = selectedAttributeSort,
+            spiritRootExpanded = spiritRootExpanded,
+            attributeExpanded = attributeExpanded,
+            spiritRootCounts = spiritRootCounts,
+            onSpiritRootFilterSelected = { selectedSpiritRootFilter = it },
+            onAttributeSortSelected = { selectedAttributeSort = it },
+            onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
+            onAttributeExpandToggle = { attributeExpanded = !attributeExpanded }
+        )
+
         RealmFilterBar(
-            filters = realmFilters,
+            filters = REALM_FILTER_OPTIONS,
             realmCounts = realmCounts,
             selectedFilter = selectedRealmFilter,
             onFilterSelected = { selectedRealmFilter = it }
@@ -877,11 +1097,12 @@ private fun RealmFilterBar(
 }
 
 @Composable
-private fun FilterChip(
+internal fun FilterChip(
     text: String,
     isSelected: Boolean,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isCompact: Boolean = false
 ) {
     Box(
         modifier = modifier
@@ -889,12 +1110,12 @@ private fun FilterChip(
             .background(if (isSelected) GameColors.Border else GameColors.PageBackground)
             .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
             .clickable(onClick = onClick)
-            .padding(vertical = 8.dp),
+            .padding(vertical = if (isCompact) 4.dp else 8.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = text,
-            fontSize = 12.sp,
+            fontSize = if (isCompact) 9.sp else 12.sp,
             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
             color = Color.Black
         )
@@ -1157,19 +1378,10 @@ private fun DirectDiscipleSelectionDialog(
     onSelect: (String) -> Unit
 ) {
     var selectedRealmFilter by remember { mutableStateOf<Int?>(null) }
-
-    val realmFilters = listOf(
-        0 to "仙人",
-        1 to "渡劫",
-        2 to "大乘",
-        3 to "合体",
-        4 to "炼虚",
-        5 to "化神",
-        6 to "元婴",
-        7 to "金丹",
-        8 to "筑基",
-        9 to "炼气"
-    )
+    var selectedSpiritRootFilter by remember { mutableStateOf<Int?>(null) }
+    var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
+    var spiritRootExpanded by remember { mutableStateOf(false) }
+    var attributeExpanded by remember { mutableStateOf(false) }
 
     val filteredDisciplesBase = remember(disciples, elderSlots) {
         disciples.filter { 
@@ -1185,16 +1397,12 @@ private fun DirectDiscipleSelectionDialog(
         filteredDisciplesBase.groupingBy { it.realm }.eachCount()
     }
 
-    val sortedDisciples = remember(filteredDisciplesBase, requiredAttribute) {
-        filteredDisciplesBase.sortedByFollowAttributeAndRealm(requiredAttribute?.first)
+    val spiritRootCounts = remember(filteredDisciplesBase) {
+        filteredDisciplesBase.groupingBy { it.getSpiritRootCount() }.eachCount()
     }
 
-    val filteredDisciples = remember(sortedDisciples, selectedRealmFilter) {
-        if (selectedRealmFilter == null) {
-            sortedDisciples
-        } else {
-            sortedDisciples.filter { it.realm == selectedRealmFilter }
-        }
+    val filteredDisciples = remember(filteredDisciplesBase, selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort, requiredAttribute) {
+        filteredDisciplesBase.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort, requiredAttribute?.first)
     }
 
     AlertDialog(
@@ -1234,6 +1442,19 @@ private fun DirectDiscipleSelectionDialog(
                     .fillMaxWidth()
                     .heightIn(max = 500.dp)
             ) {
+                SpiritRootAttributeFilterBar(
+                    selectedSpiritRootFilter = selectedSpiritRootFilter,
+                    selectedAttributeSort = selectedAttributeSort,
+                    spiritRootExpanded = spiritRootExpanded,
+                    attributeExpanded = attributeExpanded,
+                    spiritRootCounts = spiritRootCounts,
+                    onSpiritRootFilterSelected = { selectedSpiritRootFilter = it },
+                    onAttributeSortSelected = { selectedAttributeSort = it },
+                    onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
+                    onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
+                    isCompact = true
+                )
+
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -1242,7 +1463,7 @@ private fun DirectDiscipleSelectionDialog(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        realmFilters.take(5).forEach { (realm, name) ->
+                        REALM_FILTER_OPTIONS.take(5).forEach { (realm, name) ->
                             val isSelected = selectedRealmFilter == realm
                             val count = realmCounts[realm] ?: 0
                             Box(
@@ -1268,7 +1489,7 @@ private fun DirectDiscipleSelectionDialog(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        realmFilters.drop(5).forEach { (realm, name) ->
+                        REALM_FILTER_OPTIONS.drop(5).forEach { (realm, name) ->
                             val isSelected = selectedRealmFilter == realm
                             val count = realmCounts[realm] ?: 0
                             Box(
@@ -1798,6 +2019,10 @@ private fun DispatchTeamDialog(
     val selectedDisciples = remember { mutableStateListOf<String>() }
     val maxTeamSize = 7
     var selectedRealmFilter by remember { mutableStateOf<Int?>(null) }
+    var selectedSpiritRootFilter by remember { mutableStateOf<Int?>(null) }
+    var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
+    var spiritRootExpanded by remember { mutableStateOf(false) }
+    var attributeExpanded by remember { mutableStateOf(false) }
 
     val idleDisciples = remember(disciples) {
         disciples.filter { 
@@ -1824,16 +2049,12 @@ private fun DispatchTeamDialog(
         idleDisciples.groupingBy { it.realm }.eachCount()
     }
 
-    val sortedDisciples = remember(idleDisciples) {
-        idleDisciples.sortedByFollowAndRealm()
+    val spiritRootCounts = remember(idleDisciples) {
+        idleDisciples.groupingBy { it.getSpiritRootCount() }.eachCount()
     }
 
-    val filteredDisciples = remember(sortedDisciples, selectedRealmFilter) {
-        if (selectedRealmFilter == null) {
-            sortedDisciples
-        } else {
-            sortedDisciples.filter { it.realm == selectedRealmFilter }
-        }
+    val filteredDisciples = remember(idleDisciples, selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort) {
+        idleDisciples.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort)
     }
 
     val selectTopDisciples = {
@@ -1905,6 +2126,19 @@ private fun DispatchTeamDialog(
                     color = Color.Black
                 )
                 Spacer(modifier = Modifier.height(8.dp))
+
+                SpiritRootAttributeFilterBar(
+                    selectedSpiritRootFilter = selectedSpiritRootFilter,
+                    selectedAttributeSort = selectedAttributeSort,
+                    spiritRootExpanded = spiritRootExpanded,
+                    attributeExpanded = attributeExpanded,
+                    spiritRootCounts = spiritRootCounts,
+                    onSpiritRootFilterSelected = { selectedSpiritRootFilter = it },
+                    onAttributeSortSelected = { selectedAttributeSort = it },
+                    onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
+                    onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
+                    isCompact = true
+                )
 
                 Column(
                     modifier = Modifier.fillMaxWidth(),
@@ -2972,19 +3206,10 @@ private fun ElderDiscipleSelectionDialog(
     onSelect: (String) -> Unit
 ) {
     var selectedRealmFilter by remember { mutableStateOf<Int?>(null) }
-
-    val realmFilters = listOf(
-        0 to "仙人",
-        1 to "渡劫",
-        2 to "大乘",
-        3 to "合体",
-        4 to "炼虚",
-        5 to "化神",
-        6 to "元婴",
-        7 to "金丹",
-        8 to "筑基",
-        9 to "炼气"
-    )
+    var selectedSpiritRootFilter by remember { mutableStateOf<Int?>(null) }
+    var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
+    var spiritRootExpanded by remember { mutableStateOf(false) }
+    var attributeExpanded by remember { mutableStateOf(false) }
 
     val filteredDisciplesBase = remember(disciples, elderSlots) {
         disciples.filter { 
@@ -3000,16 +3225,12 @@ private fun ElderDiscipleSelectionDialog(
         filteredDisciplesBase.groupingBy { it.realm }.eachCount()
     }
 
-    val sortedDisciples = remember(filteredDisciplesBase, requiredAttribute) {
-        filteredDisciplesBase.sortedByFollowAttributeAndRealm(requiredAttribute?.first)
+    val spiritRootCounts = remember(filteredDisciplesBase) {
+        filteredDisciplesBase.groupingBy { it.getSpiritRootCount() }.eachCount()
     }
 
-    val filteredDisciples = remember(sortedDisciples, selectedRealmFilter) {
-        if (selectedRealmFilter == null) {
-            sortedDisciples
-        } else {
-            sortedDisciples.filter { it.realm == selectedRealmFilter }
-        }
+    val filteredDisciples = remember(filteredDisciplesBase, selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort, requiredAttribute) {
+        filteredDisciplesBase.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort, requiredAttribute?.first)
     }
 
     AlertDialog(
@@ -3049,6 +3270,19 @@ private fun ElderDiscipleSelectionDialog(
                     .fillMaxWidth()
                     .heightIn(max = 500.dp)
             ) {
+                SpiritRootAttributeFilterBar(
+                    selectedSpiritRootFilter = selectedSpiritRootFilter,
+                    selectedAttributeSort = selectedAttributeSort,
+                    spiritRootExpanded = spiritRootExpanded,
+                    attributeExpanded = attributeExpanded,
+                    spiritRootCounts = spiritRootCounts,
+                    onSpiritRootFilterSelected = { selectedSpiritRootFilter = it },
+                    onAttributeSortSelected = { selectedAttributeSort = it },
+                    onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
+                    onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
+                    isCompact = true
+                )
+
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -3057,7 +3291,7 @@ private fun ElderDiscipleSelectionDialog(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        realmFilters.take(5).forEach { (realm, name) ->
+                        REALM_FILTER_OPTIONS.take(5).forEach { (realm, name) ->
                             val isSelected = selectedRealmFilter == realm
                             val count = realmCounts[realm] ?: 0
                             Box(
@@ -3083,7 +3317,7 @@ private fun ElderDiscipleSelectionDialog(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        realmFilters.drop(5).forEach { (realm, name) ->
+                        REALM_FILTER_OPTIONS.drop(5).forEach { (realm, name) ->
                             val isSelected = selectedRealmFilter == realm
                             val count = realmCounts[realm] ?: 0
                             Box(
@@ -3860,6 +4094,10 @@ private fun DiscipleSelectForRewardDialog(
     
     var isRewarding by remember { mutableStateOf(false) }
     var selectedRealmFilter by remember { mutableStateOf<Int?>(null) }
+    var selectedSpiritRootFilter by remember { mutableStateOf<Int?>(null) }
+    var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
+    var spiritRootExpanded by remember { mutableStateOf(false) }
+    var attributeExpanded by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     
     val realmFilters = listOf(
@@ -3878,14 +4116,13 @@ private fun DiscipleSelectForRewardDialog(
     val realmCounts = remember(aliveDisciples) {
         aliveDisciples.groupingBy { it.realm }.eachCount()
     }
-    
-    val filteredAndSortedDisciples = remember(aliveDisciples, selectedRealmFilter) {
-        val sorted = aliveDisciples.sortedByFollowAndRealm()
-        if (selectedRealmFilter == null) {
-            sorted
-        } else {
-            sorted.filter { it.realm == selectedRealmFilter }
-        }
+
+    val spiritRootCounts = remember(aliveDisciples) {
+        aliveDisciples.groupingBy { it.getSpiritRootCount() }.eachCount()
+    }
+
+    val filteredAndSortedDisciples = remember(aliveDisciples, selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort) {
+        aliveDisciples.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort)
     }
     
     Dialog(onDismissRequest = onDismiss) {
@@ -3924,6 +4161,19 @@ private fun DiscipleSelectForRewardDialog(
                     )
                 }
                 
+                SpiritRootAttributeFilterBar(
+                    selectedSpiritRootFilter = selectedSpiritRootFilter,
+                    selectedAttributeSort = selectedAttributeSort,
+                    spiritRootExpanded = spiritRootExpanded,
+                    attributeExpanded = attributeExpanded,
+                    spiritRootCounts = spiritRootCounts,
+                    onSpiritRootFilterSelected = { selectedSpiritRootFilter = it },
+                    onAttributeSortSelected = { selectedAttributeSort = it },
+                    onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
+                    onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
+                    isCompact = true
+                )
+
                 RealmFilterBar(
                     filters = realmFilters,
                     realmCounts = realmCounts,
@@ -6488,6 +6738,10 @@ private fun CaveDiscipleSelectionDialog(
     onDismiss: () -> Unit
 ) {
     var selectedRealmFilter by remember { mutableStateOf<Int?>(null) }
+    var selectedSpiritRootFilter by remember { mutableStateOf<Int?>(null) }
+    var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
+    var spiritRootExpanded by remember { mutableStateOf(false) }
+    var attributeExpanded by remember { mutableStateOf(false) }
     var currentSelected by remember(selectedDisciples) { @Suppress("MutableCollectionMutableState") mutableStateOf(selectedDisciples.toMutableList()) }
 
     val allRealmFilters = listOf(
@@ -6522,12 +6776,12 @@ private fun CaveDiscipleSelectionDialog(
         availableDisciples.groupingBy { it.realm }.eachCount()
     }
 
-    val filteredDisciples = remember(availableDisciples, selectedRealmFilter) {
-        if (selectedRealmFilter == null) {
-            availableDisciples
-        } else {
-            availableDisciples.filter { it.realm == selectedRealmFilter }
-        }
+    val spiritRootCounts = remember(availableDisciples) {
+        availableDisciples.groupingBy { it.getSpiritRootCount() }.eachCount()
+    }
+
+    val filteredDisciples = remember(availableDisciples, selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort) {
+        availableDisciples.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort)
     }
 
     AlertDialog(
@@ -6581,6 +6835,19 @@ private fun CaveDiscipleSelectionDialog(
                         .fillMaxWidth()
                         .heightIn(max = 500.dp)
                 ) {
+                    SpiritRootAttributeFilterBar(
+                        selectedSpiritRootFilter = selectedSpiritRootFilter,
+                        selectedAttributeSort = selectedAttributeSort,
+                        spiritRootExpanded = spiritRootExpanded,
+                        attributeExpanded = attributeExpanded,
+                        spiritRootCounts = spiritRootCounts,
+                        onSpiritRootFilterSelected = { selectedSpiritRootFilter = it },
+                        onAttributeSortSelected = { selectedAttributeSort = it },
+                        onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
+                        onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
+                        isCompact = true
+                    )
+
                     Column(
                         modifier = Modifier.fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -7591,6 +7858,10 @@ private fun BattleTeamDiscipleSelectionDialog(
     onDismiss: () -> Unit
 ) {
     var selectedRealmFilter by remember { mutableStateOf<Int?>(null) }
+    var selectedSpiritRootFilter by remember { mutableStateOf<Int?>(null) }
+    var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
+    var spiritRootExpanded by remember { mutableStateOf(false) }
+    var attributeExpanded by remember { mutableStateOf(false) }
 
     val realmFilters = if (isElderSlot) {
         listOf(
@@ -7621,16 +7892,12 @@ private fun BattleTeamDiscipleSelectionDialog(
         disciples.groupingBy { it.realm }.eachCount()
     }
 
-    val sortedDisciples = remember(disciples) {
-        disciples.sortedByFollowAndRealm()
+    val spiritRootCounts = remember(disciples) {
+        disciples.groupingBy { it.getSpiritRootCount() }.eachCount()
     }
 
-    val filteredDisciples = remember(sortedDisciples, selectedRealmFilter) {
-        if (selectedRealmFilter == null) {
-            sortedDisciples
-        } else {
-            sortedDisciples.filter { it.realm == selectedRealmFilter }
-        }
+    val filteredDisciples = remember(disciples, selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort) {
+        disciples.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort)
     }
 
     AlertDialog(
@@ -7684,6 +7951,19 @@ private fun BattleTeamDiscipleSelectionDialog(
                         .fillMaxWidth()
                         .heightIn(max = 500.dp)
                 ) {
+                    SpiritRootAttributeFilterBar(
+                        selectedSpiritRootFilter = selectedSpiritRootFilter,
+                        selectedAttributeSort = selectedAttributeSort,
+                        spiritRootExpanded = spiritRootExpanded,
+                        attributeExpanded = attributeExpanded,
+                        spiritRootCounts = spiritRootCounts,
+                        onSpiritRootFilterSelected = { selectedSpiritRootFilter = it },
+                        onAttributeSortSelected = { selectedAttributeSort = it },
+                        onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
+                        onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
+                        isCompact = true
+                    )
+
                     Column(
                         modifier = Modifier.fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(6.dp)

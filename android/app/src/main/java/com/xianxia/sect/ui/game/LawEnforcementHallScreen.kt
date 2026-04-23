@@ -525,6 +525,10 @@ private fun DiscipleSelectionDialog(
     onDismiss: () -> Unit
 ) {
     var selectedRealmFilter by remember { mutableStateOf<Int?>(null) }
+    var selectedSpiritRootFilter by remember { mutableStateOf<Int?>(null) }
+    var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
+    var spiritRootExpanded by remember { mutableStateOf(false) }
+    var attributeExpanded by remember { mutableStateOf(false) }
 
     val realmFilters = listOf(
         0 to "仙人",
@@ -542,16 +546,16 @@ private fun DiscipleSelectionDialog(
         disciples.filter { it.realmLayer > 0 }.groupingBy { it.realm }.eachCount()
     }
 
+    val spiritRootCounts = remember(disciples) {
+        disciples.filter { it.realmLayer > 0 }.groupingBy { it.getSpiritRootCount() }.eachCount()
+    }
+
     val sortedDisciples = remember(disciples) {
         disciples.filter { it.realmLayer > 0 }.sortedByFollowAndRealm()
     }
 
-    val filteredDisciples = remember(sortedDisciples, selectedRealmFilter) {
-        if (selectedRealmFilter == null) {
-            sortedDisciples
-        } else {
-            sortedDisciples.filter { it.realm == selectedRealmFilter }
-        }
+    val filteredDisciples = remember(sortedDisciples, selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort) {
+        sortedDisciples.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort)
     }
 
     AlertDialog(
@@ -618,6 +622,19 @@ private fun DiscipleSelectionDialog(
                     )
 
                     Spacer(modifier = Modifier.height(8.dp))
+
+                    SpiritRootAttributeFilterBar(
+                        selectedSpiritRootFilter = selectedSpiritRootFilter,
+                        selectedAttributeSort = selectedAttributeSort,
+                        spiritRootExpanded = spiritRootExpanded,
+                        attributeExpanded = attributeExpanded,
+                        spiritRootCounts = spiritRootCounts,
+                        onSpiritRootFilterSelected = { selectedSpiritRootFilter = it },
+                        onAttributeSortSelected = { selectedAttributeSort = it },
+                        onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
+                        onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
+                        isCompact = true
+                    )
 
                     Column(
                         modifier = Modifier.fillMaxWidth(),

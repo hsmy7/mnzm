@@ -505,6 +505,10 @@ private fun DiscipleSelectionDialog(
     onDismiss: () -> Unit
 ) {
     val selectedDiscipleIds = remember { mutableStateListOf<String>() }
+    var selectedSpiritRootFilter by remember { mutableStateOf<Int?>(null) }
+    var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
+    var spiritRootExpanded by remember { mutableStateOf(false) }
+    var attributeExpanded by remember { mutableStateOf(false) }
 
     val eligibleDisciples = disciples.filter { disciple ->
         val disciplePosition = if (disciple.discipleType == "outer") "外门弟子" else "内门弟子"
@@ -512,6 +516,14 @@ private fun DiscipleSelectionDialog(
         disciple.status == DiscipleStatus.IDLE &&
         disciple.id !in busyDiscipleIds &&
         disciplePosition in mission.difficulty.allowedPositions
+    }
+
+    val spiritRootCounts = remember(eligibleDisciples) {
+        eligibleDisciples.groupingBy { it.getSpiritRootCount() }.eachCount()
+    }
+
+    val filteredDisciples = remember(eligibleDisciples, selectedSpiritRootFilter, selectedAttributeSort) {
+        eligibleDisciples.applyFilters(null, selectedSpiritRootFilter, selectedAttributeSort)
     }
 
     AlertDialog(
@@ -546,7 +558,20 @@ private fun DiscipleSelectionDialog(
                     thickness = 1.dp
                 )
 
-                if (eligibleDisciples.isEmpty()) {
+                SpiritRootAttributeFilterBar(
+                    selectedSpiritRootFilter = selectedSpiritRootFilter,
+                    selectedAttributeSort = selectedAttributeSort,
+                    spiritRootExpanded = spiritRootExpanded,
+                    attributeExpanded = attributeExpanded,
+                    spiritRootCounts = spiritRootCounts,
+                    onSpiritRootFilterSelected = { selectedSpiritRootFilter = it },
+                    onAttributeSortSelected = { selectedAttributeSort = it },
+                    onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
+                    onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
+                    isCompact = true
+                )
+
+                if (filteredDisciples.isEmpty()) {
                     Text(
                         text = "没有符合条件的弟子",
                         fontSize = 11.sp,
@@ -561,7 +586,7 @@ private fun DiscipleSelectionDialog(
                         verticalArrangement = Arrangement.spacedBy(6.dp),
                         modifier = Modifier.heightIn(max = 300.dp)
                     ) {
-                        items(eligibleDisciples, key = { it.id }) { disciple ->
+                        items(filteredDisciples, key = { it.id }) { disciple ->
                             val isSelected = selectedDiscipleIds.contains(disciple.id)
 
                             SelectionDiscipleCard(
