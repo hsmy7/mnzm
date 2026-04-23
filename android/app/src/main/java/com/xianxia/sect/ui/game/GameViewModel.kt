@@ -517,30 +517,30 @@ class GameViewModel @Inject constructor(
         }
     }
 
-    fun forgetManual(discipleId: String, manualId: String) {
+    fun forgetManual(discipleId: String, instanceId: String) {
         viewModelScope.launch {
             try {
-                gameEngine.forgetManual(discipleId, manualId)
+                gameEngine.forgetManual(discipleId, instanceId)
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "遗忘功法失败"
             }
         }
     }
 
-    fun replaceManual(discipleId: String, oldManualId: String, newManualId: String) {
+    fun replaceManual(discipleId: String, oldInstanceId: String, newStackId: String) {
         viewModelScope.launch {
             try {
-                gameEngine.replaceManual(discipleId, oldManualId, newManualId)
+                gameEngine.replaceManual(discipleId, oldInstanceId, newStackId)
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "功法替换失败"
             }
         }
     }
 
-    fun learnManual(discipleId: String, manualId: String) {
+    fun learnManual(discipleId: String, stackId: String) {
         viewModelScope.launch {
             try {
-                gameEngine.learnManual(discipleId, manualId)
+                gameEngine.learnManual(discipleId, stackId)
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "学习功法失败"
             }

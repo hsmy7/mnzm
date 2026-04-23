@@ -1,5 +1,27 @@
 # 模拟宗门 - 更新日志
 
+## [2.4.05] - 2026-04-24
+
+### 修复
+- 修复 replaceManual 非原子操作并发问题：将"遗忘旧功法+学习新功法"合并为单个事务，避免中间状态导致功法消失
+- 修复 replaceManual 中同名同类型功法替换时 quantity 被错误覆盖的 bug（existingStack == newStack 场景）
+- 修复 replaceManual 缺少 newStack.quantity >= 1 防御性校验
+- 修复 GameViewModel 功法方法参数命名与实际语义不匹配（manualId → stackId/instanceId）
+
+### 改进
+- 移除 ManualSelectionDialog 冗余参数 currentDiscipleId
+- 合并 replaceManual 中 disciples 的两次 map 操作为一次，减少中间状态
+
+## [2.4.04] - 2026-04-24
+
+### 修复
+- 修复弟子更换界面装备/功法选择卡片样式不一致：统一使用 UnifiedItemCard，支持堆叠数量、品阶标签、锁定标记、查看按钮
+- 修复功法更换后功法消失：数据源从 ManualInstance 改为 ManualStack，ID 类型匹配引擎层
+- 修复点击空功法槽位不显示宗门仓库功法：功法选择对话框改用 manualStacks 数据源
+- 修复装备选择对话框缺少仓库堆叠装备：合并 EquipmentStack + EquipmentInstance 数据源
+- 新增物品详情弹窗：装备选择、功法学习、功法更换对话框均支持 ItemDetailDialog
+- 删除自定义卡片组件（EquipmentSelectionCard、ManualSelectionCard、ManualReplaceDialog、getRarityText、装备详情弹窗内嵌代码）
+
 ## [2.4.03] - 2026-04-24
 
 ### 修复

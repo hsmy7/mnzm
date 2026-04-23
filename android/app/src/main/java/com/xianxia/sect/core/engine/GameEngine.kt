@@ -1387,20 +1387,81 @@ class GameEngine @Inject constructor(
         }
     }
 
-    fun replaceManual(discipleId: String, oldInstanceId: String, newStackId: String) {
-        gameEngineCore.launchInScope {
-            val oldInstance = stateStore.manualInstances.value.find { it.id == oldInstanceId }
-            val newStack = stateStore.manualStacks.value.find { it.id == newStackId }
-            val disciple = stateStore.disciples.value.find { it.id == discipleId }
+    suspend fun replaceManual(discipleId: String, oldInstanceId: String, newStackId: String) {
+        stateStore.update {
+            val oldInstance = manualInstances.find { it.id == oldInstanceId } ?: return@update
+            val newStack = manualStacks.find { it.id == newStackId } ?: return@update
+            val disciple = disciples.find { it.id == discipleId } ?: return@update
 
-            val blocked = newStack?.type == ManualType.MIND && oldInstance?.type != ManualType.MIND && disciple != null && disciple.manualIds
+            if (newStack.quantity < 1) return@update
+            if (!GameConfig.Realm.meetsRealmRequirement(disciple.realm, newStack.minRealm)) return@update
+
+            val blocked = newStack.type == ManualType.MIND && oldInstance.type != ManualType.MIND && disciple.manualIds
                 .filter { it != oldInstanceId }
-                .any { mid -> stateStore.manualInstances.value.find { m -> m.id == mid }?.type == ManualType.MIND }
+                .any { mid -> manualInstances.find { m -> m.id == mid }?.type == ManualType.MIND }
+            if (blocked) return@update
 
-            if (!blocked) {
-                forgetManual(discipleId, oldInstanceId)
-                learnManual(discipleId, newStackId)
+            val existingStack = manualStacks.find {
+                it.name == oldInstance.name && it.rarity == oldInstance.rarity && it.type == oldInstance.type
             }
+            val data = gameData
+            val storageItemId: String
+
+            if (existingStack != null) {
+                manualStacks = manualStacks.map {
+                    if (it.id == existingStack.id) it.copy(quantity = it.quantity + 1) else it
+                }
+                storageItemId = existingStack.id
+            } else {
+                val newOldStack = oldInstance.toStack(quantity = 1)
+                manualStacks = manualStacks + newOldStack
+                storageItemId = newOldStack.id
+            }
+            manualInstances = manualInstances.filter { it.id != oldInstanceId }
+
+            val currentNewStack = manualStacks.find { it.id == newStackId }
+            if (currentNewStack == null) return@update
+            val newQty = currentNewStack.quantity - 1
+            if (newQty <= 0) {
+                manualStacks = manualStacks.filter { it.id != newStackId }
+            } else {
+                manualStacks = manualStacks.map {
+                    if (it.id == newStackId) it.copy(quantity = newQty) else it
+                }
+            }
+
+            val newInstance = newStack.toInstance(id = java.util.UUID.randomUUID().toString(), ownerId = discipleId, isLearned = true)
+            manualInstances = manualInstances + newInstance
+
+            val updatedProficiencies = gameData.manualProficiencies.toMutableMap()
+            updatedProficiencies[discipleId]?.let { profList ->
+                val filtered = profList.filter { it.manualId != oldInstanceId }
+                if (filtered.isEmpty()) {
+                    updatedProficiencies.remove(discipleId)
+                } else {
+                    updatedProficiencies[discipleId] = filtered
+                }
+            }
+
+            val storageItem = StorageBagItem(
+                itemId = storageItemId,
+                itemType = "manual_stack",
+                name = oldInstance.name,
+                rarity = oldInstance.rarity,
+                quantity = 1,
+                obtainedYear = data.gameYear,
+                obtainedMonth = data.gameMonth
+            )
+            disciples = disciples.map {
+                if (it.id == discipleId) {
+                    it.copyWith(
+                        manualIds = (it.manualIds.filter { mid -> mid != oldInstanceId }) + newInstance.id,
+                        storageBagItems = StorageBagUtils.increaseItemQuantity(it.storageBagItems, storageItem)
+                    )
+                } else it
+            }
+
+            gameData = gameData.copy(manualProficiencies = updatedProficiencies)
         }
     }
 

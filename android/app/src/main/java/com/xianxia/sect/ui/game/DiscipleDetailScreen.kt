@@ -471,7 +471,6 @@ fun DiscipleDetailDialog(
             manualStacks = manualStacks,
             allManuals = allManuals,
             currentManualIds = disciple.manualIds,
-            currentDiscipleId = disciple.id,
             discipleRealm = disciple.realm,
             selectedManualId = selectedManualId,
             onSelect = { id -> 
@@ -931,7 +930,6 @@ private fun ManualSelectionDialog(
     manualStacks: List<ManualStack>,
     allManuals: List<ManualInstance>,
     currentManualIds: List<String>,
-    currentDiscipleId: String,
     discipleRealm: Int,
     selectedManualId: String?,
     onSelect: (String) -> Unit,
