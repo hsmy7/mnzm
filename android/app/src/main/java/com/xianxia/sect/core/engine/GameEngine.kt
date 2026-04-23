@@ -1026,7 +1026,6 @@ class GameEngine @Inject constructor(
                     stateStore.update {
                         val stack = equipmentStacks.find { it.id == item.id }
                         if (stack == null || stack.quantity < 1) return@update
-                        if (stack.isLocked) return@update
 
                         val disciple = disciples.find { it.id == discipleId }
                         if (disciple == null) return@update
@@ -1170,7 +1169,7 @@ class GameEngine @Inject constructor(
                 }
                 "manual" -> {
                     val manualStack = stateStore.manualStacks.value.find { it.id == item.id }
-                    if (manualStack != null && !manualStack.isLocked) {
+                    if (manualStack != null) {
                         learnManual(discipleId, item.id)
                         val updatedDisciple = stateStore.disciples.value.find { it.id == discipleId }
                         val wasLearned = updatedDisciple?.manualIds?.any { mid ->
@@ -1198,7 +1197,7 @@ class GameEngine @Inject constructor(
                 }
                 "pill" -> {
                     val pill = stateStore.pills.value.find { it.id == item.id }
-                    if (pill != null && pill.quantity >= quantity && !pill.isLocked) {
+                    if (pill != null && pill.quantity >= quantity) {
                         val disciple = stateStore.disciples.value.find { it.id == discipleId }
                         val pillItem = StorageBagItem(
                             itemId = item.id,
@@ -1216,7 +1215,7 @@ class GameEngine @Inject constructor(
                         if (canUse) {
                             repeat(quantity) { usePill(discipleId, item.id) }
                         } else {
-                            if (inventorySystem.removePill(item.id, quantity)) {
+                            if (inventorySystem.removePill(item.id, quantity, bypassLock = true)) {
                                 updateDisciple(discipleId) { d ->
                                     d.copyWith(
                                         storageBagItems = StorageBagUtils.increaseItemQuantity(
@@ -1230,7 +1229,7 @@ class GameEngine @Inject constructor(
                     }
                 }
                 "material" -> {
-                    if (inventorySystem.removeMaterial(item.id, quantity)) {
+                    if (inventorySystem.removeMaterial(item.id, quantity, bypassLock = true)) {
                         updateDisciple(discipleId) { disciple ->
                             disciple.copyWith(
                                 storageBagItems = StorageBagUtils.increaseItemQuantity(
@@ -1250,7 +1249,7 @@ class GameEngine @Inject constructor(
                     }
                 }
                 "herb" -> {
-                    if (inventorySystem.removeHerb(item.id, quantity)) {
+                    if (inventorySystem.removeHerb(item.id, quantity, bypassLock = true)) {
                         updateDisciple(discipleId) { disciple ->
                             disciple.copyWith(
                                 storageBagItems = StorageBagUtils.increaseItemQuantity(
@@ -1270,7 +1269,7 @@ class GameEngine @Inject constructor(
                     }
                 }
                 "seed" -> {
-                    if (inventorySystem.removeSeed(item.id, quantity)) {
+                    if (inventorySystem.removeSeed(item.id, quantity, bypassLock = true)) {
                         updateDisciple(discipleId) { disciple ->
                             disciple.copyWith(
                                 storageBagItems = StorageBagUtils.increaseItemQuantity(
@@ -1551,7 +1550,7 @@ class GameEngine @Inject constructor(
         items.forEach { (itemId, quantity) ->
             val eqStack = stateStore.equipmentStacks.value.find { it.id == itemId }
             if (eqStack != null) {
-                inventorySystem.removeEquipment(itemId)
+                if (!inventorySystem.removeEquipment(itemId, quantity)) return@forEach
                 newItems.add(MerchantItem(
                     id = java.util.UUID.randomUUID().toString(),
                     name = eqStack.name,
@@ -1565,7 +1564,7 @@ class GameEngine @Inject constructor(
             }
             val manualStack = stateStore.manualStacks.value.find { it.id == itemId }
             if (manualStack != null) {
-                inventorySystem.removeManual(itemId, quantity)
+                if (!inventorySystem.removeManual(itemId, quantity)) return@forEach
                 newItems.add(MerchantItem(
                     id = java.util.UUID.randomUUID().toString(),
                     name = manualStack.name,
@@ -1579,7 +1578,7 @@ class GameEngine @Inject constructor(
             }
             val pill = stateStore.pills.value.find { it.id == itemId }
             if (pill != null) {
-                inventorySystem.removePill(itemId, quantity)
+                if (!inventorySystem.removePill(itemId, quantity)) return@forEach
                 newItems.add(MerchantItem(
                     id = java.util.UUID.randomUUID().toString(),
                     name = pill.name,
@@ -1593,7 +1592,7 @@ class GameEngine @Inject constructor(
             }
             val material = stateStore.materials.value.find { it.id == itemId }
             if (material != null) {
-                inventorySystem.removeMaterial(itemId, quantity)
+                if (!inventorySystem.removeMaterial(itemId, quantity)) return@forEach
                 newItems.add(MerchantItem(
                     id = java.util.UUID.randomUUID().toString(),
                     name = material.name,
@@ -1607,7 +1606,7 @@ class GameEngine @Inject constructor(
             }
             val herb = stateStore.herbs.value.find { it.id == itemId }
             if (herb != null) {
-                inventorySystem.removeHerb(itemId, quantity)
+                if (!inventorySystem.removeHerb(itemId, quantity)) return@forEach
                 newItems.add(MerchantItem(
                     id = java.util.UUID.randomUUID().toString(),
                     name = herb.name,
@@ -1621,7 +1620,7 @@ class GameEngine @Inject constructor(
             }
             val seed = stateStore.seeds.value.find { it.id == itemId }
             if (seed != null) {
-                inventorySystem.removeSeed(itemId, quantity)
+                if (!inventorySystem.removeSeed(itemId, quantity)) return@forEach
                 newItems.add(MerchantItem(
                     id = java.util.UUID.randomUUID().toString(),
                     name = seed.name,
@@ -1804,11 +1803,12 @@ class GameEngine @Inject constructor(
         }
     }
 
-    fun sellEquipment(equipmentId: String): Boolean {
+    fun sellEquipment(equipmentId: String, quantity: Int = 1): Boolean {
         val stack = stateStore.equipmentStacks.value.find { it.id == equipmentId } ?: return false
         if (stack.isLocked) return false
-        if (!inventorySystem.removeEquipment(equipmentId)) return false
-        addSpiritStones((stack.basePrice * 0.8).toInt())
+        if (quantity < 1 || quantity > stack.quantity) return false
+        if (!inventorySystem.removeEquipment(equipmentId, quantity)) return false
+        addSpiritStones((stack.basePrice * quantity * 0.8).toInt())
         return true
     }
 
@@ -1857,52 +1857,22 @@ class GameEngine @Inject constructor(
             stateStore.update {
                 when (itemType) {
                     "equipment" -> {
-                        val idx = equipmentStacks.indexOfFirst { it.id == itemId }
-                        if (idx >= 0) {
-                            equipmentStacks = equipmentStacks.toMutableList().also { list ->
-                                list[idx] = list[idx].copy(isLocked = !list[idx].isLocked)
-                            }
-                        }
+                        equipmentStacks = equipmentStacks.map { if (it.id == itemId) it.copy(isLocked = !it.isLocked) else it }
                     }
                     "manual" -> {
-                        val idx = manualStacks.indexOfFirst { it.id == itemId }
-                        if (idx >= 0) {
-                            manualStacks = manualStacks.toMutableList().also { list ->
-                                list[idx] = list[idx].copy(isLocked = !list[idx].isLocked)
-                            }
-                        }
+                        manualStacks = manualStacks.map { if (it.id == itemId) it.copy(isLocked = !it.isLocked) else it }
                     }
                     "pill" -> {
-                        val idx = pills.indexOfFirst { it.id == itemId }
-                        if (idx >= 0) {
-                            pills = pills.toMutableList().also { list ->
-                                list[idx] = list[idx].copy(isLocked = !list[idx].isLocked)
-                            }
-                        }
+                        pills = pills.map { if (it.id == itemId) it.copy(isLocked = !it.isLocked) else it }
                     }
                     "material" -> {
-                        val idx = materials.indexOfFirst { it.id == itemId }
-                        if (idx >= 0) {
-                            materials = materials.toMutableList().also { list ->
-                                list[idx] = list[idx].copy(isLocked = !list[idx].isLocked)
-                            }
-                        }
+                        materials = materials.map { if (it.id == itemId) it.copy(isLocked = !it.isLocked) else it }
                     }
                     "herb" -> {
-                        val idx = herbs.indexOfFirst { it.id == itemId }
-                        if (idx >= 0) {
-                            herbs = herbs.toMutableList().also { list ->
-                                list[idx] = list[idx].copy(isLocked = !list[idx].isLocked)
-                            }
-                        }
+                        herbs = herbs.map { if (it.id == itemId) it.copy(isLocked = !it.isLocked) else it }
                     }
                     "seed" -> {
-                        val idx = seeds.indexOfFirst { it.id == itemId }
-                        if (idx >= 0) {
-                            seeds = seeds.toMutableList().also { list ->
-                                list[idx] = list[idx].copy(isLocked = !list[idx].isLocked)
-                            }
-                        }
+                        seeds = seeds.map { if (it.id == itemId) it.copy(isLocked = !it.isLocked) else it }
                     }
                 }
             }

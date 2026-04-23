@@ -710,7 +710,7 @@ class GameViewModel @Inject constructor(
                         selectedRarities.contains(it.rarity) && 
                         !it.isLocked
                     }.forEach { item ->
-                        sellOperations.add(SuspendableSellOperation.Equipment(item.id, item.name, (item.basePrice * item.quantity * 0.8).toInt()))
+                        sellOperations.add(SuspendableSellOperation.Equipment(item.id, item.name, item.quantity, (item.basePrice * item.quantity * 0.8).toInt()))
                     }
                 }
 
@@ -760,15 +760,13 @@ class GameViewModel @Inject constructor(
                     return@launch
                 }
 
-                var totalValue = 0
                 val soldItems = mutableListOf<String>()
-                val executedOperations = mutableListOf<SuspendableSellOperation>()
                 
                 try {
                     for (op in sellOperations) {
                         val success = when (op) {
                             is SuspendableSellOperation.Equipment -> {
-                                gameEngine.sellEquipment(op.id)
+                                gameEngine.sellEquipment(op.id, op.quantity)
                             }
                             is SuspendableSellOperation.Manual -> {
                                 gameEngine.sellManual(op.id, op.quantity)
@@ -788,14 +786,8 @@ class GameViewModel @Inject constructor(
                         }
                         
                         if (success) {
-                            totalValue += op.price
                             soldItems.add(op.displayName)
-                            executedOperations.add(op)
                         }
-                    }
-                    
-                    if (totalValue > 0) {
-                        gameEngine.addSpiritStones(totalValue)
                     }
                 } catch (e: Exception) {
                     _errorMessage.value = "出售过程中发生错误: ${e.message}"
@@ -811,8 +803,8 @@ class GameViewModel @Inject constructor(
         abstract val displayName: String
         abstract val price: Int
         
-        data class Equipment(override val id: String, val name: String, override val price: Int) : SuspendableSellOperation() {
-            override val displayName: String = name
+        data class Equipment(override val id: String, val name: String, val quantity: Int, override val price: Int) : SuspendableSellOperation() {
+            override val displayName: String = if (quantity > 1) "$name x$quantity" else name
         }
         data class Manual(override val id: String, val name: String, val quantity: Int, override val price: Int) : SuspendableSellOperation() {
             override val displayName: String = "$name x$quantity"

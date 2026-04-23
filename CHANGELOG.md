@@ -1,5 +1,17 @@
 # 模拟宗门 - 更新日志
 
+## [2.3.27] - 2026-04-23
+
+### 改进
+- 被锁定的物品现在可以被赏赐给弟子（锁定仅保护出售，不限制赏赐）
+- toggleItemLock 代码优化，使用 map 替代 indexOfFirst + toMutableList 模式
+
+### 修复
+- 修复一键出售灵石双倍计算的严重 Bug（各 sellXxx 方法内部已加灵石，bulkSellItems 又重复加一次）
+- 修复 sellEquipment 不支持数量参数导致一键出售装备只卖1个的问题
+- 修复 listItemsToMerchant 上架物品时未检查 removeXxx 返回值，锁定物品可能数据不一致的问题
+- sellEquipment 增加数量前置校验，防止 quantity 超出堆叠数量
+
 ## [2.3.26] - 2026-04-23
 
 ### 改进

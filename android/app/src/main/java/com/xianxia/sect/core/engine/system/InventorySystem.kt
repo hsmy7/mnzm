@@ -411,10 +411,10 @@ class InventorySystem @Inject constructor(
         return AddResult.SUCCESS
     }
 
-    fun removeEquipment(id: String, quantity: Int = 1): Boolean {
+    fun removeEquipment(id: String, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
         if (!validateQuantity(quantity, "remove quantity")) return false
         val existing = stateStore.equipmentStacks.value.find { it.id == id }
-        if (existing?.isLocked == true) {
+        if (!bypassLock && existing?.isLocked == true) {
             logWarning("Cannot remove locked equipment stack: ${existing.name}")
             return false
         }
@@ -538,10 +538,10 @@ class InventorySystem @Inject constructor(
         return stateStore.equipmentInstances.value.find { it.id == id }
     }
 
-    fun removeManual(id: String, quantity: Int = 1): Boolean {
+    fun removeManual(id: String, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
         if (!validateQuantity(quantity, "remove quantity")) return false
         val existing = stateStore.manualStacks.value.find { it.id == id }
-        if (existing?.isLocked == true) {
+        if (!bypassLock && existing?.isLocked == true) {
             logWarning("Cannot remove locked manual stack: ${existing.name}")
             return false
         }
@@ -705,10 +705,10 @@ class InventorySystem @Inject constructor(
         return AddResult.SUCCESS
     }
 
-    fun removePill(id: String, quantity: Int = 1): Boolean {
+    fun removePill(id: String, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
         if (!validateQuantity(quantity, "remove quantity")) return false
         val existing = stateStore.pills.value.find { it.id == id }
-        if (existing?.isLocked == true) {
+        if (!bypassLock && existing?.isLocked == true) {
             logWarning("Cannot remove locked pill: ${existing.name}")
             return false
         }
@@ -761,11 +761,11 @@ class InventorySystem @Inject constructor(
         return removed
     }
 
-    fun removePillByName(name: String, rarity: Int, quantity: Int = 1): Boolean {
+    fun removePillByName(name: String, rarity: Int, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
         if (!validateQuantity(quantity, "remove quantity")) return false
         val existing = stateStore.pills.value.find { it.name == name && it.rarity == rarity }
             ?: return false
-        if (existing.isLocked) {
+        if (!bypassLock && existing.isLocked) {
             logWarning("Cannot remove locked pill: ${existing.name}")
             return false
         }
@@ -898,10 +898,10 @@ class InventorySystem @Inject constructor(
         return AddResult.SUCCESS
     }
 
-    fun removeMaterial(id: String, quantity: Int = 1): Boolean {
+    fun removeMaterial(id: String, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
         if (!validateQuantity(quantity, "remove quantity")) return false
         val existing = stateStore.materials.value.find { it.id == id }
-        if (existing?.isLocked == true) {
+        if (!bypassLock && existing?.isLocked == true) {
             logWarning("Cannot remove locked material: ${existing.name}")
             return false
         }
@@ -954,11 +954,11 @@ class InventorySystem @Inject constructor(
         return removed
     }
 
-    fun removeMaterialByName(name: String, rarity: Int, quantity: Int = 1): Boolean {
+    fun removeMaterialByName(name: String, rarity: Int, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
         if (!validateQuantity(quantity, "remove quantity")) return false
         val existing = stateStore.materials.value.find { it.name == name && it.rarity == rarity }
             ?: return false
-        if (existing.isLocked) {
+        if (!bypassLock && existing.isLocked) {
             logWarning("Cannot remove locked material: ${existing.name}")
             return false
         }
@@ -1091,10 +1091,10 @@ class InventorySystem @Inject constructor(
         return AddResult.SUCCESS
     }
 
-    fun removeHerb(id: String, quantity: Int = 1): Boolean {
+    fun removeHerb(id: String, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
         if (!validateQuantity(quantity, "remove quantity")) return false
         val existing = stateStore.herbs.value.find { it.id == id }
-        if (existing?.isLocked == true) {
+        if (!bypassLock && existing?.isLocked == true) {
             logWarning("Cannot remove locked herb: ${existing.name}")
             return false
         }
@@ -1147,11 +1147,11 @@ class InventorySystem @Inject constructor(
         return removed
     }
 
-    fun removeHerbByName(name: String, rarity: Int, quantity: Int = 1): Boolean {
+    fun removeHerbByName(name: String, rarity: Int, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
         if (!validateQuantity(quantity, "remove quantity")) return false
         val existing = stateStore.herbs.value.find { it.name == name && it.rarity == rarity }
             ?: return false
-        if (existing.isLocked) {
+        if (!bypassLock && existing.isLocked) {
             logWarning("Cannot remove locked herb: ${existing.name}")
             return false
         }
@@ -1336,10 +1336,10 @@ class InventorySystem @Inject constructor(
         return overflowResult
     }
 
-    fun removeSeed(id: String, quantity: Int = 1): Boolean {
+    fun removeSeed(id: String, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
         if (!validateQuantity(quantity, "remove quantity")) return false
         val existing = stateStore.seeds.value.find { it.id == id }
-        if (existing?.isLocked == true) {
+        if (!bypassLock && existing?.isLocked == true) {
             logWarning("Cannot remove locked seed: ${existing.name}")
             return false
         }
@@ -1392,13 +1392,13 @@ class InventorySystem @Inject constructor(
         return removed
     }
 
-    suspend fun removeSeedSync(id: String, quantity: Int = 1): Boolean {
+    suspend fun removeSeedSync(id: String, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
         if (!validateQuantity(quantity, "remove quantity")) return false
 
         val ts = stateStore.currentTransactionMutableState()
         if (ts != null) {
             val existing = ts.seeds.find { it.id == id }
-            if (existing?.isLocked == true) {
+            if (!bypassLock && existing?.isLocked == true) {
                 logWarning("Cannot remove locked seed: ${existing.name}")
                 return false
             }
@@ -1426,7 +1426,7 @@ class InventorySystem @Inject constructor(
         }
 
         val existing = stateStore.getCurrentSeeds().find { it.id == id }
-        if (existing?.isLocked == true) {
+        if (!bypassLock && existing?.isLocked == true) {
             logWarning("Cannot remove locked seed: ${existing.name}")
             return false
         }
@@ -1460,11 +1460,11 @@ class InventorySystem @Inject constructor(
         return removed
     }
 
-    fun removeSeedByName(name: String, rarity: Int, quantity: Int = 1): Boolean {
+    fun removeSeedByName(name: String, rarity: Int, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
         if (!validateQuantity(quantity, "remove quantity")) return false
         val existing = stateStore.seeds.value.find { it.name == name && it.rarity == rarity }
             ?: return false
-        if (existing.isLocked) {
+        if (!bypassLock && existing.isLocked) {
             logWarning("Cannot remove locked seed: ${existing.name}")
             return false
         }
