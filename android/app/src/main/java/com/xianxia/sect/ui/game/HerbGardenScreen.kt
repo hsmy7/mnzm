@@ -490,9 +490,9 @@ private fun HerbGardenElderSelectionDialog(
     onDismiss: () -> Unit,
     onSelect: (String) -> Unit
 ) {
-    var selectedRealmFilter by remember { mutableStateOf<Int?>(null) }
-    var selectedSpiritRootFilter by remember { mutableStateOf<Int?>(null) }
-    var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
+    var selectedRealmFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
+    var selectedSpiritRootFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
+    var selectedAttributeSort by remember { mutableStateOf<Set<String>>(emptySet()) }
     var spiritRootExpanded by remember { mutableStateOf(false) }
     var attributeExpanded by remember { mutableStateOf(false) }
 
@@ -589,8 +589,10 @@ private fun HerbGardenElderSelectionDialog(
                     spiritRootExpanded = spiritRootExpanded,
                     attributeExpanded = attributeExpanded,
                     spiritRootCounts = spiritRootCounts,
-                    onSpiritRootFilterSelected = { selectedSpiritRootFilter = it },
-                    onAttributeSortSelected = { selectedAttributeSort = it },
+                    onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
+                    onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
+                    onAttributeSortSelected = { selectedAttributeSort = selectedAttributeSort + it },
+                    onAttributeSortRemoved = { selectedAttributeSort = selectedAttributeSort - it },
                     onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
                     onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
                     isCompact = true
@@ -605,15 +607,15 @@ private fun HerbGardenElderSelectionDialog(
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         realmFilters.take(5).forEach { (realmVal, name) ->
-                            val isSelected = selectedRealmFilter == realmVal
+                            val isSelected = realmVal in selectedRealmFilter
                             val count = realmCounts[realmVal] ?: 0
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clip(RoundedCornerShape(4.dp))
-                                    .background(if (isSelected) GameColors.Border else GameColors.PageBackground)
-                                    .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
-                                    .clickable { selectedRealmFilter = if (isSelected) null else realmVal }
+                                    .background(if (isSelected) GameColors.Gold.copy(alpha = 0.3f) else GameColors.PageBackground)
+                                    .border(1.dp, if (isSelected) GameColors.Gold else GameColors.Border, RoundedCornerShape(4.dp))
+                                    .clickable { selectedRealmFilter = if (isSelected) selectedRealmFilter - realmVal else selectedRealmFilter + realmVal }
                                     .padding(vertical = 4.dp),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -621,7 +623,7 @@ private fun HerbGardenElderSelectionDialog(
                                     text = "$name $count",
                                     fontSize = 9.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    color = Color.Black
+                                    color = if (isSelected) GameColors.GoldDark else Color.Black
                                 )
                             }
                         }
@@ -631,15 +633,15 @@ private fun HerbGardenElderSelectionDialog(
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         realmFilters.drop(5).forEach { (realmVal, name) ->
-                            val isSelected = selectedRealmFilter == realmVal
+                            val isSelected = realmVal in selectedRealmFilter
                             val count = realmCounts[realmVal] ?: 0
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clip(RoundedCornerShape(4.dp))
-                                    .background(if (isSelected) GameColors.Border else GameColors.PageBackground)
-                                    .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
-                                    .clickable { selectedRealmFilter = if (isSelected) null else realmVal }
+                                    .background(if (isSelected) GameColors.Gold.copy(alpha = 0.3f) else GameColors.PageBackground)
+                                    .border(1.dp, if (isSelected) GameColors.Gold else GameColors.Border, RoundedCornerShape(4.dp))
+                                    .clickable { selectedRealmFilter = if (isSelected) selectedRealmFilter - realmVal else selectedRealmFilter + realmVal }
                                     .padding(vertical = 4.dp),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -647,7 +649,7 @@ private fun HerbGardenElderSelectionDialog(
                                     text = "$name $count",
                                     fontSize = 9.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    color = Color.Black
+                                    color = if (isSelected) GameColors.GoldDark else Color.Black
                                 )
                             }
                         }
@@ -753,9 +755,9 @@ private fun HerbGardenDirectDiscipleSelectionDialog(
     onDismiss: () -> Unit,
     onSelect: (String) -> Unit
 ) {
-    var selectedRealmFilter by remember { mutableStateOf<Int?>(null) }
-    var selectedSpiritRootFilter by remember { mutableStateOf<Int?>(null) }
-    var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
+    var selectedRealmFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
+    var selectedSpiritRootFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
+    var selectedAttributeSort by remember { mutableStateOf<Set<String>>(emptySet()) }
     var spiritRootExpanded by remember { mutableStateOf(false) }
     var attributeExpanded by remember { mutableStateOf(false) }
 
@@ -851,8 +853,10 @@ private fun HerbGardenDirectDiscipleSelectionDialog(
                     spiritRootExpanded = spiritRootExpanded,
                     attributeExpanded = attributeExpanded,
                     spiritRootCounts = spiritRootCounts,
-                    onSpiritRootFilterSelected = { selectedSpiritRootFilter = it },
-                    onAttributeSortSelected = { selectedAttributeSort = it },
+                    onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
+                    onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
+                    onAttributeSortSelected = { selectedAttributeSort = selectedAttributeSort + it },
+                    onAttributeSortRemoved = { selectedAttributeSort = selectedAttributeSort - it },
                     onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
                     onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
                     isCompact = true
@@ -867,15 +871,15 @@ private fun HerbGardenDirectDiscipleSelectionDialog(
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         realmFilters.take(5).forEach { (realmVal, name) ->
-                            val isSelected = selectedRealmFilter == realmVal
+                            val isSelected = realmVal in selectedRealmFilter
                             val count = realmCounts[realmVal] ?: 0
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clip(RoundedCornerShape(4.dp))
-                                    .background(if (isSelected) GameColors.Border else GameColors.PageBackground)
-                                    .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
-                                    .clickable { selectedRealmFilter = if (isSelected) null else realmVal }
+                                    .background(if (isSelected) GameColors.Gold.copy(alpha = 0.3f) else GameColors.PageBackground)
+                                    .border(1.dp, if (isSelected) GameColors.Gold else GameColors.Border, RoundedCornerShape(4.dp))
+                                    .clickable { selectedRealmFilter = if (isSelected) selectedRealmFilter - realmVal else selectedRealmFilter + realmVal }
                                     .padding(vertical = 4.dp),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -883,7 +887,7 @@ private fun HerbGardenDirectDiscipleSelectionDialog(
                                     text = "$name $count",
                                     fontSize = 9.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    color = Color.Black
+                                    color = if (isSelected) GameColors.GoldDark else Color.Black
                                 )
                             }
                         }
@@ -893,15 +897,15 @@ private fun HerbGardenDirectDiscipleSelectionDialog(
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         realmFilters.drop(5).forEach { (realmVal, name) ->
-                            val isSelected = selectedRealmFilter == realmVal
+                            val isSelected = realmVal in selectedRealmFilter
                             val count = realmCounts[realmVal] ?: 0
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clip(RoundedCornerShape(4.dp))
-                                    .background(if (isSelected) GameColors.Border else GameColors.PageBackground)
-                                    .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
-                                    .clickable { selectedRealmFilter = if (isSelected) null else realmVal }
+                                    .background(if (isSelected) GameColors.Gold.copy(alpha = 0.3f) else GameColors.PageBackground)
+                                    .border(1.dp, if (isSelected) GameColors.Gold else GameColors.Border, RoundedCornerShape(4.dp))
+                                    .clickable { selectedRealmFilter = if (isSelected) selectedRealmFilter - realmVal else selectedRealmFilter + realmVal }
                                     .padding(vertical = 4.dp),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -909,7 +913,7 @@ private fun HerbGardenDirectDiscipleSelectionDialog(
                                     text = "$name $count",
                                     fontSize = 9.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    color = Color.Black
+                                    color = if (isSelected) GameColors.GoldDark else Color.Black
                                 )
                             }
                         }

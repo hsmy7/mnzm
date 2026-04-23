@@ -492,9 +492,9 @@ fun PeakDiscipleSelectionDialog(
     onSelect: (DiscipleAggregate) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var selectedRealmFilter by remember { mutableStateOf<Int?>(null) }
-    var selectedSpiritRootFilter by remember { mutableStateOf<Int?>(null) }
-    var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
+    var selectedRealmFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
+    var selectedSpiritRootFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
+    var selectedAttributeSort by remember { mutableStateOf<Set<String>>(emptySet()) }
     var spiritRootExpanded by remember { mutableStateOf(false) }
     var attributeExpanded by remember { mutableStateOf(false) }
 
@@ -563,8 +563,10 @@ fun PeakDiscipleSelectionDialog(
                         spiritRootExpanded = spiritRootExpanded,
                         attributeExpanded = attributeExpanded,
                         spiritRootCounts = spiritRootCounts,
-                        onSpiritRootFilterSelected = { selectedSpiritRootFilter = it },
-                        onAttributeSortSelected = { selectedAttributeSort = it },
+                        onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
+                        onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
+                        onAttributeSortSelected = { selectedAttributeSort = selectedAttributeSort + it },
+                        onAttributeSortRemoved = { selectedAttributeSort = selectedAttributeSort - it },
                         onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
                         onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
                         isCompact = true
@@ -574,21 +576,21 @@ fun PeakDiscipleSelectionDialog(
                         realmFilters.chunked(4).forEach { chunk ->
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                 chunk.forEach { (realm, name) ->
-                                    val isSelected = selectedRealmFilter == realm
+                                    val isSelected = realm in selectedRealmFilter
                                     val count = realmCounts[realm] ?: 0
                                     Box(
                                         modifier = Modifier
                                             .weight(1f).clip(RoundedCornerShape(4.dp))
-                                            .background(if (isSelected) GameColors.Border else GameColors.PageBackground)
-                                            .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
-                                            .clickable { selectedRealmFilter = if (isSelected) null else realm }
+                                            .background(if (isSelected) GameColors.Gold.copy(alpha = 0.3f) else GameColors.PageBackground)
+                                            .border(1.dp, if (isSelected) GameColors.Gold else GameColors.Border, RoundedCornerShape(4.dp))
+                                            .clickable { selectedRealmFilter = if (isSelected) selectedRealmFilter - realm else selectedRealmFilter + realm }
                                             .padding(vertical = 4.dp),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Text(
                                             text = "$name $count", fontSize = 9.sp,
                                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                            color = Color.Black
+                                            color = if (isSelected) GameColors.GoldDark else Color.Black
                                         )
                                     }
                                 }

@@ -320,8 +320,8 @@ fun EnvoyDiscipleSelectDialog(
     onDismiss: () -> Unit
 ) {
     var selectedDisciple by remember { mutableStateOf<DiscipleAggregate?>(null) }
-    var selectedSpiritRootFilter by remember { mutableStateOf<Int?>(null) }
-    var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
+    var selectedSpiritRootFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
+    var selectedAttributeSort by remember { mutableStateOf<Set<String>>(emptySet()) }
     var spiritRootExpanded by remember { mutableStateOf(false) }
     var attributeExpanded by remember { mutableStateOf(false) }
     val sectLevel = sect?.level ?: 0
@@ -340,7 +340,7 @@ fun EnvoyDiscipleSelectDialog(
     }
 
     val filteredDisciples = remember(disciples, selectedSpiritRootFilter, selectedAttributeSort) {
-        disciples.applyFilters(null, selectedSpiritRootFilter, selectedAttributeSort)
+        disciples.applyFilters(emptySet(), selectedSpiritRootFilter, selectedAttributeSort)
     }
 
     Dialog(onDismissRequest = onDismiss) {
@@ -379,8 +379,10 @@ fun EnvoyDiscipleSelectDialog(
                     spiritRootExpanded = spiritRootExpanded,
                     attributeExpanded = attributeExpanded,
                     spiritRootCounts = spiritRootCounts,
-                    onSpiritRootFilterSelected = { selectedSpiritRootFilter = it },
-                    onAttributeSortSelected = { selectedAttributeSort = it },
+                    onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
+                    onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
+                    onAttributeSortSelected = { selectedAttributeSort = selectedAttributeSort + it },
+                    onAttributeSortRemoved = { selectedAttributeSort = selectedAttributeSort - it },
                     onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
                     onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
                     isCompact = true
@@ -579,9 +581,9 @@ fun ScoutDiscipleSelectDialog(
     onDismiss: () -> Unit
 ) {
     var selectedDisciples by remember { mutableStateOf<Set<String>>(emptySet()) }
-    var selectedRealmFilter by remember { mutableStateOf<Int?>(null) }
-    var selectedSpiritRootFilter by remember { mutableStateOf<Int?>(null) }
-    var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
+    var selectedRealmFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
+    var selectedSpiritRootFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
+    var selectedAttributeSort by remember { mutableStateOf<Set<String>>(emptySet()) }
     var spiritRootExpanded by remember { mutableStateOf(false) }
     var attributeExpanded by remember { mutableStateOf(false) }
     val maxSelectCount = 7
@@ -645,8 +647,10 @@ fun ScoutDiscipleSelectDialog(
                     spiritRootExpanded = spiritRootExpanded,
                     attributeExpanded = attributeExpanded,
                     spiritRootCounts = spiritRootCounts,
-                    onSpiritRootFilterSelected = { selectedSpiritRootFilter = it },
-                    onAttributeSortSelected = { selectedAttributeSort = it },
+                    onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
+                    onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
+                    onAttributeSortSelected = { selectedAttributeSort = selectedAttributeSort + it },
+                    onAttributeSortRemoved = { selectedAttributeSort = selectedAttributeSort - it },
                     onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
                     onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
                     isCompact = true
@@ -656,7 +660,8 @@ fun ScoutDiscipleSelectDialog(
                     filters = realmFilters,
                     realmCounts = realmCounts,
                     selectedFilter = selectedRealmFilter,
-                    onFilterSelected = { selectedRealmFilter = it }
+                    onFilterSelected = { selectedRealmFilter = selectedRealmFilter + it },
+                    onFilterRemoved = { selectedRealmFilter = selectedRealmFilter - it }
                 )
 
                 if (filteredDisciples.isEmpty()) {
@@ -728,8 +733,9 @@ fun ScoutDiscipleSelectDialog(
 private fun ScoutRealmFilterBar(
     filters: List<Pair<Int, String>>,
     realmCounts: Map<Int, Int>,
-    selectedFilter: Int?,
-    onFilterSelected: (Int?) -> Unit
+    selectedFilter: Set<Int>,
+    onFilterSelected: (Int) -> Unit,
+    onFilterRemoved: (Int) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -742,12 +748,12 @@ private fun ScoutRealmFilterBar(
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             filters.take(5).forEach { (realm, name) ->
-                val isSelected = selectedFilter == realm
+                val isSelected = realm in selectedFilter
                 val count = realmCounts[realm] ?: 0
                 ScoutFilterChip(
                     text = "$name $count",
                     isSelected = isSelected,
-                    onClick = { onFilterSelected(if (isSelected) null else realm) },
+                    onClick = { if (isSelected) onFilterRemoved(realm) else onFilterSelected(realm) },
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -760,12 +766,12 @@ private fun ScoutRealmFilterBar(
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             filters.drop(5).forEach { (realm, name) ->
-                val isSelected = selectedFilter == realm
+                val isSelected = realm in selectedFilter
                 val count = realmCounts[realm] ?: 0
                 ScoutFilterChip(
                     text = "$name $count",
                     isSelected = isSelected,
-                    onClick = { onFilterSelected(if (isSelected) null else realm) },
+                    onClick = { if (isSelected) onFilterRemoved(realm) else onFilterSelected(realm) },
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -783,8 +789,8 @@ private fun ScoutFilterChip(
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(4.dp))
-            .background(if (isSelected) GameColors.Border else GameColors.PageBackground)
-            .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
+            .background(if (isSelected) GameColors.Gold.copy(alpha = 0.3f) else GameColors.PageBackground)
+            .border(1.dp, if (isSelected) GameColors.Gold else GameColors.Border, RoundedCornerShape(4.dp))
             .clickable(onClick = onClick)
             .padding(vertical = 8.dp),
         contentAlignment = Alignment.Center
@@ -793,7 +799,7 @@ private fun ScoutFilterChip(
             text = text,
             fontSize = 12.sp,
             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-            color = Color.Black
+            color = if (isSelected) GameColors.GoldDark else Color.Black
         )
     }
 }

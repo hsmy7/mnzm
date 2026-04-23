@@ -685,6 +685,12 @@ class GameViewModel @Inject constructor(
         return equipmentInstances.value.find { it.id == id }
     }
 
+    fun toggleItemLock(itemId: String, itemType: String) {
+        viewModelScope.launch {
+            gameEngine.toggleItemLock(itemId, itemType)
+        }
+    }
+
     // 一键出售物品（原子性操作，排除锁定物品）
     fun bulkSellItems(
         selectedRarities: Set<Int>,

@@ -412,7 +412,7 @@ private fun SpiritMineDiscipleSelectionDialog(
     onDismiss: () -> Unit
 ) {
     var selectedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
-    var selectedRealmFilter by remember { mutableStateOf<Int?>(null) }
+    var selectedRealmFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
 
     val realmFilters = listOf(
         0 to "仙人", 1 to "渡劫", 2 to "大乘", 3 to "合体",
@@ -430,8 +430,8 @@ private fun SpiritMineDiscipleSelectionDialog(
     }
 
     val filteredDisciples = remember(sortedDisciples, selectedRealmFilter) {
-        if (selectedRealmFilter == null) sortedDisciples
-        else sortedDisciples.filter { it.realm == selectedRealmFilter }
+        if (selectedRealmFilter.isEmpty()) sortedDisciples
+        else sortedDisciples.filter { it.realm in selectedRealmFilter }
     }
 
     val canConfirm = selectedIds.isNotEmpty()
@@ -464,15 +464,15 @@ private fun SpiritMineDiscipleSelectionDialog(
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         realmFilters.take(5).forEach { (realm, name) ->
-                            val isSelected = selectedRealmFilter == realm
+                            val isSelected = realm in selectedRealmFilter
                             val count = realmCounts[realm] ?: 0
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clip(RoundedCornerShape(4.dp))
-                                    .background(if (isSelected) GameColors.Border else GameColors.PageBackground)
-                                    .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
-                                    .clickable { selectedRealmFilter = if (isSelected) null else realm }
+                                    .background(if (isSelected) GameColors.Gold.copy(alpha = 0.3f) else GameColors.PageBackground)
+                                    .border(1.dp, if (isSelected) GameColors.Gold else GameColors.Border, RoundedCornerShape(4.dp))
+                                    .clickable { selectedRealmFilter = if (isSelected) selectedRealmFilter - realm else selectedRealmFilter + realm }
                                     .padding(vertical = 4.dp),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -480,7 +480,7 @@ private fun SpiritMineDiscipleSelectionDialog(
                                     text = "$name $count",
                                     fontSize = 9.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    color = Color.Black
+                                    color = if (isSelected) GameColors.GoldDark else Color.Black
                                 )
                             }
                         }
@@ -490,15 +490,15 @@ private fun SpiritMineDiscipleSelectionDialog(
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         realmFilters.drop(5).forEach { (realm, name) ->
-                            val isSelected = selectedRealmFilter == realm
+                            val isSelected = realm in selectedRealmFilter
                             val count = realmCounts[realm] ?: 0
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clip(RoundedCornerShape(4.dp))
-                                    .background(if (isSelected) GameColors.Border else GameColors.PageBackground)
-                                    .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
-                                    .clickable { selectedRealmFilter = if (isSelected) null else realm }
+                                    .background(if (isSelected) GameColors.Gold.copy(alpha = 0.3f) else GameColors.PageBackground)
+                                    .border(1.dp, if (isSelected) GameColors.Gold else GameColors.Border, RoundedCornerShape(4.dp))
+                                    .clickable { selectedRealmFilter = if (isSelected) selectedRealmFilter - realm else selectedRealmFilter + realm }
                                     .padding(vertical = 4.dp),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -506,7 +506,7 @@ private fun SpiritMineDiscipleSelectionDialog(
                                     text = "$name $count",
                                     fontSize = 9.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    color = Color.Black
+                                    color = if (isSelected) GameColors.GoldDark else Color.Black
                                 )
                             }
                         }
@@ -630,7 +630,7 @@ private fun SpiritMineDeaconSelectionDialog(
     onSelect: (DiscipleAggregate) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var selectedRealmFilter by remember { mutableStateOf<Int?>(null) }
+    var selectedRealmFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
 
     val realmFilters = listOf(
         0 to "仙人", 1 to "渡劫", 2 to "大乘", 3 to "合体",
@@ -648,8 +648,8 @@ private fun SpiritMineDeaconSelectionDialog(
     }
 
     val filteredDisciples = remember(sortedDisciples, selectedRealmFilter) {
-        if (selectedRealmFilter == null) sortedDisciples
-        else sortedDisciples.filter { it.realm == selectedRealmFilter }
+        if (selectedRealmFilter.isEmpty()) sortedDisciples
+        else sortedDisciples.filter { it.realm in selectedRealmFilter }
     }
 
     AlertDialog(
@@ -712,15 +712,15 @@ private fun SpiritMineDeaconSelectionDialog(
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             realmFilters.take(5).forEach { (realm, name) ->
-                                val isSelected = selectedRealmFilter == realm
+                                val isSelected = realm in selectedRealmFilter
                                 val count = realmCounts[realm] ?: 0
                                 Box(
                                     modifier = Modifier
                                         .weight(1f)
                                         .clip(RoundedCornerShape(4.dp))
-                                        .background(if (isSelected) GameColors.Border else GameColors.PageBackground)
-                                        .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
-                                        .clickable { selectedRealmFilter = if (isSelected) null else realm }
+                                        .background(if (isSelected) GameColors.Gold.copy(alpha = 0.3f) else GameColors.PageBackground)
+                                        .border(1.dp, if (isSelected) GameColors.Gold else GameColors.Border, RoundedCornerShape(4.dp))
+                                        .clickable { selectedRealmFilter = if (isSelected) selectedRealmFilter - realm else selectedRealmFilter + realm }
                                         .padding(vertical = 4.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
@@ -728,7 +728,7 @@ private fun SpiritMineDeaconSelectionDialog(
                                         text = "$name $count",
                                         fontSize = 9.sp,
                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                        color = Color.Black
+                                        color = if (isSelected) GameColors.GoldDark else Color.Black
                                     )
                                 }
                             }
@@ -738,15 +738,15 @@ private fun SpiritMineDeaconSelectionDialog(
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             realmFilters.drop(5).forEach { (realm, name) ->
-                                val isSelected = selectedRealmFilter == realm
+                                val isSelected = realm in selectedRealmFilter
                                 val count = realmCounts[realm] ?: 0
                                 Box(
                                     modifier = Modifier
                                         .weight(1f)
                                         .clip(RoundedCornerShape(4.dp))
-                                        .background(if (isSelected) GameColors.Border else GameColors.PageBackground)
-                                        .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
-                                        .clickable { selectedRealmFilter = if (isSelected) null else realm }
+                                        .background(if (isSelected) GameColors.Gold.copy(alpha = 0.3f) else GameColors.PageBackground)
+                                        .border(1.dp, if (isSelected) GameColors.Gold else GameColors.Border, RoundedCornerShape(4.dp))
+                                        .clickable { selectedRealmFilter = if (isSelected) selectedRealmFilter - realm else selectedRealmFilter + realm }
                                         .padding(vertical = 4.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
@@ -754,7 +754,7 @@ private fun SpiritMineDeaconSelectionDialog(
                                         text = "$name $count",
                                         fontSize = 9.sp,
                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                        color = Color.Black
+                                        color = if (isSelected) GameColors.GoldDark else Color.Black
                                     )
                                 }
                             }

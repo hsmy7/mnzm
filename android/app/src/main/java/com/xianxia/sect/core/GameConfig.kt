@@ -572,12 +572,13 @@ object GameConfig {
     }
     
     object Diplomacy {
-        const val MIN_ALLIANCE_FAVOR = 90
+        const val MIN_ALLIANCE_FAVOR = 80
         const val ALLIANCE_DURATION_YEARS = 5
         const val MAX_ALLIANCE_SLOTS_DEFAULT = 3
         const val DIPLOMATIC_EVENT_CHANCE = 0.12
-        const val FAVOR_DECAY_NO_GIFT_YEARS = 3
+        const val FAVOR_DECAY_NO_GIFT_YEARS = 1
         const val FAVOR_DECAY_AMOUNT = 1
+        const val FAVOR_DECAY_THRESHOLD = 80
         const val MIN_FAVOR = 0
         const val MAX_FAVOR = 100
         

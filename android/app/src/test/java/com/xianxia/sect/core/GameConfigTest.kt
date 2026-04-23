@@ -1116,8 +1116,8 @@ class GameConfigTest {
     // ============================================================
 
     @Test
-    fun `结盟最低好感度应为90`() {
-        assertEquals(90, GameConfig.Diplomacy.MIN_ALLIANCE_FAVOR)
+    fun `结盟最低好感度应为80`() {
+        assertEquals(80, GameConfig.Diplomacy.MIN_ALLIANCE_FAVOR)
     }
 
     @Test
@@ -1146,13 +1146,18 @@ class GameConfigTest {
     }
 
     @Test
-    fun `好感度衰减无赠礼年限应为3年`() {
-        assertEquals(3, GameConfig.Diplomacy.FAVOR_DECAY_NO_GIFT_YEARS)
+    fun `好感度衰减无赠礼年限应为1年`() {
+        assertEquals(1, GameConfig.Diplomacy.FAVOR_DECAY_NO_GIFT_YEARS)
     }
 
     @Test
     fun `好感度衰减量应为1`() {
         assertEquals(1, GameConfig.Diplomacy.FAVOR_DECAY_AMOUNT)
+    }
+
+    @Test
+    fun `好感度衰减阈值应为80`() {
+        assertEquals(80, GameConfig.Diplomacy.FAVOR_DECAY_THRESHOLD)
     }
 
     @Test

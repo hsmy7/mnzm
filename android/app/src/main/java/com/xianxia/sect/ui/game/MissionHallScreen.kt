@@ -505,8 +505,8 @@ private fun DiscipleSelectionDialog(
     onDismiss: () -> Unit
 ) {
     val selectedDiscipleIds = remember { mutableStateListOf<String>() }
-    var selectedSpiritRootFilter by remember { mutableStateOf<Int?>(null) }
-    var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
+    var selectedSpiritRootFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
+    var selectedAttributeSort by remember { mutableStateOf<Set<String>>(emptySet()) }
     var spiritRootExpanded by remember { mutableStateOf(false) }
     var attributeExpanded by remember { mutableStateOf(false) }
 
@@ -523,7 +523,7 @@ private fun DiscipleSelectionDialog(
     }
 
     val filteredDisciples = remember(eligibleDisciples, selectedSpiritRootFilter, selectedAttributeSort) {
-        eligibleDisciples.applyFilters(null, selectedSpiritRootFilter, selectedAttributeSort)
+        eligibleDisciples.applyFilters(emptySet(), selectedSpiritRootFilter, selectedAttributeSort)
     }
 
     AlertDialog(
@@ -564,8 +564,10 @@ private fun DiscipleSelectionDialog(
                     spiritRootExpanded = spiritRootExpanded,
                     attributeExpanded = attributeExpanded,
                     spiritRootCounts = spiritRootCounts,
-                    onSpiritRootFilterSelected = { selectedSpiritRootFilter = it },
-                    onAttributeSortSelected = { selectedAttributeSort = it },
+                    onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
+                    onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
+                    onAttributeSortSelected = { selectedAttributeSort = selectedAttributeSort + it },
+                    onAttributeSortRemoved = { selectedAttributeSort = selectedAttributeSort - it },
                     onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
                     onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
                     isCompact = true

@@ -1101,6 +1101,9 @@ class CultivationService @Inject constructor(
 
         // 10. Process reflection cliff release (思过崖期满释放)
         processReflectionRelease(year)
+
+        // 11. Process favor decay for high favor relations
+        processFavorDecay(year)
     }
 
     /**
@@ -3857,6 +3860,29 @@ class CultivationService @Inject constructor(
                 alliances = updatedAlliances,
                 worldMapSects = updatedSects
             )
+        }
+    }
+
+    private fun processFavorDecay(currentYear: Int) {
+        val data = currentGameData
+        val playerSect = data.worldMapSects.find { it.isPlayerSect } ?: return
+
+        val updatedRelations = data.sectRelations.map { relation ->
+            val involvesPlayer = relation.sectId1 == playerSect.id || relation.sectId2 == playerSect.id
+            if (!involvesPlayer) return@map relation
+
+            if (relation.favor <= GameConfig.Diplomacy.FAVOR_DECAY_THRESHOLD) return@map relation
+
+            val yearsSinceGift = currentYear - relation.lastInteractionYear
+            if (yearsSinceGift < GameConfig.Diplomacy.FAVOR_DECAY_NO_GIFT_YEARS) return@map relation
+
+            val newFavor = (relation.favor - GameConfig.Diplomacy.FAVOR_DECAY_AMOUNT).coerceAtLeast(GameConfig.Diplomacy.FAVOR_DECAY_THRESHOLD)
+            relation.copy(favor = newFavor, noGiftYears = relation.noGiftYears + 1)
+        }
+
+        val hasChanges = updatedRelations.zip(data.sectRelations).any { (a, b) -> a.favor != b.favor }
+        if (hasChanges) {
+            currentGameData = data.copy(sectRelations = updatedRelations)
         }
     }
 

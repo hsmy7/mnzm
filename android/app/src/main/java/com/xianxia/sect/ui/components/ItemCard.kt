@@ -29,7 +29,8 @@ data class ItemCardData(
     val stats: Map<String, Int> = emptyMap(),
     val additionalInfo: String? = null,
     val price: Int = 0,
-    val grade: String? = null
+    val grade: String? = null,
+    val isLocked: Boolean = false
 )
 
 @Composable
@@ -64,7 +65,7 @@ fun UnifiedItemCard(
         ) {
             Text(
                 text = data.name,
-                modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 4.dp, bottom = 14.dp),
+                modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = if (data.isLocked) 12.dp else 4.dp, bottom = 14.dp),
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Bold,
                 color = GameColors.TextPrimary,
@@ -72,6 +73,18 @@ fun UnifiedItemCard(
                 overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center
             )
+
+            if (data.isLocked) {
+                Text(
+                    text = "锁定",
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFFFFD700),
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(start = 4.dp, top = 2.dp)
+                )
+            }
 
             if (!data.grade.isNullOrEmpty()) {
                 Text(

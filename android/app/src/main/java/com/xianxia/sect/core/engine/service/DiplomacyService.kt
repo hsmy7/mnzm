@@ -212,12 +212,13 @@ class DiplomacyService @Inject constructor(
             "",
             isSpiritStone = true
         )
+        val baseFavor = tierConfig.baseFavor
         val favorIncrease = if (percentage != null) {
-            val baseIncrease = currentFavor * percentage / 100
-            val adjustedIncrease = (baseIncrease * preferenceMultiplier).toInt()
+            val percentageIncrease = currentFavor * percentage / 100
+            val adjustedIncrease = ((baseFavor + percentageIncrease) * preferenceMultiplier).toInt()
             if (adjustedIncrease == 0) 1 else adjustedIncrease
         } else {
-            1
+            (baseFavor * preferenceMultiplier).toInt().coerceAtLeast(1)
         }
         val newFavor = (currentFavor + favorIncrease).coerceAtMost(100)
 
@@ -354,14 +355,15 @@ class DiplomacyService @Inject constructor(
             }?.favor ?: 0
         } else 0
 
-        val baseFavor = if (favorPercentage == null) {
-            1
-        } else {
+        val baseFavor = GiftConfig.RarityFavorConfig.getBaseFavor(itemRarity)
+        val baseFavorIncrease = if (favorPercentage != null) {
             if (currentFavorValue == 0) {
-                1
+                baseFavor
             } else {
-                (currentFavorValue * favorPercentage / 100).coerceAtLeast(1)
+                baseFavor + (currentFavorValue * favorPercentage / 100).coerceAtLeast(0)
             }
+        } else {
+            baseFavor
         }
 
         val preferenceMultiplier = calculatePreferenceMultiplier(
@@ -369,7 +371,7 @@ class DiplomacyService @Inject constructor(
             itemType,
             isSpiritStone = false
         )
-        val adjustedFavor = (baseFavor * preferenceMultiplier).toInt().coerceAtLeast(1)
+        val adjustedFavor = (baseFavorIncrease * preferenceMultiplier).toInt().coerceAtLeast(1)
         val totalFavor = adjustedFavor * actualQuantity
 
         // 计算拒绝概率
@@ -510,18 +512,6 @@ class DiplomacyService @Inject constructor(
             return Pair(false, "未找到结盟记录")
         }
 
-        val playerSect = data.worldMapSects.find { it.isPlayerSect }
-        val relation = if (playerSect != null) {
-            data.sectRelations.find {
-                (it.sectId1 == playerSect.id && it.sectId2 == sectId) ||
-                (it.sectId1 == sectId && it.sectId2 == playerSect.id)
-            }
-        } else null
-
-        val favorPenalty = GameConfig.Diplomacy.BreakPenalty.FAVOR_PENALTY
-        val currentFavor = relation?.favor ?: WorldMapGenerator.INITIAL_SECT_FAVOR
-        val newFavor = (currentFavor - favorPenalty).coerceAtLeast(GameConfig.Diplomacy.MIN_FAVOR.toInt())
-
         val allianceCost = getAllianceCost(sect.level)
         val spiritStonePenalty = (allianceCost * GameConfig.Diplomacy.BreakPenalty.SPIRIT_STONE_PENALTY_RATIO).toLong()
         val newSpiritStones = (data.spiritStones - spiritStonePenalty).coerceAtLeast(0L)
@@ -533,24 +523,14 @@ class DiplomacyService @Inject constructor(
 
         val updatedAlliances = data.alliances.filter { it.id != alliance.id }
 
-        val updatedRelations = if (relation != null && playerSect != null) {
-            data.sectRelations.map { r ->
-                if ((r.sectId1 == playerSect.id && r.sectId2 == sectId) ||
-                    (r.sectId1 == sectId && r.sectId2 == playerSect.id)) {
-                    r.copy(favor = newFavor)
-                } else r
-            }
-        } else data.sectRelations
-
         currentGameData = data.copy(
             worldMapSects = updatedSects,
             alliances = updatedAlliances,
-            sectRelations = updatedRelations,
             spiritStones = newSpiritStones
         )
 
-        eventService.addGameEvent("与${sect.name}解除结盟，好感度-${favorPenalty}，灵石-${spiritStonePenalty}", EventType.WARNING)
-        return Pair(true, "已解除结盟，好感度下降${favorPenalty}点，消耗灵石${spiritStonePenalty}")
+        eventService.addGameEvent("与${sect.name}解除结盟，灵石-${spiritStonePenalty}", EventType.WARNING)
+        return Pair(true, "已解除结盟，消耗灵石${spiritStonePenalty}")
     }
 
     // ==================== 公开查询方法 ====================

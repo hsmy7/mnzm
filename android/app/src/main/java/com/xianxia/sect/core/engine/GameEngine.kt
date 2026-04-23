@@ -1026,6 +1026,7 @@ class GameEngine @Inject constructor(
                     stateStore.update {
                         val stack = equipmentStacks.find { it.id == item.id }
                         if (stack == null || stack.quantity < 1) return@update
+                        if (stack.isLocked) return@update
 
                         val disciple = disciples.find { it.id == discipleId }
                         if (disciple == null) return@update
@@ -1169,7 +1170,7 @@ class GameEngine @Inject constructor(
                 }
                 "manual" -> {
                     val manualStack = stateStore.manualStacks.value.find { it.id == item.id }
-                    if (manualStack != null) {
+                    if (manualStack != null && !manualStack.isLocked) {
                         learnManual(discipleId, item.id)
                         val updatedDisciple = stateStore.disciples.value.find { it.id == discipleId }
                         val wasLearned = updatedDisciple?.manualIds?.any { mid ->
@@ -1197,7 +1198,7 @@ class GameEngine @Inject constructor(
                 }
                 "pill" -> {
                     val pill = stateStore.pills.value.find { it.id == item.id }
-                    if (pill != null && pill.quantity >= quantity) {
+                    if (pill != null && pill.quantity >= quantity && !pill.isLocked) {
                         val disciple = stateStore.disciples.value.find { it.id == discipleId }
                         val pillItem = StorageBagItem(
                             itemId = item.id,
@@ -1843,6 +1844,63 @@ class GameEngine @Inject constructor(
         if (!inventorySystem.removeSeed(seedId, quantity)) return false
         addSpiritStones((seed.basePrice * quantity * 0.8).toInt())
         return true
+    }
+
+    fun toggleItemLock(itemId: String, itemType: String) {
+        gameEngineCore.launchInScope {
+            stateStore.update {
+                when (itemType) {
+                    "equipment" -> {
+                        val idx = equipmentStacks.indexOfFirst { it.id == itemId }
+                        if (idx >= 0) {
+                            equipmentStacks = equipmentStacks.toMutableList().also { list ->
+                                list[idx] = list[idx].copy(isLocked = !list[idx].isLocked)
+                            }
+                        }
+                    }
+                    "manual" -> {
+                        val idx = manualStacks.indexOfFirst { it.id == itemId }
+                        if (idx >= 0) {
+                            manualStacks = manualStacks.toMutableList().also { list ->
+                                list[idx] = list[idx].copy(isLocked = !list[idx].isLocked)
+                            }
+                        }
+                    }
+                    "pill" -> {
+                        val idx = pills.indexOfFirst { it.id == itemId }
+                        if (idx >= 0) {
+                            pills = pills.toMutableList().also { list ->
+                                list[idx] = list[idx].copy(isLocked = !list[idx].isLocked)
+                            }
+                        }
+                    }
+                    "material" -> {
+                        val idx = materials.indexOfFirst { it.id == itemId }
+                        if (idx >= 0) {
+                            materials = materials.toMutableList().also { list ->
+                                list[idx] = list[idx].copy(isLocked = !list[idx].isLocked)
+                            }
+                        }
+                    }
+                    "herb" -> {
+                        val idx = herbs.indexOfFirst { it.id == itemId }
+                        if (idx >= 0) {
+                            herbs = herbs.toMutableList().also { list ->
+                                list[idx] = list[idx].copy(isLocked = !list[idx].isLocked)
+                            }
+                        }
+                    }
+                    "seed" -> {
+                        val idx = seeds.indexOfFirst { it.id == itemId }
+                        if (idx >= 0) {
+                            seeds = seeds.toMutableList().also { list ->
+                                list[idx] = list[idx].copy(isLocked = !list[idx].isLocked)
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     fun addSpiritStones(amount: Int) {

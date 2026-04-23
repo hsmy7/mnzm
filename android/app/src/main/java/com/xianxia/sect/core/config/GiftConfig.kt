@@ -15,7 +15,8 @@ object GiftConfig {
     data class SpiritStoneGiftTier(
         val tier: Int,
         val name: String,
-        val spiritStones: Long
+        val spiritStones: Long,
+        val baseFavor: Int = 0
     )
 
     /**
@@ -23,10 +24,10 @@ object GiftConfig {
      */
     object SpiritStoneGiftConfig {
         val TIERS = mapOf(
-            1 to SpiritStoneGiftTier(1, "薄礼", 20000L),
-            2 to SpiritStoneGiftTier(2, "厚礼", 200000L),
-            3 to SpiritStoneGiftTier(3, "重礼", 800000L),
-            4 to SpiritStoneGiftTier(4, "大礼", 4000000L)
+            1 to SpiritStoneGiftTier(1, "薄礼", 20000L, 2),
+            2 to SpiritStoneGiftTier(2, "厚礼", 200000L, 5),
+            3 to SpiritStoneGiftTier(3, "重礼", 800000L, 10),
+            4 to SpiritStoneGiftTier(4, "大礼", 4000000L, 15)
         )
 
         fun getTier(tier: Int): SpiritStoneGiftTier? = TIERS[tier]
@@ -80,7 +81,8 @@ object GiftConfig {
      */
     data class RarityFavor(
         val rarity: Int,
-        val favor: Int
+        val favor: Int,
+        val baseFavor: Int = 0
     )
 
     /**
@@ -88,15 +90,17 @@ object GiftConfig {
      */
     object RarityFavorConfig {
         val CONFIGS = mapOf(
-            1 to RarityFavor(1, 1),   // 凡品
-            2 to RarityFavor(2, 5),   // 灵品
-            3 to RarityFavor(3, 15),  // 宝品
-            4 to RarityFavor(4, 25),  // 玄品
-            5 to RarityFavor(5, 35),  // 地品
-            6 to RarityFavor(6, 50)   // 天品
+            1 to RarityFavor(1, 1, 1),
+            2 to RarityFavor(2, 5, 2),
+            3 to RarityFavor(3, 15, 5),
+            4 to RarityFavor(4, 25, 8),
+            5 to RarityFavor(5, 35, 12),
+            6 to RarityFavor(6, 50, 15)
         )
 
         fun getFavor(rarity: Int): Int = CONFIGS[rarity]?.favor ?: 1
+
+        fun getBaseFavor(rarity: Int): Int = CONFIGS[rarity]?.baseFavor ?: 1
 
         fun getConfig(rarity: Int): RarityFavor? = CONFIGS[rarity]
     }

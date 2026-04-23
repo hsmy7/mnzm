@@ -362,9 +362,9 @@ fun ProductionElderSelectionDialog(
     onDismiss: () -> Unit,
     onSelect: (String) -> Unit
 ) {
-    var selectedRealmFilter by remember { mutableStateOf<Int?>(null) }
-    var selectedSpiritRootFilter by remember { mutableStateOf<Int?>(null) }
-    var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
+    var selectedRealmFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
+    var selectedSpiritRootFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
+    var selectedAttributeSort by remember { mutableStateOf<Set<String>>(emptySet()) }
     var spiritRootExpanded by remember { mutableStateOf(false) }
     var attributeExpanded by remember { mutableStateOf(false) }
 
@@ -429,13 +429,15 @@ fun ProductionElderSelectionDialog(
                     spiritRootExpanded = spiritRootExpanded,
                     attributeExpanded = attributeExpanded,
                     spiritRootCounts = spiritRootCounts,
-                    onSpiritRootFilterSelected = { selectedSpiritRootFilter = it },
-                    onAttributeSortSelected = { selectedAttributeSort = it },
+                    onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
+                    onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
+                    onAttributeSortSelected = { selectedAttributeSort = selectedAttributeSort + it },
+                    onAttributeSortRemoved = { selectedAttributeSort = selectedAttributeSort - it },
                     onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
                     onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
                     isCompact = true
                 )
-                RealmFilterRow(realmFilters = REALM_FILTERS, selectedFilter = selectedRealmFilter, onFilterChange = { selectedRealmFilter = it })
+                RealmFilterRow(realmFilters = REALM_FILTERS, selectedFilter = selectedRealmFilter, onFilterChange = { selectedRealmFilter = it }, onFilterRemoved = { selectedRealmFilter = selectedRealmFilter - it })
                 Spacer(modifier = Modifier.height(12.dp))
 
                 if (filteredDisciples.isEmpty()) {
@@ -473,9 +475,9 @@ fun ProductionDirectDiscipleSelectionDialog(
     onDismiss: () -> Unit,
     onSelect: (String) -> Unit
 ) {
-    var selectedRealmFilter by remember { mutableStateOf<Int?>(null) }
-    var selectedSpiritRootFilter by remember { mutableStateOf<Int?>(null) }
-    var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
+    var selectedRealmFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
+    var selectedSpiritRootFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
+    var selectedAttributeSort by remember { mutableStateOf<Set<String>>(emptySet()) }
     var spiritRootExpanded by remember { mutableStateOf(false) }
     var attributeExpanded by remember { mutableStateOf(false) }
 
@@ -548,13 +550,15 @@ fun ProductionDirectDiscipleSelectionDialog(
                     spiritRootExpanded = spiritRootExpanded,
                     attributeExpanded = attributeExpanded,
                     spiritRootCounts = spiritRootCounts,
-                    onSpiritRootFilterSelected = { selectedSpiritRootFilter = it },
-                    onAttributeSortSelected = { selectedAttributeSort = it },
+                    onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
+                    onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
+                    onAttributeSortSelected = { selectedAttributeSort = selectedAttributeSort + it },
+                    onAttributeSortRemoved = { selectedAttributeSort = selectedAttributeSort - it },
                     onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
                     onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
                     isCompact = true
                 )
-                RealmFilterRow(realmFilters = REALM_FILTERS, selectedFilter = selectedRealmFilter, onFilterChange = { selectedRealmFilter = it })
+                RealmFilterRow(realmFilters = REALM_FILTERS, selectedFilter = selectedRealmFilter, onFilterChange = { selectedRealmFilter = it }, onFilterRemoved = { selectedRealmFilter = selectedRealmFilter - it })
                 Spacer(modifier = Modifier.height(12.dp))
 
                 if (filteredDisciples.isEmpty()) {
@@ -624,8 +628,9 @@ private fun ProductionDiscipleSelectionCard(
 @Composable
 private fun RealmFilterRow(
     realmFilters: List<Pair<Int, String>>,
-    selectedFilter: Int?,
-    onFilterChange: (Int?) -> Unit
+    selectedFilter: Set<Int>,
+    onFilterChange: (Set<Int>) -> Unit,
+    onFilterRemoved: (Int) -> Unit
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -637,14 +642,14 @@ private fun RealmFilterRow(
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 chunk.forEach { (realmVal, name) ->
-                    val isSelected = selectedFilter == realmVal
+                    val isSelected = realmVal in selectedFilter
                     Box(
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(4.dp))
-                            .background(if (isSelected) GameColors.Border else GameColors.PageBackground)
-                            .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
-                            .clickable { onFilterChange(if (isSelected) null else realmVal) }
+                            .background(if (isSelected) GameColors.Gold.copy(alpha = 0.3f) else GameColors.PageBackground)
+                            .border(1.dp, if (isSelected) GameColors.Gold else GameColors.Border, RoundedCornerShape(4.dp))
+                            .clickable { onFilterChange(if (isSelected) selectedFilter - realmVal else selectedFilter + realmVal) }
                             .padding(vertical = 4.dp),
                         contentAlignment = Alignment.Center
                     ) {
@@ -652,7 +657,7 @@ private fun RealmFilterRow(
                             text = name,
                             fontSize = 9.sp,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                            color = Color.Black
+                            color = if (isSelected) GameColors.GoldDark else Color.Black
                         )
                     }
                 }
