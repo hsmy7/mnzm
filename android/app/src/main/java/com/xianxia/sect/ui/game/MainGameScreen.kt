@@ -39,6 +39,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.xianxia.sect.core.GameConfig
@@ -1621,6 +1623,16 @@ private fun getWarehouseItemIsLocked(item: Any): Boolean = when (item) {
     is Herb -> item.isLocked
     is Seed -> item.isLocked
     else -> false
+}
+
+private fun getWarehouseItemBasePrice(item: Any): Int = when (item) {
+    is EquipmentStack -> item.basePrice
+    is ManualStack -> item.basePrice
+    is Pill -> item.basePrice
+    is Material -> item.basePrice
+    is Herb -> item.basePrice
+    is Seed -> item.basePrice
+    else -> 0
 }
 
 @Composable
@@ -4046,7 +4058,9 @@ private fun WarehouseTab(viewModel: GameViewModel) {
                 else -> ""
             }
             val isLocked = getWarehouseItemIsLocked(item)
+            val basePrice = getWarehouseItemBasePrice(item)
             var showDiscipleSelectDialog by remember { mutableStateOf(false) }
+            var showSellDialog by remember { mutableStateOf(false) }
 
             ItemDetailDialog(
                 item = item,
@@ -4055,6 +4069,13 @@ private fun WarehouseTab(viewModel: GameViewModel) {
                     selectedItemId = null
                 },
                 extraActions = {
+                    if (!isLocked) {
+                        GameButton(
+                            text = "售卖",
+                            onClick = { showSellDialog = true },
+                            backgroundColor = Color(0xFFFF6B35)
+                        )
+                    }
                     GameButton(
                         text = if (isLocked) "已锁定" else "锁定",
                         onClick = { viewModel.toggleItemLock(itemId, itemType) },
@@ -4066,6 +4087,25 @@ private fun WarehouseTab(viewModel: GameViewModel) {
                     )
                 }
             )
+
+            if (showSellDialog) {
+                SellConfirmDialog(
+                    itemName = itemName,
+                    itemId = itemId,
+                    itemType = itemType,
+                    maxQuantity = itemQuantity,
+                    basePrice = basePrice,
+                    onConfirm = { quantity ->
+                        val success = viewModel.sellItem(itemId, itemType, quantity)
+                        if (success) {
+                            showSellDialog = false
+                            showDetailDialog = false
+                            selectedItemId = null
+                        }
+                    },
+                    onDismiss = { showSellDialog = false }
+                )
+            }
 
             if (showDiscipleSelectDialog) {
                 DiscipleSelectForRewardDialog(
@@ -4280,6 +4320,236 @@ private fun DiscipleSelectForRewardDialog(
             }
         }
     }
+}
+
+@Composable
+private fun SellConfirmDialog(
+    itemName: String,
+    itemId: String,
+    itemType: String,
+    maxQuantity: Int,
+    basePrice: Int,
+    onConfirm: (Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var sellQuantity by remember { mutableStateOf(1) }
+    var isEditingQuantity by remember { mutableStateOf(false) }
+    var quantityInput by remember { mutableStateOf("1") }
+    val focusRequester = remember { androidx.compose.ui.focus.FocusRequester() }
+
+    val totalPrice = (basePrice.toLong() * sellQuantity * 0.8).toInt()
+
+    LaunchedEffect(isEditingQuantity) {
+        if (isEditingQuantity) {
+            focusRequester.requestFocus()
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = GameColors.PageBackground,
+        title = {
+            Text(
+                text = "售卖物品",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = itemName,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF333333)
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "售卖数量",
+                        fontSize = 12.sp,
+                        color = Color(0xFF666666)
+                    )
+                    Text(
+                        text = "最大: $maxQuantity",
+                        fontSize = 11.sp,
+                        color = Color(0xFF999999)
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(if (sellQuantity > 1) Color(0xFFE0E0E0) else Color(0xFFF5F5F5))
+                            .clickable(enabled = sellQuantity > 1) {
+                                sellQuantity = (sellQuantity - 1).coerceAtLeast(1)
+                                quantityInput = sellQuantity.toString()
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "−",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (sellQuantity > 1) Color.Black else Color(0xFFBDBDBD)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    if (isEditingQuantity) {
+                        OutlinedTextField(
+                            value = quantityInput,
+                            onValueChange = { input ->
+                                val filtered = input.filter { it.isDigit() }
+                                if (filtered.isEmpty()) {
+                                    quantityInput = ""
+                                    sellQuantity = 1
+                                } else {
+                                    val parsed = filtered.toIntOrNull() ?: 0
+                                    if (parsed > maxQuantity) {
+                                        quantityInput = maxQuantity.toString()
+                                        sellQuantity = maxQuantity
+                                    } else if (parsed == 0) {
+                                        quantityInput = ""
+                                        sellQuantity = 1
+                                    } else {
+                                        quantityInput = filtered
+                                        sellQuantity = parsed
+                                    }
+                                }
+                            },
+                            modifier = Modifier
+                                .width(80.dp)
+                                .focusRequester(focusRequester),
+                            singleLine = true,
+                            textStyle = androidx.compose.ui.text.TextStyle(
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center
+                            ),
+                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                            ),
+                            colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = GameColors.Primary,
+                                unfocusedBorderColor = Color(0xFFCCCCCC)
+                            )
+                        )
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .width(80.dp)
+                                .height(48.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .border(1.dp, Color(0xFFCCCCCC), RoundedCornerShape(6.dp))
+                                .background(Color.White)
+                                .clickable {
+                                    isEditingQuantity = true
+                                    quantityInput = sellQuantity.toString()
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "$sellQuantity",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Black
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(if (sellQuantity < maxQuantity) Color(0xFFE0E0E0) else Color(0xFFF5F5F5))
+                            .clickable(enabled = sellQuantity < maxQuantity) {
+                                sellQuantity = (sellQuantity + 1).coerceAtMost(maxQuantity)
+                                quantityInput = sellQuantity.toString()
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "+",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (sellQuantity < maxQuantity) Color.Black else Color(0xFFBDBDBD)
+                        )
+                    }
+                }
+
+                HorizontalDivider(color = Color(0xFFE0E0E0), thickness = 1.dp)
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "单价",
+                        fontSize = 12.sp,
+                        color = Color(0xFF666666)
+                    )
+                    Text(
+                        text = "${(basePrice * 0.8).toInt()} 灵石",
+                        fontSize = 12.sp,
+                        color = Color(0xFF666666)
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "总计",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+                    Text(
+                        text = "$totalPrice 灵石",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFFF6B35)
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                GameButton(
+                    text = "取消",
+                    onClick = onDismiss
+                )
+                GameButton(
+                    text = "确认售卖",
+                    onClick = { onConfirm(sellQuantity) },
+                    backgroundColor = Color(0xFFFF6B35)
+                )
+            }
+        }
+    )
 }
 
 @OptIn(ExperimentalLayoutApi::class)

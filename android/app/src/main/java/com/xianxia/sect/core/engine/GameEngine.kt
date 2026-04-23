@@ -1808,47 +1808,52 @@ class GameEngine @Inject constructor(
         if (stack.isLocked) return false
         if (quantity < 1 || quantity > stack.quantity) return false
         if (!inventorySystem.removeEquipment(equipmentId, quantity)) return false
-        addSpiritStones((stack.basePrice * quantity * 0.8).toInt())
+        addSpiritStones((stack.basePrice.toLong() * quantity * 0.8).toInt())
         return true
     }
 
     fun sellManual(manualId: String, quantity: Int): Boolean {
         val stack = stateStore.manualStacks.value.find { it.id == manualId } ?: return false
         if (stack.isLocked) return false
+        if (quantity < 1 || quantity > stack.quantity) return false
         if (!inventorySystem.removeManual(manualId, quantity)) return false
-        addSpiritStones((stack.basePrice * quantity * 0.8).toInt())
+        addSpiritStones((stack.basePrice.toLong() * quantity * 0.8).toInt())
         return true
     }
 
     fun sellPill(pillId: String, quantity: Int): Boolean {
         val pill = stateStore.pills.value.find { it.id == pillId } ?: return false
         if (pill.isLocked) return false
+        if (quantity < 1 || quantity > pill.quantity) return false
         if (!inventorySystem.removePill(pillId, quantity)) return false
-        addSpiritStones((pill.basePrice * quantity * 0.8).toInt())
+        addSpiritStones((pill.basePrice.toLong() * quantity * 0.8).toInt())
         return true
     }
 
     fun sellMaterial(materialId: String, quantity: Int): Boolean {
         val material = stateStore.materials.value.find { it.id == materialId } ?: return false
         if (material.isLocked) return false
+        if (quantity < 1 || quantity > material.quantity) return false
         if (!inventorySystem.removeMaterial(materialId, quantity)) return false
-        addSpiritStones((material.basePrice * quantity * 0.8).toInt())
+        addSpiritStones((material.basePrice.toLong() * quantity * 0.8).toInt())
         return true
     }
 
     fun sellHerb(herbId: String, quantity: Int): Boolean {
         val herb = stateStore.herbs.value.find { it.id == herbId } ?: return false
         if (herb.isLocked) return false
+        if (quantity < 1 || quantity > herb.quantity) return false
         if (!inventorySystem.removeHerb(herbId, quantity)) return false
-        addSpiritStones((herb.basePrice * quantity * 0.8).toInt())
+        addSpiritStones((herb.basePrice.toLong() * quantity * 0.8).toInt())
         return true
     }
 
     fun sellSeed(seedId: String, quantity: Int): Boolean {
         val seed = stateStore.seeds.value.find { it.id == seedId } ?: return false
         if (seed.isLocked) return false
+        if (quantity < 1 || quantity > seed.quantity) return false
         if (!inventorySystem.removeSeed(seedId, quantity)) return false
-        addSpiritStones((seed.basePrice * quantity * 0.8).toInt())
+        addSpiritStones((seed.basePrice.toLong() * quantity * 0.8).toInt())
         return true
     }
 

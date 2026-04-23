@@ -691,6 +691,22 @@ class GameViewModel @Inject constructor(
         }
     }
 
+    fun sellItem(itemId: String, itemType: String, quantity: Int): Boolean {
+        val result = when (itemType) {
+            "equipment" -> gameEngine.sellEquipment(itemId, quantity)
+            "manual" -> gameEngine.sellManual(itemId, quantity)
+            "pill" -> gameEngine.sellPill(itemId, quantity)
+            "material" -> gameEngine.sellMaterial(itemId, quantity)
+            "herb" -> gameEngine.sellHerb(itemId, quantity)
+            "seed" -> gameEngine.sellSeed(itemId, quantity)
+            else -> false
+        }
+        if (!result) {
+            _errorMessage.value = "售卖失败，物品可能已被锁定或不存在"
+        }
+        return result
+    }
+
     // 一键出售物品（原子性操作，排除锁定物品）
     fun bulkSellItems(
         selectedRarities: Set<Int>,
@@ -710,7 +726,7 @@ class GameViewModel @Inject constructor(
                         selectedRarities.contains(it.rarity) && 
                         !it.isLocked
                     }.forEach { item ->
-                        sellOperations.add(SuspendableSellOperation.Equipment(item.id, item.name, item.quantity, (item.basePrice * item.quantity * 0.8).toInt()))
+                        sellOperations.add(SuspendableSellOperation.Equipment(item.id, item.name, item.quantity, (item.basePrice.toLong() * item.quantity * 0.8).toInt()))
                     }
                 }
 
@@ -719,7 +735,7 @@ class GameViewModel @Inject constructor(
                         selectedRarities.contains(it.rarity) && 
                         !it.isLocked
                     }.forEach { item ->
-                        sellOperations.add(SuspendableSellOperation.Manual(item.id, item.name, item.quantity, (item.basePrice * item.quantity * 0.8).toInt()))
+                        sellOperations.add(SuspendableSellOperation.Manual(item.id, item.name, item.quantity, (item.basePrice.toLong() * item.quantity * 0.8).toInt()))
                     }
                 }
 
@@ -727,7 +743,7 @@ class GameViewModel @Inject constructor(
                     pills.value.filter { 
                         selectedRarities.contains(it.rarity) && !it.isLocked
                     }.forEach { item ->
-                        sellOperations.add(SuspendableSellOperation.Pill(item.id, item.name, item.quantity, (item.basePrice * item.quantity * 0.8).toInt()))
+                        sellOperations.add(SuspendableSellOperation.Pill(item.id, item.name, item.quantity, (item.basePrice.toLong() * item.quantity * 0.8).toInt()))
                     }
                 }
 
@@ -735,7 +751,7 @@ class GameViewModel @Inject constructor(
                     materials.value.filter { 
                         selectedRarities.contains(it.rarity) && !it.isLocked
                     }.forEach { item ->
-                        sellOperations.add(SuspendableSellOperation.Material(item.id, item.name, item.quantity, (item.basePrice * item.quantity * 0.8).toInt()))
+                        sellOperations.add(SuspendableSellOperation.Material(item.id, item.name, item.quantity, (item.basePrice.toLong() * item.quantity * 0.8).toInt()))
                     }
                 }
 
@@ -743,7 +759,7 @@ class GameViewModel @Inject constructor(
                     herbs.value.filter { 
                         selectedRarities.contains(it.rarity) && !it.isLocked
                     }.forEach { item ->
-                        sellOperations.add(SuspendableSellOperation.Herb(item.id, item.name, item.quantity, (item.basePrice * item.quantity * 0.8).toInt()))
+                        sellOperations.add(SuspendableSellOperation.Herb(item.id, item.name, item.quantity, (item.basePrice.toLong() * item.quantity * 0.8).toInt()))
                     }
                 }
 
@@ -751,7 +767,7 @@ class GameViewModel @Inject constructor(
                     seeds.value.filter { 
                         selectedRarities.contains(it.rarity) && !it.isLocked
                     }.forEach { item ->
-                        sellOperations.add(SuspendableSellOperation.Seed(item.id, item.name, item.quantity, (item.basePrice * item.quantity * 0.8).toInt()))
+                        sellOperations.add(SuspendableSellOperation.Seed(item.id, item.name, item.quantity, (item.basePrice.toLong() * item.quantity * 0.8).toInt()))
                     }
                 }
 
