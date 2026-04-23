@@ -830,8 +830,7 @@ internal fun DropdownFilterButton(
             textAlign = TextAlign.Center
         )
         Icon(
-            imageVector = if (isExpanded) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowUp,
-            contentDescription = null,
+            imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
             modifier = Modifier.size(if (isCompact) 14.dp else 18.dp),
             tint = Color.Black
         )
