@@ -2070,7 +2070,7 @@ class CultivationService @Inject constructor(
             val isRelevantRelation = (relation.sectId1 == team.attackerSectId && relation.sectId2 == playerSect.id) ||
                                      (relation.sectId1 == playerSect.id && relation.sectId2 == team.attackerSectId)
             if (isRelevantRelation) {
-                relation.copy(favor = (relation.favor - 15).coerceIn(0, 100))
+                relation.copy(favor = (relation.favor - 15).coerceIn(GameConfig.Diplomacy.MIN_FAVOR, GameConfig.Diplomacy.MAX_FAVOR))
             } else {
                 relation
             }

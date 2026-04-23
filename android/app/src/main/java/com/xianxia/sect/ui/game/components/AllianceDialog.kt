@@ -222,7 +222,7 @@ private fun NonAllySection(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text("好感度", fontSize = 14.sp, color = GameColors.TextSecondary)
-            Text("$relation / 90", fontSize = 14.sp, fontWeight = FontWeight.Bold, 
+            Text("$relation / ${GameConfig.Diplomacy.MIN_ALLIANCE_FAVOR}", fontSize = 14.sp, fontWeight = FontWeight.Bold,
                 color = if (meetsFavorRequirement) GameColors.Success else GameColors.Error)
         }
 
