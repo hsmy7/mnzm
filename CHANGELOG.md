@@ -1,5 +1,21 @@
 # 模拟宗门 - 更新日志
 
+## [2.4.15] - 2026-04-24
+
+### 修复
+- 修复MerchantItem.price使用Int类型，与售卖系统Long类型不一致，可能导致交易堂价格溢出
+- 修复交易堂购买总价计算(totalPrice)使用Int乘法可能溢出
+- 修复宗门交易购买总价计算使用.toInt()截断Long值
+- 修复仓库交易堂界面adjustedPrice使用.toInt()截断Long值
+
+### 优化
+- MerchantItem.price从Int改为Long，与ItemCardData.price类型保持一致
+- SerializableMerchantItem.price同步改为Long，ProtoBuf序列化向后兼容
+- PlayerListItem.price同步改为Long
+- CultivationService.priceMap类型从Map<String,Int>改为Map<String,Long>
+- SectTradeValidation.totalPrice从Int改为Long
+- GameUtils新增applyPriceFluctuation(Long)重载，支持Long类型价格波动计算
+
 ## [2.4.14] - 2026-04-24
 
 ### 修复

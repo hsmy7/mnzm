@@ -2214,7 +2214,7 @@ class SaveDataConverter @Inject constructor() {
             type = item.type ?: "",
             itemId = item.itemId ?: "",
             rarity = item.rarity ?: 0,
-            price = item.price ?: 0,
+            price = item.price,
             quantity = item.quantity ?: 0,
             description = item.description ?: "",
             obtainedYear = item.obtainedYear ?: 1,

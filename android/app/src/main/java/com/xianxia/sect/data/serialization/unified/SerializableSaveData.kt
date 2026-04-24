@@ -509,7 +509,7 @@ data class SerializableMerchantItem(
     @ProtoNumber(3) val type: String,
     @ProtoNumber(4) val itemId: String,
     @ProtoNumber(5) val rarity: Int,
-    @ProtoNumber(6) val price: Int,
+    @ProtoNumber(6) val price: Long,
     @ProtoNumber(7) val quantity: Int,
     @ProtoNumber(8) val description: String,
     @ProtoNumber(9) val obtainedYear: Int,

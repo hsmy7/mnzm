@@ -1602,7 +1602,7 @@ class GameEngine @Inject constructor(
 
     suspend fun buyMerchantItem(itemId: String, quantity: Int) {
         val merchantItem = stateStore.gameData.value.travelingMerchantItems.find { it.id == itemId } ?: return
-        val cost = merchantItem.price.toLong() * quantity
+        val cost = merchantItem.price * quantity
         if (stateStore.gameData.value.spiritStones < cost || quantity > merchantItem.quantity) return
 
         when (merchantItem.type.lowercase(java.util.Locale.getDefault())) {
@@ -1718,7 +1718,7 @@ class GameEngine @Inject constructor(
                     type = "equipment",
                     itemId = itemId,
                     rarity = eqStack.rarity,
-                    price = GameConfig.Rarity.calculateSellPrice(eqStack.basePrice, 1).toInt(),
+                    price = GameConfig.Rarity.calculateSellPrice(eqStack.basePrice, 1),
                     quantity = quantity
                 ))
                 return@forEach
@@ -1732,7 +1732,7 @@ class GameEngine @Inject constructor(
                     type = "manual",
                     itemId = itemId,
                     rarity = manualStack.rarity,
-                    price = GameConfig.Rarity.calculateSellPrice(manualStack.basePrice, 1).toInt(),
+                    price = GameConfig.Rarity.calculateSellPrice(manualStack.basePrice, 1),
                     quantity = quantity
                 ))
                 return@forEach
@@ -1746,7 +1746,7 @@ class GameEngine @Inject constructor(
                     type = "pill",
                     itemId = itemId,
                     rarity = pill.rarity,
-                    price = GameConfig.Rarity.calculateSellPrice(pill.basePrice, 1).toInt(),
+                    price = GameConfig.Rarity.calculateSellPrice(pill.basePrice, 1),
                     quantity = quantity
                 ))
                 return@forEach
@@ -1760,7 +1760,7 @@ class GameEngine @Inject constructor(
                     type = "material",
                     itemId = itemId,
                     rarity = material.rarity,
-                    price = GameConfig.Rarity.calculateSellPrice(material.basePrice, 1).toInt(),
+                    price = GameConfig.Rarity.calculateSellPrice(material.basePrice, 1),
                     quantity = quantity
                 ))
                 return@forEach
@@ -1774,7 +1774,7 @@ class GameEngine @Inject constructor(
                     type = "herb",
                     itemId = itemId,
                     rarity = herb.rarity,
-                    price = GameConfig.Rarity.calculateSellPrice(herb.basePrice, 1).toInt(),
+                    price = GameConfig.Rarity.calculateSellPrice(herb.basePrice, 1),
                     quantity = quantity
                 ))
                 return@forEach
@@ -1788,7 +1788,7 @@ class GameEngine @Inject constructor(
                     type = "seed",
                     itemId = itemId,
                     rarity = seed.rarity,
-                    price = GameConfig.Rarity.calculateSellPrice(seed.basePrice, 1).toInt(),
+                    price = GameConfig.Rarity.calculateSellPrice(seed.basePrice, 1),
                     quantity = quantity
                 ))
                 return@forEach

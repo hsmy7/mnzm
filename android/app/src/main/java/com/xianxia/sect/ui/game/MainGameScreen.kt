@@ -7716,7 +7716,7 @@ fun SectTradeDialog(
                                     else -> GameColors.RarityCommon
                                 }
                                 
-                                val adjustedPrice = (item.price * priceMultiplier).toInt()
+                                val adjustedPrice = (item.price * priceMultiplier).toLong()
                                 
                                 Box(
                                     modifier = Modifier.size(68.dp)
@@ -7820,9 +7820,9 @@ fun SectTradeDialog(
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             selectedItem?.let { item ->
-                                val adjustedPrice = (item.price * priceMultiplier).toInt()
+                                val adjustedPrice = (item.price * priceMultiplier).toLong()
                                 val totalPrice = adjustedPrice * buyQuantity
-                                val canAfford = (gameData?.spiritStones ?: 0) >= totalPrice
+                                val canAfford = (gameData?.spiritStones ?: 0L) >= totalPrice
                                 
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),

@@ -271,7 +271,7 @@ private fun PurchasePanel(
     onConfirm: () -> Unit,
     onCancel: () -> Unit
 ) {
-    val totalPrice = (item?.price ?: 0) * quantity
+    val totalPrice = (item?.price ?: 0L) * quantity
     val canAfford = spiritStones >= totalPrice && item != null
     
     Surface(
@@ -414,7 +414,7 @@ data class PlayerListItem(
     val type: String,
     val rarity: Int,
     val quantity: Int,
-    val price: Int,
+    val price: Long,
     val itemId: String
 )
 

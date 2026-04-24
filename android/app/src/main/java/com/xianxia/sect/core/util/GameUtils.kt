@@ -198,6 +198,13 @@ object GameUtils {
         return result.toInt().coerceAtLeast(1)
     }
 
+    fun applyPriceFluctuation(basePrice: Long, random: Random = Random): Long {
+        val fluctuationPercent = random.nextDouble(-20.0, 20.0)
+        val roundedPercent = (fluctuationPercent * 10).toInt() / 10.0
+        val result = basePrice * (1 + roundedPercent / 100.0)
+        return result.toLong().coerceAtLeast(1L)
+    }
+
     fun generateRandomName(style: NameStyle = NameStyle.COMMON): String {
         val surnames = when (style) {
             NameStyle.COMMON -> commonSurnames

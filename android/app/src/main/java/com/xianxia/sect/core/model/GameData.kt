@@ -421,7 +421,7 @@ data class MerchantItem(
     val type: String = "", // equipment, manual, pill, material, seed
     val itemId: String = "",
     val rarity: Int = 1,
-    val price: Int = 0,
+    val price: Long = 0L,
     val quantity: Int = 1,
     val description: String = "",
     val obtainedYear: Int = 0,

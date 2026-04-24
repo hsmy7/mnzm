@@ -3523,7 +3523,7 @@ class CultivationService @Inject constructor(
     private data class MerchantItemPools(
         val poolByRarity: MutableMap<Int, MutableList<Pair<String, String>>> = mutableMapOf(),
         val rarityMap: MutableMap<String, Int> = mutableMapOf(),
-        val priceMap: MutableMap<String, Int> = mutableMapOf(),
+        val priceMap: MutableMap<String, Long> = mutableMapOf(),
         val gradeMap: MutableMap<String, String> = mutableMapOf()
     )
 
@@ -3537,40 +3537,40 @@ class CultivationService @Inject constructor(
         EquipmentDatabase.allTemplates.values.forEach { t ->
             pools.poolByRarity.getOrPut(t.rarity) { mutableListOf() }.add(t.name to "equipment")
             pools.rarityMap[t.name] = t.rarity
-            pools.priceMap[t.name] = (t.price * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt()
+            pools.priceMap[t.name] = (t.price * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt().toLong()
         }
 
         if (ManualDatabase.isInitialized) {
             ManualDatabase.allManuals.values.forEach { t ->
                 pools.poolByRarity.getOrPut(t.rarity) { mutableListOf() }.add(t.name to "manual")
                 pools.rarityMap[t.name] = t.rarity
-                pools.priceMap[t.name] = (t.price * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt()
+                pools.priceMap[t.name] = (t.price * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt().toLong()
             }
         }
 
         ItemDatabase.allPills.values.forEach { t ->
             pools.poolByRarity.getOrPut(t.rarity) { mutableListOf() }.add(t.name to "pill")
             pools.rarityMap[t.name] = t.rarity
-            pools.priceMap[t.name] = (t.price * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt()
+            pools.priceMap[t.name] = (t.price * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt().toLong()
             pools.gradeMap[t.name] = t.grade.displayName
         }
 
         ItemDatabase.allMaterials.values.forEach { t ->
             pools.poolByRarity.getOrPut(t.rarity) { mutableListOf() }.add(t.name to "material")
             pools.rarityMap[t.name] = t.rarity
-            pools.priceMap[t.name] = (t.price * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt()
+            pools.priceMap[t.name] = (t.price * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt().toLong()
         }
 
         HerbDatabase.getAllHerbs().forEach { h ->
             pools.poolByRarity.getOrPut(h.rarity) { mutableListOf() }.add(h.name to "herb")
             pools.rarityMap[h.name] = h.rarity
-            pools.priceMap[h.name] = (h.price * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt()
+            pools.priceMap[h.name] = (h.price * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt().toLong()
         }
 
         HerbDatabase.getAllSeeds().forEach { s ->
             pools.poolByRarity.getOrPut(s.rarity) { mutableListOf() }.add(s.name to "seed")
             pools.rarityMap[s.name] = s.rarity
-            pools.priceMap[s.name] = (s.price * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt()
+            pools.priceMap[s.name] = (s.price * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt().toLong()
         }
 
         return pools
@@ -3626,7 +3626,7 @@ class CultivationService @Inject constructor(
     ): MerchantItem {
         val (name, type) = item
         val rarity = forcedRarity ?: pools.rarityMap[name] ?: 1
-        val basePrice = pools.priceMap[name] ?: (GameConfig.Rarity.get(rarity).materialBasePrice * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt()
+        val basePrice = pools.priceMap[name] ?: (GameConfig.Rarity.get(rarity).materialBasePrice * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt().toLong()
         val quantity = calculateMerchantStock(type, rarity)
         val grade = if (type == "pill") pools.gradeMap[name] else null
 
