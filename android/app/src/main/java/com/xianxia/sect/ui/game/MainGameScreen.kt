@@ -3774,13 +3774,17 @@ private fun WarehouseTab(viewModel: GameViewModel) {
     var selectedFilter by remember { mutableStateOf(WarehouseFilter.ALL) }
     var showDetailDialog by remember { mutableStateOf(false) }
     var selectedItemId by remember { mutableStateOf<String?>(null) }
-    val selectedItem: Any? = selectedItemId?.let { id ->
-        equipment.find { it.id == id }
-            ?: manuals.find { it.id == id }
-            ?: sortedPills.find { it.id == id }
-            ?: sortedMaterials.find { it.id == id }
-            ?: sortedHerbs.find { it.id == id }
-            ?: sortedSeeds.find { it.id == id }
+    val selectedItem by remember {
+        derivedStateOf {
+            selectedItemId?.let { id ->
+                equipment.find { it.id == id }
+                    ?: manuals.find { it.id == id }
+                    ?: sortedPills.find { it.id == id }
+                    ?: sortedMaterials.find { it.id == id }
+                    ?: sortedHerbs.find { it.id == id }
+                    ?: sortedSeeds.find { it.id == id }
+            }
+        }
     }
     var showBulkSellDialog by remember { mutableStateOf(false) }
     var currentPage by remember { mutableIntStateOf(0) }

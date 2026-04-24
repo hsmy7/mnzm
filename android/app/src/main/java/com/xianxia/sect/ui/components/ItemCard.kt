@@ -339,5 +339,5 @@ fun getQualityColor(quality: String?): Color = when (quality) {
     "上品" -> Color(0xFFE74C3C)
     "中品" -> Color(0xFF3498DB)
     "下品" -> Color(0xFF95A5A6)
-    else -> Color.Transparent
+    else -> Color(0xFF95A5A6) // 默认灰色，防止异常值导致不可见文字
 }
