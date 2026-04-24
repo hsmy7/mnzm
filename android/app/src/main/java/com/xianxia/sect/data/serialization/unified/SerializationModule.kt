@@ -1393,7 +1393,9 @@ class SaveDataConverter @Inject constructor() {
             obtainedYear = item.obtainedYear ?: 1,
             obtainedMonth = item.obtainedMonth ?: 1,
             effect = item.effect?.let { convertItemEffect(it) } ?: SerializableItemEffect(),
-            grade = item.grade ?: ""
+            grade = item.grade ?: "",
+            forgetYear = item.forgetYear ?: 0,
+            forgetMonth = item.forgetMonth ?: 0
         )
     }
 
@@ -1409,7 +1411,9 @@ class SaveDataConverter @Inject constructor() {
             obtainedYear = data.obtainedYear,
             obtainedMonth = data.obtainedMonth,
             effect = effect,
-            grade = data.grade.takeIf { it.isNotEmpty() }
+            grade = data.grade.takeIf { it.isNotEmpty() },
+            forgetYear = data.forgetYear.takeIf { it > 0 },
+            forgetMonth = data.forgetMonth.takeIf { it > 0 }
         )
     }
 

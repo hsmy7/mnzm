@@ -908,6 +908,7 @@ class CultivationService @Inject constructor(
                     currentManualInstances = currentManualInstances + newInstance
                 }
                 manualResult.replacedInstance?.let { replaced ->
+                    currentManualInstances = currentManualInstances.filter { it.id != replaced.id }
                     val updatedProficiencies = currentGameData.manualProficiencies.toMutableMap()
                     updatedProficiencies[updatedDisciple.id]?.let { profList ->
                         val filtered = profList.filter { it.manualId != replaced.id }
@@ -926,6 +927,16 @@ class CultivationService @Inject constructor(
                         currentManualStacks = currentManualStacks.map {
                             if (it.id == update.stackId) it.copy(quantity = update.newQuantity) else it
                         }
+                    }
+                }
+                manualResult.replacedManualStack?.let { replacedStack ->
+                    val existingStack = currentManualStacks.find { it.id == replacedStack.id }
+                    if (existingStack != null) {
+                        currentManualStacks = currentManualStacks.map {
+                            if (it.id == replacedStack.id) it.copy(quantity = it.quantity + 1) else it
+                        }
+                    } else {
+                        currentManualStacks = currentManualStacks + replacedStack
                     }
                 }
                 manualResult.events.forEach { eventService.addGameEvent(it, EventType.SUCCESS) }

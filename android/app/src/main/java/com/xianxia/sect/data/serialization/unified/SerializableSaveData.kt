@@ -343,7 +343,9 @@ data class SerializableStorageBagItem(
     @ProtoNumber(6) val obtainedYear: Int = 1,
     @ProtoNumber(7) val obtainedMonth: Int = 1,
     @ProtoNumber(8) val effect: SerializableItemEffect = SerializableItemEffect(),
-    @ProtoNumber(9) val grade: String = ""
+    @ProtoNumber(9) val grade: String = "",
+    @ProtoNumber(10) val forgetYear: Int = 0,
+    @ProtoNumber(11) val forgetMonth: Int = 0
 )
 
 @Serializable

@@ -1168,29 +1168,87 @@ class GameEngine @Inject constructor(
                     }
                 }
                 "manual" -> {
-                    val manualStack = stateStore.manualStacks.value.find { it.id == item.id }
-                    if (manualStack != null) {
-                        learnManual(discipleId, item.id)
-                        val updatedDisciple = stateStore.disciples.value.find { it.id == discipleId }
-                        val wasLearned = updatedDisciple?.manualIds?.any { mid ->
-                            stateStore.manualInstances.value.find { m -> m.id == mid }?.name == manualStack.name
-                        } == true
-                        if (!wasLearned) {
-                            updateDisciple(discipleId) { disciple ->
-                                disciple.copyWith(
-                                    storageBagItems = StorageBagUtils.increaseItemQuantity(
-                                        disciple.storageBagItems,
-                                        StorageBagItem(
-                                            itemId = item.id,
-                                            itemType = "manual_stack",
-                                            name = manualStack.name,
-                                            rarity = manualStack.rarity,
-                                            quantity = 1,
-                                            obtainedYear = data.gameYear,
-                                            obtainedMonth = data.gameMonth
+                    stateStore.update {
+                        val stack = manualStacks.find { it.id == item.id }
+                        if (stack == null || stack.quantity < 1) return@update
+
+                        val disciple = disciples.find { it.id == discipleId }
+                        if (disciple == null) return@update
+
+                        val canLearn = GameConfig.Realm.meetsRealmRequirement(disciple.realm, stack.minRealm) &&
+                            !(stack.type == ManualType.MIND && disciple.manualIds.any { mid ->
+                                manualInstances.find { m -> m.id == mid }?.type == ManualType.MIND
+                            })
+
+                        if (canLearn) {
+                            val newQty = stack.quantity - 1
+                            if (newQty <= 0) {
+                                manualStacks = manualStacks.filter { it.id != item.id }
+                            } else {
+                                manualStacks = manualStacks.map {
+                                    if (it.id == item.id) it.copy(quantity = newQty) else it
+                                }
+                            }
+
+                            val instanceId = java.util.UUID.randomUUID().toString()
+                            val instance = stack.toInstance(id = instanceId, ownerId = discipleId, isLearned = true)
+                            manualInstances = manualInstances + instance
+
+                            disciples = disciples.map {
+                                if (it.id == discipleId) {
+                                    it.copy(manualIds = it.manualIds + instanceId)
+                                } else it
+                            }
+
+                            eventService.addGameEvent("${disciple.name} 学习了 ${stack.name}", EventType.SUCCESS)
+                        } else {
+                            val newQty = stack.quantity - 1
+                            if (newQty <= 0) {
+                                manualStacks = manualStacks.filter { it.id != item.id }
+                            } else {
+                                manualStacks = manualStacks.map {
+                                    if (it.id == item.id) it.copy(quantity = newQty) else it
+                                }
+                            }
+
+                            val bagStackIds = disciples.flatMap { it.storageBagItems }
+                                .filter { it.itemType == "manual_stack" }
+                                .map { it.itemId }
+                                .toSet()
+
+                            val existingBagStack = manualStacks.find {
+                                it.name == stack.name && it.rarity == stack.rarity && it.type == stack.type && it.id != item.id && it.id in bagStackIds
+                            }
+
+                            val storageItemId: String
+                            if (existingBagStack != null) {
+                                manualStacks = manualStacks.map {
+                                    if (it.id == existingBagStack.id) it.copy(quantity = it.quantity + 1) else it
+                                }
+                                storageItemId = existingBagStack.id
+                            } else {
+                                val newStack = stack.copy(id = java.util.UUID.randomUUID().toString(), quantity = 1)
+                                manualStacks = manualStacks + newStack
+                                storageItemId = newStack.id
+                            }
+
+                            disciples = disciples.map {
+                                if (it.id == discipleId) {
+                                    it.copyWith(
+                                        storageBagItems = StorageBagUtils.increaseItemQuantity(
+                                            it.storageBagItems,
+                                            StorageBagItem(
+                                                itemId = storageItemId,
+                                                itemType = "manual_stack",
+                                                name = stack.name,
+                                                rarity = stack.rarity,
+                                                quantity = 1,
+                                                obtainedYear = gameData.gameYear,
+                                                obtainedMonth = gameData.gameMonth
+                                            )
                                         )
                                     )
-                                )
+                                } else it
                             }
                         }
                     }
@@ -1328,8 +1386,13 @@ class GameEngine @Inject constructor(
         val instance = stateStore.manualInstances.value.find { it.id == instanceId } ?: return
         val data = stateStore.gameData.value
         stateStore.update {
+            val bagStackIds = disciples.flatMap { it.storageBagItems }
+                .filter { it.itemType == "manual_stack" }
+                .map { it.itemId }
+                .toSet()
+
             val existingStack = manualStacks.find {
-                it.name == instance.name && it.rarity == instance.rarity && it.type == instance.type
+                it.name == instance.name && it.rarity == instance.rarity && it.type == instance.type && it.id in bagStackIds
             }
             if (existingStack != null) {
                 manualStacks = manualStacks.map {
@@ -1344,11 +1407,18 @@ class GameEngine @Inject constructor(
                             rarity = instance.rarity,
                             quantity = 1,
                             obtainedYear = data.gameYear,
-                            obtainedMonth = data.gameMonth
+                            obtainedMonth = data.gameMonth,
+                            forgetYear = data.gameYear,
+                            forgetMonth = data.gameMonth
                         )
                         it.copyWith(
                             manualIds = it.manualIds.filter { mid -> mid != instanceId },
                             storageBagItems = StorageBagUtils.increaseItemQuantity(it.storageBagItems, storageItem)
+                                .map { bagItem ->
+                                    if (bagItem.itemId == existingStack.id && bagItem.itemType == "manual_stack") {
+                                        bagItem.copy(forgetYear = data.gameYear, forgetMonth = data.gameMonth)
+                                    } else bagItem
+                                }
                         )
                     } else it
                 }
@@ -1364,7 +1434,9 @@ class GameEngine @Inject constructor(
                             rarity = instance.rarity,
                             quantity = 1,
                             obtainedYear = data.gameYear,
-                            obtainedMonth = data.gameMonth
+                            obtainedMonth = data.gameMonth,
+                            forgetYear = data.gameYear,
+                            forgetMonth = data.gameMonth
                         )
                         it.copyWith(
                             manualIds = it.manualIds.filter { mid -> mid != instanceId },
@@ -1401,8 +1473,13 @@ class GameEngine @Inject constructor(
                 .any { mid -> manualInstances.find { m -> m.id == mid }?.type == ManualType.MIND }
             if (blocked) return@update
 
+            val bagStackIds = disciples.flatMap { it.storageBagItems }
+                .filter { it.itemType == "manual_stack" }
+                .map { it.itemId }
+                .toSet()
+
             val existingStack = manualStacks.find {
-                it.name == oldInstance.name && it.rarity == oldInstance.rarity && it.type == oldInstance.type
+                it.name == oldInstance.name && it.rarity == oldInstance.rarity && it.type == oldInstance.type && it.id in bagStackIds
             }
             val data = gameData
             val storageItemId: String
@@ -1450,13 +1527,20 @@ class GameEngine @Inject constructor(
                 rarity = oldInstance.rarity,
                 quantity = 1,
                 obtainedYear = data.gameYear,
-                obtainedMonth = data.gameMonth
+                obtainedMonth = data.gameMonth,
+                forgetYear = data.gameYear,
+                forgetMonth = data.gameMonth
             )
             disciples = disciples.map {
                 if (it.id == discipleId) {
                     it.copyWith(
                         manualIds = (it.manualIds.filter { mid -> mid != oldInstanceId }) + newInstance.id,
                         storageBagItems = StorageBagUtils.increaseItemQuantity(it.storageBagItems, storageItem)
+                            .map { bagItem ->
+                                if (bagItem.itemId == storageItemId && bagItem.itemType == "manual_stack") {
+                                    bagItem.copy(forgetYear = data.gameYear, forgetMonth = data.gameMonth)
+                                } else bagItem
+                            }
                     )
                 } else it
             }

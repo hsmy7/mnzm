@@ -2,6 +2,7 @@ package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.engine.system.StackUpdate
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.util.StorageBagUtils
 
 object DiscipleManualManager {
 
@@ -10,8 +11,11 @@ object DiscipleManualManager {
         val newInstance: ManualInstance?,
         val replacedInstance: ManualInstance?,
         val stackUpdate: StackUpdate?,
+        val replacedManualStack: ManualStack?,
         val events: List<String>
     )
+
+    private const val COOLING_PERIOD_MONTHS = 3
 
     fun processAutoLearn(
         disciple: Disciple,
@@ -26,12 +30,13 @@ object DiscipleManualManager {
         var lastNewInstance: ManualInstance? = null
         var lastReplacedInstance: ManualInstance? = null
         var lastStackUpdate: StackUpdate? = null
+        var lastReplacedManualStack: ManualStack? = null
 
         val bagStackRefs = disciple.storageBagItems
-            .filter { it.itemType == "manual_stack" }
+            .filter { it.itemType == "manual_stack" && !isInCoolingPeriod(it, gameYear, gameMonth) }
 
         if (bagStackRefs.isEmpty()) {
-            return ManualLearnResult(disciple, null, null, null, emptyList())
+            return ManualLearnResult(disciple, null, null, null, null, emptyList())
         }
 
         val availableStacks = bagStackRefs.mapNotNull { ref ->
@@ -39,7 +44,7 @@ object DiscipleManualManager {
         }.filter { disciple.realm <= it.minRealm }
 
         if (availableStacks.isEmpty()) {
-            return ManualLearnResult(disciple, null, null, null, emptyList())
+            return ManualLearnResult(disciple, null, null, null, null, emptyList())
         }
 
         val currentManualIds = disciple.manualIds
@@ -54,6 +59,7 @@ object DiscipleManualManager {
                         stack = stack,
                         existingInstanceId = existingMindId,
                         manualInstances = manualInstances,
+                        manualStacks = manualStacks,
                         gameYear = gameYear,
                         gameMonth = gameMonth,
                         instantMessage = instantMessage
@@ -63,6 +69,7 @@ object DiscipleManualManager {
                         lastNewInstance = replaceResult.newInstance
                         lastReplacedInstance = replaceResult.replacedInstance
                         lastStackUpdate = replaceResult.stackUpdate
+                        lastReplacedManualStack = replaceResult.replacedManualStack
                         events.addAll(replaceResult.events)
                         break
                     }
@@ -97,6 +104,7 @@ object DiscipleManualManager {
                             stack = stack,
                             existingInstanceId = existingId,
                             manualInstances = manualInstances,
+                            manualStacks = manualStacks,
                             gameYear = gameYear,
                             gameMonth = gameMonth,
                             instantMessage = instantMessage
@@ -106,6 +114,7 @@ object DiscipleManualManager {
                             lastNewInstance = replaceResult.newInstance
                             lastReplacedInstance = replaceResult.replacedInstance
                             lastStackUpdate = replaceResult.stackUpdate
+                            lastReplacedManualStack = replaceResult.replacedManualStack
                             events.addAll(replaceResult.events)
                             break
                         }
@@ -114,7 +123,15 @@ object DiscipleManualManager {
             }
         }
 
-        return ManualLearnResult(updatedDisciple, lastNewInstance, lastReplacedInstance, lastStackUpdate, events)
+        return ManualLearnResult(updatedDisciple, lastNewInstance, lastReplacedInstance, lastStackUpdate, lastReplacedManualStack, events)
+    }
+
+    fun isInCoolingPeriod(item: StorageBagItem, currentYear: Int, currentMonth: Int): Boolean {
+        val forgetYear = item.forgetYear ?: return false
+        val forgetMonth = item.forgetMonth ?: return false
+        val forgetTotalMonths = forgetYear * 12 + forgetMonth
+        val currentTotalMonths = currentYear * 12 + currentMonth
+        return currentTotalMonths - forgetTotalMonths < COOLING_PERIOD_MONTHS
     }
 
     private fun learnNewManual(
@@ -140,13 +157,13 @@ object DiscipleManualManager {
 
         updatedDisciple = updatedDisciple.copyWith(
             manualIds = updatedDisciple.manualIds + instanceId,
-            storageBagItems = updatedDisciple.storageBagItems.filter { it.itemId != stack.id || it.itemType != "manual_stack" }
+            storageBagItems = StorageBagUtils.decreaseItemQuantity(updatedDisciple.storageBagItems, stack.id)
         )
 
         val messagePrefix = if (instantMessage) "立即" else "自动"
         events.add("${disciple.name} ${messagePrefix}学习了 ${stack.name}")
 
-        return ManualLearnResult(updatedDisciple, newInstance, null, stackUpdate, events)
+        return ManualLearnResult(updatedDisciple, newInstance, null, stackUpdate, null, events)
     }
 
     private fun tryReplaceManual(
@@ -154,6 +171,7 @@ object DiscipleManualManager {
         stack: ManualStack,
         existingInstanceId: String,
         manualInstances: Map<String, ManualInstance>,
+        manualStacks: List<ManualStack>,
         gameYear: Int,
         gameMonth: Int,
         instantMessage: Boolean
@@ -161,19 +179,49 @@ object DiscipleManualManager {
         val events = mutableListOf<String>()
         var updatedDisciple = disciple
 
-        val existingInstance = manualInstances[existingInstanceId] ?: return ManualLearnResult(disciple, null, null, null, emptyList())
+        val existingInstance = manualInstances[existingInstanceId]
+            ?: return ManualLearnResult(disciple, null, null, null, null, emptyList())
 
-        val oldItem = StorageBagItem(
-            itemId = existingInstance.id,
-            itemType = "manual_instance",
+        val oldStack = existingInstance.toStack(quantity = 1)
+
+        val bagStackIds = disciple.storageBagItems
+            .filter { it.itemType == "manual_stack" }
+            .map { it.itemId }
+            .toSet()
+
+        val existingBagStack = manualStacks.find {
+            it.name == oldStack.name && it.rarity == oldStack.rarity && it.type == oldStack.type && it.id in bagStackIds
+        }
+
+        val replacedManualStack: ManualStack
+        val storageItemId: String
+
+        if (existingBagStack != null) {
+            replacedManualStack = existingBagStack.copy(quantity = existingBagStack.quantity + 1)
+            storageItemId = existingBagStack.id
+        } else {
+            replacedManualStack = oldStack
+            storageItemId = oldStack.id
+        }
+
+        val storageItem = StorageBagItem(
+            itemId = storageItemId,
+            itemType = "manual_stack",
             name = existingInstance.name,
             rarity = existingInstance.rarity,
             quantity = 1,
             obtainedYear = gameYear,
-            obtainedMonth = gameMonth
+            obtainedMonth = gameMonth,
+            forgetYear = gameYear,
+            forgetMonth = gameMonth
         )
         updatedDisciple = updatedDisciple.copyWith(
-            storageBagItems = updatedDisciple.storageBagItems + oldItem
+            storageBagItems = StorageBagUtils.increaseItemQuantity(updatedDisciple.storageBagItems, storageItem)
+                .map { bagItem ->
+                    if (bagItem.itemId == storageItemId && bagItem.itemType == "manual_stack") {
+                        bagItem.copy(forgetYear = gameYear, forgetMonth = gameMonth)
+                    } else bagItem
+                }
         )
 
         val instanceId = java.util.UUID.randomUUID().toString()
@@ -188,13 +236,13 @@ object DiscipleManualManager {
 
         updatedDisciple = updatedDisciple.copyWith(
             manualIds = updatedDisciple.manualIds.map { if (it == existingInstanceId) instanceId else it },
-            storageBagItems = updatedDisciple.storageBagItems.filter { it.itemId != stack.id || it.itemType != "manual_stack" }
+            storageBagItems = StorageBagUtils.decreaseItemQuantity(updatedDisciple.storageBagItems, stack.id)
         )
 
         val messagePrefix = if (instantMessage) "立即" else "自动"
         events.add("${disciple.name} ${messagePrefix}替换功法：${existingInstance.name} -> ${stack.name}")
 
-        return ManualLearnResult(updatedDisciple, newInstance, existingInstance, stackUpdate, events)
+        return ManualLearnResult(updatedDisciple, newInstance, existingInstance, stackUpdate, replacedManualStack, events)
     }
 
     fun canLearn(disciple: Disciple, stack: ManualStack): Boolean {
