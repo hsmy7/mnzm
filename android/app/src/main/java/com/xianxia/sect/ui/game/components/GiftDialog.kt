@@ -95,7 +95,7 @@ fun GiftDialog(
                                             color = Color.White.copy(alpha = 0.8f)
                                         )
                                         Text(
-                                            text = formatSpiritStones(gameData?.spiritStones ?: 0),
+                                            text = GameUtils.formatNumber(gameData?.spiritStones ?: 0),
                                             fontSize = 14.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = Color(0xFFFFD700)
@@ -179,7 +179,7 @@ private fun FavorProgressBar(currentFavor: Int, maxFavor: Int) {
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
-                text = "好感度",
+                text = "关系",
                 fontSize = 12.sp,
                 color = Color.White.copy(alpha = 0.8f)
             )
@@ -309,7 +309,7 @@ private fun GiftTierCard(
             
             Column(horizontalAlignment = Alignment.End) {
                 Text(
-                    text = formatSpiritStones(tier.spiritStones),
+                    text = GameUtils.formatNumber(tier.spiritStones),
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
                     color = if (isDisabled) GameColors.TextTertiary else Color(0xFFFFD700)
@@ -323,13 +323,5 @@ private fun GiftTierCard(
                 }
             }
         }
-    }
-}
-
-private fun formatSpiritStones(amount: Long): String {
-    return when {
-        amount >= 100000000 -> "${amount / 100000000}亿"
-        amount >= 10000 -> "${amount / 10000}万"
-        else -> amount.toString()
     }
 }

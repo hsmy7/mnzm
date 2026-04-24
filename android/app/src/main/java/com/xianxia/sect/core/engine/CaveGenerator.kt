@@ -167,18 +167,18 @@ object CaveGenerator {
         if (waypoints.isEmpty()) {
             return isPointNearLineSegment(
                 px.toDouble(), py.toDouble(),
-                edge.sect1.x.toDouble(), edge.sect1.y.toDouble(),
-                edge.sect2.x.toDouble(), edge.sect2.y.toDouble(),
+                from.x.toDouble(), from.y.toDouble(),
+                to.x.toDouble(), to.y.toDouble(),
                 threshold
             )
         }
         
         val points = mutableListOf<Pair<Double, Double>>()
-        points.add(Pair(edge.sect1.x.toDouble(), edge.sect1.y.toDouble()))
+        points.add(Pair(from.x.toDouble(), from.y.toDouble()))
         for (wp in waypoints) {
             points.add(Pair(wp.first.toDouble(), wp.second.toDouble()))
         }
-        points.add(Pair(edge.sect2.x.toDouble(), edge.sect2.y.toDouble()))
+        points.add(Pair(to.x.toDouble(), to.y.toDouble()))
         
         for (i in 0 until points.size - 1) {
             if (isPointNearLineSegment(

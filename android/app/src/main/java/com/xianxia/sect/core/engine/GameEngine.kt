@@ -1161,10 +1161,7 @@ class GameEngine @Inject constructor(
                                                 rarity = stack.rarity,
                                                 quantity = 1,
                                                 obtainedYear = gameData.gameYear,
-                                                obtainedMonth = gameData.gameMonth,
-                                                forgetYear = gameData.gameYear,
-                                                forgetMonth = gameData.gameMonth,
-                                                forgetDay = gameData.gameDay
+                                                obtainedMonth = gameData.gameMonth
                                             ),
                                             inventoryConfig.getMaxStackSize("equipment_stack")
                                         )
@@ -1254,10 +1251,7 @@ class GameEngine @Inject constructor(
                                                 rarity = stack.rarity,
                                                 quantity = 1,
                                                 obtainedYear = gameData.gameYear,
-                                                obtainedMonth = gameData.gameMonth,
-                                                forgetYear = gameData.gameYear,
-                                                forgetMonth = gameData.gameMonth,
-                                                forgetDay = gameData.gameDay
+                                                obtainedMonth = gameData.gameMonth
                                             ),
                                             inventoryConfig.getMaxStackSize("manual_stack")
                                         )

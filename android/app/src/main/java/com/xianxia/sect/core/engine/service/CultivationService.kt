@@ -442,8 +442,6 @@ class CultivationService @Inject constructor(
         val id = java.util.UUID.randomUUID().toString()
         val gender = if (GameRandom.nextBoolean()) "male" else "female"
 
-        // 名字：父母姓氏组合
-        val motherSurname = mother.name.firstOrNull()?.toString() ?: ""
         val fatherSurname = father.name.firstOrNull()?.toString() ?: ""
         val maleNames = listOf(
             "逍遥", "无忌", "长生", "问道", "清风", "明月", "玄真", "道尘",
@@ -460,7 +458,7 @@ class CultivationService @Inject constructor(
             "瑶光", "璇玑", "灵犀", "素心", "清浅", "如烟"
         )
         val givenName = if (gender == "male") maleNames[GameRandom.nextInt(maleNames.size)] else femaleNames[GameRandom.nextInt(femaleNames.size)]
-        val childName = "$fatherSurname$motherSurname$givenName"
+        val childName = "$fatherSurname$givenName"
 
         val allSpiritRootTypes = listOf("metal", "wood", "water", "fire", "earth")
         val rootCount = when (GameRandom.nextInt(100)) {
@@ -3884,7 +3882,7 @@ class CultivationService @Inject constructor(
                 val favor = relation?.favor ?: 0
                 if (favor < GameConfig.Diplomacy.MIN_ALLIANCE_FAVOR) {
                     dissolvedAlliances.add(alliance)
-                    eventService.addGameEvent("与${sect?.name ?: "宗门"}的好感度过低，盟约自动解除", EventType.WARNING)
+                    eventService.addGameEvent("与${sect?.name ?: "宗门"}的关系过低，盟约自动解除", EventType.WARNING)
                 }
             }
         }

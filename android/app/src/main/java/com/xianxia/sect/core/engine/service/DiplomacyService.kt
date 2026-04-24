@@ -2,14 +2,11 @@ package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.model.*
 import kotlinx.coroutines.launch
-import com.xianxia.sect.core.data.*
 import com.xianxia.sect.core.config.GiftConfig
 import com.xianxia.sect.core.config.SectResponseTexts
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.engine.WorldMapGenerator
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.di.ApplicationScopeProvider
-import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.engine.system.GameSystem
 import com.xianxia.sect.core.engine.system.SystemPriority
 import android.util.Log
@@ -42,46 +39,6 @@ class DiplomacyService @Inject constructor(
             val ts = stateStore.currentTransactionMutableState()
             if (ts != null) { ts.gameData = value; return }
             scope.launch { stateStore.update { gameData = value } }
-        }
-
-    private var currentManualInstances: List<ManualInstance>
-        get() = stateStore.currentTransactionMutableState()?.manualInstances ?: stateStore.manualInstances.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.manualInstances = value; return }
-            scope.launch { stateStore.update { manualInstances = value } }
-        }
-
-    private var currentEquipmentInstances: List<EquipmentInstance>
-        get() = stateStore.currentTransactionMutableState()?.equipmentInstances ?: stateStore.equipmentInstances.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.equipmentInstances = value; return }
-            scope.launch { stateStore.update { equipmentInstances = value } }
-        }
-
-    private var currentEquipmentStacks: List<EquipmentStack>
-        get() = stateStore.currentTransactionMutableState()?.equipmentStacks ?: stateStore.equipmentStacks.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.equipmentStacks = value; return }
-            scope.launch { stateStore.update { equipmentStacks = value } }
-        }
-
-    private var currentManualStacks: List<ManualStack>
-        get() = stateStore.currentTransactionMutableState()?.manualStacks ?: stateStore.manualStacks.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.manualStacks = value; return }
-            scope.launch { stateStore.update { manualStacks = value } }
-        }
-
-    private var currentPills: List<Pill>
-        get() = stateStore.currentTransactionMutableState()?.pills ?: stateStore.pills.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.pills = value; return }
-            scope.launch { stateStore.update { pills = value } }
         }
 
     private var currentDisciples: List<Disciple>
@@ -176,7 +133,6 @@ class DiplomacyService @Inject constructor(
         val baseRejectProbability = getRejectProbability(sect.level, virtualRarity)
         val preferenceRejectModifier = calculatePreferenceRejectModifier(
             data.sectDetails[sect.id]?.giftPreference ?: GiftPreferenceType.NONE,
-            "",
             isSpiritStone = true
         )
         val rejectProbability = (baseRejectProbability + preferenceRejectModifier).coerceIn(0, 100)
@@ -208,7 +164,6 @@ class DiplomacyService @Inject constructor(
         val percentage = GiftConfig.FavorPercentageConfig.getFavorPercentage(sect.level, tier)
         val preferenceMultiplier = calculatePreferenceMultiplier(
             sectDetail.giftPreference,
-            "",
             isSpiritStone = true
         )
         val baseFavor = tierConfig.baseFavor
@@ -237,7 +192,7 @@ class DiplomacyService @Inject constructor(
         )
 
         val responseText = SectResponseTexts.getAcceptResponse(sect.level, "spirit_stones", tierConfig.name, favorIncrease)
-        eventService.addGameEvent("向${sect.name}送礼${tierConfig.name}成功，好感度+${favorIncrease}", EventType.SUCCESS)
+        eventService.addGameEvent("向${sect.name}送礼${tierConfig.name}成功，关系+${favorIncrease}", EventType.SUCCESS)
 
         return GiftResult(
             success = true,
@@ -305,7 +260,7 @@ class DiplomacyService @Inject constructor(
         } else {
             currentGameData = data.copy(spiritStones = data.spiritStones - cost / 2)
             eventService.addGameEvent("游说${sect.name}失败，结盟未成", EventType.WARNING)
-            return Pair(false, "游说失败，好感度不足以达成结盟")
+            return Pair(false, "游说失败，关系不足以达成结盟")
         }
     }
 
@@ -413,7 +368,7 @@ class DiplomacyService @Inject constructor(
         } else 0
 
         if (favor < GameConfig.Diplomacy.MIN_ALLIANCE_FAVOR) {
-            return Triple(false, "关系需达到至交(好感度${GameConfig.Diplomacy.MIN_ALLIANCE_FAVOR}以上)", 0)
+            return Triple(false, "关系需达到至交(${GameConfig.Diplomacy.MIN_ALLIANCE_FAVOR}以上)", 0)
         }
 
         // 检查玩家是否已有结盟
@@ -480,16 +435,14 @@ class DiplomacyService @Inject constructor(
     // ==================== 私有辅助方法 ====================
 
     /**
-     * 计算偏好乘数（用于好感度增长）
+     * 计算偏好乘数（用于关系增长）
      *
      * @param giftPreference 礼物偏好类型
-     * @param itemType 物品类型
      * @param isSpiritStone 是否为灵石
      * @return 偏好乘数
      */
     private fun calculatePreferenceMultiplier(
         giftPreference: GiftPreferenceType,
-        itemType: String,
         isSpiritStone: Boolean = false
     ): Double {
         if (giftPreference == GiftPreferenceType.NONE) return 1.0
@@ -501,7 +454,6 @@ class DiplomacyService @Inject constructor(
 
     private fun calculatePreferenceRejectModifier(
         giftPreference: GiftPreferenceType,
-        itemType: String,
         isSpiritStone: Boolean = false
     ): Int {
         if (giftPreference == GiftPreferenceType.NONE) return 0

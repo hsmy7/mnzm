@@ -1,5 +1,35 @@
 # 模拟宗门 - 更新日志
 
+## [2.5.5] - 2026-04-25
+
+### 修复
+- 修复子嗣命名包含父母双方姓氏导致名字为4字的问题，改为仅随父姓
+
+## [2.5.4] - 2026-04-25
+
+### 修复
+- 修复CaveGenerator中航点ID排序不一致导致洞府碰撞检测路径与渲染路径不匹配的严重bug
+- 清理MapCanvas中不可达的死代码分支
+
+### 优化
+- 宗门名称池从128扩充到256（正道128+魔道128），避免80宗门时名称不足
+
+## [2.5.3] - 2026-04-25
+
+### 修复
+- 统一所有面向用户的"好感度"文本为"关系"（GiftDialog、DiplomacyService、CultivationService、AllianceDialog）
+- 修复AllySelectCard关系等级颜色使用Color.Black而非relationLevel.colorHex的问题
+- 修复EnvoyDiscipleSelectDialog缺少目标宗门关系等级显示的问题
+- 修复SectTradeDialog灵石数量未格式化显示的问题
+
+### 优化
+- 移除DiplomacyService中5个物品送礼遗留的未使用属性（currentManualInstances等）
+- 移除calculatePreferenceMultiplier/calculatePreferenceRejectModifier中未使用的itemType参数
+- 清理DiplomacyService中未使用的import
+- 统一formatSpiritStones为GameUtils.formatNumber，消除重复代码
+- EnvoyDiscipleSelectDialog境界要求改用worldMapViewModel.getEnvoyRealmRequirement，消除硬编码
+- AllianceDialog中DiscipleSelectCard/AllySelectCard的Color.Black替换为主题色GameColors.TextPrimary/TextSecondary
+
 ## [2.5.2] - 2026-04-25
 
 ### 修复

@@ -7674,7 +7674,7 @@ fun SectTradeDialog(
                                 }
                             }
                             Text(
-                                text = "灵石: ${gameData?.spiritStones ?: 0}",
+                                text = "灵石: ${GameUtils.formatNumber(gameData?.spiritStones ?: 0)}",
                                 fontSize = 11.sp,
                                 color = GameColors.TextSecondary
                             )

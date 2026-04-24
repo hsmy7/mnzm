@@ -152,6 +152,10 @@ class WorldMapViewModel @Inject constructor(
         return gameEngine.getAllianceCost(sectLevel)
     }
 
+    fun getEnvoyRealmRequirement(sectLevel: Int): Int {
+        return gameEngine.getEnvoyRealmRequirement(sectLevel)
+    }
+
     fun isAlly(sectId: String): Boolean {
         return gameEngine.isAlly(sectId)
     }

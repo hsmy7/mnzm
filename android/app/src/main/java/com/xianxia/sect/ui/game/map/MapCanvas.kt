@@ -54,27 +54,23 @@ fun MapCanvas(
 
                 pathObj.moveTo(allPoints[0].first, allPoints[0].second)
 
-                if (allPoints.size == 2) {
-                    pathObj.lineTo(allPoints[1].first, allPoints[1].second)
-                } else {
-                    val midX0 = (allPoints[0].first + allPoints[1].first) / 2f
-                    val midY0 = (allPoints[0].second + allPoints[1].second) / 2f
-                    pathObj.lineTo(midX0, midY0)
+                val midX0 = (allPoints[0].first + allPoints[1].first) / 2f
+                val midY0 = (allPoints[0].second + allPoints[1].second) / 2f
+                pathObj.lineTo(midX0, midY0)
 
-                    for (i in 1 until allPoints.size - 1) {
-                        val curr = allPoints[i]
-                        val next = allPoints[i + 1]
-                        val midX = (curr.first + next.first) / 2f
-                        val midY = (curr.second + next.second) / 2f
+                for (i in 1 until allPoints.size - 1) {
+                    val curr = allPoints[i]
+                    val next = allPoints[i + 1]
+                    val midX = (curr.first + next.first) / 2f
+                    val midY = (curr.second + next.second) / 2f
 
-                        pathObj.quadraticTo(
-                            curr.first, curr.second,
-                            midX, midY
-                        )
-                    }
-
-                    pathObj.lineTo(allPoints.last().first, allPoints.last().second)
+                    pathObj.quadraticTo(
+                        curr.first, curr.second,
+                        midX, midY
+                    )
                 }
+
+                pathObj.lineTo(allPoints.last().first, allPoints.last().second)
             }
 
             drawPath(

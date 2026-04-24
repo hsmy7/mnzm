@@ -243,7 +243,7 @@ private fun NonAllySection(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text("结盟费用", fontSize = 14.sp, color = GameColors.TextSecondary)
-            Text(formatSpiritStones(allianceCost), fontSize = 14.sp, fontWeight = FontWeight.Bold,
+            Text(GameUtils.formatNumber(allianceCost), fontSize = 14.sp, fontWeight = FontWeight.Bold,
                 color = if (canAfford) Color(0xFFFFD700) else GameColors.Error)
         }
 
@@ -257,7 +257,7 @@ private fun NonAllySection(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        ConditionItem("关系达到至交(好感度${GameConfig.Diplomacy.MIN_ALLIANCE_FAVOR}以上)", meetsFavorRequirement)
+        ConditionItem("关系达到至交(${GameConfig.Diplomacy.MIN_ALLIANCE_FAVOR}以上)", meetsFavorRequirement)
         ConditionItem("灵石充足", canAfford)
         ConditionItem("派遣弟子游说", true)
         ConditionItem("对方无其他盟友", !hasOtherAlliance)
@@ -335,15 +335,7 @@ fun EnvoyDiscipleSelectDialog(
     var spiritRootExpanded by remember { mutableStateOf(false) }
     var attributeExpanded by remember { mutableStateOf(false) }
     val sectLevel = sect?.level ?: 0
-    val requiredRealm = GameConfig.Realm.getName(
-        when (sectLevel) {
-            0 -> 7
-            1 -> 5
-            2 -> 4
-            3 -> 3
-            else -> 7
-        }
-    )
+    val requiredRealm = GameConfig.Realm.getName(worldMapViewModel.getEnvoyRealmRequirement(sectLevel))
 
     val spiritRootCounts = remember(disciples) {
         disciples.groupingBy { it.getSpiritRootCount() }.eachCount()
@@ -489,7 +481,7 @@ private fun DiscipleSelectCard(
                         text = disciple.name,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.Black
+                        color = GameColors.TextPrimary
                     )
                     if (disciple.isFollowed) {
                         FollowedTag()
@@ -499,7 +491,7 @@ private fun DiscipleSelectCard(
                 Text(
                     text = "${GameConfig.Realm.getName(disciple.realm)} · ${disciple.realmLayer}层",
                     fontSize = 12.sp,
-                    color = Color.Black
+                    color = GameColors.TextSecondary
                 )
             }
 
@@ -510,12 +502,12 @@ private fun DiscipleSelectCard(
                     Text(
                         text = "智${disciple.intelligence}",
                         fontSize = 12.sp,
-                        color = Color.Black
+                        color = GameColors.TextSecondary
                     )
                     Text(
                         text = "魅${disciple.charm}",
                         fontSize = 12.sp,
-                        color = Color.Black
+                        color = GameColors.TextSecondary
                     )
                 }
             }
@@ -554,30 +546,23 @@ private fun AllySelectCard(
                     text = ally.name,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.Black
+                    color = GameColors.TextPrimary
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = ally.levelName,
                     fontSize = 12.sp,
-                    color = Color.Black
+                    color = GameColors.TextSecondary
                 )
             }
 
+            val relationLevel = GameUtils.getSectRelationLevel(relation)
             Text(
-                text = "${GameUtils.getSectRelationLevel(relation).displayName} $relation",
+                text = "${relationLevel.displayName} $relation",
                 fontSize = 12.sp,
-                color = Color.Black
+                color = Color(relationLevel.colorHex)
             )
         }
-    }
-}
-
-private fun formatSpiritStones(amount: Long): String {
-    return when {
-        amount >= 100000000 -> "${amount / 100000000}亿"
-        amount >= 10000 -> "${amount / 10000}万"
-        else -> amount.toString()
     }
 }
 
