@@ -152,24 +152,36 @@ class GameStateStore @Inject constructor(
     )
 
     fun setPausedDirect(paused: Boolean) {
-        val current = _state.value
-        if (current.isPaused != paused) {
-            _state.value = current.copy(isPaused = paused)
+        var attempts = 0
+        while (attempts < 10) {
+            val current = _state.value
+            if (current.isPaused == paused) return
+            if (_state.compareAndSet(current, current.copy(isPaused = paused))) return
+            attempts++
         }
+        _state.value = _state.value.copy(isPaused = paused)
     }
 
     fun setLoadingDirect(loading: Boolean) {
-        val current = _state.value
-        if (current.isLoading != loading) {
-            _state.value = current.copy(isLoading = loading)
+        var attempts = 0
+        while (attempts < 10) {
+            val current = _state.value
+            if (current.isLoading == loading) return
+            if (_state.compareAndSet(current, current.copy(isLoading = loading))) return
+            attempts++
         }
+        _state.value = _state.value.copy(isLoading = loading)
     }
 
     fun setSavingDirect(saving: Boolean) {
-        val current = _state.value
-        if (current.isSaving != saving) {
-            _state.value = current.copy(isSaving = saving)
+        var attempts = 0
+        while (attempts < 10) {
+            val current = _state.value
+            if (current.isSaving == saving) return
+            if (_state.compareAndSet(current, current.copy(isSaving = saving))) return
+            attempts++
         }
+        _state.value = _state.value.copy(isSaving = saving)
     }
 
     suspend fun update(block: suspend MutableGameState.() -> Unit) {
@@ -200,6 +212,10 @@ class GameStateStore @Inject constructor(
             currentTransactionState = reusableMutableState
             try {
                 reusableMutableState.block()
+                val latest = _state.value
+                val mergedIsPaused = if (latest.isPaused != current.isPaused) latest.isPaused else reusableMutableState.isPaused
+                val mergedIsLoading = if (latest.isLoading != current.isLoading) latest.isLoading else reusableMutableState.isLoading
+                val mergedIsSaving = if (latest.isSaving != current.isSaving) latest.isSaving else reusableMutableState.isSaving
                 _state.value = UnifiedGameState(
                     gameData = reusableMutableState.gameData,
                     disciples = reusableMutableState.disciples,
@@ -215,9 +231,9 @@ class GameStateStore @Inject constructor(
                     events = reusableMutableState.events,
                     battleLogs = reusableMutableState.battleLogs,
                     alliances = reusableMutableState.gameData.alliances,
-                    isPaused = reusableMutableState.isPaused,
-                    isLoading = reusableMutableState.isLoading,
-                    isSaving = reusableMutableState.isSaving
+                    isPaused = mergedIsPaused,
+                    isLoading = mergedIsLoading,
+                    isSaving = mergedIsSaving
                 )
             } finally {
                 currentTransactionState = null

@@ -1102,7 +1102,6 @@ class SaveLoadViewModel @Inject constructor(
     override fun onCleared() {
         Log.i(TAG, "SaveLoadViewModel cleared")
 
-        // 关键修复：先捕获快照，再停循环和重置状态，避免保存空数据
         var snapshotToSave: com.xianxia.sect.core.engine.GameStateSnapshot? = null
         try {
             val snapshot = gameEngine.getStateSnapshotSync()
@@ -1114,24 +1113,26 @@ class SaveLoadViewModel @Inject constructor(
             Log.e(TAG, "Failed to capture snapshot for exit save: ${e.message}")
         }
 
-        // 直接重置状态，不使用 runBlocking + suspend 函数
-        stateManager.setLoadingDirect(false)
-        stateManager.setSavingDirect(false)
-        _pendingSlot.value = null
-        _pendingAction.value = null
-        _loadingProgress.value = PROGRESS_START
-        stopGameLoop()
-
         if (stateManager.state.value.isSaving) {
-            Log.i(TAG, "Waiting for current save operation to complete")
+            Log.i(TAG, "Waiting for current save operation to complete before exit")
             val waitStartTime = System.currentTimeMillis()
             val maxWaitTime = 3000L
             while (stateManager.state.value.isSaving && System.currentTimeMillis() - waitStartTime < maxWaitTime) {
                 Thread.sleep(100)
             }
+            if (stateManager.state.value.isSaving) {
+                Log.w(TAG, "Save operation did not complete within ${maxWaitTime}ms, proceeding with exit save")
+            }
         }
 
-        // 使用之前捕获的快照进行保存
+        stopGameLoop()
+
+        stateManager.setLoadingDirect(false)
+        stateManager.setSavingDirect(false)
+        _pendingSlot.value = null
+        _pendingAction.value = null
+        _loadingProgress.value = PROGRESS_START
+
         if (snapshotToSave != null) {
             try {
                 val autoSaveSlot = com.xianxia.sect.data.StorageConstants.AUTO_SAVE_SLOT
