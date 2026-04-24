@@ -153,10 +153,15 @@ object CaveGenerator {
     }
     
     private fun isPointNearCurvedPath(px: Int, py: Int, edge: MSTEdge, threshold: Double): Boolean {
+        val (from, to) = if (edge.sect1.id < edge.sect2.id) {
+            edge.sect1 to edge.sect2
+        } else {
+            edge.sect2 to edge.sect1
+        }
         val waypoints = WorldMapGenerator.generatePathWaypoints(
-            edge.sect1.x, edge.sect1.y,
-            edge.sect2.x, edge.sect2.y,
-            edge.sect1.id, edge.sect2.id
+            from.x, from.y,
+            to.x, to.y,
+            from.id, to.id
         )
         
         if (waypoints.isEmpty()) {

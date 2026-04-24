@@ -1,5 +1,12 @@
 # 模拟宗门 - 更新日志
 
+## [2.5.2] - 2026-04-25
+
+### 修复
+- 修复V3ToV4Migrator遗漏recruitList和aiSectDisciples中弟子duration转换的问题
+- 补充V3ToV4Migrator边界值（duration=12和duration=13）测试覆盖
+- 为V3ToV4Migrator添加启发式判断注释说明
+
 ## [2.5.1] - 2026-04-25
 
 ### 改动

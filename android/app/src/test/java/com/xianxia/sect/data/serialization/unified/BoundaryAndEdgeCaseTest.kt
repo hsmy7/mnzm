@@ -834,4 +834,141 @@ class BoundaryAndEdgeCaseTest {
         assertEquals(90, result.disciples[2].cultivationSpeedDuration)
         assertEquals(60, result.disciples[2].pillEffectDuration)
     }
+
+    @Test
+    fun `V3ToV4Migrator converts boundary value 12 to 360`() = runBlocking {
+        val migrator = V3ToV4Migrator()
+        val data = SerializableSaveData(
+            version = "3.0",
+            timestamp = System.currentTimeMillis(),
+            gameData = SerializableGameData(),
+            disciples = listOf(
+                SerializableDisciple(
+                    id = "d_boundary", name = "boundary", realm = 1, realmLayer = 0,
+                    cultivation = 0.0, spiritRootType = "火", age = 20, lifespan = 200,
+                    isAlive = true, gender = "男", spiritStones = 0, soulPower = 0,
+                    storageBagSpiritStones = 0, status = "IDLE",
+                    cultivationSpeedBonus = 0.0, cultivationSpeedDuration = 12,
+                    pillPhysicalAttackBonus = 0, pillMagicAttackBonus = 0,
+                    pillPhysicalDefenseBonus = 0, pillMagicDefenseBonus = 0,
+                    pillHpBonus = 0, pillMpBonus = 0, pillSpeedBonus = 0,
+                    pillEffectDuration = 12,
+                    totalCultivation = 0L, breakthroughCount = 0, breakthroughFailCount = 0,
+                    intelligence = 0, charm = 0, loyalty = 0, comprehension = 0,
+                    artifactRefining = 0, pillRefining = 0, spiritPlanting = 0,
+                    teaching = 0, morality = 0, salaryPaidCount = 0, salaryMissedCount = 0,
+                    recruitedMonth = 0, hpVariance = 0, mpVariance = 0,
+                    physicalAttackVariance = 0, magicAttackVariance = 0,
+                    physicalDefenseVariance = 0, magicDefenseVariance = 0, speedVariance = 0,
+                    baseHp = 0, baseMp = 0, basePhysicalAttack = 0, baseMagicAttack = 0,
+                    basePhysicalDefense = 0, baseMagicDefense = 0, baseSpeed = 0,
+                    currentHp = 0, currentMp = 0, discipleType = "",
+                    lastChildYear = 0, hasReviveEffect = false, hasClearAllEffect = false
+                ),
+                SerializableDisciple(
+                    id = "d_13", name = "over12", realm = 1, realmLayer = 0,
+                    cultivation = 0.0, spiritRootType = "火", age = 20, lifespan = 200,
+                    isAlive = true, gender = "男", spiritStones = 0, soulPower = 0,
+                    storageBagSpiritStones = 0, status = "IDLE",
+                    cultivationSpeedBonus = 0.0, cultivationSpeedDuration = 13,
+                    pillPhysicalAttackBonus = 0, pillMagicAttackBonus = 0,
+                    pillPhysicalDefenseBonus = 0, pillMagicDefenseBonus = 0,
+                    pillHpBonus = 0, pillMpBonus = 0, pillSpeedBonus = 0,
+                    pillEffectDuration = 13,
+                    totalCultivation = 0L, breakthroughCount = 0, breakthroughFailCount = 0,
+                    intelligence = 0, charm = 0, loyalty = 0, comprehension = 0,
+                    artifactRefining = 0, pillRefining = 0, spiritPlanting = 0,
+                    teaching = 0, morality = 0, salaryPaidCount = 0, salaryMissedCount = 0,
+                    recruitedMonth = 0, hpVariance = 0, mpVariance = 0,
+                    physicalAttackVariance = 0, magicAttackVariance = 0,
+                    physicalDefenseVariance = 0, magicDefenseVariance = 0, speedVariance = 0,
+                    baseHp = 0, baseMp = 0, basePhysicalAttack = 0, baseMagicAttack = 0,
+                    basePhysicalDefense = 0, baseMagicDefense = 0, baseSpeed = 0,
+                    currentHp = 0, currentMp = 0, discipleType = "",
+                    lastChildYear = 0, hasReviveEffect = false, hasClearAllEffect = false
+                )
+            )
+        )
+
+        val result = migrator.migrate(data)
+
+        // 边界值 12 应该被转换
+        assertEquals(360, result.disciples[0].cultivationSpeedDuration)
+        assertEquals(360, result.disciples[0].pillEffectDuration)
+        // 超过边界的 13 不应该被转换
+        assertEquals(13, result.disciples[1].cultivationSpeedDuration)
+        assertEquals(13, result.disciples[1].pillEffectDuration)
+    }
+
+    @Test
+    fun `V3ToV4Migrator converts recruitList and aiSectDisciples durations`() = runBlocking {
+        val migrator = V3ToV4Migrator()
+        val recruitDisciple = SerializableDisciple(
+            id = "recruit_1", name = "recruit", realm = 1, realmLayer = 0,
+            cultivation = 0.0, spiritRootType = "火", age = 20, lifespan = 200,
+            isAlive = true, gender = "男", spiritStones = 0, soulPower = 0,
+            storageBagSpiritStones = 0, status = "IDLE",
+            cultivationSpeedBonus = 0.0, cultivationSpeedDuration = 5,
+            pillPhysicalAttackBonus = 0, pillMagicAttackBonus = 0,
+            pillPhysicalDefenseBonus = 0, pillMagicDefenseBonus = 0,
+            pillHpBonus = 0, pillMpBonus = 0, pillSpeedBonus = 0,
+            pillEffectDuration = 3,
+            totalCultivation = 0L, breakthroughCount = 0, breakthroughFailCount = 0,
+            intelligence = 0, charm = 0, loyalty = 0, comprehension = 0,
+            artifactRefining = 0, pillRefining = 0, spiritPlanting = 0,
+            teaching = 0, morality = 0, salaryPaidCount = 0, salaryMissedCount = 0,
+            recruitedMonth = 0, hpVariance = 0, mpVariance = 0,
+            physicalAttackVariance = 0, magicAttackVariance = 0,
+            physicalDefenseVariance = 0, magicDefenseVariance = 0, speedVariance = 0,
+            baseHp = 0, baseMp = 0, basePhysicalAttack = 0, baseMagicAttack = 0,
+            basePhysicalDefense = 0, baseMagicDefense = 0, baseSpeed = 0,
+            currentHp = 0, currentMp = 0, discipleType = "",
+            lastChildYear = 0, hasReviveEffect = false, hasClearAllEffect = false
+        )
+        val aiDisciple = SerializableDisciple(
+            id = "ai_1", name = "ai_disciple", realm = 1, realmLayer = 0,
+            cultivation = 0.0, spiritRootType = "水", age = 25, lifespan = 250,
+            isAlive = true, gender = "女", spiritStones = 0, soulPower = 0,
+            storageBagSpiritStones = 0, status = "IDLE",
+            cultivationSpeedBonus = 0.0, cultivationSpeedDuration = 8,
+            pillPhysicalAttackBonus = 0, pillMagicAttackBonus = 0,
+            pillPhysicalDefenseBonus = 0, pillMagicDefenseBonus = 0,
+            pillHpBonus = 0, pillMpBonus = 0, pillSpeedBonus = 0,
+            pillEffectDuration = 10,
+            totalCultivation = 0L, breakthroughCount = 0, breakthroughFailCount = 0,
+            intelligence = 0, charm = 0, loyalty = 0, comprehension = 0,
+            artifactRefining = 0, pillRefining = 0, spiritPlanting = 0,
+            teaching = 0, morality = 0, salaryPaidCount = 0, salaryMissedCount = 0,
+            recruitedMonth = 0, hpVariance = 0, mpVariance = 0,
+            physicalAttackVariance = 0, magicAttackVariance = 0,
+            physicalDefenseVariance = 0, magicDefenseVariance = 0, speedVariance = 0,
+            baseHp = 0, baseMp = 0, basePhysicalAttack = 0, baseMagicAttack = 0,
+            basePhysicalDefense = 0, baseMagicDefense = 0, baseSpeed = 0,
+            currentHp = 0, currentMp = 0, discipleType = "",
+            lastChildYear = 0, hasReviveEffect = false, hasClearAllEffect = false
+        )
+        val data = SerializableSaveData(
+            version = "3.0",
+            timestamp = System.currentTimeMillis(),
+            gameData = SerializableGameData(
+                recruitList = listOf(recruitDisciple),
+                aiSectDisciples = listOf(
+                    SerializableAiSectDiscipleEntry(
+                        sectId = "sect_1",
+                        disciples = listOf(aiDisciple)
+                    )
+                )
+            ),
+            disciples = emptyList()
+        )
+
+        val result = migrator.migrate(data)
+
+        // recruitList 中的弟子 duration 应该被转换
+        assertEquals(150, result.gameData.recruitList[0].cultivationSpeedDuration)
+        assertEquals(90, result.gameData.recruitList[0].pillEffectDuration)
+        // aiSectDisciples 中的弟子 duration 应该被转换
+        assertEquals(240, result.gameData.aiSectDisciples[0].disciples[0].cultivationSpeedDuration)
+        assertEquals(300, result.gameData.aiSectDisciples[0].disciples[0].pillEffectDuration)
+    }
 }

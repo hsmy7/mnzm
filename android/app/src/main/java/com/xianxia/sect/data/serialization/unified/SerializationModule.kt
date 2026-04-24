@@ -984,17 +984,27 @@ class V3ToV4Migrator : VersionMigrator {
     override val fromVersion: String = "3.0"
     override val toVersion: String = "4.0"
 
+    // 启发式判断：旧存档中 duration 以"月"为单位存储（1-12），
+    // 新版本以"天"为单位存储（最小30），所以 >0 && <=12 的值需要乘以30
+    private fun migrateDiscipleDuration(disciple: SerializableDisciple): SerializableDisciple {
+        return disciple.copy(
+            cultivationSpeedDuration = if (disciple.cultivationSpeedDuration > 0 && disciple.cultivationSpeedDuration <= 12)
+                disciple.cultivationSpeedDuration * 30 else disciple.cultivationSpeedDuration,
+            pillEffectDuration = if (disciple.pillEffectDuration > 0 && disciple.pillEffectDuration <= 12)
+                disciple.pillEffectDuration * 30 else disciple.pillEffectDuration
+        )
+    }
+
     override suspend fun migrate(data: SerializableSaveData): SerializableSaveData {
         return data.copy(
             version = toVersion,
-            disciples = data.disciples.map { disciple ->
-                disciple.copy(
-                    cultivationSpeedDuration = if (disciple.cultivationSpeedDuration > 0 && disciple.cultivationSpeedDuration <= 12)
-                        disciple.cultivationSpeedDuration * 30 else disciple.cultivationSpeedDuration,
-                    pillEffectDuration = if (disciple.pillEffectDuration > 0 && disciple.pillEffectDuration <= 12)
-                        disciple.pillEffectDuration * 30 else disciple.pillEffectDuration
-                )
-            }
+            disciples = data.disciples.map { migrateDiscipleDuration(it) },
+            gameData = data.gameData.copy(
+                recruitList = data.gameData.recruitList.map { migrateDiscipleDuration(it) },
+                aiSectDisciples = data.gameData.aiSectDisciples.map { entry ->
+                    entry.copy(disciples = entry.disciples.map { migrateDiscipleDuration(it) })
+                }
+            )
         )
     }
 }
