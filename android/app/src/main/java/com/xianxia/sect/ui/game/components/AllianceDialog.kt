@@ -257,7 +257,7 @@ private fun NonAllySection(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        ConditionItem("好感度达到${GameConfig.Diplomacy.MIN_ALLIANCE_FAVOR}以上", meetsFavorRequirement)
+        ConditionItem("关系达到至交(好感度${GameConfig.Diplomacy.MIN_ALLIANCE_FAVOR}以上)", meetsFavorRequirement)
         ConditionItem("灵石充足", canAfford)
         ConditionItem("派遣弟子游说", true)
         ConditionItem("对方无其他盟友", !hasOtherAlliance)
@@ -565,7 +565,7 @@ private fun AllySelectCard(
             }
 
             Text(
-                text = "好感度 $relation",
+                text = "${GameUtils.getSectRelationLevel(relation).displayName} $relation",
                 fontSize = 12.sp,
                 color = Color.Black
             )

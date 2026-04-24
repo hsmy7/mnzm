@@ -413,7 +413,7 @@ class DiplomacyService @Inject constructor(
         } else 0
 
         if (favor < GameConfig.Diplomacy.MIN_ALLIANCE_FAVOR) {
-            return Triple(false, "好感度需要达到${GameConfig.Diplomacy.MIN_ALLIANCE_FAVOR}以上", 0)
+            return Triple(false, "关系需达到至交(好感度${GameConfig.Diplomacy.MIN_ALLIANCE_FAVOR}以上)", 0)
         }
 
         // 检查玩家是否已有结盟
