@@ -1,5 +1,20 @@
 # 模拟宗门 - 更新日志
 
+## [2.4.09] - 2026-04-24
+
+### 修复
+- 修复遗忘功法后宗门仓库内所有同名功法消失的bug（bagStackIds过滤机制缺失）
+- 修复遗忘功法进入储物袋后无法被自动学习的bug（DiscipleManualManager重写）
+- 修复forgetManual中existingStack分支使用map无法添加新StorageBagItem的问题（改用increaseItemQuantity）
+- 修复tryReplaceManual将旧功法以manual_instance放入储物袋导致无法自动学习的问题（改为manual_stack）
+- 修复CultivationService中replacedInstance未从manualInstances移除导致内存泄漏的问题
+- 修复replaceManual中旧功法缺少冷静期标记导致替换后立即被自动学习回来的问题
+- 修复序列化类缺少forgetYear/forgetMonth导致存档导入后冷静期失效的问题
+- 修复replacedManualStack数量直接覆盖可能不正确的问题（改为增量更新）
+
+### 新增
+- 功法遗忘冷静期：功法被遗忘或替换后3月内不会被自动学习，3月后有空闲槽位时自动学习
+
 ## [2.4.08] - 2026-04-24
 
 ### 修复
