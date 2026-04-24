@@ -11,7 +11,6 @@ import com.xianxia.sect.core.event.*
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.*
 import com.xianxia.sect.core.performance.GamePerformanceMonitor
-import com.xianxia.sect.data.facade.StorageFacade
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
@@ -49,7 +48,6 @@ class GameEngineCore @Inject constructor(
     private val stateManager: UnifiedGameStateManager,
     private val eventBus: EventBus,
     private val performanceMonitor: GamePerformanceMonitor,
-    private val storageFacade: StorageFacade,
     private val systemManager: SystemManager
 ) {
     
@@ -57,6 +55,8 @@ class GameEngineCore @Inject constructor(
         private const val TAG = "GameEngineCore"
         private const val TICK_INTERVAL_MS = 200L
         private const val TICK_WARNING_THRESHOLD_MS = 50f
+        /** isSaving/isLoading 看门狗超时阈值（毫秒），超过此时间强制重置 */
+        private const val STUCK_STATE_TIMEOUT_MS = 30_000L
     }
     
     private var scopeJob = SupervisorJob()
@@ -96,6 +96,14 @@ class GameEngineCore @Inject constructor(
     
     private var isInitialized = false
 
+    /** 记录 isSaving 变为 true 的时间戳，用于看门狗检测 */
+    @Volatile
+    private var savingStartTime: Long = 0L
+
+    /** 记录 isLoading 变为 true 的时间戳，用于看门狗检测 */
+    @Volatile
+    private var loadingStartTime: Long = 0L
+
     fun initialize() {
         if (isInitialized) {
             Log.w(TAG, "GameEngineCore already initialized")
@@ -119,7 +127,7 @@ class GameEngineCore @Inject constructor(
         gameLoopStoppedSignal = CompletableDeferred()
         performanceMonitor.start()
 
-        runBlocking { stateManager.setPaused(false) }
+        stateManager.setPausedDirect(false)
         Log.i(TAG, "Game state resumed (isPaused=false)")
         
         gameLoopJob = engineScope.launch {
@@ -159,7 +167,7 @@ class GameEngineCore @Inject constructor(
     
     fun stopGameLoop() {
         performanceMonitor.stop()
-        runBlocking { stateManager.setPaused(true) }
+        stateManager.setPausedDirect(true)
         gameLoopJob?.cancel()
         gameLoopJob = null
         Log.i(TAG, "Game loop stop requested, isPaused=true")
@@ -202,7 +210,7 @@ class GameEngineCore @Inject constructor(
 
     fun pauseForBackground() {
         if (!stateStore.unifiedState.value.isPaused) {
-            runBlocking { stateManager.setPaused(true) }
+            stateManager.setPausedDirect(true)
             engineScope.launch {
                 systemManager.getSystem(CultivationService::class).resetHighFrequencyData()
             }
@@ -239,6 +247,8 @@ class GameEngineCore @Inject constructor(
     private suspend fun tickInternal() {
         val currentState = stateStore.unifiedState.value
         if (currentState.isPaused || currentState.isLoading || currentState.isSaving) {
+            // 看门狗：检测 isSaving/isLoading 是否卡住超时
+            checkAndResetStuckStates(currentState)
             return
         }
         
@@ -280,6 +290,50 @@ class GameEngineCore @Inject constructor(
                 }
             }
         }
+    }
+    
+    /**
+     * 看门狗：检测 isSaving/isLoading 是否卡住超时，如果超时则强制重置。
+     * 在 tickInternal() 每次跳过 tick 时调用。
+     */
+    private fun checkAndResetStuckStates(currentState: UnifiedGameState) {
+        val now = System.currentTimeMillis()
+
+        // 跟踪 isSaving 变为 true 的时间
+        if (currentState.isSaving) {
+            if (savingStartTime == 0L) {
+                savingStartTime = now
+            } else if (now - savingStartTime > STUCK_STATE_TIMEOUT_MS) {
+                Log.e(TAG, "isSaving has been true for ${now - savingStartTime}ms, force resetting")
+                forceResetStuckStates()
+            }
+        } else {
+            savingStartTime = 0L
+        }
+
+        // 跟踪 isLoading 变为 true 的时间
+        if (currentState.isLoading) {
+            if (loadingStartTime == 0L) {
+                loadingStartTime = now
+            } else if (now - loadingStartTime > STUCK_STATE_TIMEOUT_MS) {
+                Log.e(TAG, "isLoading has been true for ${now - loadingStartTime}ms, force resetting")
+                forceResetStuckStates()
+            }
+        } else {
+            loadingStartTime = 0L
+        }
+    }
+
+    /**
+     * 强制重置 isSaving 和 isLoading 为 false。
+     * 用于看门狗检测到状态卡住时调用，也可从外部调用作为紧急恢复手段。
+     */
+    fun forceResetStuckStates() {
+        Log.w(TAG, "Force resetting stuck states: isSaving and isLoading -> false")
+        stateManager.setSavingDirect(false)
+        stateManager.setLoadingDirect(false)
+        savingStartTime = 0L
+        loadingStartTime = 0L
     }
     
     private fun updateFps(frameTime: Float) {

@@ -151,12 +151,33 @@ class GameStateStore @Inject constructor(
         isSaving = false
     )
 
-    suspend fun update(block: suspend MutableGameState.() -> Unit) {
-        check(!isInTransaction()) {
-            "GameStateStore.update() must not be called inside an existing transaction (nested lock). " +
-                "Use currentTransactionMutableState() to modify state within a tick transaction."
+    fun setPausedDirect(paused: Boolean) {
+        val current = _state.value
+        if (current.isPaused != paused) {
+            _state.value = current.copy(isPaused = paused)
         }
+    }
+
+    fun setLoadingDirect(loading: Boolean) {
+        val current = _state.value
+        if (current.isLoading != loading) {
+            _state.value = current.copy(isLoading = loading)
+        }
+    }
+
+    fun setSavingDirect(saving: Boolean) {
+        val current = _state.value
+        if (current.isSaving != saving) {
+            _state.value = current.copy(isSaving = saving)
+        }
+    }
+
+    suspend fun update(block: suspend MutableGameState.() -> Unit) {
         transactionMutex.withLock {
+            check(currentTransactionState == null) {
+                "GameStateStore.update() must not be called inside an existing transaction (nested lock). " +
+                    "Use currentTransactionMutableState() to modify state within a tick transaction."
+            }
             val current = _state.value
             reusableMutableState.apply {
                 gameData = current.gameData

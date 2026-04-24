@@ -845,22 +845,37 @@ class SaveLoadViewModel @Inject constructor(
             return
         }
 
+        // 关键修复：同步保存而非异步入队，确保 app 被杀前数据已写入磁盘
         try {
             val autoSaveSlot = com.xianxia.sect.data.StorageConstants.AUTO_SAVE_SLOT
-            val autoRequest = SavePipeline.SaveRequest(
-                slot = autoSaveSlot,
-                snapshot = snapshot,
-                source = SavePipeline.SaveSource.EMERGENCY
+            val saveData = SaveData(
+                gameData = snapshot.gameData,
+                disciples = snapshot.disciples,
+                equipmentStacks = snapshot.equipmentStacks,
+                equipmentInstances = snapshot.equipmentInstances,
+                manualStacks = snapshot.manualStacks,
+                manualInstances = snapshot.manualInstances,
+                pills = snapshot.pills,
+                materials = snapshot.materials,
+                herbs = snapshot.herbs,
+                seeds = snapshot.seeds,
+                teams = snapshot.teams,
+                events = snapshot.events,
+                battleLogs = snapshot.battleLogs,
+                alliances = snapshot.alliances,
+                productionSlots = snapshot.productionSlots
             )
-            val autoEnqueued = savePipeline.enqueue(autoRequest)
-            if (!autoEnqueued) {
-                Log.w(TAG, "pauseAndSaveForBackground: auto save queue full, retrying after delay")
-                viewModelScope.launch(Dispatchers.IO) {
-                    kotlinx.coroutines.delay(2000)
-                    savePipeline.enqueue(autoRequest)
-                }
+            val result = runBlocking(Dispatchers.IO) {
+                withTimeoutOrNull(5_000L) {
+                    storageFacade.save(autoSaveSlot, saveData)
+                } ?: SaveResult.failure(SaveError.TIMEOUT, "Save timeout on background pause")
             }
-            Log.i(TAG, "pauseAndSaveForBackground: enqueued save for slot $autoSaveSlot")
+            if (result.isSuccess) {
+                Log.i(TAG, "pauseAndSaveForBackground: synchronous save completed, slot: $autoSaveSlot")
+            } else {
+                val failureInfo = (result as? SaveResult.Failure)?.let { "${it.error}: ${it.message}" } ?: "unknown"
+                Log.w(TAG, "pauseAndSaveForBackground: synchronous save failed, slot: $autoSaveSlot, error: $failureInfo")
+            }
         } catch (e: Exception) {
             Log.e(TAG, "pauseAndSaveForBackground error: ${e.message}", e)
         }
@@ -1099,7 +1114,11 @@ class SaveLoadViewModel @Inject constructor(
             Log.e(TAG, "Failed to capture snapshot for exit save: ${e.message}")
         }
 
-        runBlocking { setSaveLoadState(isLoading = false, isSaving = false, pendingSlot = null, pendingAction = null) }
+        // 直接重置状态，不使用 runBlocking + suspend 函数
+        stateManager.setLoadingDirect(false)
+        stateManager.setSavingDirect(false)
+        _pendingSlot.value = null
+        _pendingAction.value = null
         _loadingProgress.value = PROGRESS_START
         stopGameLoop()
 
@@ -1149,7 +1168,7 @@ class SaveLoadViewModel @Inject constructor(
         }
 
         runBlocking { gameEngineCore.stopGameLoopAndWait(3000) }
-        runBlocking { stateManager.setPaused(true) }
+        stateManager.setPausedDirect(true)
         super.onCleared()
     }
 

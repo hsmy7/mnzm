@@ -94,6 +94,23 @@ class UnifiedGameStateManager @Inject constructor(
         stateStore.update { isSaving = saving }
     }
 
+    /**
+     * 非挂起版本的 setPaused，直接更新 StateFlow，不经过 Mutex。
+     * 适用于从主线程调用、不能使用 runBlocking 的场景（如 startGameLoop/stopGameLoop/pauseForBackground）。
+     * 对于简单的布尔标志位更新，直接赋值是线程安全的。
+     */
+    fun setPausedDirect(paused: Boolean) {
+        stateStore.setPausedDirect(paused)
+    }
+
+    fun setLoadingDirect(loading: Boolean) {
+        stateStore.setLoadingDirect(loading)
+    }
+
+    fun setSavingDirect(saving: Boolean) {
+        stateStore.setSavingDirect(saving)
+    }
+
     suspend fun loadState(newState: UnifiedGameState) {
         stateStore.loadFromSnapshot(
             gameData = newState.gameData,

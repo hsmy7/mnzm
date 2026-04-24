@@ -15,11 +15,6 @@ import com.xianxia.sect.core.engine.service.HighFrequencyData
 import com.xianxia.sect.core.engine.system.SystemError
 import com.xianxia.sect.core.engine.system.SystemManager
 import com.xianxia.sect.core.model.*
-import com.xianxia.sect.core.state.UnifiedGameStateManager
-import com.xianxia.sect.data.facade.StorageFacade
-import com.xianxia.sect.data.model.SaveData
-import com.xianxia.sect.data.unified.SaveError
-import com.xianxia.sect.data.unified.SaveResult
 import com.xianxia.sect.ui.state.DialogStateManager
 import com.xianxia.sect.ui.state.DialogStateManager.DialogType
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -31,10 +26,8 @@ import javax.inject.Inject
 class GameViewModel @Inject constructor(
     private val gameEngine: GameEngine,
     private val gameEngineCore: GameEngineCore,
-    private val storageFacade: StorageFacade,
     val dialogStateManager: DialogStateManager,
     @ApplicationContext private val appContext: Context,
-    private val stateManager: UnifiedGameStateManager,
     private val systemManager: SystemManager
 ) : ViewModel() {
 
@@ -932,74 +925,11 @@ class GameViewModel @Inject constructor(
     }
 
     override fun onCleared() {
-        Log.i(TAG, "GameViewModel cleared, performing auto save before stopping game loop")
+        Log.i(TAG, "GameViewModel cleared, stopping game loop and releasing resources")
 
-        // 关键修复：先获取快照再停循环，避免停循环后状态被重置导致保存空数据
-        var snapshotToSave: com.xianxia.sect.core.engine.GameStateSnapshot? = null
-        try {
-            val snapshot = gameEngine.getStateSnapshotSync()
-            if (snapshot.gameData.sectName.isNotBlank()) {
-                snapshotToSave = snapshot
-                Log.d(TAG, "Captured game snapshot for exit save: sectName=${snapshot.gameData.sectName}, " +
-                    "year=${snapshot.gameData.gameYear}, disciples=${snapshot.disciples.size}")
-            } else {
-                Log.w(TAG, "Game data not initialized, skipping exit save")
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to capture snapshot for exit save: ${e.message}")
-        }
-
-        // 等待正在进行的保存操作完成
-        if (stateManager.state.value.isSaving) {
-            Log.i(TAG, "Waiting for current save operation to complete")
-            val waitStartTime = System.currentTimeMillis()
-            val maxWaitTime = 3000L
-            while (stateManager.state.value.isSaving && System.currentTimeMillis() - waitStartTime < maxWaitTime) {
-                Thread.sleep(100)
-            }
-            if (stateManager.state.value.isSaving) {
-                Log.w(TAG, "Save operation still in progress after timeout, proceeding with exit save")
-            }
-        }
-
-        // 停止游戏循环
+        // 停止游戏循环并释放资源
+        // 保存逻辑由 SaveLoadViewModel.onCleared() 统一负责，避免重复保存导致竞态条件
         clearResources()
-
-        // 使用之前捕获的快照进行保存
-        if (snapshotToSave != null) {
-            try {
-                val autoSaveSlot = com.xianxia.sect.data.StorageConstants.AUTO_SAVE_SLOT
-                val saveData = SaveData(
-                    gameData = snapshotToSave.gameData,
-                    disciples = snapshotToSave.disciples,
-                    equipmentStacks = snapshotToSave.equipmentStacks,
-                    equipmentInstances = snapshotToSave.equipmentInstances,
-                    manualStacks = snapshotToSave.manualStacks,
-                    manualInstances = snapshotToSave.manualInstances,
-                    pills = snapshotToSave.pills,
-                    materials = snapshotToSave.materials,
-                    herbs = snapshotToSave.herbs,
-                    seeds = snapshotToSave.seeds,
-                    teams = snapshotToSave.teams,
-                    events = snapshotToSave.events,
-                    battleLogs = snapshotToSave.battleLogs,
-                    alliances = snapshotToSave.alliances,
-                    productionSlots = snapshotToSave.productionSlots
-                )
-                val result = runBlocking(Dispatchers.IO) {
-                    withTimeoutOrNull(5_000L) {
-                        storageFacade.save(autoSaveSlot, saveData)
-                    } ?: SaveResult.failure(SaveError.TIMEOUT, "Save timeout on exit")
-                }
-                if (result.isSuccess) {
-                    Log.i(TAG, "Auto save on exit completed, slot: $autoSaveSlot")
-                } else {
-                    Log.w(TAG, "Auto save on exit failed, slot: $autoSaveSlot")
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Auto save on exit failed: ${e.message}")
-            }
-        }
 
         super.onCleared()
     }

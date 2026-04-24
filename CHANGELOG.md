@@ -1,5 +1,21 @@
 # 模拟宗门 - 更新日志
 
+## [2.4.06] - 2026-04-24
+
+### 修复
+- 修复 isSaving 状态卡死导致游戏界面冻结：添加看门狗机制，isSaving/isLoading 超过 30 秒自动强制重置
+- 修复 pauseAndSaveForBackground 不等待保存完成导致数据丢失：改为同步保存（runBlocking + 5 秒超时）
+- 修复 GameEngineCore 在主线程使用 runBlocking 导致 ANR：添加 setPausedDirect/setLoadingDirect/setSavingDirect 非挂起方法
+- 修复 GameStateStore.update() 竞态条件：将 check(!isInTransaction()) 移入 transactionMutex.withLock 内部
+- 修复 GameViewModel 和 SaveLoadViewModel 重复保存导致竞态覆盖：移除 GameViewModel.onCleared() 中的保存逻辑，由 SaveLoadViewModel 统一负责
+
+### 改进
+- GameStateStore 新增 setPausedDirect/setLoadingDirect/setSavingDirect 方法，直接更新 StateFlow 不经过 Mutex
+- UnifiedGameStateManager 新增对应的 Direct 方法，供主线程调用场景使用
+- GameEngineCore 新增 forceResetStuckStates() 公开方法，可从外部紧急恢复卡死状态
+- 移除 GameViewModel 中不再使用的 storageFacade 和 stateManager 依赖
+- 移除 GameEngineCore 中不再使用的 storageFacade 依赖
+
 ## [2.4.05] - 2026-04-24
 
 ### 修复
