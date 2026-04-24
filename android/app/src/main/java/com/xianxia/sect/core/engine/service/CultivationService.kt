@@ -873,23 +873,30 @@ class CultivationService @Inject constructor(
                 gameYear = year,
                 gameMonth = month
             )
-            if (equipResult.newInstance != null) {
+            if (equipResult.newInstances.isNotEmpty()) {
                 updatedDisciple = equipResult.disciple
-                equipResult.newInstance.let { newInstance ->
-                    currentEquipmentInstances = currentEquipmentInstances + newInstance
+                currentEquipmentInstances = currentEquipmentInstances + equipResult.newInstances
+                val replacedIds = equipResult.replacedInstances.map { it.id }.toSet()
+                if (replacedIds.isNotEmpty()) {
+                    currentEquipmentInstances = currentEquipmentInstances.filter { it.id !in replacedIds }
                 }
-                equipResult.replacedInstance?.let { replaced ->
-                    currentEquipmentInstances = currentEquipmentInstances.map {
-                        if (it.id == replaced.id) replaced else it
-                    }
-                }
-                equipResult.stackUpdate?.let { update ->
+                equipResult.stackUpdates.forEach { update ->
                     if (update.isDeletion) {
                         currentEquipmentStacks = currentEquipmentStacks.filter { it.id != update.stackId }
                     } else {
                         currentEquipmentStacks = currentEquipmentStacks.map {
                             if (it.id == update.stackId) it.copy(quantity = update.newQuantity) else it
                         }
+                    }
+                }
+                equipResult.replacedEquipmentStacks.forEach { replacedStack ->
+                    val existingStack = currentEquipmentStacks.find { it.id == replacedStack.id }
+                    if (existingStack != null) {
+                        currentEquipmentStacks = currentEquipmentStacks.map {
+                            if (it.id == replacedStack.id) it.copy(quantity = it.quantity + 1) else it
+                        }
+                    } else {
+                        currentEquipmentStacks = currentEquipmentStacks + replacedStack
                     }
                 }
                 equipResult.events.forEach { eventService.addGameEvent(it, EventType.SUCCESS) }

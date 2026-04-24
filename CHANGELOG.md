@@ -1,5 +1,18 @@
 # 模拟宗门 - 更新日志
 
+## [2.4.10] - 2026-04-24
+
+### 新增
+- 装备卸下冷静期：装备被卸下或替换后3月内不会被自动穿戴，3月后有空闲槽位时自动穿戴
+- 将isInCoolingPeriod提取为共享工具（StorageBagUtils），功法和装备系统共用
+
+### 修复
+- 修复装备系统缺少冷静期机制：卸下装备后立即被自动穿戴回来的问题
+- 修复DiscipleEquipmentManager.processSlot中旧装备以equipment_instance类型放入储物袋导致永远不会被自动穿戴的问题（改为equipment_stack类型）
+- 修复CultivationService中replacedInstance保留在实例列表而非移除导致内存泄漏的问题
+- 修复DiscipleService.unequipEquipment卸下装备时未设置冷静期标记的问题
+- 修复GameEngine.rewardItemsToDisciple奖励装备替换旧装备时未设置冷静期标记的问题
+
 ## [2.4.09] - 2026-04-24
 
 ### 修复

@@ -753,10 +753,17 @@ class DiscipleService @Inject constructor(
                         rarity = eq.rarity,
                         quantity = 1,
                         obtainedYear = data.gameYear,
-                        obtainedMonth = data.gameMonth
+                        obtainedMonth = data.gameMonth,
+                        forgetYear = data.gameYear,
+                        forgetMonth = data.gameMonth
                     )
                     val discipleWithBag = updatedDisciple.copyWith(
                         storageBagItems = StorageBagUtils.increaseItemQuantity(updatedDisciple.storageBagItems, storageItem)
+                            .map { bagItem ->
+                                if (bagItem.itemId == mergedId && bagItem.itemType == "equipment_stack") {
+                                    bagItem.copy(forgetYear = data.gameYear, forgetMonth = data.gameMonth)
+                                } else bagItem
+                            }
                     )
                     currentDisciples = currentDisciples.toMutableList().also { it[discipleIndex] = discipleWithBag }
                     currentEquipmentStacks = currentEquipmentStacks.map { s ->
@@ -772,7 +779,9 @@ class DiscipleService @Inject constructor(
                         rarity = eq.rarity,
                         quantity = 1,
                         obtainedYear = data.gameYear,
-                        obtainedMonth = data.gameMonth
+                        obtainedMonth = data.gameMonth,
+                        forgetYear = data.gameYear,
+                        forgetMonth = data.gameMonth
                     )
                     val discipleWithBag = updatedDisciple.copyWith(
                         storageBagItems = StorageBagUtils.increaseItemQuantity(updatedDisciple.storageBagItems, storageItem)

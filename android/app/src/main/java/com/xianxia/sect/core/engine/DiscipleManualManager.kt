@@ -15,8 +15,6 @@ object DiscipleManualManager {
         val events: List<String>
     )
 
-    private const val COOLING_PERIOD_MONTHS = 3
-
     fun processAutoLearn(
         disciple: Disciple,
         manualStacks: List<ManualStack>,
@@ -33,7 +31,7 @@ object DiscipleManualManager {
         var lastReplacedManualStack: ManualStack? = null
 
         val bagStackRefs = disciple.storageBagItems
-            .filter { it.itemType == "manual_stack" && !isInCoolingPeriod(it, gameYear, gameMonth) }
+            .filter { it.itemType == "manual_stack" && !StorageBagUtils.isInCoolingPeriod(it, gameYear, gameMonth) }
 
         if (bagStackRefs.isEmpty()) {
             return ManualLearnResult(disciple, null, null, null, null, emptyList())
@@ -124,14 +122,6 @@ object DiscipleManualManager {
         }
 
         return ManualLearnResult(updatedDisciple, lastNewInstance, lastReplacedInstance, lastStackUpdate, lastReplacedManualStack, events)
-    }
-
-    fun isInCoolingPeriod(item: StorageBagItem, currentYear: Int, currentMonth: Int): Boolean {
-        val forgetYear = item.forgetYear ?: return false
-        val forgetMonth = item.forgetMonth ?: return false
-        val forgetTotalMonths = forgetYear * 12 + forgetMonth
-        val currentTotalMonths = currentYear * 12 + currentMonth
-        return currentTotalMonths - forgetTotalMonths < COOLING_PERIOD_MONTHS
     }
 
     private fun learnNewManual(

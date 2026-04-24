@@ -1080,9 +1080,15 @@ class GameEngine @Inject constructor(
                                                 rarity = oldInstance.rarity,
                                                 quantity = 1,
                                                 obtainedYear = gameData.gameYear,
-                                                obtainedMonth = gameData.gameMonth
+                                                obtainedMonth = gameData.gameMonth,
+                                                forgetYear = gameData.gameYear,
+                                                forgetMonth = gameData.gameMonth
                                             )
-                                        )
+                                        ).map { bagItem ->
+                                            if (bagItem.itemId == storageItemId && bagItem.itemType == "equipment_stack") {
+                                                bagItem.copy(forgetYear = gameData.gameYear, forgetMonth = gameData.gameMonth)
+                                            } else bagItem
+                                        }
                                     )
                                 }
 
