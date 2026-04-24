@@ -1751,7 +1751,8 @@ class GameEngine @Inject constructor(
                     itemId = itemId,
                     rarity = pill.rarity,
                     price = GameConfig.Rarity.calculateSellPrice(pill.basePrice, 1),
-                    quantity = quantity
+                    quantity = quantity,
+                    grade = pill.grade.displayName
                 ))
                 return@forEach
             }

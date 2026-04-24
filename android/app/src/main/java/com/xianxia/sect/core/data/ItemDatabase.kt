@@ -388,7 +388,7 @@ object ItemDatabase {
                     grade = grade,
                     rarity = rarity,
                     pillType = "critEffect",
-                    description = "${tierName}${g}暴击效果丹，增加${(ce * 100).roundToInt()}%暴击效果，持续3月",
+                    description = "${tierName}${g}暴击效果丹，增加${(ce * 100).roundToInt()}%暴击效果，持续90天",
                     price = (tierPrice(tier) * grade.priceMultiplier).roundToInt(),
                     critEffectAdd = ce,
                     duration = 3,

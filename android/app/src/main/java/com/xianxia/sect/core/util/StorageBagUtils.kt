@@ -5,14 +5,21 @@ import com.xianxia.sect.core.model.StorageBagItem
 object StorageBagUtils {
 
     private const val COOLING_PERIOD_DAYS = 90
+    private const val COOLING_PERIOD_MONTHS = 3
 
     fun isInCoolingPeriod(item: StorageBagItem, currentYear: Int, currentMonth: Int, currentDay: Int): Boolean {
         val forgetYear = item.forgetYear ?: return false
         val forgetMonth = item.forgetMonth ?: return false
-        val forgetDay = item.forgetDay ?: return false
-        val forgetTotalDays = forgetYear * 360 + (forgetMonth - 1) * 30 + forgetDay
-        val currentTotalDays = currentYear * 360 + (currentMonth - 1) * 30 + currentDay
-        return currentTotalDays - forgetTotalDays < COOLING_PERIOD_DAYS
+        val forgetDay = item.forgetDay
+        if (forgetDay != null) {
+            val forgetTotalDays = forgetYear * 360 + (forgetMonth - 1) * 30 + forgetDay
+            val currentTotalDays = currentYear * 360 + (currentMonth - 1) * 30 + currentDay
+            return currentTotalDays - forgetTotalDays < COOLING_PERIOD_DAYS
+        } else {
+            val forgetTotalMonths = forgetYear * 12 + forgetMonth
+            val currentTotalMonths = currentYear * 12 + currentMonth
+            return currentTotalMonths - forgetTotalMonths < COOLING_PERIOD_MONTHS
+        }
     }
     
     fun decreaseItemQuantity(

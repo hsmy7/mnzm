@@ -4030,117 +4030,118 @@ private fun WarehouseTab(viewModel: GameViewModel) {
         }
     }
     
-    if (showDetailDialog && selectedItem != null) {
-        val item = selectedItem!!
+    if (showDetailDialog) {
         LaunchedEffect(showDetailDialog, selectedItem) {
             if (showDetailDialog && selectedItem == null) {
                 showDetailDialog = false
                 selectedItemId = null
             }
         }
-        val itemId = when (item) {
-            is EquipmentStack -> item.id
-            is ManualStack -> item.id
-            is Pill -> item.id
-            is Material -> item.id
-            is Herb -> item.id
-            is Seed -> item.id
-            else -> ""
-        }
-        val itemType = when (item) {
-            is EquipmentStack -> "equipment"
-            is ManualStack -> "manual"
-            is Pill -> "pill"
-            is Material -> "material"
-            is Herb -> "herb"
-            is Seed -> "seed"
-            else -> ""
-        }
-        val currentItem = when (itemType) {
-            "equipment" -> equipment.find { it.id == itemId }
-            "manual" -> manuals.find { it.id == itemId }
-            "pill" -> sortedPills.find { it.id == itemId }
-            "material" -> sortedMaterials.find { it.id == itemId }
-            "herb" -> sortedHerbs.find { it.id == itemId }
-            "seed" -> sortedSeeds.find { it.id == itemId }
-            else -> null
-        }
-        val itemQuantity = currentItem?.quantity ?: 0
-        val isLocked = currentItem?.isLocked ?: false
-        val itemRarity = when (item) {
-            is EquipmentStack -> item.rarity
-            is ManualStack -> item.rarity
-            is Pill -> item.rarity
-            is Material -> item.rarity
-            is Herb -> item.rarity
-            is Seed -> item.rarity
-            else -> 1
-        }
-        val itemName = when (item) {
-            is EquipmentStack -> item.name
-            is ManualStack -> item.name
-            is Pill -> item.name
-            is Material -> item.name
-            is Herb -> item.name
-            is Seed -> item.name
-            else -> ""
-        }
-        val basePrice = getWarehouseItemBasePrice(item)
-        var showDiscipleSelectDialog by remember { mutableStateOf(false) }
-        var showSellDialog by remember { mutableStateOf(false) }
+        selectedItem?.let { item ->
+            val itemId = when (item) {
+                is EquipmentStack -> item.id
+                is ManualStack -> item.id
+                is Pill -> item.id
+                is Material -> item.id
+                is Herb -> item.id
+                is Seed -> item.id
+                else -> ""
+            }
+            val itemType = when (item) {
+                is EquipmentStack -> "equipment"
+                is ManualStack -> "manual"
+                is Pill -> "pill"
+                is Material -> "material"
+                is Herb -> "herb"
+                is Seed -> "seed"
+                else -> ""
+            }
+            val currentItem = when (itemType) {
+                "equipment" -> equipment.find { it.id == itemId }
+                "manual" -> manuals.find { it.id == itemId }
+                "pill" -> sortedPills.find { it.id == itemId }
+                "material" -> sortedMaterials.find { it.id == itemId }
+                "herb" -> sortedHerbs.find { it.id == itemId }
+                "seed" -> sortedSeeds.find { it.id == itemId }
+                else -> null
+            }
+            val itemQuantity = currentItem?.quantity ?: 0
+            val isLocked = currentItem?.isLocked ?: false
+            val itemRarity = when (item) {
+                is EquipmentStack -> item.rarity
+                is ManualStack -> item.rarity
+                is Pill -> item.rarity
+                is Material -> item.rarity
+                is Herb -> item.rarity
+                is Seed -> item.rarity
+                else -> 1
+            }
+            val itemName = when (item) {
+                is EquipmentStack -> item.name
+                is ManualStack -> item.name
+                is Pill -> item.name
+                is Material -> item.name
+                is Herb -> item.name
+                is Seed -> item.name
+                else -> ""
+            }
+            val basePrice = getWarehouseItemBasePrice(item)
+            var showDiscipleSelectDialog by remember { mutableStateOf(false) }
+            var showSellDialog by remember { mutableStateOf(false) }
 
-        ItemDetailDialog(
-            item = item,
-            onDismiss = {
-                showDetailDialog = false
-                selectedItemId = null
-            },
-            extraActions = {
-                if (!isLocked) {
+            ItemDetailDialog(
+                item = item,
+                onDismiss = {
+                    showDetailDialog = false
+                    selectedItemId = null
+                },
+                extraActions = {
+                    if (!isLocked) {
+                        GameButton(
+                            text = "售卖",
+                            onClick = { showSellDialog = true },
+                            backgroundColor = Color(0xFFFF6B35)
+                        )
+                    }
                     GameButton(
-                        text = "售卖",
-                        onClick = { showSellDialog = true },
-                        backgroundColor = Color(0xFFFF6B35)
+                        text = if (isLocked) "已锁定" else "锁定",
+                        onClick = { viewModel.toggleItemLock(itemId, itemType) },
+                        backgroundColor = if (isLocked) Color(0xFFFFD700) else null
+                    )
+                    GameButton(
+                        text = "赏赐",
+                        onClick = { showDiscipleSelectDialog = true }
                     )
                 }
-                GameButton(
-                    text = if (isLocked) "已锁定" else "锁定",
-                    onClick = { viewModel.toggleItemLock(itemId, itemType) },
-                    backgroundColor = if (isLocked) Color(0xFFFFD700) else null
-                )
-                GameButton(
-                    text = "赏赐",
-                    onClick = { showDiscipleSelectDialog = true }
+            )
+
+            if (showSellDialog) {
+                SellConfirmDialog(
+                    itemName = itemName,
+                    maxQuantity = itemQuantity,
+                    basePrice = basePrice,
+                    onConfirm = { quantity ->
+                        val success = viewModel.sellItem(itemId, itemType, quantity)
+                        if (success && quantity >= itemQuantity) {
+                            showSellDialog = false
+                            showDetailDialog = false
+                            selectedItemId = null
+                        }
+                    },
+                    onDismiss = { showSellDialog = false }
                 )
             }
-        )
 
-        if (showSellDialog) {
-            SellConfirmDialog(
-                itemName = itemName,
-                maxQuantity = itemQuantity,
-                basePrice = basePrice,
-                onConfirm = { quantity ->
-                    val success = viewModel.sellItem(itemId, itemType, quantity)
-                    if (success && quantity >= itemQuantity) {
-                        showSellDialog = false
-                        showDetailDialog = false
-                        selectedItemId = null
-                    }
-                },
-                onDismiss = { showSellDialog = false }
-            )
-        }
-
-        if (showDiscipleSelectDialog) {
-            DiscipleSelectForRewardDialog(
-                itemName = itemName,
-                itemId = itemId,
-                itemType = itemType,
-                itemRarity = itemRarity,
-                viewModel = viewModel,
-                onDismiss = { showDiscipleSelectDialog = false }
-            )
+            if (showDiscipleSelectDialog) {
+                DiscipleSelectForRewardDialog(
+                    itemName = itemName,
+                    itemId = itemId,
+                    itemType = itemType,
+                    itemRarity = itemRarity,
+                    viewModel = viewModel,
+                    onDismiss = { showDiscipleSelectDialog = false }
+                )
+            }
         }
     }
     

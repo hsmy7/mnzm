@@ -828,7 +828,7 @@ private fun getPillEffects(item: Pill): List<String> = buildList {
         }
     }
     if (!isInstant && item.duration > 0) {
-        add("  持续 ${item.duration} 月")
+        add("  持续 ${item.duration * 30} 天")
     }
     if (isInstant) {
         add("  (一次性效果)")
@@ -1123,7 +1123,7 @@ private fun getMerchantItemEffects(item: MerchantItem): List<String> = buildList
                     }
                 }
                 if (!isInstant && pillTemplate.duration > 0) {
-                    add("  持续 ${pillTemplate.duration} 月")
+                    add("  持续 ${pillTemplate.duration * 30} 天")
                 }
                 if (isInstant) {
                     add("  (一次性效果)")
@@ -1391,7 +1391,7 @@ private fun getStorageBagItemEffects(item: StorageBagItem): List<String> = build
                     }
                 }
                 if (!isInstantPill && effect.duration > 0) {
-                    add("  持续 ${effect.duration} 月")
+                    add("  持续 ${effect.duration * 30} 天")
                 }
                 if (isInstantPill) {
                     add("  (一次性效果)")
