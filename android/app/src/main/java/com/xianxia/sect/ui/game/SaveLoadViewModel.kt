@@ -290,6 +290,7 @@ class SaveLoadViewModel @Inject constructor(
         if (saveLock.get() && saveLockAcquireTime.get() > 0 && lockAge > SAVE_LOCK_TIMEOUT_MS) {
             Log.e(TAG, "Save lock held for ${lockAge}ms, force releasing")
             saveLock.set(false)
+            saveLockAcquireTime.set(0)
         }
 
         if (!saveLock.compareAndSet(false, true)) {
@@ -329,6 +330,7 @@ class SaveLoadViewModel @Inject constructor(
                 }
             } finally {
                 saveLock.set(false)
+                saveLockAcquireTime.set(0)
                 val pendingSource = pendingAutoSave.getAndSet(null)
                 if (pendingSource != null) {
                     if (pendingSource == SavePipeline.SaveSource.AUTO && (gameEngine.gameData.value?.autoSaveIntervalMonths ?: 0) <= 0) {
@@ -799,6 +801,7 @@ class SaveLoadViewModel @Inject constructor(
                     _errorMessage.value = "保存失败: ${e.message}"
                 } finally {
                     saveLock.set(false)
+                    saveLockAcquireTime.set(0)
                 }
             } finally {
                 try {
@@ -816,7 +819,10 @@ class SaveLoadViewModel @Inject constructor(
     private suspend fun waitForSaveLock(timeoutMs: Long): Boolean {
         val deadline = System.currentTimeMillis() + timeoutMs
         while (System.currentTimeMillis() < deadline) {
-            if (saveLock.compareAndSet(false, true)) return true
+            if (saveLock.compareAndSet(false, true)) {
+                saveLockAcquireTime.set(System.currentTimeMillis())
+                return true
+            }
             delay(50)
         }
         return false
@@ -886,10 +892,12 @@ class SaveLoadViewModel @Inject constructor(
             Log.w(TAG, "Already saving, ignoring restartGame request")
             return
         }
+        saveLockAcquireTime.set(System.currentTimeMillis())
 
         if (stateManager.state.value.isLoading || _isRestarting.value) {
             Log.w(TAG, "Already loading or restarting, ignoring restartGame request")
             saveLock.set(false)
+            saveLockAcquireTime.set(0)
             return
         }
 
@@ -956,6 +964,7 @@ class SaveLoadViewModel @Inject constructor(
             } finally {
                 _isRestarting.value = false
                 saveLock.set(false)
+                saveLockAcquireTime.set(0)
                 if (wasRunning) {
                     gameEngineCore.startGameLoop()
                     _isTimeRunning.value = true
@@ -1059,46 +1068,6 @@ class SaveLoadViewModel @Inject constructor(
         startGameLoop()
     }
 
-    fun performExitSave() {
-        try {
-            val snapshot = gameEngine.getStateSnapshotSync()
-            if (snapshot.gameData.sectName.isBlank()) {
-                Log.w(TAG, "Game data not initialized, skipping exit save")
-                return
-            }
-            val autoSaveSlot = com.xianxia.sect.data.StorageConstants.AUTO_SAVE_SLOT
-            val saveData = SaveData(
-                gameData = snapshot.gameData,
-                disciples = snapshot.disciples,
-                equipmentStacks = snapshot.equipmentStacks,
-                    equipmentInstances = snapshot.equipmentInstances,
-                manualStacks = snapshot.manualStacks,
-                    manualInstances = snapshot.manualInstances,
-                pills = snapshot.pills,
-                materials = snapshot.materials,
-                herbs = snapshot.herbs,
-                seeds = snapshot.seeds,
-                teams = snapshot.teams,
-                events = snapshot.events,
-                battleLogs = snapshot.battleLogs,
-                alliances = snapshot.alliances,
-                productionSlots = snapshot.productionSlots
-            )
-            val result = runBlocking(Dispatchers.IO) {
-                withTimeoutOrNull(3_000L) {
-                    storageFacade.save(autoSaveSlot, saveData)
-                } ?: SaveResult.failure(SaveError.TIMEOUT, "Save timeout on exit")
-            }
-            if (result.isSuccess) {
-                Log.i(TAG, "Auto save on exit completed, slot: $autoSaveSlot")
-            } else {
-                Log.w(TAG, "Auto save on exit failed, slot: $autoSaveSlot")
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Auto save on exit failed: ${e.message}")
-        }
-    }
-
     override fun onCleared() {
         Log.i(TAG, "SaveLoadViewModel cleared")
 
@@ -1125,8 +1094,7 @@ class SaveLoadViewModel @Inject constructor(
             }
         }
 
-        stopGameLoop()
-
+        runBlocking { gameEngineCore.stopGameLoopAndWait(3000) }
         stateManager.setLoadingDirect(false)
         stateManager.setSavingDirect(false)
         _pendingSlot.value = null
@@ -1168,7 +1136,6 @@ class SaveLoadViewModel @Inject constructor(
             }
         }
 
-        runBlocking { gameEngineCore.stopGameLoopAndWait(3000) }
         stateManager.setPausedDirect(true)
         super.onCleared()
     }

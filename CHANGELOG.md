@@ -1,5 +1,14 @@
 # 模拟宗门 - 更新日志
 
+## [2.4.08] - 2026-04-24
+
+### 修复
+- 移除 SaveLoadViewModel.performExitSave() 死代码（无任何调用点，与 onCleared() 逻辑重复）
+- 修复 onCleared() 中重复调用 stopGameLoop：合并为单次 stopGameLoopAndWait
+- 修复 saveLock 超时释放后未重置 saveLockAcquireTime 导致后续超时检测误判
+- 修复 saveGame()/restartGame() 获取 saveLock 后未设置 saveLockAcquireTime 导致超时检测失效
+- 修复 enqueueAutoSave 释放 saveLock 后未重置 saveLockAcquireTime
+
 ## [2.4.07] - 2026-04-24
 
 ### 修复
