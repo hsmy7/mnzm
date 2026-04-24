@@ -1288,7 +1288,7 @@ private fun getStorageBagItemEffects(item: StorageBagItem): List<String> = build
                 item.effect?.let { effect ->
                     add("属性:")
                     if (effect.physicalAttackAdd > 0) add("  物理攻击 +${effect.physicalAttackAdd}")
-                    if (effect.magicAttackAdd > 0) add("  法术攻击 +${effect.magicAttackAdd}")
+                    if (effect.magicAttackAdd > 0) { add("  法术攻击 +${effect.magicAttackAdd}") }
                     if (effect.physicalDefenseAdd > 0) add("  物理防御 +${effect.physicalDefenseAdd}")
                     if (effect.magicDefenseAdd > 0) add("  法术防御 +${effect.magicDefenseAdd}")
                     if (effect.hpAdd > 0) add("  生命 +${effect.hpAdd}")
@@ -1463,7 +1463,7 @@ private fun getStorageBagItemEffects(item: StorageBagItem): List<String> = build
                 if (effect.hpAdd > 0) add("  生命 +${effect.hpAdd}")
                 if (effect.mpAdd > 0) add("  灵力 +${effect.mpAdd}")
                 if (effect.physicalAttackAdd > 0) add("  物理攻击 +${effect.physicalAttackAdd}")
-                if (effect.magicAttackAdd > 0) add("  法术攻击 +${effect.magicAttackAdd}")
+                if (effect.magicAttackAdd > 0) { add("  法术攻击 +${effect.magicAttackAdd}") }
                 if (effect.physicalDefenseAdd > 0) add("  物理防御 +${effect.physicalDefenseAdd}")
                 if (effect.magicDefenseAdd > 0) add("  法术防御 +${effect.magicDefenseAdd}")
                 if (effect.speedAdd > 0) add("  速度 +${effect.speedAdd}")
