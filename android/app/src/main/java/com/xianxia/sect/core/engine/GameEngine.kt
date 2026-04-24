@@ -685,9 +685,6 @@ class GameEngine @Inject constructor(
     fun giftSpiritStones(sectId: String, tier: Int): DiplomacyService.GiftResult =
         diplomacyService.giftSpiritStones(sectId, tier)
 
-    fun giftItem(sectId: String, itemId: String, itemType: String, quantity: Int): DiplomacyService.GiftResult =
-        diplomacyService.giftItem(sectId, itemId, itemType, quantity)
-
     fun requestAlliance(sectId: String, envoyDiscipleId: String): Pair<Boolean, String> =
         diplomacyService.requestAlliance(sectId, envoyDiscipleId)
 
@@ -1164,7 +1161,10 @@ class GameEngine @Inject constructor(
                                                 rarity = stack.rarity,
                                                 quantity = 1,
                                                 obtainedYear = gameData.gameYear,
-                                                obtainedMonth = gameData.gameMonth
+                                                obtainedMonth = gameData.gameMonth,
+                                                forgetYear = gameData.gameYear,
+                                                forgetMonth = gameData.gameMonth,
+                                                forgetDay = gameData.gameDay
                                             ),
                                             inventoryConfig.getMaxStackSize("equipment_stack")
                                         )
@@ -1254,7 +1254,10 @@ class GameEngine @Inject constructor(
                                                 rarity = stack.rarity,
                                                 quantity = 1,
                                                 obtainedYear = gameData.gameYear,
-                                                obtainedMonth = gameData.gameMonth
+                                                obtainedMonth = gameData.gameMonth,
+                                                forgetYear = gameData.gameYear,
+                                                forgetMonth = gameData.gameMonth,
+                                                forgetDay = gameData.gameDay
                                             ),
                                             inventoryConfig.getMaxStackSize("manual_stack")
                                         )

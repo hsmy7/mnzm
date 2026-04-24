@@ -15,6 +15,7 @@ import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.engine.system.MerchantItemConverter
 import com.xianxia.sect.core.engine.system.SystemPriority
 import com.xianxia.sect.core.util.GameUtils
+import com.xianxia.sect.core.util.SectRelationLevel
 import android.util.Log
 
 import java.util.UUID
@@ -306,8 +307,15 @@ class EventService @Inject constructor(
         val item = tradeItems.find { it.id == itemId } ?: return null
 
         val relation = getSectRelation(data, sectId)
-        if (relation < 40) {
-            addGameEvent("好感度不足，无法与${sect.name}交易", EventType.WARNING)
+        val relationLevel = GameUtils.getSectRelationLevel(relation)
+        if (relationLevel !in listOf(SectRelationLevel.NORMAL, SectRelationLevel.FRIENDLY, SectRelationLevel.INTIMATE)) {
+            addGameEvent("关系不足，无法与${sect.name}交易", EventType.WARNING)
+            return null
+        }
+
+        val maxAllowedRarity = relationLevel.maxAllowedRarity
+        if (item.rarity > maxAllowedRarity) {
+            addGameEvent("关系等级不足，无法购买${GameConfig.Rarity.get(item.rarity).name}物品${item.name}", EventType.WARNING)
             return null
         }
 

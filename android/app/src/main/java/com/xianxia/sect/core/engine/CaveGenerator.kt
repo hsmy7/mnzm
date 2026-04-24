@@ -7,9 +7,9 @@ import kotlin.random.Random
 
 object CaveGenerator {
     
-    private const val MAP_WIDTH = 4000
-    private const val MAP_HEIGHT = 3500
-    private const val BORDER_PADDING = 80
+    private val MAP_WIDTH get() = GameConfig.WorldMap.MAP_WIDTH
+    private val MAP_HEIGHT get() = GameConfig.WorldMap.MAP_HEIGHT
+    private val BORDER_PADDING get() = GameConfig.WorldMap.BORDER_PADDING
     
     private val caveNames = listOf(
         "化神洞府", "炼虚洞府", "合体洞府", "大乘洞府", "渡劫洞府"
@@ -25,19 +25,19 @@ object CaveGenerator {
     )
     
     private val realmConfigs = listOf(
-        CaveRealmConfig(5, "化神", listOf(3, 4, 5)),      // 化神洞府：宝品-地品
-        CaveRealmConfig(4, "炼虚", listOf(3, 4, 5)),      // 炼虚洞府：宝品-地品
-        CaveRealmConfig(3, "合体", listOf(4, 5)),         // 合体洞府：玄品-地品
-        CaveRealmConfig(2, "大乘", listOf(4, 5, 6)),      // 大乘洞府：玄品-天品
-        CaveRealmConfig(1, "渡劫", listOf(5, 6))          // 渡劫洞府：地品-天品
+        CaveRealmConfig(5, "化神", listOf(3, 4, 5)),
+        CaveRealmConfig(4, "炼虚", listOf(3, 4, 5)),
+        CaveRealmConfig(3, "合体", listOf(4, 5)),
+        CaveRealmConfig(2, "大乘", listOf(4, 5, 6)),
+        CaveRealmConfig(1, "渡劫", listOf(5, 6))
     )
     
     private val caveSpawnProbabilities = mapOf(
-        5 to 0.506,  // 化神洞府 50.6%
-        4 to 0.25,   // 炼虚洞府 25%
-        3 to 0.20,   // 合体洞府 20%
-        2 to 0.028,  // 大乘洞府 2.8%
-        1 to 0.016   // 渡劫洞府 1.6%
+        5 to 0.506,
+        4 to 0.25,
+        3 to 0.20,
+        2 to 0.028,
+        1 to 0.016
     )
     
     fun generateCaves(
@@ -126,35 +126,75 @@ object CaveGenerator {
     ): Boolean {
         if (Pair(x, y) in usedPositions) return false
         
+        val minSectDist = GameConfig.WorldMap.CAVE_MIN_SECT_DISTANCE
         for (sect in sects) {
             val dist = sqrt(
                 (x - sect.x).toDouble() * (x - sect.x).toDouble() +
                 (y - sect.y).toDouble() * (y - sect.y).toDouble()
             )
-            if (dist < 80) return false
+            if (dist < minSectDist) return false
         }
         
+        val minPathDist = GameConfig.WorldMap.CAVE_MIN_PATH_DISTANCE
         for (edge in edges) {
-            if (isPointNearLine(x, y, edge, 60.0)) return false
+            if (isPointNearCurvedPath(x, y, edge, minPathDist)) return false
         }
         
+        val minCaveDist = GameConfig.WorldMap.CAVE_MIN_CAVE_DISTANCE
         for (cave in existingCaves) {
             val dist = sqrt(
                 (x - cave.x).toDouble() * (x - cave.x).toDouble() +
                 (y - cave.y).toDouble() * (y - cave.y).toDouble()
             )
-            if (dist < 60) return false
+            if (dist < minCaveDist) return false
         }
         
         return true
     }
     
-    private fun isPointNearLine(px: Int, py: Int, edge: MSTEdge, threshold: Double): Boolean {
-        val x1 = edge.sect1.x.toDouble()
-        val y1 = edge.sect1.y.toDouble()
-        val x2 = edge.sect2.x.toDouble()
-        val y2 = edge.sect2.y.toDouble()
+    private fun isPointNearCurvedPath(px: Int, py: Int, edge: MSTEdge, threshold: Double): Boolean {
+        val waypoints = WorldMapGenerator.generatePathWaypoints(
+            edge.sect1.x, edge.sect1.y,
+            edge.sect2.x, edge.sect2.y,
+            edge.sect1.id, edge.sect2.id
+        )
         
+        if (waypoints.isEmpty()) {
+            return isPointNearLineSegment(
+                px.toDouble(), py.toDouble(),
+                edge.sect1.x.toDouble(), edge.sect1.y.toDouble(),
+                edge.sect2.x.toDouble(), edge.sect2.y.toDouble(),
+                threshold
+            )
+        }
+        
+        val points = mutableListOf<Pair<Double, Double>>()
+        points.add(Pair(edge.sect1.x.toDouble(), edge.sect1.y.toDouble()))
+        for (wp in waypoints) {
+            points.add(Pair(wp.first.toDouble(), wp.second.toDouble()))
+        }
+        points.add(Pair(edge.sect2.x.toDouble(), edge.sect2.y.toDouble()))
+        
+        for (i in 0 until points.size - 1) {
+            if (isPointNearLineSegment(
+                    px.toDouble(), py.toDouble(),
+                    points[i].first, points[i].second,
+                    points[i + 1].first, points[i + 1].second,
+                    threshold
+                )) {
+                return true
+            }
+        }
+        
+        return false
+    }
+    
+    private fun isPointNearLineSegment(
+        px: Double, py: Double,
+        x1: Double, y1: Double,
+        x2: Double, y2: Double,
+        threshold: Double
+    ): Boolean {
         val lineLenSq = (x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1)
         if (lineLenSq == 0.0) {
             return sqrt((px - x1) * (px - x1) + (py - y1) * (py - y1)) < threshold

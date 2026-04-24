@@ -78,5 +78,6 @@ data class MapPathData(
     val fromWorldX: Float,
     val fromWorldY: Float,
     val toWorldX: Float,
-    val toWorldY: Float
+    val toWorldY: Float,
+    val waypoints: List<Pair<Float, Float>> = emptyList()
 )

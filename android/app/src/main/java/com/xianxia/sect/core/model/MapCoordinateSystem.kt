@@ -1,8 +1,10 @@
 package com.xianxia.sect.core.model
 
+import com.xianxia.sect.core.GameConfig
+
 object MapCoordinateSystem {
-    const val WORLD_WIDTH = 4000f
-    const val WORLD_HEIGHT = 3500f
+    val WORLD_WIDTH = GameConfig.WorldMap.MAP_WIDTH.toFloat()
+    val WORLD_HEIGHT = GameConfig.WorldMap.MAP_HEIGHT.toFloat()
 
     fun worldToNormalized(worldX: Float, worldY: Float): Pair<Float, Float> =
         (worldX / WORLD_WIDTH).coerceIn(0f, 1f) to

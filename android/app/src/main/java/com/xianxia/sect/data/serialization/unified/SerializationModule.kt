@@ -910,7 +910,7 @@ private inline fun <reified T : Enum<T>> safeEnumValueOfIgnoreCase(
 class SaveDataMigrator @Inject constructor() {
     companion object {
         private const val TAG = "SaveDataMigrator"
-        private const val CURRENT_VERSION = "3.0"
+        private const val CURRENT_VERSION = "4.0"
     }
 
     private val migrators = mutableListOf<VersionMigrator>()
@@ -918,6 +918,7 @@ class SaveDataMigrator @Inject constructor() {
     init {
         registerMigrator(V1ToV2Migrator())
         registerMigrator(V2ToV3Migrator())
+        registerMigrator(V3ToV4Migrator())
     }
 
     fun registerMigrator(migrator: VersionMigrator) {
@@ -976,6 +977,25 @@ class V2ToV3Migrator : VersionMigrator {
 
     override suspend fun migrate(data: SerializableSaveData): SerializableSaveData {
         return data.copy(version = toVersion)
+    }
+}
+
+class V3ToV4Migrator : VersionMigrator {
+    override val fromVersion: String = "3.0"
+    override val toVersion: String = "4.0"
+
+    override suspend fun migrate(data: SerializableSaveData): SerializableSaveData {
+        return data.copy(
+            version = toVersion,
+            disciples = data.disciples.map { disciple ->
+                disciple.copy(
+                    cultivationSpeedDuration = if (disciple.cultivationSpeedDuration > 0 && disciple.cultivationSpeedDuration <= 12)
+                        disciple.cultivationSpeedDuration * 30 else disciple.cultivationSpeedDuration,
+                    pillEffectDuration = if (disciple.pillEffectDuration > 0 && disciple.pillEffectDuration <= 12)
+                        disciple.pillEffectDuration * 30 else disciple.pillEffectDuration
+                )
+            }
+        )
     }
 }
 
@@ -1281,7 +1301,7 @@ class SaveDataConverter @Inject constructor() {
             status = safeEnumValueOf(data.status, com.xianxia.sect.core.model.DiscipleStatus.IDLE, "status", "Disciple"),
             statusData = data.statusData,
             cultivationSpeedBonus = data.cultivationSpeedBonus,
-            cultivationSpeedDuration = if (data.cultivationSpeedDuration > 0 && data.cultivationSpeedDuration <= 12) data.cultivationSpeedDuration * 30 else data.cultivationSpeedDuration,
+            cultivationSpeedDuration = data.cultivationSpeedDuration,
             discipleType = data.discipleType.ifEmpty { "outer" },
             combat = com.xianxia.sect.core.model.CombatAttributes(
                 baseHp = data.baseHp,
@@ -1317,7 +1337,7 @@ class SaveDataConverter @Inject constructor() {
                 pillCultivationSpeedBonus = data.pillCultivationSpeedBonus,
                 pillSkillExpSpeedBonus = data.pillSkillExpSpeedBonus,
                 pillNurtureSpeedBonus = data.pillNurtureSpeedBonus,
-                pillEffectDuration = if (data.pillEffectDuration > 0 && data.pillEffectDuration <= 12) data.pillEffectDuration * 30 else data.pillEffectDuration,
+                pillEffectDuration = data.pillEffectDuration,
                 activePillCategory = data.activePillCategory
             ),
             equipment = com.xianxia.sect.core.model.EquipmentSet(

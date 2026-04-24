@@ -34,21 +34,47 @@ fun MapCanvas(
             val distance = sqrt(dx * dx + dy * dy)
             if (distance < 1f) return@forEach
 
-            val midX = (fromX + toX) / 2
-            val midY = (fromY + toY) / 2
+            val pathObj = Path()
 
-            val normalX = -dy / distance
-            val normalY = dx / distance
+            if (pathData.waypoints.isEmpty()) {
+                pathObj.moveTo(fromX, fromY)
+                pathObj.lineTo(toX, toY)
+            } else {
+                val canvasWaypoints = pathData.waypoints.map { (wx, wy) ->
+                    Pair(
+                        (wx / MapCoordinateSystem.WORLD_WIDTH) * cw,
+                        (wy / MapCoordinateSystem.WORLD_HEIGHT) * ch
+                    )
+                }
 
-            val randomOffset = (((pathData.fromId.hashCode() + pathData.toId.hashCode()) and 0x7FFFFFFF) % 100 - 50) / 100f
-            val curveStrength = distance * 0.2f * randomOffset
+                val allPoints = mutableListOf<Pair<Float, Float>>()
+                allPoints.add(Pair(fromX, fromY))
+                allPoints.addAll(canvasWaypoints)
+                allPoints.add(Pair(toX, toY))
 
-            val controlX = midX + normalX * curveStrength
-            val controlY = midY + normalY * curveStrength
+                pathObj.moveTo(allPoints[0].first, allPoints[0].second)
 
-            val pathObj = Path().apply {
-                moveTo(fromX, fromY)
-                quadraticTo(controlX, controlY, toX, toY)
+                if (allPoints.size == 2) {
+                    pathObj.lineTo(allPoints[1].first, allPoints[1].second)
+                } else {
+                    val midX0 = (allPoints[0].first + allPoints[1].first) / 2f
+                    val midY0 = (allPoints[0].second + allPoints[1].second) / 2f
+                    pathObj.lineTo(midX0, midY0)
+
+                    for (i in 1 until allPoints.size - 1) {
+                        val curr = allPoints[i]
+                        val next = allPoints[i + 1]
+                        val midX = (curr.first + next.first) / 2f
+                        val midY = (curr.second + next.second) / 2f
+
+                        pathObj.quadraticTo(
+                            curr.first, curr.second,
+                            midX, midY
+                        )
+                    }
+
+                    pathObj.lineTo(allPoints.last().first, allPoints.last().second)
+                }
             }
 
             drawPath(

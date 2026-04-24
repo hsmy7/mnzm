@@ -33,6 +33,8 @@ import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.core.util.sortedByFollowAndRealm
+import com.xianxia.sect.core.util.GameUtils
+import com.xianxia.sect.core.util.SectRelationLevel
 import com.xianxia.sect.ui.game.getSpiritRootCount
 import com.xianxia.sect.ui.game.applyFilters
 import com.xianxia.sect.ui.game.SpiritRootAttributeFilterBar
@@ -167,8 +169,12 @@ private fun AllyStatusSection(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text("好感度", fontSize = 14.sp, color = GameColors.TextSecondary)
-            Text("$relation", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = GameColors.TextPrimary)
+            Text("关系", fontSize = 14.sp, color = GameColors.TextSecondary)
+            val relationLevel = GameUtils.getSectRelationLevel(relation)
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(relationLevel.displayName, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(relationLevel.colorHex))
+                Text("($relation)", fontSize = 14.sp, color = GameColors.TextSecondary)
+            }
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -221,9 +227,13 @@ private fun NonAllySection(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text("好感度", fontSize = 14.sp, color = GameColors.TextSecondary)
-            Text("$relation / ${GameConfig.Diplomacy.MIN_ALLIANCE_FAVOR}", fontSize = 14.sp, fontWeight = FontWeight.Bold,
-                color = if (meetsFavorRequirement) GameColors.Success else GameColors.Error)
+            Text("关系", fontSize = 14.sp, color = GameColors.TextSecondary)
+            val relationLevel = GameUtils.getSectRelationLevel(relation)
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(relationLevel.displayName, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(relationLevel.colorHex))
+                Text("$relation / ${GameConfig.Diplomacy.MIN_ALLIANCE_FAVOR}", fontSize = 14.sp,
+                    color = if (meetsFavorRequirement) GameColors.Success else GameColors.Error)
+            }
         }
 
         Spacer(modifier = Modifier.height(8.dp))

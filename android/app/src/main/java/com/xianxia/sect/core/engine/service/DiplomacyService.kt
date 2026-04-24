@@ -250,181 +250,6 @@ class DiplomacyService @Inject constructor(
     }
 
     /**
-     * 向宗门赠送物品
-     *
-     * @param sectId 目标宗门ID
-     * @param itemId 物品ID
-     * @param itemType 物品类型
-     * @param quantity 数量
-     * @return 送礼结果
-     */
-    fun giftItem(sectId: String, itemId: String, itemType: String, quantity: Int): GiftResult {
-        val data = currentGameData
-        val currentYear = data.gameYear
-
-        // 查找目标宗门
-        val sect = data.worldMapSects.find { it.id == sectId }
-        if (sect == null) {
-            return GiftResult(
-                success = false,
-                responseType = "sect_not_found",
-                message = "未找到目标宗门"
-            )
-        }
-
-        // 检查是否为玩家宗门
-        if (sect.isPlayerSect) {
-            return GiftResult(
-                success = false,
-                responseType = "invalid_target",
-                message = "不能向自己的宗门送礼"
-            )
-        }
-
-        val sectDetail = data.sectDetails[sectId] ?: SectDetail(sectId = sectId)
-
-        if (sectDetail.lastGiftYear == currentYear) {
-            return GiftResult(
-                success = false,
-                rejected = false,
-                responseType = "already_gifted",
-                message = "今年已经向${sect.name}送过礼了，请明年再来"
-            )
-        }
-
-        // 查找物品并获取稀有度
-        val (itemRarity, itemName, actualQuantity) = when (itemType) {
-            GiftConfig.ItemType.MANUAL -> {
-                val manual = currentManualStacks.find { it.id == itemId }
-                if (manual == null) {
-                    return GiftResult(
-                        success = false,
-                        responseType = "item_not_found",
-                        message = "未找到该功法"
-                    )
-                }
-                Triple(manual.rarity, manual.name, quantity.coerceAtLeast(1).coerceAtMost(manual.quantity))
-            }
-            GiftConfig.ItemType.EQUIPMENT -> {
-                val equipment = currentEquipmentStacks.find { it.id == itemId }
-                if (equipment == null) {
-                    return GiftResult(
-                        success = false,
-                        responseType = "item_not_found",
-                        message = "未找到该装备"
-                    )
-                }
-                Triple(equipment.rarity, equipment.name, quantity.coerceAtLeast(1).coerceAtMost(equipment.quantity))
-            }
-            GiftConfig.ItemType.PILL -> {
-                val pill = currentPills.find { it.id == itemId }
-                if (pill == null) {
-                    return GiftResult(
-                        success = false,
-                        responseType = "item_not_found",
-                        message = "未找到该丹药"
-                    )
-                }
-                if (pill.quantity < quantity) {
-                    return GiftResult(
-                        success = false,
-                        responseType = "insufficient_quantity",
-                        message = "丹药数量不足，当前有${pill.quantity}个"
-                    )
-                }
-                Triple(pill.rarity, pill.name, quantity.coerceAtLeast(1))
-            }
-            else -> {
-                return GiftResult(
-                    success = false,
-                    responseType = "invalid_item_type",
-                    message = "不支持的物品类型"
-                )
-            }
-        }
-
-        // 计算好感度（使用百分比增长）
-        val favorPercentage = GiftConfig.ItemFavorPercentageConfig.getFavorPercentage(sect.level, itemRarity)
-
-        val playerSectForFavor = data.worldMapSects.find { it.isPlayerSect }
-        val currentFavorValue = if (playerSectForFavor != null) {
-            data.sectRelations.find {
-                (it.sectId1 == playerSectForFavor.id && it.sectId2 == sectId) ||
-                (it.sectId1 == sectId && it.sectId2 == playerSectForFavor.id)
-            }?.favor ?: 0
-        } else 0
-
-        val baseFavor = GiftConfig.RarityFavorConfig.getBaseFavor(itemRarity)
-        val preferenceMultiplier = calculatePreferenceMultiplier(
-            sectDetail.giftPreference,
-            itemType,
-            isSpiritStone = false
-        )
-        val favorIncrease = if (favorPercentage != null) {
-            val percentageIncrease = (currentFavorValue * favorPercentage / 100).coerceAtLeast(0)
-            val adjustedIncrease = ((baseFavor + percentageIncrease) * preferenceMultiplier).toInt()
-            if (adjustedIncrease == 0) 1 else adjustedIncrease
-        } else {
-            (baseFavor * preferenceMultiplier).toInt().coerceAtLeast(1)
-        }
-        val totalFavor = favorIncrease * actualQuantity
-
-        // 计算拒绝概率
-        val baseRejectProbability = getRejectProbability(sect.level, itemRarity)
-        val preferenceRejectModifier = calculatePreferenceRejectModifier(
-            sectDetail.giftPreference,
-            itemType,
-            isSpiritStone = false
-        )
-        val rejectProbability = (baseRejectProbability + preferenceRejectModifier).coerceIn(0, 100)
-
-        // 判断是否被拒绝
-        val isRejected = Random.nextInt(100) < rejectProbability
-
-        if (isRejected) {
-            val responseText = SectResponseTexts.getRejectResponse(sect.level, itemType, itemName)
-            eventService.addGameEvent("向${sect.name}送礼${itemName}被拒绝：$responseText", EventType.WARNING)
-
-            return GiftResult(
-                success = false,
-                rejected = true,
-                responseType = "rejected",
-                message = responseText
-            )
-        }
-
-        // 送礼成功：移除物品、标记已送礼、增加好感度
-        removeGiftItem(itemType, itemId, actualQuantity)
-
-        val newFavor = (currentFavorValue + totalFavor).coerceAtMost(100)
-
-        val updatedSectDetails = data.sectDetails.toMutableMap()
-        updatedSectDetails[sectId] = (data.sectDetails[sectId] ?: SectDetail(sectId = sectId))
-            .copy(lastGiftYear = currentYear)
-
-        val updatedRelations = if (playerSectForFavor != null) {
-            updateSectRelationFavor(data.sectRelations, playerSectForFavor.id, sectId, newFavor, currentYear)
-        } else {
-            data.sectRelations
-        }
-
-        currentGameData = data.copy(sectDetails = updatedSectDetails, sectRelations = updatedRelations)
-
-        val responseText = SectResponseTexts.getAcceptResponse(sect.level, itemType, itemName, totalFavor)
-        val quantityText = if (actualQuantity > 1) "x$actualQuantity " else ""
-        eventService.addGameEvent("向${sect.name}送礼${quantityText}${itemName}成功，好感度+$totalFavor", EventType.SUCCESS)
-
-        return GiftResult(
-            success = true,
-            rejected = false,
-            favorChange = totalFavor,
-            newFavor = newFavor,
-            responseType = "accept",
-            message = responseText
-        )
-    }
-
-    /**
      * 请求结盟
      *
      * @param sectId 目标宗门ID
@@ -668,38 +493,20 @@ class DiplomacyService @Inject constructor(
         isSpiritStone: Boolean = false
     ): Double {
         if (giftPreference == GiftPreferenceType.NONE) return 1.0
-
         return when {
             isSpiritStone && giftPreference == GiftPreferenceType.SPIRIT_STONE -> 1.3
-            itemType == GiftConfig.ItemType.EQUIPMENT && giftPreference == GiftPreferenceType.EQUIPMENT -> 1.5
-            itemType == GiftConfig.ItemType.MANUAL && giftPreference == GiftPreferenceType.MANUAL -> 1.5
-            itemType == GiftConfig.ItemType.PILL && giftPreference == GiftPreferenceType.PILL -> 1.5
-            !isSpiritStone && itemType.isNotEmpty() -> 0.8
             else -> 1.0
         }
     }
 
-    /**
-     * 计算偏好拒绝修正值（用于拒绝概率）
-     *
-     * @param giftPreference 礼物偏好类型
-     * @param itemType 物品类型
-     * @param isSpiritStone 是否为灵石
-     * @return 拒绝修正值
-     */
     private fun calculatePreferenceRejectModifier(
         giftPreference: GiftPreferenceType,
         itemType: String,
         isSpiritStone: Boolean = false
     ): Int {
         if (giftPreference == GiftPreferenceType.NONE) return 0
-
         return when {
             isSpiritStone && giftPreference == GiftPreferenceType.SPIRIT_STONE -> -15
-            itemType == GiftConfig.ItemType.EQUIPMENT && giftPreference == GiftPreferenceType.EQUIPMENT -> -20
-            itemType == GiftConfig.ItemType.MANUAL && giftPreference == GiftPreferenceType.MANUAL -> -20
-            itemType == GiftConfig.ItemType.PILL && giftPreference == GiftPreferenceType.PILL -> -20
-            !isSpiritStone && itemType.isNotEmpty() -> 10
             else -> 0
         }
     }
@@ -742,39 +549,6 @@ class DiplomacyService @Inject constructor(
                 lastInteractionYear = year,
                 noGiftYears = 0
             )
-        }
-    }
-
-    /**
-     * 移除送礼物品
-     *
-     * @param itemType 物品类型
-     * @param itemId 物品ID
-     * @param quantity 数量
-     */
-    private fun removeGiftItem(itemType: String, itemId: String, quantity: Int) {
-        when (itemType) {
-            GiftConfig.ItemType.MANUAL -> {
-                currentManualStacks = currentManualStacks.map { manual ->
-                    if (manual.id == itemId) {
-                        manual.copy(quantity = (manual.quantity - quantity).coerceAtLeast(0))
-                    } else manual
-                }.filter { it.quantity > 0 }
-            }
-            GiftConfig.ItemType.EQUIPMENT -> {
-                currentEquipmentStacks = currentEquipmentStacks.map { eq ->
-                    if (eq.id == itemId) {
-                        eq.copy(quantity = (eq.quantity - quantity).coerceAtLeast(0))
-                    } else eq
-                }.filter { it.quantity > 0 }
-            }
-            GiftConfig.ItemType.PILL -> {
-                currentPills = currentPills.map { pill ->
-                    if (pill.id == itemId) {
-                        pill.copy(quantity = (pill.quantity - quantity).coerceAtLeast(0))
-                    } else pill
-                }.filter { it.quantity > 0 }
-            }
         }
     }
 

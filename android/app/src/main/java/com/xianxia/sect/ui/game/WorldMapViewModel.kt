@@ -90,16 +90,6 @@ class WorldMapViewModel @Inject constructor(
         }
     }
 
-    fun giftItem(sectId: String, itemId: String, itemType: String, quantity: Int) {
-        viewModelScope.launch {
-            try {
-                gameEngine.giftItem(sectId, itemId, itemType, quantity)
-            } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "送礼失败"
-            }
-        }
-    }
-
     fun openAllianceDialog(sectId: String) {
         _selectedAllianceSectId.value = sectId
         _showAllianceDialog.value = true

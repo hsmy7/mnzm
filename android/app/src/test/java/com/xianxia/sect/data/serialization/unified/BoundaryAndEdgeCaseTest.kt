@@ -8,6 +8,7 @@ import com.xianxia.sect.data.serialization.NullSafeProtoBuf
 import com.xianxia.sect.data.unified.SaveError
 import org.junit.Assert.*
 import org.junit.Test
+import kotlinx.coroutines.runBlocking
 
 class BoundaryAndEdgeCaseTest {
 
@@ -223,7 +224,7 @@ class BoundaryAndEdgeCaseTest {
         assertEquals(7777L, r.storageBagSpiritStones)
         assertEquals(DiscipleStatus.ON_MISSION, r.status)
         assertEquals(15.5, r.cultivationSpeedBonus, 0.001)
-        assertEquals(300, r.cultivationSpeedDuration)
+        assertEquals(10, r.cultivationSpeedDuration)
         assertEquals(5, r.pillPhysicalAttackBonus)
         assertEquals(3, r.pillMagicAttackBonus)
         assertEquals(2, r.pillPhysicalDefenseBonus)
@@ -231,7 +232,7 @@ class BoundaryAndEdgeCaseTest {
         assertEquals(100, r.pillHpBonus)
         assertEquals(50, r.pillMpBonus)
         assertEquals(1, r.pillSpeedBonus)
-        assertEquals(150, r.pillEffectDuration)
+        assertEquals(5, r.pillEffectDuration)
         assertEquals(150000L, r.totalCultivation)
         assertEquals(8, r.breakthroughCount)
         assertEquals(3, r.breakthroughFailCount)
@@ -741,5 +742,96 @@ class BoundaryAndEdgeCaseTest {
             assertEquals("装备$i", r.name)
             assertEquals((i % 6) + 1, r.rarity)
         }
+    }
+
+    @Test
+    fun `V3ToV4Migrator converts monthly duration to daily`() = runBlocking {
+        val migrator = V3ToV4Migrator()
+        assertEquals("3.0", migrator.fromVersion)
+        assertEquals("4.0", migrator.toVersion)
+
+        val data = SerializableSaveData(
+            version = "3.0",
+            timestamp = System.currentTimeMillis(),
+            gameData = SerializableGameData(),
+            disciples = listOf(
+                SerializableDisciple(
+                    id = "d1", name = "test", realm = 1, realmLayer = 0,
+                    cultivation = 0.0, spiritRootType = "火", age = 20, lifespan = 200,
+                    isAlive = true, gender = "男", spiritStones = 0, soulPower = 0,
+                    storageBagSpiritStones = 0, status = "IDLE",
+                    cultivationSpeedBonus = 0.0, cultivationSpeedDuration = 3,
+                    pillPhysicalAttackBonus = 0, pillMagicAttackBonus = 0,
+                    pillPhysicalDefenseBonus = 0, pillMagicDefenseBonus = 0,
+                    pillHpBonus = 0, pillMpBonus = 0, pillSpeedBonus = 0,
+                    pillEffectDuration = 5,
+                    totalCultivation = 0L, breakthroughCount = 0, breakthroughFailCount = 0,
+                    intelligence = 0, charm = 0, loyalty = 0, comprehension = 0,
+                    artifactRefining = 0, pillRefining = 0, spiritPlanting = 0,
+                    teaching = 0, morality = 0, salaryPaidCount = 0, salaryMissedCount = 0,
+                    recruitedMonth = 0, hpVariance = 0, mpVariance = 0,
+                    physicalAttackVariance = 0, magicAttackVariance = 0,
+                    physicalDefenseVariance = 0, magicDefenseVariance = 0, speedVariance = 0,
+                    baseHp = 0, baseMp = 0, basePhysicalAttack = 0, baseMagicAttack = 0,
+                    basePhysicalDefense = 0, baseMagicDefense = 0, baseSpeed = 0,
+                    currentHp = 0, currentMp = 0, discipleType = "",
+                    lastChildYear = 0, hasReviveEffect = false, hasClearAllEffect = false
+                ),
+                SerializableDisciple(
+                    id = "d2", name = "test2", realm = 1, realmLayer = 0,
+                    cultivation = 0.0, spiritRootType = "水", age = 25, lifespan = 250,
+                    isAlive = true, gender = "女", spiritStones = 0, soulPower = 0,
+                    storageBagSpiritStones = 0, status = "IDLE",
+                    cultivationSpeedBonus = 0.0, cultivationSpeedDuration = 0,
+                    pillPhysicalAttackBonus = 0, pillMagicAttackBonus = 0,
+                    pillPhysicalDefenseBonus = 0, pillMagicDefenseBonus = 0,
+                    pillHpBonus = 0, pillMpBonus = 0, pillSpeedBonus = 0,
+                    pillEffectDuration = 0,
+                    totalCultivation = 0L, breakthroughCount = 0, breakthroughFailCount = 0,
+                    intelligence = 0, charm = 0, loyalty = 0, comprehension = 0,
+                    artifactRefining = 0, pillRefining = 0, spiritPlanting = 0,
+                    teaching = 0, morality = 0, salaryPaidCount = 0, salaryMissedCount = 0,
+                    recruitedMonth = 0, hpVariance = 0, mpVariance = 0,
+                    physicalAttackVariance = 0, magicAttackVariance = 0,
+                    physicalDefenseVariance = 0, magicDefenseVariance = 0, speedVariance = 0,
+                    baseHp = 0, baseMp = 0, basePhysicalAttack = 0, baseMagicAttack = 0,
+                    basePhysicalDefense = 0, baseMagicDefense = 0, baseSpeed = 0,
+                    currentHp = 0, currentMp = 0, discipleType = "",
+                    lastChildYear = 0, hasReviveEffect = false, hasClearAllEffect = false
+                ),
+                SerializableDisciple(
+                    id = "d3", name = "test3", realm = 1, realmLayer = 0,
+                    cultivation = 0.0, spiritRootType = "木", age = 30, lifespan = 300,
+                    isAlive = true, gender = "男", spiritStones = 0, soulPower = 0,
+                    storageBagSpiritStones = 0, status = "IDLE",
+                    cultivationSpeedBonus = 10.0, cultivationSpeedDuration = 90,
+                    pillPhysicalAttackBonus = 0, pillMagicAttackBonus = 0,
+                    pillPhysicalDefenseBonus = 0, pillMagicDefenseBonus = 0,
+                    pillHpBonus = 0, pillMpBonus = 0, pillSpeedBonus = 0,
+                    pillEffectDuration = 60,
+                    totalCultivation = 0L, breakthroughCount = 0, breakthroughFailCount = 0,
+                    intelligence = 0, charm = 0, loyalty = 0, comprehension = 0,
+                    artifactRefining = 0, pillRefining = 0, spiritPlanting = 0,
+                    teaching = 0, morality = 0, salaryPaidCount = 0, salaryMissedCount = 0,
+                    recruitedMonth = 0, hpVariance = 0, mpVariance = 0,
+                    physicalAttackVariance = 0, magicAttackVariance = 0,
+                    physicalDefenseVariance = 0, magicDefenseVariance = 0, speedVariance = 0,
+                    baseHp = 0, baseMp = 0, basePhysicalAttack = 0, baseMagicAttack = 0,
+                    basePhysicalDefense = 0, baseMagicDefense = 0, baseSpeed = 0,
+                    currentHp = 0, currentMp = 0, discipleType = "",
+                    lastChildYear = 0, hasReviveEffect = false, hasClearAllEffect = false
+                )
+            )
+        )
+
+        val result = migrator.migrate(data)
+
+        assertEquals("4.0", result.version)
+        assertEquals(90, result.disciples[0].cultivationSpeedDuration)
+        assertEquals(150, result.disciples[0].pillEffectDuration)
+        assertEquals(0, result.disciples[1].cultivationSpeedDuration)
+        assertEquals(0, result.disciples[1].pillEffectDuration)
+        assertEquals(90, result.disciples[2].cultivationSpeedDuration)
+        assertEquals(60, result.disciples[2].pillEffectDuration)
     }
 }

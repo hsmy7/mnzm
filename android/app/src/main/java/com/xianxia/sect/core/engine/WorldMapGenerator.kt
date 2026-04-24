@@ -4,6 +4,8 @@ package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.*
+import kotlin.math.cos
+import kotlin.math.sin
 import kotlin.math.sqrt
 import kotlin.random.Random
 
@@ -23,6 +25,8 @@ object WorldMapGenerator {
     private val MAX_CONNECTIONS_PER_SECT get() = GameConfig.WorldMap.MAX_CONNECTIONS_PER_SECT
     private val MIN_CONNECTIONS_PER_SECT get() = GameConfig.WorldMap.MIN_CONNECTIONS_PER_SECT
     private val CONNECTION_DISTANCE_LIMIT get() = GameConfig.WorldMap.CONNECTION_DISTANCE_LIMIT
+    private val CROSSING_PENALTY get() = GameConfig.WorldMap.CROSSING_PENALTY
+    private val MIN_SECT_DISTANCE get() = GameConfig.WorldMap.MIN_SECT_DISTANCE
 
     private val righteousSectNames = listOf(
         "青云门", "紫霄宫", "太华宗", "昆仑派", "峨眉山", "武当山", "青城山", "龙虎山",
@@ -49,6 +53,13 @@ object WorldMapGenerator {
     data class WorldGenerationResult(
         val sects: List<WorldSect>,
         val aiSectDisciples: Map<String, List<Disciple>>
+    )
+
+    private data class Cluster(
+        val cx: Double,
+        val cy: Double,
+        val radius: Double,
+        val density: Double
     )
 
     fun generateWorldSects(playerSectName: String = "青云宗"): WorldGenerationResult {
@@ -112,50 +123,144 @@ object WorldMapGenerator {
     }
 
     private fun generateSectPositions(count: Int): List<Pair<Float, Float>> {
-        val availableWidth = MAP_WIDTH - 2 * BORDER_PADDING
-        val availableHeight = MAP_HEIGHT - 2 * BORDER_PADDING
-        val aspectRatio = availableWidth.toDouble() / availableHeight.toDouble()
-
-        val gridCols = sqrt(count.toDouble() * aspectRatio).toInt().coerceIn(1, count)
-        val gridRows = ((count + gridCols - 1) / gridCols).coerceIn(1, count)
-
-        val cellWidth = if (gridCols > 1) availableWidth.toDouble() / (gridCols - 1) else 0.0
-        val cellHeight = if (gridRows > 1) availableHeight.toDouble() / (gridRows - 1) else 0.0
-
+        val clusters = generateClusters()
         val positions = mutableListOf<Pair<Double, Double>>()
-        val maxJitterX = if (gridCols > 1) cellWidth * 0.15 else 0.0
-        val maxJitterY = if (gridRows > 1) cellHeight * 0.15 else 0.0
 
-        var placed = 0
-        for (row in 0 until gridRows) {
-            for (col in 0 until gridCols) {
-                if (placed >= count) break
+        val isolatedCount = Random.nextInt(
+            GameConfig.WorldMap.ISOLATED_SECT_MIN,
+            GameConfig.WorldMap.ISOLATED_SECT_MAX + 1
+        )
+        val clusteredCount = count - isolatedCount
 
-                val centerX = if (gridCols > 1) BORDER_PADDING + cellWidth * col
-                    else BORDER_PADDING + availableWidth / 2.0
-                val centerY = if (gridRows > 1) BORDER_PADDING + cellHeight * row
-                    else BORDER_PADDING + availableHeight / 2.0
+        val totalWeight = clusters.sumOf { it.density * it.radius * it.radius }
 
-                val jitterX = Random.nextDouble(-maxJitterX, maxJitterX)
-                val jitterY = Random.nextDouble(-maxJitterY, maxJitterY)
+        for (i in 0 until clusteredCount) {
+            val cluster = selectWeightedCluster(clusters, totalWeight)
+            val angle = Random.nextDouble(0.0, 2.0 * Math.PI)
+            val distFactor = Random.nextDouble()
+            val dist = cluster.radius * sqrt(distFactor) * Random.nextDouble(0.3, 1.0)
 
-                val x = (centerX + jitterX).coerceIn(
-                    BORDER_PADDING.toDouble(),
-                    (MAP_WIDTH - BORDER_PADDING).toDouble()
-                )
-                val y = (centerY + jitterY).coerceIn(
-                    BORDER_PADDING.toDouble(),
-                    (MAP_HEIGHT - BORDER_PADDING).toDouble()
-                )
+            val x = cluster.cx + dist * cos(angle)
+            val y = cluster.cy + dist * sin(angle)
 
-                positions.add(Pair(x, y))
-                placed++
+            val clampedX = x.coerceIn(BORDER_PADDING.toDouble(), (MAP_WIDTH - BORDER_PADDING).toDouble())
+            val clampedY = y.coerceIn(BORDER_PADDING.toDouble(), (MAP_HEIGHT - BORDER_PADDING).toDouble())
+
+            if (isPositionValid(clampedX, clampedY, positions)) {
+                positions.add(Pair(clampedX, clampedY))
+            } else {
+                var retryX = clampedX
+                var retryY = clampedY
+                var retryAttempts = 0
+                while (retryAttempts < 20 && !isPositionValid(retryX, retryY, positions)) {
+                    retryX = cluster.cx + Random.nextDouble(-cluster.radius, cluster.radius)
+                    retryY = cluster.cy + Random.nextDouble(-cluster.radius, cluster.radius)
+                    retryX = retryX.coerceIn(BORDER_PADDING.toDouble(), (MAP_WIDTH - BORDER_PADDING).toDouble())
+                    retryY = retryY.coerceIn(BORDER_PADDING.toDouble(), (MAP_HEIGHT - BORDER_PADDING).toDouble())
+                    retryAttempts++
+                }
+                positions.add(Pair(retryX, retryY))
             }
         }
 
+        for (i in 0 until isolatedCount) {
+            var x: Double
+            var y: Double
+            var attempts = 0
+            do {
+                x = Random.nextDouble(BORDER_PADDING.toDouble(), (MAP_WIDTH - BORDER_PADDING).toDouble())
+                y = Random.nextDouble(BORDER_PADDING.toDouble(), (MAP_HEIGHT - BORDER_PADDING).toDouble())
+                attempts++
+            } while (!isPositionValid(x, y, positions) && attempts < 50)
+            positions.add(Pair(x, y))
+        }
+
         applyRelaxation(positions)
+        resolveOverlaps(positions)
 
         return positions.map { Pair(it.first.toFloat(), it.second.toFloat()) }
+    }
+
+    private fun generateClusters(): List<Cluster> {
+        val numClusters = Random.nextInt(
+            GameConfig.WorldMap.CLUSTER_MIN_COUNT,
+            GameConfig.WorldMap.CLUSTER_MAX_COUNT + 1
+        )
+        val clusters = mutableListOf<Cluster>()
+        val margin = 400.0
+
+        for (i in 0 until numClusters) {
+            val cx = Random.nextDouble(BORDER_PADDING + margin, MAP_WIDTH - BORDER_PADDING - margin)
+            val cy = Random.nextDouble(BORDER_PADDING + margin, MAP_HEIGHT - BORDER_PADDING - margin)
+            val radius = Random.nextDouble(
+                GameConfig.WorldMap.CLUSTER_MIN_RADIUS,
+                GameConfig.WorldMap.CLUSTER_MAX_RADIUS
+            )
+            val density = Random.nextDouble(0.4, 1.6)
+            clusters.add(Cluster(cx, cy, radius, density))
+        }
+
+        return clusters
+    }
+
+    private fun selectWeightedCluster(clusters: List<Cluster>, totalWeight: Double): Cluster {
+        var rand = Random.nextDouble() * totalWeight
+        for (cluster in clusters) {
+            rand -= cluster.density * cluster.radius * cluster.radius
+            if (rand <= 0) return cluster
+        }
+        return clusters.last()
+    }
+
+    private fun isPositionValid(
+        x: Double,
+        y: Double,
+        existingPositions: List<Pair<Double, Double>>
+    ): Boolean {
+        for (pos in existingPositions) {
+            val dx = x - pos.first
+            val dy = y - pos.second
+            val dist = sqrt(dx * dx + dy * dy)
+            if (dist < MIN_SECT_DISTANCE) return false
+        }
+        return true
+    }
+
+    private fun resolveOverlaps(positions: MutableList<Pair<Double, Double>>) {
+        val minDist = MIN_SECT_DISTANCE
+        var changed = true
+        var iterations = 0
+        val maxIterations = 10
+
+        while (changed && iterations < maxIterations) {
+            changed = false
+            iterations++
+
+            for (i in positions.indices) {
+                for (j in (i + 1) until positions.size) {
+                    val dx = positions[i].first - positions[j].first
+                    val dy = positions[i].second - positions[j].second
+                    val dist = sqrt(dx * dx + dy * dy).coerceAtLeast(0.1)
+
+                    if (dist < minDist) {
+                        changed = true
+                        val pushDist = (minDist - dist) / 2.0 + 1.0
+                        val pushX = dx / dist * pushDist
+                        val pushY = dy / dist * pushDist
+
+                        val margin = BORDER_PADDING.toDouble()
+                        positions[i] = Pair(
+                            (positions[i].first + pushX).coerceIn(margin, (MAP_WIDTH - margin).toDouble()),
+                            (positions[i].second + pushY).coerceIn(margin, (MAP_HEIGHT - margin).toDouble())
+                        )
+                        positions[j] = Pair(
+                            (positions[j].first - pushX).coerceIn(margin, (MAP_WIDTH - margin).toDouble()),
+                            (positions[j].second - pushY).coerceIn(margin, (MAP_HEIGHT - margin).toDouble())
+                        )
+                    }
+                }
+            }
+        }
     }
 
     private fun applyRelaxation(positions: MutableList<Pair<Double, Double>>) {
@@ -186,7 +291,7 @@ object WorldMapGenerator {
                 val x = positions[i].first
                 val y = positions[i].second
                 val margin = BORDER_PADDING.toDouble()
-                val softBoundaryDistance = 60.0
+                val softBoundaryDistance = 100.0
 
                 if (x < margin + softBoundaryDistance) {
                     val t = 1.0 - (x - margin) / softBoundaryDistance
@@ -282,14 +387,16 @@ object WorldMapGenerator {
         }
 
         sects.forEach { parent[it.id] = it.id }
+        var componentCount = sects.size
 
         for (edge in allEdges) {
             if (find(edge.from) != find(edge.to)) {
                 union(edge.from, edge.to)
                 connections[edge.from]!!.add(edge.to)
                 connections[edge.to]!!.add(edge.from)
+                componentCount--
             }
-            if (sects.map { find(it.id) }.toSet().size == 1) break
+            if (componentCount == 1) break
         }
 
         val kNearest = mutableMapOf<String, List<Pair<String, Double>>>()
@@ -318,10 +425,10 @@ object WorldMapGenerator {
                     connections[neighbor.first]!!.size < MAX_CONNECTIONS_PER_SECT
                 }
                 .sortedBy { neighbor ->
-                    val crossingPenalty = countEdgeCrossings(
+                    val crossingCount = countEdgeCrossings(
                         sect.id, neighbor.first, connections, sectMap
                     )
-                    neighbor.second + crossingPenalty * 300.0
+                    neighbor.second + crossingCount * CROSSING_PENALTY
                 }
                 .take(needed)
 
@@ -535,4 +642,44 @@ object WorldMapGenerator {
         val levelName: String,
         val disciples: Map<Int, Int>
     )
+
+    fun generatePathWaypoints(
+        fromX: Float, fromY: Float,
+        toX: Float, toY: Float,
+        fromId: String, toId: String
+    ): List<Pair<Float, Float>> {
+        val dx = toX - fromX
+        val dy = toY - fromY
+        val distance = sqrt(dx * dx + dy * dy)
+        if (distance < 150f) return emptyList()
+
+        val seed = ((fromId.hashCode().toLong() * 31L + toId.hashCode().toLong()) and 0x7FFFFFFFFFFFFFFFL)
+        val random = Random(seed)
+
+        val normalX = -dy / distance
+        val normalY = dx / distance
+
+        val numWaypoints = GameConfig.WorldMap.PATH_WAYPOINT_MIN +
+            (seed % (GameConfig.WorldMap.PATH_WAYPOINT_MAX - GameConfig.WorldMap.PATH_WAYPOINT_MIN + 1)).toInt()
+        val waypoints = mutableListOf<Pair<Float, Float>>()
+
+        val curveStrength = GameConfig.WorldMap.PATH_CURVE_STRENGTH.toFloat()
+
+        for (i in 1..numWaypoints) {
+            val t = i.toFloat() / (numWaypoints + 1)
+            val baseX = fromX + dx * t
+            val baseY = fromY + dy * t
+
+            val envelopeFactor = sin(t * Math.PI).toFloat()
+            val maxOffset = distance * curveStrength
+            val offset = (random.nextFloat() * 2f - 1f) * maxOffset * envelopeFactor
+
+            val wpX = (baseX + normalX * offset).coerceIn(0f, MAP_WIDTH.toFloat())
+            val wpY = (baseY + normalY * offset).coerceIn(0f, MAP_HEIGHT.toFloat())
+
+            waypoints.add(Pair(wpX, wpY))
+        }
+
+        return waypoints
+    }
 }

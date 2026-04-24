@@ -10,6 +10,28 @@ import kotlin.math.ceil
 import kotlin.math.pow
 import kotlin.random.Random
 
+enum class SectRelationLevel(val displayName: String, val minFavor: Int, val maxFavor: Int, val colorHex: Long) {
+    HOSTILE("敌对", 0, 9, 0xFFF44336),
+    ANTAGONISTIC("交恶", 10, 39, 0xFFFF5722),
+    NORMAL("普通", 40, 59, 0xFFFF9800),
+    FRIENDLY("友善", 60, 79, 0xFF8BC34A),
+    INTIMATE("至交", 80, 100, 0xFF4CAF50);
+
+    val maxAllowedRarity: Int
+        get() = when (this) {
+            NORMAL -> 2
+            FRIENDLY -> 4
+            INTIMATE -> 6
+            else -> 0
+        }
+
+    companion object {
+        fun fromFavor(favor: Int): SectRelationLevel {
+            return entries.find { favor in it.minFavor..it.maxFavor } ?: HOSTILE
+        }
+    }
+}
+
 object GameUtils {
     
     fun generateId(): String = UUID.randomUUID().toString()
@@ -275,6 +297,10 @@ object GameUtils {
             (it.sectId1 == playerSect.id && it.sectId2 == sectId) ||
             (it.sectId1 == sectId && it.sectId2 == playerSect.id)
         }?.favor ?: 0
+    }
+
+    fun getSectRelationLevel(favor: Int): SectRelationLevel {
+        return SectRelationLevel.fromFavor(favor)
     }
 
     fun calculateSectTradePriceMultiplier(

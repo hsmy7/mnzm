@@ -8,6 +8,7 @@ import com.xianxia.sect.core.model.CaveStatus
 import com.xianxia.sect.core.model.CultivatorCave
 import com.xianxia.sect.core.model.ExplorationStatus
 import com.xianxia.sect.core.model.ExplorationTeam
+import com.xianxia.sect.core.engine.WorldMapGenerator
 import com.xianxia.sect.core.model.WorldSect
 
 object MapItemMapper {
@@ -49,6 +50,9 @@ object MapItemMapper {
                         val from = sectMap[id1]
                         val to = sectMap[id2]
                         if (from != null && to != null) {
+                            val waypoints = WorldMapGenerator.generatePathWaypoints(
+                                from.x, from.y, to.x, to.y, from.id, to.id
+                            )
                             paths.add(
                                 MapPathData(
                                     fromId = id1,
@@ -56,7 +60,8 @@ object MapItemMapper {
                                     fromWorldX = from.x,
                                     fromWorldY = from.y,
                                     toWorldX = to.x,
-                                    toWorldY = to.y
+                                    toWorldY = to.y,
+                                    waypoints = waypoints
                                 )
                             )
                         }

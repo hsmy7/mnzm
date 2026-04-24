@@ -559,23 +559,37 @@ object GameConfig {
     }
     
     object WorldMap {
-        const val MAP_WIDTH = 4000
-        const val MAP_HEIGHT = 3500
+        const val MAP_WIDTH = 6000
+        const val MAP_HEIGHT = 5000
         const val SECT_RADIUS = 70
         const val MIN_DISTANCE = 120
-        const val MAX_CONNECTION_DISTANCE = 500.0
-        const val BORDER_PADDING = 80
-        const val TARGET_SECT_COUNT = 55
+        const val MAX_CONNECTION_DISTANCE = 700.0
+        const val BORDER_PADDING = 120
+        const val TARGET_SECT_COUNT = 80
         const val MAX_ATTEMPTS = 50000
         const val INITIAL_SECT_FAVOR = 50
         const val SAME_ALIGNMENT_BONUS = 10
-        const val CONNECTION_DISTANCE_LIMIT = 700.0
+        const val CONNECTION_DISTANCE_LIMIT = 1000.0
         const val TARGET_CONNECTIONS_PER_SECT = 3
         const val MAX_CONNECTIONS_PER_SECT = 5
         const val MIN_CONNECTIONS_PER_SECT = 2
-        const val RELAXATION_ITERATIONS = 3
+        const val RELAXATION_ITERATIONS = 5
         const val RELAXATION_STRENGTH = 0.4
         const val K_NEAREST_NEIGHBORS = 6
+        const val CROSSING_PENALTY = 80.0
+        const val CLUSTER_MIN_COUNT = 5
+        const val CLUSTER_MAX_COUNT = 9
+        const val CLUSTER_MIN_RADIUS = 250.0
+        const val CLUSTER_MAX_RADIUS = 700.0
+        const val ISOLATED_SECT_MIN = 5
+        const val ISOLATED_SECT_MAX = 10
+        const val MIN_SECT_DISTANCE = 100.0
+        const val PATH_WAYPOINT_MIN = 2
+        const val PATH_WAYPOINT_MAX = 4
+        const val PATH_CURVE_STRENGTH = 0.18
+        const val CAVE_MIN_SECT_DISTANCE = 100.0
+        const val CAVE_MIN_PATH_DISTANCE = 70.0
+        const val CAVE_MIN_CAVE_DISTANCE = 70.0
     }
     
     object Diplomacy {

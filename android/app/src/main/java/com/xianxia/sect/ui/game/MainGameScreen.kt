@@ -84,6 +84,7 @@ import com.xianxia.sect.core.model.ExplorationStatus
 import com.xianxia.sect.core.model.RedeemResult
 import com.xianxia.sect.core.model.RewardSelectedItem
 import com.xianxia.sect.core.util.GameUtils
+import com.xianxia.sect.core.util.SectRelationLevel
 import com.xianxia.sect.core.util.sortedByFollowAndRealm
 import com.xianxia.sect.core.util.sortedByFollowAttributeAndRealm
 import com.xianxia.sect.data.model.SaveSlot
@@ -344,9 +345,6 @@ fun MainGameScreen(
             GiftDialog(
                 sect = selectedSect,
                 gameData = gameData,
-                equipment = equipment,
-                manuals = manuals,
-                pills = pills,
                 viewModel = viewModel,
                 worldMapViewModel = worldMapViewModel,
                 onDismiss = { worldMapViewModel.closeGiftDialog() }
@@ -6511,12 +6509,8 @@ private fun WorldMapSectDetailDialog(
         }?.favor ?: 0
     } else 0
     
-    val relationColor = when {
-        relation >= 70 -> Color(0xFF4CAF50)
-        relation >= 50 -> Color(0xFF8BC34A)
-        relation >= 30 -> Color(0xFFFF9800)
-        else -> Color(0xFFF44336)
-    }
+    val relationLevel = GameUtils.getSectRelationLevel(relation)
+    val relationColor = Color(relationLevel.colorHex)
     
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -6603,15 +6597,20 @@ private fun WorldMapSectDetailDialog(
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Text(
-                            text = "好感度",
+                            text = "关系:",
                             fontSize = 12.sp,
                             color = Color(0xFF666666)
                         )
                         Text(
-                            text = "$relation",
-                            fontSize = 14.sp,
+                            text = relationLevel.displayName,
+                            fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             color = relationColor
+                        )
+                        Text(
+                            text = "(${relation})",
+                            fontSize = 12.sp,
+                            color = Color(0xFF666666)
                         )
                     }
                 }
@@ -6744,7 +6743,7 @@ private fun WorldMapSectDetailDialog(
                                     worldMapViewModel.openAllianceDialog(sect.id)
                                     onDismiss()
                                 },
-                                enabled = relation >= 90 || isAlly,
+                                enabled = relationLevel == SectRelationLevel.INTIMATE || isAlly,
                                 modifier = Modifier.weight(1f)
                             )
                         }
@@ -7421,12 +7420,8 @@ private fun DiplomacySectCard(
     onTrade: () -> Unit,
     onShowGiftedMessage: () -> Unit
 ) {
-    val relationColor = when {
-        relation >= 70 -> Color(0xFF4CAF50)
-        relation >= 50 -> Color(0xFF8BC34A)
-        relation >= 30 -> Color(0xFFFF9800)
-        else -> Color(0xFFF44336)
-    }
+    val relationLevel = GameUtils.getSectRelationLevel(relation)
+    val relationColor = Color(relationLevel.colorHex)
     
     val hasGiftedThisYear = (gameData?.sectDetails?.get(sect.id)?.lastGiftYear ?: 0) == currentYear
     
@@ -7480,7 +7475,7 @@ private fun DiplomacySectCard(
                     horizontalAlignment = Alignment.End
                 ) {
                     Text(
-                        text = "好感度",
+                        text = relationLevel.displayName,
                         fontSize = 10.sp,
                         color = Color(0xFF666666)
                     )
@@ -7514,7 +7509,7 @@ private fun DiplomacySectCard(
                 GameButton(
                     text = if (isAlly) "盟约" else "结盟",
                     onClick = onFormAlliance,
-                    enabled = relation >= 90 || isAlly,
+                    enabled = relationLevel == SectRelationLevel.INTIMATE || isAlly,
                     modifier = Modifier.weight(1f)
                 )
                 
@@ -7589,28 +7584,16 @@ fun SectTradeDialog(
     } else 0
     val isAlly = sect?.let { worldMapViewModel.isAlly(it.id) } ?: false
     
-    val maxAllowedRarity = when {
-        relation >= 90 -> 6
-        relation >= 80 -> 5
-        relation >= 70 -> 4
-        relation >= 60 -> 3
-        relation >= 50 -> 2
-        relation >= 40 -> 1
-        else -> 0
-    }
+    val relationLevel = GameUtils.getSectRelationLevel(relation)
+    val maxAllowedRarity = relationLevel.maxAllowedRarity
     
     val priceMultiplier = if (gameData != null && sect != null) {
         GameUtils.calculateSectTradePriceMultiplier(gameData.worldMapSects, gameData.sectRelations, gameData.alliances, sect.id)
     } else 1.0
     
-    val relationColor = when {
-        relation >= 70 -> Color(0xFF4CAF50)
-        relation >= 50 -> Color(0xFF8BC34A)
-        relation >= 40 -> Color(0xFFFF9800)
-        else -> Color(0xFFF44336)
-    }
+    val relationColor = Color(relationLevel.colorHex)
     
-    val canTrade = relation >= 40
+    val canTrade = relationLevel in listOf(SectRelationLevel.NORMAL, SectRelationLevel.FRIENDLY, SectRelationLevel.INTIMATE)
 
     LaunchedEffect(showRelationWarning) {
         if (showRelationWarning) {
@@ -7649,15 +7632,20 @@ fun SectTradeDialog(
                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 Text(
-                                    text = "好感度:",
+                                    text = "关系:",
                                     fontSize = 11.sp,
                                     color = GameColors.TextSecondary
                                 )
                                 Text(
-                                    text = "$relation",
+                                    text = relationLevel.displayName,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = relationColor
+                                )
+                                Text(
+                                    text = "(${relation})",
+                                    fontSize = 11.sp,
+                                    color = GameColors.TextSecondary
                                 )
                                 if (isAlly) {
                                     Text(
@@ -7677,9 +7665,9 @@ fun SectTradeDialog(
                                         fontSize = 10.sp,
                                         color = Color(0xFF4CAF50)
                                     )
-                                } else if (relation < 40) {
+                                } else if (!canTrade) {
                                     Text(
-                                        text = "(无法交易)",
+                                        text = "(关系不足，无法交易)",
                                         fontSize = 10.sp,
                                         color = Color(0xFFF44336)
                                     )
@@ -7965,7 +7953,7 @@ fun SectTradeDialog(
                             color = Color(0xCC000000)
                         ) {
                             Text(
-                                text = "好感度太低无法交易",
+                                text = "关系不足，无法交易该物品",
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White,
