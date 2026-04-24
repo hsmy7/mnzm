@@ -1,5 +1,20 @@
 # 模拟宗门 - 更新日志
 
+## [2.4.14] - 2026-04-24
+
+### 修复
+- 修复背包一键出售界面未过滤锁定物品，导致预估价格与实际获得灵石不一致
+- 修复背包出售列表中种子(Seed)类型显示为"未知物品"且价格为0
+- 修复仓库一键出售界面缺少二次确认对话框，误触可直接出售
+- 修复出售价格计算使用Int类型可能导致大额交易溢出
+
+### 优化
+- 售价计算公式统一收敛到GameConfig.Rarity.calculateSellPrice，消除25+处重复公式
+- 简化SuspendableSellOperation从sealed class(6个子类)为data class(含itemType字段)
+- 批量出售执行逻辑复用sellItem方法，消除when分支分发冗余
+- 移除仓库BulkSellDialog中无意义的remember包装
+- ItemCardData.price类型从Int改为Long，防止价格溢出
+
 ## [2.4.13] - 2026-04-24
 
 ### 修复

@@ -1732,7 +1732,7 @@ class GameEngine @Inject constructor(
                     type = "manual",
                     itemId = itemId,
                     rarity = manualStack.rarity,
-                    price = (manualStack.basePrice * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).toInt(),
+                    price = GameConfig.Rarity.calculateSellPrice(manualStack.basePrice, 1).toInt(),
                     quantity = quantity
                 ))
                 return@forEach
@@ -1746,7 +1746,7 @@ class GameEngine @Inject constructor(
                     type = "pill",
                     itemId = itemId,
                     rarity = pill.rarity,
-                    price = (pill.basePrice * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).toInt(),
+                    price = GameConfig.Rarity.calculateSellPrice(pill.basePrice, 1).toInt(),
                     quantity = quantity
                 ))
                 return@forEach
@@ -1760,7 +1760,7 @@ class GameEngine @Inject constructor(
                     type = "material",
                     itemId = itemId,
                     rarity = material.rarity,
-                    price = (material.basePrice * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).toInt(),
+                    price = GameConfig.Rarity.calculateSellPrice(material.basePrice, 1).toInt(),
                     quantity = quantity
                 ))
                 return@forEach
@@ -1774,7 +1774,7 @@ class GameEngine @Inject constructor(
                     type = "herb",
                     itemId = itemId,
                     rarity = herb.rarity,
-                    price = (herb.basePrice * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).toInt(),
+                    price = GameConfig.Rarity.calculateSellPrice(herb.basePrice, 1).toInt(),
                     quantity = quantity
                 ))
                 return@forEach
@@ -1788,7 +1788,7 @@ class GameEngine @Inject constructor(
                     type = "seed",
                     itemId = itemId,
                     rarity = seed.rarity,
-                    price = (seed.basePrice * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).toInt(),
+                    price = GameConfig.Rarity.calculateSellPrice(seed.basePrice, 1).toInt(),
                     quantity = quantity
                 ))
                 return@forEach
