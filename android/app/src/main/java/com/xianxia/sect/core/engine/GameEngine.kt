@@ -1718,7 +1718,7 @@ class GameEngine @Inject constructor(
                     type = "equipment",
                     itemId = itemId,
                     rarity = eqStack.rarity,
-                    price = (eqStack.basePrice * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).toInt(),
+                    price = GameConfig.Rarity.calculateSellPrice(eqStack.basePrice, 1).toInt(),
                     quantity = quantity
                 ))
                 return@forEach
@@ -1964,16 +1964,12 @@ class GameEngine @Inject constructor(
         }
     }
 
-    private fun calculateSellPrice(basePrice: Int, quantity: Int): Long {
-        return (basePrice.toLong() * quantity * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).toLong()
-    }
-
     fun sellEquipment(equipmentId: String, quantity: Int = 1): Boolean {
         val stack = stateStore.equipmentStacks.value.find { it.id == equipmentId } ?: return false
         if (stack.isLocked) return false
         if (quantity < 1 || quantity > stack.quantity) return false
         if (!inventorySystem.removeEquipment(equipmentId, quantity)) return false
-        addSpiritStones(calculateSellPrice(stack.basePrice, quantity))
+        addSpiritStones(GameConfig.Rarity.calculateSellPrice(stack.basePrice, quantity))
         return true
     }
 
@@ -1982,7 +1978,7 @@ class GameEngine @Inject constructor(
         if (stack.isLocked) return false
         if (quantity < 1 || quantity > stack.quantity) return false
         if (!inventorySystem.removeManual(manualId, quantity)) return false
-        addSpiritStones(calculateSellPrice(stack.basePrice, quantity))
+        addSpiritStones(GameConfig.Rarity.calculateSellPrice(stack.basePrice, quantity))
         return true
     }
 
@@ -1991,7 +1987,7 @@ class GameEngine @Inject constructor(
         if (pill.isLocked) return false
         if (quantity < 1 || quantity > pill.quantity) return false
         if (!inventorySystem.removePill(pillId, quantity)) return false
-        addSpiritStones(calculateSellPrice(pill.basePrice, quantity))
+        addSpiritStones(GameConfig.Rarity.calculateSellPrice(pill.basePrice, quantity))
         return true
     }
 
@@ -2000,7 +1996,7 @@ class GameEngine @Inject constructor(
         if (material.isLocked) return false
         if (quantity < 1 || quantity > material.quantity) return false
         if (!inventorySystem.removeMaterial(materialId, quantity)) return false
-        addSpiritStones(calculateSellPrice(material.basePrice, quantity))
+        addSpiritStones(GameConfig.Rarity.calculateSellPrice(material.basePrice, quantity))
         return true
     }
 
@@ -2009,7 +2005,7 @@ class GameEngine @Inject constructor(
         if (herb.isLocked) return false
         if (quantity < 1 || quantity > herb.quantity) return false
         if (!inventorySystem.removeHerb(herbId, quantity)) return false
-        addSpiritStones(calculateSellPrice(herb.basePrice, quantity))
+        addSpiritStones(GameConfig.Rarity.calculateSellPrice(herb.basePrice, quantity))
         return true
     }
 
@@ -2018,7 +2014,7 @@ class GameEngine @Inject constructor(
         if (seed.isLocked) return false
         if (quantity < 1 || quantity > seed.quantity) return false
         if (!inventorySystem.removeSeed(seedId, quantity)) return false
-        addSpiritStones(calculateSellPrice(seed.basePrice, quantity))
+        addSpiritStones(GameConfig.Rarity.calculateSellPrice(seed.basePrice, quantity))
         return true
     }
 

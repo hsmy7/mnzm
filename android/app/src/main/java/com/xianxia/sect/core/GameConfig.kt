@@ -119,6 +119,10 @@ object GameConfig {
         const val PRICE_MULTIPLIER = 0.9
         const val SELL_PRICE_MULTIPLIER = 0.8
         
+        fun calculateSellPrice(basePrice: Int, quantity: Int): Long {
+            return (basePrice.toLong() * quantity * SELL_PRICE_MULTIPLIER).toLong()
+        }
+        
         fun getColor(rarity: Int): String = get(rarity).color
         
         fun getName(rarity: Int): String = get(rarity).name

@@ -28,7 +28,7 @@ data class ItemCardData(
     val type: String? = null,
     val stats: Map<String, Int> = emptyMap(),
     val additionalInfo: String? = null,
-    val price: Int = 0,
+    val price: Long = 0L,
     val grade: String? = null,
     val isLocked: Boolean = false
 )

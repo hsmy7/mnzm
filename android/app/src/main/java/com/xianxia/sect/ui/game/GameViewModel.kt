@@ -712,7 +712,7 @@ class GameViewModel @Inject constructor(
                         selectedRarities.contains(it.rarity) && 
                         !it.isLocked
                     }.forEach { item ->
-                        sellOperations.add(SuspendableSellOperation.Equipment(item.id, item.name, item.quantity, (item.basePrice.toLong() * item.quantity * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).toLong()))
+                        sellOperations.add(SuspendableSellOperation(item.id, item.name, item.quantity, GameConfig.Rarity.calculateSellPrice(item.basePrice, item.quantity), "equipment"))
                     }
                 }
 
@@ -721,7 +721,7 @@ class GameViewModel @Inject constructor(
                         selectedRarities.contains(it.rarity) && 
                         !it.isLocked
                     }.forEach { item ->
-                        sellOperations.add(SuspendableSellOperation.Manual(item.id, item.name, item.quantity, (item.basePrice.toLong() * item.quantity * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).toLong()))
+                        sellOperations.add(SuspendableSellOperation(item.id, item.name, item.quantity, GameConfig.Rarity.calculateSellPrice(item.basePrice, item.quantity), "manual"))
                     }
                 }
 
@@ -729,7 +729,7 @@ class GameViewModel @Inject constructor(
                     pills.value.filter { 
                         selectedRarities.contains(it.rarity) && !it.isLocked
                     }.forEach { item ->
-                        sellOperations.add(SuspendableSellOperation.Pill(item.id, item.name, item.quantity, (item.basePrice.toLong() * item.quantity * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).toLong()))
+                        sellOperations.add(SuspendableSellOperation(item.id, item.name, item.quantity, GameConfig.Rarity.calculateSellPrice(item.basePrice, item.quantity), "pill"))
                     }
                 }
 
@@ -737,7 +737,7 @@ class GameViewModel @Inject constructor(
                     materials.value.filter { 
                         selectedRarities.contains(it.rarity) && !it.isLocked
                     }.forEach { item ->
-                        sellOperations.add(SuspendableSellOperation.Material(item.id, item.name, item.quantity, (item.basePrice.toLong() * item.quantity * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).toLong()))
+                        sellOperations.add(SuspendableSellOperation(item.id, item.name, item.quantity, GameConfig.Rarity.calculateSellPrice(item.basePrice, item.quantity), "material"))
                     }
                 }
 
@@ -745,7 +745,7 @@ class GameViewModel @Inject constructor(
                     herbs.value.filter { 
                         selectedRarities.contains(it.rarity) && !it.isLocked
                     }.forEach { item ->
-                        sellOperations.add(SuspendableSellOperation.Herb(item.id, item.name, item.quantity, (item.basePrice.toLong() * item.quantity * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).toLong()))
+                        sellOperations.add(SuspendableSellOperation(item.id, item.name, item.quantity, GameConfig.Rarity.calculateSellPrice(item.basePrice, item.quantity), "herb"))
                     }
                 }
 
@@ -753,7 +753,7 @@ class GameViewModel @Inject constructor(
                     seeds.value.filter { 
                         selectedRarities.contains(it.rarity) && !it.isLocked
                     }.forEach { item ->
-                        sellOperations.add(SuspendableSellOperation.Seed(item.id, item.name, item.quantity, (item.basePrice.toLong() * item.quantity * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).toLong()))
+                        sellOperations.add(SuspendableSellOperation(item.id, item.name, item.quantity, GameConfig.Rarity.calculateSellPrice(item.basePrice, item.quantity), "seed"))
                     }
                 }
 
@@ -767,26 +767,7 @@ class GameViewModel @Inject constructor(
                 
                 try {
                     for (op in sellOperations) {
-                        val success = when (op) {
-                            is SuspendableSellOperation.Equipment -> {
-                                gameEngine.sellEquipment(op.id, op.quantity)
-                            }
-                            is SuspendableSellOperation.Manual -> {
-                                gameEngine.sellManual(op.id, op.quantity)
-                            }
-                            is SuspendableSellOperation.Pill -> {
-                                gameEngine.sellPill(op.id, op.quantity)
-                            }
-                            is SuspendableSellOperation.Material -> {
-                                gameEngine.sellMaterial(op.id, op.quantity)
-                            }
-                            is SuspendableSellOperation.Herb -> {
-                                gameEngine.sellHerb(op.id, op.quantity)
-                            }
-                            is SuspendableSellOperation.Seed -> {
-                                gameEngine.sellSeed(op.id, op.quantity)
-                            }
-                        }
+                        val success = sellItem(op.id, op.itemType, op.quantity)
                         
                         if (success) {
                             soldItems.add(op.displayName)
@@ -805,20 +786,14 @@ class GameViewModel @Inject constructor(
         }
     }
     
-    private sealed class SuspendableSellOperation {
-        abstract val id: String
-        abstract val name: String
-        abstract val quantity: Int
-        abstract val price: Long
-        
+    private data class SuspendableSellOperation(
+        val id: String,
+        val name: String,
+        val quantity: Int,
+        val price: Long,
+        val itemType: String
+    ) {
         val displayName: String get() = if (quantity > 1) "$name x$quantity" else name
-        
-        data class Equipment(override val id: String, override val name: String, override val quantity: Int, override val price: Long) : SuspendableSellOperation()
-        data class Manual(override val id: String, override val name: String, override val quantity: Int, override val price: Long) : SuspendableSellOperation()
-        data class Pill(override val id: String, override val name: String, override val quantity: Int, override val price: Long) : SuspendableSellOperation()
-        data class Material(override val id: String, override val name: String, override val quantity: Int, override val price: Long) : SuspendableSellOperation()
-        data class Herb(override val id: String, override val name: String, override val quantity: Int, override val price: Long) : SuspendableSellOperation()
-        data class Seed(override val id: String, override val name: String, override val quantity: Int, override val price: Long) : SuspendableSellOperation()
     }
 
     fun getEquipmentById(id: String): EquipmentInstance? {

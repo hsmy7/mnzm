@@ -371,7 +371,7 @@ private fun SellableItemRow(item: Any) {
     val rarity: Int
     val type: String
     val quantity: Int
-    val price: Int
+    val price: Long
 
     when (item) {
         is EquipmentStack -> {
@@ -379,42 +379,49 @@ private fun SellableItemRow(item: Any) {
             rarity = item.rarity
             type = "装备"
             quantity = item.quantity
-            price = (item.basePrice.toLong() * item.quantity * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).toInt()
+            price = GameConfig.Rarity.calculateSellPrice(item.basePrice, item.quantity)
         }
         is ManualStack -> {
             name = item.name
             rarity = item.rarity
             type = "功法"
             quantity = item.quantity
-            price = (item.basePrice.toLong() * item.quantity * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).toInt()
+            price = GameConfig.Rarity.calculateSellPrice(item.basePrice, item.quantity)
         }
         is Pill -> {
             name = item.name
             rarity = item.rarity
             type = "丹药"
             quantity = item.quantity
-            price = (item.basePrice.toLong() * item.quantity * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).toInt()
+            price = GameConfig.Rarity.calculateSellPrice(item.basePrice, item.quantity)
         }
         is Material -> {
             name = item.name
             rarity = item.rarity
             type = "材料"
             quantity = item.quantity
-            price = (item.basePrice.toLong() * item.quantity * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).toInt()
+            price = GameConfig.Rarity.calculateSellPrice(item.basePrice, item.quantity)
         }
         is Herb -> {
             name = item.name
             rarity = item.rarity
             type = "灵药"
             quantity = item.quantity
-            price = (item.basePrice.toLong() * item.quantity * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).toInt()
+            price = GameConfig.Rarity.calculateSellPrice(item.basePrice, item.quantity)
+        }
+        is Seed -> {
+            name = item.name
+            rarity = item.rarity
+            type = "种子"
+            quantity = item.quantity
+            price = GameConfig.Rarity.calculateSellPrice(item.basePrice, item.quantity)
         }
         else -> {
             name = "未知物品"
             rarity = 1
             type = "未知"
             quantity = 1
-            price = 0
+            price = 0L
         }
     }
 
@@ -636,21 +643,21 @@ internal fun BulkSellDialog(
                                     rarity = item.rarity,
                                     quantity = item.quantity,
                                     type = "装备",
-                                    price = (item.basePrice.toLong() * item.quantity * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).toInt()
+                                    price = GameConfig.Rarity.calculateSellPrice(item.basePrice, item.quantity)
                                 )
                                 is ManualStack -> ItemCardData(
                                     name = item.name,
                                     rarity = item.rarity,
                                     quantity = item.quantity,
                                     type = "功法",
-                                    price = (item.basePrice.toLong() * item.quantity * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).toInt()
+                                    price = GameConfig.Rarity.calculateSellPrice(item.basePrice, item.quantity)
                                 )
                                 is Pill -> ItemCardData(
                                     name = item.name,
                                     rarity = item.rarity,
                                     quantity = item.quantity,
                                     type = "丹药",
-                                    price = (item.basePrice.toLong() * item.quantity * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).toInt(),
+                                    price = GameConfig.Rarity.calculateSellPrice(item.basePrice, item.quantity),
                                     grade = item.grade.displayName
                                 )
                                 is Material -> ItemCardData(
@@ -658,21 +665,28 @@ internal fun BulkSellDialog(
                                     rarity = item.rarity,
                                     quantity = item.quantity,
                                     type = "材料",
-                                    price = (item.basePrice.toLong() * item.quantity * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).toInt()
+                                    price = GameConfig.Rarity.calculateSellPrice(item.basePrice, item.quantity)
                                 )
                                 is Herb -> ItemCardData(
                                     name = item.name,
                                     rarity = item.rarity,
                                     quantity = item.quantity,
                                     type = "灵药",
-                                    price = (item.basePrice.toLong() * item.quantity * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).toInt()
+                                    price = GameConfig.Rarity.calculateSellPrice(item.basePrice, item.quantity)
+                                )
+                                is Seed -> ItemCardData(
+                                    name = item.name,
+                                    rarity = item.rarity,
+                                    quantity = item.quantity,
+                                    type = "种子",
+                                    price = GameConfig.Rarity.calculateSellPrice(item.basePrice, item.quantity)
                                 )
                                 else -> ItemCardData(
                                     name = "未知物品",
                                     rarity = 1,
                                     quantity = 1,
                                     type = "未知",
-                                    price = 0
+                                    price = 0L
                                 )
                             }
                             UnifiedItemCard(
@@ -789,44 +803,44 @@ internal fun calculateBulkSellValue(
     var totalValue = 0L
 
     if (selectedTypes.contains(ItemType.EQUIPMENT)) {
-        equipment.filter { selectedRarities.contains(it.rarity) }.forEach {
+        equipment.filter { selectedRarities.contains(it.rarity) && !it.isLocked }.forEach {
             items.add(it)
-            totalValue += (it.basePrice.toLong() * it.quantity * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).toLong()
+            totalValue += GameConfig.Rarity.calculateSellPrice(it.basePrice, it.quantity)
         }
     }
 
     if (selectedTypes.contains(ItemType.MANUAL)) {
-        manuals.filter { selectedRarities.contains(it.rarity) }.forEach {
+        manuals.filter { selectedRarities.contains(it.rarity) && !it.isLocked }.forEach {
             items.add(it)
-            totalValue += (it.basePrice.toLong() * it.quantity * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).toLong()
+            totalValue += GameConfig.Rarity.calculateSellPrice(it.basePrice, it.quantity)
         }
     }
 
     if (selectedTypes.contains(ItemType.PILL)) {
-        pills.filter { selectedRarities.contains(it.rarity) }.forEach {
+        pills.filter { selectedRarities.contains(it.rarity) && !it.isLocked }.forEach {
             items.add(it)
-            totalValue += (it.basePrice.toLong() * it.quantity * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).toLong()
+            totalValue += GameConfig.Rarity.calculateSellPrice(it.basePrice, it.quantity)
         }
     }
 
     if (selectedTypes.contains(ItemType.MATERIAL)) {
-        materials.filter { selectedRarities.contains(it.rarity) }.forEach {
+        materials.filter { selectedRarities.contains(it.rarity) && !it.isLocked }.forEach {
             items.add(it)
-            totalValue += (it.basePrice.toLong() * it.quantity * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).toLong()
+            totalValue += GameConfig.Rarity.calculateSellPrice(it.basePrice, it.quantity)
         }
     }
 
     if (selectedTypes.contains(ItemType.HERB)) {
-        herbs.filter { selectedRarities.contains(it.rarity) }.forEach {
+        herbs.filter { selectedRarities.contains(it.rarity) && !it.isLocked }.forEach {
             items.add(it)
-            totalValue += (it.basePrice.toLong() * it.quantity * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).toLong()
+            totalValue += GameConfig.Rarity.calculateSellPrice(it.basePrice, it.quantity)
         }
     }
 
     if (selectedTypes.contains(ItemType.SEED)) {
-        seeds.filter { selectedRarities.contains(it.rarity) }.forEach {
+        seeds.filter { selectedRarities.contains(it.rarity) && !it.isLocked }.forEach {
             items.add(it)
-            totalValue += (it.basePrice.toLong() * it.quantity * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).toLong()
+            totalValue += GameConfig.Rarity.calculateSellPrice(it.basePrice, it.quantity)
         }
     }
 

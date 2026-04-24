@@ -4350,7 +4350,7 @@ private fun SellConfirmDialog(
         }
     }
 
-    val totalPrice = (basePrice.toLong() * sellQuantity * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).toLong()
+    val totalPrice = GameConfig.Rarity.calculateSellPrice(basePrice, sellQuantity)
 
     LaunchedEffect(isEditingQuantity) {
         if (isEditingQuantity) {
@@ -4534,7 +4534,7 @@ private fun SellConfirmDialog(
                         color = Color(0xFF666666)
                     )
                     Text(
-                        text = "${(basePrice.toLong() * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).toLong()} 灵石",
+                        text = "${GameConfig.Rarity.calculateSellPrice(basePrice, 1)} 灵石",
                         fontSize = 12.sp,
                         color = Color(0xFF666666)
                     )
@@ -4591,16 +4591,9 @@ private fun BulkSellDialog(
     val herbs by viewModel.herbs.collectAsState()
     val seeds by viewModel.seeds.collectAsState()
     
-    val equipment = remember(equipmentStacks) {
-        equipmentStacks
-    }
-    
-    val manuals = remember(manualStacks) {
-        manualStacks
-    }
-    
     var selectedRarities by remember { mutableStateOf<Set<Int>>(emptySet()) }
     var selectedTypes by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var showConfirmDialog by remember { mutableStateOf(false) }
     
     // 使用游戏中的品阶名称：凡品、灵品、宝品、玄品、地品、天品
     val rarityOptions = listOf(
@@ -4632,15 +4625,15 @@ private fun BulkSellDialog(
         }
     }
     
-    val sellableEquipment = remember(equipment, selectedRarities, finalTypes) {
+    val sellableEquipment = remember(equipmentStacks, selectedRarities, finalTypes) {
         if (selectedRarities.isNotEmpty() && finalTypes.contains("EQUIPMENT")) {
-            equipment.filter { selectedRarities.contains(it.rarity) && !it.isLocked }
+            equipmentStacks.filter { selectedRarities.contains(it.rarity) && !it.isLocked }
         } else emptyList()
     }
     
-    val sellableManuals = remember(manuals, selectedRarities, finalTypes) {
+    val sellableManuals = remember(manualStacks, selectedRarities, finalTypes) {
         if (selectedRarities.isNotEmpty() && finalTypes.contains("MANUAL")) {
-            manuals.filter { selectedRarities.contains(it.rarity) && !it.isLocked }
+            manualStacks.filter { selectedRarities.contains(it.rarity) && !it.isLocked }
         } else emptyList()
     }
     
@@ -4670,6 +4663,13 @@ private fun BulkSellDialog(
     
     val totalItems = sellableEquipment.size + sellableManuals.size + sellablePills.size +
             sellableMaterials.size + sellableHerbs.size + sellableSeeds.size
+
+    val totalValue = sellableEquipment.sumOf { GameConfig.Rarity.calculateSellPrice(it.basePrice, it.quantity) } +
+            sellableManuals.sumOf { GameConfig.Rarity.calculateSellPrice(it.basePrice, it.quantity) } +
+            sellablePills.sumOf { GameConfig.Rarity.calculateSellPrice(it.basePrice, it.quantity) } +
+            sellableMaterials.sumOf { GameConfig.Rarity.calculateSellPrice(it.basePrice, it.quantity) } +
+            sellableHerbs.sumOf { GameConfig.Rarity.calculateSellPrice(it.basePrice, it.quantity) } +
+            sellableSeeds.sumOf { GameConfig.Rarity.calculateSellPrice(it.basePrice, it.quantity) }
     
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -5018,8 +5018,7 @@ private fun BulkSellDialog(
                             .then(
                                 if (totalItems > 0) {
                                     Modifier.clickable {
-                                        viewModel.bulkSellItems(selectedRarities, finalTypes)
-                                        onDismiss()
+                                        showConfirmDialog = true
                                     }
                                 } else {
                                     Modifier
@@ -5037,6 +5036,63 @@ private fun BulkSellDialog(
                 }
             }
         }
+    }
+
+    if (showConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showConfirmDialog = false },
+            containerColor = GameColors.PageBackground,
+            title = {
+                Text(
+                    text = "确认出售",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "确定要出售以下物品吗？",
+                        fontSize = 12.sp,
+                        color = Color.Black
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "物品数量: ${totalItems} 件",
+                        fontSize = 12.sp,
+                        color = Color(0xFF666666)
+                    )
+                    Text(
+                        text = "获得灵石: $totalValue（原价80%）",
+                        fontSize = 12.sp,
+                        color = GameColors.Success
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "此操作不可撤销！",
+                        fontSize = 11.sp,
+                        color = GameColors.Error
+                    )
+                }
+            },
+            confirmButton = {
+                GameButton(
+                    text = "确认出售",
+                    onClick = {
+                        viewModel.bulkSellItems(selectedRarities, finalTypes)
+                        showConfirmDialog = false
+                        onDismiss()
+                    }
+                )
+            },
+            dismissButton = {
+                GameButton(
+                    text = "取消",
+                    onClick = { showConfirmDialog = false }
+                )
+            }
+        )
     }
 }
 

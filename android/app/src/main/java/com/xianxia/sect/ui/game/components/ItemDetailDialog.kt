@@ -1287,15 +1287,15 @@ private fun getStorageBagItemEffects(item: StorageBagItem): List<String> = build
             } else {
                 item.effect?.let { effect ->
                     add("属性:")
-                    if (effect.physicalAttackAdd > 0) add("  物理攻击 +${effect.physicalAttackAdd}")
+                    if (effect.physicalAttackAdd > 0) { add("  物理攻击 +${effect.physicalAttackAdd}") }
                     if (effect.magicAttackAdd > 0) { add("  法术攻击 +${effect.magicAttackAdd}") }
-                    if (effect.physicalDefenseAdd > 0) add("  物理防御 +${effect.physicalDefenseAdd}")
-                    if (effect.magicDefenseAdd > 0) add("  法术防御 +${effect.magicDefenseAdd}")
-                    if (effect.hpAdd > 0) add("  生命 +${effect.hpAdd}")
-                    if (effect.mpAdd > 0) add("  灵力 +${effect.mpAdd}")
-                    if (effect.speedAdd > 0) add("  速度 +${effect.speedAdd}")
-                    if (effect.critRateAdd > 0) add("  暴击率 +${GameUtils.formatPercent(effect.critRateAdd)}")
-                    if (effect.critEffectAdd > 0) add("  暴击效果 +${GameUtils.formatPercent(effect.critEffectAdd)}")
+                    if (effect.physicalDefenseAdd > 0) { add("  物理防御 +${effect.physicalDefenseAdd}") }
+                    if (effect.magicDefenseAdd > 0) { add("  法术防御 +${effect.magicDefenseAdd}") }
+                    if (effect.hpAdd > 0) { add("  生命 +${effect.hpAdd}") }
+                    if (effect.mpAdd > 0) { add("  灵力 +${effect.mpAdd}") }
+                    if (effect.speedAdd > 0) { add("  速度 +${effect.speedAdd}") }
+                    if (effect.critRateAdd > 0) { add("  暴击率 +${GameUtils.formatPercent(effect.critRateAdd)}") }
+                    if (effect.critEffectAdd > 0) { add("  暴击效果 +${GameUtils.formatPercent(effect.critEffectAdd)}") }
                 }
             }
         }
@@ -1458,15 +1458,15 @@ private fun getStorageBagItemEffects(item: StorageBagItem): List<String> = build
         else -> {
             item.effect?.let { effect ->
                 add("效果:")
-                if (effect.cultivationSpeedPercent > 0) add("  修炼速度 +${GameUtils.formatPercent(effect.cultivationSpeedPercent)}")
-                if (effect.cultivationAdd > 0) add("  修为 +${effect.cultivationAdd}")
-                if (effect.hpAdd > 0) add("  生命 +${effect.hpAdd}")
-                if (effect.mpAdd > 0) add("  灵力 +${effect.mpAdd}")
-                if (effect.physicalAttackAdd > 0) add("  物理攻击 +${effect.physicalAttackAdd}")
+                if (effect.cultivationSpeedPercent > 0) { add("  修炼速度 +${GameUtils.formatPercent(effect.cultivationSpeedPercent)}") }
+                if (effect.cultivationAdd > 0) { add("  修为 +${effect.cultivationAdd}") }
+                if (effect.hpAdd > 0) { add("  生命 +${effect.hpAdd}") }
+                if (effect.mpAdd > 0) { add("  灵力 +${effect.mpAdd}") }
+                if (effect.physicalAttackAdd > 0) { add("  物理攻击 +${effect.physicalAttackAdd}") }
                 if (effect.magicAttackAdd > 0) { add("  法术攻击 +${effect.magicAttackAdd}") }
-                if (effect.physicalDefenseAdd > 0) add("  物理防御 +${effect.physicalDefenseAdd}")
-                if (effect.magicDefenseAdd > 0) add("  法术防御 +${effect.magicDefenseAdd}")
-                if (effect.speedAdd > 0) add("  速度 +${effect.speedAdd}")
+                if (effect.physicalDefenseAdd > 0) { add("  物理防御 +${effect.physicalDefenseAdd}") }
+                if (effect.magicDefenseAdd > 0) { add("  法术防御 +${effect.magicDefenseAdd}") }
+                if (effect.speedAdd > 0) { add("  速度 +${effect.speedAdd}") }
             }
         }
     }

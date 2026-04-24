@@ -15,6 +15,10 @@
 - 统一技能作用范围显示使用英文冒号格式
 - 修复储物袋丹药effect为null时addPillRecipeInfo仍被调用的问题
 - 显式处理pillCategory空字符串情况
+- 修复Compose AutoboxingStateCreation lint警告：mutableStateOf(1)改为mutableIntStateOf(1)避免Int装箱
+- 修复SuspiciousIndentation lint错误：ItemDetailDialog属性展示if语句添加大括号消除歧义
+- 批量出售对话框新增确认弹窗，显示物品数量和获得灵石
+- 出售价格计算统一使用GameConfig.Rarity.calculateSellPrice方法
 
 ## [2.4.12] - 2026-04-24
 
