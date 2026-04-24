@@ -264,9 +264,9 @@ object HerbDatabase {
         return when {
             seedName.contains("草种") -> seedName.replace("草种", "草")
             seedName.contains("花种") -> seedName.replace("花种", "花")
+            seedName.contains("果核") -> seedName.replace("果核", "果")
             seedName.contains("种") -> seedName.replace("种", "")
             seedName.contains("核") -> seedName.replace("核", "")
-            seedName.contains("果核") -> seedName.replace("果核", "果")
             else -> seedName
         }
     }

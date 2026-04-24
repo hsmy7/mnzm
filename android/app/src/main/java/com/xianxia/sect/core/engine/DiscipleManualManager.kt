@@ -6,6 +6,8 @@ import com.xianxia.sect.core.util.StorageBagUtils
 
 object DiscipleManualManager {
 
+    private const val MAX_MANUAL_STACK = 999
+
     data class ManualLearnResult(
         val disciple: Disciple,
         val newInstance: ManualInstance?,
@@ -21,6 +23,7 @@ object DiscipleManualManager {
         manualInstances: Map<String, ManualInstance>,
         gameYear: Int,
         gameMonth: Int,
+        maxStack: Int = MAX_MANUAL_STACK,
         instantMessage: Boolean = false
     ): ManualLearnResult {
         val events = mutableListOf<String>()
@@ -60,6 +63,7 @@ object DiscipleManualManager {
                         manualStacks = manualStacks,
                         gameYear = gameYear,
                         gameMonth = gameMonth,
+                        maxStack = maxStack,
                         instantMessage = instantMessage
                     )
                     if (replaceResult.newInstance != null) {
@@ -105,6 +109,7 @@ object DiscipleManualManager {
                             manualStacks = manualStacks,
                             gameYear = gameYear,
                             gameMonth = gameMonth,
+                            maxStack = maxStack,
                             instantMessage = instantMessage
                         )
                         if (replaceResult.newInstance != null) {
@@ -164,6 +169,7 @@ object DiscipleManualManager {
         manualStacks: List<ManualStack>,
         gameYear: Int,
         gameMonth: Int,
+        maxStack: Int,
         instantMessage: Boolean
     ): ManualLearnResult {
         val events = mutableListOf<String>()
@@ -187,7 +193,8 @@ object DiscipleManualManager {
         val storageItemId: String
 
         if (existingBagStack != null) {
-            replacedManualStack = existingBagStack.copy(quantity = existingBagStack.quantity + 1)
+            val mergedQty = (existingBagStack.quantity + 1).coerceAtMost(maxStack)
+            replacedManualStack = existingBagStack.copy(quantity = mergedQty)
             storageItemId = existingBagStack.id
         } else {
             replacedManualStack = oldStack
@@ -206,7 +213,7 @@ object DiscipleManualManager {
             forgetMonth = gameMonth
         )
         updatedDisciple = updatedDisciple.copyWith(
-            storageBagItems = StorageBagUtils.increaseItemQuantity(updatedDisciple.storageBagItems, storageItem)
+            storageBagItems = StorageBagUtils.increaseItemQuantity(updatedDisciple.storageBagItems, storageItem, maxStack)
                 .map { bagItem ->
                     if (bagItem.itemId == storageItemId && bagItem.itemType == "manual_stack") {
                         bagItem.copy(forgetYear = gameYear, forgetMonth = gameMonth)

@@ -871,7 +871,8 @@ class CultivationService @Inject constructor(
                 equipmentStacks = equipmentStacksList,
                 equipmentInstances = equipmentInstancesMap,
                 gameYear = year,
-                gameMonth = month
+                gameMonth = month,
+                maxStack = inventoryConfig.getMaxStackSize("equipment_stack")
             )
             if (equipResult.newInstances.isNotEmpty()) {
                 updatedDisciple = equipResult.disciple
@@ -892,8 +893,9 @@ class CultivationService @Inject constructor(
                 equipResult.replacedEquipmentStacks.forEach { replacedStack ->
                     val existingStack = currentEquipmentStacks.find { it.id == replacedStack.id }
                     if (existingStack != null) {
+                        val maxStack = inventoryConfig.getMaxStackSize("equipment_stack")
                         currentEquipmentStacks = currentEquipmentStacks.map {
-                            if (it.id == replacedStack.id) it.copy(quantity = it.quantity + 1) else it
+                            if (it.id == replacedStack.id) it.copy(quantity = (it.quantity + 1).coerceAtMost(maxStack)) else it
                         }
                     } else {
                         currentEquipmentStacks = currentEquipmentStacks + replacedStack
@@ -907,7 +909,8 @@ class CultivationService @Inject constructor(
                 manualStacks = manualStacksList,
                 manualInstances = manualInstancesMap,
                 gameYear = year,
-                gameMonth = month
+                gameMonth = month,
+                maxStack = inventoryConfig.getMaxStackSize("manual_stack")
             )
             if (manualResult.newInstance != null) {
                 updatedDisciple = manualResult.disciple
@@ -939,8 +942,9 @@ class CultivationService @Inject constructor(
                 manualResult.replacedManualStack?.let { replacedStack ->
                     val existingStack = currentManualStacks.find { it.id == replacedStack.id }
                     if (existingStack != null) {
+                        val maxStack = inventoryConfig.getMaxStackSize("manual_stack")
                         currentManualStacks = currentManualStacks.map {
-                            if (it.id == replacedStack.id) it.copy(quantity = it.quantity + 1) else it
+                            if (it.id == replacedStack.id) it.copy(quantity = (it.quantity + 1).coerceAtMost(maxStack)) else it
                         }
                     } else {
                         currentManualStacks = currentManualStacks + replacedStack

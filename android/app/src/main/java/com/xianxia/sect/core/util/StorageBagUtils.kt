@@ -38,7 +38,8 @@ object StorageBagUtils {
     
     fun increaseItemQuantity(
         items: List<StorageBagItem>,
-        item: StorageBagItem
+        item: StorageBagItem,
+        maxStack: Int = Int.MAX_VALUE
     ): List<StorageBagItem> {
         val mutableItems = items.toMutableList()
         val existingIndex = mutableItems.indexOfFirst { 
@@ -48,10 +49,10 @@ object StorageBagUtils {
         if (existingIndex >= 0) {
             val existing = mutableItems[existingIndex]
             mutableItems[existingIndex] = existing.copy(
-                quantity = existing.quantity + item.quantity
+                quantity = (existing.quantity + item.quantity).coerceAtMost(maxStack)
             )
         } else {
-            mutableItems.add(item)
+            mutableItems.add(item.copy(quantity = item.quantity.coerceAtMost(maxStack)))
         }
         
         return mutableItems.toList()
@@ -85,8 +86,8 @@ object StorageBagUtils {
 fun List<StorageBagItem>.decreaseItem(itemId: String, amount: Int = 1): List<StorageBagItem> =
     StorageBagUtils.decreaseItemQuantity(this, itemId, amount)
 
-fun List<StorageBagItem>.increaseItem(item: StorageBagItem): List<StorageBagItem> =
-    StorageBagUtils.increaseItemQuantity(this, item)
+fun List<StorageBagItem>.increaseItem(item: StorageBagItem, maxStack: Int = Int.MAX_VALUE): List<StorageBagItem> =
+    StorageBagUtils.increaseItemQuantity(this, item, maxStack)
 
 fun List<StorageBagItem>.hasItem(itemId: String, amount: Int = 1): Boolean =
     StorageBagUtils.hasEnoughItems(this, itemId, amount)

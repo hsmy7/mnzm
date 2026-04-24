@@ -6,6 +6,8 @@ import com.xianxia.sect.core.util.StorageBagUtils
 
 object DiscipleEquipmentManager {
 
+    private const val MAX_EQUIPMENT_STACK = 999
+
     data class EquipmentProcessResult(
         val disciple: Disciple,
         val newInstances: List<EquipmentInstance>,
@@ -50,6 +52,7 @@ object DiscipleEquipmentManager {
         equipmentInstances: Map<String, EquipmentInstance>,
         gameYear: Int,
         gameMonth: Int,
+        maxStack: Int = MAX_EQUIPMENT_STACK,
         instantMessage: Boolean = false
     ): EquipmentProcessResult {
         val events = mutableListOf<String>()
@@ -59,7 +62,7 @@ object DiscipleEquipmentManager {
         val allStackUpdates = mutableListOf<StackUpdate>()
         val allReplacedStacks = mutableListOf<EquipmentStack>()
 
-        val bagStackRefs = disciple.storageBagItems
+        val bagStackRefs = updatedDisciple.storageBagItems
             .filter { it.itemType == "equipment_stack" && !StorageBagUtils.isInCoolingPeriod(it, gameYear, gameMonth) }
 
         if (bagStackRefs.isEmpty()) {
@@ -75,6 +78,7 @@ object DiscipleEquipmentManager {
                 bagStackRefs = bagStackRefs,
                 gameYear = gameYear,
                 gameMonth = gameMonth,
+                maxStack = maxStack,
                 instantMessage = instantMessage
             )
 
@@ -99,6 +103,7 @@ object DiscipleEquipmentManager {
         bagStackRefs: List<StorageBagItem>,
         gameYear: Int,
         gameMonth: Int,
+        maxStack: Int,
         instantMessage: Boolean
     ): EquipmentProcessResult {
         val events = mutableListOf<String>()
@@ -132,7 +137,7 @@ object DiscipleEquipmentManager {
 
             val oldStack = oldInstance.toStack(quantity = 1)
 
-            val bagStackIds = disciple.storageBagItems
+            val bagStackIds = updatedDisciple.storageBagItems
                 .filter { it.itemType == "equipment_stack" }
                 .map { it.itemId }
                 .toSet()
@@ -143,7 +148,8 @@ object DiscipleEquipmentManager {
 
             val storageItemId: String
             if (existingBagStack != null) {
-                replacedStacks.add(existingBagStack.copy(quantity = existingBagStack.quantity + 1))
+                val mergedQty = (existingBagStack.quantity + 1).coerceAtMost(maxStack)
+                replacedStacks.add(existingBagStack.copy(quantity = mergedQty))
                 storageItemId = existingBagStack.id
             } else {
                 replacedStacks.add(oldStack)
@@ -162,7 +168,7 @@ object DiscipleEquipmentManager {
                 forgetMonth = gameMonth
             )
             updatedDisciple = updatedDisciple.copyWith(
-                storageBagItems = StorageBagUtils.increaseItemQuantity(updatedDisciple.storageBagItems, storageItem)
+                storageBagItems = StorageBagUtils.increaseItemQuantity(updatedDisciple.storageBagItems, storageItem, maxStack)
                     .map { bagItem ->
                         if (bagItem.itemId == storageItemId && bagItem.itemType == "equipment_stack") {
                             bagItem.copy(forgetYear = gameYear, forgetMonth = gameMonth)

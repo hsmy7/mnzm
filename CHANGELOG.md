@@ -1,5 +1,12 @@
 # 模拟宗门 - 更新日志
 
+## [2.4.11] - 2026-04-24
+
+### 修复
+- 修复栈合并时缺少maxStack截断检查，可能导致栈数量超过上限（7个位置）
+- 修复DiscipleEquipmentManager.processSlot中bagStackIds使用原始disciple而非更新后的disciple
+- 修复ItemDetailDialog.kt缺少ItemDatabase import导致编译错误
+
 ## [2.4.10] - 2026-04-24
 
 ### 新增

@@ -1083,7 +1083,8 @@ class GameEngine @Inject constructor(
                                                 obtainedMonth = gameData.gameMonth,
                                                 forgetYear = gameData.gameYear,
                                                 forgetMonth = gameData.gameMonth
-                                            )
+                                            ),
+                                            inventoryConfig.getMaxStackSize("equipment_stack")
                                         ).map { bagItem ->
                                             if (bagItem.itemId == storageItemId && bagItem.itemType == "equipment_stack") {
                                                 bagItem.copy(forgetYear = gameData.gameYear, forgetMonth = gameData.gameMonth)
@@ -1163,7 +1164,8 @@ class GameEngine @Inject constructor(
                                                 quantity = 1,
                                                 obtainedYear = gameData.gameYear,
                                                 obtainedMonth = gameData.gameMonth
-                                            )
+                                            ),
+                                            inventoryConfig.getMaxStackSize("equipment_stack")
                                         )
                                     )
                                 } else d
@@ -1228,8 +1230,9 @@ class GameEngine @Inject constructor(
 
                             val storageItemId: String
                             if (existingBagStack != null) {
+                                val maxStack = inventoryConfig.getMaxStackSize("manual_stack")
                                 manualStacks = manualStacks.map {
-                                    if (it.id == existingBagStack.id) it.copy(quantity = it.quantity + 1) else it
+                                    if (it.id == existingBagStack.id) it.copy(quantity = (it.quantity + 1).coerceAtMost(maxStack)) else it
                                 }
                                 storageItemId = existingBagStack.id
                             } else {
@@ -1251,7 +1254,8 @@ class GameEngine @Inject constructor(
                                                 quantity = 1,
                                                 obtainedYear = gameData.gameYear,
                                                 obtainedMonth = gameData.gameMonth
-                                            )
+                                            ),
+                                            inventoryConfig.getMaxStackSize("manual_stack")
                                         )
                                     )
                                 } else it
@@ -1284,7 +1288,8 @@ class GameEngine @Inject constructor(
                                     d.copyWith(
                                         storageBagItems = StorageBagUtils.increaseItemQuantity(
                                             d.storageBagItems,
-                                            pillItem
+                                            pillItem,
+                                            inventoryConfig.getMaxStackSize("pill")
                                         )
                                     )
                                 }
@@ -1306,7 +1311,8 @@ class GameEngine @Inject constructor(
                                         quantity = quantity,
                                         obtainedYear = data.gameYear,
                                         obtainedMonth = data.gameMonth
-                                    )
+                                    ),
+                                    inventoryConfig.getMaxStackSize("material")
                                 )
                             )
                         }
@@ -1326,7 +1332,8 @@ class GameEngine @Inject constructor(
                                         quantity = quantity,
                                         obtainedYear = data.gameYear,
                                         obtainedMonth = data.gameMonth
-                                    )
+                                    ),
+                                    inventoryConfig.getMaxStackSize("herb")
                                 )
                             )
                         }
@@ -1346,7 +1353,8 @@ class GameEngine @Inject constructor(
                                         quantity = quantity,
                                         obtainedYear = data.gameYear,
                                         obtainedMonth = data.gameMonth
-                                    )
+                                    ),
+                                    inventoryConfig.getMaxStackSize("seed")
                                 )
                             )
                         }
@@ -1401,8 +1409,9 @@ class GameEngine @Inject constructor(
                 it.name == instance.name && it.rarity == instance.rarity && it.type == instance.type && it.id in bagStackIds
             }
             if (existingStack != null) {
+                val maxStack = inventoryConfig.getMaxStackSize("manual_stack")
                 manualStacks = manualStacks.map {
-                    if (it.id == existingStack.id) it.copy(quantity = it.quantity + 1) else it
+                    if (it.id == existingStack.id) it.copy(quantity = (it.quantity + 1).coerceAtMost(maxStack)) else it
                 }
                 disciples = disciples.map {
                     if (it.id == discipleId) {
@@ -1419,7 +1428,7 @@ class GameEngine @Inject constructor(
                         )
                         it.copyWith(
                             manualIds = it.manualIds.filter { mid -> mid != instanceId },
-                            storageBagItems = StorageBagUtils.increaseItemQuantity(it.storageBagItems, storageItem)
+                            storageBagItems = StorageBagUtils.increaseItemQuantity(it.storageBagItems, storageItem, maxStack)
                                 .map { bagItem ->
                                     if (bagItem.itemId == existingStack.id && bagItem.itemType == "manual_stack") {
                                         bagItem.copy(forgetYear = data.gameYear, forgetMonth = data.gameMonth)
@@ -1446,7 +1455,7 @@ class GameEngine @Inject constructor(
                         )
                         it.copyWith(
                             manualIds = it.manualIds.filter { mid -> mid != instanceId },
-                            storageBagItems = StorageBagUtils.increaseItemQuantity(it.storageBagItems, storageItem)
+                            storageBagItems = StorageBagUtils.increaseItemQuantity(it.storageBagItems, storageItem, inventoryConfig.getMaxStackSize("manual_stack"))
                         )
                     } else it
                 }
@@ -1491,8 +1500,9 @@ class GameEngine @Inject constructor(
             val storageItemId: String
 
             if (existingStack != null) {
+                val maxStack = inventoryConfig.getMaxStackSize("manual_stack")
                 manualStacks = manualStacks.map {
-                    if (it.id == existingStack.id) it.copy(quantity = it.quantity + 1) else it
+                    if (it.id == existingStack.id) it.copy(quantity = (it.quantity + 1).coerceAtMost(maxStack)) else it
                 }
                 storageItemId = existingStack.id
             } else {
@@ -1541,7 +1551,7 @@ class GameEngine @Inject constructor(
                 if (it.id == discipleId) {
                     it.copyWith(
                         manualIds = (it.manualIds.filter { mid -> mid != oldInstanceId }) + newInstance.id,
-                        storageBagItems = StorageBagUtils.increaseItemQuantity(it.storageBagItems, storageItem)
+                        storageBagItems = StorageBagUtils.increaseItemQuantity(it.storageBagItems, storageItem, inventoryConfig.getMaxStackSize("manual_stack"))
                             .map { bagItem ->
                                 if (bagItem.itemId == storageItemId && bagItem.itemType == "manual_stack") {
                                     bagItem.copy(forgetYear = data.gameYear, forgetMonth = data.gameMonth)
