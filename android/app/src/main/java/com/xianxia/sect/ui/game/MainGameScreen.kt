@@ -4338,7 +4338,7 @@ private fun SellConfirmDialog(
     onConfirm: (Int) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var sellQuantity by remember { mutableStateOf(1) }
+    var sellQuantity by remember { mutableIntStateOf(1) }
     var isEditingQuantity by remember { mutableStateOf(false) }
     var quantityInput by remember { mutableStateOf("1") }
     val focusRequester = remember { androidx.compose.ui.focus.FocusRequester() }

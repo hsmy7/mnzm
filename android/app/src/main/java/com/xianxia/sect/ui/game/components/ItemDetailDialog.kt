@@ -460,6 +460,13 @@ private fun ManualStatsContent(
                 color = Color(0xFF666666)
             )
         }
+        if (skill.targetScope == "team") {
+            Text(
+                text = "作用范围: 全队",
+                fontSize = 10.sp,
+                color = Color(0xFF666666)
+            )
+        }
         if (skill.healPercent > 0) {
             val healTypeName = when (skill.healType) {
                 com.xianxia.sect.core.HealType.HP -> "生命"
@@ -539,7 +546,7 @@ private fun getEquipmentStackEffects(item: EquipmentStack): List<String> = build
     if (item.speed > 0) add("  速度 +${item.speed}")
     if (item.hp > 0) add("  生命 +${item.hp}")
     if (item.mp > 0) add("  灵力 +${item.mp}")
-    if (item.critChance > 0) add("  暴击率 +${String.format(Locale.getDefault(), "%.1f", item.critChance * 100)}%")
+    if (item.critChance > 0) add("  暴击率 +${GameUtils.formatPercent(item.critChance)}")
 
     addForgeMaterialsInfo(item.name)
 }
@@ -597,7 +604,7 @@ private fun getEquipmentEffects(item: EquipmentInstance): List<String> = buildLi
         val bonusText = if (bonus > 0) " (↑$bonus)" else ""
         add("  灵力 +${finalStats.mp}$bonusText")
     }
-    if (item.critChance > 0) add("  暴击率 +${String.format(Locale.getDefault(), "%.1f", item.critChance * 100)}%")
+    if (item.critChance > 0) add("  暴击率 +${GameUtils.formatPercent(item.critChance)}")
 
     addForgeMaterialsInfo(item.name)
 }
@@ -761,7 +768,7 @@ private fun getPillEffects(item: Pill): List<String> = buildList {
     when (item.category) {
         PillCategory.FUNCTIONAL -> {
             if (item.breakthroughChance > 0) {
-                add("  突破概率 +${String.format(Locale.getDefault(), "%.1f", item.breakthroughChance * 100)}%")
+                add("  突破概率 +${GameUtils.formatPercent(item.breakthroughChance)}")
             }
             if (item.targetRealm > 0) {
                 add("  目标境界: ${GameConfig.Realm.getName(item.targetRealm)}")
@@ -779,8 +786,8 @@ private fun getPillEffects(item: Pill): List<String> = buildList {
             if (item.spiritPlantingAdd > 0) add("  灵植 +${item.spiritPlantingAdd}")
             if (item.teachingAdd > 0) add("  教导 +${item.teachingAdd}")
             if (item.moralityAdd > 0) add("  道德 +${item.moralityAdd}")
-            if (item.healMaxHpPercent > 0) add("  恢复生命 ${String.format(Locale.getDefault(), "%.1f", item.healMaxHpPercent * 100)}% 最大生命")
-            if (item.mpRecoverMaxMpPercent > 0) add("  恢复灵力 ${String.format(Locale.getDefault(), "%.1f", item.mpRecoverMaxMpPercent * 100)}% 最大灵力")
+            if (item.healMaxHpPercent > 0) add("  恢复生命 ${GameUtils.formatPercent(item.healMaxHpPercent)} 最大生命")
+            if (item.mpRecoverMaxMpPercent > 0) add("  恢复灵力 ${GameUtils.formatPercent(item.mpRecoverMaxMpPercent)} 最大灵力")
             if (item.revive) add("  可复活弟子")
             if (item.clearAll) add("  清除所有负面状态")
             if (item.hpAdd > 0) add("  生命 +${item.hpAdd}")
@@ -792,14 +799,14 @@ private fun getPillEffects(item: Pill): List<String> = buildList {
             if (item.speedAdd > 0) add("  速度 +${item.speedAdd}")
         }
         PillCategory.CULTIVATION -> {
-            if (item.cultivationSpeedPercent > 0) add("  修炼速度 +${String.format(Locale.getDefault(), "%.1f", item.cultivationSpeedPercent * 100)}%")
-            if (item.skillExpSpeedPercent > 0) add("  功法熟练度速度 +${String.format(Locale.getDefault(), "%.1f", item.skillExpSpeedPercent * 100)}%")
-            if (item.nurtureSpeedPercent > 0) add("  孕养速度 +${String.format(Locale.getDefault(), "%.1f", item.nurtureSpeedPercent * 100)}%")
+            if (item.cultivationSpeedPercent > 0) add("  修炼速度 +${GameUtils.formatPercent(item.cultivationSpeedPercent)}")
+            if (item.skillExpSpeedPercent > 0) add("  功法熟练度速度 +${GameUtils.formatPercent(item.skillExpSpeedPercent)}")
+            if (item.nurtureSpeedPercent > 0) add("  孕养速度 +${GameUtils.formatPercent(item.nurtureSpeedPercent)}")
             if (item.cultivationAdd > 0) add("  修为 +${item.cultivationAdd}")
             if (item.skillExpAdd > 0) add("  功法熟练度 +${item.skillExpAdd}")
             if (item.nurtureAdd > 0) add("  孕养值 +${item.nurtureAdd}")
             if (item.breakthroughChance > 0) {
-                add("  突破概率 +${String.format(Locale.getDefault(), "%.1f", item.breakthroughChance * 100)}%")
+                add("  突破概率 +${GameUtils.formatPercent(item.breakthroughChance)}")
             }
             if (item.targetRealm > 0) {
                 add("  目标境界: ${GameConfig.Realm.getName(item.targetRealm)}")
@@ -816,8 +823,8 @@ private fun getPillEffects(item: Pill): List<String> = buildList {
             if (item.hpAdd > 0) add("  生命 +${item.hpAdd}")
             if (item.mpAdd > 0) add("  灵力 +${item.mpAdd}")
             if (item.speedAdd > 0) add("  速度 +${item.speedAdd}")
-            if (item.critRateAdd > 0) add("  暴击率 +${String.format(Locale.getDefault(), "%.1f", item.critRateAdd * 100)}%")
-            if (item.critEffectAdd > 0) add("  暴击效果 +${String.format(Locale.getDefault(), "%.1f", item.critEffectAdd * 100)}%")
+            if (item.critRateAdd > 0) add("  暴击率 +${GameUtils.formatPercent(item.critRateAdd)}")
+            if (item.critEffectAdd > 0) add("  暴击效果 +${GameUtils.formatPercent(item.critEffectAdd)}")
         }
     }
     if (!isInstant && item.duration > 0) {
@@ -1031,7 +1038,7 @@ private fun getMerchantItemEffects(item: MerchantItem): List<String> = buildList
                 if (template.hp > 0) add("  生命 +${template.hp}")
                 if (template.mp > 0) add("  灵力 +${template.mp}")
                 if (template.speed > 0) add("  速度 +${template.speed}")
-                if (template.critChance > 0) add("  暴击率 +${String.format(Locale.getDefault(), "%.1f%%", template.critChance * 100)}")
+                if (template.critChance > 0) add("  暴击率 +${GameUtils.formatPercent(template.critChance)}")
                 addForgeMaterialsInfo(item.name)
             }
         }
@@ -1067,7 +1074,7 @@ private fun getMerchantItemEffects(item: MerchantItem): List<String> = buildList
                     (pillTemplate.category == PillCategory.CULTIVATION && pillTemplate.pillType == "breakthrough")
                 when (pillTemplate.category) {
                     PillCategory.FUNCTIONAL -> {
-                        if (pillTemplate.breakthroughChance > 0) add("  突破概率 +${String.format(Locale.getDefault(), "%.1f", pillTemplate.breakthroughChance * 100)}%")
+                        if (pillTemplate.breakthroughChance > 0) add("  突破概率 +${GameUtils.formatPercent(pillTemplate.breakthroughChance)}")
                         if (pillTemplate.targetRealm > 0) add("  目标境界: ${GameConfig.Realm.getName(pillTemplate.targetRealm)}")
                         if (pillTemplate.isAscension) add("  可用于渡劫")
                         if (pillTemplate.extendLife > 0) add("  延寿 +${pillTemplate.extendLife}年")
@@ -1080,8 +1087,8 @@ private fun getMerchantItemEffects(item: MerchantItem): List<String> = buildList
                         if (pillTemplate.spiritPlantingAdd > 0) add("  灵植 +${pillTemplate.spiritPlantingAdd}")
                         if (pillTemplate.teachingAdd > 0) add("  教导 +${pillTemplate.teachingAdd}")
                         if (pillTemplate.moralityAdd > 0) add("  道德 +${pillTemplate.moralityAdd}")
-                        if (pillTemplate.healMaxHpPercent > 0) add("  恢复生命 ${String.format(Locale.getDefault(), "%.1f", pillTemplate.healMaxHpPercent * 100)}% 最大生命")
-                        if (pillTemplate.mpRecoverMaxMpPercent > 0) add("  恢复灵力 ${String.format(Locale.getDefault(), "%.1f", pillTemplate.mpRecoverMaxMpPercent * 100)}% 最大灵力")
+                        if (pillTemplate.healMaxHpPercent > 0) add("  恢复生命 ${GameUtils.formatPercent(pillTemplate.healMaxHpPercent)} 最大生命")
+                        if (pillTemplate.mpRecoverMaxMpPercent > 0) add("  恢复灵力 ${GameUtils.formatPercent(pillTemplate.mpRecoverMaxMpPercent)} 最大灵力")
                         if (pillTemplate.revive) add("  可复活弟子")
                         if (pillTemplate.clearAll) add("  清除所有负面状态")
                         if (pillTemplate.hpAdd > 0) add("  生命 +${pillTemplate.hpAdd}")
@@ -1093,13 +1100,13 @@ private fun getMerchantItemEffects(item: MerchantItem): List<String> = buildList
                         if (pillTemplate.speedAdd > 0) add("  速度 +${pillTemplate.speedAdd}")
                     }
                     PillCategory.CULTIVATION -> {
-                        if (pillTemplate.cultivationSpeedPercent > 0) add("  修炼速度 +${String.format(Locale.getDefault(), "%.1f", pillTemplate.cultivationSpeedPercent * 100)}%")
-                        if (pillTemplate.skillExpSpeedPercent > 0) add("  功法熟练度速度 +${String.format(Locale.getDefault(), "%.1f", pillTemplate.skillExpSpeedPercent * 100)}%")
-                        if (pillTemplate.nurtureSpeedPercent > 0) add("  孕养速度 +${String.format(Locale.getDefault(), "%.1f", pillTemplate.nurtureSpeedPercent * 100)}%")
+                        if (pillTemplate.cultivationSpeedPercent > 0) add("  修炼速度 +${GameUtils.formatPercent(pillTemplate.cultivationSpeedPercent)}")
+                        if (pillTemplate.skillExpSpeedPercent > 0) add("  功法熟练度速度 +${GameUtils.formatPercent(pillTemplate.skillExpSpeedPercent)}")
+                        if (pillTemplate.nurtureSpeedPercent > 0) add("  孕养速度 +${GameUtils.formatPercent(pillTemplate.nurtureSpeedPercent)}")
                         if (pillTemplate.cultivationAdd > 0) add("  修为 +${pillTemplate.cultivationAdd}")
                         if (pillTemplate.skillExpAdd > 0) add("  功法熟练度 +${pillTemplate.skillExpAdd}")
                         if (pillTemplate.nurtureAdd > 0) add("  孕养值 +${pillTemplate.nurtureAdd}")
-                        if (pillTemplate.breakthroughChance > 0) add("  突破概率 +${String.format(Locale.getDefault(), "%.1f", pillTemplate.breakthroughChance * 100)}%")
+                        if (pillTemplate.breakthroughChance > 0) add("  突破概率 +${GameUtils.formatPercent(pillTemplate.breakthroughChance)}")
                         if (pillTemplate.targetRealm > 0) add("  目标境界: ${GameConfig.Realm.getName(pillTemplate.targetRealm)}")
                         if (pillTemplate.isAscension) add("  可用于渡劫")
                     }
@@ -1111,8 +1118,8 @@ private fun getMerchantItemEffects(item: MerchantItem): List<String> = buildList
                         if (pillTemplate.hpAdd > 0) add("  生命 +${pillTemplate.hpAdd}")
                         if (pillTemplate.mpAdd > 0) add("  灵力 +${pillTemplate.mpAdd}")
                         if (pillTemplate.speedAdd > 0) add("  速度 +${pillTemplate.speedAdd}")
-                        if (pillTemplate.critRateAdd > 0) add("  暴击率 +${String.format(Locale.getDefault(), "%.1f", pillTemplate.critRateAdd * 100)}%")
-                        if (pillTemplate.critEffectAdd > 0) add("  暴击效果 +${String.format(Locale.getDefault(), "%.1f", pillTemplate.critEffectAdd * 100)}%")
+                        if (pillTemplate.critRateAdd > 0) add("  暴击率 +${GameUtils.formatPercent(pillTemplate.critRateAdd)}")
+                        if (pillTemplate.critEffectAdd > 0) add("  暴击效果 +${GameUtils.formatPercent(pillTemplate.critEffectAdd)}")
                     }
                 }
                 if (!isInstant && pillTemplate.duration > 0) {
@@ -1275,7 +1282,7 @@ private fun getStorageBagItemEffects(item: StorageBagItem): List<String> = build
                 if (template.hp > 0) add("  生命 +${template.hp}")
                 if (template.mp > 0) add("  灵力 +${template.mp}")
                 if (template.speed > 0) add("  速度 +${template.speed}")
-                if (template.critChance > 0) add("  暴击率 +${String.format(Locale.getDefault(), "%.1f%%", template.critChance * 100)}")
+                if (template.critChance > 0) add("  暴击率 +${GameUtils.formatPercent(template.critChance)}")
                 addForgeMaterialsInfo(item.name)
             } else {
                 item.effect?.let { effect ->
@@ -1287,6 +1294,8 @@ private fun getStorageBagItemEffects(item: StorageBagItem): List<String> = build
                     if (effect.hpAdd > 0) add("  生命 +${effect.hpAdd}")
                     if (effect.mpAdd > 0) add("  灵力 +${effect.mpAdd}")
                     if (effect.speedAdd > 0) add("  速度 +${effect.speedAdd}")
+                    if (effect.critRateAdd > 0) add("  暴击率 +${GameUtils.formatPercent(effect.critRateAdd)}")
+                    if (effect.critEffectAdd > 0) add("  暴击效果 +${GameUtils.formatPercent(effect.critEffectAdd)}")
                 }
             }
         }
@@ -1314,48 +1323,81 @@ private fun getStorageBagItemEffects(item: StorageBagItem): List<String> = build
             }
         }
         "pill" -> {
+            val pillCategoryDisplayName = when (item.effect?.pillCategory) {
+                PillCategory.FUNCTIONAL.name -> PillCategory.FUNCTIONAL.displayName
+                PillCategory.CULTIVATION.name -> PillCategory.CULTIVATION.displayName
+                PillCategory.BATTLE.name -> PillCategory.BATTLE.displayName
+                "" -> null
+                else -> null
+            }
+            if (pillCategoryDisplayName != null) {
+                add("类型: $pillCategoryDisplayName")
+            }
+            if (item.effect != null && item.effect.minRealm < 9) {
+                add("需求境界: ${GameConfig.Realm.getName(item.effect.minRealm)}")
+            }
             item.effect?.let { effect ->
                 add("效果:")
-                val isInstantPill = item.effect.pillCategory == PillCategory.FUNCTIONAL.name ||
-                    (item.effect.pillCategory == PillCategory.CULTIVATION.name && item.effect.pillType == "breakthrough")
-                if (effect.cultivationSpeedPercent > 0) add("  修炼速度 +${GameUtils.formatPercent(effect.cultivationSpeedPercent)}")
-                if (effect.skillExpSpeedPercent > 0) add("  功法熟练度速度 +${GameUtils.formatPercent(effect.skillExpSpeedPercent)}")
-                if (effect.nurtureSpeedPercent > 0) add("  孕养速度 +${GameUtils.formatPercent(effect.nurtureSpeedPercent)}")
-                if (effect.cultivationAdd > 0) add("  修为 +${effect.cultivationAdd}")
-                if (effect.skillExpAdd > 0) add("  功法熟练度 +${effect.skillExpAdd}")
-                if (effect.nurtureAdd > 0) add("  孕养值 +${effect.nurtureAdd}")
-                if (effect.breakthroughChance > 0) add("  突破概率 +${GameUtils.formatPercent(effect.breakthroughChance)}")
-                if (effect.targetRealm > 0) add("  目标境界: ${GameConfig.Realm.getName(effect.targetRealm)}")
-                if (effect.isAscension) add("  可用于渡劫")
-                if (effect.extendLife > 0) add("  延寿 +${effect.extendLife}年")
-                if (effect.intelligenceAdd > 0) add("  悟性 +${effect.intelligenceAdd}")
-                if (effect.charmAdd > 0) add("  魅力 +${effect.charmAdd}")
-                if (effect.loyaltyAdd > 0) add("  忠诚 +${effect.loyaltyAdd}")
-                if (effect.comprehensionAdd > 0) add("  领悟 +${effect.comprehensionAdd}")
-                if (effect.artifactRefiningAdd > 0) add("  炼器 +${effect.artifactRefiningAdd}")
-                if (effect.pillRefiningAdd > 0) add("  炼丹 +${effect.pillRefiningAdd}")
-                if (effect.spiritPlantingAdd > 0) add("  灵植 +${effect.spiritPlantingAdd}")
-                if (effect.teachingAdd > 0) add("  教导 +${effect.teachingAdd}")
-                if (effect.moralityAdd > 0) add("  道德 +${effect.moralityAdd}")
-                if (effect.healMaxHpPercent > 0) add("  恢复生命 ${GameUtils.formatPercent(effect.healMaxHpPercent)} 最大生命")
-                if (effect.mpRecoverMaxMpPercent > 0) add("  恢复灵力 ${GameUtils.formatPercent(effect.mpRecoverMaxMpPercent)} 最大灵力")
-                if (effect.hpAdd > 0) add("  生命 +${effect.hpAdd}")
-                if (effect.mpAdd > 0) add("  灵力 +${effect.mpAdd}")
-                if (effect.physicalAttackAdd > 0) add("  物理攻击 +${effect.physicalAttackAdd}")
-                if (effect.magicAttackAdd > 0) add("  法术攻击 +${effect.magicAttackAdd}")
-                if (effect.physicalDefenseAdd > 0) add("  物理防御 +${effect.physicalDefenseAdd}")
-                if (effect.magicDefenseAdd > 0) add("  法术防御 +${effect.magicDefenseAdd}")
-                if (effect.speedAdd > 0) add("  速度 +${effect.speedAdd}")
-                if (effect.revive) add("  可复活弟子")
-                if (effect.clearAll) add("  清除所有负面状态")
+                val isInstantPill = effect.pillCategory == PillCategory.FUNCTIONAL.name ||
+                    (effect.pillCategory == PillCategory.CULTIVATION.name && effect.pillType == "breakthrough")
+                when (effect.pillCategory) {
+                    PillCategory.FUNCTIONAL.name -> {
+                        if (effect.breakthroughChance > 0) add("  突破概率 +${GameUtils.formatPercent(effect.breakthroughChance)}")
+                        if (effect.targetRealm > 0) add("  目标境界: ${GameConfig.Realm.getName(effect.targetRealm)}")
+                        if (effect.isAscension) add("  可用于渡劫")
+                        if (effect.extendLife > 0) add("  延寿 +${effect.extendLife}年")
+                        if (effect.intelligenceAdd > 0) add("  悟性 +${effect.intelligenceAdd}")
+                        if (effect.charmAdd > 0) add("  魅力 +${effect.charmAdd}")
+                        if (effect.loyaltyAdd > 0) add("  忠诚 +${effect.loyaltyAdd}")
+                        if (effect.comprehensionAdd > 0) add("  领悟 +${effect.comprehensionAdd}")
+                        if (effect.artifactRefiningAdd > 0) add("  炼器 +${effect.artifactRefiningAdd}")
+                        if (effect.pillRefiningAdd > 0) add("  炼丹 +${effect.pillRefiningAdd}")
+                        if (effect.spiritPlantingAdd > 0) add("  灵植 +${effect.spiritPlantingAdd}")
+                        if (effect.teachingAdd > 0) add("  教导 +${effect.teachingAdd}")
+                        if (effect.moralityAdd > 0) add("  道德 +${effect.moralityAdd}")
+                        if (effect.healMaxHpPercent > 0) add("  恢复生命 ${GameUtils.formatPercent(effect.healMaxHpPercent)} 最大生命")
+                        if (effect.mpRecoverMaxMpPercent > 0) add("  恢复灵力 ${GameUtils.formatPercent(effect.mpRecoverMaxMpPercent)} 最大灵力")
+                        if (effect.revive) add("  可复活弟子")
+                        if (effect.clearAll) add("  清除所有负面状态")
+                        if (effect.hpAdd > 0) add("  生命 +${effect.hpAdd}")
+                        if (effect.mpAdd > 0) add("  灵力 +${effect.mpAdd}")
+                        if (effect.physicalAttackAdd > 0) add("  物理攻击 +${effect.physicalAttackAdd}")
+                        if (effect.magicAttackAdd > 0) add("  法术攻击 +${effect.magicAttackAdd}")
+                        if (effect.physicalDefenseAdd > 0) add("  物理防御 +${effect.physicalDefenseAdd}")
+                        if (effect.magicDefenseAdd > 0) add("  法术防御 +${effect.magicDefenseAdd}")
+                        if (effect.speedAdd > 0) add("  速度 +${effect.speedAdd}")
+                    }
+                    PillCategory.CULTIVATION.name -> {
+                        if (effect.cultivationSpeedPercent > 0) add("  修炼速度 +${GameUtils.formatPercent(effect.cultivationSpeedPercent)}")
+                        if (effect.skillExpSpeedPercent > 0) add("  功法熟练度速度 +${GameUtils.formatPercent(effect.skillExpSpeedPercent)}")
+                        if (effect.nurtureSpeedPercent > 0) add("  孕养速度 +${GameUtils.formatPercent(effect.nurtureSpeedPercent)}")
+                        if (effect.cultivationAdd > 0) add("  修为 +${effect.cultivationAdd}")
+                        if (effect.skillExpAdd > 0) add("  功法熟练度 +${effect.skillExpAdd}")
+                        if (effect.nurtureAdd > 0) add("  孕养值 +${effect.nurtureAdd}")
+                        if (effect.breakthroughChance > 0) add("  突破概率 +${GameUtils.formatPercent(effect.breakthroughChance)}")
+                        if (effect.targetRealm > 0) add("  目标境界: ${GameConfig.Realm.getName(effect.targetRealm)}")
+                        if (effect.isAscension) add("  可用于渡劫")
+                    }
+                    PillCategory.BATTLE.name -> {
+                        if (effect.physicalAttackAdd > 0) add("  物理攻击 +${effect.physicalAttackAdd}")
+                        if (effect.magicAttackAdd > 0) add("  法术攻击 +${effect.magicAttackAdd}")
+                        if (effect.physicalDefenseAdd > 0) add("  物理防御 +${effect.physicalDefenseAdd}")
+                        if (effect.magicDefenseAdd > 0) add("  法术防御 +${effect.magicDefenseAdd}")
+                        if (effect.hpAdd > 0) add("  生命 +${effect.hpAdd}")
+                        if (effect.mpAdd > 0) add("  灵力 +${effect.mpAdd}")
+                        if (effect.speedAdd > 0) add("  速度 +${effect.speedAdd}")
+                        if (effect.critRateAdd > 0) add("  暴击率 +${GameUtils.formatPercent(effect.critRateAdd)}")
+                        if (effect.critEffectAdd > 0) add("  暴击效果 +${GameUtils.formatPercent(effect.critEffectAdd)}")
+                    }
+                }
                 if (!isInstantPill && effect.duration > 0) {
                     add("  持续 ${effect.duration} 月")
                 }
                 if (isInstantPill) {
                     add("  (一次性效果)")
                 }
+                addPillRecipeInfo(item.itemId, item.name)
             }
-            addPillRecipeInfo(item.itemId, item.name)
         }
         "material" -> {
             val forgeRecipes = ForgeRecipeDatabase.getRecipesByMaterial(item.itemId)
