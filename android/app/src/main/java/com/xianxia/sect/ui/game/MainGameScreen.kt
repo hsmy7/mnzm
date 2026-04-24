@@ -3774,16 +3774,14 @@ private fun WarehouseTab(viewModel: GameViewModel) {
     var selectedFilter by remember { mutableStateOf(WarehouseFilter.ALL) }
     var showDetailDialog by remember { mutableStateOf(false) }
     var selectedItemId by remember { mutableStateOf<String?>(null) }
-    val selectedItem by remember { derivedStateOf {
-        selectedItemId?.let { id ->
-            equipment.find { it.id == id }
-                ?: manuals.find { it.id == id }
-                ?: sortedPills.find { it.id == id }
-                ?: sortedMaterials.find { it.id == id }
-                ?: sortedHerbs.find { it.id == id }
-                ?: sortedSeeds.find { it.id == id }
-        }
-    } }
+    val selectedItem: Any? = selectedItemId?.let { id ->
+        equipment.find { it.id == id }
+            ?: manuals.find { it.id == id }
+            ?: sortedPills.find { it.id == id }
+            ?: sortedMaterials.find { it.id == id }
+            ?: sortedHerbs.find { it.id == id }
+            ?: sortedSeeds.find { it.id == id }
+    }
     var showBulkSellDialog by remember { mutableStateOf(false) }
     var currentPage by remember { mutableIntStateOf(0) }
     
@@ -4030,13 +4028,12 @@ private fun WarehouseTab(viewModel: GameViewModel) {
         }
     }
     
+    if (showDetailDialog && selectedItem == null) {
+        showDetailDialog = false
+        selectedItemId = null
+    }
+
     if (showDetailDialog) {
-        LaunchedEffect(showDetailDialog, selectedItem) {
-            if (showDetailDialog && selectedItem == null) {
-                showDetailDialog = false
-                selectedItemId = null
-            }
-        }
         selectedItem?.let { item ->
             val itemId = when (item) {
                 is EquipmentStack -> item.id
@@ -4122,10 +4119,12 @@ private fun WarehouseTab(viewModel: GameViewModel) {
                     basePrice = basePrice,
                     onConfirm = { quantity ->
                         val success = viewModel.sellItem(itemId, itemType, quantity)
-                        if (success && quantity >= itemQuantity) {
+                        if (success) {
                             showSellDialog = false
-                            showDetailDialog = false
-                            selectedItemId = null
+                            if (quantity >= itemQuantity) {
+                                showDetailDialog = false
+                                selectedItemId = null
+                            }
                         }
                     },
                     onDismiss = { showSellDialog = false }

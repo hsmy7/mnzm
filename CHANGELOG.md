@@ -1,5 +1,13 @@
 # 模拟宗门 - 更新日志
 
+## [2.4.19] - 2026-04-25
+
+### 修复
+- 修复仓库物品详情弹窗selectedItem使用derivedStateOf导致闭包捕获旧列表引用、StateFlow更新后数据不同步的严重bug
+- 修复LaunchedEffect安全网放置在selectedItem非空判断内部导致永远无法执行的无效逻辑
+- 修复LaunchedEffect安全网存在一帧延迟的问题，改为直接条件判断同步清理状态
+- 修复部分售卖后SellConfirmDialog的maxQuantity不更新的问题，部分售卖成功后关闭售卖弹窗
+
 ## [2.4.18] - 2026-04-25
 
 ### 优化
