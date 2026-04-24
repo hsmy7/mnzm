@@ -3,9 +3,14 @@
 ## [2.5.2] - 2026-04-25
 
 ### 修复
+- 修复旧存档丹药持续时间转换的误转换风险：将`<= 12`启发式判断从`convertBackDisciple`移至V3ToV4迁移器，避免新存档duration衰减到1-12天时被错误乘以30
+- 修复GameEngine中境界不足时装备/功法放入储物袋缺少冷却期标记(forgetDay)的问题，避免弟子每日重复尝试装备/学习同一物品
 - 修复V3ToV4Migrator遗漏recruitList和aiSectDisciples中弟子duration转换的问题
 - 补充V3ToV4Migrator边界值（duration=12和duration=13）测试覆盖
 - 为V3ToV4Migrator添加启发式判断注释说明
+
+### 兼容性
+- 存档格式版本从3.0升级到4.0，旧存档加载时自动迁移duration值
 
 ## [2.5.1] - 2026-04-25
 
