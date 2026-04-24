@@ -755,13 +755,14 @@ class DiscipleService @Inject constructor(
                         obtainedYear = data.gameYear,
                         obtainedMonth = data.gameMonth,
                         forgetYear = data.gameYear,
-                        forgetMonth = data.gameMonth
+                        forgetMonth = data.gameMonth,
+                        forgetDay = data.gameDay
                     )
                     val discipleWithBag = updatedDisciple.copyWith(
                         storageBagItems = StorageBagUtils.increaseItemQuantity(updatedDisciple.storageBagItems, storageItem, inventoryConfig.getMaxStackSize("equipment_stack"))
                             .map { bagItem ->
                                 if (bagItem.itemId == mergedId && bagItem.itemType == "equipment_stack") {
-                                    bagItem.copy(forgetYear = data.gameYear, forgetMonth = data.gameMonth)
+                                    bagItem.copy(forgetYear = data.gameYear, forgetMonth = data.gameMonth, forgetDay = data.gameDay)
                                 } else bagItem
                             }
                     )
@@ -781,7 +782,8 @@ class DiscipleService @Inject constructor(
                         obtainedYear = data.gameYear,
                         obtainedMonth = data.gameMonth,
                         forgetYear = data.gameYear,
-                        forgetMonth = data.gameMonth
+                        forgetMonth = data.gameMonth,
+                        forgetDay = data.gameDay
                     )
                     val discipleWithBag = updatedDisciple.copyWith(
                         storageBagItems = StorageBagUtils.increaseItemQuantity(updatedDisciple.storageBagItems, storageItem, inventoryConfig.getMaxStackSize("equipment_stack"))

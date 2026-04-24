@@ -52,6 +52,7 @@ object DiscipleEquipmentManager {
         equipmentInstances: Map<String, EquipmentInstance>,
         gameYear: Int,
         gameMonth: Int,
+        gameDay: Int,
         maxStack: Int = MAX_EQUIPMENT_STACK,
         instantMessage: Boolean = false
     ): EquipmentProcessResult {
@@ -63,7 +64,7 @@ object DiscipleEquipmentManager {
         val allReplacedStacks = mutableListOf<EquipmentStack>()
 
         val bagStackRefs = updatedDisciple.storageBagItems
-            .filter { it.itemType == "equipment_stack" && !StorageBagUtils.isInCoolingPeriod(it, gameYear, gameMonth) }
+            .filter { it.itemType == "equipment_stack" && !StorageBagUtils.isInCoolingPeriod(it, gameYear, gameMonth, gameDay) }
 
         if (bagStackRefs.isEmpty()) {
             return EquipmentProcessResult(disciple, emptyList(), emptyList(), emptyList(), emptyList(), emptyList())
@@ -78,6 +79,7 @@ object DiscipleEquipmentManager {
                 bagStackRefs = bagStackRefs,
                 gameYear = gameYear,
                 gameMonth = gameMonth,
+                gameDay = gameDay,
                 maxStack = maxStack,
                 instantMessage = instantMessage
             )
@@ -103,6 +105,7 @@ object DiscipleEquipmentManager {
         bagStackRefs: List<StorageBagItem>,
         gameYear: Int,
         gameMonth: Int,
+        gameDay: Int,
         maxStack: Int,
         instantMessage: Boolean
     ): EquipmentProcessResult {
@@ -165,13 +168,14 @@ object DiscipleEquipmentManager {
                 obtainedYear = gameYear,
                 obtainedMonth = gameMonth,
                 forgetYear = gameYear,
-                forgetMonth = gameMonth
+                forgetMonth = gameMonth,
+                forgetDay = gameDay
             )
             updatedDisciple = updatedDisciple.copyWith(
                 storageBagItems = StorageBagUtils.increaseItemQuantity(updatedDisciple.storageBagItems, storageItem, maxStack)
                     .map { bagItem ->
                         if (bagItem.itemId == storageItemId && bagItem.itemType == "equipment_stack") {
-                            bagItem.copy(forgetYear = gameYear, forgetMonth = gameMonth)
+                            bagItem.copy(forgetYear = gameYear, forgetMonth = gameMonth, forgetDay = gameDay)
                         } else bagItem
                     }
             )

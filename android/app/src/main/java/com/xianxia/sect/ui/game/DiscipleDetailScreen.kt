@@ -41,7 +41,6 @@ import com.xianxia.sect.ui.components.ItemCardData
 import com.xianxia.sect.ui.components.TalentDetailDialog
 import com.xianxia.sect.ui.components.UnifiedItemCard
 import com.xianxia.sect.ui.components.getRarityColor
-import com.xianxia.sect.ui.components.getRarityName
 import com.xianxia.sect.ui.components.getTalentRarityColor
 import com.xianxia.sect.ui.theme.GameColors
 import java.util.Locale
@@ -582,7 +581,6 @@ fun DiscipleDetailDialog(
                                         name = stack.name,
                                         rarity = stack.rarity,
                                         quantity = stack.quantity,
-                                        grade = getRarityName(stack.rarity),
                                         isLocked = stack.isLocked
                                     ),
                                     isSelected = selectedReplaceManualId == stack.id,
@@ -871,7 +869,6 @@ private fun EquipmentSelectionDialog(
                                 name = item.name,
                                 rarity = item.rarity,
                                 quantity = item.quantity,
-                                grade = getRarityName(item.rarity),
                                 isLocked = item.isLocked
                             ),
                             isSelected = selectedEquipmentId == item.id,
@@ -1001,7 +998,6 @@ private fun ManualSelectionDialog(
                                 name = stack.name,
                                 rarity = stack.rarity,
                                 quantity = stack.quantity,
-                                grade = getRarityName(stack.rarity),
                                 isLocked = stack.isLocked
                             ),
                             isSelected = selectedManualId == stack.id,

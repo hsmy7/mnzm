@@ -23,6 +23,7 @@ object DiscipleManualManager {
         manualInstances: Map<String, ManualInstance>,
         gameYear: Int,
         gameMonth: Int,
+        gameDay: Int,
         maxStack: Int = MAX_MANUAL_STACK,
         instantMessage: Boolean = false
     ): ManualLearnResult {
@@ -34,7 +35,7 @@ object DiscipleManualManager {
         var lastReplacedManualStack: ManualStack? = null
 
         val bagStackRefs = disciple.storageBagItems
-            .filter { it.itemType == "manual_stack" && !StorageBagUtils.isInCoolingPeriod(it, gameYear, gameMonth) }
+            .filter { it.itemType == "manual_stack" && !StorageBagUtils.isInCoolingPeriod(it, gameYear, gameMonth, gameDay) }
 
         if (bagStackRefs.isEmpty()) {
             return ManualLearnResult(disciple, null, null, null, null, emptyList())
@@ -63,6 +64,7 @@ object DiscipleManualManager {
                         manualStacks = manualStacks,
                         gameYear = gameYear,
                         gameMonth = gameMonth,
+                        gameDay = gameDay,
                         maxStack = maxStack,
                         instantMessage = instantMessage
                     )
@@ -86,6 +88,7 @@ object DiscipleManualManager {
                     manualInstances = manualInstances,
                     gameYear = gameYear,
                     gameMonth = gameMonth,
+                    gameDay = gameDay,
                     instantMessage = instantMessage
                 )
                 if (learnResult.newInstance != null) {
@@ -109,6 +112,7 @@ object DiscipleManualManager {
                             manualStacks = manualStacks,
                             gameYear = gameYear,
                             gameMonth = gameMonth,
+                            gameDay = gameDay,
                             maxStack = maxStack,
                             instantMessage = instantMessage
                         )
@@ -135,6 +139,7 @@ object DiscipleManualManager {
         manualInstances: Map<String, ManualInstance>,
         gameYear: Int,
         gameMonth: Int,
+        gameDay: Int,
         instantMessage: Boolean
     ): ManualLearnResult {
         val events = mutableListOf<String>()
@@ -169,6 +174,7 @@ object DiscipleManualManager {
         manualStacks: List<ManualStack>,
         gameYear: Int,
         gameMonth: Int,
+        gameDay: Int,
         maxStack: Int,
         instantMessage: Boolean
     ): ManualLearnResult {
@@ -210,13 +216,14 @@ object DiscipleManualManager {
             obtainedYear = gameYear,
             obtainedMonth = gameMonth,
             forgetYear = gameYear,
-            forgetMonth = gameMonth
+            forgetMonth = gameMonth,
+            forgetDay = gameDay
         )
         updatedDisciple = updatedDisciple.copyWith(
             storageBagItems = StorageBagUtils.increaseItemQuantity(updatedDisciple.storageBagItems, storageItem, maxStack)
                 .map { bagItem ->
                     if (bagItem.itemId == storageItemId && bagItem.itemType == "manual_stack") {
-                        bagItem.copy(forgetYear = gameYear, forgetMonth = gameMonth)
+                        bagItem.copy(forgetYear = gameYear, forgetMonth = gameMonth, forgetDay = gameDay)
                     } else bagItem
                 }
         )

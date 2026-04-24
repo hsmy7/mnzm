@@ -789,7 +789,8 @@ data class StorageBagItem(
     val effect: ItemEffect? = null,
     val grade: String? = null,
     val forgetYear: Int? = null,
-    val forgetMonth: Int? = null
+    val forgetMonth: Int? = null,
+    val forgetDay: Int? = null
 ) {
     val color: String get() = GameConfig.Rarity.getColor(rarity)
     val rarityName: String get() = GameConfig.Rarity.getName(rarity)

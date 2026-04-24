@@ -17,6 +17,7 @@ object DisciplePillManager {
         disciple: Disciple,
         gameYear: Int,
         gameMonth: Int,
+        gameDay: Int,
         instantMessage: Boolean = false
     ): PillUseResult {
         val events = mutableListOf<String>()
@@ -106,7 +107,7 @@ object DisciplePillManager {
         if (effect.cultivationSpeedPercent > 0) {
             updated = updated.copy(
                 cultivationSpeedBonus = effect.cultivationSpeedPercent,
-                cultivationSpeedDuration = if (effect.duration > 0) effect.duration else updated.cultivationSpeedDuration
+                cultivationSpeedDuration = if (effect.duration > 0) effect.duration * 30 else updated.cultivationSpeedDuration
             )
         }
 
@@ -167,7 +168,7 @@ object DisciplePillManager {
                 pillCultivationSpeedBonus = effect.cultivationSpeedPercent,
                 pillSkillExpSpeedBonus = effect.skillExpSpeedPercent,
                 pillNurtureSpeedBonus = effect.nurtureSpeedPercent,
-                pillEffectDuration = if (effect.duration > 0) effect.duration else updated.pillEffects.pillEffectDuration,
+                pillEffectDuration = if (effect.duration > 0) effect.duration * 30 else updated.pillEffects.pillEffectDuration,
                 activePillCategory = if (effect.cannotStack) effect.pillCategory else updated.pillEffects.activePillCategory
             )
             updated = updated.copy(pillEffects = newEffects)

@@ -1281,7 +1281,7 @@ class SaveDataConverter @Inject constructor() {
             status = safeEnumValueOf(data.status, com.xianxia.sect.core.model.DiscipleStatus.IDLE, "status", "Disciple"),
             statusData = data.statusData,
             cultivationSpeedBonus = data.cultivationSpeedBonus,
-            cultivationSpeedDuration = data.cultivationSpeedDuration,
+            cultivationSpeedDuration = if (data.cultivationSpeedDuration > 0 && data.cultivationSpeedDuration <= 12) data.cultivationSpeedDuration * 30 else data.cultivationSpeedDuration,
             discipleType = data.discipleType.ifEmpty { "outer" },
             combat = com.xianxia.sect.core.model.CombatAttributes(
                 baseHp = data.baseHp,
@@ -1317,7 +1317,7 @@ class SaveDataConverter @Inject constructor() {
                 pillCultivationSpeedBonus = data.pillCultivationSpeedBonus,
                 pillSkillExpSpeedBonus = data.pillSkillExpSpeedBonus,
                 pillNurtureSpeedBonus = data.pillNurtureSpeedBonus,
-                pillEffectDuration = data.pillEffectDuration,
+                pillEffectDuration = if (data.pillEffectDuration > 0 && data.pillEffectDuration <= 12) data.pillEffectDuration * 30 else data.pillEffectDuration,
                 activePillCategory = data.activePillCategory
             ),
             equipment = com.xianxia.sect.core.model.EquipmentSet(
@@ -1395,7 +1395,8 @@ class SaveDataConverter @Inject constructor() {
             effect = item.effect?.let { convertItemEffect(it) } ?: SerializableItemEffect(),
             grade = item.grade ?: "",
             forgetYear = item.forgetYear ?: 0,
-            forgetMonth = item.forgetMonth ?: 0
+            forgetMonth = item.forgetMonth ?: 0,
+            forgetDay = item.forgetDay ?: 0
         )
     }
 
@@ -1413,7 +1414,8 @@ class SaveDataConverter @Inject constructor() {
             effect = effect,
             grade = data.grade.takeIf { it.isNotEmpty() },
             forgetYear = data.forgetYear.takeIf { it > 0 },
-            forgetMonth = data.forgetMonth.takeIf { it > 0 }
+            forgetMonth = data.forgetMonth.takeIf { it > 0 },
+            forgetDay = data.forgetDay.takeIf { it > 0 }
         )
     }
 

@@ -90,7 +90,7 @@ fun UnifiedItemCard(
                 Text(
                     text = data.grade,
                     fontSize = 9.sp,
-                    color = rarityColor,
+                    color = getQualityColor(data.grade),
                     modifier = Modifier
                         .align(Alignment.BottomStart)
                         .padding(start = 4.dp, bottom = 2.dp)
@@ -333,4 +333,11 @@ fun getRarityName(rarity: Int): String = when (rarity) {
     5 -> "地品"
     6 -> "天品"
     else -> "普通"
+}
+
+fun getQualityColor(quality: String?): Color = when (quality) {
+    "上品" -> Color(0xFFE74C3C)
+    "中品" -> Color(0xFF3498DB)
+    "下品" -> Color(0xFF95A5A6)
+    else -> Color.Transparent
 }

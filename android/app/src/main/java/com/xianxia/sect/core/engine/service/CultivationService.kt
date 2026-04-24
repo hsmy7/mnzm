@@ -814,6 +814,12 @@ class CultivationService @Inject constructor(
 
         // Daily recovery: disciples recover 1% HP and MP (except those in battle)
         processDailyRecovery()
+
+        // Pill effect duration decay (daily)
+        processPillDurationDecay()
+
+        // Disciple auto-use items (daily)
+        processAutoUseItems(year, month, day)
     }
 
     private fun processPillDurationDecay() {
@@ -845,7 +851,7 @@ class CultivationService @Inject constructor(
         }
     }
 
-    private fun processAutoUseItems(year: Int, month: Int) {
+    private fun processAutoUseItems(year: Int, month: Int, day: Int) {
         val equipmentStacksList = currentEquipmentStacks
         val equipmentInstancesMap = currentEquipmentInstances.associateBy { it.id }
         val manualStacksList = currentManualStacks
@@ -859,7 +865,8 @@ class CultivationService @Inject constructor(
             val pillResult = DisciplePillManager.processAutoUsePills(
                 disciple = updatedDisciple,
                 gameYear = year,
-                gameMonth = month
+                gameMonth = month,
+                gameDay = day
             )
             if (pillResult.disciple != updatedDisciple) {
                 updatedDisciple = pillResult.disciple
@@ -872,6 +879,7 @@ class CultivationService @Inject constructor(
                 equipmentInstances = equipmentInstancesMap,
                 gameYear = year,
                 gameMonth = month,
+                gameDay = day,
                 maxStack = inventoryConfig.getMaxStackSize("equipment_stack")
             )
             if (equipResult.newInstances.isNotEmpty()) {
@@ -910,6 +918,7 @@ class CultivationService @Inject constructor(
                 manualInstances = manualInstancesMap,
                 gameYear = year,
                 gameMonth = month,
+                gameDay = day,
                 maxStack = inventoryConfig.getMaxStackSize("manual_stack")
             )
             if (manualResult.newInstance != null) {
@@ -994,12 +1003,6 @@ class CultivationService @Inject constructor(
         // 0-3: 生产/经济逻辑已迁移至 ProductionSubsystem 和 EconomySubsystem
 
         // 4. 藏经阁加成已在 updateRealtimeCultivation() 中实时处理，无需月度处理
-
-        // 5. 丹药效果持续时间递减
-        processPillDurationDecay()
-
-        // 5.5 弟子自动使用储物袋物品（功法/装备/丹药）
-        processAutoUseItems(year, month)
 
         // 6. Process dungeon monthly exploration (秘境月度探索)
         processDungeonMonthlyExploration()

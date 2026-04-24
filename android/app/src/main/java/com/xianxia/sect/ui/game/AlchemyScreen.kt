@@ -24,6 +24,7 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.data.PillRecipeDatabase
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.ui.components.getQualityColor
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.game.ProductionViewModel
 import java.util.Locale
@@ -361,7 +362,7 @@ private fun PillSelectionDialog(
                             Text(
                                 text = recipe.grade.displayName,
                                 fontSize = 9.sp,
-                                color = rarityColor,
+                                color = getQualityColor(recipe.grade.displayName),
                                 modifier = Modifier
                                     .align(Alignment.BottomEnd)
                                     .padding(end = 4.dp, bottom = 2.dp)
