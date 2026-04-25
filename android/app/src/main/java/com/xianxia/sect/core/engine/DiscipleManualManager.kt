@@ -50,10 +50,61 @@ object DiscipleManualManager {
         }
 
         val currentManualIds = disciple.manualIds
-        val currentTypes = currentManualIds.mapNotNull { manualInstances[it]?.type }.toSet()
+        val maxSlots = DiscipleStatCalculator.getMaxManualSlots(disciple)
 
         for (stack in availableStacks.sortedByDescending { it.rarity }) {
-            if (!currentTypes.contains(stack.type)) {
+            if (stack.type == ManualType.MIND) {
+                val existingMindId = currentManualIds.find { manualInstances[it]?.type == ManualType.MIND }
+                if (existingMindId != null) {
+                    val existingRarity = manualInstances[existingMindId]?.rarity ?: 0
+                    if (stack.rarity > existingRarity) {
+                        val replaceResult = tryReplaceManual(
+                            disciple = updatedDisciple,
+                            stack = stack,
+                            existingInstanceId = existingMindId,
+                            manualInstances = manualInstances,
+                            manualStacks = manualStacks,
+                            gameYear = gameYear,
+                            gameMonth = gameMonth,
+                            gameDay = gameDay,
+                            maxStack = maxStack,
+                            instantMessage = instantMessage
+                        )
+                        if (replaceResult.newInstance != null) {
+                            updatedDisciple = replaceResult.disciple
+                            lastNewInstance = replaceResult.newInstance
+                            lastReplacedInstance = replaceResult.replacedInstance
+                            lastStackUpdate = replaceResult.stackUpdate
+                            lastReplacedManualStack = replaceResult.replacedManualStack
+                            events.addAll(replaceResult.events)
+                            break
+                        }
+                    }
+                } else {
+                    if (currentManualIds.size < maxSlots) {
+                        val learnResult = learnNewManual(
+                            disciple = updatedDisciple,
+                            stack = stack,
+                            manualInstances = manualInstances,
+                            gameYear = gameYear,
+                            gameMonth = gameMonth,
+                            gameDay = gameDay,
+                            instantMessage = instantMessage
+                        )
+                        if (learnResult.newInstance != null) {
+                            updatedDisciple = learnResult.disciple
+                            lastNewInstance = learnResult.newInstance
+                            lastReplacedInstance = learnResult.replacedInstance
+                            lastStackUpdate = learnResult.stackUpdate
+                            events.addAll(learnResult.events)
+                            break
+                        }
+                    }
+                }
+                continue
+            }
+
+            if (currentManualIds.size < maxSlots) {
                 val learnResult = learnNewManual(
                     disciple = updatedDisciple,
                     stack = stack,
@@ -72,14 +123,14 @@ object DiscipleManualManager {
                     break
                 }
             } else {
-                val existingId = currentManualIds.find { manualInstances[it]?.type == stack.type }
-                if (existingId != null) {
-                    val existingRarity = manualInstances[existingId]?.rarity ?: 0
+                val lowestRarityId = currentManualIds.minByOrNull { manualInstances[it]?.rarity ?: 0 }
+                if (lowestRarityId != null) {
+                    val existingRarity = manualInstances[lowestRarityId]?.rarity ?: 0
                     if (stack.rarity > existingRarity) {
                         val replaceResult = tryReplaceManual(
                             disciple = updatedDisciple,
                             stack = stack,
-                            existingInstanceId = existingId,
+                            existingInstanceId = lowestRarityId,
                             manualInstances = manualInstances,
                             manualStacks = manualStacks,
                             gameYear = gameYear,
@@ -225,15 +276,15 @@ object DiscipleManualManager {
         if (disciple.realm > stack.minRealm) return false
         val maxSlots = DiscipleStatCalculator.getMaxManualSlots(disciple)
         if (disciple.manualIds.size >= maxSlots) return false
-        val hasSameType = disciple.manualIds.any { mid -> manualInstances[mid]?.type == stack.type }
-        return !hasSameType
+        if (stack.type == ManualType.MIND && disciple.manualIds.any { mid -> manualInstances[mid]?.type == ManualType.MIND }) return false
+        return true
     }
 
     fun canLearn(disciple: Disciple, instance: ManualInstance, manualInstances: Map<String, ManualInstance>): Boolean {
         if (disciple.realm > instance.minRealm) return false
         val maxSlots = DiscipleStatCalculator.getMaxManualSlots(disciple)
         if (disciple.manualIds.size >= maxSlots) return false
-        val hasSameType = disciple.manualIds.any { mid -> manualInstances[mid]?.type == instance.type }
-        return !hasSameType
+        if (instance.type == ManualType.MIND && disciple.manualIds.any { mid -> manualInstances[mid]?.type == ManualType.MIND }) return false
+        return true
     }
 }

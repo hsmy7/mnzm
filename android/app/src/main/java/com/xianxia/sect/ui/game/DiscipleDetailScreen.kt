@@ -516,12 +516,11 @@ fun DiscipleDetailDialog(
 
         if (showManualReplaceSelection) {
             val availableManualStacks = remember(manualStacks, allManuals, disciple.manualIds, manual, disciple.realm) {
-                val otherTypes = disciple.manualIds
-                    .filter { it != manual.id }
-                    .mapNotNull { mid -> allManuals.find { it.id == mid }?.type }
-                    .toSet()
+                val hasMindManual = disciple.manualIds.any { mid ->
+                    allManuals.find { it.id == mid }?.type == ManualType.MIND
+                }
                 manualStacks.filter { stack ->
-                    stack.type !in otherTypes &&
+                    !(hasMindManual && manual.type != ManualType.MIND && stack.type == ManualType.MIND) &&
                     GameConfig.Realm.meetsRealmRequirement(disciple.realm, stack.minRealm)
                 }.sortedByDescending { it.rarity }
             }
@@ -940,9 +939,9 @@ private fun ManualSelectionDialog(
         if (currentManualIds.size >= maxManualSlots) {
             emptyList()
         } else {
-            val existingTypes = currentManualIds.mapNotNull { mid -> allManuals.find { it.id == mid }?.type }.toSet()
+            val hasMindManual = currentManualIds.any { mid -> allManuals.find { it.id == mid }?.type == ManualType.MIND }
             manualStacks.filter { stack ->
-                stack.type !in existingTypes &&
+                !(hasMindManual && stack.type == ManualType.MIND) &&
                 GameConfig.Realm.meetsRealmRequirement(discipleRealm, stack.minRealm)
             }.sortedByDescending { it.rarity }
         }

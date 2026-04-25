@@ -2,6 +2,13 @@
 
 ## [2.5.18] - 2026-04-26
 
+### 修复
+- 修正v2.5.17错误的同类型功法冲突检查：弟子允许学习同类型功法（心法除外），仅不允许学习相同功法
+- 回滚learnManual/replaceManual/rewardItemsToDisciple中的同类型冲突检查，仅保留槽位上限检查和心法唯一性检查
+- 回滚ManualSelectionDialog和功法替换UI中的同类型过滤，仅保留心法过滤
+- 修复DiscipleManualManager.processAutoLearn仍保留同类型冲突逻辑：改为槽位上限检查，槽位未满时允许学习任意类型功法，槽位已满时替换品质最低的功法
+- 修复DiscipleManualManager.canLearn缺少心法唯一性检查
+
 ### 变更
 - 隐私政策更新：OAID合规 - 将OAID（开放匿名设备标识符）从普通设备标识符描述中分离，单独标注为广告标识符
 - 隐私政策摘要：在"3. 设备标识符"下方添加红色OAID广告标识符收集特别提示Card
@@ -14,16 +21,9 @@
 
 ### 修复
 - 修复learnManual缺少槽位上限检查：弟子可学习超过maxManualSlots数量的功法，超出部分在UI中不可见
-- 修复learnManual缺少同类型冲突检查：仅检查MIND类型，未检查ATTACK/DEFENSE/SUPPORT类型冲突，与自动学习逻辑不一致
-- 修复replaceManual缺少通用同类型冲突检查：仅检查MIND类型冲突，替换后可能导致同类型功法重复
-- 修复rewardItemsToDisciple功法路径缺少同类型冲突和槽位上限检查
+- 修复rewardItemsToDisciple功法路径缺少槽位上限检查
 - 修复ManualSelectionDialog缺少槽位上限过滤：槽位已满时仍显示可选功法
-- 修复ManualSelectionDialog缺少同类型过滤：允许选择已有类型的功法
-- 修复功法替换UI缺少同类型过滤：替换后可能导致同类型功法重复
-
-### 重构
-- DiscipleManualManager.processAutoLearn移除MIND类型特殊分支，统一由通用同类型替换逻辑处理
-- DiscipleManualManager.canLearn增加同类型冲突和槽位上限检查，与learnManual保持一致
+- 修复DiscipleManualManager.canLearn缺少槽位上限检查
 
 ## [2.5.16] - 2026-04-25
 

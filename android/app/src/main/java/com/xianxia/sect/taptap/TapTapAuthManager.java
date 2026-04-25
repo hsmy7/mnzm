@@ -7,6 +7,8 @@ import android.util.Log;
 
 import androidx.annotation.NonNull;
 
+import com.xianxia.sect.BuildConfig;
+
 import com.taptap.sdk.core.TapTapRegion;
 import com.taptap.sdk.core.TapTapSdk;
 import com.taptap.sdk.core.TapTapSdkOptions;
@@ -39,6 +41,7 @@ public class TapTapAuthManager {
         );
 
         options.setScreenOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+        options.setEnableLog(BuildConfig.DEBUG);
 
         TapTapSdk.init(activity.getApplicationContext(), options);
         isInitialized = true;

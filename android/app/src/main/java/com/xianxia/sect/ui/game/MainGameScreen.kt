@@ -154,7 +154,9 @@ fun MainGameScreen(
     productionViewModel: ProductionViewModel,
     worldMapViewModel: WorldMapViewModel,
     battleViewModel: BattleViewModel,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    limitAdTracking: Boolean = true,
+    onLimitAdTrackingChanged: (Boolean) -> Unit = {}
 ) {
     // [M7-OPT-1] 高频核心数据收集 - 使用 derivedStateOf 限制重组范围
     // gameData 包含资源、日期等，每 tick (200ms) 都可能变化
@@ -252,7 +254,7 @@ fun MainGameScreen(
                     )
                     MainTab.BUILDINGS -> BuildingsTab(viewModel = viewModel, productionViewModel = productionViewModel)
                     MainTab.WAREHOUSE -> WarehouseTab(viewModel = viewModel)
-                    MainTab.SETTINGS -> SettingsTab(viewModel = viewModel, saveLoadViewModel = saveLoadViewModel, onLogout = onLogout)
+                    MainTab.SETTINGS -> SettingsTab(viewModel = viewModel, saveLoadViewModel = saveLoadViewModel, onLogout = onLogout, limitAdTracking = limitAdTracking, onLimitAdTrackingChanged = onLimitAdTrackingChanged)
                 }
             }
 
@@ -5261,7 +5263,9 @@ private fun getRarityColor(rarity: Int): Color = when (rarity) {
 private fun SettingsTab(
     viewModel: GameViewModel,
     saveLoadViewModel: SaveLoadViewModel,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    limitAdTracking: Boolean = true,
+    onLimitAdTrackingChanged: (Boolean) -> Unit = {}
 ) {
     val timeSpeed by saveLoadViewModel.timeSpeed.collectAsState()
     val gameData by viewModel.gameData.collectAsState()
@@ -5523,6 +5527,54 @@ private fun SettingsTab(
                             color = Color.Black
                         )
                     }
+                }
+            }
+
+            item {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "隐私设置",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(GameColors.PageBackground)
+                        .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "限制广告追踪",
+                            fontSize = 12.sp,
+                            color = Color.Black
+                        )
+                        Text(
+                            text = "阻止TapTap SDK收集OAID广告标识符",
+                            fontSize = 10.sp,
+                            color = Color(0xFF999999)
+                        )
+                        Text(
+                            text = "更改将在下次启动应用后生效",
+                            fontSize = 9.sp,
+                            color = Color(0xFFCC8800)
+                        )
+                    }
+                    Switch(
+                        checked = limitAdTracking,
+                        onCheckedChange = onLimitAdTrackingChanged,
+                        colors = SwitchDefaults.colors(
+                            checkedTrackColor = GameColors.SpiritBlue,
+                            checkedThumbColor = Color.White
+                        ),
+                        modifier = Modifier.height(24.dp)
+                    )
                 }
             }
 

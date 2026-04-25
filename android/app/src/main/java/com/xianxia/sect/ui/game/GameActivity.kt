@@ -98,6 +98,7 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
                     
                     val gameData by viewModel.gameData.collectAsState()
                     val isInitialLoading = remember { mutableStateOf(true) }
+                    val limitAdTrackingState = remember { mutableStateOf(sessionManager.limitAdTracking) }
                     
                     LaunchedEffect(gameData.sectName) {
                         if (gameData.sectName.isNotEmpty()) {
@@ -118,6 +119,11 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
                                 intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
                                 startActivity(intent)
                                 finish()
+                            },
+                            limitAdTracking = limitAdTrackingState.value,
+                            onLimitAdTrackingChanged = { enabled ->
+                                sessionManager.limitAdTracking = enabled
+                                limitAdTrackingState.value = enabled
                             }
                         )
 

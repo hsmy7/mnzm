@@ -258,7 +258,7 @@ private fun PrivacySummaryContent(
         modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp, start = 8.dp, end = 8.dp)
     ) {
         Text(
-            text = "【广告标识符收集特别提示】\n\nTapTap SDK 会收集您的 OAID（开放匿名设备标识符）。OAID 是中国广告协会推出的专门用于广告场景的设备标识符，TapTap 使用 OAID 进行广告效果分析（包括广告展示、点击、转化等数据的归因统计）。\n\n您可以在应用设置中关闭\"限制广告追踪\"开关来控制此行为。开启限制广告追踪后，TapTap SDK 将不会收集您的 OAID。",
+            text = "【广告标识符收集特别提示】\n\nTapTap SDK 会收集您的 OAID（开放匿名设备标识符）。OAID 是中国广告协会推出的专门用于广告场景的设备标识符，TapTap 使用 OAID 进行广告效果分析（包括广告展示、点击、转化等数据的归因统计）。\n\n您可以在应用设置 → 隐私设置中开启\"限制广告追踪\"来阻止 OAID 的收集。开启后，TapTap SDK 将不会收集您的 OAID。",
             fontSize = 12.sp,
             color = Color(0xFFC62828),
             modifier = Modifier.padding(10.dp),
@@ -589,7 +589,7 @@ fun FullPrivacyPolicyScreen(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(
-                                text = "【广告标识符（OAID）收集特别提示】\n\nTapTap SDK 会收集您的 OAID（开放匿名设备标识符）。OAID 是中国广告协会推出的专门用于广告场景的设备标识符，与普通的设备信息有本质区别。\n\n• 收集目的：TapTap 使用 OAID 进行广告效果分析（包括广告展示、点击、转化等数据的归因统计）\n• 收集方式：由 TapTap SDK 在初始化时自动获取\n• 您的权利：您可以在应用设置 → 隐私设置中开启\"限制广告追踪\"来阻止 OAID 的收集。开启后，TapTap SDK 将不会收集您的 OAID\n• 关闭影响：关闭广告追踪不影响游戏的正常使用和 TapTap 登录功能",
+                                text = "【广告标识符（OAID）收集特别提示】\n\nTapTap SDK 会收集您的 OAID（开放匿名设备标识符）。OAID 是中国广告协会推出的专门用于广告场景的设备标识符，与普通的设备信息有本质区别。\n\n• 收集目的：TapTap 使用 OAID 进行广告效果分析（包括广告展示、点击、转化等数据的归因统计）\n• 收集方式：由 TapTap SDK 在初始化时自动获取\n• 您的权利：您可以在应用设置 → 隐私设置中开启\"限制广告追踪\"来阻止 OAID 的收集。开启后，TapTap SDK 将不会收集您的 OAID\n• 功能影响：开启限制广告追踪不影响游戏的正常使用和 TapTap 登录功能",
                                 fontSize = 12.sp, color = Color(0xFFC62828), lineHeight = 18.sp,
                                 modifier = Modifier.padding(10.dp), fontWeight = FontWeight.Medium
                             )
