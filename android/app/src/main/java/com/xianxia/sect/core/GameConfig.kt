@@ -141,6 +141,19 @@ object GameConfig {
             1 to RealmConfig(1, "渡劫", 128000, 360, 0.01, 1200.0, 5000, 9, 340),
             0 to RealmConfig(0, "仙人", 256000, 500, 0.0, 2500.0, 9999, 9, 500)
         )
+
+        val BREAKTHROUGH_CHANCES: Map<Int, Map<Int, Double>> = mapOf(
+            9 to mapOf(1 to 1.00, 2 to 0.90, 3 to 0.80, 4 to 0.65, 5 to 0.45),
+            8 to mapOf(1 to 1.00, 2 to 0.85, 3 to 0.75, 4 to 0.50, 5 to 0.32),
+            7 to mapOf(1 to 0.95, 2 to 0.70, 3 to 0.55, 4 to 0.25, 5 to 0.18),
+            6 to mapOf(1 to 0.80, 2 to 0.65, 3 to 0.42, 4 to 0.18, 5 to 0.08),
+            5 to mapOf(1 to 0.65, 2 to 0.35, 3 to 0.25, 4 to 0.08, 5 to 0.00),
+            4 to mapOf(1 to 0.38, 2 to 0.22, 3 to 0.08, 4 to 0.03, 5 to 0.00),
+            3 to mapOf(1 to 0.22, 2 to 0.12, 3 to 0.02, 4 to 0.00, 5 to 0.00),
+            2 to mapOf(1 to 0.12, 2 to 0.05, 3 to 0.00, 4 to 0.00, 5 to 0.00),
+            1 to mapOf(1 to 0.06, 2 to 0.03, 3 to 0.00, 4 to 0.00, 5 to 0.00),
+            0 to mapOf(1 to 0.03, 2 to 0.01, 3 to 0.00, 4 to 0.00, 5 to 0.00)
+        )
         
         fun get(realm: Int): RealmConfig = CONFIGS[realm] ?: CONFIGS.getValue(9)
         
@@ -148,7 +161,13 @@ object GameConfig {
         
         fun getCultivationBase(realm: Int): Int = get(realm).cultivationBase
         
+        @Deprecated("使用 getBreakthroughChance(realm, rootCount) 代替，突破概率现在依赖灵根数量")
         fun getBreakthroughChance(realm: Int): Double = get(realm).breakthroughChance
+
+        fun getBreakthroughChance(realm: Int, rootCount: Int): Double {
+            val clampedRootCount = rootCount.coerceIn(1, 5)
+            return BREAKTHROUGH_CHANCES[realm]?.get(clampedRootCount) ?: 0.0
+        }
         
         fun getSoulPowerRequirement(realm: Int): Int = get(realm).soulPowerRequirement
         

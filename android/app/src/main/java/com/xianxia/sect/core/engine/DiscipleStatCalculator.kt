@@ -353,7 +353,8 @@ object DiscipleStatCalculator {
 
         if (!meetsSoulPowerRequirement(disciple)) return 0.0
 
-        val baseChance = GameConfig.Realm.getBreakthroughChance(disciple.realm)
+        val rootCount = disciple.spiritRoot.types.size
+        val baseChance = GameConfig.Realm.getBreakthroughChance(disciple.realm, rootCount)
 
         val innerElderBonus = if (innerElderComprehension >= 80) {
             (innerElderComprehension - 80) * 0.01
@@ -361,7 +362,6 @@ object DiscipleStatCalculator {
             0.0
         }
 
-        // 天赋突破概率加成（如"悟道通玄"/"灵脉紊乱"）
         val talentEffects = getTalentEffects(disciple)
         val talentBreakthroughBonus = talentEffects["breakthroughChance"] ?: 0.0
 
