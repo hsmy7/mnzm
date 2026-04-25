@@ -3,6 +3,13 @@
 ## [2.5.16] - 2026-04-25
 
 ### 重构
+- equipEquipment 改为 suspend 函数，验证和执行全部在 stateStore.update 事务内原子完成，消除 TOCTOU 竞态风险
+- unequipEquipment 改为 suspend 函数，验证和执行全部在 stateStore.update 事务内原子完成，统一异步语义
+- BagUtils 提取 mergeEquipmentStack/mergeManualStack 私有方法，消除栈查找合并的重复代码
+- BagUtils 提取 buildUpdatedBagItems 私有方法，消除 StorageBagItem 创建和弟子更新的重复代码
+- BagUtils 引入 StackMergeResult 区分合并/新建场景，.map 仅合并场景更新 forget 日期，消除新建场景冗余操作
+- 统一 storageBagItems 访问路径为 disciple.equipment.storageBagItems，明确数据来源
+- 删除 DiscipleService 中不再使用的 currentEquipmentStacks/currentEquipmentInstances 属性
 - DiscipleEquipmentManager.processSlot 中 .map 冗余操作改为条件执行，仅合并场景更新 forget 日期，与 BagUtils 保持一致
 - equipEquipment 合并弟子查找为单次 indexOfFirst，消除冗余二次查找
 - equipEquipment 中 equipmentStack!! 强制解包改为安全调用加提前返回
