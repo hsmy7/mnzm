@@ -1,5 +1,40 @@
 # 模拟宗门 - 更新日志
 
+## [2.5.21] - 2026-04-26
+
+### 修复
+- 修复存档丢失问题：fallbackToDestructiveMigration()改为fallbackToDestructiveMigrationFrom(1,2,3)，仅对v1-v3版本允许销毁重建，v4及以上必须走显式迁移路径
+- 修复存档丢失问题：ProductionSlotRepository.restoreSlots/initializeAllSlots/clear/initializeSlotsForType中deleteAll()改为deleteBySlot(slotId)，防止跨槽位删除生产数据
+- 修复存档丢失问题：自动存档与手动存档/读档的竞态条件，添加SavePipeline.waitForCurrentSave等待机制
+- 修复存档丢失问题：存档后添加WAL checkpoint，防止app被杀后WAL中未checkpoint的数据丢失
+- 修复StorageEngine.exportToFile死锁：嵌套调用load()导致Mutex不可重入死锁，改为直接查询数据库
+- 修复StorageEngine.delete遗漏SaveSlotMetadata删除，导致删除存档后元数据残留
+- 修复StorageEngine.loadFromDatabase缺少事务保护，可能读取不一致的数据快照
+- 修复StorageEngine.exportToFile缺少事务保护
+- 修复SaveLoadViewModel.saveGame未检查游戏是否已加载
+- 修复WorldMapGenerator中IntRange.isNotEmpty()编译错误
+- 为所有数据库迁移(MIGRATION_4_5至MIGRATION_13_14)添加try-catch异常保护和日志
+
+### 变更
+- GameSystem接口新增clearForSlot(slotId: Int)方法，支持按槽位清理数据
+- ProductionSlotDao新增deleteBySlotAndBuildingType方法
+- GameDatabase新增performPostSaveCheckpoint方法
+
+## [2.5.20] - 2026-04-26
+
+### 修复
+- 修复所有功法学习路径缺少同名功法检查：弟子可重复学习同名功法导致属性叠加
+- 修复GameEngine.learnManual缺少同名功法检查
+- 修复GameEngine.replaceManual缺少同名功法检查（排除被替换的功法）
+- 修复GameEngine.rewardItemsToDisciple功法路径缺少同名功法检查
+- 修复ManualSelectionDialog缺少同名功法过滤
+- 修复功法替换UI缺少同名功法过滤（排除被替换的功法）
+- 修复DiscipleManualManager.processAutoLearn缺少同名功法检查
+- 修复DiscipleManualManager.canLearn两个重载均缺少同名功法检查
+- 修复RedeemCodeService.clear方法签名与GameSystem接口不匹配
+- 修复StorageEngine.saveData缺少return语句
+- 修复AISectDiscipleManager多处编译错误
+
 ## [2.5.19] - 2026-04-26
 
 ### 新增

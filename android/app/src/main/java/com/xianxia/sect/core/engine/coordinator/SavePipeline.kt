@@ -93,7 +93,8 @@ class SavePipeline @Inject constructor(
     private val scope get() = applicationScopeProvider.ioScope
 
     private val isProcessing = java.util.concurrent.atomic.AtomicBoolean(false)
-    private val processingLatch = kotlinx.coroutines.sync.Mutex()
+    private val saveSequence = java.util.concurrent.atomic.AtomicLong(0)
+    private val completionSignal = kotlinx.coroutines.sync.Mutex(locked = false)
 
     init {
         startConsumer()
@@ -142,7 +143,7 @@ class SavePipeline @Inject constructor(
     private suspend fun consumeLoop() {
         for (request in saveChannel) {
             isProcessing.set(true)
-            processingLatch.lock()
+            val currentSeq = saveSequence.incrementAndGet()
             try {
                 val result = executeSave(request)
                 if (!result.success) {
@@ -151,8 +152,10 @@ class SavePipeline @Inject constructor(
             } catch (e: Exception) {
                 Log.e(TAG, "Unexpected error processing save request for slot=${request.slot}", e)
             } finally {
-                processingLatch.unlock()
                 isProcessing.set(false)
+                if (completionSignal.isLocked) {
+                    completionSignal.unlock()
+                }
             }
         }
     }
@@ -283,10 +286,16 @@ class SavePipeline @Inject constructor(
 
     suspend fun waitForCurrentSave(timeoutMs: Long = 10_000L): Boolean {
         if (!isProcessing.get()) return true
+        val observedSeq = saveSequence.get()
         return try {
             withTimeoutOrNull(timeoutMs) {
-                processingLatch.lock()
-                processingLatch.unlock()
+                while (isProcessing.get() && saveSequence.get() == observedSeq) {
+                    if (!completionSignal.isLocked) {
+                        completionSignal.lock()
+                    }
+                    kotlinx.coroutines.delay(50)
+                }
+                true
             } != null
         } catch (e: Exception) {
             Log.w(TAG, "waitForCurrentSave interrupted", e)

@@ -117,8 +117,8 @@ class BuildingSubsystem @Inject constructor(
         transform: (ProductionSlot) -> ProductionSlot
     ): Result<ProductionSlot> = repository.updateSlot(buildingType, slotIndex, transform)
 
-    suspend fun initializeProductionSlots(buildingType: BuildingType) {
-        repository.initializeSlotsForType(buildingType)
+    suspend fun initializeProductionSlots(buildingType: BuildingType, slotId: Int) {
+        repository.initializeSlotsForType(buildingType, slotId)
     }
 
     suspend fun initializeAllProductionSlots(slotId: Int) {

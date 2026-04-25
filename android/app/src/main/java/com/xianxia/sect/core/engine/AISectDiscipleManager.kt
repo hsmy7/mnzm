@@ -154,10 +154,10 @@ object AISectDiscipleManager {
         val bootsId = equipments.firstOrNull { it.second == EquipmentSlot.BOOTS }?.first ?: ""
         val accessoryId = equipments.firstOrNull { it.second == EquipmentSlot.ACCESSORY }?.first ?: ""
 
-        val weaponNurture = if (weaponId.isNotEmpty()) generateRandomNurture(weaponId) else EquipmentNurtureData(equipmentId = "", rarity = 0)
-        val armorNurture = if (armorId.isNotEmpty()) generateRandomNurture(armorId) else EquipmentNurtureData(equipmentId = "", rarity = 0)
-        val bootsNurture = if (bootsId.isNotEmpty()) generateRandomNurture(bootsId) else EquipmentNurtureData(equipmentId = "", rarity = 0)
-        val accessoryNurture = if (accessoryId.isNotEmpty()) generateRandomNurture(accessoryId) else EquipmentNurtureData(equipmentId = "", rarity = 0)
+        val weaponNurture = if (weaponId.isNotEmpty()) generateRandomNurture(weaponId) else EquipmentNurtureData("", 0)
+        val armorNurture = if (armorId.isNotEmpty()) generateRandomNurture(armorId) else EquipmentNurtureData("", 0)
+        val bootsNurture = if (bootsId.isNotEmpty()) generateRandomNurture(bootsId) else EquipmentNurtureData("", 0)
+        val accessoryNurture = if (accessoryId.isNotEmpty()) generateRandomNurture(accessoryId) else EquipmentNurtureData("", 0)
 
         return BattleItems(
             manuals = manuals,
@@ -214,7 +214,7 @@ object AISectDiscipleManager {
     }
 
     private fun generateRandomNurture(equipmentId: String): EquipmentNurtureData {
-        val template = EquipmentDatabase.getById(equipmentId) ?: return EquipmentNurtureData(equipmentId = "", rarity = 0)
+        val template = EquipmentDatabase.getById(equipmentId) ?: return EquipmentNurtureData("", 0)
         val maxLevel = EquipmentNurtureSystem.getMaxNurtureLevel(template.rarity)
         val nurtureLevel = Random.nextInt(0, maxLevel + 1)
         return EquipmentNurtureData(

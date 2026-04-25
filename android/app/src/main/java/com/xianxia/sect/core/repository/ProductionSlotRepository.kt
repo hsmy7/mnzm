@@ -333,7 +333,7 @@ class ProductionSlotRepository @Inject constructor(
         }
     }
 
-    suspend fun initializeSlotsForType(buildingType: BuildingType) {
+    suspend fun initializeSlotsForType(buildingType: BuildingType, slotId: Int) {
         globalMutex.withLock {
             val slotCount = configService.getSlotCountByType(buildingType)
             val newSlots = (0 until slotCount).map { idx ->
@@ -341,7 +341,7 @@ class ProductionSlotRepository @Inject constructor(
                     slotIndex = idx,
                     buildingType = buildingType,
                     buildingId = getBuildingIdForType(buildingType)
-                )
+                ).copy(slotId = slotId)
             }
 
             val currentSlots = _slots.value.filter { it.buildingType != buildingType }
@@ -350,10 +350,10 @@ class ProductionSlotRepository @Inject constructor(
             _slots.value = allSlots
             cache.markDirty()
 
-            dao.deleteByBuildingType(buildingType)
+            dao.deleteBySlotAndBuildingType(slotId, buildingType)
             dao.insertAll(newSlots)
 
-            Log.d(TAG, "Initialized $slotCount slots for ${buildingType.name}")
+            Log.d(TAG, "Initialized $slotCount slots for ${buildingType.name} in slotId=$slotId")
         }
     }
 

@@ -92,6 +92,9 @@ interface ProductionSlotDao {
     @Query("DELETE FROM production_slots WHERE slot_id = :slotId")
     suspend fun deleteBySlot(slotId: Int)
 
+    @Query("DELETE FROM production_slots WHERE slot_id = :slotId AND buildingType = :buildingType")
+    suspend fun deleteBySlotAndBuildingType(slotId: Int, buildingType: BuildingType)
+
     @Query("DELETE FROM production_slots")
     suspend fun deleteAll()
     

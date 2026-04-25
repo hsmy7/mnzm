@@ -322,41 +322,43 @@ class StorageEngine @Inject constructor(
 
         return lockManager.withReadLockLight(slot) {
             try {
-                val gameData = database.gameDataDao().getGameDataSync(slot)
-                    ?: return@withReadLockLight StorageResult.failure(StorageError.SLOT_EMPTY, "No data in slot $slot")
+                val saveData = database.withTransaction {
+                    val gameData = database.gameDataDao().getGameDataSync(slot)
+                        ?: return@withTransaction null
 
-                val disciples = database.discipleDao().getAllSync(slot)
-                val equipmentStacks = database.equipmentStackDao().getAllSync(slot)
-                val equipmentInstances = database.equipmentInstanceDao().getAllSync(slot)
-                val manualStacks = database.manualStackDao().getAllSync(slot)
-                val manualInstances = database.manualInstanceDao().getAllSync(slot)
-                val pills = database.pillDao().getAllSync(slot)
-                val materials = database.materialDao().getAllSync(slot)
-                val herbs = database.herbDao().getAllSync(slot)
-                val seeds = database.seedDao().getAllSync(slot)
-                val teams = database.explorationTeamDao().getAllSync(slot)
-                val alliances = gameData.alliances ?: emptyList()
-                val battleLogs = database.battleLogDao().getAllSync(slot)
-                val events = database.gameEventDao().getAllSync(slot)
-                val productionSlots = database.productionSlotDao().getBySlotSync(slot)
+                    val disciples = database.discipleDao().getAllSync(slot)
+                    val equipmentStacks = database.equipmentStackDao().getAllSync(slot)
+                    val equipmentInstances = database.equipmentInstanceDao().getAllSync(slot)
+                    val manualStacks = database.manualStackDao().getAllSync(slot)
+                    val manualInstances = database.manualInstanceDao().getAllSync(slot)
+                    val pills = database.pillDao().getAllSync(slot)
+                    val materials = database.materialDao().getAllSync(slot)
+                    val herbs = database.herbDao().getAllSync(slot)
+                    val seeds = database.seedDao().getAllSync(slot)
+                    val teams = database.explorationTeamDao().getAllSync(slot)
+                    val alliances = gameData.alliances ?: emptyList()
+                    val battleLogs = database.battleLogDao().getAllSync(slot)
+                    val events = database.gameEventDao().getAllSync(slot)
+                    val productionSlots = database.productionSlotDao().getBySlotSync(slot)
 
-                val saveData = SaveData(
-                    gameData = gameData,
-                    disciples = disciples,
-                    equipmentStacks = equipmentStacks,
-                    equipmentInstances = equipmentInstances,
-                    manualStacks = manualStacks,
-                    manualInstances = manualInstances,
-                    pills = pills,
-                    materials = materials,
-                    herbs = herbs,
-                    seeds = seeds,
-                    teams = teams,
-                    events = events,
-                    battleLogs = battleLogs,
-                    alliances = alliances,
-                    productionSlots = productionSlots
-                )
+                    SaveData(
+                        gameData = gameData,
+                        disciples = disciples,
+                        equipmentStacks = equipmentStacks,
+                        equipmentInstances = equipmentInstances,
+                        manualStacks = manualStacks,
+                        manualInstances = manualInstances,
+                        pills = pills,
+                        materials = materials,
+                        herbs = herbs,
+                        seeds = seeds,
+                        teams = teams,
+                        events = events,
+                        battleLogs = battleLogs,
+                        alliances = alliances,
+                        productionSlots = productionSlots
+                    )
+                } ?: return@withReadLockLight StorageResult.failure(StorageError.SLOT_EMPTY, "No data in slot $slot")
 
                 val saveDataBytes = serializationModule.serializeAndCompressSaveData(saveData)
 
