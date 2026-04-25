@@ -1296,7 +1296,7 @@ class SaveDataConverter @Inject constructor() {
         return com.xianxia.sect.core.model.Disciple(
             id = data.id,
             name = data.name,
-            surname = data.surname,
+            surname = data.surname.ifEmpty { com.xianxia.sect.core.util.NameService.extractSurname(data.name) },
             realm = data.realm,
             realmLayer = data.realmLayer,
             cultivation = data.cultivation,

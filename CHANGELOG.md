@@ -1,5 +1,20 @@
 # 模拟宗门 - 更新日志
 
+## [2.5.10] - 2026-04-25
+
+### 修复
+- 修复 canAddPill 合并判断缺少品级匹配，导致不同品级同名丹药被错误合并的问题
+- 修复 MerchantItemConverter.toPill 只按名称查找配方模板，导致丹药属性值与品级不匹配的问题
+- 修复 EventService 宗门交易容量检查未传入品级参数的问题
+- 修复 getCapacityCheckParams PillParams 缺少 grade 字段的问题
+- 修复 hasPill/removePillByName 缺少 grade 参数，可能操作错误品级丹药的问题
+
+### 优化
+- PillRecipeDatabase 新增 getRecipeByNameAndGrade 方法，支持按名称+品级精确查找配方
+- Proto MerchantItemProto price 类型从 int32 改为 int64，支持更大价格范围
+- Proto MerchantItemProto 新增 grade 字段，持久化丹药品级信息
+- 增加品级相关单元测试（同品级合并、不同品级不合并、仓库满时不同品级不可添加）
+
 ## [2.5.9] - 2026-04-25
 
 ### 优化
