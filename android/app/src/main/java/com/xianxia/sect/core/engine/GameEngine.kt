@@ -1707,96 +1707,129 @@ class GameEngine @Inject constructor(
     }
 
     suspend fun listItemsToMerchant(items: List<Pair<String, Int>>) {
-        val data = stateStore.gameData.value
         val newItems = mutableListOf<MerchantItem>()
-        items.forEach { (itemId, quantity) ->
-            val eqStack = stateStore.equipmentStacks.value.find { it.id == itemId }
-            if (eqStack != null) {
-                if (!inventorySystem.removeEquipment(itemId, quantity)) return@forEach
-                newItems.add(MerchantItem(
-                    id = java.util.UUID.randomUUID().toString(),
-                    name = eqStack.name,
-                    type = "equipment",
-                    itemId = itemId,
-                    rarity = eqStack.rarity,
-                    price = GameConfig.Rarity.calculateSellPrice(eqStack.basePrice, 1),
-                    quantity = quantity
-                ))
-                return@forEach
+        stateStore.update {
+            items.forEach { (itemId, quantity) ->
+                val eqStack = equipmentStacks.find { it.id == itemId }
+                if (eqStack != null && !eqStack.isLocked && quantity in 1..eqStack.quantity) {
+                    equipmentStacks = equipmentStacks.mapNotNull { s ->
+                        if (s.id == itemId) {
+                            val newQty = s.quantity - quantity
+                            if (newQty == 0) null else s.copy(quantity = newQty)
+                        } else s
+                    }
+                    newItems.add(MerchantItem(
+                        id = java.util.UUID.randomUUID().toString(),
+                        name = eqStack.name,
+                        type = "equipment",
+                        itemId = itemId,
+                        rarity = eqStack.rarity,
+                        price = GameConfig.Rarity.calculateSellPrice(eqStack.basePrice, 1),
+                        quantity = quantity
+                    ))
+                    return@forEach
+                }
+                val manualStack = manualStacks.find { it.id == itemId }
+                if (manualStack != null && !manualStack.isLocked && quantity in 1..manualStack.quantity) {
+                    manualStacks = manualStacks.mapNotNull { s ->
+                        if (s.id == itemId) {
+                            val newQty = s.quantity - quantity
+                            if (newQty == 0) null else s.copy(quantity = newQty)
+                        } else s
+                    }
+                    newItems.add(MerchantItem(
+                        id = java.util.UUID.randomUUID().toString(),
+                        name = manualStack.name,
+                        type = "manual",
+                        itemId = itemId,
+                        rarity = manualStack.rarity,
+                        price = GameConfig.Rarity.calculateSellPrice(manualStack.basePrice, 1),
+                        quantity = quantity
+                    ))
+                    return@forEach
+                }
+                val pill = pills.find { it.id == itemId }
+                if (pill != null && !pill.isLocked && quantity in 1..pill.quantity) {
+                    pills = pills.mapNotNull { p ->
+                        if (p.id == itemId) {
+                            val newQty = p.quantity - quantity
+                            if (newQty == 0) null else p.copy(quantity = newQty)
+                        } else p
+                    }
+                    newItems.add(MerchantItem(
+                        id = java.util.UUID.randomUUID().toString(),
+                        name = pill.name,
+                        type = "pill",
+                        itemId = itemId,
+                        rarity = pill.rarity,
+                        price = GameConfig.Rarity.calculateSellPrice(pill.basePrice, 1),
+                        quantity = quantity,
+                        grade = pill.grade.displayName
+                    ))
+                    return@forEach
+                }
+                val material = materials.find { it.id == itemId }
+                if (material != null && !material.isLocked && quantity in 1..material.quantity) {
+                    materials = materials.mapNotNull { m ->
+                        if (m.id == itemId) {
+                            val newQty = m.quantity - quantity
+                            if (newQty == 0) null else m.copy(quantity = newQty)
+                        } else m
+                    }
+                    newItems.add(MerchantItem(
+                        id = java.util.UUID.randomUUID().toString(),
+                        name = material.name,
+                        type = "material",
+                        itemId = itemId,
+                        rarity = material.rarity,
+                        price = GameConfig.Rarity.calculateSellPrice(material.basePrice, 1),
+                        quantity = quantity
+                    ))
+                    return@forEach
+                }
+                val herb = herbs.find { it.id == itemId }
+                if (herb != null && !herb.isLocked && quantity in 1..herb.quantity) {
+                    herbs = herbs.mapNotNull { h ->
+                        if (h.id == itemId) {
+                            val newQty = h.quantity - quantity
+                            if (newQty == 0) null else h.copy(quantity = newQty)
+                        } else h
+                    }
+                    newItems.add(MerchantItem(
+                        id = java.util.UUID.randomUUID().toString(),
+                        name = herb.name,
+                        type = "herb",
+                        itemId = itemId,
+                        rarity = herb.rarity,
+                        price = GameConfig.Rarity.calculateSellPrice(herb.basePrice, 1),
+                        quantity = quantity
+                    ))
+                    return@forEach
+                }
+                val seed = seeds.find { it.id == itemId }
+                if (seed != null && !seed.isLocked && quantity in 1..seed.quantity) {
+                    seeds = seeds.mapNotNull { s ->
+                        if (s.id == itemId) {
+                            val newQty = s.quantity - quantity
+                            if (newQty == 0) null else s.copy(quantity = newQty)
+                        } else s
+                    }
+                    newItems.add(MerchantItem(
+                        id = java.util.UUID.randomUUID().toString(),
+                        name = seed.name,
+                        type = "seed",
+                        itemId = itemId,
+                        rarity = seed.rarity,
+                        price = GameConfig.Rarity.calculateSellPrice(seed.basePrice, 1),
+                        quantity = quantity
+                    ))
+                    return@forEach
+                }
             }
-            val manualStack = stateStore.manualStacks.value.find { it.id == itemId }
-            if (manualStack != null) {
-                if (!inventorySystem.removeManual(itemId, quantity)) return@forEach
-                newItems.add(MerchantItem(
-                    id = java.util.UUID.randomUUID().toString(),
-                    name = manualStack.name,
-                    type = "manual",
-                    itemId = itemId,
-                    rarity = manualStack.rarity,
-                    price = GameConfig.Rarity.calculateSellPrice(manualStack.basePrice, 1),
-                    quantity = quantity
-                ))
-                return@forEach
-            }
-            val pill = stateStore.pills.value.find { it.id == itemId }
-            if (pill != null) {
-                if (!inventorySystem.removePill(itemId, quantity)) return@forEach
-                newItems.add(MerchantItem(
-                    id = java.util.UUID.randomUUID().toString(),
-                    name = pill.name,
-                    type = "pill",
-                    itemId = itemId,
-                    rarity = pill.rarity,
-                    price = GameConfig.Rarity.calculateSellPrice(pill.basePrice, 1),
-                    quantity = quantity,
-                    grade = pill.grade.displayName
-                ))
-                return@forEach
-            }
-            val material = stateStore.materials.value.find { it.id == itemId }
-            if (material != null) {
-                if (!inventorySystem.removeMaterial(itemId, quantity)) return@forEach
-                newItems.add(MerchantItem(
-                    id = java.util.UUID.randomUUID().toString(),
-                    name = material.name,
-                    type = "material",
-                    itemId = itemId,
-                    rarity = material.rarity,
-                    price = GameConfig.Rarity.calculateSellPrice(material.basePrice, 1),
-                    quantity = quantity
-                ))
-                return@forEach
-            }
-            val herb = stateStore.herbs.value.find { it.id == itemId }
-            if (herb != null) {
-                if (!inventorySystem.removeHerb(itemId, quantity)) return@forEach
-                newItems.add(MerchantItem(
-                    id = java.util.UUID.randomUUID().toString(),
-                    name = herb.name,
-                    type = "herb",
-                    itemId = itemId,
-                    rarity = herb.rarity,
-                    price = GameConfig.Rarity.calculateSellPrice(herb.basePrice, 1),
-                    quantity = quantity
-                ))
-                return@forEach
-            }
-            val seed = stateStore.seeds.value.find { it.id == itemId }
-            if (seed != null) {
-                if (!inventorySystem.removeSeed(itemId, quantity)) return@forEach
-                newItems.add(MerchantItem(
-                    id = java.util.UUID.randomUUID().toString(),
-                    name = seed.name,
-                    type = "seed",
-                    itemId = itemId,
-                    rarity = seed.rarity,
-                    price = GameConfig.Rarity.calculateSellPrice(seed.basePrice, 1),
-                    quantity = quantity
-                ))
-                return@forEach
+            if (newItems.isNotEmpty()) {
+                gameData = gameData.copy(playerListedItems = gameData.playerListedItems + newItems)
             }
         }
-        updateGameData { it.copy(playerListedItems = it.playerListedItems + newItems) }
     }
 
     suspend fun removePlayerListedItem(itemId: String) {
@@ -1966,58 +1999,235 @@ class GameEngine @Inject constructor(
         }
     }
 
-    fun sellEquipment(equipmentId: String, quantity: Int = 1): Boolean {
-        val stack = stateStore.equipmentStacks.value.find { it.id == equipmentId } ?: return false
-        if (stack.isLocked) return false
-        if (quantity < 1 || quantity > stack.quantity) return false
-        if (!inventorySystem.removeEquipment(equipmentId, quantity)) return false
-        addSpiritStones(GameConfig.Rarity.calculateSellPrice(stack.basePrice, quantity))
-        return true
+    suspend fun sellEquipment(equipmentId: String, quantity: Int = 1): Boolean {
+        var success = false
+        stateStore.update {
+            val stack = equipmentStacks.find { it.id == equipmentId }
+            if (stack != null && !stack.isLocked && quantity in 1..stack.quantity) {
+                equipmentStacks = equipmentStacks.mapNotNull { s ->
+                    if (s.id == equipmentId) {
+                        val newQty = s.quantity - quantity
+                        if (newQty == 0) null else s.copy(quantity = newQty)
+                    } else s
+                }
+                gameData = gameData.copy(spiritStones = gameData.spiritStones + GameConfig.Rarity.calculateSellPrice(stack.basePrice, quantity))
+                success = true
+            }
+        }
+        return success
     }
 
-    fun sellManual(manualId: String, quantity: Int): Boolean {
-        val stack = stateStore.manualStacks.value.find { it.id == manualId } ?: return false
-        if (stack.isLocked) return false
-        if (quantity < 1 || quantity > stack.quantity) return false
-        if (!inventorySystem.removeManual(manualId, quantity)) return false
-        addSpiritStones(GameConfig.Rarity.calculateSellPrice(stack.basePrice, quantity))
-        return true
+    suspend fun sellManual(manualId: String, quantity: Int): Boolean {
+        var success = false
+        stateStore.update {
+            val stack = manualStacks.find { it.id == manualId }
+            if (stack != null && !stack.isLocked && quantity in 1..stack.quantity) {
+                manualStacks = manualStacks.mapNotNull { s ->
+                    if (s.id == manualId) {
+                        val newQty = s.quantity - quantity
+                        if (newQty == 0) null else s.copy(quantity = newQty)
+                    } else s
+                }
+                gameData = gameData.copy(spiritStones = gameData.spiritStones + GameConfig.Rarity.calculateSellPrice(stack.basePrice, quantity))
+                success = true
+            }
+        }
+        return success
     }
 
-    fun sellPill(pillId: String, quantity: Int): Boolean {
-        val pill = stateStore.pills.value.find { it.id == pillId } ?: return false
-        if (pill.isLocked) return false
-        if (quantity < 1 || quantity > pill.quantity) return false
-        if (!inventorySystem.removePill(pillId, quantity)) return false
-        addSpiritStones(GameConfig.Rarity.calculateSellPrice(pill.basePrice, quantity))
-        return true
+    suspend fun sellPill(pillId: String, quantity: Int): Boolean {
+        var success = false
+        stateStore.update {
+            val pill = pills.find { it.id == pillId }
+            if (pill != null && !pill.isLocked && quantity in 1..pill.quantity) {
+                pills = pills.mapNotNull { p ->
+                    if (p.id == pillId) {
+                        val newQty = p.quantity - quantity
+                        if (newQty == 0) null else p.copy(quantity = newQty)
+                    } else p
+                }
+                gameData = gameData.copy(spiritStones = gameData.spiritStones + GameConfig.Rarity.calculateSellPrice(pill.basePrice, quantity))
+                success = true
+            }
+        }
+        return success
     }
 
-    fun sellMaterial(materialId: String, quantity: Int): Boolean {
-        val material = stateStore.materials.value.find { it.id == materialId } ?: return false
-        if (material.isLocked) return false
-        if (quantity < 1 || quantity > material.quantity) return false
-        if (!inventorySystem.removeMaterial(materialId, quantity)) return false
-        addSpiritStones(GameConfig.Rarity.calculateSellPrice(material.basePrice, quantity))
-        return true
+    suspend fun sellMaterial(materialId: String, quantity: Int): Boolean {
+        var success = false
+        stateStore.update {
+            val material = materials.find { it.id == materialId }
+            if (material != null && !material.isLocked && quantity in 1..material.quantity) {
+                materials = materials.mapNotNull { m ->
+                    if (m.id == materialId) {
+                        val newQty = m.quantity - quantity
+                        if (newQty == 0) null else m.copy(quantity = newQty)
+                    } else m
+                }
+                gameData = gameData.copy(spiritStones = gameData.spiritStones + GameConfig.Rarity.calculateSellPrice(material.basePrice, quantity))
+                success = true
+            }
+        }
+        return success
     }
 
-    fun sellHerb(herbId: String, quantity: Int): Boolean {
-        val herb = stateStore.herbs.value.find { it.id == herbId } ?: return false
-        if (herb.isLocked) return false
-        if (quantity < 1 || quantity > herb.quantity) return false
-        if (!inventorySystem.removeHerb(herbId, quantity)) return false
-        addSpiritStones(GameConfig.Rarity.calculateSellPrice(herb.basePrice, quantity))
-        return true
+    suspend fun sellHerb(herbId: String, quantity: Int): Boolean {
+        var success = false
+        stateStore.update {
+            val herb = herbs.find { it.id == herbId }
+            if (herb != null && !herb.isLocked && quantity in 1..herb.quantity) {
+                herbs = herbs.mapNotNull { h ->
+                    if (h.id == herbId) {
+                        val newQty = h.quantity - quantity
+                        if (newQty == 0) null else h.copy(quantity = newQty)
+                    } else h
+                }
+                gameData = gameData.copy(spiritStones = gameData.spiritStones + GameConfig.Rarity.calculateSellPrice(herb.basePrice, quantity))
+                success = true
+            }
+        }
+        return success
     }
 
-    fun sellSeed(seedId: String, quantity: Int): Boolean {
-        val seed = stateStore.seeds.value.find { it.id == seedId } ?: return false
-        if (seed.isLocked) return false
-        if (quantity < 1 || quantity > seed.quantity) return false
-        if (!inventorySystem.removeSeed(seedId, quantity)) return false
-        addSpiritStones(GameConfig.Rarity.calculateSellPrice(seed.basePrice, quantity))
-        return true
+    suspend fun sellSeed(seedId: String, quantity: Int): Boolean {
+        var success = false
+        stateStore.update {
+            val seed = seeds.find { it.id == seedId }
+            if (seed != null && !seed.isLocked && quantity in 1..seed.quantity) {
+                seeds = seeds.mapNotNull { s ->
+                    if (s.id == seedId) {
+                        val newQty = s.quantity - quantity
+                        if (newQty == 0) null else s.copy(quantity = newQty)
+                    } else s
+                }
+                gameData = gameData.copy(spiritStones = gameData.spiritStones + GameConfig.Rarity.calculateSellPrice(seed.basePrice, quantity))
+                success = true
+            }
+        }
+        return success
+    }
+
+    data class BulkSellOperation(
+        val id: String,
+        val name: String,
+        val quantity: Int,
+        val itemType: String
+    )
+
+    data class BulkSellResult(
+        val soldCount: Int,
+        val totalEarned: Long,
+        val soldItemNames: List<String>,
+        val failedItemNames: List<String>
+    )
+
+    suspend fun bulkSellItems(operations: List<BulkSellOperation>): BulkSellResult {
+        var totalEarned = 0L
+        var soldCount = 0
+        val soldItemNames = mutableListOf<String>()
+        val failedItemNames = mutableListOf<String>()
+
+        stateStore.update {
+            for (op in operations) {
+                var sold = false
+                when (op.itemType) {
+                    "equipment" -> {
+                        val stack = equipmentStacks.find { it.id == op.id }
+                        if (stack != null && !stack.isLocked && op.quantity in 1..stack.quantity) {
+                            equipmentStacks = equipmentStacks.mapNotNull { s ->
+                                if (s.id == op.id) {
+                                    val newQty = s.quantity - op.quantity
+                                    if (newQty == 0) null else s.copy(quantity = newQty)
+                                } else s
+                            }
+                            totalEarned += GameConfig.Rarity.calculateSellPrice(stack.basePrice, op.quantity)
+                            soldCount++
+                            sold = true
+                        }
+                    }
+                    "manual" -> {
+                        val stack = manualStacks.find { it.id == op.id }
+                        if (stack != null && !stack.isLocked && op.quantity in 1..stack.quantity) {
+                            manualStacks = manualStacks.mapNotNull { s ->
+                                if (s.id == op.id) {
+                                    val newQty = s.quantity - op.quantity
+                                    if (newQty == 0) null else s.copy(quantity = newQty)
+                                } else s
+                            }
+                            totalEarned += GameConfig.Rarity.calculateSellPrice(stack.basePrice, op.quantity)
+                            soldCount++
+                            sold = true
+                        }
+                    }
+                    "pill" -> {
+                        val pill = pills.find { it.id == op.id }
+                        if (pill != null && !pill.isLocked && op.quantity in 1..pill.quantity) {
+                            pills = pills.mapNotNull { p ->
+                                if (p.id == op.id) {
+                                    val newQty = p.quantity - op.quantity
+                                    if (newQty == 0) null else p.copy(quantity = newQty)
+                                } else p
+                            }
+                            totalEarned += GameConfig.Rarity.calculateSellPrice(pill.basePrice, op.quantity)
+                            soldCount++
+                            sold = true
+                        }
+                    }
+                    "material" -> {
+                        val material = materials.find { it.id == op.id }
+                        if (material != null && !material.isLocked && op.quantity in 1..material.quantity) {
+                            materials = materials.mapNotNull { m ->
+                                if (m.id == op.id) {
+                                    val newQty = m.quantity - op.quantity
+                                    if (newQty == 0) null else m.copy(quantity = newQty)
+                                } else m
+                            }
+                            totalEarned += GameConfig.Rarity.calculateSellPrice(material.basePrice, op.quantity)
+                            soldCount++
+                            sold = true
+                        }
+                    }
+                    "herb" -> {
+                        val herb = herbs.find { it.id == op.id }
+                        if (herb != null && !herb.isLocked && op.quantity in 1..herb.quantity) {
+                            herbs = herbs.mapNotNull { h ->
+                                if (h.id == op.id) {
+                                    val newQty = h.quantity - op.quantity
+                                    if (newQty == 0) null else h.copy(quantity = newQty)
+                                } else h
+                            }
+                            totalEarned += GameConfig.Rarity.calculateSellPrice(herb.basePrice, op.quantity)
+                            soldCount++
+                            sold = true
+                        }
+                    }
+                    "seed" -> {
+                        val seed = seeds.find { it.id == op.id }
+                        if (seed != null && !seed.isLocked && op.quantity in 1..seed.quantity) {
+                            seeds = seeds.mapNotNull { s ->
+                                if (s.id == op.id) {
+                                    val newQty = s.quantity - op.quantity
+                                    if (newQty == 0) null else s.copy(quantity = newQty)
+                                } else s
+                            }
+                            totalEarned += GameConfig.Rarity.calculateSellPrice(seed.basePrice, op.quantity)
+                            soldCount++
+                            sold = true
+                        }
+                    }
+                }
+                if (sold) {
+                    soldItemNames.add(if (op.quantity > 1) "${op.name} x${op.quantity}" else op.name)
+                } else {
+                    failedItemNames.add(op.name)
+                }
+            }
+            if (totalEarned > 0) {
+                gameData = gameData.copy(spiritStones = gameData.spiritStones + totalEarned)
+            }
+        }
+
+        return BulkSellResult(soldCount, totalEarned, soldItemNames, failedItemNames)
     }
 
     fun toggleItemLock(itemId: String, itemType: String) {

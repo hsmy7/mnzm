@@ -4119,13 +4119,11 @@ private fun WarehouseTab(viewModel: GameViewModel) {
                     maxQuantity = itemQuantity,
                     basePrice = basePrice,
                     onConfirm = { quantity ->
-                        val success = viewModel.sellItem(itemId, itemType, quantity)
-                        if (success) {
-                            showSellDialog = false
-                            if (quantity >= itemQuantity) {
-                                showDetailDialog = false
-                                selectedItemId = null
-                            }
+                        viewModel.sellItem(itemId, itemType, quantity)
+                        showSellDialog = false
+                        if (quantity >= itemQuantity) {
+                            showDetailDialog = false
+                            selectedItemId = null
                         }
                     },
                     onDismiss = { showSellDialog = false }

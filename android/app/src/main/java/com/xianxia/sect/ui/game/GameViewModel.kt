@@ -684,20 +684,21 @@ class GameViewModel @Inject constructor(
         }
     }
 
-    fun sellItem(itemId: String, itemType: String, quantity: Int): Boolean {
-        val result = when (itemType) {
-            "equipment" -> gameEngine.sellEquipment(itemId, quantity)
-            "manual" -> gameEngine.sellManual(itemId, quantity)
-            "pill" -> gameEngine.sellPill(itemId, quantity)
-            "material" -> gameEngine.sellMaterial(itemId, quantity)
-            "herb" -> gameEngine.sellHerb(itemId, quantity)
-            "seed" -> gameEngine.sellSeed(itemId, quantity)
-            else -> false
+    fun sellItem(itemId: String, itemType: String, quantity: Int) {
+        viewModelScope.launch {
+            val result = when (itemType) {
+                "equipment" -> gameEngine.sellEquipment(itemId, quantity)
+                "manual" -> gameEngine.sellManual(itemId, quantity)
+                "pill" -> gameEngine.sellPill(itemId, quantity)
+                "material" -> gameEngine.sellMaterial(itemId, quantity)
+                "herb" -> gameEngine.sellHerb(itemId, quantity)
+                "seed" -> gameEngine.sellSeed(itemId, quantity)
+                else -> false
+            }
+            if (!result) {
+                _errorMessage.value = "售卖失败，物品可能已被锁定或不存在"
+            }
         }
-        if (!result) {
-            _errorMessage.value = "售卖失败，物品可能已被锁定或不存在"
-        }
-        return result
     }
     fun bulkSellItems(
         selectedRarities: Set<Int>,
@@ -705,14 +706,14 @@ class GameViewModel @Inject constructor(
     ) {
         viewModelScope.launch {
             try {
-                val sellOperations = mutableListOf<SuspendableSellOperation>()
+                val operations = mutableListOf<GameEngine.BulkSellOperation>()
                 
                 if (selectedTypes.contains("EQUIPMENT")) {
                     equipmentStacks.value.filter { 
                         selectedRarities.contains(it.rarity) && 
                         !it.isLocked
                     }.forEach { item ->
-                        sellOperations.add(SuspendableSellOperation(item.id, item.name, item.quantity, GameConfig.Rarity.calculateSellPrice(item.basePrice, item.quantity), "equipment"))
+                        operations.add(GameEngine.BulkSellOperation(item.id, item.name, item.quantity, "equipment"))
                     }
                 }
 
@@ -721,7 +722,7 @@ class GameViewModel @Inject constructor(
                         selectedRarities.contains(it.rarity) && 
                         !it.isLocked
                     }.forEach { item ->
-                        sellOperations.add(SuspendableSellOperation(item.id, item.name, item.quantity, GameConfig.Rarity.calculateSellPrice(item.basePrice, item.quantity), "manual"))
+                        operations.add(GameEngine.BulkSellOperation(item.id, item.name, item.quantity, "manual"))
                     }
                 }
 
@@ -729,7 +730,7 @@ class GameViewModel @Inject constructor(
                     pills.value.filter { 
                         selectedRarities.contains(it.rarity) && !it.isLocked
                     }.forEach { item ->
-                        sellOperations.add(SuspendableSellOperation(item.id, item.name, item.quantity, GameConfig.Rarity.calculateSellPrice(item.basePrice, item.quantity), "pill"))
+                        operations.add(GameEngine.BulkSellOperation(item.id, item.name, item.quantity, "pill"))
                     }
                 }
 
@@ -737,7 +738,7 @@ class GameViewModel @Inject constructor(
                     materials.value.filter { 
                         selectedRarities.contains(it.rarity) && !it.isLocked
                     }.forEach { item ->
-                        sellOperations.add(SuspendableSellOperation(item.id, item.name, item.quantity, GameConfig.Rarity.calculateSellPrice(item.basePrice, item.quantity), "material"))
+                        operations.add(GameEngine.BulkSellOperation(item.id, item.name, item.quantity, "material"))
                     }
                 }
 
@@ -745,7 +746,7 @@ class GameViewModel @Inject constructor(
                     herbs.value.filter { 
                         selectedRarities.contains(it.rarity) && !it.isLocked
                     }.forEach { item ->
-                        sellOperations.add(SuspendableSellOperation(item.id, item.name, item.quantity, GameConfig.Rarity.calculateSellPrice(item.basePrice, item.quantity), "herb"))
+                        operations.add(GameEngine.BulkSellOperation(item.id, item.name, item.quantity, "herb"))
                     }
                 }
 
@@ -753,29 +754,27 @@ class GameViewModel @Inject constructor(
                     seeds.value.filter { 
                         selectedRarities.contains(it.rarity) && !it.isLocked
                     }.forEach { item ->
-                        sellOperations.add(SuspendableSellOperation(item.id, item.name, item.quantity, GameConfig.Rarity.calculateSellPrice(item.basePrice, item.quantity), "seed"))
+                        operations.add(GameEngine.BulkSellOperation(item.id, item.name, item.quantity, "seed"))
                     }
                 }
 
-                if (sellOperations.isEmpty()) {
+                if (operations.isEmpty()) {
                     _errorMessage.value = "没有符合条件的物品可出售（已排除锁定物品）"
                     return@launch
                 }
 
-                val soldItems = mutableListOf<String>()
-                var totalEarned = 0L
-                
                 try {
-                    for (op in sellOperations) {
-                        val success = sellItem(op.id, op.itemType, op.quantity)
-                        
-                        if (success) {
-                            soldItems.add(op.displayName)
-                            totalEarned += op.price
+                    val result = gameEngine.bulkSellItems(operations)
+                    if (result.soldCount > 0) {
+                        val msg = buildString {
+                            append("成功出售 ${result.soldCount} 件物品，获得 ${result.totalEarned} 灵石")
+                            if (result.failedItemNames.isNotEmpty()) {
+                                append("\n以下物品出售失败：${result.failedItemNames.joinToString("、")}")
+                            }
                         }
-                    }
-                    if (soldItems.isNotEmpty()) {
-                        _successMessage.value = "成功出售 ${soldItems.size} 件物品，获得 $totalEarned 灵石"
+                        _successMessage.value = msg
+                    } else {
+                        _errorMessage.value = "出售失败，物品可能已被锁定或不存在"
                     }
                 } catch (e: Exception) {
                     _errorMessage.value = "出售过程中发生错误: ${e.message}"
@@ -784,16 +783,6 @@ class GameViewModel @Inject constructor(
                 _errorMessage.value = e.message ?: "一键出售失败"
             }
         }
-    }
-    
-    private data class SuspendableSellOperation(
-        val id: String,
-        val name: String,
-        val quantity: Int,
-        val price: Long,
-        val itemType: String
-    ) {
-        val displayName: String get() = if (quantity > 1) "$name x$quantity" else name
     }
 
     fun getEquipmentById(id: String): EquipmentInstance? {
