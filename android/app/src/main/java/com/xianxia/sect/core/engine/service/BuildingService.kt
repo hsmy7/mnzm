@@ -110,14 +110,17 @@ class BuildingService @Inject constructor(
         private const val TAG = "BuildingService"
     }
 
+    @Suppress("DEPRECATION")
     fun getBuildingSlots(): List<BuildingSlot> {
         return productionSlotRepository.getSlotsByBuildingId("forge").map { it.toBuildingSlot() }
     }
 
+    @Suppress("DEPRECATION")
     fun getAlchemySlots(): List<AlchemySlot> {
         return productionSlotRepository.getSlotsByType(BuildingType.ALCHEMY).map { it.toAlchemySlot() }
     }
 
+    @Suppress("DEPRECATION")
     fun getPlantSlots(): List<PlantSlotData> {
         return productionSlotRepository.getSlotsByType(BuildingType.HERB_GARDEN).map { it.toPlantSlotData() }
     }
@@ -192,6 +195,7 @@ class BuildingService @Inject constructor(
         }
     }
 
+    @Suppress("DEPRECATION")
     fun getBuildingSlotsForBuilding(buildingId: String): List<BuildingSlot> {
         return productionSlotRepository.getSlotsByBuildingId(buildingId).map { it.toBuildingSlot() }
     }

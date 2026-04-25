@@ -1,5 +1,14 @@
 # 模拟宗门 - 更新日志
 
+## [2.5.7] - 2026-04-25
+
+### 优化
+- 迁移 Disciple 模型层过时委托属性到子组件路径（combat/pillEffects/equipment/social/skills/usage），消除编译器警告
+- 替换 PackageInfo.versionCode 为 PackageInfoCompat.getLongVersionCode()
+- 替换 ClickableText (foundation) 为 Text + Modifier.pointerInput + detectTapGestures
+- 移除不再需要的 @file:Suppress("DEPRECATION") 注解
+- 为 BuildingService 过时转换方法调用添加 @Suppress 注解
+
 ## [2.5.6] - 2026-04-25
 
 ### 修复

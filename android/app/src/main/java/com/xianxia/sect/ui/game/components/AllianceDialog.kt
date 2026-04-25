@@ -1,4 +1,3 @@
-@file:Suppress("DEPRECATION")
 package com.xianxia.sect.ui.game.components
 
 import androidx.compose.foundation.background
