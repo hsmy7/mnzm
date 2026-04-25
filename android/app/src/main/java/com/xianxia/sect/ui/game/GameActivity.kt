@@ -120,6 +120,9 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
                                 startActivity(intent)
                                 finish()
                             },
+                            onRestartGame = {
+                                saveLoadViewModel.restartGame()
+                            },
                             limitAdTracking = limitAdTrackingState.value,
                             onLimitAdTrackingChanged = { enabled ->
                                 sessionManager.limitAdTracking = enabled

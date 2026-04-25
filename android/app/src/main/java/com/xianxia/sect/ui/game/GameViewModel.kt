@@ -845,6 +845,23 @@ class GameViewModel @Inject constructor(
         closeCurrentDialog()
     }
 
+    val isGameOver: StateFlow<Boolean> = gameEngine.gameData
+        .map { it.isGameOver }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    fun openGameOverDialog() {
+        viewModelScope.launch {
+            gameEngineCore.pause()
+        }
+        dialogStateManager.closeDialog()
+        openDialog(DialogType.GameOver)
+    }
+
+    fun closeGameOverDialog() {
+        closeCurrentDialog()
+    }
+
     private val _showRedeemCodeDialog = MutableStateFlow(false)
     val showRedeemCodeDialog: StateFlow<Boolean> = _showRedeemCodeDialog.asStateFlow()
 

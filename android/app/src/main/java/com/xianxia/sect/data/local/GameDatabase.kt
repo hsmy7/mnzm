@@ -483,6 +483,18 @@ val MIGRATION_13_14 = object : androidx.room.migration.Migration(13, 14) {
     }
 }
 
+val MIGRATION_14_15 = object : androidx.room.migration.Migration(14, 15) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        try {
+            Log.i("GameDatabase", "Migrating database from version 14 to 15: add isGameOver field to game_data")
+            db.execSQL("ALTER TABLE game_data ADD COLUMN isGameOver INTEGER NOT NULL DEFAULT 0")
+        } catch (e: Exception) {
+            Log.e("GameDatabase", "Migration 14->15 failed", e)
+            throw e
+        }
+    }
+}
+
 private fun mergeStacks(
     db: SupportSQLiteDatabase,
     tableName: String,
@@ -546,7 +558,7 @@ private fun mergeStacks(
         ArchivedGameEvent::class,
         ArchivedDisciple::class
     ],
-    version = 14,
+    version = 15,
     exportSchema = true
 )
 
@@ -829,7 +841,7 @@ abstract class GameDatabase : RoomDatabase() {
                         optimizeDatabase(db)
                     }
                 })
-                .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
+                .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
                 .fallbackToDestructiveMigrationFrom(1, 2, 3)
                 .build()
                 .also { db -> applySafetyPragmas(db) }

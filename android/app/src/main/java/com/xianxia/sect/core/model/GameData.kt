@@ -173,7 +173,9 @@ data class GameData(
     var lastCompetitionYear: Int = 0,
 
     // 秘境智能战斗：开启后遭遇妖兽时根据队伍状态决定是否战斗
-    var smartBattleEnabled: Boolean = false
+    var smartBattleEnabled: Boolean = false,
+
+    var isGameOver: Boolean = false
 ) {
     val displayTime: String get() = "第${gameYear}年${gameMonth}月"
 

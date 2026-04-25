@@ -787,53 +787,30 @@ object AISectAttackManager {
         return BattleCalculator.selectTarget(attacker, aliveTargets)
     }
 
-    fun createGarrisonTeam(
-        attackerAliveDisciples: List<Disciple>,
-        occupiedSectDisciples: List<Disciple>,
-        attackerSectId: String,
-        attackerSectName: String,
-        occupiedSectId: String
-    ): AIBattleTeam {
-        val garrisonDisciples = mutableListOf<Disciple>()
-        garrisonDisciples.addAll(attackerAliveDisciples.take(TEAM_SIZE))
-        if (garrisonDisciples.size < TEAM_SIZE) {
-            val remaining = occupiedSectDisciples
-                .filter { it.isAlive && it.status == DiscipleStatus.IDLE && it.id !in garrisonDisciples.map { d -> d.id } }
-                .sortedBy { it.realm }
-                .take(TEAM_SIZE - garrisonDisciples.size)
-            garrisonDisciples.addAll(remaining)
+    fun findGarrisonTeam(sect: WorldSect, aiBattleTeams: List<AIBattleTeam>): AIBattleTeam? {
+        return if (sect.garrisonTeamId.isNotEmpty()) {
+            aiBattleTeams.find { it.id == sect.garrisonTeamId }
+        } else {
+            aiBattleTeams.find { it.isGarrison && it.garrisonSectId == sect.id }
         }
-        return AIBattleTeam(
-            id = java.util.UUID.randomUUID().toString(),
-            attackerSectId = attackerSectId,
-            attackerSectName = attackerSectName,
-            defenderSectId = occupiedSectId,
-            defenderSectName = "",
-            disciples = garrisonDisciples,
-            currentX = 0f,
-            currentY = 0f,
-            targetX = 0f,
-            targetY = 0f,
-            attackerStartX = 0f,
-            attackerStartY = 0f,
-            moveProgress = 1f,
-            status = "stationed",
-            route = emptyList(),
-            currentRouteIndex = 0,
-            startYear = 0,
-            startMonth = 0,
-            isPlayerDefender = false,
-            isGarrison = true,
-            garrisonSectId = occupiedSectId,
-            garrisonSectName = ""
-        )
+    }
+
+    fun supplementDisciples(
+        coreDisciples: List<Disciple>,
+        availableDisciples: List<Disciple>
+    ): List<Disciple> {
+        val core = coreDisciples.take(TEAM_SIZE)
+        if (core.size >= TEAM_SIZE) return core
+        val coreIds = core.map { it.id }.toSet()
+        val supplements = availableDisciples
+            .filter { it.isAlive && it.id !in coreIds }
+            .sortedBy { it.realm }
+            .take(TEAM_SIZE - core.size)
+        return core + supplements
     }
 
     fun createPlayerDefenseTeam(
-        disciples: List<Disciple>,
-        equipmentMap: Map<String, com.xianxia.sect.core.model.EquipmentInstance>,
-        manualMap: Map<String, com.xianxia.sect.core.model.ManualInstance>,
-        manualProficiencies: Map<String, Map<String, ManualProficiencyData>>
+        disciples: List<Disciple>
     ): List<Disciple> {
         return disciples
             .filter { it.isAlive && it.status == DiscipleStatus.IDLE }

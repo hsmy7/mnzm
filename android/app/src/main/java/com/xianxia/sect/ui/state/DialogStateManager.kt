@@ -43,6 +43,7 @@ class DialogStateManager @Inject constructor() {
         object RedeemCode : DialogType()
         object MonthlySalary : DialogType()
         object BuildingDetail : DialogType()
+        object GameOver : DialogType()
         data class Custom(val id: String) : DialogType()
     }
     

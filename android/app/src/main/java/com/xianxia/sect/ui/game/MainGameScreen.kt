@@ -156,6 +156,7 @@ fun MainGameScreen(
     worldMapViewModel: WorldMapViewModel,
     battleViewModel: BattleViewModel,
     onLogout: () -> Unit,
+    onRestartGame: () -> Unit,
     limitAdTracking: Boolean = true,
     onLimitAdTrackingChanged: (Boolean) -> Unit = {}
 ) {
@@ -228,6 +229,15 @@ fun MainGameScreen(
         if (!gameData?.pendingCompetitionResults.isNullOrEmpty()) {
             worldMapViewModel.resetOuterTournamentClosedFlag()
             worldMapViewModel.openOuterTournamentDialog()
+        }
+    }
+
+    val isGameOver by viewModel.isGameOver.collectAsState()
+    val showGameOverDialog = currentDialog?.type == DialogType.GameOver
+
+    LaunchedEffect(isGameOver) {
+        if (isGameOver && !showGameOverDialog) {
+            viewModel.openGameOverDialog()
         }
     }
 
@@ -441,6 +451,19 @@ fun MainGameScreen(
             BattleLogListDialog(
                 battleLogs = battleLogs,
                 onDismiss = { viewModel.closeBattleLogDialog() }
+            )
+        }
+
+        if (showGameOverDialog) {
+            GameOverDialog(
+                onRestartGame = {
+                    viewModel.closeGameOverDialog()
+                    onRestartGame()
+                },
+                onReturnToMain = {
+                    viewModel.closeGameOverDialog()
+                    onLogout()
+                }
             )
         }
     }
@@ -661,6 +684,68 @@ private fun EventItem(event: GameEvent) {
                 fontSize = 12.sp,
                 color = Color.Black
             )
+        }
+    }
+}
+
+@Composable
+private fun GameOverDialog(
+    onRestartGame: () -> Unit,
+    onReturnToMain: () -> Unit
+) {
+    Dialog(onDismissRequest = {}) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A2E))
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "宗门覆灭",
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFFFF4444)
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = "你宗所有领地已被攻占，弟子流离失散，\n宗门就此覆灭于修仙界之中...",
+                    fontSize = 14.sp,
+                    color = Color(0xFFCCCCCC),
+                    textAlign = TextAlign.Center,
+                    lineHeight = 22.sp
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                GameButton(
+                    text = "重开游戏",
+                    onClick = onRestartGame,
+                    modifier = Modifier.fillMaxWidth(),
+                    backgroundColor = Color(0xFF4A6FA5),
+                    height = 40.dp,
+                    fontSize = 14.sp
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                GameButton(
+                    text = "回到主界面",
+                    onClick = onReturnToMain,
+                    modifier = Modifier.fillMaxWidth(),
+                    backgroundColor = Color(0xFF666666),
+                    height = 40.dp,
+                    fontSize = 14.sp
+                )
+            }
         }
     }
 }

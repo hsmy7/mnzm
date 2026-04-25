@@ -37,6 +37,7 @@ import com.xianxia.sect.core.engine.MissionSystem
 import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.config.InventoryConfig
+import com.xianxia.sect.core.config.DiplomaticEventConfig
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.di.ApplicationScopeProvider
 import android.util.Log
@@ -793,6 +794,8 @@ class CultivationService @Inject constructor(
         // Process AI battle team movement
         processAIBattleTeamMovement()
 
+        checkGameOverCondition()
+
         processPlayerBattleTeamMovement()
 
         // Check exploration arrivals
@@ -1002,6 +1005,9 @@ class CultivationService @Inject constructor(
         // 8. Process AI sect operations
         processAISectOperations(year, month)
 
+        // 8.5 Check game over condition
+        checkGameOverCondition()
+
         // 9. Process scout info expiry
         processScoutInfoExpiry(year, month)
 
@@ -1128,10 +1134,13 @@ class CultivationService @Inject constructor(
         // 9. Process AI alliances
         processAIAlliances(year)
 
-        // 10. Process reflection cliff release (思过崖期满释放)
+        // 10. Process alliance favor maintenance
+        processAllianceFavorMaintenance()
+
+        // 11. Process reflection cliff release (思过崖期满释放)
         processReflectionRelease(year)
 
-        // 11. Process favor decay for high favor relations
+        // 12. Process favor decay for high favor relations
         processFavorDecay(year)
     }
 
@@ -2091,19 +2100,11 @@ class CultivationService @Inject constructor(
             return
         }
 
-        val garrisonTeam = data.aiBattleTeams.find { it.isGarrison && it.garrisonSectId == targetSect.id }
+        val garrisonTeam = AISectAttackManager.findGarrisonTeam(targetSect, data.aiBattleTeams)
         val defenderDisciples = if (garrisonTeam != null) {
             val garrisonDisciples = garrisonTeam.disciples.filter { it.isAlive }
             val sectDisciples = data.aiSectDisciples[targetSect.id] ?: emptyList()
-            if (garrisonDisciples.size < AISectAttackManager.TEAM_SIZE) {
-                val remaining = sectDisciples
-                    .filter { it.isAlive && it.id !in garrisonDisciples.map { d -> d.id } }
-                    .sortedBy { it.realm }
-                    .take(AISectAttackManager.TEAM_SIZE - garrisonDisciples.size)
-                garrisonDisciples + remaining
-            } else {
-                garrisonDisciples
-            }
+            AISectAttackManager.supplementDisciples(garrisonDisciples, sectDisciples)
         } else {
             (data.aiSectDisciples[targetSect.id] ?: emptyList()).filter { it.isAlive }
         }
@@ -2170,11 +2171,13 @@ class CultivationService @Inject constructor(
 
         val playerSect = data.worldMapSects.find { it.isPlayerSect }
 
+        val currentTargetSect = currentGameData.worldMapSects.find { it.id == targetSect.id } ?: targetSect
+
         val canActuallyOccupy = if (result.winner == AIBattleWinner.ATTACKER && result.canOccupy) {
-            val targetSectOccupied = targetSect.occupierSectId.isNotEmpty()
+            val targetSectOccupied = currentTargetSect.occupierSectId.isNotEmpty()
             if (targetSectOccupied) {
                 val hasAiGarrison = currentGameData.aiBattleTeams.any {
-                    it.isGarrison && it.garrisonSectId == targetSect.id && it.status != "completed"
+                    ((it.isGarrison && it.garrisonSectId == targetSect.id) || it.id == currentTargetSect.garrisonTeamId) && it.status != "completed"
                 }
                 val hasPlayerGarrison = currentGameData.battleTeam?.let { bt ->
                     bt.isOccupying && bt.occupiedSectId == targetSect.id &&
@@ -2201,7 +2204,8 @@ class CultivationService @Inject constructor(
                     if (sect.id == targetSect.id) {
                         sect.copy(
                             isPlayerOccupied = true,
-                            occupierSectId = data.worldMapSects.find { it.isPlayerSect }?.id ?: ""
+                            occupierSectId = data.worldMapSects.find { it.isPlayerSect }?.id ?: "",
+                            garrisonTeamId = team.id
                         )
                     } else {
                         sect
@@ -2284,21 +2288,25 @@ class CultivationService @Inject constructor(
             return
         }
 
+        val playerBattleTeam = data.battleTeam
+        val playerTeamStationedThere = playerBattleTeam != null &&
+            playerBattleTeam.isOccupying &&
+            playerBattleTeam.occupiedSectId == team.defenderSectId &&
+            playerBattleTeam.status == "stationed" &&
+            playerBattleTeam.aliveMemberCount > 0
+
+        if (playerTeamStationedThere && playerBattleTeam != null) {
+            triggerPlayerGarrisonBattle(team, defenderSect, attackerSect, playerBattleTeam)
+            return
+        }
+
         val attackerDisciples = data.aiSectDisciples[team.attackerSectId] ?: emptyList()
         val defenderDisciples = data.aiSectDisciples[team.defenderSectId] ?: emptyList()
 
-        val garrisonTeam = data.aiBattleTeams.find { it.isGarrison && it.garrisonSectId == team.defenderSectId }
+        val garrisonTeam = AISectAttackManager.findGarrisonTeam(defenderSect, data.aiBattleTeams)
         val result = if (garrisonTeam != null) {
             val garrisonDisciples = garrisonTeam.disciples.filter { it.isAlive }
-            val supplementedDisciples = if (garrisonDisciples.size < AISectAttackManager.TEAM_SIZE) {
-                val remaining = defenderDisciples
-                    .filter { it.isAlive && it.id !in garrisonDisciples.map { d -> d.id } }
-                    .sortedBy { it.realm }
-                    .take(AISectAttackManager.TEAM_SIZE - garrisonDisciples.size)
-                garrisonDisciples + remaining
-            } else {
-                garrisonDisciples
-            }
+            val supplementedDisciples = AISectAttackManager.supplementDisciples(garrisonDisciples, defenderDisciples)
             AISectAttackManager.executeAISectBattle(team, defenderSect, supplementedDisciples)
         } else {
             AISectAttackManager.executeAISectBattle(team, defenderSect, defenderDisciples)
@@ -2342,11 +2350,13 @@ class CultivationService @Inject constructor(
             }
         }
 
+        val currentDefenderSect = currentGameData.worldMapSects.find { it.id == team.defenderSectId } ?: defenderSect
+
         val canActuallyOccupy = if (result.winner == AIBattleWinner.ATTACKER && result.canOccupy) {
-            val defenderSectOccupied = defenderSect.occupierSectId.isNotEmpty()
+            val defenderSectOccupied = currentDefenderSect.occupierSectId.isNotEmpty()
             if (defenderSectOccupied) {
                 val hasAiGarrison = currentGameData.aiBattleTeams.any {
-                    it.isGarrison && it.garrisonSectId == team.defenderSectId && it.status != "completed"
+                    ((it.isGarrison && it.garrisonSectId == team.defenderSectId) || it.id == currentDefenderSect.garrisonTeamId) && it.status != "completed"
                 }
                 val hasPlayerGarrison = currentGameData.battleTeam?.let { bt ->
                     bt.isOccupying && bt.occupiedSectId == team.defenderSectId &&
@@ -2369,12 +2379,9 @@ class CultivationService @Inject constructor(
             val defenderWarehouse = defenderDetail?.warehouse ?: SectWarehouse()
 
             val aliveAttackerDisciples = team.disciples.filter { it.id !in result.deadAttackerIds }
-            val garrisonTeamObj = AISectAttackManager.createGarrisonTeam(
+            val supplementedDisciples = AISectAttackManager.supplementDisciples(
                 aliveAttackerDisciples,
-                updatedDefenderDisciples,
-                team.attackerSectId,
-                team.attackerSectName,
-                team.defenderSectId
+                updatedDefenderDisciples
             )
 
             currentGameData = currentData.copy(
@@ -2382,7 +2389,7 @@ class CultivationService @Inject constructor(
                     if (sect.id == team.defenderSectId) {
                         sect.copy(
                             occupierSectId = team.attackerSectId,
-                            garrisonTeamId = garrisonTeamObj.id
+                            garrisonTeamId = team.id
                         )
                     } else {
                         sect
@@ -2397,21 +2404,35 @@ class CultivationService @Inject constructor(
                 },
                 aiBattleTeams = currentGameData.aiBattleTeams.map {
                     if (it.id == team.id) {
-                        it.copy(status = "completed")
+                        it.copy(
+                            status = "stationed",
+                            isGarrison = true,
+                            garrisonSectId = team.defenderSectId,
+                            garrisonSectName = defenderSect.name,
+                            disciples = supplementedDisciples,
+                            moveProgress = 1f
+                        )
                     } else if (it.id == garrisonTeam?.id) {
                         it.copy(status = "completed")
                     } else {
                         it
                     }
-                } + garrisonTeamObj
+                }
             )
             eventService.addGameEvent(AISectAttackManager.generateSectDestroyedEvent(team.attackerSectName, team.defenderSectName), EventType.DANGER)
+
+            val attackerSect = currentGameData.worldMapSects.find { it.id == team.attackerSectId }
+            val defenderSectForRelation = currentGameData.worldMapSects.find { it.id == team.defenderSectId }
+            val isAlliedAttack = attackerSect != null && defenderSectForRelation != null &&
+                attackerSect.allianceId.isNotEmpty() && attackerSect.allianceId == defenderSectForRelation.allianceId
 
             val updatedRelations = currentGameData.sectRelations.map { relation ->
                 val isRelevantRelation = (relation.sectId1 == team.attackerSectId && relation.sectId2 == team.defenderSectId) ||
                                          (relation.sectId1 == team.defenderSectId && relation.sectId2 == team.attackerSectId)
                 if (isRelevantRelation) {
-                    relation.copy(favor = (relation.favor - 10).coerceIn(GameConfig.Diplomacy.MIN_FAVOR, GameConfig.Diplomacy.MAX_FAVOR))
+                    val loss = if (isAlliedAttack) DiplomaticEventConfig.BattleFavor.ALLIANCE_BETRAYAL_FAVOR_LOSS
+                               else DiplomaticEventConfig.BattleFavor.DESTROY_FAVOR_LOSS
+                    relation.copy(favor = (relation.favor + loss).coerceIn(GameConfig.Diplomacy.MIN_FAVOR, GameConfig.Diplomacy.MAX_FAVOR))
                 } else {
                     relation
                 }
@@ -2422,7 +2443,7 @@ class CultivationService @Inject constructor(
                 val isRelevantRelation = (relation.sectId1 == team.attackerSectId && relation.sectId2 == team.defenderSectId) ||
                                          (relation.sectId1 == team.defenderSectId && relation.sectId2 == team.attackerSectId)
                 if (isRelevantRelation) {
-                    relation.copy(favor = (relation.favor - 10).coerceIn(GameConfig.Diplomacy.MIN_FAVOR, GameConfig.Diplomacy.MAX_FAVOR))
+                    relation.copy(favor = (relation.favor + DiplomaticEventConfig.BattleFavor.ATTACKER_WIN_FAVOR_LOSS).coerceIn(GameConfig.Diplomacy.MIN_FAVOR, GameConfig.Diplomacy.MAX_FAVOR))
                 } else {
                     relation
                 }
@@ -2447,11 +2468,16 @@ class CultivationService @Inject constructor(
             )
             eventService.addGameEvent("${team.attackerSectName}进攻${team.defenderSectName}胜利，但未能占领！", EventType.INFO)
         } else {
+            val battleFavorLoss = if (result.winner == AIBattleWinner.DEFENDER)
+                DiplomaticEventConfig.BattleFavor.DEFENDER_WIN_FAVOR_LOSS
+            else
+                DiplomaticEventConfig.BattleFavor.DRAW_FAVOR_LOSS
+
             val updatedRelations = currentGameData.sectRelations.map { relation ->
                 val isRelevantRelation = (relation.sectId1 == team.attackerSectId && relation.sectId2 == team.defenderSectId) ||
                                          (relation.sectId1 == team.defenderSectId && relation.sectId2 == team.attackerSectId)
                 if (isRelevantRelation) {
-                    relation.copy(favor = (relation.favor - 10).coerceIn(GameConfig.Diplomacy.MIN_FAVOR, GameConfig.Diplomacy.MAX_FAVOR))
+                    relation.copy(favor = (relation.favor + battleFavorLoss).coerceIn(GameConfig.Diplomacy.MIN_FAVOR, GameConfig.Diplomacy.MAX_FAVOR))
                 } else {
                     relation
                 }
@@ -2473,19 +2499,172 @@ class CultivationService @Inject constructor(
         }
     }
 
+    private suspend fun triggerPlayerGarrisonBattle(
+        team: AIBattleTeam,
+        defenderSect: WorldSect,
+        attackerSect: WorldSect?,
+        playerBattleTeam: BattleTeam
+    ) {
+        val data = currentGameData
+        val attackerDisciples = data.aiSectDisciples[team.attackerSectId] ?: emptyList()
+        val sectDisciples = data.aiSectDisciples[team.defenderSectId] ?: emptyList()
+
+        val teamDisciples = playerBattleTeam.slots
+            .filter { it.discipleId.isNotEmpty() && it.isAlive }
+            .mapNotNull { slot -> currentDisciples.find { it.id == slot.discipleId } }
+            .filter { it.isAlive }
+
+        val defenderDisciples = if (teamDisciples.isNotEmpty()) {
+            AISectAttackManager.supplementDisciples(teamDisciples, sectDisciples)
+        } else {
+            sectDisciples.filter { it.isAlive }
+        }
+
+        val result = AISectAttackManager.executeAISectBattle(team, defenderSect, defenderDisciples)
+
+        val deadPlayerDiscipleIds = result.deadDefenderIds.intersect(teamDisciples.map { it.id })
+        currentDisciples = currentDisciples.map { disciple ->
+            if (disciple.id in deadPlayerDiscipleIds) {
+                handleDiscipleDeath(disciple, isOutsideSect = true)
+                disciple.copy(isAlive = false)
+            } else {
+                disciple
+            }
+        }
+
+        val updatedSlots = playerBattleTeam.slots.map { slot ->
+            if (slot.discipleId in deadPlayerDiscipleIds) {
+                slot.copy(isAlive = false)
+            } else {
+                slot
+            }
+        }
+
+        if (attackerSect != null) {
+            val updatedAttackerDisciples = attackerDisciples.filter { it.id !in result.deadAttackerIds }
+            currentGameData = currentGameData.copy(
+                aiSectDisciples = currentGameData.aiSectDisciples.toMutableMap().apply {
+                    this[team.attackerSectId] = updatedAttackerDisciples
+                }
+            )
+        }
+
+        val deadSectDefenderIds = result.deadDefenderIds.filterNot { it in teamDisciples.map { d -> d.id } }
+        val updatedSectDisciples = sectDisciples.filter { it.id !in deadSectDefenderIds }
+        currentGameData = currentGameData.copy(
+            aiSectDisciples = currentGameData.aiSectDisciples.toMutableMap().apply {
+                this[team.defenderSectId] = updatedSectDisciples
+            }
+        )
+
+        val updatedRelations = currentGameData.sectRelations.map { relation ->
+            val isRelevantRelation = (relation.sectId1 == team.attackerSectId && relation.sectId2 == defenderSect.id) ||
+                                     (relation.sectId1 == defenderSect.id && relation.sectId2 == team.attackerSectId)
+            if (isRelevantRelation) {
+                relation.copy(favor = (relation.favor - 10).coerceIn(GameConfig.Diplomacy.MIN_FAVOR, GameConfig.Diplomacy.MAX_FAVOR))
+            } else {
+                relation
+            }
+        }
+        currentGameData = currentGameData.copy(sectRelations = updatedRelations)
+
+        if (result.winner == AIBattleWinner.ATTACKER) {
+            val aliveAttackerDisciples = team.disciples.filter { it.id !in result.deadAttackerIds }
+            val supplementedDisciples = AISectAttackManager.supplementDisciples(aliveAttackerDisciples, updatedSectDisciples)
+
+            currentGameData = currentGameData.copy(
+                worldMapSects = currentGameData.worldMapSects.map { sect ->
+                    if (sect.id == team.defenderSectId) {
+                        sect.copy(
+                            occupierSectId = team.attackerSectId,
+                            isPlayerOccupied = false,
+                            garrisonTeamId = team.id
+                        )
+                    } else {
+                        sect
+                    }
+                },
+                battleTeam = playerBattleTeam.copy(
+                    status = "returning",
+                    isReturning = true,
+                    isAtSect = false,
+                    isOccupying = false,
+                    occupiedSectId = "",
+                    slots = updatedSlots,
+                    moveProgress = 0f,
+                    currentX = defenderSect.x,
+                    currentY = defenderSect.y,
+                    targetX = data.worldMapSects.find { it.isPlayerSect }?.x ?: 0f,
+                    targetY = data.worldMapSects.find { it.isPlayerSect }?.y ?: 0f
+                ),
+                aiBattleTeams = currentGameData.aiBattleTeams.map {
+                    if (it.id == team.id) {
+                        it.copy(
+                            status = "stationed",
+                            isGarrison = true,
+                            garrisonSectId = team.defenderSectId,
+                            garrisonSectName = defenderSect.name,
+                            disciples = supplementedDisciples,
+                            moveProgress = 1f
+                        )
+                    } else {
+                        it
+                    }
+                }
+            )
+            eventService.addGameEvent("${team.attackerSectName}攻占了${defenderSect.name}，我宗驻守队伍撤回！", EventType.DANGER)
+        } else {
+            currentGameData = currentGameData.copy(
+                battleTeam = playerBattleTeam.copy(slots = updatedSlots),
+                aiBattleTeams = currentGameData.aiBattleTeams.map {
+                    if (it.id == team.id) {
+                        it.copy(status = "completed")
+                    } else {
+                        it
+                    }
+                }
+            )
+            if (result.winner == AIBattleWinner.DEFENDER) {
+                eventService.addGameEvent("我宗驻守队伍成功击退${team.attackerSectName}对${defenderSect.name}的进攻！", EventType.SUCCESS)
+            } else {
+                eventService.addGameEvent("我宗驻守队伍与${team.attackerSectName}在${defenderSect.name}战成平局！", EventType.INFO)
+            }
+        }
+    }
+
     /**
      * Trigger player sect battle (defending)
      */
     private suspend fun triggerPlayerSectBattle(team: AIBattleTeam, playerSect: WorldSect, attackerSect: WorldSect?) {
         val data = currentGameData
-        val playerDefenseTeam = AISectAttackManager.createPlayerDefenseTeam(
-            disciples = currentDisciples,
-            equipmentMap = currentEquipmentInstances.associateBy { it.id },
-            manualMap = currentManualInstances.associateBy { it.id },
-            manualProficiencies = data.manualProficiencies.mapValues { (_, list) ->
-                list.associateBy { it.manualId }
+        val playerBattleTeam = data.battleTeam
+        val battleTeamAtSect = playerBattleTeam != null &&
+            (playerBattleTeam.isIdle || playerBattleTeam.isStationed) &&
+            playerBattleTeam.isAtSect &&
+            playerBattleTeam.aliveMemberCount > 0
+
+        val playerDefenseTeam = if (battleTeamAtSect && playerBattleTeam != null) {
+            val teamDisciples = playerBattleTeam.slots
+                .filter { it.discipleId.isNotEmpty() && it.isAlive }
+                .mapNotNull { slot -> currentDisciples.find { it.id == slot.discipleId } }
+                .filter { it.isAlive }
+
+            if (teamDisciples.isEmpty()) {
+                AISectAttackManager.createPlayerDefenseTeam(
+                    disciples = currentDisciples
+                )
+            } else {
+                val teamIds = teamDisciples.map { it.id }.toSet()
+                val idleDisciples = currentDisciples.filter {
+                    it.isAlive && it.status == DiscipleStatus.IDLE && it.id !in teamIds
+                }
+                AISectAttackManager.supplementDisciples(teamDisciples, idleDisciples)
             }
-        )
+        } else {
+            AISectAttackManager.createPlayerDefenseTeam(
+                disciples = currentDisciples
+            )
+        }
 
         if (playerDefenseTeam.isEmpty()) {
             eventService.addGameEvent("${team.attackerSectName}进攻我宗，但我宗无可用弟子防守！", EventType.DANGER)
@@ -2505,6 +2684,19 @@ class CultivationService @Inject constructor(
             }
         }
 
+        if (battleTeamAtSect && playerBattleTeam != null) {
+            val updatedSlots = playerBattleTeam.slots.map { slot ->
+                if (slot.discipleId in deadPlayerDiscipleIds) {
+                    slot.copy(isAlive = false)
+                } else {
+                    slot
+                }
+            }
+            currentGameData = currentGameData.copy(
+                battleTeam = playerBattleTeam.copy(slots = updatedSlots)
+            )
+        }
+
         if (attackerSect != null) {
             val attackerDisciples = data.aiSectDisciples[team.attackerSectId] ?: emptyList()
             val updatedAttackerDisciples = attackerDisciples.filter { it.id !in result.deadAttackerIds }
@@ -2515,11 +2707,14 @@ class CultivationService @Inject constructor(
             )
         }
 
+        val playerBattleFavorLoss = (DiplomaticEventConfig.BattleFavor.ATTACKER_WIN_FAVOR_LOSS *
+            DiplomaticEventConfig.BattleFavor.PLAYER_ATTACKED_FAVOR_MULTIPLIER).toInt()
+
         val updatedPlayerRelations = currentGameData.sectRelations.map { relation ->
             val isRelevantRelation = (relation.sectId1 == team.attackerSectId && relation.sectId2 == playerSect.id) ||
                                      (relation.sectId1 == playerSect.id && relation.sectId2 == team.attackerSectId)
             if (isRelevantRelation) {
-                relation.copy(favor = (relation.favor - 15).coerceIn(GameConfig.Diplomacy.MIN_FAVOR, GameConfig.Diplomacy.MAX_FAVOR))
+                relation.copy(favor = (relation.favor + playerBattleFavorLoss).coerceIn(GameConfig.Diplomacy.MIN_FAVOR, GameConfig.Diplomacy.MAX_FAVOR))
             } else {
                 relation
             }
@@ -2534,12 +2729,9 @@ class CultivationService @Inject constructor(
 
             if (allPlayerDisciplesDead && attackerSect != null) {
                 val aliveAttackerDisciples = team.disciples.filter { it.id !in result.deadAttackerIds }
-                val garrisonTeamObj = AISectAttackManager.createGarrisonTeam(
+                val supplementedDisciples = AISectAttackManager.supplementDisciples(
                     aliveAttackerDisciples,
-                    emptyList(),
-                    team.attackerSectId,
-                    team.attackerSectName,
-                    playerSect.id
+                    emptyList()
                 )
 
                 currentGameData = currentGameData.copy(
@@ -2547,7 +2739,7 @@ class CultivationService @Inject constructor(
                         if (sect.id == playerSect.id) {
                             sect.copy(
                                 occupierSectId = team.attackerSectId,
-                                garrisonTeamId = garrisonTeamObj.id
+                                garrisonTeamId = team.id
                             )
                         } else {
                             sect
@@ -2555,11 +2747,18 @@ class CultivationService @Inject constructor(
                     },
                     aiBattleTeams = currentGameData.aiBattleTeams.map {
                         if (it.id == team.id) {
-                            it.copy(status = "completed")
+                            it.copy(
+                                status = "stationed",
+                                isGarrison = true,
+                                garrisonSectId = playerSect.id,
+                                garrisonSectName = playerSect.name,
+                                disciples = supplementedDisciples,
+                                moveProgress = 1f
+                            )
                         } else {
                             it
                         }
-                    } + garrisonTeamObj
+                    }
                 )
                 eventService.addGameEvent("${team.attackerSectName}攻占了我宗！", EventType.DANGER)
             } else {
@@ -3602,6 +3801,23 @@ class CultivationService @Inject constructor(
     /**
      * Process AI sect operations (cultivation, recruitment, aging)
      */
+    private fun checkGameOverCondition() {
+        if (currentGameData.isGameOver) return
+
+        val playerSect = currentGameData.worldMapSects.find { it.isPlayerSect } ?: return
+        val playerSectId = playerSect.id
+
+        val playerControlsAnySect = currentGameData.worldMapSects.any { sect ->
+            (sect.isPlayerSect && sect.occupierSectId.isEmpty()) ||
+            (sect.occupierSectId == playerSectId && !sect.isPlayerSect)
+        }
+
+        if (!playerControlsAnySect) {
+            currentGameData = currentGameData.copy(isGameOver = true)
+            eventService.addGameEvent("我宗所有领地已被攻占，宗门覆灭...", EventType.DANGER)
+        }
+    }
+
     private fun processAISectOperations(year: Int, month: Int) {
         val data = currentGameData
         val aiDisciples = data.aiSectDisciples
@@ -3912,9 +4128,70 @@ class CultivationService @Inject constructor(
     }
 
     private fun processDiplomacyMonthlyEvents(year: Int, month: Int) {
-        // Process alliance checks, relation changes, etc.
-        // 当前版本：外交月度事件（好感度自然衰减、礼物过期等）尚未实现，
-        // 此方法保留为扩展点。盟约到期检查已由 checkAllianceExpiry / checkAllianceFavorDrop 处理。
+        val data = currentGameData
+        val playerSect = data.worldMapSects.find { it.isPlayerSect } ?: return
+        val playerSectId = playerSect.id
+        val updatedRelations = data.sectRelations.toMutableList()
+        var relationsChanged = false
+
+        val playerEvents = DiplomaticEventConfig.Events.getEventsByScope(DiplomaticEventConfig.EventScope.PLAYER_ONLY)
+        val allScopeEvents = DiplomaticEventConfig.Events.getEventsByScope(DiplomaticEventConfig.EventScope.ALL)
+
+        for (relation in data.sectRelations) {
+            val involvesPlayer = relation.sectId1 == playerSectId || relation.sectId2 == playerSectId
+            val sect1 = data.worldMapSects.find { it.id == relation.sectId1 }
+            val sect2 = data.worldMapSects.find { it.id == relation.sectId2 }
+            if (sect1 == null || sect2 == null) continue
+
+            val isAdjacent = sect1.connectedSectIds.contains(sect2.id) || sect2.connectedSectIds.contains(sect1.id)
+            val isAllied = sect1.allianceId.isNotEmpty() && sect1.allianceId == sect2.allianceId
+            val sameAlignment = sect1.isRighteous == sect2.isRighteous
+            val differentAlignment = sect1.isRighteous != sect2.isRighteous
+
+            val candidateEvents = if (involvesPlayer) {
+                playerEvents + allScopeEvents
+            } else {
+                allScopeEvents.filter { it.scope != DiplomaticEventConfig.EventScope.PLAYER_ONLY }
+            }
+
+            for (eventDef in candidateEvents) {
+                if (relation.favor < eventDef.minFavorToTrigger) continue
+                if (relation.favor > eventDef.maxFavorToTrigger) continue
+                if (eventDef.requiresAlliance && !isAllied) continue
+                if (eventDef.requiresAdjacent && !isAdjacent) continue
+                if (eventDef.requiresSameAlignment && !sameAlignment) continue
+                if (eventDef.requiresDifferentAlignment && !differentAlignment) continue
+
+                if (Random.nextDouble() >= eventDef.baseChance) continue
+
+                val favorChange = eventDef.favorChange
+                val newFavor = (relation.favor + favorChange).coerceIn(GameConfig.Diplomacy.MIN_FAVOR, GameConfig.Diplomacy.MAX_FAVOR)
+
+                val index = updatedRelations.indexOfFirst { it.sectId1 == relation.sectId1 && it.sectId2 == relation.sectId2 }
+                if (index >= 0) {
+                    updatedRelations[index] = updatedRelations[index].copy(favor = newFavor)
+                    relationsChanged = true
+                }
+
+                val sect1Name = sect1.name
+                val sect2Name = sect2.name
+                val eventType = if (eventDef.isPositive) EventType.SUCCESS else EventType.WARNING
+                val favorText = if (favorChange > 0) "+$favorChange" else "$favorChange"
+
+                if (involvesPlayer) {
+                    val otherSectName = if (sect1.id == playerSectId) sect2Name else sect1Name
+                    eventService.addGameEvent("${eventDef.name}：${eventDef.description}（与${otherSectName}关系${favorText}）", eventType)
+                } else if (eventDef.favorChange <= -10 || eventDef.favorChange >= 10) {
+                    eventService.addGameEvent("${eventDef.name}：${sect1Name}与${sect2Name}${eventDef.description}", eventType)
+                }
+
+                break
+            }
+        }
+
+        if (relationsChanged) {
+            currentGameData = data.copy(sectRelations = updatedRelations.toList())
+        }
     }
 
     internal suspend fun refreshTravelingMerchant(year: Int, month: Int) {
@@ -4333,18 +4610,51 @@ class CultivationService @Inject constructor(
     private fun processFavorDecay(currentYear: Int) {
         val data = currentGameData
         val playerSect = data.worldMapSects.find { it.isPlayerSect } ?: return
+        val playerSectId = playerSect.id
 
         val updatedRelations = data.sectRelations.map { relation ->
-            val involvesPlayer = relation.sectId1 == playerSect.id || relation.sectId2 == playerSect.id
-            if (!involvesPlayer) return@map relation
+            val involvesPlayer = relation.sectId1 == playerSectId || relation.sectId2 == playerSectId
+            val favor = relation.favor
 
-            if (relation.favor <= GameConfig.Diplomacy.FAVOR_DECAY_THRESHOLD) return@map relation
+            if (involvesPlayer) {
+                val yearsSinceGift = currentYear - relation.lastInteractionYear
 
-            val yearsSinceGift = currentYear - relation.lastInteractionYear
-            if (yearsSinceGift < GameConfig.Diplomacy.FAVOR_DECAY_NO_GIFT_YEARS) return@map relation
-
-            val newFavor = (relation.favor - GameConfig.Diplomacy.FAVOR_DECAY_AMOUNT).coerceAtLeast(GameConfig.Diplomacy.FAVOR_DECAY_THRESHOLD)
-            relation.copy(favor = newFavor, noGiftYears = relation.noGiftYears + 1)
+                when {
+                    favor > DiplomaticEventConfig.Decay.HIGH_FAVOR_DECAY_THRESHOLD -> {
+                        if (yearsSinceGift >= DiplomaticEventConfig.Decay.HIGH_FAVOR_DECAY_YEARS) {
+                            val decay = DiplomaticEventConfig.Decay.HIGH_FAVOR_DECAY_AMOUNT
+                            relation.copy(
+                                favor = (favor - decay).coerceAtLeast(DiplomaticEventConfig.Decay.HIGH_FAVOR_DECAY_THRESHOLD),
+                                noGiftYears = relation.noGiftYears + 1
+                            )
+                        } else relation
+                    }
+                    favor > DiplomaticEventConfig.Decay.MEDIUM_FAVOR_DECAY_THRESHOLD -> {
+                        if (yearsSinceGift >= DiplomaticEventConfig.Decay.MEDIUM_FAVOR_DECAY_YEARS) {
+                            val decay = DiplomaticEventConfig.Decay.MEDIUM_FAVOR_DECAY_AMOUNT
+                            relation.copy(
+                                favor = (favor - decay).coerceAtLeast(DiplomaticEventConfig.Decay.MEDIUM_FAVOR_DECAY_THRESHOLD),
+                                noGiftYears = relation.noGiftYears + 1
+                            )
+                        } else relation
+                    }
+                    favor < DiplomaticEventConfig.Decay.LOW_FAVOR_RECOVERY_THRESHOLD -> {
+                        if (yearsSinceGift >= DiplomaticEventConfig.Decay.LOW_FAVOR_RECOVERY_YEARS) {
+                            val recovery = DiplomaticEventConfig.Decay.LOW_FAVOR_RECOVERY_AMOUNT
+                            relation.copy(
+                                favor = (favor + recovery).coerceAtMost(DiplomaticEventConfig.Decay.LOW_FAVOR_RECOVERY_THRESHOLD),
+                                noGiftYears = 0
+                            )
+                        } else relation
+                    }
+                    else -> relation
+                }
+            } else {
+                if (Random.nextDouble() < DiplomaticEventConfig.Decay.AI_RELATION_DECAY_CHANCE) {
+                    val drift = if (Random.nextBoolean()) -DiplomaticEventConfig.Decay.AI_RELATION_DECAY_AMOUNT else DiplomaticEventConfig.Decay.AI_RELATION_DECAY_AMOUNT
+                    relation.copy(favor = (favor + drift).coerceIn(GameConfig.Diplomacy.MIN_FAVOR, GameConfig.Diplomacy.MAX_FAVOR))
+                } else relation
+            }
         }
 
         val hasChanges = updatedRelations.zip(data.sectRelations).any { (a, b) -> a != b }
@@ -4354,8 +4664,97 @@ class CultivationService @Inject constructor(
     }
 
     private fun processAIAlliances(year: Int) {
-        // AI sect alliance formation logic
-        // 当前版本：AI宗门自动结盟逻辑尚未实现，此方法保留为扩展点。
-        // 玩家宗门的盟约管理已由 checkAllianceExpiry / checkAllianceFavorDrop 处理。
+        val data = currentGameData
+        val playerSect = data.worldMapSects.find { it.isPlayerSect } ?: return
+        val aiSects = data.worldMapSects.filter {
+            !it.isPlayerSect && !it.isOccupied && it.allianceId.isEmpty()
+        }
+
+        if (aiSects.size < 2) return
+
+        val newAlliances = mutableListOf<Alliance>()
+        val updatedSects = data.worldMapSects.toMutableList()
+        val allianceCountBySect = mutableMapOf<String, Int>()
+
+        for (alliance in data.alliances) {
+            alliance.sectIds.forEach { sectId ->
+                allianceCountBySect[sectId] = (allianceCountBySect[sectId] ?: 0) + 1
+            }
+        }
+
+        val candidates = aiSects.filter {
+            (allianceCountBySect[it.id] ?: 0) < DiplomaticEventConfig.AIRelation.AI_ALLIANCE_MAX_PER_SECT
+        }
+
+        for (i in candidates.indices) {
+            val sect1 = candidates[i]
+            for (j in (i + 1) until candidates.size) {
+                val sect2 = candidates[j]
+
+                if (sect1.allianceId.isNotEmpty() || sect2.allianceId.isNotEmpty()) continue
+
+                val relation = data.sectRelations.find {
+                    (it.sectId1 == sect1.id && it.sectId2 == sect2.id) ||
+                    (it.sectId1 == sect2.id && it.sectId2 == sect1.id)
+                } ?: continue
+
+                if (relation.favor < DiplomaticEventConfig.AIRelation.AI_ALLIANCE_MIN_FAVOR) continue
+
+                if (Random.nextDouble() >= DiplomaticEventConfig.AIRelation.AI_ALLIANCE_CHANCE_PER_YEAR) continue
+
+                val alliance = Alliance(
+                    sectIds = listOf(sect1.id, sect2.id),
+                    startYear = year,
+                    initiatorId = sect1.id
+                )
+                newAlliances.add(alliance)
+
+                val idx1 = updatedSects.indexOfFirst { it.id == sect1.id }
+                if (idx1 >= 0) updatedSects[idx1] = updatedSects[idx1].copy(allianceId = alliance.id, allianceStartYear = year)
+                val idx2 = updatedSects.indexOfFirst { it.id == sect2.id }
+                if (idx2 >= 0) updatedSects[idx2] = updatedSects[idx2].copy(allianceId = alliance.id, allianceStartYear = year)
+
+                eventService.addGameEvent("${sect1.name}与${sect2.name}结为盟友", EventType.INFO)
+                break
+            }
+        }
+
+        if (newAlliances.isNotEmpty()) {
+            currentGameData = data.copy(
+                alliances = data.alliances + newAlliances,
+                worldMapSects = updatedSects.toList()
+            )
+        }
+    }
+
+    private fun processAllianceFavorMaintenance() {
+        val data = currentGameData
+        if (data.alliances.isEmpty()) return
+
+        val updatedRelations = data.sectRelations.toMutableList()
+        var changed = false
+
+        for (alliance in data.alliances) {
+            val sectIds = alliance.sectIds
+            if (sectIds.size < 2) continue
+
+            val id1 = minOf(sectIds[0], sectIds[1])
+            val id2 = maxOf(sectIds[0], sectIds[1])
+
+            val index = updatedRelations.indexOfFirst { it.sectId1 == id1 && it.sectId2 == id2 }
+            if (index >= 0) {
+                val relation = updatedRelations[index]
+                if (relation.favor < GameConfig.Diplomacy.MAX_FAVOR) {
+                    val newFavor = (relation.favor + DiplomaticEventConfig.AllianceFavor.ALLIANCE_YEARLY_FAVOR_BONUS)
+                        .coerceAtMost(GameConfig.Diplomacy.MAX_FAVOR)
+                    updatedRelations[index] = relation.copy(favor = newFavor)
+                    changed = true
+                }
+            }
+        }
+
+        if (changed) {
+            currentGameData = data.copy(sectRelations = updatedRelations.toList())
+        }
     }
 }

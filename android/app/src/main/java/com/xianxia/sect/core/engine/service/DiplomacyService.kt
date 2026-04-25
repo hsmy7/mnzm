@@ -429,6 +429,129 @@ class DiplomacyService @Inject constructor(
 
     // ==================== 私有辅助方法 ====================
 
+    fun giftItem(sectId: String, itemType: String, itemId: String): GiftResult {
+        val data = currentGameData
+        val currentYear = data.gameYear
+
+        val sect = data.worldMapSects.find { it.id == sectId }
+        if (sect == null) {
+            return GiftResult(success = false, responseType = "sect_not_found", message = "未找到目标宗门")
+        }
+        if (sect.isPlayerSect) {
+            return GiftResult(success = false, responseType = "invalid_target", message = "不能向自己的宗门送礼")
+        }
+        if (data.sectDetails[sect.id]?.lastGiftYear ?: 0 == currentYear) {
+            return GiftResult(success = false, rejected = false, responseType = "already_gifted", message = "今年已经向${sect.name}送过礼了")
+        }
+
+        val rarity: Int
+        val itemName: String
+        val preferenceType: GiftPreferenceType
+
+        when (itemType.lowercase()) {
+            GiftConfig.ItemType.EQUIPMENT -> {
+                val stack = state.equipmentStacks().current.find { it.id == itemId }
+                    ?: return GiftResult(success = false, responseType = "item_not_found", message = "未找到该装备")
+                if (stack.quantity <= 0) return GiftResult(success = false, responseType = "insufficient_resources", message = "装备数量不足")
+                rarity = stack.rarity
+                itemName = stack.name
+                preferenceType = GiftPreferenceType.EQUIPMENT
+                state.equipmentStacks().current = state.equipmentStacks().current.map {
+                    if (it.id == itemId) it.copy(quantity = it.quantity - 1) else it
+                }.filter { it.quantity > 0 }
+            }
+            GiftConfig.ItemType.MANUAL -> {
+                val stack = state.manualStacks().current.find { it.id == itemId }
+                    ?: return GiftResult(success = false, responseType = "item_not_found", message = "未找到该功法")
+                if (stack.quantity <= 0) return GiftResult(success = false, responseType = "insufficient_resources", message = "功法数量不足")
+                rarity = stack.rarity
+                itemName = stack.name
+                preferenceType = GiftPreferenceType.MANUAL
+                state.manualStacks().current = state.manualStacks().current.map {
+                    if (it.id == itemId) it.copy(quantity = it.quantity - 1) else it
+                }.filter { it.quantity > 0 }
+            }
+            GiftConfig.ItemType.PILL -> {
+                val pill = state.pills().current.find { it.id == itemId }
+                    ?: return GiftResult(success = false, responseType = "item_not_found", message = "未找到该丹药")
+                if (pill.quantity <= 0) return GiftResult(success = false, responseType = "insufficient_resources", message = "丹药数量不足")
+                rarity = pill.rarity
+                itemName = pill.name
+                preferenceType = GiftPreferenceType.PILL
+                state.pills().current = state.pills().current.map {
+                    if (it.id == itemId) it.copy(quantity = it.quantity - 1) else it
+                }.filter { it.quantity > 0 }
+            }
+            else -> return GiftResult(success = false, responseType = "invalid_item_type", message = "无效的物品类型")
+        }
+
+        val baseRejectProbability = getRejectProbability(sect.level, rarity)
+        val preferenceRejectModifier = calculatePreferenceRejectModifier(
+            data.sectDetails[sect.id]?.giftPreference ?: GiftPreferenceType.NONE,
+            isSpiritStone = false,
+            itemPreference = preferenceType
+        )
+        val rejectProbability = (baseRejectProbability + preferenceRejectModifier).coerceIn(0, 100)
+        val isRejected = Random.nextInt(100) < rejectProbability
+
+        if (isRejected) {
+            val responseText = SectResponseTexts.getRejectResponse(sect.level, itemType, itemName)
+            eventService.addGameEvent("向${sect.name}赠送${itemName}被拒绝", EventType.WARNING)
+            return GiftResult(success = false, rejected = true, responseType = "rejected", message = responseText)
+        }
+
+        val playerSect = data.worldMapSects.find { it.isPlayerSect }
+        val currentFavor = if (playerSect != null) {
+            data.sectRelations.find {
+                (it.sectId1 == playerSect.id && it.sectId2 == sectId) ||
+                (it.sectId1 == sectId && it.sectId2 == playerSect.id)
+            }?.favor ?: 0
+        } else 0
+
+        val baseFavor = GiftConfig.RarityFavorConfig.getBaseFavor(rarity)
+        val percentage = GiftConfig.ItemFavorPercentageConfig.getFavorPercentage(sect.level, rarity)
+        val preferenceMultiplier = calculatePreferenceMultiplier(
+            data.sectDetails[sectId]?.giftPreference ?: GiftPreferenceType.NONE,
+            isSpiritStone = false,
+            itemPreference = preferenceType
+        )
+
+        val favorIncrease = if (percentage != null) {
+            val percentageIncrease = currentFavor * percentage / 100
+            val adjustedIncrease = ((baseFavor + percentageIncrease) * preferenceMultiplier).toInt()
+            if (adjustedIncrease == 0) 1 else adjustedIncrease
+        } else {
+            (baseFavor * preferenceMultiplier).toInt().coerceAtLeast(1)
+        }
+        val newFavor = (currentFavor + favorIncrease).coerceAtMost(100)
+
+        val updatedDetails = data.sectDetails.toMutableMap()
+        updatedDetails[sectId] = (updatedDetails[sectId] ?: SectDetail(sectId = sectId)).copy(lastGiftYear = currentYear)
+
+        val updatedRelations = if (playerSect != null) {
+            updateSectRelationFavor(data.sectRelations, playerSect.id, sectId, newFavor, currentYear)
+        } else {
+            data.sectRelations
+        }
+
+        currentGameData = data.copy(
+            sectDetails = updatedDetails,
+            sectRelations = updatedRelations
+        )
+
+        val responseText = SectResponseTexts.getAcceptResponse(sect.level, itemType, itemName, favorIncrease)
+        eventService.addGameEvent("向${sect.name}赠送${itemName}成功，关系+${favorIncrease}", EventType.SUCCESS)
+
+        return GiftResult(
+            success = true,
+            rejected = false,
+            favorChange = favorIncrease,
+            newFavor = newFavor,
+            responseType = "accept",
+            message = responseText
+        )
+    }
+
     /**
      * 计算偏好乘数（用于关系增长）
      *
@@ -438,22 +561,26 @@ class DiplomacyService @Inject constructor(
      */
     private fun calculatePreferenceMultiplier(
         giftPreference: GiftPreferenceType,
-        isSpiritStone: Boolean = false
+        isSpiritStone: Boolean = false,
+        itemPreference: GiftPreferenceType = GiftPreferenceType.NONE
     ): Double {
         if (giftPreference == GiftPreferenceType.NONE) return 1.0
         return when {
             isSpiritStone && giftPreference == GiftPreferenceType.SPIRIT_STONE -> 1.3
+            giftPreference == itemPreference && itemPreference != GiftPreferenceType.NONE -> 1.3
             else -> 1.0
         }
     }
 
     private fun calculatePreferenceRejectModifier(
         giftPreference: GiftPreferenceType,
-        isSpiritStone: Boolean = false
+        isSpiritStone: Boolean = false,
+        itemPreference: GiftPreferenceType = GiftPreferenceType.NONE
     ): Int {
         if (giftPreference == GiftPreferenceType.NONE) return 0
         return when {
             isSpiritStone && giftPreference == GiftPreferenceType.SPIRIT_STONE -> -15
+            giftPreference == itemPreference && itemPreference != GiftPreferenceType.NONE -> -15
             else -> 0
         }
     }
