@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlin.random.Random
 import kotlin.math.roundToInt
+import kotlin.math.roundToLong
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.data.*
@@ -3508,17 +3509,13 @@ class CultivationService @Inject constructor(
 
     private data class PoolEntry(
         val name: String,
-        val type: String,
-        val grade: String? = null
-    ) {
-        val compositeKey: String get() = if (grade != null) "$name|$grade" else name
-    }
+        val type: String
+    )
 
     private data class MerchantItemPools(
         val poolByRarity: MutableMap<Int, MutableList<PoolEntry>> = mutableMapOf(),
         val rarityMap: MutableMap<String, Int> = mutableMapOf(),
-        val priceMap: MutableMap<String, Long> = mutableMapOf(),
-        val gradeMap: MutableMap<String, String> = mutableMapOf()
+        val priceMap: MutableMap<String, Long> = mutableMapOf()
     )
 
     private fun buildMerchantItemPools(): MerchantItemPools {
@@ -3542,13 +3539,14 @@ class CultivationService @Inject constructor(
             }
         }
 
+        val addedPillNames = mutableSetOf<String>()
         ItemDatabase.allPills.values.forEach { t ->
-            val gradeName = t.grade.displayName
-            val entry = PoolEntry(t.name, "pill", gradeName)
-            pools.poolByRarity.getOrPut(t.rarity) { mutableListOf() }.add(entry)
-            pools.rarityMap[entry.compositeKey] = t.rarity
-            pools.priceMap[entry.compositeKey] = (t.price * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt().toLong()
-            pools.gradeMap[entry.compositeKey] = gradeName
+            if (t.grade == PillGrade.MEDIUM && t.name !in addedPillNames) {
+                addedPillNames.add(t.name)
+                pools.poolByRarity.getOrPut(t.rarity) { mutableListOf() }.add(PoolEntry(t.name, "pill"))
+                pools.rarityMap[t.name] = t.rarity
+                pools.priceMap[t.name] = (t.price * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt().toLong()
+            }
         }
 
         ItemDatabase.allMaterials.values.forEach { t ->
@@ -3613,6 +3611,15 @@ class CultivationService @Inject constructor(
         }
     }
 
+    private fun selectMerchantPillGrade(): PillGrade {
+        val roll = Random.nextDouble()
+        return when {
+            roll < 0.03 -> PillGrade.HIGH
+            roll < 0.40 -> PillGrade.MEDIUM
+            else -> PillGrade.LOW
+        }
+    }
+
     private fun createMerchantItem(
         entry: PoolEntry,
         pools: MerchantItemPools,
@@ -3620,12 +3627,13 @@ class CultivationService @Inject constructor(
         month: Int,
         forcedRarity: Int? = null
     ): MerchantItem {
-        val compositeKey = entry.compositeKey
-        val rarity = forcedRarity ?: pools.rarityMap[compositeKey] ?: pools.rarityMap[entry.name] ?: 1
-        val basePrice = pools.priceMap[compositeKey] ?: pools.priceMap[entry.name]
+        val rarity = forcedRarity ?: pools.rarityMap[entry.name] ?: 1
+        val basePrice = pools.priceMap[entry.name]
             ?: (GameConfig.Rarity.get(rarity).materialBasePrice * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt().toLong()
         val quantity = calculateMerchantStock(entry.type, rarity)
-        val grade = entry.grade ?: pools.gradeMap[compositeKey]
+
+        val grade: PillGrade? = if (entry.type == "pill") selectMerchantPillGrade() else null
+        val adjustedPrice = if (grade != null) (basePrice * grade.priceMultiplier / PillGrade.MEDIUM.priceMultiplier).roundToLong() else basePrice
 
         return MerchantItem(
             id = java.util.UUID.randomUUID().toString(),
@@ -3633,11 +3641,11 @@ class CultivationService @Inject constructor(
             type = entry.type,
             itemId = java.util.UUID.randomUUID().toString(),
             rarity = rarity,
-            price = GameUtils.applyPriceFluctuation(basePrice),
+            price = GameUtils.applyPriceFluctuation(adjustedPrice),
             quantity = quantity,
             obtainedYear = year,
             obtainedMonth = month,
-            grade = grade
+            grade = grade?.displayName
         )
     }
 
