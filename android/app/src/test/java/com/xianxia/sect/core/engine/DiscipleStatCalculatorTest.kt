@@ -281,6 +281,27 @@ class DiscipleStatCalculatorTest {
     }
 
     @Test
+    fun `getBreakthroughChance - 单灵根金丹突破概率95%`() {
+        val disciple = createDisciple(realm = 7, realmLayer = 1, spiritRootType = "metal")
+        val chance = DiscipleStatCalculator.getBreakthroughChance(disciple)
+        assertEquals(0.95, chance, 0.001)
+    }
+
+    @Test
+    fun `getBreakthroughChance - 单灵根元婴突破概率85%`() {
+        val disciple = createDisciple(realm = 6, realmLayer = 1, spiritRootType = "metal")
+        val chance = DiscipleStatCalculator.getBreakthroughChance(disciple)
+        assertEquals(0.85, chance, 0.001)
+    }
+
+    @Test
+    fun `getBreakthroughChance - 单灵根化神突破概率75%`() {
+        val disciple = createDisciple(realm = 5, realmLayer = 1, spiritRootType = "metal")
+        val chance = DiscipleStatCalculator.getBreakthroughChance(disciple)
+        assertEquals(0.75, chance, 0.001)
+    }
+
+    @Test
     fun `getBreakthroughChance - 四灵根元婴突破概率25%`() {
         val disciple = createDisciple(realm = 6, realmLayer = 1, spiritRootType = "metal,wood,water,fire")
         val chance = DiscipleStatCalculator.getBreakthroughChance(disciple)
