@@ -2295,8 +2295,8 @@ class CultivationService @Inject constructor(
             playerBattleTeam.status == "stationed" &&
             playerBattleTeam.aliveMemberCount > 0
 
-        if (playerTeamStationedThere && playerBattleTeam != null) {
-            triggerPlayerGarrisonBattle(team, defenderSect, attackerSect, playerBattleTeam)
+        if (playerTeamStationedThere) {
+            triggerPlayerGarrisonBattle(team, defenderSect, attackerSect, playerBattleTeam!!)
             return
         }
 
@@ -2643,8 +2643,8 @@ class CultivationService @Inject constructor(
             playerBattleTeam.isAtSect &&
             playerBattleTeam.aliveMemberCount > 0
 
-        val playerDefenseTeam = if (battleTeamAtSect && playerBattleTeam != null) {
-            val teamDisciples = playerBattleTeam.slots
+        val playerDefenseTeam = if (battleTeamAtSect) {
+            val teamDisciples = playerBattleTeam!!.slots
                 .filter { it.discipleId.isNotEmpty() && it.isAlive }
                 .mapNotNull { slot -> currentDisciples.find { it.id == slot.discipleId } }
                 .filter { it.isAlive }
@@ -2684,8 +2684,8 @@ class CultivationService @Inject constructor(
             }
         }
 
-        if (battleTeamAtSect && playerBattleTeam != null) {
-            val updatedSlots = playerBattleTeam.slots.map { slot ->
+        if (battleTeamAtSect) {
+            val updatedSlots = playerBattleTeam!!.slots.map { slot ->
                 if (slot.discipleId in deadPlayerDiscipleIds) {
                     slot.copy(isAlive = false)
                 } else {

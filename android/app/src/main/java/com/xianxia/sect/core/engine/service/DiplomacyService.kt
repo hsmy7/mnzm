@@ -3,6 +3,7 @@ package com.xianxia.sect.core.engine.service
 import com.xianxia.sect.core.model.*
 import kotlinx.coroutines.launch
 import com.xianxia.sect.core.config.GiftConfig
+import com.xianxia.sect.core.config.DiplomaticEventConfig
 import com.xianxia.sect.core.config.SectResponseTexts
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.state.GameStateStore
@@ -293,14 +294,28 @@ class DiplomacyService @Inject constructor(
 
         val updatedAlliances = data.alliances.filter { it.id != alliance.id }
 
+        val playerSect = data.worldMapSects.find { it.isPlayerSect }
+        val updatedRelations = if (playerSect != null) {
+            val currentFavor = data.sectRelations.find {
+                (it.sectId1 == playerSect.id && it.sectId2 == sectId) ||
+                (it.sectId1 == sectId && it.sectId2 == playerSect.id)
+            }?.favor ?: 50
+            val newFavor = (currentFavor + DiplomaticEventConfig.AllianceFavor.ALLIANCE_BROKEN_FAVOR_LOSS)
+                .coerceIn(GameConfig.Diplomacy.MIN_FAVOR, GameConfig.Diplomacy.MAX_FAVOR)
+            updateSectRelationFavor(data.sectRelations, playerSect.id, sectId, newFavor, data.gameYear)
+        } else {
+            data.sectRelations
+        }
+
         currentGameData = data.copy(
             worldMapSects = updatedSects,
             alliances = updatedAlliances,
-            spiritStones = newSpiritStones
+            spiritStones = newSpiritStones,
+            sectRelations = updatedRelations
         )
 
-        eventService.addGameEvent("与${sect.name}解除结盟，灵石-${spiritStonePenalty}", EventType.WARNING)
-        return Pair(true, "已解除结盟，消耗灵石${spiritStonePenalty}")
+        eventService.addGameEvent("与${sect.name}解除结盟，灵石-${spiritStonePenalty}，关系${DiplomaticEventConfig.AllianceFavor.ALLIANCE_BROKEN_FAVOR_LOSS}", EventType.WARNING)
+        return Pair(true, "已解除结盟，消耗灵石${spiritStonePenalty}，关系${DiplomaticEventConfig.AllianceFavor.ALLIANCE_BROKEN_FAVOR_LOSS}")
     }
 
     // ==================== 公开查询方法 ====================
