@@ -13,9 +13,6 @@ object WorldMapGenerator {
     private val BORDER_PADDING get() = GameConfig.WorldMap.BORDER_PADDING
     private val TARGET_SECT_COUNT get() = GameConfig.WorldMap.TARGET_SECT_COUNT
 
-    val INITIAL_SECT_FAVOR get() = GameConfig.WorldMap.INITIAL_SECT_FAVOR
-    private val SAME_ALIGNMENT_BONUS get() = GameConfig.WorldMap.SAME_ALIGNMENT_BONUS
-
     private val RELAXATION_ITERATIONS get() = GameConfig.WorldMap.RELAXATION_ITERATIONS
     private val RELAXATION_STRENGTH get() = GameConfig.WorldMap.RELAXATION_STRENGTH
     private val K_NEAREST_NEIGHBORS get() = GameConfig.WorldMap.K_NEAREST_NEIGHBORS
@@ -679,7 +676,7 @@ object WorldMapGenerator {
                 val sect1 = aiSects[i]
                 val sect2 = aiSects[j]
 
-                val initialFavor = calculateInitialFavor(sect1.isRighteous == sect2.isRighteous)
+                val initialFavor = calculateInitialFavor()
 
                 relations.add(SectRelation(
                     sectId1 = minOf(sect1.id, sect2.id),
@@ -695,7 +692,7 @@ object WorldMapGenerator {
                 relations.add(SectRelation(
                     sectId1 = minOf(playerSect.id, aiSect.id),
                     sectId2 = maxOf(playerSect.id, aiSect.id),
-                    favor = INITIAL_SECT_FAVOR,
+                    favor = calculateInitialFavor(),
                     lastInteractionYear = 0
                 ))
             }
@@ -704,16 +701,12 @@ object WorldMapGenerator {
         return relations
     }
 
-    fun calculateInitialFavorForSects(sect1: WorldSect, sect2: WorldSect): Int {
-        return calculateInitialFavor(sect1.isRighteous == sect2.isRighteous)
+    fun calculateInitialFavorForSects(): Int {
+        return calculateInitialFavor()
     }
 
-    private fun calculateInitialFavor(sameAlignment: Boolean): Int {
-        var favor = INITIAL_SECT_FAVOR
-        if (sameAlignment) {
-            favor += SAME_ALIGNMENT_BONUS
-        }
-        return favor.coerceIn(10, 90)
+    private fun calculateInitialFavor(): Int {
+        return Random.nextInt(40, 61)
     }
 
     private data class Edge(val from: String, val to: String, val dist: Double)

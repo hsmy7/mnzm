@@ -591,7 +591,6 @@ object GameConfig {
         const val TARGET_SECT_COUNT = 80
         const val MAX_ATTEMPTS = 50000
         const val INITIAL_SECT_FAVOR = 50
-        const val SAME_ALIGNMENT_BONUS = 10
         const val CONNECTION_DISTANCE_LIMIT = 1000.0
         const val TARGET_CONNECTIONS_PER_SECT = 3
         const val MAX_CONNECTIONS_PER_SECT = 5
@@ -625,6 +624,7 @@ object GameConfig {
         const val FAVOR_DECAY_THRESHOLD = 80
         const val MIN_FAVOR = 0
         const val MAX_FAVOR = 100
+        const val SAME_ALIGNMENT_BONUS = 10
         
         object AllianceScore {
             const val THRESHOLD = 80
