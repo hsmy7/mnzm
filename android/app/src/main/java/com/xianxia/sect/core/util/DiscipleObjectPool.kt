@@ -222,6 +222,7 @@ class MutableDisciple {
     fun reset() {
         id = UUID.randomUUID().toString()
         name = ""
+        surname = ""
         realm = 9
         realmLayer = 1
         cultivation = 0.0
