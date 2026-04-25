@@ -27,12 +27,12 @@ public class TapTapAuthManager {
     }
 
     public static void init(Activity activity, String clientId, String clientToken, boolean isCN, boolean limitAdTracking) {
+        limitAdTrackingEnabled = limitAdTracking;
+
         if (isInitialized) {
-            Log.d(TAG, "TapTap SDK 已初始化");
+            Log.d(TAG, "TapTap SDK 已初始化，更新限制广告追踪状态: " + limitAdTracking);
             return;
         }
-
-        limitAdTrackingEnabled = limitAdTracking;
 
         TapTapSdkOptions options = new TapTapSdkOptions(
             clientId,

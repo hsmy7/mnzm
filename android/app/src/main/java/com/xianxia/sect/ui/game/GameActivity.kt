@@ -124,6 +124,11 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
                             onLimitAdTrackingChanged = { enabled ->
                                 sessionManager.limitAdTracking = enabled
                                 limitAdTrackingState.value = enabled
+                                android.widget.Toast.makeText(
+                                    this@GameActivity,
+                                    if (enabled) "已开启限制广告追踪，下次启动后生效" else "已关闭限制广告追踪，下次启动后生效",
+                                    android.widget.Toast.LENGTH_SHORT
+                                ).show()
                             }
                         )
 

@@ -1,5 +1,23 @@
 # 模拟宗门 - 更新日志
 
+## [2.5.19] - 2026-04-26
+
+### 新增
+- 设置页面新增"隐私设置"区块，包含"限制广告追踪"开关
+- "限制广告追踪"默认开启，阻止 TapTap SDK 收集 OAID 广告标识符
+- 切换"限制广告追踪"开关后显示 Toast 提示（下次启动后生效）
+- SessionManager 新增 limitAdTracking 属性持久化存储
+- TapTapAuthManager.init() 新增 limitAdTracking 参数，SDK 初始化时传入用户偏好
+- TapTapAuthManager 新增 setEnableLog 配置（Debug 模式开启日志）
+
+### 变更
+- 隐私政策文本与代码默认行为统一：明确"本应用默认开启限制广告追踪"
+- 摘要版隐私政策 OAID 提示措辞修正：从"会收集"改为"可能会收集"，与默认限制行为一致
+- 完整隐私政策 OAID 提示新增"默认保护"条目
+- 完整隐私政策 2.1 节 SDK 模块描述：OAID 条件改为"若您关闭限制广告追踪"
+- 完整隐私政策第七节"限制广告追踪"权利描述更新：明确默认开启状态
+- TapTapAuthManager: isInitialized 为 true 时仍更新 limitAdTrackingEnabled 状态
+
 ## [2.5.18] - 2026-04-26
 
 ### 修复
