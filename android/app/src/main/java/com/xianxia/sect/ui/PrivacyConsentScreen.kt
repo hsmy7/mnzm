@@ -246,11 +246,26 @@ private fun PrivacySummaryContent(
         text = buildAnnotatedString {
             withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color(0xFF333333))) { append("3. 设备标识符") }
             append("\n")
-            withStyle(bodyStyle) { append("读取Android ID、设备硬件信息（品牌、型号等）、应用签名证书哈希。本应用仅用于本地加密密钥派生，以哈希形式参与加密运算，原始值不会传输到服务器。TapTap SDK也会独立收集Android ID和OAID（开放匿名设备标识符），用于设备系统兼容性、定位解决问题和广告效果分析。") }
+            withStyle(bodyStyle) { append("读取Android ID、设备硬件信息（品牌、型号等）、应用签名证书哈希。本应用仅用于本地加密密钥派生，以哈希形式参与加密运算，原始值不会传输到服务器。") }
         },
         modifier = Modifier.padding(bottom = 8.dp, start = 8.dp),
         lineHeight = 19.sp
     )
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE)),
+        shape = RoundedCornerShape(4.dp),
+        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp, start = 8.dp, end = 8.dp)
+    ) {
+        Text(
+            text = "【广告标识符收集特别提示】\n\nTapTap SDK 会收集您的 OAID（开放匿名设备标识符）。OAID 是中国广告协会推出的专门用于广告场景的设备标识符，TapTap 使用 OAID 进行广告效果分析（包括广告展示、点击、转化等数据的归因统计）。\n\n您可以在应用设置中关闭\"限制广告追踪\"开关来控制此行为。开启限制广告追踪后，TapTap SDK 将不会收集您的 OAID。",
+            fontSize = 12.sp,
+            color = Color(0xFFC62828),
+            modifier = Modifier.padding(10.dp),
+            lineHeight = 18.sp,
+            fontWeight = FontWeight.Medium
+        )
+    }
 
     Text(
         text = buildAnnotatedString {
@@ -440,7 +455,7 @@ fun FullPrivacyPolicyScreen(
                 Spacer(modifier = Modifier.height(4.dp))
 
                 Text(
-                    text = "更新日期：2026年4月17日 | 生效日期：2026年4月17日",
+                    text = "更新日期：2026年4月26日 | 生效日期：2026年4月26日",
                     fontSize = 12.sp,
                     color = GameColors.TextTertiary,
                     modifier = Modifier.fillMaxWidth(),
@@ -562,9 +577,21 @@ fun FullPrivacyPolicyScreen(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(
-                                text = "关于 Android ID、OAID 与 TapTap SDK：除本应用自身读取 Android ID 用于本地加密密钥派生外，TapTap SDK（包括 tap-core、tap-login、tap-compliance 模块）也会独立收集 Android ID 和 OAID，用于确保设备系统兼容性、定位解决问题和广告效果分析。TapTap SDK 对 Android ID 和 OAID 的收集和处理受 TapTap SDK 隐私政策约束，详见下方第二节。",
+                                text = "关于 Android ID 与 TapTap SDK：除本应用自身读取 Android ID 用于本地加密密钥派生外，TapTap SDK（包括 tap-core、tap-login、tap-compliance 模块）也会独立收集 Android ID，用于确保设备系统兼容性和定位解决问题。TapTap SDK 对 Android ID 的收集和处理受 TapTap SDK 隐私政策约束，详见下方第二节。",
                                 fontSize = 12.sp, color = Color(0xFF1565C0), lineHeight = 18.sp,
                                 modifier = Modifier.padding(10.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE)),
+                            shape = RoundedCornerShape(4.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = "【广告标识符（OAID）收集特别提示】\n\nTapTap SDK 会收集您的 OAID（开放匿名设备标识符）。OAID 是中国广告协会推出的专门用于广告场景的设备标识符，与普通的设备信息有本质区别。\n\n• 收集目的：TapTap 使用 OAID 进行广告效果分析（包括广告展示、点击、转化等数据的归因统计）\n• 收集方式：由 TapTap SDK 在初始化时自动获取\n• 您的权利：您可以在应用设置 → 隐私设置中开启\"限制广告追踪\"来阻止 OAID 的收集。开启后，TapTap SDK 将不会收集您的 OAID\n• 关闭影响：关闭广告追踪不影响游戏的正常使用和 TapTap 登录功能",
+                                fontSize = 12.sp, color = Color(0xFFC62828), lineHeight = 18.sp,
+                                modifier = Modifier.padding(10.dp), fontWeight = FontWeight.Medium
                             )
                         }
                     }
@@ -608,7 +635,7 @@ fun FullPrivacyPolicyScreen(
                 FullPolicySection("二、第三方 SDK 数据收集") {
                     FullPolicySubSection("2.1 TapTap SDK（v4.10.0）") {
                         Text(
-                            text = "由易玩（上海）网络科技有限公司提供。仅在您同意本隐私政策后初始化。\n\n\u2022 tap-core：SDK核心功能 \u2014 可能收集设备信息（设备型号、操作系统版本、Android ID、OAID、CPU信息、内存信息）、网络信息（网络类型）\n\u2022 tap-login：账户登录 \u2014 收集TapTap账户标识、昵称、头像、电话号码（TapTap账户注册信息）、邮箱（TapTap账户注册信息）、Android ID、OAID、设备信息、网络信息\n\u2022 tap-common：公共组件 \u2014 收集设备基础信息\n\u2022 tap-compliance：防沉迷和实名认证 \u2014 收集实名认证数据、年龄信息、Android ID、OAID、设备信息、网络信息",
+                            text = "由易玩（上海）网络科技有限公司提供。仅在您同意本隐私政策后初始化。\n\n\u2022 tap-core：SDK核心功能 \u2014 可能收集设备信息（设备型号、操作系统版本、Android ID、CPU信息、内存信息）、网络信息（网络类型）。当您未开启限制广告追踪时，还会收集 OAID（开放匿名设备标识符）用于广告效果分析\n\u2022 tap-login：账户登录 \u2014 收集TapTap账户标识、昵称、头像、电话号码（TapTap账户注册信息）、邮箱（TapTap账户注册信息）、Android ID、设备信息、网络信息。当您未开启限制广告追踪时，还会收集 OAID\n\u2022 tap-common：公共组件 \u2014 收集设备基础信息\n\u2022 tap-compliance：防沉迷和实名认证 \u2014 收集实名认证数据、年龄信息、Android ID、设备信息、网络信息。当您未开启限制广告追踪时，还会收集 OAID",
                             fontSize = 13.sp, color = Color(0xFF444444), lineHeight = 20.sp
                         )
                         Spacer(modifier = Modifier.height(6.dp))
@@ -669,7 +696,7 @@ fun FullPrivacyPolicyScreen(
 
                 FullPolicySection("七、您的权利") {
                     Text(
-                        text = "\u2022 查询和更正：您可以在游戏内查看您的登录信息\n\u2022 删除：您可以删除游戏存档、退出登录或卸载应用来清除数据\n\u2022 撤回同意：您可以随时退出 TapTap 登录来撤回对账户信息收集的同意\n\u2022 注销账户：如需注销 TapTap 账户，请在 TapTap 平台操作",
+                        text = "\u2022 查询和更正：您可以在游戏内查看您的登录信息\n\u2022 删除：您可以删除游戏存档、退出登录或卸载应用来清除数据\n\u2022 撤回同意：您可以随时退出 TapTap 登录来撤回对账户信息收集的同意\n\u2022 限制广告追踪：您可以在应用设置 → 隐私设置中开启\"限制广告追踪\"，阻止 TapTap SDK 收集您的 OAID（开放匿名设备标识符）\n\u2022 注销账户：如需注销 TapTap 账户，请在 TapTap 平台操作",
                         fontSize = 13.sp, color = Color(0xFF444444), lineHeight = 20.sp
                     )
                 }

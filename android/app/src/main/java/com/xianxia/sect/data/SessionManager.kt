@@ -57,6 +57,10 @@ class SessionManager @Inject constructor(
     var unionId: String?
         get() = prefs.getString(KEY_UNION_ID, null)
         set(value) = edit { putString(KEY_UNION_ID, value) }
+
+    var limitAdTracking: Boolean
+        get() = prefs.getBoolean(KEY_LIMIT_AD_TRACKING, true)
+        set(value) = edit { putBoolean(KEY_LIMIT_AD_TRACKING, value) }
     
     fun saveLoginSession(userId: String, userName: String, loginType: String, unionId: String? = null) {
         edit {
@@ -108,5 +112,6 @@ class SessionManager @Inject constructor(
         private const val KEY_PRIVACY_CHECKBOX_CONFIRMED = "privacy_checkbox_confirmed"
         private const val KEY_COMPLIANCE_VERIFIED = "compliance_verified"
         private const val KEY_UNION_ID = "union_id"
+        private const val KEY_LIMIT_AD_TRACKING = "limit_ad_tracking"
     }
 }

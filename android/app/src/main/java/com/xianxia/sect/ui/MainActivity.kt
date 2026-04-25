@@ -441,7 +441,8 @@ class MainActivity : ComponentActivity() {
                 this,
                 BuildConfig.TAPTAP_CLIENT_ID,
                 BuildConfig.TAPTAP_CLIENT_TOKEN,
-                BuildConfig.TAPTAP_IS_CN
+                BuildConfig.TAPTAP_IS_CN,
+                sessionManager.limitAdTracking
             )
             
             ComplianceManager.registerCallback(MainComplianceCallback(this))

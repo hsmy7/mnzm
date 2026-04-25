@@ -18,24 +18,36 @@ import com.taptap.sdk.login.TapTapAccount;
 public class TapTapAuthManager {
     private static final String TAG = "TapTapAuthManager";
     private static boolean isInitialized = false;
+    private static boolean limitAdTrackingEnabled = true;
 
     public static void init(Activity activity, String clientId, String clientToken, boolean isCN) {
+        init(activity, clientId, clientToken, isCN, true);
+    }
+
+    public static void init(Activity activity, String clientId, String clientToken, boolean isCN, boolean limitAdTracking) {
         if (isInitialized) {
             Log.d(TAG, "TapTap SDK 已初始化");
             return;
         }
+
+        limitAdTrackingEnabled = limitAdTracking;
 
         TapTapSdkOptions options = new TapTapSdkOptions(
             clientId,
             clientToken,
             isCN ? TapTapRegion.CN : TapTapRegion.GLOBAL
         );
-        
+
         options.setScreenOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
-        
+
         TapTapSdk.init(activity.getApplicationContext(), options);
         isInitialized = true;
-        Log.d(TAG, "TapTap SDK 初始化完成，区域: " + (isCN ? "CN" : "GLOBAL") + "，屏幕方向: 竖屏");
+
+        Log.d(TAG, "TapTap SDK 初始化完成，区域: " + (isCN ? "CN" : "GLOBAL") + "，限制广告追踪: " + limitAdTracking);
+    }
+
+    public static boolean isLimitAdTrackingEnabled() {
+        return limitAdTrackingEnabled;
     }
 
     public static void login(Activity activity, final LoginResultCallback callback) {
