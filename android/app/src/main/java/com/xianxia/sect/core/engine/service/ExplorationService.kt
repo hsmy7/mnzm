@@ -10,6 +10,7 @@ import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.di.ApplicationScopeProvider
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.engine.system.GameSystem
+import com.xianxia.sect.core.engine.system.StateAccessorFactory
 import com.xianxia.sect.core.engine.system.SystemPriority
 import android.util.Log
 import java.util.UUID
@@ -36,29 +37,19 @@ class ExplorationService @Inject constructor(
     }
 
     override suspend fun clearForSlot(slotId: Int) {}
+    private val state = StateAccessorFactory(stateStore, scope, null)
+
     private var currentGameData: GameData
-        get() = stateStore.currentTransactionMutableState()?.gameData ?: stateStore.gameData.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.gameData = value; return }
-            scope.launch { stateStore.update { gameData = value } }
-        }
+        get() = state.gameData().current
+        set(value) { state.gameData().current = value }
 
     private var currentDisciples: List<Disciple>
-        get() = stateStore.currentTransactionMutableState()?.disciples ?: stateStore.disciples.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.disciples = value; return }
-            scope.launch { stateStore.update { disciples = value } }
-        }
+        get() = state.disciples().current
+        set(value) { state.disciples().current = value }
 
     private var currentTeams: List<ExplorationTeam>
-        get() = stateStore.currentTransactionMutableState()?.teams ?: stateStore.teams.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.teams = value; return }
-            scope.launch { stateStore.update { teams = value } }
-        }
+        get() = state.teams().current
+        set(value) { state.teams().current = value }
 
     companion object {
         private const val TAG = "ExplorationService"

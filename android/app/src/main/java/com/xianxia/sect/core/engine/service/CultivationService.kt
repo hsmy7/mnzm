@@ -44,6 +44,7 @@ import com.xianxia.sect.core.util.BuildingNames
 import com.xianxia.sect.core.util.GameRandom
 import com.xianxia.sect.core.util.NameService
 import com.xianxia.sect.core.engine.system.GameSystem
+import com.xianxia.sect.core.engine.system.StateAccessorFactory
 import com.xianxia.sect.core.engine.system.SystemPriority
 import com.xianxia.sect.core.state.MutableGameState
 import javax.inject.Inject
@@ -2169,7 +2170,28 @@ class CultivationService @Inject constructor(
 
         val playerSect = data.worldMapSects.find { it.isPlayerSect }
 
-        if (result.winner == AIBattleWinner.ATTACKER && result.canOccupy) {
+        val canActuallyOccupy = if (result.winner == AIBattleWinner.ATTACKER && result.canOccupy) {
+            val targetSectOccupied = targetSect.occupierSectId.isNotEmpty()
+            if (targetSectOccupied) {
+                val hasAiGarrison = currentGameData.aiBattleTeams.any {
+                    it.isGarrison && it.garrisonSectId == targetSect.id && it.status != "completed"
+                }
+                val hasPlayerGarrison = currentGameData.battleTeam?.let { bt ->
+                    bt.isOccupying && bt.occupiedSectId == targetSect.id &&
+                    (bt.status == "stationed" || bt.status == "idle" || bt.isAtSect)
+                } ?: false
+                !hasAiGarrison && !hasPlayerGarrison
+            } else {
+                val hasDefenderBattleTeams = currentGameData.aiBattleTeams.any {
+                    it.attackerSectId == targetSect.id && it.status != "completed"
+                }
+                !hasDefenderBattleTeams
+            }
+        } else {
+            false
+        }
+
+        if (canActuallyOccupy) {
             val rewardCount = (80..130).random()
             val rewards = AISectAttackManager.generateWarRewards(targetSect.level, rewardCount)
             applyWarRewards(rewards)
@@ -2320,11 +2342,28 @@ class CultivationService @Inject constructor(
             }
         }
 
-        val highRealmDefendersAllDead = updatedDefenderDisciples
-            .filter { it.realm <= 5 }
-            .isEmpty()
+        val canActuallyOccupy = if (result.winner == AIBattleWinner.ATTACKER && result.canOccupy) {
+            val defenderSectOccupied = defenderSect.occupierSectId.isNotEmpty()
+            if (defenderSectOccupied) {
+                val hasAiGarrison = currentGameData.aiBattleTeams.any {
+                    it.isGarrison && it.garrisonSectId == team.defenderSectId && it.status != "completed"
+                }
+                val hasPlayerGarrison = currentGameData.battleTeam?.let { bt ->
+                    bt.isOccupying && bt.occupiedSectId == team.defenderSectId &&
+                    (bt.status == "stationed" || bt.status == "idle" || bt.isAtSect)
+                } ?: false
+                !hasAiGarrison && !hasPlayerGarrison
+            } else {
+                val hasDefenderBattleTeams = currentGameData.aiBattleTeams.any {
+                    it.attackerSectId == team.defenderSectId && it.status != "completed"
+                }
+                !hasDefenderBattleTeams
+            }
+        } else {
+            false
+        }
 
-        if (result.winner == AIBattleWinner.ATTACKER && result.canOccupy) {
+        if (canActuallyOccupy) {
             val currentData = currentGameData
             val defenderDetail = currentData.sectDetails[team.defenderSectId]
             val defenderWarehouse = defenderDetail?.warehouse ?: SectWarehouse()
@@ -2491,11 +2530,9 @@ class CultivationService @Inject constructor(
         if (result.winner == AIBattleWinner.ATTACKER) {
             processPlayerDefeat(team, attackerSect)
 
-            val playerHighRealmAllDead = currentDisciples
-                .filter { it.isAlive && it.realm <= 5 }
-                .isEmpty()
+            val allPlayerDisciplesDead = currentDisciples.none { it.isAlive }
 
-            if (playerHighRealmAllDead && attackerSect != null) {
+            if (allPlayerDisciplesDead && attackerSect != null) {
                 val aliveAttackerDisciples = team.disciples.filter { it.id !in result.deadAttackerIds }
                 val garrisonTeamObj = AISectAttackManager.createGarrisonTeam(
                     aliveAttackerDisciples,

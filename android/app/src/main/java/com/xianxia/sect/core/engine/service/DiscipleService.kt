@@ -12,6 +12,7 @@ import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.addEquipmentInstanceToDiscipleBag
 import com.xianxia.sect.core.state.equipmentBagStackIds
 import com.xianxia.sect.core.engine.system.GameSystem
+import com.xianxia.sect.core.engine.system.StateAccessorFactory
 import com.xianxia.sect.core.engine.system.SystemPriority
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.util.NameService
@@ -43,28 +44,19 @@ class DiscipleService @Inject constructor(
 
     override suspend fun clearForSlot(slotId: Int) {}
 
+    private val state = StateAccessorFactory(stateStore, scope, null)
+
     private var currentGameData: GameData
-        get() = stateStore.currentTransactionMutableState()?.gameData ?: stateStore.unifiedState.value.gameData
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.gameData = value; return }
-            scope.launch { stateStore.update { gameData = value } }
-        }
+        get() = state.gameDataFromUnified().current
+        set(value) { state.gameDataFromUnified().current = value }
 
     private var currentDisciples: List<Disciple>
-        get() = stateStore.currentTransactionMutableState()?.disciples ?: stateStore.unifiedState.value.disciples
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.disciples = value; return }
-            scope.launch { stateStore.update { disciples = value } }
-        }
+        get() = state.disciplesFromUnified().current
+        set(value) { state.disciplesFromUnified().current = value }
+
     private var currentTeams: List<ExplorationTeam>
-        get() = stateStore.currentTransactionMutableState()?.teams ?: stateStore.unifiedState.value.teams
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.teams = value; return }
-            scope.launch { stateStore.update { teams = value } }
-        }
+        get() = state.teamsFromUnified().current
+        set(value) { state.teamsFromUnified().current = value }
 
     companion object {
         private const val TAG = "DiscipleService"

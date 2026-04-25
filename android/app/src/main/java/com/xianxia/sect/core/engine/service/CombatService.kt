@@ -13,6 +13,7 @@ import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.di.ApplicationScopeProvider
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.engine.system.GameSystem
+import com.xianxia.sect.core.engine.system.StateAccessorFactory
 import com.xianxia.sect.core.engine.system.SystemPriority
 import android.util.Log
 import javax.inject.Inject
@@ -40,43 +41,27 @@ class CombatService @Inject constructor(
     }
 
     override suspend fun clearForSlot(slotId: Int) {}
+    private val state = StateAccessorFactory(stateStore, scope, null)
+
     private var currentGameData: GameData
-        get() = stateStore.currentTransactionMutableState()?.gameData ?: stateStore.gameData.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.gameData = value; return }
-            scope.launch { stateStore.update { gameData = value } }
-        }
+        get() = state.gameData().current
+        set(value) { state.gameData().current = value }
 
     private var currentDisciples: List<Disciple>
-        get() = stateStore.currentTransactionMutableState()?.disciples ?: stateStore.disciples.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.disciples = value; return }
-            scope.launch { stateStore.update { disciples = value } }
-        }
+        get() = state.disciples().current
+        set(value) { state.disciples().current = value }
+
     private var currentEquipmentInstances: List<EquipmentInstance>
-        get() = stateStore.currentTransactionMutableState()?.equipmentInstances ?: stateStore.equipmentInstances.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.equipmentInstances = value; return }
-            scope.launch { stateStore.update { equipmentInstances = value } }
-        }
+        get() = state.equipmentInstances().current
+        set(value) { state.equipmentInstances().current = value }
+
     private var currentManualInstances: List<ManualInstance>
-        get() = stateStore.currentTransactionMutableState()?.manualInstances ?: stateStore.manualInstances.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.manualInstances = value; return }
-            scope.launch { stateStore.update { manualInstances = value } }
-        }
+        get() = state.manualInstances().current
+        set(value) { state.manualInstances().current = value }
 
     private var currentBattleLogs: List<BattleLog>
-        get() = stateStore.currentTransactionMutableState()?.battleLogs ?: stateStore.battleLogs.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.battleLogs = value; return }
-            scope.launch { stateStore.update { battleLogs = value } }
-        }
+        get() = state.battleLogs().current
+        set(value) { state.battleLogs().current = value }
 
     companion object {
         private const val TAG = "CombatService"

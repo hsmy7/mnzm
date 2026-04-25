@@ -15,6 +15,7 @@ import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.engine.system.GameSystem
+import com.xianxia.sect.core.engine.system.StateAccessorFactory
 import com.xianxia.sect.core.engine.system.SystemPriority
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.util.BuildingNames
@@ -46,65 +47,35 @@ class BuildingService @Inject constructor(
     }
 
     override suspend fun clearForSlot(slotId: Int) {}
+    private val state = StateAccessorFactory(stateStore, scope)
+
     private var currentGameData: GameData
-        get() = stateStore.currentTransactionMutableState()?.gameData ?: stateStore.gameData.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.gameData = value; return }
-            scope.launch(kotlinx.coroutines.Dispatchers.IO) { stateStore.update { gameData = value } }
-        }
+        get() = state.gameData().current
+        set(value) { state.gameData().current = value }
 
     private var currentDisciples: List<Disciple>
-        get() = stateStore.currentTransactionMutableState()?.disciples ?: stateStore.disciples.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.disciples = value; return }
-            scope.launch(kotlinx.coroutines.Dispatchers.IO) { stateStore.update { disciples = value } }
-        }
+        get() = state.disciples().current
+        set(value) { state.disciples().current = value }
 
     private var currentHerbs: List<Herb>
-        get() = stateStore.currentTransactionMutableState()?.herbs ?: stateStore.getCurrentHerbs()
-        private set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.herbs = value; return }
-            scope.launch(kotlinx.coroutines.Dispatchers.IO) { stateStore.update { herbs = value } }
-        }
+        get() = state.herbs().current
+        private set(value) { state.herbs().current = value }
 
     private var currentMaterials: List<Material>
-        get() = stateStore.currentTransactionMutableState()?.materials ?: stateStore.getCurrentMaterials()
-        private set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.materials = value; return }
-            scope.launch(kotlinx.coroutines.Dispatchers.IO) { stateStore.update { materials = value } }
-        }
+        get() = state.materials().current
+        private set(value) { state.materials().current = value }
 
-    private suspend fun updateHerbsSync(value: List<Herb>) {
-        val ts = stateStore.currentTransactionMutableState()
-        if (ts != null) { ts.herbs = value; return }
-        stateStore.update { herbs = value }
-    }
+    private suspend fun updateHerbsSync(value: List<Herb>) = state.herbs().setCurrentSync(value)
 
-    private suspend fun updateMaterialsSync(value: List<Material>) {
-        val ts = stateStore.currentTransactionMutableState()
-        if (ts != null) { ts.materials = value; return }
-        stateStore.update { materials = value }
-    }
+    private suspend fun updateMaterialsSync(value: List<Material>) = state.materials().setCurrentSync(value)
 
     private var currentEquipmentInstances: List<EquipmentInstance>
-        get() = stateStore.currentTransactionMutableState()?.equipmentInstances ?: stateStore.equipmentInstances.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.equipmentInstances = value; return }
-            scope.launch(kotlinx.coroutines.Dispatchers.IO) { stateStore.update { equipmentInstances = value } }
-        }
+        get() = state.equipmentInstances().current
+        set(value) { state.equipmentInstances().current = value }
 
     private var currentPills: List<Pill>
-        get() = stateStore.currentTransactionMutableState()?.pills ?: stateStore.pills.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.pills = value; return }
-            scope.launch(kotlinx.coroutines.Dispatchers.IO) { stateStore.update { pills = value } }
-        }
+        get() = state.pills().current
+        set(value) { state.pills().current = value }
 
     companion object {
         private const val TAG = "BuildingService"

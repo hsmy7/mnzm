@@ -8,6 +8,7 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.di.ApplicationScopeProvider
 import com.xianxia.sect.core.engine.system.GameSystem
+import com.xianxia.sect.core.engine.system.StateAccessorFactory
 import com.xianxia.sect.core.engine.system.SystemPriority
 import android.util.Log
 import javax.inject.Inject
@@ -33,21 +34,15 @@ class DiplomacyService @Inject constructor(
     }
 
     override suspend fun clearForSlot(slotId: Int) {}
+    private val state = StateAccessorFactory(stateStore, scope, null)
+
     private var currentGameData: GameData
-        get() = stateStore.currentTransactionMutableState()?.gameData ?: stateStore.gameData.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.gameData = value; return }
-            scope.launch { stateStore.update { gameData = value } }
-        }
+        get() = state.gameData().current
+        set(value) { state.gameData().current = value }
 
     private var currentDisciples: List<Disciple>
-        get() = stateStore.currentTransactionMutableState()?.disciples ?: stateStore.disciples.value
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.disciples = value; return }
-            scope.launch { stateStore.update { disciples = value } }
-        }
+        get() = state.disciples().current
+        set(value) { state.disciples().current = value }
 
     companion object {
         private const val TAG = "DiplomacyService"
