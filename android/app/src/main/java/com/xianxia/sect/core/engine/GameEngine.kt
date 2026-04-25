@@ -22,6 +22,10 @@ import com.xianxia.sect.core.util.StorageBagUtils
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.state.addEquipmentInstanceToDiscipleBag
+import com.xianxia.sect.core.state.addManualInstanceToDiscipleBag
+import com.xianxia.sect.core.state.equipmentBagStackIds
+import com.xianxia.sect.core.state.manualBagStackIds
 import com.xianxia.sect.core.event.EventBus
 import dagger.hilt.android.scopes.ViewModelScoped
 import javax.inject.Inject
@@ -1027,11 +1031,6 @@ class GameEngine @Inject constructor(
                         val disciple = disciples.find { it.id == discipleId }
                         if (disciple == null) return@update
 
-                        val bagStackIds = disciple.equipment.storageBagItems
-                            .filter { it.itemType == "equipment_stack" }
-                            .map { it.itemId }
-                            .toSet()
-
                         val canEquip = GameConfig.Realm.meetsRealmRequirement(disciple.realm, stack.minRealm)
 
                         if (canEquip) {
@@ -1049,46 +1048,18 @@ class GameEngine @Inject constructor(
                             if (oldEquipId.isNotEmpty()) {
                                 val oldInstance = equipmentInstances.find { it.id == oldEquipId }
                                 if (oldInstance != null) {
-                                    val existingStack = equipmentStacks.find {
-                                        it.name == oldInstance.name && it.rarity == oldInstance.rarity && it.slot == oldInstance.slot && it.id != stack.id && it.id in bagStackIds
-                                    }
-                                    val storageItemId: String
-                                    if (existingStack != null) {
-                                        val maxStack = inventoryConfig.getMaxStackSize("equipment_stack")
-                                        val newQty = (existingStack.quantity + 1).coerceAtMost(maxStack)
-                                        equipmentStacks = equipmentStacks.map { s ->
-                                            if (s.id == existingStack.id) s.copy(quantity = newQty) else s
-                                        }
-                                        storageItemId = existingStack.id
-                                    } else {
-                                        val newStack = oldInstance.toStack(quantity = 1)
-                                        equipmentStacks = equipmentStacks + newStack
-                                        storageItemId = newStack.id
-                                    }
-                                    equipmentInstances = equipmentInstances.filter { it.id != oldEquipId }
-
-                                    updatedDisciple = updatedDisciple.copyWith(
-                                        storageBagItems = StorageBagUtils.increaseItemQuantity(
-                                            updatedDisciple.equipment.storageBagItems,
-                                            StorageBagItem(
-                                                itemId = storageItemId,
-                                                itemType = "equipment_stack",
-                                                name = oldInstance.name,
-                                                rarity = oldInstance.rarity,
-                                                quantity = 1,
-                                                obtainedYear = gameData.gameYear,
-                                                obtainedMonth = gameData.gameMonth,
-                                                forgetYear = gameData.gameYear,
-                                                forgetMonth = gameData.gameMonth,
-                                                forgetDay = gameData.gameDay
-                                            ),
-                                            inventoryConfig.getMaxStackSize("equipment_stack")
-                                        ).map { bagItem ->
-                                            if (bagItem.itemId == storageItemId && bagItem.itemType == "equipment_stack") {
-                                                bagItem.copy(forgetYear = gameData.gameYear, forgetMonth = gameData.gameMonth, forgetDay = gameData.gameDay)
-                                            } else bagItem
-                                        }
+                                    val bagStackIds = updatedDisciple.equipmentBagStackIds()
+                                    val result = addEquipmentInstanceToDiscipleBag(
+                                        disciple = updatedDisciple,
+                                        instance = oldInstance,
+                                        bagStackIds = bagStackIds,
+                                        excludeStackId = stack.id,
+                                        gameYear = gameData.gameYear,
+                                        gameMonth = gameData.gameMonth,
+                                        gameDay = gameData.gameDay,
+                                        maxStackSize = inventoryConfig.getMaxStackSize("equipment_stack")
                                     )
+                                    updatedDisciple = result.updatedDisciple
                                 }
 
                                 updatedDisciple = when (slot) {
@@ -1132,15 +1103,14 @@ class GameEngine @Inject constructor(
                                 equipmentStacks = equipmentStacks.filter { it.id != item.id }
                             }
 
+                            val bagStackIds = disciple.equipmentBagStackIds()
                             val bagStackId: String
                             val existingBagStack = equipmentStacks.find {
-                                it.name == stack.name && it.rarity == stack.rarity && it.slot == stack.slot && it.id != item.id && it.id in bagStackIds
+                                it.name == stack.name && it.rarity == stack.rarity && it.slot == stack.slot && it.id != item.id && it.id in bagStackIds && it.quantity < inventoryConfig.getMaxStackSize("equipment_stack")
                             }
                             if (existingBagStack != null) {
-                                val maxStack = inventoryConfig.getMaxStackSize("equipment_stack")
-                                val newQty = (existingBagStack.quantity + 1).coerceAtMost(maxStack)
                                 equipmentStacks = equipmentStacks.map { s ->
-                                    if (s.id == existingBagStack.id) s.copy(quantity = newQty) else s
+                                    if (s.id == existingBagStack.id) s.copy(quantity = existingBagStack.quantity + 1) else s
                                 }
                                 bagStackId = existingBagStack.id
                             } else {
@@ -1161,7 +1131,10 @@ class GameEngine @Inject constructor(
                                                 rarity = stack.rarity,
                                                 quantity = 1,
                                                 obtainedYear = gameData.gameYear,
-                                                obtainedMonth = gameData.gameMonth
+                                                obtainedMonth = gameData.gameMonth,
+                                                forgetYear = gameData.gameYear,
+                                                forgetMonth = gameData.gameMonth,
+                                                forgetDay = gameData.gameDay
                                             ),
                                             inventoryConfig.getMaxStackSize("equipment_stack")
                                         )
@@ -1217,20 +1190,16 @@ class GameEngine @Inject constructor(
                                 }
                             }
 
-                            val bagStackIds = disciple.equipment.storageBagItems
-                                .filter { it.itemType == "manual_stack" }
-                                .map { it.itemId }
-                                .toSet()
+                            val bagStackIds = disciple.manualBagStackIds()
 
                             val existingBagStack = manualStacks.find {
-                                it.name == stack.name && it.rarity == stack.rarity && it.type == stack.type && it.id != item.id && it.id in bagStackIds
+                                it.name == stack.name && it.rarity == stack.rarity && it.type == stack.type && it.id != item.id && it.id in bagStackIds && it.quantity < inventoryConfig.getMaxStackSize("manual_stack")
                             }
 
                             val storageItemId: String
                             if (existingBagStack != null) {
-                                val maxStack = inventoryConfig.getMaxStackSize("manual_stack")
                                 manualStacks = manualStacks.map {
-                                    if (it.id == existingBagStack.id) it.copy(quantity = (it.quantity + 1).coerceAtMost(maxStack)) else it
+                                    if (it.id == existingBagStack.id) it.copy(quantity = it.quantity + 1) else it
                                 }
                                 storageItemId = existingBagStack.id
                             } else {
@@ -1251,7 +1220,10 @@ class GameEngine @Inject constructor(
                                                 rarity = stack.rarity,
                                                 quantity = 1,
                                                 obtainedYear = gameData.gameYear,
-                                                obtainedMonth = gameData.gameMonth
+                                                obtainedMonth = gameData.gameMonth,
+                                                forgetYear = gameData.gameYear,
+                                                forgetMonth = gameData.gameMonth,
+                                                forgetDay = gameData.gameDay
                                             ),
                                             inventoryConfig.getMaxStackSize("manual_stack")
                                         )
@@ -1519,74 +1491,26 @@ class GameEngine @Inject constructor(
     }
 
     suspend fun forgetManual(discipleId: String, instanceId: String) {
-        val disciple = getDiscipleById(discipleId) ?: return
-        val instance = stateStore.manualInstances.value.find { it.id == instanceId } ?: return
-        val data = stateStore.gameData.value
         stateStore.update {
+            val instance = manualInstances.find { it.id == instanceId } ?: return@update
             val currentDisciple = disciples.find { it.id == discipleId } ?: return@update
-            val bagStackIds = currentDisciple.equipment.storageBagItems
-                .filter { it.itemType == "manual_stack" }
-                .map { it.itemId }
-                .toSet()
+            val bagStackIds = currentDisciple.manualBagStackIds()
 
-            val existingStack = manualStacks.find {
-                it.name == instance.name && it.rarity == instance.rarity && it.type == instance.type && it.id in bagStackIds
+            val result = addManualInstanceToDiscipleBag(
+                disciple = currentDisciple,
+                instance = instance,
+                bagStackIds = bagStackIds,
+                gameYear = gameData.gameYear,
+                gameMonth = gameData.gameMonth,
+                gameDay = gameData.gameDay,
+                maxStackSize = inventoryConfig.getMaxStackSize("manual_stack")
+            )
+            disciples = disciples.map {
+                if (it.id == discipleId) {
+                    result.updatedDisciple.copy(manualIds = it.manualIds.filter { mid -> mid != instanceId })
+                } else it
             }
-            if (existingStack != null) {
-                val maxStack = inventoryConfig.getMaxStackSize("manual_stack")
-                manualStacks = manualStacks.map {
-                    if (it.id == existingStack.id) it.copy(quantity = (it.quantity + 1).coerceAtMost(maxStack)) else it
-                }
-                disciples = disciples.map {
-                    if (it.id == discipleId) {
-                        val storageItem = StorageBagItem(
-                            itemId = existingStack.id,
-                            itemType = "manual_stack",
-                            name = instance.name,
-                            rarity = instance.rarity,
-                            quantity = 1,
-                            obtainedYear = data.gameYear,
-                            obtainedMonth = data.gameMonth,
-                            forgetYear = data.gameYear,
-                            forgetMonth = data.gameMonth,
-                            forgetDay = data.gameDay
-                        )
-                        it.copyWith(
-                            manualIds = it.manualIds.filter { mid -> mid != instanceId },
-                            storageBagItems = StorageBagUtils.increaseItemQuantity(it.equipment.storageBagItems, storageItem, maxStack)
-                                .map { bagItem ->
-                                    if (bagItem.itemId == existingStack.id && bagItem.itemType == "manual_stack") {
-                                        bagItem.copy(forgetYear = data.gameYear, forgetMonth = data.gameMonth, forgetDay = data.gameDay)
-                                    } else bagItem
-                                }
-                        )
-                    } else it
-                }
-            } else {
-                val newStack = instance.toStack(quantity = 1)
-                manualStacks = manualStacks + newStack
-                disciples = disciples.map {
-                    if (it.id == discipleId) {
-                        val storageItem = StorageBagItem(
-                            itemId = newStack.id,
-                            itemType = "manual_stack",
-                            name = instance.name,
-                            rarity = instance.rarity,
-                            quantity = 1,
-                            obtainedYear = data.gameYear,
-                            obtainedMonth = data.gameMonth,
-                            forgetYear = data.gameYear,
-                            forgetMonth = data.gameMonth,
-                            forgetDay = data.gameDay
-                        )
-                        it.copyWith(
-                            manualIds = it.manualIds.filter { mid -> mid != instanceId },
-                            storageBagItems = StorageBagUtils.increaseItemQuantity(it.equipment.storageBagItems, storageItem, inventoryConfig.getMaxStackSize("manual_stack"))
-                        )
-                    } else it
-                }
-            }
-            manualInstances = manualInstances.filter { it.id != instanceId }
+
             val updatedProficiencies = gameData.manualProficiencies.toMutableMap()
             updatedProficiencies[discipleId]?.let { profList ->
                 val filtered = profList.filter { it.manualId != instanceId }
@@ -1614,29 +1538,18 @@ class GameEngine @Inject constructor(
                 .any { mid -> manualInstances.find { m -> m.id == mid }?.type == ManualType.MIND }
             if (blocked) return@update
 
-            val bagStackIds = disciple.equipment.storageBagItems
-                .filter { it.itemType == "manual_stack" }
-                .map { it.itemId }
-                .toSet()
-
-            val existingStack = manualStacks.find {
-                it.name == oldInstance.name && it.rarity == oldInstance.rarity && it.type == oldInstance.type && it.id in bagStackIds
-            }
+            val bagStackIds = disciple.manualBagStackIds()
             val data = gameData
-            val storageItemId: String
 
-            if (existingStack != null) {
-                val maxStack = inventoryConfig.getMaxStackSize("manual_stack")
-                manualStacks = manualStacks.map {
-                    if (it.id == existingStack.id) it.copy(quantity = (it.quantity + 1).coerceAtMost(maxStack)) else it
-                }
-                storageItemId = existingStack.id
-            } else {
-                val newOldStack = oldInstance.toStack(quantity = 1)
-                manualStacks = manualStacks + newOldStack
-                storageItemId = newOldStack.id
-            }
-            manualInstances = manualInstances.filter { it.id != oldInstanceId }
+            val result = addManualInstanceToDiscipleBag(
+                disciple = disciple,
+                instance = oldInstance,
+                bagStackIds = bagStackIds,
+                gameYear = data.gameYear,
+                gameMonth = data.gameMonth,
+                gameDay = data.gameDay,
+                maxStackSize = inventoryConfig.getMaxStackSize("manual_stack")
+            )
 
             val currentNewStack = manualStacks.find { it.id == newStackId }
             if (currentNewStack == null) return@update
@@ -1662,28 +1575,10 @@ class GameEngine @Inject constructor(
                 }
             }
 
-            val storageItem = StorageBagItem(
-                itemId = storageItemId,
-                itemType = "manual_stack",
-                name = oldInstance.name,
-                rarity = oldInstance.rarity,
-                quantity = 1,
-                obtainedYear = data.gameYear,
-                obtainedMonth = data.gameMonth,
-                forgetYear = data.gameYear,
-                forgetMonth = data.gameMonth,
-                forgetDay = data.gameDay
-            )
             disciples = disciples.map {
                 if (it.id == discipleId) {
-                    it.copyWith(
-                        manualIds = (it.manualIds.filter { mid -> mid != oldInstanceId }) + newInstance.id,
-                        storageBagItems = StorageBagUtils.increaseItemQuantity(it.equipment.storageBagItems, storageItem, inventoryConfig.getMaxStackSize("manual_stack"))
-                            .map { bagItem ->
-                                if (bagItem.itemId == storageItemId && bagItem.itemType == "manual_stack") {
-                                    bagItem.copy(forgetYear = data.gameYear, forgetMonth = data.gameMonth, forgetDay = data.gameDay)
-                                } else bagItem
-                            }
+                    result.updatedDisciple.copy(
+                        manualIds = (it.manualIds.filter { mid -> mid != oldInstanceId }) + newInstance.id
                     )
                 } else it
             }

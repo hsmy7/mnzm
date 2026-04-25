@@ -1,5 +1,21 @@
 # 模拟宗门 - 更新日志
 
+## [2.5.15] - 2026-04-25
+
+### 重构
+- 提取装备卸下入袋共用方法addEquipmentInstanceToDiscipleBag，消除4处重复代码
+- 提取功法遗忘入袋共用方法addManualInstanceToDiscipleBag，消除2处重复代码
+- 提取Disciple扩展方法equipmentBagStackIds/manualBagStackIds，集中bagStackIds计算逻辑
+- unequipEquipmentLogic改为MutableGameState扩展函数，在事务内直接操作状态属性
+- equipEquipment中stateStore.update内改用MutableGameState直接属性，统一事务内代码风格
+
+### 修复
+- 修复forgetManual块外读取instance/gameData的竞态条件：移入stateStore.update事务内
+- 修复堆叠溢出时物品静默丢失：查找已有栈时增加quantity < maxStackSize条件，已满时创建新栈
+- 修复rewardItemsToDisciple装备/功法不可使用路径缺少forgetYear/forgetMonth/forgetDay字段
+- 修复equipEquipment中unequipEquipmentLogic返回值未检查，卸装失败时中止装备流程
+- 为addManualInstanceToDiscipleBag添加excludeStackId参数，保持与装备方法签名一致
+
 ## [2.5.14] - 2026-04-25
 
 ### 修复

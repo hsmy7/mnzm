@@ -9,6 +9,8 @@ import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.di.ApplicationScopeProvider
 import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.state.addEquipmentInstanceToDiscipleBag
+import com.xianxia.sect.core.state.equipmentBagStackIds
 import com.xianxia.sect.core.engine.system.GameSystem
 import com.xianxia.sect.core.engine.system.SystemPriority
 import com.xianxia.sect.core.config.InventoryConfig
@@ -659,9 +661,9 @@ class DiscipleService @Inject constructor(
 
         scope.launch {
             stateStore.update {
-                val idx = currentDisciples.indexOfFirst { it.id == discipleId }
+                val idx = disciples.indexOfFirst { it.id == discipleId }
                 if (idx < 0) return@update
-                val d = currentDisciples[idx]
+                val d = disciples[idx]
 
                 val oldEquipId = when (slot) {
                     EquipmentSlot.WEAPON -> d.equipment.weaponId
@@ -671,24 +673,28 @@ class DiscipleService @Inject constructor(
                     else -> ""
                 }
                 if (oldEquipId.isNotEmpty()) {
-                    unequipEquipment(discipleId, oldEquipId)
+                    val unequipped = unequipEquipmentLogic(discipleId, oldEquipId)
+                    if (!unequipped) {
+                        Log.w(TAG, "equipEquipment: failed to unequip $oldEquipId, aborting equip")
+                        return@update
+                    }
                 }
 
-                val currentDisciple = currentDisciples[idx]
-                val stack = currentEquipmentStacks.find { it.id == equipmentId }
-                val instance = currentEquipmentInstances.find { it.id == equipmentId }
+                val currentDisciple = disciples[idx]
+                val stack = equipmentStacks.find { it.id == equipmentId }
+                val instance = equipmentInstances.find { it.id == equipmentId }
 
                 if (stack != null) {
                     val equippedId = UUID.randomUUID().toString()
                     val equippedItem = stack.toInstance(id = equippedId, ownerId = discipleId, isEquipped = true)
                     if (stack.quantity > 1) {
-                        currentEquipmentStacks = currentEquipmentStacks.map {
+                        equipmentStacks = equipmentStacks.map {
                             if (it.id == equipmentId) it.copy(quantity = it.quantity - 1) else it
                         }
                     } else {
-                        currentEquipmentStacks = currentEquipmentStacks.filter { it.id != equipmentId }
+                        equipmentStacks = equipmentStacks.filter { it.id != equipmentId }
                     }
-                    currentEquipmentInstances = currentEquipmentInstances + equippedItem
+                    equipmentInstances = equipmentInstances + equippedItem
                     val updatedDisciple = when (slot) {
                         EquipmentSlot.WEAPON -> currentDisciple.copyWith(weaponId = equippedId)
                         EquipmentSlot.ARMOR -> currentDisciple.copyWith(armorId = equippedId)
@@ -696,7 +702,7 @@ class DiscipleService @Inject constructor(
                         EquipmentSlot.ACCESSORY -> currentDisciple.copyWith(accessoryId = equippedId)
                         else -> currentDisciple
                     }
-                    currentDisciples = currentDisciples.toMutableList().also { it[idx] = updatedDisciple }
+                    disciples = disciples.toMutableList().also { it[idx] = updatedDisciple }
                 } else if (instance != null) {
                     val updatedDisciple = when (slot) {
                         EquipmentSlot.WEAPON -> currentDisciple.copyWith(weaponId = equipmentId)
@@ -705,8 +711,8 @@ class DiscipleService @Inject constructor(
                         EquipmentSlot.ACCESSORY -> currentDisciple.copyWith(accessoryId = equipmentId)
                         else -> currentDisciple
                     }
-                    currentDisciples = currentDisciples.toMutableList().also { it[idx] = updatedDisciple }
-                    currentEquipmentInstances = currentEquipmentInstances.map {
+                    disciples = disciples.toMutableList().also { it[idx] = updatedDisciple }
+                    equipmentInstances = equipmentInstances.map {
                         if (it.id == equipmentId) it.copy(isEquipped = true, ownerId = discipleId) else it
                     }
                 }
@@ -720,6 +726,9 @@ class DiscipleService @Inject constructor(
     /**
      * Unequip equipment from disciple
      * 设计意图：装备是独占物品，卸下后放入弟子储物袋，而非归还宗门仓库。
+     *
+     * 返回值语义：快速验证通过即返回 true（异步路径），实际操作在 stateStore.update 事务中执行。
+     * 若在已有事务内调用（同步路径），返回实际操作结果。
      */
     fun unequipEquipment(discipleId: String, equipmentId: String): Boolean {
         val disciple = currentDisciples.find { it.id == discipleId } ?: return false
@@ -730,7 +739,7 @@ class DiscipleService @Inject constructor(
         if (!isEquipped) return false
 
         if (stateStore.currentTransactionMutableState() != null) {
-            return unequipEquipmentLogic(discipleId, equipmentId)
+            return stateStore.currentTransactionMutableState()!!.unequipEquipmentLogic(discipleId, equipmentId)
         }
 
         scope.launch {
@@ -741,11 +750,11 @@ class DiscipleService @Inject constructor(
         return true
     }
 
-    private fun unequipEquipmentLogic(discipleId: String, equipmentId: String): Boolean {
-        val discipleIndex = currentDisciples.indexOfFirst { it.id == discipleId }
+    private fun MutableGameState.unequipEquipmentLogic(discipleId: String, equipmentId: String): Boolean {
+        val discipleIndex = disciples.indexOfFirst { it.id == discipleId }
         if (discipleIndex < 0) return false
 
-        val disciple = currentDisciples[discipleIndex]
+        val disciple = disciples[discipleIndex]
         val updatedDisciple = when {
             disciple.equipment.weaponId == equipmentId -> disciple.copyWith(weaponId = "")
             disciple.equipment.armorId == equipmentId -> disciple.copyWith(armorId = "")
@@ -755,72 +764,23 @@ class DiscipleService @Inject constructor(
         }
 
         if (updatedDisciple != disciple) {
-            val eq = currentEquipmentInstances.find { it.id == equipmentId }
-            val data = currentGameData
+            val eq = equipmentInstances.find { it.id == equipmentId }
 
             if (eq != null) {
-                val bagStackIds = updatedDisciple.equipment.storageBagItems
-                    .filter { it.itemType == "equipment_stack" }
-                    .map { it.itemId }
-                    .toSet()
-
-                val existingStack = currentEquipmentStacks.find {
-                    it.name == eq.name && it.rarity == eq.rarity && it.slot == eq.slot && it.id in bagStackIds
-                }
-
-                if (existingStack != null) {
-                    val maxStack = inventoryConfig.getMaxStackSize("equipment_stack")
-                    val newQty = (existingStack.quantity + 1).coerceAtMost(maxStack)
-                    val mergedId = existingStack.id
-                    val storageItem = StorageBagItem(
-                        itemId = mergedId,
-                        itemType = "equipment_stack",
-                        name = eq.name,
-                        rarity = eq.rarity,
-                        quantity = 1,
-                        obtainedYear = data.gameYear,
-                        obtainedMonth = data.gameMonth,
-                        forgetYear = data.gameYear,
-                        forgetMonth = data.gameMonth,
-                        forgetDay = data.gameDay
-                    )
-                    val discipleWithBag = updatedDisciple.copyWith(
-                        storageBagItems = StorageBagUtils.increaseItemQuantity(updatedDisciple.equipment.storageBagItems, storageItem, inventoryConfig.getMaxStackSize("equipment_stack"))
-                            .map { bagItem ->
-                                if (bagItem.itemId == mergedId && bagItem.itemType == "equipment_stack") {
-                                    bagItem.copy(forgetYear = data.gameYear, forgetMonth = data.gameMonth, forgetDay = data.gameDay)
-                                } else bagItem
-                            }
-                    )
-                    currentDisciples = currentDisciples.toMutableList().also { it[discipleIndex] = discipleWithBag }
-                    currentEquipmentStacks = currentEquipmentStacks.map { s ->
-                        if (s.id == mergedId) s.copy(quantity = newQty) else s
-                    }
-                    currentEquipmentInstances = currentEquipmentInstances.filter { it.id != equipmentId }
-                } else {
-                    val newStack = eq.toStack(quantity = 1)
-                    val storageItem = StorageBagItem(
-                        itemId = newStack.id,
-                        itemType = "equipment_stack",
-                        name = eq.name,
-                        rarity = eq.rarity,
-                        quantity = 1,
-                        obtainedYear = data.gameYear,
-                        obtainedMonth = data.gameMonth,
-                        forgetYear = data.gameYear,
-                        forgetMonth = data.gameMonth,
-                        forgetDay = data.gameDay
-                    )
-                    val discipleWithBag = updatedDisciple.copyWith(
-                        storageBagItems = StorageBagUtils.increaseItemQuantity(updatedDisciple.equipment.storageBagItems, storageItem, inventoryConfig.getMaxStackSize("equipment_stack"))
-                    )
-                    currentDisciples = currentDisciples.toMutableList().also { it[discipleIndex] = discipleWithBag }
-                    currentEquipmentStacks = currentEquipmentStacks + newStack
-                    currentEquipmentInstances = currentEquipmentInstances.filter { it.id != equipmentId }
-                }
+                val bagStackIds = updatedDisciple.equipmentBagStackIds()
+                val result = addEquipmentInstanceToDiscipleBag(
+                    disciple = updatedDisciple,
+                    instance = eq,
+                    bagStackIds = bagStackIds,
+                    gameYear = gameData.gameYear,
+                    gameMonth = gameData.gameMonth,
+                    gameDay = gameData.gameDay,
+                    maxStackSize = inventoryConfig.getMaxStackSize("equipment_stack")
+                )
+                disciples = disciples.toMutableList().also { it[discipleIndex] = result.updatedDisciple }
             } else {
                 Log.w(TAG, "unequipEquipmentLogic: equipment instance $equipmentId not found for disciple $discipleId, clearing slot only")
-                currentDisciples = currentDisciples.toMutableList().also { it[discipleIndex] = updatedDisciple }
+                disciples = disciples.toMutableList().also { it[discipleIndex] = updatedDisciple }
             }
 
             return true
