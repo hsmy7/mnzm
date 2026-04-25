@@ -530,7 +530,9 @@ data class SectDetail(
     val tradeLastRefreshYear: Int = 0,
     val lastGiftYear: Int = 0,
     val warehouse: SectWarehouse = SectWarehouse(),
-    val giftPreference: GiftPreferenceType = GiftPreferenceType.NONE
+    val giftPreference: GiftPreferenceType = GiftPreferenceType.NONE,
+    val tradeFavorCountThisYear: Int = 0,
+    val tradeFavorLastResetYear: Int = 0
 )
 
 @Serializable

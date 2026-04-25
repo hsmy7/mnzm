@@ -455,7 +455,9 @@ data class SerializableSectDetail(
     @ProtoNumber(9) val tradeLastRefreshYear: Int = 0,
     @ProtoNumber(10) val lastGiftYear: Int = 0,
     @ProtoNumber(11) val warehouse: SerializableSectWarehouse = SerializableSectWarehouse(),
-    @ProtoNumber(12) val giftPreference: String = "NONE"
+    @ProtoNumber(12) val giftPreference: String = "NONE",
+    @ProtoNumber(13) val tradeFavorCountThisYear: Int = 0,
+    @ProtoNumber(14) val tradeFavorLastResetYear: Int = 0
 )
 
 @Serializable

@@ -387,11 +387,10 @@ class EventService @Inject constructor(
 
         scope.launch {
             stateStore.update {
-                val updatedRelations = applyTradeFavorBonus(gameData, sectId)
+                applyTradeFavorBonus(sectId)
                 gameData = gameData.copy(
                     spiritStones = gameData.spiritStones - v.totalPrice,
-                    sectDetails = v.updatedSectDetails,
-                    sectRelations = updatedRelations
+                    sectDetails = v.updatedSectDetails
                 )
                 addSectTradeItemToMutableState(v.item, v.actualQuantity)
                 events = listOf(GameEvent(
@@ -413,11 +412,10 @@ class EventService @Inject constructor(
         val v = validateSectTrade(data, sectId, itemId, quantity) ?: return
 
         stateStore.update {
-            val updatedRelations = applyTradeFavorBonus(gameData, sectId)
+            applyTradeFavorBonus(sectId)
             gameData = gameData.copy(
                 spiritStones = gameData.spiritStones - v.totalPrice,
-                sectDetails = v.updatedSectDetails,
-                sectRelations = updatedRelations
+                sectDetails = v.updatedSectDetails
             )
             addSectTradeItemToMutableState(v.item, v.actualQuantity)
             events = listOf(GameEvent(
@@ -502,10 +500,15 @@ class EventService @Inject constructor(
     private fun getSectRelation(data: GameData, sectId: String): Int =
         GameUtils.getSectRelation(data.worldMapSects, data.sectRelations, sectId)
 
-    private fun applyTradeFavorBonus(data: GameData, sectId: String): List<SectRelation> {
-        val playerSect = data.worldMapSects.find { it.isPlayerSect } ?: return data.sectRelations
-        val currentFavor = getSectRelation(data, sectId)
-        if (currentFavor >= GameConfig.Diplomacy.MAX_FAVOR) return data.sectRelations
+    private fun MutableGameState.applyTradeFavorBonus(sectId: String) {
+        val playerSect = gameData.worldMapSects.find { it.isPlayerSect } ?: return
+        val currentFavor = GameUtils.getSectRelation(gameData.worldMapSects, gameData.sectRelations, sectId)
+        if (currentFavor >= GameConfig.Diplomacy.MAX_FAVOR) return
+
+        val currentYear = gameData.gameYear
+        val detail = gameData.sectDetails[sectId] ?: SectDetail(sectId = sectId)
+        val countThisYear = if (detail.tradeFavorLastResetYear != currentYear) 0 else detail.tradeFavorCountThisYear
+        if (countThisYear >= DiplomaticEventConfig.TradeFavor.TRADE_FAVOR_MAX_PER_YEAR) return
 
         val favorBonus = DiplomaticEventConfig.TradeFavor.TRADE_FAVOR_PER_TRANSACTION
         val newFavor = (currentFavor + favorBonus).coerceAtMost(GameConfig.Diplomacy.MAX_FAVOR)
@@ -513,11 +516,19 @@ class EventService @Inject constructor(
         val id1 = minOf(playerSect.id, sectId)
         val id2 = maxOf(playerSect.id, sectId)
 
-        return data.sectRelations.map { relation ->
-            if (relation.sectId1 == id1 && relation.sectId2 == id2) {
-                relation.copy(favor = newFavor)
-            } else relation
-        }
+        gameData = gameData.copy(
+            sectRelations = gameData.sectRelations.map { relation ->
+                if (relation.sectId1 == id1 && relation.sectId2 == id2) {
+                    relation.copy(favor = newFavor)
+                } else relation
+            },
+            sectDetails = gameData.sectDetails.toMutableMap().apply {
+                this[sectId] = detail.copy(
+                    tradeFavorCountThisYear = countThisYear + 1,
+                    tradeFavorLastResetYear = currentYear
+                )
+            }
+        )
     }
 
     private fun generateRarityByProbability(probabilities: List<Double>, random: Random): Int {

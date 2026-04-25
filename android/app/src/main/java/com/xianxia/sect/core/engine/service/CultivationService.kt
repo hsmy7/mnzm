@@ -2425,13 +2425,18 @@ class CultivationService @Inject constructor(
             val defenderSectForRelation = currentGameData.worldMapSects.find { it.id == team.defenderSectId }
             val isAlliedAttack = attackerSect != null && defenderSectForRelation != null &&
                 attackerSect.allianceId.isNotEmpty() && attackerSect.allianceId == defenderSectForRelation.allianceId
+            val isSameAlignment = attackerSect != null && defenderSectForRelation != null &&
+                attackerSect.isRighteous == defenderSectForRelation.isRighteous
 
             val updatedRelations = currentGameData.sectRelations.map { relation ->
                 val isRelevantRelation = (relation.sectId1 == team.attackerSectId && relation.sectId2 == team.defenderSectId) ||
                                          (relation.sectId1 == team.defenderSectId && relation.sectId2 == team.attackerSectId)
                 if (isRelevantRelation) {
-                    val loss = if (isAlliedAttack) DiplomaticEventConfig.BattleFavor.ALLIANCE_BETRAYAL_FAVOR_LOSS
+                    val baseLoss = if (isAlliedAttack) DiplomaticEventConfig.BattleFavor.ALLIANCE_BETRAYAL_FAVOR_LOSS
                                else DiplomaticEventConfig.BattleFavor.DESTROY_FAVOR_LOSS
+                    val loss = if (isSameAlignment && !isAlliedAttack)
+                        (baseLoss * DiplomaticEventConfig.BattleFavor.SAME_ALIGNMENT_FAVOR_REDUCTION).toInt()
+                    else baseLoss
                     relation.copy(favor = (relation.favor + loss).coerceIn(GameConfig.Diplomacy.MIN_FAVOR, GameConfig.Diplomacy.MAX_FAVOR))
                 } else {
                     relation
@@ -4136,6 +4141,7 @@ class CultivationService @Inject constructor(
 
         val playerEvents = DiplomaticEventConfig.Events.getEventsByScope(DiplomaticEventConfig.EventScope.PLAYER_ONLY)
         val allScopeEvents = DiplomaticEventConfig.Events.getEventsByScope(DiplomaticEventConfig.EventScope.ALL)
+        val aiOnlyEvents = DiplomaticEventConfig.Events.getEventsByScope(DiplomaticEventConfig.EventScope.AI_ONLY)
 
         for (relation in data.sectRelations) {
             val involvesPlayer = relation.sectId1 == playerSectId || relation.sectId2 == playerSectId
@@ -4151,7 +4157,7 @@ class CultivationService @Inject constructor(
             val candidateEvents = if (involvesPlayer) {
                 playerEvents + allScopeEvents
             } else {
-                allScopeEvents.filter { it.scope != DiplomaticEventConfig.EventScope.PLAYER_ONLY }
+                allScopeEvents + aiOnlyEvents
             }
 
             for (eventDef in candidateEvents) {
@@ -4617,7 +4623,8 @@ class CultivationService @Inject constructor(
             val favor = relation.favor
 
             if (involvesPlayer) {
-                val yearsSinceGift = currentYear - relation.lastInteractionYear
+                val effectiveLastYear = if (relation.lastInteractionYear <= 0) currentYear else relation.lastInteractionYear
+                val yearsSinceGift = currentYear - effectiveLastYear
 
                 when {
                     favor > DiplomaticEventConfig.Decay.HIGH_FAVOR_DECAY_THRESHOLD -> {

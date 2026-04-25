@@ -287,14 +287,17 @@ class DiplomacyService @Inject constructor(
         val spiritStonePenalty = (allianceCost * GameConfig.Diplomacy.BreakPenalty.SPIRIT_STONE_PENALTY_RATIO).toLong()
         val newSpiritStones = (data.spiritStones - spiritStonePenalty).coerceAtLeast(0L)
 
+        val playerSect = data.worldMapSects.find { it.isPlayerSect }
         val updatedSects = data.worldMapSects.map { s ->
-            if (s.id == sectId) s.copy(allianceId = "", allianceStartYear = 0)
-            else s
+            when {
+                s.id == sectId -> s.copy(allianceId = "", allianceStartYear = 0)
+                playerSect != null && s.id == playerSect.id -> s.copy(allianceId = "", allianceStartYear = 0)
+                else -> s
+            }
         }
 
         val updatedAlliances = data.alliances.filter { it.id != alliance.id }
 
-        val playerSect = data.worldMapSects.find { it.isPlayerSect }
         val updatedRelations = if (playerSect != null) {
             val currentFavor = data.sectRelations.find {
                 (it.sectId1 == playerSect.id && it.sectId2 == sectId) ||

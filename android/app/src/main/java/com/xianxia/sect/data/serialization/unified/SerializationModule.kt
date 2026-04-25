@@ -2072,7 +2072,9 @@ class SaveDataConverter @Inject constructor() {
                 com.xianxia.sect.core.model.GiftPreferenceType.valueOf(data.giftPreference)
             } catch (e: Exception) {
                 com.xianxia.sect.core.model.GiftPreferenceType.NONE
-            }
+            },
+            tradeFavorCountThisYear = 0,
+            tradeFavorLastResetYear = 0
         )
     }
 
@@ -2089,7 +2091,9 @@ class SaveDataConverter @Inject constructor() {
             tradeLastRefreshYear = detail.tradeLastRefreshYear,
             lastGiftYear = detail.lastGiftYear,
             warehouse = convertSectWarehouse(detail.warehouse),
-            giftPreference = detail.giftPreference.name
+            giftPreference = detail.giftPreference.name,
+            tradeFavorCountThisYear = detail.tradeFavorCountThisYear,
+            tradeFavorLastResetYear = detail.tradeFavorLastResetYear
         )
     }
 
