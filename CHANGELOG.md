@@ -1,5 +1,15 @@
 # 模拟宗门 - 更新日志
 
+## [2.5.16] - 2026-04-25
+
+### 重构
+- DiscipleEquipmentManager.processSlot 中 .map 冗余操作改为条件执行，仅合并场景更新 forget 日期，与 BagUtils 保持一致
+- equipEquipment 合并弟子查找为单次 indexOfFirst，消除冗余二次查找
+- equipEquipment 中 equipmentStack!! 强制解包改为安全调用加提前返回
+
+### 修复
+- 修复 unequipEquipment KDoc 注释与实际行为不符：更新为描述当前事务内原子执行语义
+
 ## [2.5.15] - 2026-04-25
 
 ### 重构

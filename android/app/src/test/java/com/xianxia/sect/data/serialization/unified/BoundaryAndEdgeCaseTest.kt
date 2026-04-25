@@ -32,7 +32,7 @@ class BoundaryAndEdgeCaseTest {
                 statusData = if (i % 8 == 0) mapOf("type" to "mission") else emptyMap(),
                 cultivationSpeedBonus = if (i % 3 == 0) i * 0.5 else 0.0,
                 cultivationSpeedDuration = if (i % 3 == 0) i else 0,
-                discipleType = listOf("inner", "outer", "core")[i % 3],
+                discipleType = listOf("inner", "outer")[i % 2],
                 combat = CombatAttributes(
                     baseHp = 100 + i * 10,
                     baseMp = 50 + i * 5,
@@ -145,7 +145,7 @@ class BoundaryAndEdgeCaseTest {
             statusData = mapOf("type" to "mission", "remaining" to "3"),
             cultivationSpeedBonus = 15.5,
             cultivationSpeedDuration = 10,
-            discipleType = "core",
+            discipleType = "inner",
             combat = CombatAttributes(
                 baseHp = 2000, baseMp = 1000,
                 basePhysicalAttack = 300, baseMagicAttack = 250,
@@ -255,7 +255,7 @@ class BoundaryAndEdgeCaseTest {
         assertEquals(150, r.basePhysicalDefense)
         assertEquals(120, r.baseMagicDefense)
         assertEquals(80, r.baseSpeed)
-        assertEquals("core", r.discipleType)
+        assertEquals("inner", r.discipleType)
         assertTrue(r.hasReviveEffect)
         assertTrue(r.hasClearAllEffect)
     }

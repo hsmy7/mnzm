@@ -14,7 +14,6 @@ import com.xianxia.sect.core.state.equipmentBagStackIds
 import com.xianxia.sect.core.engine.system.GameSystem
 import com.xianxia.sect.core.engine.system.SystemPriority
 import com.xianxia.sect.core.config.InventoryConfig
-import com.xianxia.sect.core.util.StorageBagUtils
 import com.xianxia.sect.core.util.NameService
 import android.util.Log
 import java.util.UUID
@@ -59,21 +58,6 @@ class DiscipleService @Inject constructor(
             if (ts != null) { ts.disciples = value; return }
             scope.launch { stateStore.update { disciples = value } }
         }
-    private var currentEquipmentInstances: List<EquipmentInstance>
-        get() = stateStore.currentTransactionMutableState()?.equipmentInstances ?: stateStore.unifiedState.value.equipmentInstances
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.equipmentInstances = value; return }
-            scope.launch { stateStore.update { equipmentInstances = value } }
-        }
-    private var currentEquipmentStacks: List<EquipmentStack>
-        get() = stateStore.currentTransactionMutableState()?.equipmentStacks ?: stateStore.unifiedState.value.equipmentStacks
-        set(value) {
-            val ts = stateStore.currentTransactionMutableState()
-            if (ts != null) { ts.equipmentStacks = value; return }
-            scope.launch { stateStore.update { equipmentStacks = value } }
-        }
-
     private var currentTeams: List<ExplorationTeam>
         get() = stateStore.currentTransactionMutableState()?.teams ?: stateStore.unifiedState.value.teams
         set(value) {
@@ -632,122 +616,116 @@ class DiscipleService @Inject constructor(
      * 设计意图：装备是独占物品，不可共用。一件装备只能给一名弟子穿戴。
      * 装备新装备时，旧装备自动卸下并放入弟子储物袋。
      */
-    fun equipEquipment(discipleId: String, equipmentId: String): Boolean {
-        val disciple = currentDisciples.find { it.id == discipleId } ?: return false
-        val equipmentStack = currentEquipmentStacks.find { it.id == equipmentId }
-        val equipmentInstance = currentEquipmentInstances.find { it.id == equipmentId }
+    suspend fun equipEquipment(discipleId: String, equipmentId: String): Boolean {
+        var result = false
+        stateStore.update {
+            val idx = disciples.indexOfFirst { it.id == discipleId }
+            if (idx < 0) { result = false; return@update }
+            val disciple = disciples[idx]
 
-        if (equipmentStack == null && equipmentInstance == null) return false
+            val equipmentStack = equipmentStacks.find { it.id == equipmentId }
+            val equipmentInstance = equipmentInstances.find { it.id == equipmentId }
 
-        if (equipmentInstance != null) {
-            if (equipmentInstance.isEquipped) {
-                if (equipmentInstance.ownerId == discipleId) return false
-                eventService.addGameEvent("${equipmentInstance.name} 已被其他弟子装备，无法重复穿戴", EventType.WARNING)
-                return false
+            if (equipmentStack == null && equipmentInstance == null) { result = false; return@update }
+
+            if (equipmentInstance != null) {
+                if (equipmentInstance.isEquipped) {
+                    if (equipmentInstance.ownerId == discipleId) { result = false; return@update }
+                    eventService.addGameEvent("${equipmentInstance.name} 已被其他弟子装备，无法重复穿戴", EventType.WARNING)
+                    result = false; return@update
+                }
+                if (!GameConfig.Realm.meetsRealmRequirement(disciple.realm, equipmentInstance.minRealm)) {
+                    eventService.addGameEvent("${disciple.name} 境界不足，无法装备 ${equipmentInstance.name}", EventType.WARNING)
+                    result = false; return@update
+                }
+            } else if (equipmentStack != null) {
+                if (!GameConfig.Realm.meetsRealmRequirement(disciple.realm, equipmentStack.minRealm)) {
+                    eventService.addGameEvent("${disciple.name} 境界不足，无法装备 ${equipmentStack.name}", EventType.WARNING)
+                    result = false; return@update
+                }
             }
-            if (!GameConfig.Realm.meetsRealmRequirement(disciple.realm, equipmentInstance.minRealm)) {
-                eventService.addGameEvent("${disciple.name} 境界不足，无法装备 ${equipmentInstance.name}", EventType.WARNING)
-                return false
+
+            val slot = equipmentInstance?.slot ?: equipmentStack?.slot ?: run { result = false; return@update }
+            val equipName = equipmentStack?.name ?: equipmentInstance?.name ?: ""
+
+            val oldEquipId = when (slot) {
+                EquipmentSlot.WEAPON -> disciple.equipment.weaponId
+                EquipmentSlot.ARMOR -> disciple.equipment.armorId
+                EquipmentSlot.BOOTS -> disciple.equipment.bootsId
+                EquipmentSlot.ACCESSORY -> disciple.equipment.accessoryId
+                else -> ""
             }
-        } else if (equipmentStack != null) {
-            if (!GameConfig.Realm.meetsRealmRequirement(disciple.realm, equipmentStack.minRealm)) {
-                eventService.addGameEvent("${disciple.name} 境界不足，无法装备 ${equipmentStack.name}", EventType.WARNING)
-                return false
+            if (oldEquipId.isNotEmpty()) {
+                val unequipped = unequipEquipmentLogic(discipleId, oldEquipId)
+                if (!unequipped) {
+                    Log.w(TAG, "equipEquipment: failed to unequip $oldEquipId, aborting equip")
+                    result = false; return@update
+                }
             }
+
+            val currentDisciple = disciples[idx]
+            val stack = equipmentStacks.find { it.id == equipmentId }
+            val instance = equipmentInstances.find { it.id == equipmentId }
+
+            if (stack != null) {
+                val equippedId = UUID.randomUUID().toString()
+                val equippedItem = stack.toInstance(id = equippedId, ownerId = discipleId, isEquipped = true)
+                if (stack.quantity > 1) {
+                    equipmentStacks = equipmentStacks.map {
+                        if (it.id == equipmentId) it.copy(quantity = it.quantity - 1) else it
+                    }
+                } else {
+                    equipmentStacks = equipmentStacks.filter { it.id != equipmentId }
+                }
+                equipmentInstances = equipmentInstances + equippedItem
+                val updatedDisciple = when (slot) {
+                    EquipmentSlot.WEAPON -> currentDisciple.copyWith(weaponId = equippedId)
+                    EquipmentSlot.ARMOR -> currentDisciple.copyWith(armorId = equippedId)
+                    EquipmentSlot.BOOTS -> currentDisciple.copyWith(bootsId = equippedId)
+                    EquipmentSlot.ACCESSORY -> currentDisciple.copyWith(accessoryId = equippedId)
+                    else -> currentDisciple
+                }
+                disciples = disciples.toMutableList().also { it[idx] = updatedDisciple }
+            } else if (instance != null) {
+                val updatedDisciple = when (slot) {
+                    EquipmentSlot.WEAPON -> currentDisciple.copyWith(weaponId = equipmentId)
+                    EquipmentSlot.ARMOR -> currentDisciple.copyWith(armorId = equipmentId)
+                    EquipmentSlot.BOOTS -> currentDisciple.copyWith(bootsId = equipmentId)
+                    EquipmentSlot.ACCESSORY -> currentDisciple.copyWith(accessoryId = equipmentId)
+                    else -> currentDisciple
+                }
+                disciples = disciples.toMutableList().also { it[idx] = updatedDisciple }
+                equipmentInstances = equipmentInstances.map {
+                    if (it.id == equipmentId) it.copy(isEquipped = true, ownerId = discipleId) else it
+                }
+            }
+
+            eventService.addGameEvent("${disciple.name} 装备了 $equipName", EventType.INFO)
+            result = true
         }
-
-        val slot = equipmentInstance?.slot ?: equipmentStack!!.slot
-        val equipName = equipmentStack?.name ?: equipmentInstance?.name ?: ""
-
-        scope.launch {
-            stateStore.update {
-                val idx = disciples.indexOfFirst { it.id == discipleId }
-                if (idx < 0) return@update
-                val d = disciples[idx]
-
-                val oldEquipId = when (slot) {
-                    EquipmentSlot.WEAPON -> d.equipment.weaponId
-                    EquipmentSlot.ARMOR -> d.equipment.armorId
-                    EquipmentSlot.BOOTS -> d.equipment.bootsId
-                    EquipmentSlot.ACCESSORY -> d.equipment.accessoryId
-                    else -> ""
-                }
-                if (oldEquipId.isNotEmpty()) {
-                    val unequipped = unequipEquipmentLogic(discipleId, oldEquipId)
-                    if (!unequipped) {
-                        Log.w(TAG, "equipEquipment: failed to unequip $oldEquipId, aborting equip")
-                        return@update
-                    }
-                }
-
-                val currentDisciple = disciples[idx]
-                val stack = equipmentStacks.find { it.id == equipmentId }
-                val instance = equipmentInstances.find { it.id == equipmentId }
-
-                if (stack != null) {
-                    val equippedId = UUID.randomUUID().toString()
-                    val equippedItem = stack.toInstance(id = equippedId, ownerId = discipleId, isEquipped = true)
-                    if (stack.quantity > 1) {
-                        equipmentStacks = equipmentStacks.map {
-                            if (it.id == equipmentId) it.copy(quantity = it.quantity - 1) else it
-                        }
-                    } else {
-                        equipmentStacks = equipmentStacks.filter { it.id != equipmentId }
-                    }
-                    equipmentInstances = equipmentInstances + equippedItem
-                    val updatedDisciple = when (slot) {
-                        EquipmentSlot.WEAPON -> currentDisciple.copyWith(weaponId = equippedId)
-                        EquipmentSlot.ARMOR -> currentDisciple.copyWith(armorId = equippedId)
-                        EquipmentSlot.BOOTS -> currentDisciple.copyWith(bootsId = equippedId)
-                        EquipmentSlot.ACCESSORY -> currentDisciple.copyWith(accessoryId = equippedId)
-                        else -> currentDisciple
-                    }
-                    disciples = disciples.toMutableList().also { it[idx] = updatedDisciple }
-                } else if (instance != null) {
-                    val updatedDisciple = when (slot) {
-                        EquipmentSlot.WEAPON -> currentDisciple.copyWith(weaponId = equipmentId)
-                        EquipmentSlot.ARMOR -> currentDisciple.copyWith(armorId = equipmentId)
-                        EquipmentSlot.BOOTS -> currentDisciple.copyWith(bootsId = equipmentId)
-                        EquipmentSlot.ACCESSORY -> currentDisciple.copyWith(accessoryId = equipmentId)
-                        else -> currentDisciple
-                    }
-                    disciples = disciples.toMutableList().also { it[idx] = updatedDisciple }
-                    equipmentInstances = equipmentInstances.map {
-                        if (it.id == equipmentId) it.copy(isEquipped = true, ownerId = discipleId) else it
-                    }
-                }
-
-                eventService.addGameEvent("${d.name} 装备了 $equipName", EventType.INFO)
-            }
-        }
-        return true
+        return result
     }
 
     /**
      * Unequip equipment from disciple
      * 设计意图：装备是独占物品，卸下后放入弟子储物袋，而非归还宗门仓库。
      *
-     * 返回值语义：快速验证通过即返回 true（异步路径），实际操作在 stateStore.update 事务中执行。
-     * 若在已有事务内调用（同步路径），返回实际操作结果。
+     * 验证和卸下操作全部在 stateStore.update 事务内原子执行，返回实际操作结果。
      */
-    fun unequipEquipment(discipleId: String, equipmentId: String): Boolean {
-        val disciple = currentDisciples.find { it.id == discipleId } ?: return false
-        val isEquipped = disciple.equipment.weaponId == equipmentId ||
-            disciple.equipment.armorId == equipmentId ||
-            disciple.equipment.bootsId == equipmentId ||
-            disciple.equipment.accessoryId == equipmentId
-        if (!isEquipped) return false
+    suspend fun unequipEquipment(discipleId: String, equipmentId: String): Boolean {
+        var result = false
+        stateStore.update {
+            val disciple = disciples.find { it.id == discipleId }
+            if (disciple == null) { result = false; return@update }
+            val isEquipped = disciple.equipment.weaponId == equipmentId ||
+                disciple.equipment.armorId == equipmentId ||
+                disciple.equipment.bootsId == equipmentId ||
+                disciple.equipment.accessoryId == equipmentId
+            if (!isEquipped) { result = false; return@update }
 
-        if (stateStore.currentTransactionMutableState() != null) {
-            return stateStore.currentTransactionMutableState()!!.unequipEquipmentLogic(discipleId, equipmentId)
+            result = unequipEquipmentLogic(discipleId, equipmentId)
         }
-
-        scope.launch {
-            stateStore.update {
-                unequipEquipmentLogic(discipleId, equipmentId)
-            }
-        }
-        return true
+        return result
     }
 
     private fun MutableGameState.unequipEquipmentLogic(discipleId: String, equipmentId: String): Boolean {

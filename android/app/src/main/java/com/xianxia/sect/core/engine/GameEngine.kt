@@ -336,10 +336,10 @@ class GameEngine @Inject constructor(
         return discipleService.expelDisciple(discipleId)
     }
 
-    fun equipEquipment(discipleId: String, equipmentId: String): Boolean =
+    suspend fun equipEquipment(discipleId: String, equipmentId: String): Boolean =
         discipleService.equipEquipment(discipleId, equipmentId)
 
-    fun unequipEquipment(discipleId: String, equipmentId: String): Boolean =
+    suspend fun unequipEquipment(discipleId: String, equipmentId: String): Boolean =
         discipleService.unequipEquipment(discipleId, equipmentId)
 
     fun isDiscipleAssignedToSpiritMine(discipleId: String): Boolean =
@@ -1469,11 +1469,11 @@ class GameEngine @Inject constructor(
         updateGameDataSync { it.copy(recruitList = data.recruitList.filter { it.id != discipleId }) }
     }
 
-    fun equipItem(discipleId: String, equipmentId: String) {
+    suspend fun equipItem(discipleId: String, equipmentId: String) {
         discipleService.equipEquipment(discipleId, equipmentId)
     }
 
-    fun unequipItem(discipleId: String, slot: EquipmentSlot) {
+    suspend fun unequipItem(discipleId: String, slot: EquipmentSlot) {
         val disciple = getDiscipleById(discipleId) ?: return
         val equipId = when (slot) {
             EquipmentSlot.WEAPON -> disciple.equipment.weaponId
@@ -1486,7 +1486,7 @@ class GameEngine @Inject constructor(
         }
     }
 
-    fun unequipItemById(discipleId: String, equipmentId: String) {
+    suspend fun unequipItemById(discipleId: String, equipmentId: String) {
         discipleService.unequipEquipment(discipleId, equipmentId)
     }
 

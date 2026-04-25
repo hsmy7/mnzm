@@ -63,7 +63,7 @@ object DiscipleEquipmentManager {
         val allStackUpdates = mutableListOf<StackUpdate>()
         val allReplacedStacks = mutableListOf<EquipmentStack>()
 
-        val bagStackRefs = updatedDisciple.storageBagItems
+        val bagStackRefs = updatedDisciple.equipment.storageBagItems
             .filter { it.itemType == "equipment_stack" && !StorageBagUtils.isInCoolingPeriod(it, gameYear, gameMonth, gameDay) }
 
         if (bagStackRefs.isEmpty()) {
@@ -140,7 +140,7 @@ object DiscipleEquipmentManager {
 
             val oldStack = oldInstance.toStack(quantity = 1)
 
-            val bagStackIds = updatedDisciple.storageBagItems
+            val bagStackIds = updatedDisciple.equipment.storageBagItems
                 .filter { it.itemType == "equipment_stack" }
                 .map { it.itemId }
                 .toSet()
@@ -150,13 +150,16 @@ object DiscipleEquipmentManager {
             }
 
             val storageItemId: String
+            val isMerge: Boolean
             if (existingBagStack != null) {
                 val mergedQty = (existingBagStack.quantity + 1).coerceAtMost(maxStack)
                 replacedStacks.add(existingBagStack.copy(quantity = mergedQty))
                 storageItemId = existingBagStack.id
+                isMerge = true
             } else {
                 replacedStacks.add(oldStack)
                 storageItemId = oldStack.id
+                isMerge = false
             }
 
             val storageItem = StorageBagItem(
@@ -171,13 +174,17 @@ object DiscipleEquipmentManager {
                 forgetMonth = gameMonth,
                 forgetDay = gameDay
             )
+            val increasedBagItems = StorageBagUtils.increaseItemQuantity(updatedDisciple.equipment.storageBagItems, storageItem, maxStack)
             updatedDisciple = updatedDisciple.copyWith(
-                storageBagItems = StorageBagUtils.increaseItemQuantity(updatedDisciple.storageBagItems, storageItem, maxStack)
-                    .map { bagItem ->
+                storageBagItems = if (isMerge) {
+                    increasedBagItems.map { bagItem ->
                         if (bagItem.itemId == storageItemId && bagItem.itemType == "equipment_stack") {
                             bagItem.copy(forgetYear = gameYear, forgetMonth = gameMonth, forgetDay = gameDay)
                         } else bagItem
                     }
+                } else {
+                    increasedBagItems
+                }
             )
         }
 
@@ -194,7 +201,7 @@ object DiscipleEquipmentManager {
         updatedDisciple = config.equipSetter(updatedDisciple, instanceId)
 
         updatedDisciple = updatedDisciple.copyWith(
-            storageBagItems = StorageBagUtils.decreaseItemQuantity(updatedDisciple.storageBagItems, bestStack.id)
+            storageBagItems = StorageBagUtils.decreaseItemQuantity(updatedDisciple.equipment.storageBagItems, bestStack.id)
         )
 
         val messagePrefix = if (instantMessage) "立即" else "自动"
