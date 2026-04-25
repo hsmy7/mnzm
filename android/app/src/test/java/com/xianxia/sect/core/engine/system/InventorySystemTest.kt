@@ -10,6 +10,7 @@ import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualType
 import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.PillCategory
+import com.xianxia.sect.core.model.PillGrade
 import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.MaterialCategory
 import com.xianxia.sect.core.model.Seed
@@ -491,6 +492,38 @@ class InventorySystemTest {
             system.addPill(Pill(id = "p1", name = "筑基丹", rarity = 2, category = PillCategory.FUNCTIONAL, quantity = maxStack - 1))
         }
         assertTrue(system.canAddPill("筑基丹", 2, PillCategory.FUNCTIONAL))
+    }
+
+    @Test
+    fun `canAddPill - same name different grade should not merge`() = runBlocking {
+        stateStore.update {
+            system.addPill(Pill(id = "p1", name = "筑基丹", rarity = 2, category = PillCategory.FUNCTIONAL, grade = PillGrade.MEDIUM, quantity = 1))
+        }
+        // 不同品级不应合并，但仓库有空位所以可以添加为新槽位
+        assertTrue(system.canAddPill("筑基丹", 2, PillCategory.FUNCTIONAL, PillGrade.HIGH))
+    }
+
+    @Test
+    fun `canAddPill - same name different grade cannot add when inventory full`() = runBlocking {
+        val maxStack = inventoryConfig.getMaxStackSize("pill")
+        stateStore.update {
+            system.addPill(Pill(id = "p1", name = "筑基丹", rarity = 2, category = PillCategory.FUNCTIONAL, grade = PillGrade.MEDIUM, quantity = maxStack))
+            for (i in 0 until InventorySystem.MAX_INVENTORY_SIZE - 1) {
+                system.addPill(Pill(id = "fill$i", name = "填充丹药$i", rarity = 1, category = PillCategory.FUNCTIONAL, quantity = 1))
+            }
+        }
+        // 中品筑基丹已满栈，上品筑基丹不应合并到中品，且仓库已满
+        assertFalse(system.canAddPill("筑基丹", 2, PillCategory.FUNCTIONAL, PillGrade.HIGH))
+    }
+
+    @Test
+    fun `canAddPill - same name same grade should merge`() = runBlocking {
+        val maxStack = inventoryConfig.getMaxStackSize("pill")
+        stateStore.update {
+            system.addPill(Pill(id = "p1", name = "筑基丹", rarity = 2, category = PillCategory.FUNCTIONAL, grade = PillGrade.HIGH, quantity = 1))
+        }
+        // 同品级应合并
+        assertTrue(system.canAddPill("筑基丹", 2, PillCategory.FUNCTIONAL, PillGrade.HIGH))
     }
 
     @Test

@@ -326,6 +326,8 @@ object PillRecipeDatabase {
 
     fun getRecipeByName(name: String): PillRecipe? = _allRecipes.find { it.name == name }
 
+    fun getRecipeByNameAndGrade(name: String, grade: PillGrade): PillRecipe? = _allRecipes.find { it.name == name && it.grade == grade }
+
     fun getRecipesByMaterial(materialId: String): List<PillRecipe> = _allRecipes.filter { it.materials.containsKey(materialId) }
 
     fun getRecipesByHerb(herbId: String): List<PillRecipe> = _allRecipes.filter { it.materials.containsKey(herbId) }

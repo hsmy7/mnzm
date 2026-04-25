@@ -113,10 +113,11 @@ object MerchantItemConverter {
     }
 
     fun toPill(item: MerchantItem): Pill {
-        val template = PillRecipeDatabase.getRecipeByName(item.name)
         val grade = item.grade?.let { gradeName ->
             PillGrade.entries.find { it.displayName == gradeName } ?: PillGrade.MEDIUM
         } ?: PillGrade.MEDIUM
+        val template = PillRecipeDatabase.getRecipeByNameAndGrade(item.name, grade)
+            ?: PillRecipeDatabase.getRecipeByName(item.name)
         if (template != null) {
             return Pill(
                 id = UUID.randomUUID().toString(),
@@ -232,7 +233,10 @@ object MerchantItemConverter {
             }
             "pill" -> {
                 val t = PillRecipeDatabase.getRecipeByName(item.name)
-                CapacityCheckParams.PillParams(item.name, item.rarity, t?.category ?: PillCategory.FUNCTIONAL)
+                val grade = item.grade?.let { gradeName ->
+                    PillGrade.entries.find { it.displayName == gradeName } ?: PillGrade.MEDIUM
+                } ?: PillGrade.MEDIUM
+                CapacityCheckParams.PillParams(item.name, item.rarity, t?.category ?: PillCategory.FUNCTIONAL, grade)
             }
             "material" -> {
                 val t = BeastMaterialDatabase.getMaterialByName(item.name)
@@ -254,7 +258,7 @@ object MerchantItemConverter {
     sealed class CapacityCheckParams {
         data class EquipmentParams(val rarity: Int) : CapacityCheckParams()
         data class ManualParams(val name: String, val rarity: Int, val type: ManualType) : CapacityCheckParams()
-        data class PillParams(val name: String, val rarity: Int, val category: PillCategory) : CapacityCheckParams()
+        data class PillParams(val name: String, val rarity: Int, val category: PillCategory, val grade: PillGrade = PillGrade.MEDIUM) : CapacityCheckParams()
         data class MaterialParams(val name: String, val rarity: Int, val category: MaterialCategory) : CapacityCheckParams()
         data class HerbParams(val name: String, val rarity: Int, val category: String) : CapacityCheckParams()
         data class SeedParams(val name: String, val rarity: Int, val growTime: Int) : CapacityCheckParams()

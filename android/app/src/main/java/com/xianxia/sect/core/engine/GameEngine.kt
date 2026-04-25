@@ -1617,7 +1617,7 @@ class GameEngine @Inject constructor(
             }
             "pill" -> {
                 val p = MerchantItemConverter.toPill(merchantItem)
-                if (!inventorySystem.canAddPill(p.name, p.rarity, p.category)) return
+                if (!inventorySystem.canAddPill(p.name, p.rarity, p.category, p.grade)) return
             }
             "material" -> {
                 val m = MerchantItemConverter.toMaterial(merchantItem)

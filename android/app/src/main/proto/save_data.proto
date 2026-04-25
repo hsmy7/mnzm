@@ -402,11 +402,12 @@ message MerchantItemProto {
     string type = 3;
     string item_id = 4;
     int32 rarity = 5;
-    int32 price = 6;
+    int64 price = 6;
     int32 quantity = 7;
     string description = 8;
     int32 obtained_year = 9;
     int32 obtained_month = 10;
+    string grade = 11;
 }
 
 message TradingItemProto {

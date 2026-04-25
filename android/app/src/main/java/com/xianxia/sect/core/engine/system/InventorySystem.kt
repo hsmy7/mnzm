@@ -17,6 +17,7 @@ import com.xianxia.sect.core.model.MaterialCategory
 import com.xianxia.sect.core.model.MerchantItem
 import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.PillCategory
+import com.xianxia.sect.core.model.PillGrade
 import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.di.ApplicationScopeProvider
@@ -176,11 +177,11 @@ class InventorySystem @Inject constructor(
         return canMerge || canAddItem()
     }
 
-    fun canAddPill(name: String, rarity: Int, category: PillCategory): Boolean {
+    fun canAddPill(name: String, rarity: Int, category: PillCategory, grade: PillGrade = PillGrade.MEDIUM): Boolean {
         val ts = stateStore.currentTransactionMutableState()
         val current = ts?.pills ?: stateStore.pills.value
         val maxStack = getMaxStackForType("pill")
-        val canMerge = current.any { it.name == name && it.rarity == rarity && it.category == category && it.quantity < maxStack }
+        val canMerge = current.any { it.name == name && it.rarity == rarity && it.category == category && it.grade == grade && it.quantity < maxStack }
         return canMerge || canAddItem()
     }
 
@@ -761,9 +762,11 @@ class InventorySystem @Inject constructor(
         return removed
     }
 
-    fun removePillByName(name: String, rarity: Int, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
+    fun removePillByName(name: String, rarity: Int, quantity: Int = 1, bypassLock: Boolean = false, grade: PillGrade? = null): Boolean {
         if (!validateQuantity(quantity, "remove quantity")) return false
-        val existing = stateStore.pills.value.find { it.name == name && it.rarity == rarity }
+        val existing = stateStore.pills.value.find {
+            it.name == name && it.rarity == rarity && (grade == null || it.grade == grade)
+        }
             ?: return false
         if (!bypassLock && existing.isLocked) {
             logWarning("Cannot remove locked pill: ${existing.name}")
@@ -853,8 +856,10 @@ class InventorySystem @Inject constructor(
         return stateStore.pills.value.find { it.id == id }?.quantity ?: 0
     }
 
-    fun hasPill(name: String, rarity: Int, quantity: Int = 1): Boolean {
-        val item = stateStore.pills.value.find { it.name == name && it.rarity == rarity } ?: return false
+    fun hasPill(name: String, rarity: Int, quantity: Int = 1, grade: PillGrade? = null): Boolean {
+        val item = stateStore.pills.value.find {
+            it.name == name && it.rarity == rarity && (grade == null || it.grade == grade)
+        } ?: return false
         return item.quantity >= quantity
     }
 

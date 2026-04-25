@@ -15,9 +15,9 @@ object AISectDiscipleManager {
     
     private val spiritRootTypes = listOf("metal", "wood", "water", "fire", "earth")
     
-    fun generateRandomDisciple(sectName: String, maxRealm: Int = 9): Disciple {
+    fun generateRandomDisciple(sectName: String, maxRealm: Int = 9, existingNames: Set<String> = emptySet()): Disciple {
         val gender = if (Random.nextBoolean()) "male" else "female"
-        val nameResult = NameService.generateName(gender, NameService.NameStyle.XIANXIA)
+        val nameResult = NameService.generateName(gender, NameService.NameStyle.XIANXIA, existingNames)
         val spiritRoot = generateSpiritRoot()
         val spiritRootCount = spiritRoot.split(",").size
         val comprehension = when (spiritRootCount) {
@@ -163,10 +163,12 @@ object AISectDiscipleManager {
     ): List<Disciple> {
         val recruitCount = Random.nextInt(1, 11)
         val newDisciples = mutableListOf<Disciple>()
+        val usedNames = existingDisciples.map { it.name }.toMutableSet()
         
         repeat(recruitCount) {
-            val disciple = generateRandomDisciple(sectName, maxRealm)
+            val disciple = generateRandomDisciple(sectName, maxRealm, usedNames)
             newDisciples.add(disciple)
+            usedNames.add(disciple.name)
         }
         
         val allDisciples = existingDisciples + newDisciples
@@ -359,6 +361,7 @@ object AISectDiscipleManager {
         }
         
         val disciples = mutableListOf<Disciple>()
+        val usedNames = mutableSetOf<String>()
         
         val maxRealm = when (sectLevel) {
             0 -> 6
@@ -372,9 +375,10 @@ object AISectDiscipleManager {
         
         realmDistribution.forEach { (realm, count) ->
             repeat(count) {
-                val disciple = generateRandomDisciple(sectName, maxRealm)
+                val disciple = generateRandomDisciple(sectName, maxRealm, usedNames)
                 val adjustedDisciple = adjustDiscipleRealm(disciple, realm)
                 disciples.add(adjustedDisciple)
+                usedNames.add(adjustedDisciple.name)
             }
         }
         

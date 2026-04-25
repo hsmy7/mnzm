@@ -246,10 +246,12 @@ class RedeemCodeService @Inject constructor(
                     }
                     "disciple" -> {
                         val currentMonthValue = gameData.gameYear * 12 + gameData.gameMonth
+                        val usedNames = disciples.map { it.name }.toMutableSet()
                         repeat(reward.quantity.coerceAtLeast(1)) {
-                            val disciple = RedeemCodeManager.generateDisciple(null)
+                            val disciple = RedeemCodeManager.generateDisciple(null, usedNames)
                             disciple.usage.recruitedMonth = currentMonthValue
                             disciples = disciples + disciple
+                            usedNames.add(disciple.name)
                         }
                     }
                 }
@@ -320,7 +322,8 @@ class RedeemCodeService @Inject constructor(
             message = "兑换码不存在"
         )
 
-        val result = RedeemCodeManager.generateReward(redeemCodeData)
+        val existingNames = stateStore.disciples.value.map { it.name }.toSet()
+        val result = RedeemCodeManager.generateReward(redeemCodeData, existingNames = existingNames)
 
         if (!result.success) {
             return result

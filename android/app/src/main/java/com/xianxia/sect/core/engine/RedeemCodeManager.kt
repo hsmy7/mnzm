@@ -472,7 +472,8 @@ object RedeemCodeManager {
     fun generateReward(
         redeemCode: RedeemCode,
         playerId: String = "default",
-        deviceId: String = "unknown"
+        deviceId: String = "unknown",
+        existingNames: Set<String> = emptySet()
     ): RedeemResult {
         Log.d(TAG, "Generating reward for code: ${redeemCode.code}, type: ${redeemCode.rewardType}")
 
@@ -588,9 +589,11 @@ object RedeemCodeManager {
             }
             RedeemRewardType.DISCIPLE -> {
                 val count = redeemCode.quantity.coerceAtLeast(1)
+                val usedNames = existingNames.toMutableSet()
                 repeat(count) {
-                    val d = generateDisciple(redeemCode.discipleConfig)
+                    val d = generateDisciple(redeemCode.discipleConfig, usedNames)
                     disciples.add(d)
+                    usedNames.add(d.name)
                     rewards.add(
                         RewardSelectedItem(
                             id = d.id,
@@ -614,14 +617,17 @@ object RedeemCodeManager {
                     )
                 )
                 Log.d(TAG, "Generated spirit stones reward: 10000000")
+                val starterUsedNames = existingNames.toMutableSet()
                 repeat(5) {
                     val singleRootDisciple = generateDisciple(
                         DiscipleRewardConfig(
                             spiritRootCount = 1,
                             loyalty = 80
-                        )
+                        ),
+                        starterUsedNames
                     )
                     disciples.add(singleRootDisciple)
+                    starterUsedNames.add(singleRootDisciple.name)
                     rewards.add(
                         RewardSelectedItem(
                             id = singleRootDisciple.id,
@@ -675,7 +681,7 @@ object RedeemCodeManager {
         return EquipmentDatabase.generateRandom(minRarity = rarity, maxRarity = rarity)
     }
 
-    fun generateDisciple(config: DiscipleRewardConfig?): Disciple {
+    fun generateDisciple(config: DiscipleRewardConfig?, existingNames: Set<String> = emptySet()): Disciple {
         val cfg = config ?: DiscipleRewardConfig()
 
         val gender = when (cfg.gender) {
@@ -684,7 +690,7 @@ object RedeemCodeManager {
             else -> if (Random.nextBoolean()) "male" else "female"
         }
 
-        val nameResult = NameService.generateName(gender, NameService.NameStyle.XIANXIA)
+        val nameResult = NameService.generateName(gender, NameService.NameStyle.XIANXIA, existingNames)
 
         val spiritRootType = if (cfg.spiritRootType != null && cfg.spiritRootCount != null) {
             val types = listOf("metal", "wood", "water", "fire", "earth")

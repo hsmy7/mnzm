@@ -425,7 +425,8 @@ class DiscipleService @Inject constructor(
         val id = UUID.randomUUID().toString()
         val gender = if (Random.nextBoolean()) "male" else "female"
 
-        val nameResult = NameService.generateName(gender, NameService.NameStyle.FULL)
+        val existingNames = currentDisciples.map { it.name }.toSet()
+        val nameResult = NameService.generateName(gender, NameService.NameStyle.FULL, existingNames)
 
         val allSpiritRootTypes = listOf("metal", "wood", "water", "fire", "earth")
         val rootCount = when (Random.nextInt(100)) {

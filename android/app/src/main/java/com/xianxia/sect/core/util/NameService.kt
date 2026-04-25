@@ -94,7 +94,17 @@ object NameService {
         }
         val surname = pickSurname(style)
         val givenName = pickGivenName(gender)
-        return NameResult(surname, "$surname$givenName")
+        val baseName = "$surname$givenName"
+        if (baseName !in existingNames) {
+            return NameResult(surname, baseName)
+        }
+        var suffix = 2
+        var uniqueName: String
+        do {
+            uniqueName = "$baseName$suffix"
+            suffix++
+        } while (uniqueName in existingNames && suffix < 100)
+        return NameResult(surname, uniqueName)
     }
 
     fun inheritName(
@@ -112,7 +122,17 @@ object NameService {
             attempts++
         }
         val givenName = pickGivenName(gender)
-        return NameResult(parentSurname, "$parentSurname$givenName")
+        val baseName = "$parentSurname$givenName"
+        if (baseName !in existingNames) {
+            return NameResult(parentSurname, baseName)
+        }
+        var suffix = 2
+        var uniqueName: String
+        do {
+            uniqueName = "$baseName$suffix"
+            suffix++
+        } while (uniqueName in existingNames && suffix < 100)
+        return NameResult(parentSurname, uniqueName)
     }
 
     fun extractSurname(fullName: String): String {
