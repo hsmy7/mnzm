@@ -1386,7 +1386,16 @@ class GameEngine @Inject constructor(
     }
 
     fun unequipItem(discipleId: String, slot: EquipmentSlot) {
-        discipleService.unequipEquipment(discipleId, equipmentId = slot.name)
+        val disciple = getDiscipleById(discipleId) ?: return
+        val equipId = when (slot) {
+            EquipmentSlot.WEAPON -> disciple.equipment.weaponId
+            EquipmentSlot.ARMOR -> disciple.equipment.armorId
+            EquipmentSlot.BOOTS -> disciple.equipment.bootsId
+            EquipmentSlot.ACCESSORY -> disciple.equipment.accessoryId
+        }
+        if (equipId.isNotEmpty()) {
+            discipleService.unequipEquipment(discipleId, equipId)
+        }
     }
 
     fun unequipItemById(discipleId: String, equipmentId: String) {

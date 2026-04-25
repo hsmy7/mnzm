@@ -630,18 +630,15 @@ class DiscipleService @Inject constructor(
      * 装备新装备时，旧装备自动卸下并放入弟子储物袋。
      */
     fun equipEquipment(discipleId: String, equipmentId: String): Boolean {
-        val discipleIndex = currentDisciples.indexOfFirst { it.id == discipleId }
-        if (discipleIndex < 0) return false
-
-        val disciple = currentDisciples[discipleIndex]
-
+        val disciple = currentDisciples.find { it.id == discipleId } ?: return false
         val equipmentStack = currentEquipmentStacks.find { it.id == equipmentId }
         val equipmentInstance = currentEquipmentInstances.find { it.id == equipmentId }
 
         if (equipmentStack == null && equipmentInstance == null) return false
 
         if (equipmentInstance != null) {
-            if (equipmentInstance.isEquipped && equipmentInstance.ownerId != null && equipmentInstance.ownerId != discipleId) {
+            if (equipmentInstance.isEquipped) {
+                if (equipmentInstance.ownerId == discipleId) return false
                 eventService.addGameEvent("${equipmentInstance.name} 已被其他弟子装备，无法重复穿戴", EventType.WARNING)
                 return false
             }
@@ -657,53 +654,65 @@ class DiscipleService @Inject constructor(
         }
 
         val slot = equipmentInstance?.slot ?: equipmentStack!!.slot
-        when (slot) {
-            EquipmentSlot.WEAPON -> disciple.equipment.weaponId.takeIf { it.isNotEmpty() }?.let { unequipEquipment(discipleId, it) }
-            EquipmentSlot.ARMOR -> disciple.equipment.armorId.takeIf { it.isNotEmpty() }?.let { unequipEquipment(discipleId, it) }
-            EquipmentSlot.BOOTS -> disciple.equipment.bootsId.takeIf { it.isNotEmpty() }?.let { unequipEquipment(discipleId, it) }
-            EquipmentSlot.ACCESSORY -> disciple.equipment.accessoryId.takeIf { it.isNotEmpty() }?.let { unequipEquipment(discipleId, it) }
-            else -> {}
-        }
-
-        val currentDisciple = currentDisciples[discipleIndex]
-
-        if (equipmentStack != null) {
-            val equippedId = java.util.UUID.randomUUID().toString()
-            val equippedItem = equipmentStack.toInstance(id = equippedId, ownerId = discipleId, isEquipped = true)
-
-            if (equipmentStack.quantity > 1) {
-                currentEquipmentStacks = currentEquipmentStacks.map {
-                    if (it.id == equipmentId) it.copy(quantity = it.quantity - 1) else it
-                }
-            } else {
-                currentEquipmentStacks = currentEquipmentStacks.filter { it.id != equipmentId }
-            }
-            currentEquipmentInstances = currentEquipmentInstances + equippedItem
-
-            val updatedDisciple = when (slot) {
-                EquipmentSlot.WEAPON -> currentDisciple.copyWith(weaponId = equippedId)
-                EquipmentSlot.ARMOR -> currentDisciple.copyWith(armorId = equippedId)
-                EquipmentSlot.BOOTS -> currentDisciple.copyWith(bootsId = equippedId)
-                EquipmentSlot.ACCESSORY -> currentDisciple.copyWith(accessoryId = equippedId)
-                else -> currentDisciple
-            }
-            currentDisciples = currentDisciples.toMutableList().also { it[discipleIndex] = updatedDisciple }
-        } else {
-            val updatedDisciple = when (slot) {
-                EquipmentSlot.WEAPON -> currentDisciple.copyWith(weaponId = equipmentId)
-                EquipmentSlot.ARMOR -> currentDisciple.copyWith(armorId = equipmentId)
-                EquipmentSlot.BOOTS -> currentDisciple.copyWith(bootsId = equipmentId)
-                EquipmentSlot.ACCESSORY -> currentDisciple.copyWith(accessoryId = equipmentId)
-                else -> currentDisciple
-            }
-            currentDisciples = currentDisciples.toMutableList().also { it[discipleIndex] = updatedDisciple }
-            currentEquipmentInstances = currentEquipmentInstances.map {
-                if (it.id == equipmentId) it.copy(isEquipped = true, ownerId = discipleId) else it
-            }
-        }
-
         val equipName = equipmentStack?.name ?: equipmentInstance?.name ?: ""
-        eventService.addGameEvent("${disciple.name} 装备了 $equipName", EventType.INFO)
+
+        scope.launch {
+            stateStore.update {
+                val idx = currentDisciples.indexOfFirst { it.id == discipleId }
+                if (idx < 0) return@update
+                val d = currentDisciples[idx]
+
+                val oldEquipId = when (slot) {
+                    EquipmentSlot.WEAPON -> d.equipment.weaponId
+                    EquipmentSlot.ARMOR -> d.equipment.armorId
+                    EquipmentSlot.BOOTS -> d.equipment.bootsId
+                    EquipmentSlot.ACCESSORY -> d.equipment.accessoryId
+                    else -> ""
+                }
+                if (oldEquipId.isNotEmpty()) {
+                    unequipEquipment(discipleId, oldEquipId)
+                }
+
+                val currentDisciple = currentDisciples[idx]
+                val stack = currentEquipmentStacks.find { it.id == equipmentId }
+                val instance = currentEquipmentInstances.find { it.id == equipmentId }
+
+                if (stack != null) {
+                    val equippedId = UUID.randomUUID().toString()
+                    val equippedItem = stack.toInstance(id = equippedId, ownerId = discipleId, isEquipped = true)
+                    if (stack.quantity > 1) {
+                        currentEquipmentStacks = currentEquipmentStacks.map {
+                            if (it.id == equipmentId) it.copy(quantity = it.quantity - 1) else it
+                        }
+                    } else {
+                        currentEquipmentStacks = currentEquipmentStacks.filter { it.id != equipmentId }
+                    }
+                    currentEquipmentInstances = currentEquipmentInstances + equippedItem
+                    val updatedDisciple = when (slot) {
+                        EquipmentSlot.WEAPON -> currentDisciple.copyWith(weaponId = equippedId)
+                        EquipmentSlot.ARMOR -> currentDisciple.copyWith(armorId = equippedId)
+                        EquipmentSlot.BOOTS -> currentDisciple.copyWith(bootsId = equippedId)
+                        EquipmentSlot.ACCESSORY -> currentDisciple.copyWith(accessoryId = equippedId)
+                        else -> currentDisciple
+                    }
+                    currentDisciples = currentDisciples.toMutableList().also { it[idx] = updatedDisciple }
+                } else if (instance != null) {
+                    val updatedDisciple = when (slot) {
+                        EquipmentSlot.WEAPON -> currentDisciple.copyWith(weaponId = equipmentId)
+                        EquipmentSlot.ARMOR -> currentDisciple.copyWith(armorId = equipmentId)
+                        EquipmentSlot.BOOTS -> currentDisciple.copyWith(bootsId = equipmentId)
+                        EquipmentSlot.ACCESSORY -> currentDisciple.copyWith(accessoryId = equipmentId)
+                        else -> currentDisciple
+                    }
+                    currentDisciples = currentDisciples.toMutableList().also { it[idx] = updatedDisciple }
+                    currentEquipmentInstances = currentEquipmentInstances.map {
+                        if (it.id == equipmentId) it.copy(isEquipped = true, ownerId = discipleId) else it
+                    }
+                }
+
+                eventService.addGameEvent("${d.name} 装备了 $equipName", EventType.INFO)
+            }
+        }
         return true
     }
 
@@ -729,7 +738,7 @@ class DiscipleService @Inject constructor(
             val data = currentGameData
 
             if (eq != null) {
-                val bagStackIds = currentDisciples.flatMap { it.equipment.storageBagItems }
+                val bagStackIds = updatedDisciple.equipment.storageBagItems
                     .filter { it.itemType == "equipment_stack" }
                     .map { it.itemId }
                     .toSet()
