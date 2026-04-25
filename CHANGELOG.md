@@ -1,8 +1,14 @@
 # 模拟宗门 - 更新日志
 
-## [2.5.10] - 2026-04-25
+## [2.5.11] - 2026-04-25
 
 ### 修复
+- 修复弟子命名系统重名检测形同虚设的问题：所有弟子生成入口现在均传递已有弟子名字集合进行重名检测
+- 修复批量生成弟子时（招募列表刷新、AI宗门弟子初始化、兑换码批量兑换）未检查批次内重名的问题
+- 修复 NameService 50次重名尝试失败后仍可能返回重名的问题：增加数字后缀保底策略
+- 修复反序列化旧存档时 surname 字段为空未自动回填的问题：通过 extractSurname 从全名推导
+- 修复 recruitDisciple/createChild 未包含 recruitList 中弟子名字导致可能与待招募弟子重名的问题
+- 修复名字池男女共用重复名字（"惊鸿"、"丹青"）导致有效名字池容量降低的问题
 - 修复 canAddPill 合并判断缺少品级匹配，导致不同品级同名丹药被错误合并的问题
 - 修复 MerchantItemConverter.toPill 只按名称查找配方模板，导致丹药属性值与品级不匹配的问题
 - 修复 EventService 宗门交易容量检查未传入品级参数的问题
@@ -10,10 +16,19 @@
 - 修复 hasPill/removePillByName 缺少 grade 参数，可能操作错误品级丹药的问题
 
 ### 优化
+- RedeemCodeManager.generateReward 新增 existingNames 参数，支持兑换码生成弟子时避免重名
+- AISectDiscipleManager.generateRandomDisciple 新增 existingNames 参数，支持AI宗门批量生成时避免重名
+- CultivationService.refreshRecruitList 变量名从 baseExistingNames 重命名为 usedNames，更准确反映可变性
 - PillRecipeDatabase 新增 getRecipeByNameAndGrade 方法，支持按名称+品级精确查找配方
 - Proto MerchantItemProto price 类型从 int32 改为 int64，支持更大价格范围
 - Proto MerchantItemProto 新增 grade 字段，持久化丹药品级信息
 - 增加品级相关单元测试（同品级合并、不同品级不合并、仓库满时不同品级不可添加）
+
+## [2.5.10] - 2026-04-25
+
+### 修复
+- 修复商人界面只会刷新上品品质丹药的问题
+- 修复商人丹药品级概率调整为 上品3%/中品37%/下品60%
 
 ## [2.5.9] - 2026-04-25
 

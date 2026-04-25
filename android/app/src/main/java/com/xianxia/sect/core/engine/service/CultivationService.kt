@@ -443,7 +443,7 @@ class CultivationService @Inject constructor(
         val gender = if (GameRandom.nextBoolean()) "male" else "female"
 
         val fatherSurname = if (father.surname.isNotEmpty()) father.surname else NameService.extractSurname(father.name)
-        val existingNames = currentDisciples.map { it.name }.toSet()
+        val existingNames = (currentDisciples + currentGameData.recruitList).map { it.name }.toSet()
         val nameResult = NameService.inheritName(fatherSurname, gender, existingNames)
 
         val allSpiritRootTypes = listOf("metal", "wood", "water", "fire", "earth")
@@ -3698,10 +3698,10 @@ class CultivationService @Inject constructor(
         )
         val recruitCount = Random.nextInt(3, 16)
         val newRecruitDisciples = mutableListOf<Disciple>()
-        val baseExistingNames = currentDisciples.map { it.name }.toSet().toMutableSet()
+        val usedNames = (currentDisciples + currentGameData.recruitList).map { it.name }.toMutableSet()
         repeat(recruitCount) {
             val gender = if (Random.nextBoolean()) "male" else "female"
-            val nameResult = NameService.generateName(gender, NameService.NameStyle.FULL, baseExistingNames)
+            val nameResult = NameService.generateName(gender, NameService.NameStyle.FULL, usedNames)
             val spiritRootType = spiritRootTypes.let { types ->
                 val rootCount = when (Random.nextInt(100)) {
                     in 0..4 -> 1
@@ -3780,7 +3780,7 @@ class CultivationService @Inject constructor(
                 lifespan = (baseLifespan * (1.0 + lifespanBonus)).toInt().coerceAtLeast(1)
             }
             newRecruitDisciples.add(disciple)
-            baseExistingNames.add(disciple.name)
+            usedNames.add(disciple.name)
         }
         val previousRecruitCount = currentGameData.recruitList.size
         currentGameData = currentGameData.copy(recruitList = newRecruitDisciples, lastRecruitYear = year)
