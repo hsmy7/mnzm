@@ -350,6 +350,57 @@ class DiscipleStatCalculatorTest {
     }
 
     @Test
+    fun `getBreakthroughChance - 筑基9层突破概率等于金丹1层`() {
+        val disciple9 = createDisciple(realm = 8, realmLayer = 9, spiritRootType = "metal")
+        val disciple1 = createDisciple(realm = 7, realmLayer = 1, spiritRootType = "metal")
+        val chance9 = DiscipleStatCalculator.getBreakthroughChance(disciple9)
+        val chance1 = DiscipleStatCalculator.getBreakthroughChance(disciple1)
+        assertEquals(chance1, chance9, 0.001)
+    }
+
+    @Test
+    fun `getBreakthroughChance - 同境界层数越高突破概率越低`() {
+        val layer1 = createDisciple(realm = 8, realmLayer = 1, spiritRootType = "metal,wood,water")
+        val layer5 = createDisciple(realm = 8, realmLayer = 5, spiritRootType = "metal,wood,water")
+        val layer9 = createDisciple(realm = 8, realmLayer = 9, spiritRootType = "metal,wood,water")
+        val chance1 = DiscipleStatCalculator.getBreakthroughChance(layer1)
+        val chance5 = DiscipleStatCalculator.getBreakthroughChance(layer5)
+        val chance9 = DiscipleStatCalculator.getBreakthroughChance(layer9)
+        assertTrue("1层概率>=5层", chance1 >= chance5)
+        assertTrue("5层概率>=9层", chance5 >= chance9)
+    }
+
+    @Test
+    fun `getBreakthroughChance - 五灵根筑基9层突破概率32%`() {
+        val disciple = createDisciple(realm = 8, realmLayer = 9, spiritRootType = "metal,wood,water,fire,earth")
+        val chance = DiscipleStatCalculator.getBreakthroughChance(disciple)
+        assertEquals(0.32, chance, 0.001)
+    }
+
+    @Test
+    fun `getBreakthroughChance - 单灵根炼气9层突破概率100%`() {
+        val disciple = createDisciple(realm = 9, realmLayer = 9, spiritRootType = "metal")
+        val chance = DiscipleStatCalculator.getBreakthroughChance(disciple)
+        assertEquals(1.00, chance, 0.001)
+    }
+
+    @Test
+    fun `getBreakthroughChance - 五灵根炼气9层突破概率45%`() {
+        val disciple = createDisciple(realm = 9, realmLayer = 9, spiritRootType = "metal,wood,water,fire,earth")
+        val chance = DiscipleStatCalculator.getBreakthroughChance(disciple)
+        assertEquals(0.45, chance, 0.001)
+    }
+
+    @Test
+    fun `getBreakthroughChance - 双灵根筑基5层突破概率平滑过渡`() {
+        val disciple = createDisciple(realm = 8, realmLayer = 5, spiritRootType = "metal,wood")
+        val chance = DiscipleStatCalculator.getBreakthroughChance(disciple)
+        val baseChance = GameConfig.Realm.getBreakthroughChance(8, 2, 1)
+        val nextChance = GameConfig.Realm.getBreakthroughChance(8, 2, 9)
+        assertTrue("5层概率应在1层和9层之间", chance <= baseChance && chance >= nextChance)
+    }
+
+    @Test
     fun `calculateQingyunPeakBonus - 外门弟子无加成`() {
         val disciple = createDisciple(discipleType = "outer")
         val bonus = DiscipleStatCalculator.calculateQingyunPeakCultivationSpeedBonus(disciple)

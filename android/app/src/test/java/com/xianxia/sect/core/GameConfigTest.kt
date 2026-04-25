@@ -490,68 +490,114 @@ class GameConfigTest {
     }
 
     // ============================================================
-    // Realm 对象 - breakthroughChance 随境界降低
+    // Realm 对象 - getBreakthroughChance 方法（含灵根和小境界）
     // ============================================================
 
     @Test
-    fun `炼气的突破概率应为0点80`() {
-        assertEquals(0.80, GameConfig.Realm.getBreakthroughChance(9), 0.001)
+    fun `炼气单灵根1层突破概率应为100%`() {
+        assertEquals(1.00, GameConfig.Realm.getBreakthroughChance(9, 1, 1), 0.001)
     }
 
     @Test
-    fun `筑基的突破概率应为0点60`() {
-        assertEquals(0.60, GameConfig.Realm.getBreakthroughChance(8), 0.001)
+    fun `筑基双灵根1层突破概率应为90%`() {
+        assertEquals(0.90, GameConfig.Realm.getBreakthroughChance(8, 2, 1), 0.001)
     }
 
     @Test
-    fun `金丹的突破概率应为0点46`() {
-        assertEquals(0.46, GameConfig.Realm.getBreakthroughChance(7), 0.001)
+    fun `金丹三灵根1层突破概率应为75%`() {
+        assertEquals(0.75, GameConfig.Realm.getBreakthroughChance(7, 3, 1), 0.001)
     }
 
     @Test
-    fun `元婴的突破概率应为0点32`() {
-        assertEquals(0.32, GameConfig.Realm.getBreakthroughChance(6), 0.001)
+    fun `元婴单灵根1层突破概率应为85%`() {
+        assertEquals(0.85, GameConfig.Realm.getBreakthroughChance(6, 1, 1), 0.001)
     }
 
     @Test
-    fun `化神的突破概率应为0点24`() {
-        assertEquals(0.24, GameConfig.Realm.getBreakthroughChance(5), 0.001)
+    fun `化神五灵根1层突破概率应为8%`() {
+        assertEquals(0.08, GameConfig.Realm.getBreakthroughChance(5, 5, 1), 0.001)
     }
 
     @Test
-    fun `炼虚的突破概率应为0点12`() {
-        assertEquals(0.12, GameConfig.Realm.getBreakthroughChance(4), 0.001)
+    fun `炼虚五灵根1层突破概率应为0%`() {
+        assertEquals(0.00, GameConfig.Realm.getBreakthroughChance(4, 5, 1), 0.001)
     }
 
     @Test
-    fun `合体的突破概率应为0点06`() {
-        assertEquals(0.06, GameConfig.Realm.getBreakthroughChance(3), 0.0001)
+    fun `渡劫三灵根1层突破概率应为0%`() {
+        assertEquals(0.00, GameConfig.Realm.getBreakthroughChance(1, 3, 1), 0.001)
     }
 
     @Test
-    fun `大乘的突破概率应为0点03`() {
-        assertEquals(0.03, GameConfig.Realm.getBreakthroughChance(2), 0.0001)
+    fun `仙人单灵根1层突破概率应为6%`() {
+        assertEquals(0.06, GameConfig.Realm.getBreakthroughChance(0, 1, 1), 0.001)
     }
 
     @Test
-    fun `渡劫的突破概率应为0点01`() {
-        assertEquals(0.01, GameConfig.Realm.getBreakthroughChance(1), 0.0001)
-    }
-
-    @Test
-    fun `仙人的突破概率应为0点0`() {
-        assertEquals(0.0, GameConfig.Realm.getBreakthroughChance(0), 0.0001)
-    }
-
-    @Test
-    fun `突破概率应随境界降低而减小`() {
-        val chances = (9 downTo 0).map { GameConfig.Realm.getBreakthroughChance(it) }
+    fun `同境界灵根越少突破概率越高`() {
+        val chances = (1..5).map { GameConfig.Realm.getBreakthroughChance(7, it, 1) }
         for (i in 0 until chances.size - 1) {
             assertTrue(
-                "breakthroughChance 在境界 ${9 - i} 到 ${9 - i - 1} 未减小",
+                "金丹${i + 1}灵根突破概率应>${i + 2}灵根",
                 chances[i] > chances[i + 1]
             )
         }
+    }
+
+    @Test
+    fun `同境界同灵根层数越高突破概率越低或相等`() {
+        val chances = (1..9).map { GameConfig.Realm.getBreakthroughChance(8, 2, it) }
+        for (i in 0 until chances.size - 1) {
+            assertTrue(
+                "筑基双灵根${i + 1}层突破概率应>=${i + 2}层",
+                chances[i] >= chances[i + 1]
+            )
+        }
+    }
+
+    @Test
+    fun `9层突破概率等于下一大境界1层突破概率`() {
+        assertEquals(
+            GameConfig.Realm.getBreakthroughChance(7, 1, 1),
+            GameConfig.Realm.getBreakthroughChance(8, 1, 9),
+            0.001
+        )
+    }
+
+    @Test
+    fun `1层突破概率等于当前大境界基础概率`() {
+        assertEquals(
+            GameConfig.Realm.getBreakthroughChance(7, 3),
+            GameConfig.Realm.getBreakthroughChance(7, 3, 1),
+            0.001
+        )
+    }
+
+    @Test
+    fun `突破概率为整数百分比`() {
+        for (realm in 0..9) {
+            for (rootCount in 1..5) {
+                for (layer in 1..9) {
+                    val chance = GameConfig.Realm.getBreakthroughChance(realm, rootCount, layer)
+                    assertEquals(
+                        "realm=$realm, rootCount=$rootCount, layer=$layer 的突破概率应为整数百分比",
+                        kotlin.math.round(chance * 100.0) / 100.0,
+                        chance,
+                        0.0001
+                    )
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `realmLayer为0时突破概率应为0`() {
+        assertEquals(0.0, GameConfig.Realm.getBreakthroughChance(9, 1, 0), 0.001)
+    }
+
+    @Test
+    fun `筑基双灵根5层突破概率应为88%`() {
+        assertEquals(0.88, GameConfig.Realm.getBreakthroughChance(8, 2, 5), 0.001)
     }
 
     // ============================================================

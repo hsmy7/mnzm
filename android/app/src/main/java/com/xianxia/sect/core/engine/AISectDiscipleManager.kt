@@ -277,7 +277,8 @@ object AISectDiscipleManager {
                     break
                 }
 
-                val breakthroughChance = disciple.getBreakthroughChance()
+                val rootCount = disciple.spiritRoot.types.size
+                val breakthroughChance = GameConfig.Realm.getBreakthroughChance(newRealm, rootCount, newRealmLayer)
                 if (Random.nextDouble() < breakthroughChance) {
                     newCultivation = 0.0
                     newBreakthroughFailCount = 0

@@ -6414,7 +6414,7 @@ private fun WorldMapDialog(
         items.addAll(MapItemMapper.fromScoutTeams(scoutTeams))
         items.addAll(MapItemMapper.fromCaves(caves))
         items.addAll(MapItemMapper.fromCaveExplorationTeams(caveExplorationTeams))
-        items.addAll(MapItemMapper.fromBattleTeam(mapRenderData.battleTeam, playerSect))
+        items.addAll(MapItemMapper.fromBattleTeam(mapRenderData.battleTeam, playerSect, worldSects))
         val (aiTeams, battleIndicators) = MapItemMapper.fromAIBattleTeams(
             mapRenderData.aiBattleTeams, worldSects
         )
@@ -6457,6 +6457,19 @@ private fun WorldMapDialog(
                             startWorldY = playerSect.y,
                             targetWorldX = targetSect.x,
                             targetWorldY = targetSect.y,
+                            isRighteous = true
+                        )
+                    )
+                }
+            } else if (bt.status == "returning" && playerSect != null) {
+                val targetSect = worldSects.find { it.id == bt.targetSectId }
+                if (targetSect != null) {
+                    pathsList.add(
+                        BattleTeamPathData(
+                            startWorldX = targetSect.x,
+                            startWorldY = targetSect.y,
+                            targetWorldX = playerSect.x,
+                            targetWorldY = playerSect.y,
                             isRighteous = true
                         )
                     )

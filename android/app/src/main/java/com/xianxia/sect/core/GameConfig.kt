@@ -130,16 +130,16 @@ object GameConfig {
     
     object Realm {
         val CONFIGS = mapOf(
-            9 to RealmConfig(9, "炼气", 225, 10, 0.80, 1.0, 80, 9),
-            8 to RealmConfig(8, "筑基", 450, 30, 0.60, 2.5, 120, 9),
-            7 to RealmConfig(7, "金丹", 900, 50, 0.46, 6.5, 200, 9),
-            6 to RealmConfig(6, "元婴", 1800, 80, 0.32, 17.0, 300, 9),
-            5 to RealmConfig(5, "化神", 3600, 110, 0.24, 45.0, 500, 9, 60),
-            4 to RealmConfig(4, "炼虚", 16000, 180, 0.12, 110.0, 800, 9, 100),
-            3 to RealmConfig(3, "合体", 32000, 220, 0.06, 260.0, 1500, 9, 160),
-            2 to RealmConfig(2, "大乘", 64000, 280, 0.03, 580.0, 3000, 9, 240),
-            1 to RealmConfig(1, "渡劫", 128000, 360, 0.01, 1200.0, 5000, 9, 340),
-            0 to RealmConfig(0, "仙人", 256000, 500, 0.0, 2500.0, 9999, 9, 500)
+            9 to RealmConfig(9, "炼气", 225, 10, 1.0, 80, 9),
+            8 to RealmConfig(8, "筑基", 450, 30, 2.5, 120, 9),
+            7 to RealmConfig(7, "金丹", 900, 50, 6.5, 200, 9),
+            6 to RealmConfig(6, "元婴", 1800, 80, 17.0, 300, 9),
+            5 to RealmConfig(5, "化神", 3600, 110, 45.0, 500, 9, 60),
+            4 to RealmConfig(4, "炼虚", 16000, 180, 110.0, 800, 9, 100),
+            3 to RealmConfig(3, "合体", 32000, 220, 260.0, 1500, 9, 160),
+            2 to RealmConfig(2, "大乘", 64000, 280, 580.0, 3000, 9, 240),
+            1 to RealmConfig(1, "渡劫", 128000, 360, 1200.0, 5000, 9, 340),
+            0 to RealmConfig(0, "仙人", 256000, 500, 2500.0, 9999, 9, 500)
         )
 
         val BREAKTHROUGH_CHANCES: Map<Int, Map<Int, Double>> = mapOf(
@@ -161,12 +161,17 @@ object GameConfig {
         
         fun getCultivationBase(realm: Int): Int = get(realm).cultivationBase
         
-        @Deprecated("使用 getBreakthroughChance(realm, rootCount) 代替，突破概率现在依赖灵根数量")
-        fun getBreakthroughChance(realm: Int): Double = get(realm).breakthroughChance
-
-        fun getBreakthroughChance(realm: Int, rootCount: Int): Double {
+        fun getBreakthroughChance(realm: Int, rootCount: Int, realmLayer: Int = 1): Double {
+            if (realmLayer <= 0) return 0.0
             val clampedRootCount = rootCount.coerceIn(1, 5)
-            return BREAKTHROUGH_CHANCES[realm]?.get(clampedRootCount) ?: 0.0
+            val currentProb = BREAKTHROUGH_CHANCES[realm]?.get(clampedRootCount) ?: 0.0
+            val nextRealmProb = BREAKTHROUGH_CHANCES[realm - 1]?.get(clampedRootCount) ?: 0.0
+            val maxLayers = get(realm).maxLayers
+            if (maxLayers <= 1 || realmLayer == 1) return currentProb
+            if (realmLayer >= maxLayers) return nextRealmProb
+            val progress = (realmLayer - 1).toDouble() / (maxLayers - 1)
+            val rawProb = currentProb + (nextRealmProb - currentProb) * progress
+            return kotlin.math.round(rawProb * 100.0) / 100.0
         }
         
         fun getSoulPowerRequirement(realm: Int): Int = get(realm).soulPowerRequirement
@@ -498,10 +503,9 @@ object GameConfig {
         val name: String,
         val cultivationBase: Int,
         val salary: Int,
-        val breakthroughChance: Double,
         val multiplier: Double = 1.0,
         val maxAge: Int = 100,
-        val maxLayers: Int = 10,
+        val maxLayers: Int = 9,
         val soulPowerRequirement: Int = 0
     )
     

@@ -643,7 +643,7 @@ class CultivationService @Inject constructor(
                 if (success) {
                     newCultivation = 0.0
                     newBreakthroughFailCount = 0
-                    if (newRealmLayer < 9) {
+                    if (newRealmLayer < GameConfig.Realm.get(newRealm).maxLayers) {
                         newRealmLayer++
                     } else {
                         newRealm--
@@ -1265,8 +1265,9 @@ class CultivationService @Inject constructor(
         val success = Random.nextDouble() < chance
 
         if (success) {
-            val nextLayer = if (disciple.realmLayer < 9) disciple.realmLayer + 1 else 1
-            val targetRealm = if (disciple.realmLayer < 9) disciple.realm else disciple.realm - 1
+            val maxLayers = GameConfig.Realm.get(disciple.realm).maxLayers
+            val nextLayer = if (disciple.realmLayer < maxLayers) disciple.realmLayer + 1 else 1
+            val targetRealm = if (disciple.realmLayer < maxLayers) disciple.realm else disciple.realm - 1
             val targetRealmName = GameConfig.Realm.getName(targetRealm)
             if (isMajorBreakthrough) {
                 eventService.addGameEvent("恭喜！${disciple.name}成功突破至${targetRealmName}！", EventType.SUCCESS)
@@ -1966,45 +1967,24 @@ class CultivationService @Inject constructor(
         val returnedTeams = updatedTeams.filter { AISectAttackManager.isTeamReturned(it) }
         if (returnedTeams.isNotEmpty()) {
             val currentData = currentGameData
+            val updatedAiSectDisciples = currentData.aiSectDisciples.toMutableMap()
             val teamsAfterReturn = currentData.aiBattleTeams.toMutableList()
 
             for (returnedTeam in returnedTeams) {
-                val attackerSect = currentData.worldMapSects.find { it.id == returnedTeam.attackerSectId }
-                val attackerDisciples = currentData.aiSectDisciples[returnedTeam.attackerSectId] ?: emptyList()
-                val existingTeamDiscipleIds = teamsAfterReturn
-                    .filter { it.status != "completed" && it.id != returnedTeam.id }
-                    .flatMap { it.disciples.map { d -> d.id } }
-                    .toSet()
-
-                val availableDisciples = attackerDisciples
-                    .filter { it.isAlive && it.id !in existingTeamDiscipleIds }
-                    .sortedBy { it.realm }
-
                 val teamIdx = teamsAfterReturn.indexOfFirst { it.id == returnedTeam.id }
                 if (teamIdx < 0) continue
 
-                if (availableDisciples.size >= AISectAttackManager.MIN_DISCIPLES_FOR_ATTACK) {
-                    val supplementedDisciples = (returnedTeam.disciples.filter { it.isAlive } + availableDisciples)
-                        .distinctBy { it.id }
-                        .sortedBy { it.realm }
-                        .take(AISectAttackManager.TEAM_SIZE)
+                val aliveTeamDisciples = returnedTeam.disciples.filter { it.isAlive }
+                val currentSectDisciples = updatedAiSectDisciples[returnedTeam.attackerSectId] ?: emptyList()
+                val currentSectDiscipleIds = currentSectDisciples.map { it.id }.toSet()
+                val mergedDisciples = currentSectDisciples + aliveTeamDisciples.filter { it.id !in currentSectDiscipleIds }
+                updatedAiSectDisciples[returnedTeam.attackerSectId] = mergedDisciples
 
-                    teamsAfterReturn[teamIdx] = returnedTeam.copy(
-                        status = "stationed",
-                        disciples = supplementedDisciples,
-                        moveProgress = 1f,
-                        currentX = attackerSect?.x ?: returnedTeam.attackerStartX,
-                        currentY = attackerSect?.y ?: returnedTeam.attackerStartY,
-                        isGarrison = false,
-                        garrisonSectId = "",
-                        garrisonSectName = ""
-                    )
-                } else {
-                    teamsAfterReturn[teamIdx] = returnedTeam.copy(status = "completed")
-                }
+                teamsAfterReturn[teamIdx] = returnedTeam.copy(status = "completed")
             }
 
             currentGameData = currentData.copy(
+                aiSectDisciples = updatedAiSectDisciples,
                 aiBattleTeams = teamsAfterReturn
             )
         }
@@ -2161,7 +2141,12 @@ class CultivationService @Inject constructor(
             val updatedGarrisonDisciples = garrisonTeam.disciples.filter { it.id !in result.deadDefenderIds }
             if (updatedGarrisonDisciples.isEmpty()) {
                 currentGameData = currentGameData.copy(
-                    aiBattleTeams = currentGameData.aiBattleTeams.filter { it.id != garrisonTeam.id }
+                    aiBattleTeams = currentGameData.aiBattleTeams.filter { it.id != garrisonTeam.id },
+                    worldMapSects = currentGameData.worldMapSects.map { sect ->
+                        if (sect.garrisonTeamId == garrisonTeam.id) {
+                            sect.copy(garrisonTeamId = "")
+                        } else sect
+                    }
                 )
             } else {
                 currentGameData = currentGameData.copy(
@@ -2315,13 +2300,24 @@ class CultivationService @Inject constructor(
 
         if (garrisonTeam != null) {
             val updatedGarrisonDisciples = garrisonTeam.disciples.filter { it.id !in result.deadDefenderIds }
-            currentGameData = currentGameData.copy(
-                aiBattleTeams = currentGameData.aiBattleTeams.map {
-                    if (it.id == garrisonTeam.id) {
-                        it.copy(disciples = updatedGarrisonDisciples)
-                    } else it
-                }
-            )
+            if (updatedGarrisonDisciples.isEmpty()) {
+                currentGameData = currentGameData.copy(
+                    aiBattleTeams = currentGameData.aiBattleTeams.filter { it.id != garrisonTeam.id },
+                    worldMapSects = currentGameData.worldMapSects.map { sect ->
+                        if (sect.garrisonTeamId == garrisonTeam.id) {
+                            sect.copy(garrisonTeamId = "")
+                        } else sect
+                    }
+                )
+            } else {
+                currentGameData = currentGameData.copy(
+                    aiBattleTeams = currentGameData.aiBattleTeams.map {
+                        if (it.id == garrisonTeam.id) {
+                            it.copy(disciples = updatedGarrisonDisciples)
+                        } else it
+                    }
+                )
+            }
         }
 
         val highRealmDefendersAllDead = updatedDefenderDisciples
@@ -3625,7 +3621,7 @@ class CultivationService @Inject constructor(
         val sectsWithNoTargets = AISectAttackManager.findSectsWithNoTargets(data)
         val updatedTeams = if (sectsWithNoTargets.isNotEmpty()) {
             data.aiBattleTeams.map { team ->
-                if (team.attackerSectId in sectsWithNoTargets && team.status != "completed") {
+                if (team.attackerSectId in sectsWithNoTargets && team.status != "completed" && !team.isGarrison) {
                     team.copy(status = "completed")
                 } else {
                     team

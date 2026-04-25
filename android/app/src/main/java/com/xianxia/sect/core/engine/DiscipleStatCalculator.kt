@@ -354,7 +354,7 @@ object DiscipleStatCalculator {
         if (!meetsSoulPowerRequirement(disciple)) return 0.0
 
         val rootCount = disciple.spiritRoot.types.size
-        val baseChance = GameConfig.Realm.getBreakthroughChance(disciple.realm, rootCount)
+        val baseChance = GameConfig.Realm.getBreakthroughChance(disciple.realm, rootCount, disciple.realmLayer)
 
         val innerElderBonus = if (innerElderComprehension >= 80) {
             (innerElderComprehension - 80) * 0.01

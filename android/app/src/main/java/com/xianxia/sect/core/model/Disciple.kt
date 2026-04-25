@@ -633,10 +633,6 @@ data class Disciple(
     /** 判断弟子是否可以突破 */
     fun canBreakthrough(): Boolean = cultivation >= maxCultivation
 
-    /**
-     * @deprecated 建议直接使用 [DiscipleStatCalculator.getBreakthroughChance]
-     * 计算突破成功率
-     */
     fun getBreakthroughChance(): Double =
         DiscipleStatCalculator.getBreakthroughChance(this)
 

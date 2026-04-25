@@ -53,6 +53,7 @@ object AISectAttackManager {
             for (defender in allTargets) {
                 if (defender.id in underAttackSectIds) continue
 
+                if (!isRouteConnected(attacker, defender, gameData)) continue
                 if (!checkAttackConditions(attacker, defender, gameData, aiDisciplesMap)) continue
 
                 val battleTeam = createAttackTeam(attacker, defender, gameData, attackerDisciples, existingTeamDiscipleIds)
@@ -236,6 +237,8 @@ object AISectAttackManager {
 
             if (attacker.allianceId.isNotEmpty() && playerSect.allianceId == attacker.allianceId) continue
 
+            if (!isRouteConnected(attacker, playerSect, gameData)) continue
+
             return createAttackTeam(attacker, playerSect, gameData, attackerDisciples, existingTeamDiscipleIds)
         }
 
@@ -256,6 +259,7 @@ object AISectAttackManager {
 
             val hasTarget = gameData.worldMapSects.any { target ->
                 target.id != sect.id && target.occupierSectId != sect.id &&
+                isRouteConnected(sect, target, gameData) &&
                 checkAttackConditions(sect, target, gameData, aiDisciplesMap)
             }
 
