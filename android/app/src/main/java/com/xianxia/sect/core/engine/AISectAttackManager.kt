@@ -113,8 +113,10 @@ object AISectAttackManager {
         for (disciple in aliveDisciples) {
             val realmPower = (10 - disciple.realm) * weights.REALM_BASE
 
-            val avgEquipmentRarity = GameConfig.Realm.getMaxRarity(disciple.realm).toDouble()
-            val avgManualRarity = GameConfig.Realm.getMaxRarity(disciple.realm).toDouble()
+            val maxRarity = GameConfig.Realm.getMaxRarity(disciple.realm)
+            val minRarity = AISectDiscipleManager.getMinRarityByRealm(disciple.realm)
+            val avgEquipmentRarity = (minRarity + maxRarity) / 2.0
+            val avgManualRarity = (minRarity + maxRarity) / 2.0
             val maxManuals = AISectDiscipleManager.getMaxManualsByRealm(disciple.realm)
 
             val equipmentPower = avgEquipmentRarity * 2.0 * weights.EQUIPMENT_RARITY

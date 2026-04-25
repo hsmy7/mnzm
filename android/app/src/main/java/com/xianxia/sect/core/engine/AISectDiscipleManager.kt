@@ -44,21 +44,21 @@ object AISectDiscipleManager {
         val speedVariance = Random.nextInt(-50, 51)
         val talents = TalentDatabase.generateTalentsForDisciple().map { it.id }
 
-        val lifespanBonus = talents.sumOf {
-            TalentDatabase.getById(it)?.effects?.get("lifespan") ?: 0.0
-        }
+        val talentEffects = TalentDatabase.calculateTalentEffects(talents)
+        val lifespanBonus = talentEffects["lifespan"] ?: 0.0
         val baseLifespan = GameConfig.Realm.get(9).maxAge
-        val lifespan = (baseLifespan * (1 + lifespanBonus)).toInt().coerceAtLeast(1)
+        val lifespan = (baseLifespan * (1.0 + lifespanBonus)).toInt().coerceAtLeast(1)
 
         return Disciple(
             id = java.util.UUID.randomUUID().toString(),
             name = nameResult.fullName,
             surname = nameResult.surname,
+            gender = gender,
             realm = 9,
             realmLayer = 1,
             cultivation = 0.0,
             spiritRootType = spiritRoot,
-            age = Random.nextInt(16, 26),
+            age = Random.nextInt(16, 30),
             lifespan = lifespan,
             isAlive = true,
             discipleType = "outer",
@@ -282,7 +282,7 @@ object AISectDiscipleManager {
                     newCultivation = 0.0
                     newBreakthroughFailCount = 0
 
-                    if (newRealmLayer < 9) {
+                    if (!isMajorBreakthrough) {
                         newRealmLayer++
                     } else {
                         newRealm--
@@ -296,7 +296,10 @@ object AISectDiscipleManager {
             }
 
             val newLifespan = if (newRealm != disciple.realm) {
-                GameConfig.Realm.get(newRealm).maxAge
+                val baseLifespan = GameConfig.Realm.get(newRealm).maxAge
+                val talentEffects = TalentDatabase.calculateTalentEffects(disciple.talentIds)
+                val lifespanBonus = talentEffects["lifespan"] ?: 0.0
+                (baseLifespan * (1.0 + lifespanBonus)).toInt().coerceAtLeast(1)
             } else {
                 disciple.lifespan
             }
@@ -403,35 +406,32 @@ object AISectDiscipleManager {
 
     private fun generateRealmDistribution(total: Int, maxRealm: Int): Map<Int, Int> {
         val distribution = mutableMapOf<Int, Int>()
-        var remaining = total
 
         val realmRange = (maxRealm + 1)..9
         if (realmRange.isEmpty()) return distribution
 
-        val realmCount = realmRange.count()
-        val baseCount = total / realmCount
-        var extra = total % realmCount
-
-        for (realm in realmRange) {
-            if (remaining <= 0) break
-            val weight = when (realm) {
+        val weights = realmRange.associateWith { realm ->
+            when (realm) {
                 9 -> 3
                 8 -> 2
                 7 -> 2
                 else -> 1
             }
-            val count = if (extra > 0) {
-                extra--
-                baseCount + weight
-            } else {
-                baseCount
-            }.coerceAtMost(remaining)
+        }
+        val totalWeight = weights.values.sum()
+
+        var assigned = 0
+        for (realm in realmRange) {
+            val weight = weights[realm] ?: 1
+            val count = (total * weight / totalWeight)
             distribution[realm] = count
-            remaining -= count
+            assigned += count
         }
 
+        var remaining = total - assigned
         if (remaining > 0) {
-            for (realm in realmRange.reversed()) {
+            val sortedRealms = realmRange.sortedByDescending { weights[it] ?: 1 }
+            for (realm in sortedRealms) {
                 if (remaining <= 0) break
                 distribution[realm] = (distribution[realm] ?: 0) + 1
                 remaining--
@@ -444,7 +444,10 @@ object AISectDiscipleManager {
     private fun adjustDiscipleRealm(disciple: Disciple, targetRealm: Int): Disciple {
         if (targetRealm == 9) return disciple
 
-        val newLifespan = GameConfig.Realm.get(targetRealm).maxAge
+        val baseLifespan = GameConfig.Realm.get(targetRealm).maxAge
+        val talentEffects = TalentDatabase.calculateTalentEffects(disciple.talentIds)
+        val lifespanBonus = talentEffects["lifespan"] ?: 0.0
+        val newLifespan = (baseLifespan * (1.0 + lifespanBonus)).toInt().coerceAtLeast(1)
         val maxLayer = GameConfig.Realm.get(targetRealm).maxLayers
 
         return disciple.copy(

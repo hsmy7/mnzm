@@ -581,22 +581,32 @@ object WorldMapGenerator {
 
         val realmRange = (normalMaxRealm + 1)..9
         if (!realmRange.isEmpty()) {
-            val baseCount = normalCount / realmRange.count()
-            var extra = normalCount % realmRange.count()
-            for (realm in realmRange) {
-                val weight = when (realm) {
+            val weights = realmRange.associateWith { realm ->
+                when (realm) {
                     9 -> 3
                     8 -> 2
                     7 -> 2
                     else -> 1
                 }
-                val count = if (extra > 0) {
-                    extra--
-                    baseCount + weight
-                } else {
-                    baseCount
-                }
+            }
+            val totalWeight = weights.values.sum()
+
+            var assigned = 0
+            for (realm in realmRange) {
+                val weight = weights[realm] ?: 1
+                val count = (normalCount * weight / totalWeight)
                 disciples[realm] = count
+                assigned += count
+            }
+
+            var remaining = normalCount - assigned
+            if (remaining > 0) {
+                val sortedRealms = realmRange.sortedByDescending { weights[it] ?: 1 }
+                for (realm in sortedRealms) {
+                    if (remaining <= 0) break
+                    disciples[realm] = (disciples[realm] ?: 0) + 1
+                    remaining--
+                }
             }
         }
 
@@ -625,22 +635,32 @@ object WorldMapGenerator {
 
         val realmRange = (normalMaxRealm + 1)..9
         if (!realmRange.isEmpty()) {
-            val baseCount = normalCount / realmRange.count()
-            var extra = normalCount % realmRange.count()
-            for (realm in realmRange) {
-                val weight = when (realm) {
+            val weights = realmRange.associateWith { realm ->
+                when (realm) {
                     9 -> 3
                     8 -> 2
                     7 -> 2
                     else -> 1
                 }
-                val count = if (extra > 0) {
-                    extra--
-                    baseCount + weight
-                } else {
-                    baseCount
-                }
+            }
+            val totalWeight = weights.values.sum()
+
+            var assigned = 0
+            for (realm in realmRange) {
+                val weight = weights[realm] ?: 1
+                val count = (normalCount * weight / totalWeight)
                 disciples[realm] = count
+                assigned += count
+            }
+
+            var remaining = normalCount - assigned
+            if (remaining > 0) {
+                val sortedRealms = realmRange.sortedByDescending { weights[it] ?: 1 }
+                for (realm in sortedRealms) {
+                    if (remaining <= 0) break
+                    disciples[realm] = (disciples[realm] ?: 0) + 1
+                    remaining--
+                }
             }
         }
 

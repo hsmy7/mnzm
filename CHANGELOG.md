@@ -1,5 +1,18 @@
 # 模拟宗门 - 更新日志
 
+## [2.5.27] - 2026-04-26
+
+### 修复
+- 修复AI弟子gender字段未传入Disciple构造函数，导致所有AI弟子默认为男性
+- 修复AI弟子年龄范围与玩家弟子不一致（AI:16-25 → 16-29）
+- 修复adjustDiscipleRealm调整境界时未计算天赋寿命加成
+- 修复processMonthlyCultivation大境界突破时寿命未包含天赋加成
+- 修复generateRealmDistribution权重分配逻辑错误，权重仅在extra>0时生效
+- 修复calculatePowerScore使用maxRarity代替avgRarity导致战力高估
+- 修复processMonthlyCultivation突破逻辑使用硬编码9而非isMajorBreakthrough判断
+- 统一AI弟子寿命计算使用TalentDatabase.calculateTalentEffects
+- 同步修复WorldMapGenerator中权重分配逻辑
+
 ## [2.5.26] - 2026-04-26
 
 ### 重构
