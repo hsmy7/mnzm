@@ -721,6 +721,26 @@ class DiscipleService @Inject constructor(
      * 设计意图：装备是独占物品，卸下后放入弟子储物袋，而非归还宗门仓库。
      */
     fun unequipEquipment(discipleId: String, equipmentId: String): Boolean {
+        val disciple = currentDisciples.find { it.id == discipleId } ?: return false
+        val isEquipped = disciple.equipment.weaponId == equipmentId ||
+            disciple.equipment.armorId == equipmentId ||
+            disciple.equipment.bootsId == equipmentId ||
+            disciple.equipment.accessoryId == equipmentId
+        if (!isEquipped) return false
+
+        if (stateStore.currentTransactionMutableState() != null) {
+            return unequipEquipmentLogic(discipleId, equipmentId)
+        }
+
+        scope.launch {
+            stateStore.update {
+                unequipEquipmentLogic(discipleId, equipmentId)
+            }
+        }
+        return true
+    }
+
+    private fun unequipEquipmentLogic(discipleId: String, equipmentId: String): Boolean {
         val discipleIndex = currentDisciples.indexOfFirst { it.id == discipleId }
         if (discipleIndex < 0) return false
 

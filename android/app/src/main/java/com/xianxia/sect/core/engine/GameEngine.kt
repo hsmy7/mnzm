@@ -1027,7 +1027,7 @@ class GameEngine @Inject constructor(
                         val disciple = disciples.find { it.id == discipleId }
                         if (disciple == null) return@update
 
-                        val bagStackIds = disciples.flatMap { it.equipment.storageBagItems }
+                        val bagStackIds = disciple.equipment.storageBagItems
                             .filter { it.itemType == "equipment_stack" }
                             .map { it.itemId }
                             .toSet()
@@ -1217,7 +1217,7 @@ class GameEngine @Inject constructor(
                                 }
                             }
 
-                            val bagStackIds = disciples.flatMap { it.equipment.storageBagItems }
+                            val bagStackIds = disciple.equipment.storageBagItems
                                 .filter { it.itemType == "manual_stack" }
                                 .map { it.itemId }
                                 .toSet()
@@ -1266,6 +1266,7 @@ class GameEngine @Inject constructor(
                         val pill = pills.find { it.id == item.id }
                         if (pill != null && pill.quantity >= quantity) {
                             val disciple = disciples.find { it.id == discipleId }
+                            if (disciple == null) return@update
                             val pillItem = StorageBagItem(
                                 itemId = item.id,
                                 itemType = "pill",
@@ -1277,33 +1278,91 @@ class GameEngine @Inject constructor(
                                 effect = DisciplePillManager.pillToItemEffect(pill),
                                 grade = pill.grade.displayName
                             )
-                            val canUse = disciple != null && DisciplePillManager.canUsePill(disciple, pillItem).canUse
+                            val canUse = DisciplePillManager.canUsePill(disciple, pillItem).canUse
+
+                            pills = pills.mapNotNull { p ->
+                                if (p.id == item.id) {
+                                    val newQty = p.quantity - quantity
+                                    if (newQty == 0) null else p.copy(quantity = newQty)
+                                } else p
+                            }
 
                             if (canUse) {
-                                pills = pills.mapNotNull { p ->
-                                    if (p.id == item.id) {
-                                        val newQty = p.quantity - quantity
-                                        if (newQty == 0) null else p.copy(quantity = newQty)
-                                    } else p
+                                var updatedDisciple = disciple
+                                val effect = pill.effect
+                                if (effect.cultivationAdd > 0) {
+                                    updatedDisciple = updatedDisciple.copy(cultivation = (updatedDisciple.cultivation + effect.cultivationAdd).coerceAtLeast(0.0))
                                 }
-                                disciples = disciples.map { d ->
-                                    if (d.id == discipleId) {
-                                        var updatedDisciple = d
-                                        repeat(quantity) {
-                                            val currentPill = pills.find { it.id == item.id } ?: return@repeat
-                                            val effect = PillEffectCalculator.calculateEffect(currentPill, updatedDisciple)
-                                            updatedDisciple = applyPillEffectToDisciple(updatedDisciple, currentPill, effect)
-                                        }
-                                        updatedDisciple
-                                    } else d
+                                if (effect.skillExpAdd > 0) {
+                                    updatedDisciple = updatedDisciple.copy(manualMasteries = updatedDisciple.manualMasteries.mapValues { (_, v) -> (v + effect.skillExpAdd).coerceAtMost(10000) })
                                 }
+                                if (effect.cultivationSpeedPercent > 0) {
+                                    updatedDisciple = updatedDisciple.copy(
+                                        cultivationSpeedBonus = effect.cultivationSpeedPercent,
+                                        cultivationSpeedDuration = if (pill.duration > 0) pill.duration * 30 else updatedDisciple.cultivationSpeedDuration
+                                    )
+                                }
+                                if (effect.extendLife > 0) {
+                                    updatedDisciple = updatedDisciple.copy(lifespan = updatedDisciple.lifespan + effect.extendLife)
+                                    if (!updatedDisciple.usage.usedExtendLifePillIds.contains(pill.pillType)) {
+                                        updatedDisciple = updatedDisciple.copy(usage = updatedDisciple.usage.copy(usedExtendLifePillIds = updatedDisciple.usage.usedExtendLifePillIds + pill.pillType))
+                                    }
+                                }
+                                if (effect.intelligenceAdd > 0 || effect.charmAdd > 0 || effect.loyaltyAdd > 0 ||
+                                    effect.comprehensionAdd > 0 || effect.artifactRefiningAdd > 0 || effect.pillRefiningAdd > 0 ||
+                                    effect.spiritPlantingAdd > 0 || effect.teachingAdd > 0 || effect.moralityAdd > 0
+                                ) {
+                                    updatedDisciple = updatedDisciple.copy(
+                                        skills = updatedDisciple.skills.copy(
+                                            intelligence = (updatedDisciple.skills.intelligence + effect.intelligenceAdd).coerceIn(1, 100),
+                                            charm = (updatedDisciple.skills.charm + effect.charmAdd).coerceIn(1, 100),
+                                            loyalty = (updatedDisciple.skills.loyalty + effect.loyaltyAdd).coerceIn(1, 100),
+                                            comprehension = (updatedDisciple.skills.comprehension + effect.comprehensionAdd).coerceIn(1, 100),
+                                            artifactRefining = (updatedDisciple.skills.artifactRefining + effect.artifactRefiningAdd).coerceIn(1, 100),
+                                            pillRefining = (updatedDisciple.skills.pillRefining + effect.pillRefiningAdd).coerceIn(1, 100),
+                                            spiritPlanting = (updatedDisciple.skills.spiritPlanting + effect.spiritPlantingAdd).coerceIn(1, 100),
+                                            teaching = (updatedDisciple.skills.teaching + effect.teachingAdd).coerceIn(1, 100),
+                                            morality = (updatedDisciple.skills.morality + effect.moralityAdd).coerceIn(1, 100)
+                                        )
+                                    )
+                                }
+                                if (pill.category == PillCategory.FUNCTIONAL && pill.pillType.isNotEmpty()) {
+                                    updatedDisciple = updatedDisciple.copy(usage = updatedDisciple.usage.copy(usedFunctionalPillTypes = updatedDisciple.usage.usedFunctionalPillTypes + pill.pillType))
+                                }
+                                if (effect.physicalAttackAdd > 0 || effect.magicAttackAdd > 0 ||
+                                    effect.physicalDefenseAdd > 0 || effect.magicDefenseAdd > 0 ||
+                                    effect.hpAdd > 0 || effect.mpAdd > 0 || effect.speedAdd > 0 ||
+                                    effect.critRateAdd > 0 || effect.critEffectAdd > 0 ||
+                                    effect.cultivationSpeedPercent > 0 || effect.skillExpSpeedPercent > 0 || effect.nurtureSpeedPercent > 0
+                                ) {
+                                    updatedDisciple = updatedDisciple.copy(pillEffects = updatedDisciple.pillEffects.copy(
+                                        pillPhysicalAttackBonus = effect.physicalAttackAdd,
+                                        pillMagicAttackBonus = effect.magicAttackAdd,
+                                        pillPhysicalDefenseBonus = effect.physicalDefenseAdd,
+                                        pillMagicDefenseBonus = effect.magicDefenseAdd,
+                                        pillHpBonus = effect.hpAdd,
+                                        pillMpBonus = effect.mpAdd,
+                                        pillSpeedBonus = effect.speedAdd,
+                                        pillCritRateBonus = effect.critRateAdd,
+                                        pillCritEffectBonus = effect.critEffectAdd,
+                                        pillCultivationSpeedBonus = effect.cultivationSpeedPercent,
+                                        pillSkillExpSpeedBonus = effect.skillExpSpeedPercent,
+                                        pillNurtureSpeedBonus = effect.nurtureSpeedPercent,
+                                        pillEffectDuration = if (pill.duration > 0) pill.duration * 30 else updatedDisciple.pillEffects.pillEffectDuration,
+                                        activePillCategory = if (pill.cannotStack) pill.category.name else updatedDisciple.pillEffects.activePillCategory
+                                    ))
+                                }
+                                if (effect.healMaxHpPercent > 0) {
+                                    updatedDisciple = updatedDisciple.copy(combat = updatedDisciple.combat.copy(hpVariance = 0))
+                                }
+                                if (effect.revive && !disciple.isAlive) {
+                                    updatedDisciple = updatedDisciple.copy(isAlive = true, combat = updatedDisciple.combat.copy(hpVariance = 0))
+                                }
+                                if (effect.clearAll) {
+                                    updatedDisciple = updatedDisciple.copy(pillEffects = PillEffects())
+                                }
+                                disciples = disciples.map { if (it.id == discipleId) updatedDisciple else it }
                             } else {
-                                pills = pills.mapNotNull { p ->
-                                    if (p.id == item.id) {
-                                        val newQty = p.quantity - quantity
-                                        if (newQty == 0) null else p.copy(quantity = newQty)
-                                    } else p
-                                }
                                 disciples = disciples.map { d ->
                                     if (d.id == discipleId) {
                                         d.copyWith(
