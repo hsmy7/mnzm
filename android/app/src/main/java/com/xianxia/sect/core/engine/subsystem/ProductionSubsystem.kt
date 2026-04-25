@@ -29,7 +29,7 @@ class ProductionSubsystem @Inject constructor(
         Log.d(TAG, "ProductionSubsystem released")
     }
 
-    override suspend fun clear() {}
+    override suspend fun clearForSlot(slotId: Int) {}
 
     override suspend fun onMonthTick(state: MutableGameState) {
         cultivationService.processBuildingProduction(state.gameData.gameYear, state.gameData.gameMonth)

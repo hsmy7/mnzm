@@ -28,7 +28,7 @@ class FormulaService @Inject constructor(
         Log.d(TAG, "FormulaService released")
     }
 
-    override suspend fun clear() {}
+    override suspend fun clearForSlot(slotId: Int) {}
     companion object {
         private const val TAG = "FormulaService"
     }

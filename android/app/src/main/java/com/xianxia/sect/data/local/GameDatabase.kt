@@ -40,152 +40,188 @@ object GameDatabaseConfig {
 
 val MIGRATION_4_5 = object : androidx.room.migration.Migration(4, 5) {
     override fun migrate(db: SupportSQLiteDatabase) {
-        Log.i("GameDatabase", "Migrating database from version 4 to 5: recruitList serialization fix (no schema change)")
+        try {
+            Log.i("GameDatabase", "Migrating database from version 4 to 5: recruitList serialization fix (no schema change)")
+        } catch (e: Exception) {
+            Log.e("GameDatabase", "Migration 4->5 failed", e)
+            throw e
+        }
     }
 }
 
 val MIGRATION_5_6 = object : androidx.room.migration.Migration(5, 6) {
     override fun migrate(db: SupportSQLiteDatabase) {
-        Log.i("GameDatabase", "Migrating database from version 5 to 6: game balance adjustment - damage variance ±20% with 0.1% precision (no schema change)")
+        try {
+            Log.i("GameDatabase", "Migrating database from version 5 to 6: game balance adjustment - damage variance ±20% with 0.1% precision (no schema change)")
+        } catch (e: Exception) {
+            Log.e("GameDatabase", "Migration 5->6 failed", e)
+            throw e
+        }
     }
 }
 
 val MIGRATION_6_7 = object : androidx.room.migration.Migration(6, 7) {
     override fun migrate(db: SupportSQLiteDatabase) {
-        Log.i("GameDatabase", "Migrating database from version 6 to 7: mission hall refresh mechanism overhaul - random 0-5 tasks every 3 months (no schema change)")
+        try {
+            Log.i("GameDatabase", "Migrating database from version 6 to 7: mission hall refresh mechanism overhaul - random 0-5 tasks every 3 months (no schema change)")
+        } catch (e: Exception) {
+            Log.e("GameDatabase", "Migration 6->7 failed", e)
+            throw e
+        }
     }
 }
 
 val MIGRATION_7_8 = object : androidx.room.migration.Migration(7, 8) {
     override fun migrate(db: SupportSQLiteDatabase) {
-        Log.i("GameDatabase", "Migrating database from version 7 to 8: fix equipment minRealm - was incorrectly set to rarity tier instead of realm level")
-        db.execSQL("UPDATE equipment SET minRealm = 9 WHERE rarity = 1 AND minRealm = 1")
-        db.execSQL("UPDATE equipment SET minRealm = 7 WHERE rarity = 2 AND minRealm = 2")
-        db.execSQL("UPDATE equipment SET minRealm = 6 WHERE rarity = 3 AND minRealm = 3")
-        db.execSQL("UPDATE equipment SET minRealm = 5 WHERE rarity = 4 AND minRealm = 4")
-        db.execSQL("UPDATE equipment SET minRealm = 4 WHERE rarity = 5 AND minRealm = 5")
-        db.execSQL("UPDATE equipment SET minRealm = 2 WHERE rarity = 6 AND minRealm = 6")
+        try {
+            Log.i("GameDatabase", "Migrating database from version 7 to 8: fix equipment minRealm - was incorrectly set to rarity tier instead of realm level")
+            db.execSQL("UPDATE equipment SET minRealm = 9 WHERE rarity = 1 AND minRealm = 1")
+            db.execSQL("UPDATE equipment SET minRealm = 7 WHERE rarity = 2 AND minRealm = 2")
+            db.execSQL("UPDATE equipment SET minRealm = 6 WHERE rarity = 3 AND minRealm = 3")
+            db.execSQL("UPDATE equipment SET minRealm = 5 WHERE rarity = 4 AND minRealm = 4")
+            db.execSQL("UPDATE equipment SET minRealm = 4 WHERE rarity = 5 AND minRealm = 5")
+            db.execSQL("UPDATE equipment SET minRealm = 2 WHERE rarity = 6 AND minRealm = 6")
+        } catch (e: Exception) {
+            Log.e("GameDatabase", "Migration 7->8 failed", e)
+            throw e
+        }
     }
 }
 
 val MIGRATION_8_9 = object : androidx.room.migration.Migration(8, 9) {
     override fun migrate(db: SupportSQLiteDatabase) {
-        Log.i("GameDatabase", "Migrating database from version 8 to 9: fix stacked learned manuals - split isLearned=1 & quantity>1 into separate records")
-        val cursor = db.query("SELECT id, slot_id, name, rarity, type, description, stats, skillName, skillDescription, skillType, skillDamageType, skillHits, skillDamageMultiplier, skillCooldown, skillMpCost, skillHealPercent, skillHealType, skillBuffType, skillBuffValue, skillBuffDuration, skillBuffsJson, skillIsAoe, skillTargetScope, minRealm, ownerId, quantity FROM manuals WHERE isLearned = 1 AND quantity > 1")
-        cursor.use {
-            while (it.moveToNext()) {
-                val originalId = it.getString(it.getColumnIndexOrThrow("id"))
-                val slotId = it.getInt(it.getColumnIndexOrThrow("slot_id"))
-                val name = it.getString(it.getColumnIndexOrThrow("name"))
-                val rarity = it.getInt(it.getColumnIndexOrThrow("rarity"))
-                val type = it.getString(it.getColumnIndexOrThrow("type"))
-                val description = it.getString(it.getColumnIndexOrThrow("description"))
-                val stats = it.getString(it.getColumnIndexOrThrow("stats"))
-                val skillName = it.getString(it.getColumnIndexOrThrow("skillName"))
-                val skillDescription = it.getString(it.getColumnIndexOrThrow("skillDescription"))
-                val skillType = it.getString(it.getColumnIndexOrThrow("skillType"))
-                val skillDamageType = it.getString(it.getColumnIndexOrThrow("skillDamageType"))
-                val skillHits = it.getInt(it.getColumnIndexOrThrow("skillHits"))
-                val skillDamageMultiplier = it.getDouble(it.getColumnIndexOrThrow("skillDamageMultiplier"))
-                val skillCooldown = it.getInt(it.getColumnIndexOrThrow("skillCooldown"))
-                val skillMpCost = it.getInt(it.getColumnIndexOrThrow("skillMpCost"))
-                val skillHealPercent = it.getDouble(it.getColumnIndexOrThrow("skillHealPercent"))
-                val skillHealType = it.getString(it.getColumnIndexOrThrow("skillHealType"))
-                val skillBuffType = it.getString(it.getColumnIndexOrThrow("skillBuffType"))
-                val skillBuffValue = it.getDouble(it.getColumnIndexOrThrow("skillBuffValue"))
-                val skillBuffDuration = it.getInt(it.getColumnIndexOrThrow("skillBuffDuration"))
-                val skillBuffsJson = it.getString(it.getColumnIndexOrThrow("skillBuffsJson"))
-                val skillIsAoe = it.getInt(it.getColumnIndexOrThrow("skillIsAoe"))
-                val skillTargetScope = it.getString(it.getColumnIndexOrThrow("skillTargetScope"))
-                val minRealm = it.getInt(it.getColumnIndexOrThrow("minRealm"))
-                val ownerId = it.getString(it.getColumnIndexOrThrow("ownerId"))
-                val quantity = it.getInt(it.getColumnIndexOrThrow("quantity"))
-                val remainingQty = quantity - 1
+        try {
+            Log.i("GameDatabase", "Migrating database from version 8 to 9: fix stacked learned manuals - split isLearned=1 & quantity>1 into separate records")
+            val cursor = db.query("SELECT id, slot_id, name, rarity, type, description, stats, skillName, skillDescription, skillType, skillDamageType, skillHits, skillDamageMultiplier, skillCooldown, skillMpCost, skillHealPercent, skillHealType, skillBuffType, skillBuffValue, skillBuffDuration, skillBuffsJson, skillIsAoe, skillTargetScope, minRealm, ownerId, quantity FROM manuals WHERE isLearned = 1 AND quantity > 1")
+            cursor.use {
+                while (it.moveToNext()) {
+                    val originalId = it.getString(it.getColumnIndexOrThrow("id"))
+                    val slotId = it.getInt(it.getColumnIndexOrThrow("slot_id"))
+                    val name = it.getString(it.getColumnIndexOrThrow("name"))
+                    val rarity = it.getInt(it.getColumnIndexOrThrow("rarity"))
+                    val type = it.getString(it.getColumnIndexOrThrow("type"))
+                    val description = it.getString(it.getColumnIndexOrThrow("description"))
+                    val stats = it.getString(it.getColumnIndexOrThrow("stats"))
+                    val skillName = it.getString(it.getColumnIndexOrThrow("skillName"))
+                    val skillDescription = it.getString(it.getColumnIndexOrThrow("skillDescription"))
+                    val skillType = it.getString(it.getColumnIndexOrThrow("skillType"))
+                    val skillDamageType = it.getString(it.getColumnIndexOrThrow("skillDamageType"))
+                    val skillHits = it.getInt(it.getColumnIndexOrThrow("skillHits"))
+                    val skillDamageMultiplier = it.getDouble(it.getColumnIndexOrThrow("skillDamageMultiplier"))
+                    val skillCooldown = it.getInt(it.getColumnIndexOrThrow("skillCooldown"))
+                    val skillMpCost = it.getInt(it.getColumnIndexOrThrow("skillMpCost"))
+                    val skillHealPercent = it.getDouble(it.getColumnIndexOrThrow("skillHealPercent"))
+                    val skillHealType = it.getString(it.getColumnIndexOrThrow("skillHealType"))
+                    val skillBuffType = it.getString(it.getColumnIndexOrThrow("skillBuffType"))
+                    val skillBuffValue = it.getDouble(it.getColumnIndexOrThrow("skillBuffValue"))
+                    val skillBuffDuration = it.getInt(it.getColumnIndexOrThrow("skillBuffDuration"))
+                    val skillBuffsJson = it.getString(it.getColumnIndexOrThrow("skillBuffsJson"))
+                    val skillIsAoe = it.getInt(it.getColumnIndexOrThrow("skillIsAoe"))
+                    val skillTargetScope = it.getString(it.getColumnIndexOrThrow("skillTargetScope"))
+                    val minRealm = it.getInt(it.getColumnIndexOrThrow("minRealm"))
+                    val ownerId = it.getString(it.getColumnIndexOrThrow("ownerId"))
+                    val quantity = it.getInt(it.getColumnIndexOrThrow("quantity"))
+                    val remainingQty = quantity - 1
 
-                db.execSQL("UPDATE manuals SET quantity = 1 WHERE id = ?", arrayOf(originalId))
+                    db.execSQL("UPDATE manuals SET quantity = 1 WHERE id = ?", arrayOf(originalId))
 
-                val newId = java.util.UUID.randomUUID().toString()
-                db.execSQL(
-                    "INSERT INTO manuals (id, slot_id, name, rarity, type, description, stats, skillName, skillDescription, skillType, skillDamageType, skillHits, skillDamageMultiplier, skillCooldown, skillMpCost, skillHealPercent, skillHealType, skillBuffType, skillBuffValue, skillBuffDuration, skillBuffsJson, skillIsAoe, skillTargetScope, minRealm, ownerId, isLearned, quantity, isLocked) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    arrayOf(newId, slotId, name, rarity, type, description, stats, skillName, skillDescription, skillType, skillDamageType, skillHits, skillDamageMultiplier, skillCooldown, skillMpCost, skillHealPercent, skillHealType, skillBuffType, skillBuffValue, skillBuffDuration, skillBuffsJson, skillIsAoe, skillTargetScope, minRealm, null, 0, remainingQty, 0)
-                )
+                    val newId = java.util.UUID.randomUUID().toString()
+                    db.execSQL(
+                        "INSERT INTO manuals (id, slot_id, name, rarity, type, description, stats, skillName, skillDescription, skillType, skillDamageType, skillHits, skillDamageMultiplier, skillCooldown, skillMpCost, skillHealPercent, skillHealType, skillBuffType, skillBuffValue, skillBuffDuration, skillBuffsJson, skillIsAoe, skillTargetScope, minRealm, ownerId, isLearned, quantity, isLocked) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        arrayOf(newId, slotId, name, rarity, type, description, stats, skillName, skillDescription, skillType, skillDamageType, skillHits, skillDamageMultiplier, skillCooldown, skillMpCost, skillHealPercent, skillHealType, skillBuffType, skillBuffValue, skillBuffDuration, skillBuffsJson, skillIsAoe, skillTargetScope, minRealm, null, 0, remainingQty, 0)
+                    )
+                }
             }
+        } catch (e: Exception) {
+            Log.e("GameDatabase", "Migration 8->9 failed", e)
+            throw e
         }
     }
 }
 
 val MIGRATION_9_10 = object : androidx.room.migration.Migration(9, 10) {
     override fun migrate(db: SupportSQLiteDatabase) {
-        Log.i("GameDatabase", "Migrating database from version 9 to 10: fix stacked equipped equipment - split isEquipped=1 & quantity>1 into separate records")
-        val cursor = db.query("SELECT id, slot_id, name, rarity, slot, description, physicalAttack, magicAttack, physicalDefense, magicDefense, speed, hp, mp, critChance, nurtureLevel, nurtureProgress, minRealm, ownerId, quantity FROM equipment WHERE isEquipped = 1 AND quantity > 1")
-        cursor.use {
-            while (it.moveToNext()) {
-                val originalId = it.getString(it.getColumnIndexOrThrow("id"))
-                val slotId = it.getInt(it.getColumnIndexOrThrow("slot_id"))
-                val name = it.getString(it.getColumnIndexOrThrow("name"))
-                val rarity = it.getInt(it.getColumnIndexOrThrow("rarity"))
-                val slot = it.getString(it.getColumnIndexOrThrow("slot"))
-                val description = it.getString(it.getColumnIndexOrThrow("description"))
-                val physicalAttack = it.getInt(it.getColumnIndexOrThrow("physicalAttack"))
-                val magicAttack = it.getInt(it.getColumnIndexOrThrow("magicAttack"))
-                val physicalDefense = it.getInt(it.getColumnIndexOrThrow("physicalDefense"))
-                val magicDefense = it.getInt(it.getColumnIndexOrThrow("magicDefense"))
-                val speed = it.getInt(it.getColumnIndexOrThrow("speed"))
-                val hp = it.getInt(it.getColumnIndexOrThrow("hp"))
-                val mp = it.getInt(it.getColumnIndexOrThrow("mp"))
-                val critChance = it.getDouble(it.getColumnIndexOrThrow("critChance"))
-                val nurtureLevel = it.getInt(it.getColumnIndexOrThrow("nurtureLevel"))
-                val nurtureProgress = it.getDouble(it.getColumnIndexOrThrow("nurtureProgress"))
-                val minRealm = it.getInt(it.getColumnIndexOrThrow("minRealm"))
-                val ownerId = it.getString(it.getColumnIndexOrThrow("ownerId"))
-                val quantity = it.getInt(it.getColumnIndexOrThrow("quantity"))
-                val remainingQty = quantity - 1
+        try {
+            Log.i("GameDatabase", "Migrating database from version 9 to 10: fix stacked equipped equipment - split isEquipped=1 & quantity>1 into separate records")
+            val cursor = db.query("SELECT id, slot_id, name, rarity, slot, description, physicalAttack, magicAttack, physicalDefense, magicDefense, speed, hp, mp, critChance, nurtureLevel, nurtureProgress, minRealm, ownerId, quantity FROM equipment WHERE isEquipped = 1 AND quantity > 1")
+            cursor.use {
+                while (it.moveToNext()) {
+                    val originalId = it.getString(it.getColumnIndexOrThrow("id"))
+                    val slotId = it.getInt(it.getColumnIndexOrThrow("slot_id"))
+                    val name = it.getString(it.getColumnIndexOrThrow("name"))
+                    val rarity = it.getInt(it.getColumnIndexOrThrow("rarity"))
+                    val slot = it.getString(it.getColumnIndexOrThrow("slot"))
+                    val description = it.getString(it.getColumnIndexOrThrow("description"))
+                    val physicalAttack = it.getInt(it.getColumnIndexOrThrow("physicalAttack"))
+                    val magicAttack = it.getInt(it.getColumnIndexOrThrow("magicAttack"))
+                    val physicalDefense = it.getInt(it.getColumnIndexOrThrow("physicalDefense"))
+                    val magicDefense = it.getInt(it.getColumnIndexOrThrow("magicDefense"))
+                    val speed = it.getInt(it.getColumnIndexOrThrow("speed"))
+                    val hp = it.getInt(it.getColumnIndexOrThrow("hp"))
+                    val mp = it.getInt(it.getColumnIndexOrThrow("mp"))
+                    val critChance = it.getDouble(it.getColumnIndexOrThrow("critChance"))
+                    val nurtureLevel = it.getInt(it.getColumnIndexOrThrow("nurtureLevel"))
+                    val nurtureProgress = it.getDouble(it.getColumnIndexOrThrow("nurtureProgress"))
+                    val minRealm = it.getInt(it.getColumnIndexOrThrow("minRealm"))
+                    val ownerId = it.getString(it.getColumnIndexOrThrow("ownerId"))
+                    val quantity = it.getInt(it.getColumnIndexOrThrow("quantity"))
+                    val remainingQty = quantity - 1
 
-                db.execSQL("UPDATE equipment SET quantity = 1 WHERE id = ?", arrayOf(originalId))
+                    db.execSQL("UPDATE equipment SET quantity = 1 WHERE id = ?", arrayOf(originalId))
 
-                val newId = java.util.UUID.randomUUID().toString()
-                db.execSQL(
-                    "INSERT INTO equipment (id, slot_id, name, rarity, slot, description, physicalAttack, magicAttack, physicalDefense, magicDefense, speed, hp, mp, critChance, nurtureLevel, nurtureProgress, minRealm, ownerId, isEquipped, quantity, isLocked) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    arrayOf(newId, slotId, name, rarity, slot, description, physicalAttack, magicAttack, physicalDefense, magicDefense, speed, hp, mp, critChance, nurtureLevel, nurtureProgress, minRealm, null, 0, remainingQty, 0)
-                )
+                    val newId = java.util.UUID.randomUUID().toString()
+                    db.execSQL(
+                        "INSERT INTO equipment (id, slot_id, name, rarity, slot, description, physicalAttack, magicAttack, physicalDefense, magicDefense, speed, hp, mp, critChance, nurtureLevel, nurtureProgress, minRealm, ownerId, isEquipped, quantity, isLocked) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        arrayOf(newId, slotId, name, rarity, slot, description, physicalAttack, magicAttack, physicalDefense, magicDefense, speed, hp, mp, critChance, nurtureLevel, nurtureProgress, minRealm, null, 0, remainingQty, 0)
+                    )
+                }
             }
+        } catch (e: Exception) {
+            Log.e("GameDatabase", "Migration 9->10 failed", e)
+            throw e
         }
     }
 }
 
 val MIGRATION_10_11 = object : androidx.room.migration.Migration(10, 11) {
     override fun migrate(db: SupportSQLiteDatabase) {
-        Log.i("GameDatabase", "Migrating database from version 10 to 11: clear nurtureLevel/nurtureProgress on unequipped items, clear orphaned manual proficiencies")
-        db.execSQL("UPDATE equipment SET nurtureLevel = 0, nurtureProgress = 0.0 WHERE isEquipped = 0 AND (nurtureLevel > 0 OR nurtureProgress > 0.0)")
+        try {
+            Log.i("GameDatabase", "Migrating database from version 10 to 11: clear nurtureLevel/nurtureProgress on unequipped items, clear orphaned manual proficiencies")
+            db.execSQL("UPDATE equipment SET nurtureLevel = 0, nurtureProgress = 0.0 WHERE isEquipped = 0 AND (nurtureLevel > 0 OR nurtureProgress > 0.0)")
+        } catch (e: Exception) {
+            Log.e("GameDatabase", "Migration 10->11 failed", e)
+            throw e
+        }
     }
 }
 
 val MIGRATION_11_12 = object : androidx.room.migration.Migration(11, 12) {
     override fun migrate(db: SupportSQLiteDatabase) {
-        Log.i("GameDatabase", "Migrating database from version 11 to 12: split equipment and manuals into stack/instance tables")
+        try {
+            Log.i("GameDatabase", "Migrating database from version 11 to 12: split equipment and manuals into stack/instance tables")
 
-        db.execSQL("""
-            CREATE TABLE IF NOT EXISTS equipment_stacks (
-                id TEXT NOT NULL,
-                slot_id INTEGER NOT NULL,
-                name TEXT NOT NULL DEFAULT '',
-                rarity INTEGER NOT NULL DEFAULT 1,
-                description TEXT NOT NULL DEFAULT '',
-                slot TEXT NOT NULL DEFAULT 'WEAPON',
-                physicalAttack INTEGER NOT NULL DEFAULT 0,
-                magicAttack INTEGER NOT NULL DEFAULT 0,
-                physicalDefense INTEGER NOT NULL DEFAULT 0,
-                magicDefense INTEGER NOT NULL DEFAULT 0,
-                speed INTEGER NOT NULL DEFAULT 0,
-                hp INTEGER NOT NULL DEFAULT 0,
-                mp INTEGER NOT NULL DEFAULT 0,
-                critChance REAL NOT NULL DEFAULT 0.0,
-                minRealm INTEGER NOT NULL DEFAULT 9,
-                quantity INTEGER NOT NULL DEFAULT 1,
-                isLocked INTEGER NOT NULL DEFAULT 0,
-                PRIMARY KEY(id, slot_id)
-            )
-        """)
+            db.execSQL("""
+                CREATE TABLE IF NOT EXISTS equipment_stacks (
+                    id TEXT NOT NULL,
+                    slot_id INTEGER NOT NULL,
+                    name TEXT NOT NULL DEFAULT '',
+                    rarity INTEGER NOT NULL DEFAULT 1,
+                    description TEXT NOT NULL DEFAULT '',
+                    slot TEXT NOT NULL DEFAULT 'WEAPON',
+                    physicalAttack INTEGER NOT NULL DEFAULT 0,
+                    magicAttack INTEGER NOT NULL DEFAULT 0,
+                    physicalDefense INTEGER NOT NULL DEFAULT 0,
+                    magicDefense INTEGER NOT NULL DEFAULT 0,
+                    speed INTEGER NOT NULL DEFAULT 0,
+                    hp INTEGER NOT NULL DEFAULT 0,
+                    mp INTEGER NOT NULL DEFAULT 0,
+                    critChance REAL NOT NULL DEFAULT 0.0,
+                    minRealm INTEGER NOT NULL DEFAULT 9,
+                    quantity INTEGER NOT NULL DEFAULT 1,
+                    isLocked INTEGER NOT NULL DEFAULT 0,
+                    PRIMARY KEY(id, slot_id)
+                )
+            """)
         db.execSQL("CREATE INDEX IF NOT EXISTS index_equipment_stacks_name ON equipment_stacks(name)")
         db.execSQL("CREATE INDEX IF NOT EXISTS index_equipment_stacks_rarity ON equipment_stacks(rarity)")
         db.execSQL("CREATE INDEX IF NOT EXISTS index_equipment_stacks_slot ON equipment_stacks(slot)")
@@ -329,12 +365,17 @@ val MIGRATION_11_12 = object : androidx.room.migration.Migration(11, 12) {
 
         mergeStacks(db, "equipment_stacks", "name, rarity, slot, slot_id", 99)
         mergeStacks(db, "manual_stacks", "name, rarity, type, slot_id", 99)
+        } catch (e: Exception) {
+            Log.e("GameDatabase", "Migration 11->12 failed", e)
+            throw e
+        }
     }
 }
 
 val MIGRATION_12_13 = object : androidx.room.migration.Migration(12, 13) {
     override fun migrate(db: SupportSQLiteDatabase) {
-        Log.i("GameDatabase", "Migrating database from version 12 to 13: remove isLocked from instance tables, merge duplicate stacks")
+        try {
+            Log.i("GameDatabase", "Migrating database from version 12 to 13: remove isLocked from instance tables, merge duplicate stacks")
 
         db.execSQL("""
             CREATE TABLE equipment_instances_new (
@@ -422,14 +463,23 @@ val MIGRATION_12_13 = object : androidx.room.migration.Migration(12, 13) {
         // v12期间可能通过returnEquipmentToStack产生新的重复Stack，再次合并确保数据一致性
         mergeStacks(db, "equipment_stacks", "name, rarity, slot, slot_id", 99)
         mergeStacks(db, "manual_stacks", "name, rarity, type, slot_id", 99)
+        } catch (e: Exception) {
+            Log.e("GameDatabase", "Migration 12->13 failed", e)
+            throw e
+        }
     }
 }
 
 val MIGRATION_13_14 = object : androidx.room.migration.Migration(13, 14) {
     override fun migrate(db: SupportSQLiteDatabase) {
-        Log.i("GameDatabase", "Migrating database from version 13 to 14: add surname field to disciples and disciples_core")
-        db.execSQL("ALTER TABLE disciples ADD COLUMN surname TEXT NOT NULL DEFAULT ''")
-        db.execSQL("ALTER TABLE disciples_core ADD COLUMN surname TEXT NOT NULL DEFAULT ''")
+        try {
+            Log.i("GameDatabase", "Migrating database from version 13 to 14: add surname field to disciples and disciples_core")
+            db.execSQL("ALTER TABLE disciples ADD COLUMN surname TEXT NOT NULL DEFAULT ''")
+            db.execSQL("ALTER TABLE disciples_core ADD COLUMN surname TEXT NOT NULL DEFAULT ''")
+        } catch (e: Exception) {
+            Log.e("GameDatabase", "Migration 13->14 failed", e)
+            throw e
+        }
     }
 }
 
@@ -557,6 +607,14 @@ abstract class GameDatabase : RoomDatabase() {
            GameDatabaseConfig.WAL_CHECK_INTERVAL_SECONDS,
            TimeUnit.SECONDS)
         Log.d(TAG, "Auto-checkpoint started")
+    }
+
+    fun performPostSaveCheckpoint() {
+        try {
+            performCheckpointSync(CheckpointMode.PASSIVE)
+        } catch (e: Exception) {
+            Log.w(TAG, "Post-save checkpoint failed", e)
+        }
     }
 
     private fun checkAndCheckpoint() {
@@ -772,7 +830,7 @@ abstract class GameDatabase : RoomDatabase() {
                     }
                 })
                 .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
-                .fallbackToDestructiveMigration()
+                .fallbackToDestructiveMigrationFrom(1, 2, 3)
                 .build()
                 .also { db -> applySafetyPragmas(db) }
         }

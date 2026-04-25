@@ -30,7 +30,7 @@ class TimeSystem @Inject constructor(
         Log.d(TAG, "TimeSystem released")
     }
 
-    override suspend fun clear() {}
+    override suspend fun clearForSlot(slotId: Int) {}
 
     override suspend fun onDayTick(state: MutableGameState) {
         val gd = state.gameData

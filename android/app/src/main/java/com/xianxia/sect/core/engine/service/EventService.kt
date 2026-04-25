@@ -43,7 +43,7 @@ class EventService @Inject constructor(
         Log.d(TAG, "EventService released")
     }
 
-    override suspend fun clear() {
+    override suspend fun clearForSlot(slotId: Int) {
         clearEvents()
     }
     companion object {

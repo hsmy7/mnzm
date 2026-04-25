@@ -45,7 +45,7 @@ class BuildingService @Inject constructor(
         Log.d(TAG, "BuildingService released")
     }
 
-    override suspend fun clear() {}
+    override suspend fun clearForSlot(slotId: Int) {}
     private var currentGameData: GameData
         get() = stateStore.currentTransactionMutableState()?.gameData ?: stateStore.gameData.value
         set(value) {

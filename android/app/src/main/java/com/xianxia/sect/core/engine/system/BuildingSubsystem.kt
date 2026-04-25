@@ -75,8 +75,8 @@ class BuildingSubsystem @Inject constructor(
         Log.d(TAG, "BuildingSubsystem released")
     }
 
-    override suspend fun clear() {
-        repository.clear()
+    override suspend fun clearForSlot(slotId: Int) {
+        repository.clear(slotId)
     }
 
     suspend fun initializeAsync() {
@@ -121,8 +121,8 @@ class BuildingSubsystem @Inject constructor(
         repository.initializeSlotsForType(buildingType)
     }
 
-    suspend fun initializeAllProductionSlots() {
-        repository.initializeAllSlots()
+    suspend fun initializeAllProductionSlots(slotId: Int) {
+        repository.initializeAllSlots(slotId)
     }
 
     suspend fun assignDiscipleToSlot(

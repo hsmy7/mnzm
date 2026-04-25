@@ -519,8 +519,13 @@ fun DiscipleDetailDialog(
                 val hasMindManual = disciple.manualIds.any { mid ->
                     allManuals.find { it.id == mid }?.type == ManualType.MIND
                 }
+                val learnedNames = disciple.manualIds
+                    .filter { it != manual.id }
+                    .mapNotNull { mid -> allManuals.find { it.id == mid }?.name }
+                    .toSet()
                 manualStacks.filter { stack ->
                     !(hasMindManual && manual.type != ManualType.MIND && stack.type == ManualType.MIND) &&
+                    stack.name !in learnedNames &&
                     GameConfig.Realm.meetsRealmRequirement(disciple.realm, stack.minRealm)
                 }.sortedByDescending { it.rarity }
             }
@@ -940,8 +945,10 @@ private fun ManualSelectionDialog(
             emptyList()
         } else {
             val hasMindManual = currentManualIds.any { mid -> allManuals.find { it.id == mid }?.type == ManualType.MIND }
+            val learnedNames = currentManualIds.mapNotNull { mid -> allManuals.find { it.id == mid }?.name }.toSet()
             manualStacks.filter { stack ->
                 !(hasMindManual && stack.type == ManualType.MIND) &&
+                stack.name !in learnedNames &&
                 GameConfig.Realm.meetsRealmRequirement(discipleRealm, stack.minRealm)
             }.sortedByDescending { it.rarity }
         }

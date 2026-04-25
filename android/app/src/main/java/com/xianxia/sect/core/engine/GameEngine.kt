@@ -166,7 +166,7 @@ class GameEngine @Inject constructor(
         Log.d(TAG, "loadData: restored game year=${gameData.gameYear}, ${disciples.size} disciples, recruitList=${gameData.recruitList.size} unrecruited disciples")
 
         if (productionSlots.isNotEmpty()) {
-            productionCoordinator.repository.restoreSlots(productionSlots)
+            productionCoordinator.repository.restoreSlots(productionSlots, gameData.currentSlot)
         }
         checkAndCollectCompletedSlots()
 
@@ -187,7 +187,7 @@ class GameEngine @Inject constructor(
     suspend fun createNewGame(sectName: String, currentSlot: Int = 1) {
         stateStore.reset()
         cultivationService.resetHighFrequencyData()
-        initializeWorldAndServices(sectName)
+        initializeWorldAndServices(sectName, currentSlot)
         // 在事务中创建初始弟子，避免 addDisciple 异步写入竞态导致弟子丢失
         // 保留 initializeWorldAndServices 已设置的 gameData（含商人商品、招募弟子等），
         // 仅更新必要字段，避免用全新 GameData 覆盖导致首月数据丢失
@@ -207,7 +207,7 @@ class GameEngine @Inject constructor(
         cultivationService.resetHighFrequencyData()
 
         if (sectName.isNotBlank()) {
-            initializeWorldAndServices(sectName)
+            initializeWorldAndServices(sectName, currentSlot)
             // 在事务中创建初始弟子，避免 addDisciple 异步写入竞态导致弟子丢失
             // 保留 initializeWorldAndServices 已设置的 gameData（含商人商品、招募弟子等），
             // 仅更新必要字段，避免用全新 GameData 覆盖导致首月数据丢失
@@ -223,10 +223,10 @@ class GameEngine @Inject constructor(
         }
     }
 
-    private suspend fun initializeWorldAndServices(sectName: String) {
+    private suspend fun initializeWorldAndServices(sectName: String, currentSlot: Int = 1) {
         val generationResult = WorldMapGenerator.generateWorldSects(sectName)
         val sectRelations = WorldMapGenerator.initializeSectRelations(generationResult.sects)
-        productionCoordinator.repository.initializeAllSlots()
+        productionCoordinator.repository.initializeAllSlots(currentSlot)
         // 在事务中刷新商人商品和招募弟子列表，确保刷新结果写入 stateStore 而不被后续覆盖
         stateStore.update {
             cultivationService.refreshTravelingMerchant(1, 1)
@@ -1158,7 +1158,10 @@ class GameEngine @Inject constructor(
                             disciple.manualIds.size < DiscipleStatCalculator.getMaxManualSlots(disciple) &&
                             !(stack.type == ManualType.MIND && disciple.manualIds.any { mid ->
                                 manualInstances.find { m -> m.id == mid }?.type == ManualType.MIND
-                            })
+                            }) &&
+                            !disciple.manualIds.any { mid ->
+                                manualInstances.find { m -> m.id == mid }?.name == stack.name
+                            }
 
                         if (canLearn) {
                             val newQty = stack.quantity - 1
@@ -1539,6 +1542,11 @@ class GameEngine @Inject constructor(
                 .any { mid -> manualInstances.find { m -> m.id == mid }?.type == ManualType.MIND }
             if (blocked) return@update
 
+            val hasSameName = disciple.manualIds
+                .filter { it != oldInstanceId }
+                .any { mid -> manualInstances.find { m -> m.id == mid }?.name == newStack.name }
+            if (hasSameName) return@update
+
             val bagStackIds = disciple.manualBagStackIds()
             val data = gameData
 
@@ -1604,6 +1612,11 @@ class GameEngine @Inject constructor(
                 }
                 if (hasMind) return@update
             }
+
+            val hasSameName = disciple.manualIds.any { mid ->
+                manualInstances.find { it.id == mid }?.name == stack.name
+            }
+            if (hasSameName) return@update
 
             val newQty = stack.quantity - 1
             if (newQty <= 0) {

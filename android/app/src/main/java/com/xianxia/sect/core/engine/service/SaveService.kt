@@ -60,7 +60,7 @@ class SaveService @Inject constructor(
         Log.d(TAG, "SaveService released")
     }
 
-    override suspend fun clear() {}
+    override suspend fun clearForSlot(slotId: Int) {}
 
     companion object {
         private const val TAG = "SaveService"

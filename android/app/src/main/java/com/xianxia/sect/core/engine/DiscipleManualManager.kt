@@ -51,8 +51,11 @@ object DiscipleManualManager {
 
         val currentManualIds = disciple.manualIds
         val maxSlots = DiscipleStatCalculator.getMaxManualSlots(disciple)
+        val learnedNames = currentManualIds.mapNotNull { manualInstances[it]?.name }.toSet()
 
         for (stack in availableStacks.sortedByDescending { it.rarity }) {
+            if (stack.name in learnedNames) continue
+
             if (stack.type == ManualType.MIND) {
                 val existingMindId = currentManualIds.find { manualInstances[it]?.type == ManualType.MIND }
                 if (existingMindId != null) {
@@ -277,6 +280,7 @@ object DiscipleManualManager {
         val maxSlots = DiscipleStatCalculator.getMaxManualSlots(disciple)
         if (disciple.manualIds.size >= maxSlots) return false
         if (stack.type == ManualType.MIND && disciple.manualIds.any { mid -> manualInstances[mid]?.type == ManualType.MIND }) return false
+        if (disciple.manualIds.any { mid -> manualInstances[mid]?.name == stack.name }) return false
         return true
     }
 
@@ -285,6 +289,7 @@ object DiscipleManualManager {
         val maxSlots = DiscipleStatCalculator.getMaxManualSlots(disciple)
         if (disciple.manualIds.size >= maxSlots) return false
         if (instance.type == ManualType.MIND && disciple.manualIds.any { mid -> manualInstances[mid]?.type == ManualType.MIND }) return false
+        if (disciple.manualIds.any { mid -> manualInstances[mid]?.name == instance.name }) return false
         return true
     }
 }

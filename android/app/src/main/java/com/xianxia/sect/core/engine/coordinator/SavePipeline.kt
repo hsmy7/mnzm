@@ -92,6 +92,9 @@ class SavePipeline @Inject constructor(
     /** 协程作用域 */
     private val scope get() = applicationScopeProvider.ioScope
 
+    private val isProcessing = java.util.concurrent.atomic.AtomicBoolean(false)
+    private val processingLatch = kotlinx.coroutines.sync.Mutex()
+
     init {
         startConsumer()
     }
@@ -138,6 +141,8 @@ class SavePipeline @Inject constructor(
      */
     private suspend fun consumeLoop() {
         for (request in saveChannel) {
+            isProcessing.set(true)
+            processingLatch.lock()
             try {
                 val result = executeSave(request)
                 if (!result.success) {
@@ -145,6 +150,9 @@ class SavePipeline @Inject constructor(
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Unexpected error processing save request for slot=${request.slot}", e)
+            } finally {
+                processingLatch.unlock()
+                isProcessing.set(false)
             }
         }
     }
@@ -269,6 +277,21 @@ class SavePipeline @Inject constructor(
 
         _saveResults.tryEmit(result)
         return result
+    }
+
+    fun isSaveInProgress(): Boolean = isProcessing.get()
+
+    suspend fun waitForCurrentSave(timeoutMs: Long = 10_000L): Boolean {
+        if (!isProcessing.get()) return true
+        return try {
+            withTimeoutOrNull(timeoutMs) {
+                processingLatch.lock()
+                processingLatch.unlock()
+            } != null
+        } catch (e: Exception) {
+            Log.w(TAG, "waitForCurrentSave interrupted", e)
+            false
+        }
     }
 
     /**

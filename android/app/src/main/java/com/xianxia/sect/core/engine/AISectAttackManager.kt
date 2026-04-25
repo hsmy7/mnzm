@@ -12,6 +12,7 @@ import com.xianxia.sect.core.data.TalentDatabase
 import com.xianxia.sect.core.model.AIBattleTeam
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
+import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.ManualProficiencyData
 import com.xianxia.sect.core.model.WorldSect
@@ -107,37 +108,18 @@ object AISectAttackManager {
         val aliveDisciples = disciples.filter { it.isAlive }
         if (aliveDisciples.isEmpty()) return 0.0
 
-        if (!ManualDatabase.isInitialized || !EquipmentDatabase.isInitialized || !TalentDatabase.isInitialized) {
-            var totalPower = 0.0
-            for (disciple in aliveDisciples) {
-                totalPower += (10 - disciple.realm) * GameConfig.AI.PowerWeights.REALM_BASE
-            }
-            return totalPower
-        }
-
         val weights = GameConfig.AI.PowerWeights
         var totalPower = 0.0
 
         for (disciple in aliveDisciples) {
             val realmPower = (10 - disciple.realm) * weights.REALM_BASE
 
-            val equipmentPower = buildMap {
-                disciple.equipment.weaponId?.let { put(it, 1.0) }
-                disciple.equipment.armorId?.let { put(it, 1.0) }
-                disciple.equipment.bootsId?.let { put(it, 1.0) }
-                disciple.equipment.accessoryId?.let { put(it, 1.0) }
-            }.entries.sumOf { (id, _) ->
-                EquipmentDatabase.getById(id)?.let { template ->
-                    template.rarity * weights.EQUIPMENT_RARITY
-                } ?: 0.0
-            }
+            val avgEquipmentRarity = GameConfig.Realm.getMaxRarity(disciple.realm).toDouble()
+            val avgManualRarity = GameConfig.Realm.getMaxRarity(disciple.realm).toDouble()
+            val maxManuals = AISectDiscipleManager.getMaxManualsByRealm(disciple.realm)
 
-            val manualPower = disciple.manualIds.sumOf { manualId ->
-                ManualDatabase.getById(manualId)?.let { template ->
-                    val mastery = disciple.manualMasteries[manualId] ?: 0
-                    template.rarity * weights.MANUAL_RARITY + mastery * weights.MANUAL_MASTERY
-                } ?: 0.0
-            }
+            val equipmentPower = avgEquipmentRarity * 2.0 * weights.EQUIPMENT_RARITY
+            val manualPower = avgManualRarity * (maxManuals / 2.0) * weights.MANUAL_RARITY
 
             val talentPower = disciple.talentIds.sumOf { talentId ->
                 TalentDatabase.getById(talentId)?.rarity?.times(weights.TALENT_RARITY) ?: 0.0
@@ -293,62 +275,85 @@ object AISectAttackManager {
             throw IllegalStateException("ManualDatabase not initialized when converting disciple ${disciple.name} to combatant")
         }
 
+        val battleItems = AISectDiscipleManager.generateBattleItems(disciple)
+
+        val weaponId = battleItems.equipments.firstOrNull { it.second == EquipmentSlot.WEAPON }?.first ?: ""
+        val armorId = battleItems.equipments.firstOrNull { it.second == EquipmentSlot.ARMOR }?.first ?: ""
+        val bootsId = battleItems.equipments.firstOrNull { it.second == EquipmentSlot.BOOTS }?.first ?: ""
+        val accessoryId = battleItems.equipments.firstOrNull { it.second == EquipmentSlot.ACCESSORY }?.first ?: ""
+
         val equipmentMap = buildMap {
-            disciple.equipment.weaponId?.let { weaponId ->
+            if (weaponId.isNotEmpty()) {
                 EquipmentDatabase.getById(weaponId)?.let { template ->
                     val eq = EquipmentDatabase.createFromTemplate(template).toInstance(id = weaponId)
-                    val nurture = disciple.equipment.weaponNurture
+                    val nurture = battleItems.weaponNurture
                     put(weaponId, if (nurture.equipmentId == weaponId) eq.copy(nurtureLevel = nurture.nurtureLevel, nurtureProgress = nurture.nurtureProgress) else eq)
                 }
             }
-            disciple.equipment.armorId?.let { armorId ->
+            if (armorId.isNotEmpty()) {
                 EquipmentDatabase.getById(armorId)?.let { template ->
                     val eq = EquipmentDatabase.createFromTemplate(template).toInstance(id = armorId)
-                    val nurture = disciple.equipment.armorNurture
+                    val nurture = battleItems.armorNurture
                     put(armorId, if (nurture.equipmentId == armorId) eq.copy(nurtureLevel = nurture.nurtureLevel, nurtureProgress = nurture.nurtureProgress) else eq)
                 }
             }
-            disciple.equipment.bootsId?.let { bootsId ->
+            if (bootsId.isNotEmpty()) {
                 EquipmentDatabase.getById(bootsId)?.let { template ->
                     val eq = EquipmentDatabase.createFromTemplate(template).toInstance(id = bootsId)
-                    val nurture = disciple.equipment.bootsNurture
+                    val nurture = battleItems.bootsNurture
                     put(bootsId, if (nurture.equipmentId == bootsId) eq.copy(nurtureLevel = nurture.nurtureLevel, nurtureProgress = nurture.nurtureProgress) else eq)
                 }
             }
-            disciple.equipment.accessoryId?.let { accessoryId ->
+            if (accessoryId.isNotEmpty()) {
                 EquipmentDatabase.getById(accessoryId)?.let { template ->
                     val eq = EquipmentDatabase.createFromTemplate(template).toInstance(id = accessoryId)
-                    val nurture = disciple.equipment.accessoryNurture
+                    val nurture = battleItems.accessoryNurture
                     put(accessoryId, if (nurture.equipmentId == accessoryId) eq.copy(nurtureLevel = nurture.nurtureLevel, nurtureProgress = nurture.nurtureProgress) else eq)
                 }
             }
         }
 
-        val manualMap = disciple.manualIds.mapNotNull { manualId ->
-            ManualDatabase.getById(manualId)?.let { template ->
-                manualId to ManualDatabase.createFromTemplate(template).toInstance(id = manualId)
+        val manualIds = battleItems.manuals.map { it.first }
+        val manualMasteries = battleItems.manuals.toMap()
+
+        val manualMap = manualIds.mapNotNull { mId ->
+            ManualDatabase.getById(mId)?.let { template ->
+                mId to ManualDatabase.createFromTemplate(template).toInstance(id = mId)
             }
         }.toMap()
 
-        val manualProficiencies = disciple.manualIds.associateWith { manualId ->
-            val mastery = disciple.manualMasteries[manualId] ?: 0
-            val manual = ManualDatabase.getById(manualId)
+        val manualProficiencies = manualIds.associateWith { mId ->
+            val mastery = manualMasteries[mId] ?: 0
+            val manual = ManualDatabase.getById(mId)
             val masteryLevel = if (manual != null) {
                 ManualProficiencySystem.MasteryLevel.fromProficiency(mastery.toDouble(), manual.rarity).level
             } else 0
             ManualProficiencyData(
-                manualId = manualId,
+                manualId = mId,
                 proficiency = mastery.toDouble(),
                 masteryLevel = masteryLevel
             )
         }
 
-        val stats = disciple.getFinalStats(equipmentMap, manualMap, manualProficiencies)
+        val battleDisciple = disciple.copyWith(
+            manualIds = manualIds,
+            manualMasteries = manualMasteries,
+            weaponId = weaponId,
+            armorId = armorId,
+            bootsId = bootsId,
+            accessoryId = accessoryId,
+            weaponNurture = battleItems.weaponNurture,
+            armorNurture = battleItems.armorNurture,
+            bootsNurture = battleItems.bootsNurture,
+            accessoryNurture = battleItems.accessoryNurture
+        )
 
-        val skills = disciple.manualIds.mapNotNull { manualId ->
-            val manual = manualMap[manualId] ?: return@mapNotNull null
+        val stats = battleDisciple.getFinalStats(equipmentMap, manualMap, manualProficiencies)
+
+        val skills = manualIds.mapNotNull { mId ->
+            val manual = manualMap[mId] ?: return@mapNotNull null
             val skill = manual.skill ?: return@mapNotNull null
-            val proficiencyData = manualProficiencies[manualId]
+            val proficiencyData = manualProficiencies[mId]
             val masteryLevel = proficiencyData?.masteryLevel ?: 0
             val adjustedMultiplier = ManualProficiencySystem.calculateSkillDamageMultiplier(
                 skill.damageMultiplier,

@@ -39,7 +39,7 @@ class CombatService @Inject constructor(
         Log.d(TAG, "CombatService released")
     }
 
-    override suspend fun clear() {}
+    override suspend fun clearForSlot(slotId: Int) {}
     private var currentGameData: GameData
         get() = stateStore.currentTransactionMutableState()?.gameData ?: stateStore.gameData.value
         set(value) {

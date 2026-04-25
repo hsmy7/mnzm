@@ -543,6 +543,8 @@ class SaveLoadViewModel @Inject constructor(
 
                 performGarbageCollection()
 
+                savePipeline.waitForCurrentSave(timeoutMs = 5_000L)
+
                 Log.d(TAG, "Starting to load save data for slot ${saveSlot.slot}")
                 val loadStartTime = System.currentTimeMillis()
 
@@ -650,6 +652,8 @@ class SaveLoadViewModel @Inject constructor(
 
                 performGarbageCollection()
 
+                savePipeline.waitForCurrentSave(timeoutMs = 5_000L)
+
                 Log.d(TAG, "Starting to load save data for slot $slot")
                 val loadStartTime = System.currentTimeMillis()
 
@@ -735,6 +739,11 @@ class SaveLoadViewModel @Inject constructor(
     }
 
     fun saveGame(slotId: String? = null) {
+        if (!_isGameLoaded) {
+            Log.w(TAG, "Game not loaded, ignoring saveGame request")
+            return
+        }
+
         if (!canPerformSaveOperation()) {
             Log.e(TAG, "=== saveGame FAILED === insufficient memory")
             _errorMessage.value = "内存不足，无法保存。请关闭其他应用后重试。"
@@ -753,6 +762,11 @@ class SaveLoadViewModel @Inject constructor(
                     Log.e(TAG, "=== saveGame FAILED === saveLock busy after timeout")
                     _errorMessage.value = "保存操作繁忙，请稍后重试"
                     return@launch
+                }
+
+                val pipelineWaitResult = savePipeline.waitForCurrentSave(timeoutMs = 10_000L)
+                if (!pipelineWaitResult) {
+                    Log.w(TAG, "Timed out waiting for auto-save pipeline to complete, proceeding with manual save anyway")
                 }
 
                 val previousSlot = storageFacade.getCurrentSlot()

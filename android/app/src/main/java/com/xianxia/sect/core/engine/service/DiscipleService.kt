@@ -41,7 +41,7 @@ class DiscipleService @Inject constructor(
         Log.d(TAG, "DiscipleService released")
     }
 
-    override suspend fun clear() {}
+    override suspend fun clearForSlot(slotId: Int) {}
 
     private var currentGameData: GameData
         get() = stateStore.currentTransactionMutableState()?.gameData ?: stateStore.unifiedState.value.gameData

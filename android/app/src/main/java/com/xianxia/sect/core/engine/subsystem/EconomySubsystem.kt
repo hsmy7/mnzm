@@ -29,7 +29,7 @@ class EconomySubsystem @Inject constructor(
         Log.d(TAG, "EconomySubsystem released")
     }
 
-    override suspend fun clear() {}
+    override suspend fun clearForSlot(slotId: Int) {}
 
     override suspend fun onMonthTick(state: MutableGameState) {
         cultivationService.processPolicyCosts()

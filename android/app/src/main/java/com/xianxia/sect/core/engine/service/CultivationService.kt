@@ -220,7 +220,7 @@ class CultivationService @Inject constructor(
         Log.d(TAG, "CultivationService released")
     }
 
-    override suspend fun clear() {
+    override suspend fun clearForSlot(slotId: Int) {
         resetHighFrequencyData()
     }
 
@@ -3142,61 +3142,26 @@ class CultivationService @Inject constructor(
             val sect = data.worldMapSects.find { it.id == sectId }
             if (sect == null || sect.isPlayerSect) return@mapValues disciples
 
-            val allProficiencies = data.manualProficiencies.mapValues { (_, list) ->
-                list.associateBy { it.manualId }
-            }
-            var updated = AISectDiscipleManager.processMonthlyCultivation(disciples, allProficiencies)
-            updated = AISectDiscipleManager.processManualMasteryGrowth(updated)
-            updated = AISectDiscipleManager.processEquipmentNurture(updated)
-            updated
+            AISectDiscipleManager.processMonthlyCultivation(disciples)
         }
 
-        val updatedProficiencies = data.manualProficiencies.toMutableMap()
-        updatedAiDisciples.forEach { (_, disciples) ->
-            disciples.forEach { disciple ->
-                if (disciple.manualMasteries.isEmpty()) return@forEach
-                val proficiencyList = updatedProficiencies.getOrPut(disciple.id) { mutableListOf() } as MutableList<ManualProficiencyData>
-                disciple.manualIds.forEach { manualId ->
-                    val mastery = disciple.manualMasteries[manualId] ?: return@forEach
-                    val manual = ManualDatabase.getById(manualId) ?: return@forEach
-                    val maxProf = ManualProficiencySystem.getMaxProficiency(manual.rarity)
-                    val masteryLevel = ManualProficiencySystem.MasteryLevel.fromProficiency(mastery.toDouble(), manual.rarity).level
-                    val existingIndex = proficiencyList.indexOfFirst { it.manualId == manualId }
-                    val updated = ManualProficiencyData(
-                        manualId = manualId,
-                        manualName = manual.name,
-                        proficiency = mastery.toDouble(),
-                        maxProficiency = maxProf.toInt(),
-                        level = masteryLevel,
-                        masteryLevel = masteryLevel
-                    )
-                    if (existingIndex >= 0) {
-                        proficiencyList[existingIndex] = updated
-                    } else {
-                        proficiencyList.add(updated)
-                    }
-                }
-            }
+        currentGameData = data.copy(aiSectDisciples = updatedAiDisciples)
+
+        if (month == 1) {
+            processSectDisciplesYearlyRecruitment(year)
         }
-
-        currentGameData = data.copy(
-            aiSectDisciples = updatedAiDisciples,
-            manualProficiencies = updatedProficiencies
-        )
-
-        processSectDisciplesRecruitment(year)
 
         processSectDisciplesAging(year)
 
         processAISectAttackDecisions()
     }
 
-    private fun processSectDisciplesRecruitment(year: Int) {
+    private fun processSectDisciplesYearlyRecruitment(year: Int) {
         val data = currentGameData
         val updatedAiDisciples = data.aiSectDisciples.mapValues { (sectId, disciples) ->
             val sect = data.worldMapSects.find { it.id == sectId }
             if (sect == null || sect.isPlayerSect) return@mapValues disciples
-            AISectDiscipleManager.recruitDisciples(sect.name, sect.maxRealm, disciples)
+            AISectDiscipleManager.recruitYearlyDisciples(sect.name, disciples)
         }
         currentGameData = data.copy(aiSectDisciples = updatedAiDisciples)
     }

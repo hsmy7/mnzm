@@ -563,41 +563,88 @@ object WorldMapGenerator {
         }
 
         val levelNames = listOf("小型宗门", "中型宗门", "大型宗门", "顶级宗门")
-        val maxRealmByLevel = listOf(6, 4, 3, 1)
-        val maxRealm = maxRealmByLevel[level]
+
+        val (normalMin, normalMax, normalMaxRealm, eliteCount, eliteRealm) = when (level) {
+            0 -> Tuple5(20, 60, 6, 5, 5)
+            1 -> Tuple5(40, 80, 5, 5, 3)
+            2 -> Tuple5(40, 120, 4, 5, 2)
+            3 -> Tuple5(50, 120, 3, 5, 1)
+            else -> Tuple5(20, 60, 6, 5, 5)
+        }
+
+        val normalCount = Random.nextInt(normalMin, normalMax + 1)
 
         val disciples = mutableMapOf<Int, Int>()
         for (realm in 0..9) {
             disciples[realm] = 0
         }
 
-        disciples[maxRealm] = if (level == 3) {
-            Random.nextInt(1, 4)
-        } else {
-            Random.nextInt(1, 6)
+        val realmRange = (normalMaxRealm + 1)..9
+        if (!realmRange.isEmpty()) {
+            val baseCount = normalCount / realmRange.count()
+            var extra = normalCount % realmRange.count()
+            for (realm in realmRange) {
+                val weight = when (realm) {
+                    9 -> 3
+                    8 -> 2
+                    7 -> 2
+                    else -> 1
+                }
+                val count = if (extra > 0) {
+                    extra--
+                    baseCount + weight
+                } else {
+                    baseCount
+                }
+                disciples[realm] = count
+            }
         }
 
-        for (realm in (maxRealm + 1)..9) {
-            disciples[realm] = Random.nextInt(5, 21)
-        }
+        disciples[eliteRealm] = eliteCount
 
         return SectLevelInfo(level, levelNames[level], disciples)
     }
 
+    private data class Tuple5<A, B, C, D, E>(val first: A, val second: B, val third: C, val fourth: D, val fifth: E)
+
     private fun generateDisciplesForLevel(level: Int): Map<Int, Int> {
         val disciples = mutableMapOf<Int, Int>()
-        val maxRealmByLevel = listOf(6, 4, 3, 1)
-        val maxRealm = maxRealmByLevel.getOrElse(level) { 9 }
-
         for (realm in 0..9) {
             disciples[realm] = 0
         }
 
-        disciples[maxRealm] = Random.nextInt(1, 6)
-
-        for (realm in (maxRealm + 1)..9) {
-            disciples[realm] = Random.nextInt(5, 21)
+        val (normalMin, normalMax, normalMaxRealm, eliteCount, eliteRealm) = when (level) {
+            0 -> Tuple5(20, 60, 6, 5, 5)
+            1 -> Tuple5(40, 80, 5, 5, 3)
+            2 -> Tuple5(40, 120, 4, 5, 2)
+            3 -> Tuple5(50, 120, 3, 5, 1)
+            else -> Tuple5(20, 60, 6, 5, 5)
         }
+
+        val normalCount = Random.nextInt(normalMin, normalMax + 1)
+
+        val realmRange = (normalMaxRealm + 1)..9
+        if (!realmRange.isEmpty()) {
+            val baseCount = normalCount / realmRange.count()
+            var extra = normalCount % realmRange.count()
+            for (realm in realmRange) {
+                val weight = when (realm) {
+                    9 -> 3
+                    8 -> 2
+                    7 -> 2
+                    else -> 1
+                }
+                val count = if (extra > 0) {
+                    extra--
+                    baseCount + weight
+                } else {
+                    baseCount
+                }
+                disciples[realm] = count
+            }
+        }
+
+        disciples[eliteRealm] = eliteCount
 
         return disciples
     }

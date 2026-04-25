@@ -4,17 +4,25 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.data.EquipmentDatabase
 import com.xianxia.sect.core.data.ManualDatabase
 import com.xianxia.sect.core.data.TalentDatabase
-import com.xianxia.sect.core.engine.DiscipleStatCalculator
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.util.NameService
 import kotlin.random.Random
 
 object AISectDiscipleManager {
-    
+
     private val SECONDS_PER_MONTH = GameConfig.Time.SECONDS_PER_REAL_MONTH
-    
+
     private val spiritRootTypes = listOf("metal", "wood", "water", "fire", "earth")
-    
+
+    data class BattleItems(
+        val manuals: List<Pair<String, Int>>,
+        val equipments: List<Pair<String, EquipmentSlot>>,
+        val weaponNurture: EquipmentNurtureData,
+        val armorNurture: EquipmentNurtureData,
+        val bootsNurture: EquipmentNurtureData,
+        val accessoryNurture: EquipmentNurtureData
+    )
+
     fun generateRandomDisciple(sectName: String, maxRealm: Int = 9, existingNames: Set<String> = emptySet()): Disciple {
         val gender = if (Random.nextBoolean()) "male" else "female"
         val nameResult = NameService.generateName(gender, NameService.NameStyle.XIANXIA, existingNames)
@@ -35,15 +43,13 @@ object AISectDiscipleManager {
         val magicDefenseVariance = Random.nextInt(-50, 51)
         val speedVariance = Random.nextInt(-50, 51)
         val talents = TalentDatabase.generateTalentsForDisciple().map { it.id }
-        val manuals = generateManuals(maxRealm)
-        val equipments = generateEquipments(maxRealm)
-        
-        val lifespanBonus = talents.sumOf { 
-            TalentDatabase.getById(it)?.effects?.get("lifespan") ?: 0.0 
+
+        val lifespanBonus = talents.sumOf {
+            TalentDatabase.getById(it)?.effects?.get("lifespan") ?: 0.0
         }
         val baseLifespan = GameConfig.Realm.get(9).maxAge
         val lifespan = (baseLifespan * (1 + lifespanBonus)).toInt().coerceAtLeast(1)
-        
+
         return Disciple(
             id = java.util.UUID.randomUUID().toString(),
             name = nameResult.fullName,
@@ -57,8 +63,8 @@ object AISectDiscipleManager {
             isAlive = true,
             discipleType = "outer",
             talentIds = talents,
-            manualIds = manuals.map { it.first },
-            manualMasteries = manuals.associate { it.first to it.second },
+            manualIds = emptyList(),
+            manualMasteries = emptyMap(),
             combat = CombatAttributes(
                 hpVariance = hpVariance,
                 mpVariance = mpVariance,
@@ -68,12 +74,7 @@ object AISectDiscipleManager {
                 magicDefenseVariance = magicDefenseVariance,
                 speedVariance = speedVariance
             ),
-            equipment = EquipmentSet(
-                weaponId = equipments.firstOrNull { it.second == EquipmentSlot.WEAPON }?.first ?: "",
-                armorId = equipments.firstOrNull { it.second == EquipmentSlot.ARMOR }?.first ?: "",
-                bootsId = equipments.firstOrNull { it.second == EquipmentSlot.BOOTS }?.first ?: "",
-                accessoryId = equipments.firstOrNull { it.second == EquipmentSlot.ACCESSORY }?.first ?: ""
-            ),
+            equipment = EquipmentSet(),
             skills = SkillStats(
                 intelligence = Random.nextInt(1, 101),
                 charm = Random.nextInt(1, 101),
@@ -99,7 +100,7 @@ object AISectDiscipleManager {
             combat.baseSpeed = baseStats.baseSpeed
         }
     }
-    
+
     private fun generateSpiritRoot(): String {
         val count = when (Random.nextInt(100)) {
             in 0..4 -> 1
@@ -108,69 +109,135 @@ object AISectDiscipleManager {
             in 55..84 -> 4
             else -> 5
         }
-        
+
         val shuffled = spiritRootTypes.shuffled()
         return shuffled.take(count).joinToString(",")
     }
-    
-    private fun generateManuals(maxRealm: Int): List<Pair<String, Int>> {
-        val count = Random.nextInt(1, 6)
-        val maxRarity = getMaxRarityByRealm(maxRealm)
-        
-        val attackManuals = ManualDatabase.getByType(ManualType.ATTACK).filter { it.rarity <= maxRarity }
-        val defenseManuals = ManualDatabase.getByType(ManualType.DEFENSE).filter { it.rarity <= maxRarity }
-        val mindManuals = ManualDatabase.getByType(ManualType.MIND).filter { it.rarity <= maxRarity }
-        
+
+    fun getMaxRarityByRealm(realm: Int): Int = GameConfig.Realm.getMaxRarity(realm)
+
+    fun getMinRarityByRealm(realm: Int): Int = when (realm) {
+        9, 8 -> 1
+        7 -> 1
+        6 -> 1
+        5 -> 2
+        4 -> 2
+        3 -> 3
+        2 -> 3
+        1 -> 4
+        0 -> 5
+        else -> 1
+    }
+
+    fun getMaxManualsByRealm(realm: Int): Int = when {
+        realm >= 8 -> 3
+        realm >= 6 -> 4
+        realm >= 4 -> 5
+        else -> 6
+    }
+
+    fun generateBattleItems(disciple: Disciple): BattleItems {
+        val realm = disciple.realm
+        val maxRarity = getMaxRarityByRealm(realm)
+        val minRarity = getMinRarityByRealm(realm)
+        val maxManuals = getMaxManualsByRealm(realm)
+
+        val manualCount = Random.nextInt(1, maxManuals + 1)
+        val manuals = generateBattleManuals(minRarity, maxRarity, manualCount)
+
+        val equipmentSlots = EquipmentSlot.values().toList().shuffled()
+        val equipmentCount = Random.nextInt(1, 5)
+        val equipments = generateBattleEquipments(minRarity, maxRarity, equipmentSlots.take(equipmentCount))
+
+        val weaponId = equipments.firstOrNull { it.second == EquipmentSlot.WEAPON }?.first ?: ""
+        val armorId = equipments.firstOrNull { it.second == EquipmentSlot.ARMOR }?.first ?: ""
+        val bootsId = equipments.firstOrNull { it.second == EquipmentSlot.BOOTS }?.first ?: ""
+        val accessoryId = equipments.firstOrNull { it.second == EquipmentSlot.ACCESSORY }?.first ?: ""
+
+        val weaponNurture = if (weaponId.isNotEmpty()) generateRandomNurture(weaponId) else EquipmentNurtureData(equipmentId = "", rarity = 0)
+        val armorNurture = if (armorId.isNotEmpty()) generateRandomNurture(armorId) else EquipmentNurtureData(equipmentId = "", rarity = 0)
+        val bootsNurture = if (bootsId.isNotEmpty()) generateRandomNurture(bootsId) else EquipmentNurtureData(equipmentId = "", rarity = 0)
+        val accessoryNurture = if (accessoryId.isNotEmpty()) generateRandomNurture(accessoryId) else EquipmentNurtureData(equipmentId = "", rarity = 0)
+
+        return BattleItems(
+            manuals = manuals,
+            equipments = equipments,
+            weaponNurture = weaponNurture,
+            armorNurture = armorNurture,
+            bootsNurture = bootsNurture,
+            accessoryNurture = accessoryNurture
+        )
+    }
+
+    private fun generateBattleManuals(minRarity: Int, maxRarity: Int, count: Int): List<Pair<String, Int>> {
+        val attackManuals = ManualDatabase.getByType(ManualType.ATTACK)
+            .filter { it.rarity in minRarity..maxRarity }
+        val defenseManuals = ManualDatabase.getByType(ManualType.DEFENSE)
+            .filter { it.rarity in minRarity..maxRarity }
+        val mindManuals = ManualDatabase.getByType(ManualType.MIND)
+            .filter { it.rarity in minRarity..maxRarity }
+
         val nonMindManuals = (attackManuals + defenseManuals).shuffled()
         val selectedMind = if (mindManuals.isNotEmpty() && Random.nextBoolean()) {
             listOf(mindManuals.random())
         } else emptyList()
-        
+
         val remainingCount = (count - selectedMind.size).coerceAtLeast(0)
         val selectedNonMind = nonMindManuals.take(remainingCount)
         val selected = selectedMind + selectedNonMind
-        
+
         if (selected.isEmpty()) return emptyList()
-        
+
         return selected.map { manual ->
-            val mastery = Random.nextInt(0, 101)
-            Pair(manual.id, mastery)
+            val maxMasteryLevel = ManualProficiencySystem.MasteryLevel.values().last().level
+            val randomMasteryLevel = Random.nextInt(0, maxMasteryLevel + 1)
+            val masteryLevel = ManualProficiencySystem.MasteryLevel.fromLevel(randomMasteryLevel)
+            val proficiency = when (masteryLevel) {
+                ManualProficiencySystem.MasteryLevel.NOVICE -> Random.nextDouble(0.0, 100.0)
+                ManualProficiencySystem.MasteryLevel.SMALL_SUCCESS -> Random.nextDouble(100.0, 200.0)
+                ManualProficiencySystem.MasteryLevel.GREAT_SUCCESS -> Random.nextDouble(200.0, 300.0)
+                ManualProficiencySystem.MasteryLevel.PERFECTION -> 300.0 + Random.nextDouble(0.0, 100.0)
+            }
+            Pair(manual.id, proficiency.toInt())
         }
     }
-    
-    private fun generateEquipments(maxRealm: Int): List<Pair<String, EquipmentSlot>> {
-        val count = Random.nextInt(1, 5)
-        val maxRarity = getMaxRarityByRealm(maxRealm)
-        
-        val slots = EquipmentSlot.values().toList().shuffled().take(count)
-        
+
+    private fun generateBattleEquipments(minRarity: Int, maxRarity: Int, slots: List<EquipmentSlot>): List<Pair<String, EquipmentSlot>> {
         return slots.mapNotNull { slot ->
             val allSlotTemplates = EquipmentDatabase.getBySlot(slot)
             if (allSlotTemplates.isEmpty()) return@mapNotNull null
-            
-            val templates = allSlotTemplates.filter { it.rarity <= maxRarity }
+
+            val templates = allSlotTemplates.filter { it.rarity in minRarity..maxRarity }
             val template = if (templates.isNotEmpty()) templates.random() else allSlotTemplates.random()
             Pair(template.id, slot)
         }
     }
-    
-    fun getMaxRarityByRealm(realm: Int): Int = GameConfig.Realm.getMaxRarity(realm)
-    
-    fun recruitDisciples(
+
+    private fun generateRandomNurture(equipmentId: String): EquipmentNurtureData {
+        val template = EquipmentDatabase.getById(equipmentId) ?: return EquipmentNurtureData(equipmentId = "", rarity = 0)
+        val maxLevel = EquipmentNurtureSystem.getMaxNurtureLevel(template.rarity)
+        val nurtureLevel = Random.nextInt(0, maxLevel + 1)
+        return EquipmentNurtureData(
+            equipmentId = equipmentId,
+            rarity = template.rarity,
+            nurtureLevel = nurtureLevel,
+            nurtureProgress = if (nurtureLevel >= maxLevel) 0.0 else Random.nextDouble(0.0, EquipmentNurtureSystem.getExpRequiredForLevelUp(nurtureLevel, template.rarity))
+        )
+    }
+
+    fun recruitYearlyDisciples(
         sectName: String,
-        maxRealm: Int,
         existingDisciples: List<Disciple>
     ): List<Disciple> {
-        val recruitCount = Random.nextInt(1, 11)
         val newDisciples = mutableListOf<Disciple>()
         val usedNames = existingDisciples.map { it.name }.toMutableSet()
-        
-        repeat(recruitCount) {
-            val disciple = generateRandomDisciple(sectName, maxRealm, usedNames)
+
+        repeat(5) {
+            val disciple = generateQiRefiningDisciple(sectName, usedNames)
             newDisciples.add(disciple)
             usedNames.add(disciple.name)
         }
-        
+
         val allDisciples = existingDisciples + newDisciples
         return if (allDisciples.size > PlantSlotData.MAX_AI_DISCIPLES_PER_SECT) {
             allDisciples.sortedByDescending { it.combat.basePhysicalAttack + it.combat.baseMagicAttack + it.combat.baseHp }.take(PlantSlotData.MAX_AI_DISCIPLES_PER_SECT)
@@ -178,20 +245,32 @@ object AISectDiscipleManager {
             allDisciples
         }
     }
-    
+
+    private fun generateQiRefiningDisciple(sectName: String, existingNames: Set<String>): Disciple {
+        return generateRandomDisciple(sectName, 9, existingNames)
+    }
+
     fun processMonthlyCultivation(disciples: List<Disciple>, manualProficienciesMap: Map<String, Map<String, ManualProficiencyData>> = emptyMap()): List<Disciple> {
         return disciples.map { disciple ->
             if (!disciple.isAlive) return@map disciple
-            
-            val discipleProficiencies = manualProficienciesMap[disciple.id] ?: emptyMap()
-            val cultivationSpeed = disciple.calculateCultivationSpeed(manualProficiencies = discipleProficiencies)
+
+            val cultivationSpeed = DiscipleStatCalculator.calculateCultivationSpeed(
+                disciple,
+                manuals = emptyMap(),
+                manualProficiencies = emptyMap(),
+                buildingBonus = 1.0,
+                additionalBonus = 0.0,
+                preachingElderBonus = 0.0,
+                preachingMastersBonus = 0.0,
+                cultivationSubsidyBonus = 0.0
+            )
             val monthlyGain = cultivationSpeed * SECONDS_PER_MONTH
-            
+
             var newCultivation = disciple.cultivation + monthlyGain
             var newRealm = disciple.realm
             var newRealmLayer = disciple.realmLayer
             var newBreakthroughFailCount = disciple.combat.breakthroughFailCount
-            
+
             while (newCultivation >= disciple.maxCultivation && newRealm > 0) {
                 val isMajorBreakthrough = newRealmLayer >= GameConfig.Realm.get(newRealm).maxLayers
                 if (isMajorBreakthrough && !DiscipleStatCalculator.meetsSoulPowerRequirement(newRealm, newRealmLayer, disciple.equipment.soulPower)) {
@@ -215,13 +294,13 @@ object AISectDiscipleManager {
                     break
                 }
             }
-            
+
             val newLifespan = if (newRealm != disciple.realm) {
                 GameConfig.Realm.get(newRealm).maxAge
             } else {
                 disciple.lifespan
             }
-            
+
             disciple.copyWith(
                 cultivation = newCultivation,
                 realm = newRealm,
@@ -231,212 +310,148 @@ object AISectDiscipleManager {
             )
         }
     }
-    
-    fun processManualMasteryGrowth(disciples: List<Disciple>): List<Disciple> {
-        return disciples.map { disciple ->
-            if (!disciple.isAlive) return@map disciple
-            
-            val updatedMasteries = disciple.manualMasteries.toMutableMap()
-            
-            disciple.manualIds.forEach { manualId ->
-                val manual = ManualDatabase.getById(manualId) ?: return@forEach
-                val currentMastery = updatedMasteries[manualId] ?: 0
-                
-                val gain = ManualProficiencySystem.calculateProficiencyGain(
-                    baseGain = ManualProficiencySystem.BASE_PROFICIENCY_GAIN,
-                    discipleRealm = disciple.realm,
-                    manualRarity = manual.rarity
-                )
-                
-                val monthlyGain = gain * SECONDS_PER_MONTH
-                val maxProficiency = ManualProficiencySystem.getMaxProficiency(manual.rarity)
-                val newMastery = (currentMastery + monthlyGain).toInt().coerceAtMost(maxProficiency.toInt())
-                updatedMasteries[manualId] = newMastery
-            }
-            
-            disciple.copy(manualMasteries = updatedMasteries)
-        }
-    }
-    
-    fun processEquipmentNurture(disciples: List<Disciple>): List<Disciple> {
-        return disciples.map { disciple ->
-            if (!disciple.isAlive) return@map disciple
-            
-            var updatedDisciple = disciple
-            
-            updatedDisciple = updateEquipmentNurture(
-                disciple = updatedDisciple,
-                equipmentId = disciple.equipment.weaponId,
-                currentNurture = disciple.equipment.weaponNurture,
-                nurtureSetter = { d, n -> d.copyWith(weaponNurture = n) }
-            )
 
-            updatedDisciple = updateEquipmentNurture(
-                disciple = updatedDisciple,
-                equipmentId = disciple.equipment.armorId,
-                currentNurture = disciple.equipment.armorNurture,
-                nurtureSetter = { d, n -> d.copyWith(armorNurture = n) }
-            )
-
-            updatedDisciple = updateEquipmentNurture(
-                disciple = updatedDisciple,
-                equipmentId = disciple.equipment.bootsId,
-                currentNurture = disciple.equipment.bootsNurture,
-                nurtureSetter = { d, n -> d.copyWith(bootsNurture = n) }
-            )
-
-            updatedDisciple = updateEquipmentNurture(
-                disciple = updatedDisciple,
-                equipmentId = disciple.equipment.accessoryId,
-                currentNurture = disciple.equipment.accessoryNurture,
-                nurtureSetter = { d, n -> d.copyWith(accessoryNurture = n) }
-            )
-            
-            updatedDisciple
-        }
-    }
-    
-    private fun updateEquipmentNurture(
-        disciple: Disciple,
-        equipmentId: String,
-        currentNurture: EquipmentNurtureData,
-        nurtureSetter: (Disciple, EquipmentNurtureData) -> Disciple
-    ): Disciple {
-        if (equipmentId.isEmpty()) return disciple
-
-        val template = EquipmentDatabase.getById(equipmentId) ?: return disciple
-        val rarity = template.rarity
-
-        val nurture = if (currentNurture.equipmentId != equipmentId) {
-            EquipmentNurtureData(
-                equipmentId = equipmentId,
-                rarity = rarity,
-                nurtureLevel = 0,
-                nurtureProgress = 0.0
-            )
-        } else {
-            currentNurture
-        }
-        
-        val maxLevel = EquipmentNurtureSystem.getMaxNurtureLevel(rarity)
-        if (nurture.nurtureLevel >= maxLevel) return disciple
-        
-        val autoExpGain = EquipmentNurtureSystem.calculateAutoExpGain(rarity)
-        val monthlyGain = autoExpGain * SECONDS_PER_MONTH
-        val expRequired = EquipmentNurtureSystem.getExpRequiredForLevelUp(nurture.nurtureLevel, rarity)
-        
-        val newProgress = nurture.nurtureProgress + monthlyGain
-        
-        return if (newProgress >= expRequired) {
-            val newLevel = (nurture.nurtureLevel + 1).coerceAtMost(maxLevel)
-            val remainingExp = newProgress - expRequired
-            nurtureSetter(disciple, nurture.copy(
-                nurtureLevel = newLevel,
-                nurtureProgress = if (newLevel >= maxLevel) 0.0 else remainingExp
-            ))
-        } else {
-            nurtureSetter(disciple, nurture.copy(nurtureProgress = newProgress))
-        }
-    }
-    
     fun processAging(disciples: List<Disciple>): List<Disciple> {
         return disciples.map { disciple ->
             val newAge = disciple.age + 1
             val isAlive = newAge <= disciple.lifespan
-            
+
             disciple.copy(
                 age = newAge,
                 isAlive = isAlive
             )
         }.filter { it.isAlive }
     }
-    
+
     fun initializeSectDisciples(sectName: String, sectLevel: Int): Pair<List<Disciple>, Int> {
-        val totalDisciples = when (sectLevel) {
-            0 -> Random.nextInt(15, 26)
-            1 -> Random.nextInt(25, 41)
-            2 -> Random.nextInt(40, 61)
-            3 -> Random.nextInt(60, 101)
-            else -> Random.nextInt(15, 26)
-        }
-        
+        val config = SectLevelConfig.forLevel(sectLevel)
+
         val disciples = mutableListOf<Disciple>()
         val usedNames = mutableSetOf<String>()
-        
-        val maxRealm = when (sectLevel) {
-            0 -> 6
-            1 -> 4
-            2 -> 3
-            3 -> 1
-            else -> 6
-        }
-        
-        val realmDistribution = generateRealmDistribution(totalDisciples, maxRealm)
-        
+
+        val normalCount = Random.nextInt(config.normalMin, config.normalMax + 1)
+        val realmDistribution = generateRealmDistribution(normalCount, config.normalMaxRealm)
+
         realmDistribution.forEach { (realm, count) ->
             repeat(count) {
-                val disciple = generateRandomDisciple(sectName, maxRealm, usedNames)
+                val disciple = generateRandomDisciple(sectName, config.normalMaxRealm, usedNames)
                 val adjustedDisciple = adjustDiscipleRealm(disciple, realm)
                 disciples.add(adjustedDisciple)
                 usedNames.add(adjustedDisciple.name)
             }
         }
-        
+
+        repeat(config.eliteCount) {
+            val disciple = generateRandomDisciple(sectName, config.eliteRealm, usedNames)
+            val adjustedDisciple = adjustDiscipleRealm(disciple, config.eliteRealm)
+            disciples.add(adjustedDisciple)
+            usedNames.add(adjustedDisciple.name)
+        }
+
         val trimmed = if (disciples.size > PlantSlotData.MAX_AI_DISCIPLES_PER_SECT) {
             disciples.sortedByDescending { it.combat.basePhysicalAttack + it.combat.baseMagicAttack + it.combat.baseHp }.take(PlantSlotData.MAX_AI_DISCIPLES_PER_SECT)
         } else {
             disciples
         }
-        
-        return Pair(trimmed, maxRealm)
+
+        return Pair(trimmed, config.sectMaxRealm)
     }
-    
+
+    private data class SectLevelConfig(
+        val normalMin: Int,
+        val normalMax: Int,
+        val normalMaxRealm: Int,
+        val eliteCount: Int,
+        val eliteRealm: Int,
+        val sectMaxRealm: Int
+    ) {
+        companion object {
+            fun forLevel(level: Int): SectLevelConfig = when (level) {
+                0 -> SectLevelConfig(
+                    normalMin = 20, normalMax = 60,
+                    normalMaxRealm = 6,
+                    eliteCount = 5, eliteRealm = 5,
+                    sectMaxRealm = 5
+                )
+                1 -> SectLevelConfig(
+                    normalMin = 40, normalMax = 80,
+                    normalMaxRealm = 5,
+                    eliteCount = 5, eliteRealm = 3,
+                    sectMaxRealm = 3
+                )
+                2 -> SectLevelConfig(
+                    normalMin = 40, normalMax = 120,
+                    normalMaxRealm = 4,
+                    eliteCount = 5, eliteRealm = 2,
+                    sectMaxRealm = 2
+                )
+                3 -> SectLevelConfig(
+                    normalMin = 50, normalMax = 120,
+                    normalMaxRealm = 3,
+                    eliteCount = 5, eliteRealm = 1,
+                    sectMaxRealm = 1
+                )
+                else -> SectLevelConfig(
+                    normalMin = 20, normalMax = 60,
+                    normalMaxRealm = 6,
+                    eliteCount = 5, eliteRealm = 5,
+                    sectMaxRealm = 5
+                )
+            }
+        }
+    }
+
     private fun generateRealmDistribution(total: Int, maxRealm: Int): Map<Int, Int> {
         val distribution = mutableMapOf<Int, Int>()
         var remaining = total
-        
-        val topCount = if (maxRealm == 1) Random.nextInt(1, 4) else Random.nextInt(1, 6)
-        distribution[maxRealm] = topCount.coerceAtMost(remaining)
-        remaining -= topCount
-        
-        for (realm in (maxRealm + 1)..9) {
+
+        val realmRange = (maxRealm + 1)..9
+        if (realmRange.isEmpty()) return distribution
+
+        val realmCount = realmRange.count()
+        val baseCount = total / realmCount
+        var extra = total % realmCount
+
+        for (realm in realmRange) {
             if (remaining <= 0) break
-            val count = Random.nextInt(5, 21).coerceAtMost(remaining)
+            val weight = when (realm) {
+                9 -> 3
+                8 -> 2
+                7 -> 2
+                else -> 1
+            }
+            val count = if (extra > 0) {
+                extra--
+                baseCount + weight
+            } else {
+                baseCount
+            }.coerceAtMost(remaining)
             distribution[realm] = count
             remaining -= count
         }
-        
+
+        if (remaining > 0) {
+            for (realm in realmRange.reversed()) {
+                if (remaining <= 0) break
+                distribution[realm] = (distribution[realm] ?: 0) + 1
+                remaining--
+            }
+        }
+
         return distribution
     }
-    
+
     private fun adjustDiscipleRealm(disciple: Disciple, targetRealm: Int): Disciple {
         if (targetRealm == 9) return disciple
-        
+
         val newLifespan = GameConfig.Realm.get(targetRealm).maxAge
-        var newDisciple = disciple.copy(
+        val maxLayer = GameConfig.Realm.get(targetRealm).maxLayers
+
+        return disciple.copy(
             realm = targetRealm,
-            realmLayer = Random.nextInt(1, 10),
+            realmLayer = Random.nextInt(1, maxLayer + 1),
             cultivation = Random.nextDouble() * 0.8 * GameConfig.Realm.get(targetRealm).cultivationBase,
             lifespan = newLifespan
         )
-        
-        val maxRarity = getMaxRarityByRealm(targetRealm)
-        val manuals = generateManuals(targetRealm)
-        val equipments = generateEquipments(targetRealm)
-        
-        newDisciple = newDisciple.copyWith(
-            manualIds = manuals.map { it.first },
-            manualMasteries = manuals.associate { it.first to it.second },
-            weaponId = equipments.firstOrNull { it.second == EquipmentSlot.WEAPON }?.first ?: "",
-            armorId = equipments.firstOrNull { it.second == EquipmentSlot.ARMOR }?.first ?: "",
-            bootsId = equipments.firstOrNull { it.second == EquipmentSlot.BOOTS }?.first ?: "",
-            accessoryId = equipments.firstOrNull { it.second == EquipmentSlot.ACCESSORY }?.first ?: "",
-            weaponNurture = EquipmentNurtureData("", 0),
-            armorNurture = EquipmentNurtureData("", 0),
-            bootsNurture = EquipmentNurtureData("", 0),
-            accessoryNurture = EquipmentNurtureData("", 0)
-        )
-        
-        return newDisciple
     }
 }
