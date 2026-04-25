@@ -1262,99 +1262,156 @@ class GameEngine @Inject constructor(
                     }
                 }
                 "pill" -> {
-                    val pill = stateStore.pills.value.find { it.id == item.id }
-                    if (pill != null && pill.quantity >= quantity) {
-                        val disciple = stateStore.disciples.value.find { it.id == discipleId }
-                        val pillItem = StorageBagItem(
-                            itemId = item.id,
-                            itemType = "pill",
-                            name = pill.name,
-                            rarity = pill.rarity,
-                            quantity = quantity,
-                            obtainedYear = data.gameYear,
-                            obtainedMonth = data.gameMonth,
-                            effect = DisciplePillManager.pillToItemEffect(pill),
-                            grade = pill.grade.displayName
-                        )
-                        val canUse = disciple != null && DisciplePillManager.canUsePill(disciple, pillItem).canUse
+                    stateStore.update {
+                        val pill = pills.find { it.id == item.id }
+                        if (pill != null && pill.quantity >= quantity) {
+                            val disciple = disciples.find { it.id == discipleId }
+                            val pillItem = StorageBagItem(
+                                itemId = item.id,
+                                itemType = "pill",
+                                name = pill.name,
+                                rarity = pill.rarity,
+                                quantity = quantity,
+                                obtainedYear = gameData.gameYear,
+                                obtainedMonth = gameData.gameMonth,
+                                effect = DisciplePillManager.pillToItemEffect(pill),
+                                grade = pill.grade.displayName
+                            )
+                            val canUse = disciple != null && DisciplePillManager.canUsePill(disciple, pillItem).canUse
 
-                        if (canUse) {
-                            repeat(quantity) { usePill(discipleId, item.id) }
-                        } else {
-                            if (inventorySystem.removePill(item.id, quantity, bypassLock = true)) {
-                                updateDisciple(discipleId) { d ->
-                                    d.copyWith(
-                                        storageBagItems = StorageBagUtils.increaseItemQuantity(
-                                            d.equipment.storageBagItems,
-                                            pillItem,
-                                            inventoryConfig.getMaxStackSize("pill")
+                            if (canUse) {
+                                pills = pills.mapNotNull { p ->
+                                    if (p.id == item.id) {
+                                        val newQty = p.quantity - quantity
+                                        if (newQty == 0) null else p.copy(quantity = newQty)
+                                    } else p
+                                }
+                                disciples = disciples.map { d ->
+                                    if (d.id == discipleId) {
+                                        var updatedDisciple = d
+                                        repeat(quantity) {
+                                            val currentPill = pills.find { it.id == item.id } ?: return@repeat
+                                            val effect = PillEffectCalculator.calculateEffect(currentPill, updatedDisciple)
+                                            updatedDisciple = applyPillEffectToDisciple(updatedDisciple, currentPill, effect)
+                                        }
+                                        updatedDisciple
+                                    } else d
+                                }
+                            } else {
+                                pills = pills.mapNotNull { p ->
+                                    if (p.id == item.id) {
+                                        val newQty = p.quantity - quantity
+                                        if (newQty == 0) null else p.copy(quantity = newQty)
+                                    } else p
+                                }
+                                disciples = disciples.map { d ->
+                                    if (d.id == discipleId) {
+                                        d.copyWith(
+                                            storageBagItems = StorageBagUtils.increaseItemQuantity(
+                                                d.equipment.storageBagItems,
+                                                pillItem,
+                                                inventoryConfig.getMaxStackSize("pill")
+                                            )
                                         )
-                                    )
+                                    } else d
                                 }
                             }
                         }
                     }
                 }
                 "material" -> {
-                    if (inventorySystem.removeMaterial(item.id, quantity, bypassLock = true)) {
-                        updateDisciple(discipleId) { disciple ->
-                            disciple.copyWith(
-                                storageBagItems = StorageBagUtils.increaseItemQuantity(
-                                    disciple.equipment.storageBagItems,
-                                    StorageBagItem(
-                                        itemId = item.id,
-                                        itemType = "material",
-                                        name = item.name,
-                                        rarity = item.rarity,
-                                        quantity = quantity,
-                                        obtainedYear = data.gameYear,
-                                        obtainedMonth = data.gameMonth
-                                    ),
-                                    inventoryConfig.getMaxStackSize("material")
-                                )
-                            )
+                    stateStore.update {
+                        val material = materials.find { it.id == item.id }
+                        if (material != null && !material.isLocked && quantity in 1..material.quantity) {
+                            materials = materials.mapNotNull { m ->
+                                if (m.id == item.id) {
+                                    val newQty = m.quantity - quantity
+                                    if (newQty == 0) null else m.copy(quantity = newQty)
+                                } else m
+                            }
+                            disciples = disciples.map { d ->
+                                if (d.id == discipleId) {
+                                    d.copyWith(
+                                        storageBagItems = StorageBagUtils.increaseItemQuantity(
+                                            d.equipment.storageBagItems,
+                                            StorageBagItem(
+                                                itemId = item.id,
+                                                itemType = "material",
+                                                name = item.name,
+                                                rarity = item.rarity,
+                                                quantity = quantity,
+                                                obtainedYear = gameData.gameYear,
+                                                obtainedMonth = gameData.gameMonth
+                                            ),
+                                            inventoryConfig.getMaxStackSize("material")
+                                        )
+                                    )
+                                } else d
+                            }
                         }
                     }
                 }
                 "herb" -> {
-                    if (inventorySystem.removeHerb(item.id, quantity, bypassLock = true)) {
-                        updateDisciple(discipleId) { disciple ->
-                            disciple.copyWith(
-                                storageBagItems = StorageBagUtils.increaseItemQuantity(
-                                    disciple.equipment.storageBagItems,
-                                    StorageBagItem(
-                                        itemId = item.id,
-                                        itemType = "herb",
-                                        name = item.name,
-                                        rarity = item.rarity,
-                                        quantity = quantity,
-                                        obtainedYear = data.gameYear,
-                                        obtainedMonth = data.gameMonth
-                                    ),
-                                    inventoryConfig.getMaxStackSize("herb")
-                                )
-                            )
+                    stateStore.update {
+                        val herb = herbs.find { it.id == item.id }
+                        if (herb != null && !herb.isLocked && quantity in 1..herb.quantity) {
+                            herbs = herbs.mapNotNull { h ->
+                                if (h.id == item.id) {
+                                    val newQty = h.quantity - quantity
+                                    if (newQty == 0) null else h.copy(quantity = newQty)
+                                } else h
+                            }
+                            disciples = disciples.map { d ->
+                                if (d.id == discipleId) {
+                                    d.copyWith(
+                                        storageBagItems = StorageBagUtils.increaseItemQuantity(
+                                            d.equipment.storageBagItems,
+                                            StorageBagItem(
+                                                itemId = item.id,
+                                                itemType = "herb",
+                                                name = item.name,
+                                                rarity = item.rarity,
+                                                quantity = quantity,
+                                                obtainedYear = gameData.gameYear,
+                                                obtainedMonth = gameData.gameMonth
+                                            ),
+                                            inventoryConfig.getMaxStackSize("herb")
+                                        )
+                                    )
+                                } else d
+                            }
                         }
                     }
                 }
                 "seed" -> {
-                    if (inventorySystem.removeSeed(item.id, quantity, bypassLock = true)) {
-                        updateDisciple(discipleId) { disciple ->
-                            disciple.copyWith(
-                                storageBagItems = StorageBagUtils.increaseItemQuantity(
-                                    disciple.equipment.storageBagItems,
-                                    StorageBagItem(
-                                        itemId = item.id,
-                                        itemType = "seed",
-                                        name = item.name,
-                                        rarity = item.rarity,
-                                        quantity = quantity,
-                                        obtainedYear = data.gameYear,
-                                        obtainedMonth = data.gameMonth
-                                    ),
-                                    inventoryConfig.getMaxStackSize("seed")
-                                )
-                            )
+                    stateStore.update {
+                        val seed = seeds.find { it.id == item.id }
+                        if (seed != null && !seed.isLocked && quantity in 1..seed.quantity) {
+                            seeds = seeds.mapNotNull { s ->
+                                if (s.id == item.id) {
+                                    val newQty = s.quantity - quantity
+                                    if (newQty == 0) null else s.copy(quantity = newQty)
+                                } else s
+                            }
+                            disciples = disciples.map { d ->
+                                if (d.id == discipleId) {
+                                    d.copyWith(
+                                        storageBagItems = StorageBagUtils.increaseItemQuantity(
+                                            d.equipment.storageBagItems,
+                                            StorageBagItem(
+                                                itemId = item.id,
+                                                itemType = "seed",
+                                                name = item.name,
+                                                rarity = item.rarity,
+                                                quantity = quantity,
+                                                obtainedYear = gameData.gameYear,
+                                                obtainedMonth = gameData.gameMonth
+                                            ),
+                                            inventoryConfig.getMaxStackSize("seed")
+                                        )
+                                    )
+                                } else d
+                            }
                         }
                     }
                 }
@@ -1703,7 +1760,7 @@ class GameEngine @Inject constructor(
                 }
                 "seed" -> {
                     val s = MerchantItemConverter.toSeed(merchantItem).copy(quantity = quantity)
-                    val existing = seeds.find { it.name == s.name && it.rarity == s.rarity && s.growTime == s.growTime }
+                    val existing = seeds.find { it.name == s.name && it.rarity == s.rarity && it.growTime == s.growTime }
                     if (existing != null) {
                         val newQty = (existing.quantity + s.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("seed"))
                         seeds = seeds.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
