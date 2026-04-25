@@ -2,7 +2,6 @@ package com.xianxia.sect.ui.game
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.xianxia.sect.core.engine.AISectAttackManager
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.model.*
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -207,12 +206,6 @@ class WorldMapViewModel @Inject constructor(
             return
         }
 
-        if (!playerSect.connectedSectIds.contains(targetSectId)) {
-            _errorMessage.value = "目标宗门不在可达路线上"
-            _battleTeamMoveMode.value = false
-            return
-        }
-
         viewModelScope.launch {
             gameEngine.startBattleTeamMove(targetSectId)
             _battleTeamMoveMode.value = false
@@ -221,11 +214,9 @@ class WorldMapViewModel @Inject constructor(
 
     fun getMovableTargetSectIds(): List<String> {
         val data = gameEngine.gameData.value
-        val playerSect = data.worldMapSects.find { it.isPlayerSect } ?: return emptyList()
 
         return data.worldMapSects.filter { sect ->
-            !sect.isPlayerSect && !sect.isPlayerOccupied &&
-            AISectAttackManager.isRouteConnected(playerSect, sect, data)
+            !sect.isPlayerSect && !sect.isPlayerOccupied
         }.map { it.id }
     }
 

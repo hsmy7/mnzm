@@ -511,7 +511,8 @@ data class WorldSect(
     val attackerSectId: String = "",
     val occupierSectId: String = "",
     val allianceId: String = "",
-    val allianceStartYear: Int = 0
+    val allianceStartYear: Int = 0,
+    val garrisonTeamId: String = ""
 )
 
 @Serializable
@@ -694,7 +695,10 @@ data class AIBattleTeam(
     val currentRouteIndex: Int = 0,
     val startYear: Int = 0,
     val startMonth: Int = 0,
-    val isPlayerDefender: Boolean = false
+    val isPlayerDefender: Boolean = false,
+    val isGarrison: Boolean = false,
+    val garrisonSectId: String = "",
+    val garrisonSectName: String = ""
 )
 
 @Serializable

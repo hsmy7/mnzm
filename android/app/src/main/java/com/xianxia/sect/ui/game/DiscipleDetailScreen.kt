@@ -516,15 +516,12 @@ fun DiscipleDetailDialog(
 
         if (showManualReplaceSelection) {
             val availableManualStacks = remember(manualStacks, allManuals, disciple.manualIds, manual, disciple.realm) {
-                val hasMindManual = disciple.manualIds.any { mid ->
-                    allManuals.find { it.id == mid }?.type == ManualType.MIND
-                }
-                val learnedNames = disciple.manualIds
-                    .filter { it != manual.id }
-                    .mapNotNull { mid -> allManuals.find { it.id == mid }?.name }
-                    .toSet()
+                val manualMap = allManuals.associateBy { it.id }
+                val otherManualIds = disciple.manualIds.filter { it != manual.id }
+                val hasMindManual = otherManualIds.any { mid -> manualMap[mid]?.type == ManualType.MIND }
+                val learnedNames = otherManualIds.mapNotNull { mid -> manualMap[mid]?.name }.toSet()
                 manualStacks.filter { stack ->
-                    !(hasMindManual && manual.type != ManualType.MIND && stack.type == ManualType.MIND) &&
+                    !(hasMindManual && stack.type == ManualType.MIND) &&
                     stack.name !in learnedNames &&
                     GameConfig.Realm.meetsRealmRequirement(disciple.realm, stack.minRealm)
                 }.sortedByDescending { it.rarity }
@@ -944,8 +941,9 @@ private fun ManualSelectionDialog(
         if (currentManualIds.size >= maxManualSlots) {
             emptyList()
         } else {
-            val hasMindManual = currentManualIds.any { mid -> allManuals.find { it.id == mid }?.type == ManualType.MIND }
-            val learnedNames = currentManualIds.mapNotNull { mid -> allManuals.find { it.id == mid }?.name }.toSet()
+            val manualMap = allManuals.associateBy { it.id }
+            val hasMindManual = currentManualIds.any { mid -> manualMap[mid]?.type == ManualType.MIND }
+            val learnedNames = currentManualIds.mapNotNull { mid -> manualMap[mid]?.name }.toSet()
             manualStacks.filter { stack ->
                 !(hasMindManual && stack.type == ManualType.MIND) &&
                 stack.name !in learnedNames &&

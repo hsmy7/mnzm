@@ -54,11 +54,14 @@ object DiscipleManualManager {
         val learnedNames = currentManualIds.mapNotNull { manualInstances[it]?.name }.toSet()
 
         for (stack in availableStacks.sortedByDescending { it.rarity }) {
-            if (stack.name in learnedNames) continue
-
             if (stack.type == ManualType.MIND) {
                 val existingMindId = currentManualIds.find { manualInstances[it]?.type == ManualType.MIND }
                 if (existingMindId != null) {
+                    val otherNames = currentManualIds
+                        .filter { it != existingMindId }
+                        .mapNotNull { manualInstances[it]?.name }
+                        .toSet()
+                    if (stack.name in otherNames) continue
                     val existingRarity = manualInstances[existingMindId]?.rarity ?: 0
                     if (stack.rarity > existingRarity) {
                         val replaceResult = tryReplaceManual(
@@ -84,7 +87,7 @@ object DiscipleManualManager {
                         }
                     }
                 } else {
-                    if (currentManualIds.size < maxSlots) {
+                    if (currentManualIds.size < maxSlots && stack.name !in learnedNames) {
                         val learnResult = learnNewManual(
                             disciple = updatedDisciple,
                             stack = stack,
@@ -108,6 +111,7 @@ object DiscipleManualManager {
             }
 
             if (currentManualIds.size < maxSlots) {
+                if (stack.name in learnedNames) continue
                 val learnResult = learnNewManual(
                     disciple = updatedDisciple,
                     stack = stack,
@@ -128,6 +132,11 @@ object DiscipleManualManager {
             } else {
                 val lowestRarityId = currentManualIds.minByOrNull { manualInstances[it]?.rarity ?: 0 }
                 if (lowestRarityId != null) {
+                    val otherNames = currentManualIds
+                        .filter { it != lowestRarityId }
+                        .mapNotNull { manualInstances[it]?.name }
+                        .toSet()
+                    if (stack.name in otherNames) continue
                     val existingRarity = manualInstances[lowestRarityId]?.rarity ?: 0
                     if (stack.rarity > existingRarity) {
                         val replaceResult = tryReplaceManual(

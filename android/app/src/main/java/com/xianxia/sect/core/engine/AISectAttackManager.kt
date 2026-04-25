@@ -41,11 +41,14 @@ object AISectAttackManager {
             val attackerDisciples = aiDisciplesMap[attacker.id] ?: emptyList()
             if (attackerDisciples.filter { it.isAlive }.size < MIN_DISCIPLES_FOR_ATTACK) continue
 
-            val connectedTargets = getConnectedTargets(attacker, gameData)
+            val allTargets = gameData.worldMapSects.filter { sect ->
+                sect.id != attacker.id && sect.occupierSectId != attacker.id
+            }
 
-            for (defender in connectedTargets) {
+            for (defender in allTargets) {
                 if (defender.id in underAttackSectIds) continue
                 if (defender.id == attacker.id) continue
+                if (defender.occupierSectId == attacker.id) continue
 
                 if (!checkAttackConditions(attacker, defender, gameData, aiDisciplesMap)) continue
 
@@ -79,8 +82,6 @@ object AISectAttackManager {
         if (favor > 0) return false
 
         if (attacker.allianceId.isNotEmpty() && attacker.allianceId == defender.allianceId) return false
-
-        if (!isRouteConnected(attacker, defender, gameData)) return false
 
         val attackerPower = calculatePowerScore(attackerDisciples)
         val defenderDisciples = (aiDisciplesMap[defender.id] ?: emptyList()).filter { it.isAlive }
@@ -171,7 +172,7 @@ object AISectAttackManager {
 
     fun createDefenseTeam(defenderDisciples: List<Disciple>): List<Disciple> {
         return defenderDisciples
-            .filter { it.isAlive }
+            .filter { it.isAlive && it.status == DiscipleStatus.IDLE }
             .sortedBy { it.realm }
             .take(TEAM_SIZE)
     }
@@ -214,8 +215,6 @@ object AISectAttackManager {
             if (attacker.id in attackingSectIds) continue
             val attackerDisciples = aiDisciplesMap[attacker.id] ?: emptyList()
             if (attackerDisciples.filter { it.isAlive }.size < MIN_DISCIPLES_FOR_ATTACK) continue
-
-            if (!isRouteConnected(attacker, playerSect, gameData)) continue
 
             val relation = gameData.sectRelations.find {
                 (it.sectId1 == attacker.id && it.sectId2 == playerSect.id) ||
@@ -417,15 +416,15 @@ object AISectAttackManager {
             }
             .map { it.id }
 
-        val highRealmDefendersAlive = defenderDisciples
+        val highRealmDefendersAllDead = defenderDisciples
             .filter { it.isAlive && it.realm <= 5 }
-            .none { it.id !in deadDefenderIds }
+            .all { it.id in deadDefenderIds }
 
         return AIBattleResult(
             winner = result.winner,
             deadAttackerIds = deadAttackerIds,
             deadDefenderIds = deadDefenderIds,
-            canOccupy = result.winner == AIBattleWinner.ATTACKER && highRealmDefendersAlive
+            canOccupy = highRealmDefendersAllDead
         )
     }
 
@@ -704,6 +703,48 @@ object AISectAttackManager {
         val aliveTargets = targets.filter { !it.isDead }
         if (aliveTargets.isEmpty()) return targets.first()
         return BattleCalculator.selectTarget(attacker, aliveTargets)
+    }
+
+    fun createGarrisonTeam(
+        attackerAliveDisciples: List<Disciple>,
+        occupiedSectDisciples: List<Disciple>,
+        attackerSectId: String,
+        attackerSectName: String,
+        occupiedSectId: String
+    ): AIBattleTeam {
+        val garrisonDisciples = mutableListOf<Disciple>()
+        garrisonDisciples.addAll(attackerAliveDisciples.take(TEAM_SIZE))
+        if (garrisonDisciples.size < TEAM_SIZE) {
+            val remaining = occupiedSectDisciples
+                .filter { it.isAlive && it.id !in garrisonDisciples.map { d -> d.id } }
+                .sortedBy { it.realm }
+                .take(TEAM_SIZE - garrisonDisciples.size)
+            garrisonDisciples.addAll(remaining)
+        }
+        return AIBattleTeam(
+            id = java.util.UUID.randomUUID().toString(),
+            attackerSectId = attackerSectId,
+            attackerSectName = attackerSectName,
+            defenderSectId = occupiedSectId,
+            defenderSectName = "",
+            disciples = garrisonDisciples,
+            currentX = 0f,
+            currentY = 0f,
+            targetX = 0f,
+            targetY = 0f,
+            attackerStartX = 0f,
+            attackerStartY = 0f,
+            moveProgress = 1f,
+            status = "stationed",
+            route = emptyList(),
+            currentRouteIndex = 0,
+            startYear = 0,
+            startMonth = 0,
+            isPlayerDefender = false,
+            isGarrison = true,
+            garrisonSectId = occupiedSectId,
+            garrisonSectName = ""
+        )
     }
 
     fun createPlayerDefenseTeam(
