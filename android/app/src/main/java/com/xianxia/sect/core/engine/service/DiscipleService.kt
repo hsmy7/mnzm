@@ -545,7 +545,8 @@ class DiscipleService @Inject constructor(
             disciple.equipment.accessoryId.takeIf { it.isNotEmpty() }?.let { returnEquipIds.add(it) }
             disciple.equipment.storageBagItems.filter { it.itemType == "equipment_stack" || it.itemType == "equipment_instance" }.forEach { returnEquipIds.add(it.itemId) }
 
-            val bagStackIds = disciples.flatMap { it.equipment.storageBagItems }
+            val bagStackIds = disciples.filter { it.id != discipleId }
+                .flatMap { it.equipment.storageBagItems }
                 .filter { it.itemType == "equipment_stack" }
                 .map { it.itemId }
                 .toSet()
@@ -818,6 +819,7 @@ class DiscipleService @Inject constructor(
                     currentEquipmentInstances = currentEquipmentInstances.filter { it.id != equipmentId }
                 }
             } else {
+                Log.w(TAG, "unequipEquipmentLogic: equipment instance $equipmentId not found for disciple $discipleId, clearing slot only")
                 currentDisciples = currentDisciples.toMutableList().also { it[discipleIndex] = updatedDisciple }
             }
 

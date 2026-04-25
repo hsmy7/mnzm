@@ -279,7 +279,15 @@ val bagStackIds = updatedDisciple.equipment.storageBagItems
 ## 提交记录
 
 ```
-commit 7a5e151
+commit 1cfb8ed (HEAD -> main)
+Author: AI Assistant
+Date:   2026-04-25
+
+    v2.5.13: 补充GameEngine赏赐物品事务化修复
+    - 将赏赐丹药、材料、草药、种子的逻辑改为在stateStore.update事务中执行
+    - 修复种子合并条件中的变量名错误（s.growTime == s.growTime → it.growTime == s.growTime）
+
+commit 47b6c99
 Author: AI Assistant
 Date:   2026-04-25
 
@@ -292,6 +300,8 @@ Date:   2026-04-25
     - 修复unequipEquipment中bagStackIds搜索所有弟子储物袋的问题
     - 版本号更新至2.5.13
 ```
+
+> **推送状态**: 由于网络连接问题（GitHub 连接超时），本地提交尚未推送到远程仓库。请在网络恢复后执行 `git push`。
 
 ---
 
