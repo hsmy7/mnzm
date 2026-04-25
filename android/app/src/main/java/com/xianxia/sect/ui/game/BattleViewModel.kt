@@ -287,9 +287,10 @@ class BattleViewModel @Inject constructor(
             _battleTeamMoveMode.value = false
             return
         }
-        
-        if (targetSect.isPlayerOccupied) {
-            _errorMessage.value = "该宗门已被占领"
+
+        val playerSectId = playerSect.id
+        if (targetSect.isPlayerOccupied && targetSect.occupierSectId == playerSectId) {
+            _errorMessage.value = "不能攻击自己占领的宗门"
             _battleTeamMoveMode.value = false
             return
         }
@@ -302,9 +303,10 @@ class BattleViewModel @Inject constructor(
     
     fun getMovableTargetSectIds(): List<String> {
         val data = gameEngine.gameData.value
+        val playerSectId = data.worldMapSects.find { it.isPlayerSect }?.id ?: ""
 
         return data.worldMapSects.filter { sect ->
-            !sect.isPlayerSect && !sect.isPlayerOccupied
+            !sect.isPlayerSect && !(sect.isPlayerOccupied && sect.occupierSectId == playerSectId)
         }.map { it.id }
     }
     

@@ -34,7 +34,7 @@ object AISectAttackManager {
         val underAttackSectIds = existingAttacks.map { it.defenderSectId }.toSet()
         val aiDisciplesMap = gameData.aiSectDisciples
 
-        val aiSects = gameData.worldMapSects.filter { !it.isPlayerSect && !it.isPlayerOccupied }
+        val aiSects = gameData.worldMapSects.filter { !it.isPlayerSect }
 
         for (attacker in aiSects) {
             if (attacker.id in attackingSectIds) continue
@@ -207,7 +207,7 @@ object AISectAttackManager {
 
         val playerSect = gameData.worldMapSects.find { it.isPlayerSect } ?: return null
 
-        val aiSects = gameData.worldMapSects.filter { !it.isPlayerSect && !it.isPlayerOccupied }
+        val aiSects = gameData.worldMapSects.filter { !it.isPlayerSect }
 
         for (attacker in aiSects) {
             if (attacker.id in attackingSectIds) continue
@@ -414,15 +414,11 @@ object AISectAttackManager {
             }
             .map { it.id }
 
-        val highRealmDefendersAllDead = defenderDisciples
-            .filter { it.isAlive && it.realm <= 5 }
-            .all { it.id in deadDefenderIds }
-
         return AIBattleResult(
             winner = result.winner,
             deadAttackerIds = deadAttackerIds,
             deadDefenderIds = deadDefenderIds,
-            canOccupy = highRealmDefendersAllDead
+            canOccupy = result.winner == AIBattleWinner.ATTACKER
         )
     }
 
@@ -714,7 +710,7 @@ object AISectAttackManager {
         garrisonDisciples.addAll(attackerAliveDisciples.take(TEAM_SIZE))
         if (garrisonDisciples.size < TEAM_SIZE) {
             val remaining = occupiedSectDisciples
-                .filter { it.isAlive && it.id !in garrisonDisciples.map { d -> d.id } }
+                .filter { it.isAlive && it.status == DiscipleStatus.IDLE && it.id !in garrisonDisciples.map { d -> d.id } }
                 .sortedBy { it.realm }
                 .take(TEAM_SIZE - garrisonDisciples.size)
             garrisonDisciples.addAll(remaining)

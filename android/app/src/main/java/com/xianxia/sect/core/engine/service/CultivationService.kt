@@ -2086,27 +2086,17 @@ class CultivationService @Inject constructor(
             }
         }
 
-        val highRealmDefendersAllDead = defenderDisciples
-            .filter { it.isAlive && it.realm <= 5 }
-            .all { it.id in result.deadDefenderIds }
+        val highRealmDefendersAllDead = updatedDefenderDisciples
+            .filter { it.realm <= 5 }
+            .isEmpty()
 
         if (result.winner == AIBattleWinner.ATTACKER && highRealmDefendersAllDead) {
-            val aliveAttackerDisciples = teamDisciples.filter { it.id !in deadPlayerDiscipleIds }
-            val garrisonTeamObj = AISectAttackManager.createGarrisonTeam(
-                aliveAttackerDisciples,
-                updatedDefenderDisciples,
-                data.worldMapSects.find { it.isPlayerSect }?.id ?: "",
-                data.sectName,
-                targetSect.id
-            )
-
             currentGameData = currentGameData.copy(
                 worldMapSects = currentGameData.worldMapSects.map { sect ->
                     if (sect.id == targetSect.id) {
                         sect.copy(
                             isPlayerOccupied = true,
-                            occupierSectId = data.worldMapSects.find { it.isPlayerSect }?.id ?: "",
-                            garrisonTeamId = garrisonTeamObj.id
+                            occupierSectId = data.worldMapSects.find { it.isPlayerSect }?.id ?: ""
                         )
                     } else {
                         sect
@@ -2126,7 +2116,7 @@ class CultivationService @Inject constructor(
                     } else {
                         it
                     }
-                } + garrisonTeamObj
+                }
             )
             eventService.addGameEvent("我宗攻占了${targetSect.name}！", EventType.SUCCESS)
         } else {
@@ -2207,7 +2197,11 @@ class CultivationService @Inject constructor(
             )
         }
 
-        if (result.canOccupy && result.winner == AIBattleWinner.ATTACKER) {
+        val highRealmDefendersAllDead = updatedDefenderDisciples
+            .filter { it.realm <= 5 }
+            .isEmpty()
+
+        if (result.winner == AIBattleWinner.ATTACKER && highRealmDefendersAllDead) {
             val currentData = currentGameData
             val defenderDetail = currentData.sectDetails[team.defenderSectId]
             val defenderWarehouse = defenderDetail?.warehouse ?: SectWarehouse()
@@ -2348,6 +2342,42 @@ class CultivationService @Inject constructor(
 
         if (result.winner == AIBattleWinner.ATTACKER) {
             processPlayerDefeat(team, attackerSect)
+
+            val playerHighRealmAllDead = currentDisciples
+                .filter { it.isAlive && it.realm <= 5 }
+                .isEmpty()
+
+            if (playerHighRealmAllDead && attackerSect != null) {
+                val aliveAttackerDisciples = team.disciples.filter { it.id !in result.deadAttackerIds }
+                val garrisonTeamObj = AISectAttackManager.createGarrisonTeam(
+                    aliveAttackerDisciples,
+                    emptyList(),
+                    team.attackerSectId,
+                    team.attackerSectName,
+                    playerSect.id
+                )
+
+                currentGameData = currentGameData.copy(
+                    worldMapSects = currentGameData.worldMapSects.map { sect ->
+                        if (sect.id == playerSect.id) {
+                            sect.copy(
+                                occupierSectId = team.attackerSectId,
+                                garrisonTeamId = garrisonTeamObj.id
+                            )
+                        } else {
+                            sect
+                        }
+                    },
+                    aiBattleTeams = currentGameData.aiBattleTeams.map {
+                        if (it.id == team.id) {
+                            it.copy(status = "completed")
+                        } else {
+                            it
+                        }
+                    } + garrisonTeamObj
+                )
+                eventService.addGameEvent("${team.attackerSectName}攻占了我宗！", EventType.DANGER)
+            }
         } else {
             eventService.addGameEvent("我宗成功击退${team.attackerSectName}的进攻！", EventType.SUCCESS)
 
