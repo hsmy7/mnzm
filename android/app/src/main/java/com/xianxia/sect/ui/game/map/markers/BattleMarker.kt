@@ -61,8 +61,8 @@ fun BattleTeamMarker(
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = if (item.isAtSect) "战斗队伍" else "⚔",
-                fontSize = if (item.isAtSect) MapStyle.Typography.teamLabel else MapStyle.Typography.battleIndicator,
+                text = item.name,
+                fontSize = MapStyle.Typography.teamLabel,
                 color = Color.White,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1
@@ -113,7 +113,7 @@ fun AIBattleTeamMarker(
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = "⚔${item.attackerSectName}",
+                text = "${item.attackerSectName}攻队",
                 fontSize = MapStyle.Typography.aiTeamLabel,
                 color = Color.White,
                 fontWeight = FontWeight.Bold,

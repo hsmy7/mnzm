@@ -72,6 +72,7 @@ object MapStyle {
 
         val pathStrokeWidth = 4.dp
         val cavePathStrokeWidth = 2.dp
+        val battlePathStrokeWidth = 2.dp
 
         val controlButtonPaddingH = 12.dp
         val controlButtonPaddingV = 6.dp

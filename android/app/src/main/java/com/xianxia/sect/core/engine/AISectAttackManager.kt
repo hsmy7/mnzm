@@ -23,7 +23,7 @@ import kotlin.random.Random
 
 object AISectAttackManager {
 
-    private val MIN_DISCIPLES_FOR_ATTACK get() = GameConfig.AI.MIN_DISCIPLES_FOR_ATTACK
+    val MIN_DISCIPLES_FOR_ATTACK get() = GameConfig.AI.MIN_DISCIPLES_FOR_ATTACK
     private val POWER_RATIO_THRESHOLD get() = GameConfig.AI.POWER_RATIO_THRESHOLD
     val TEAM_SIZE get() = GameConfig.AI.TEAM_SIZE
 
@@ -34,12 +34,17 @@ object AISectAttackManager {
         val underAttackSectIds = existingAttacks.map { it.defenderSectId }.toSet()
         val aiDisciplesMap = gameData.aiSectDisciples
 
+        val existingTeamDiscipleIds = gameData.aiBattleTeams
+            .filter { it.status != "completed" }
+            .flatMap { it.disciples.map { d -> d.id } }
+            .toSet()
+
         val aiSects = gameData.worldMapSects.filter { !it.isPlayerSect }
 
         for (attacker in aiSects) {
             if (attacker.id in attackingSectIds) continue
             val attackerDisciples = aiDisciplesMap[attacker.id] ?: emptyList()
-            if (attackerDisciples.filter { it.isAlive }.size < MIN_DISCIPLES_FOR_ATTACK) continue
+            if (attackerDisciples.filter { it.isAlive && it.id !in existingTeamDiscipleIds }.size < MIN_DISCIPLES_FOR_ATTACK) continue
 
             val allTargets = gameData.worldMapSects.filter { sect ->
                 sect.id != attacker.id && sect.occupierSectId != attacker.id
@@ -50,7 +55,7 @@ object AISectAttackManager {
 
                 if (!checkAttackConditions(attacker, defender, gameData, aiDisciplesMap)) continue
 
-                val battleTeam = createAttackTeam(attacker, defender, gameData, attackerDisciples)
+                val battleTeam = createAttackTeam(attacker, defender, gameData, attackerDisciples, existingTeamDiscipleIds)
                 if (battleTeam != null) {
                     newBattles.add(battleTeam)
                     break
@@ -137,10 +142,11 @@ object AISectAttackManager {
         attacker: WorldSect,
         defender: WorldSect,
         gameData: GameData,
-        attackerDisciples: List<Disciple>
+        attackerDisciples: List<Disciple>,
+        existingTeamDiscipleIds: Set<String> = emptySet()
     ): AIBattleTeam? {
         val availableDisciples = attackerDisciples
-            .filter { it.isAlive }
+            .filter { it.isAlive && it.id !in existingTeamDiscipleIds }
             .sortedBy { it.realm }
 
         if (availableDisciples.size < MIN_DISCIPLES_FOR_ATTACK) return null
@@ -207,6 +213,11 @@ object AISectAttackManager {
         val attackingSectIds = existingAttacks.map { it.attackerSectId }.toSet()
         val aiDisciplesMap = gameData.aiSectDisciples
 
+        val existingTeamDiscipleIds = gameData.aiBattleTeams
+            .filter { it.status != "completed" }
+            .flatMap { it.disciples.map { d -> d.id } }
+            .toSet()
+
         val playerSect = gameData.worldMapSects.find { it.isPlayerSect } ?: return null
 
         val aiSects = gameData.worldMapSects.filter { !it.isPlayerSect }
@@ -214,7 +225,7 @@ object AISectAttackManager {
         for (attacker in aiSects) {
             if (attacker.id in attackingSectIds) continue
             val attackerDisciples = aiDisciplesMap[attacker.id] ?: emptyList()
-            if (attackerDisciples.filter { it.isAlive }.size < MIN_DISCIPLES_FOR_ATTACK) continue
+            if (attackerDisciples.filter { it.isAlive && it.id !in existingTeamDiscipleIds }.size < MIN_DISCIPLES_FOR_ATTACK) continue
 
             val relation = gameData.sectRelations.find {
                 (it.sectId1 == attacker.id && it.sectId2 == playerSect.id) ||
@@ -225,10 +236,35 @@ object AISectAttackManager {
 
             if (attacker.allianceId.isNotEmpty() && playerSect.allianceId == attacker.allianceId) continue
 
-            return createAttackTeam(attacker, playerSect, gameData, attackerDisciples)
+            return createAttackTeam(attacker, playerSect, gameData, attackerDisciples, existingTeamDiscipleIds)
         }
 
         return null
+    }
+
+    fun findSectsWithNoTargets(gameData: GameData): Set<String> {
+        val aiSects = gameData.worldMapSects.filter { !it.isPlayerSect }
+        val aiDisciplesMap = gameData.aiSectDisciples
+        val sectsWithNoTargets = mutableSetOf<String>()
+
+        for (sect in aiSects) {
+            val sectDisciples = aiDisciplesMap[sect.id] ?: emptyList()
+            if (sectDisciples.filter { it.isAlive }.size < MIN_DISCIPLES_FOR_ATTACK) {
+                sectsWithNoTargets.add(sect.id)
+                continue
+            }
+
+            val hasTarget = gameData.worldMapSects.any { target ->
+                target.id != sect.id && target.occupierSectId != sect.id &&
+                checkAttackConditions(sect, target, gameData, aiDisciplesMap)
+            }
+
+            if (!hasTarget) {
+                sectsWithNoTargets.add(sect.id)
+            }
+        }
+
+        return sectsWithNoTargets
     }
 
     fun updateAIBattleTeamMovement(team: AIBattleTeam, gameData: GameData): AIBattleTeam {
@@ -243,8 +279,8 @@ object AISectAttackManager {
                 (defenderSect.y - attackerSect.y) * (defenderSect.y - attackerSect.y)
             )
 
-            val duration = (distance / 100f).coerceAtLeast(1f).toInt()
-            val progressIncrement = 1f / duration.coerceAtLeast(1) * 1.5f
+            val duration = distance / 33.33f
+            val progressIncrement = 1f / duration.coerceAtLeast(0.001f)
             val newProgress = (team.moveProgress + progressIncrement).coerceAtMost(1f)
 
             val newX = attackerSect.x + (defenderSect.x - attackerSect.x) * newProgress
@@ -275,8 +311,8 @@ object AISectAttackManager {
                 (attackerSect.y - defenderSect.y) * (attackerSect.y - defenderSect.y)
             )
 
-            val duration = (distance / 100f).coerceAtLeast(1f).toInt()
-            val progressIncrement = 1f / duration.coerceAtLeast(1) * 1.5f
+            val duration = distance / 33.33f
+            val progressIncrement = 1f / duration.coerceAtLeast(0.001f)
             val newProgress = (team.moveProgress + progressIncrement).coerceAtMost(1f)
 
             val newX = defenderSect.x + (team.attackerStartX - defenderSect.x) * newProgress

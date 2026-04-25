@@ -31,6 +31,7 @@ fun WorldMapScreen(
     items: List<MapItem>,
     paths: List<MapPathData>,
     caveExplorationPaths: List<CaveExplorationPathData>,
+    battleTeamPaths: List<BattleTeamPathData> = emptyList(),
     cameraState: MapCameraState = rememberMapCameraState(),
     hasBattleTeam: Boolean = false,
     isBattleTeamAtSect: Boolean = false,
@@ -104,6 +105,7 @@ fun WorldMapScreen(
             MapCanvas(
                 paths = paths,
                 caveExplorationPaths = caveExplorationPaths,
+                battleTeamPaths = battleTeamPaths,
                 cameraState = cameraState,
                 modifier = Modifier.fillMaxSize()
             )

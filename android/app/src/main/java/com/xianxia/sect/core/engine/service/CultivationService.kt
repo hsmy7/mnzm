@@ -1963,10 +1963,49 @@ class CultivationService @Inject constructor(
             triggerAISectBattle(team)
         }
 
-        val returnedTeamIds = updatedTeams.filter { AISectAttackManager.isTeamReturned(it) }.map { it.id }
-        if (returnedTeamIds.isNotEmpty()) {
-            currentGameData = currentGameData.copy(
-                aiBattleTeams = currentGameData.aiBattleTeams.filter { it.id !in returnedTeamIds }
+        val returnedTeams = updatedTeams.filter { AISectAttackManager.isTeamReturned(it) }
+        if (returnedTeams.isNotEmpty()) {
+            val currentData = currentGameData
+            val teamsAfterReturn = currentData.aiBattleTeams.toMutableList()
+
+            for (returnedTeam in returnedTeams) {
+                val attackerSect = currentData.worldMapSects.find { it.id == returnedTeam.attackerSectId }
+                val attackerDisciples = currentData.aiSectDisciples[returnedTeam.attackerSectId] ?: emptyList()
+                val existingTeamDiscipleIds = teamsAfterReturn
+                    .filter { it.status != "completed" && it.id != returnedTeam.id }
+                    .flatMap { it.disciples.map { d -> d.id } }
+                    .toSet()
+
+                val availableDisciples = attackerDisciples
+                    .filter { it.isAlive && it.id !in existingTeamDiscipleIds }
+                    .sortedBy { it.realm }
+
+                val teamIdx = teamsAfterReturn.indexOfFirst { it.id == returnedTeam.id }
+                if (teamIdx < 0) continue
+
+                if (availableDisciples.size >= AISectAttackManager.MIN_DISCIPLES_FOR_ATTACK) {
+                    val supplementedDisciples = (returnedTeam.disciples.filter { it.isAlive } + availableDisciples)
+                        .distinctBy { it.id }
+                        .sortedBy { it.realm }
+                        .take(AISectAttackManager.TEAM_SIZE)
+
+                    teamsAfterReturn[teamIdx] = returnedTeam.copy(
+                        status = "stationed",
+                        disciples = supplementedDisciples,
+                        moveProgress = 1f,
+                        currentX = attackerSect?.x ?: returnedTeam.attackerStartX,
+                        currentY = attackerSect?.y ?: returnedTeam.attackerStartY,
+                        isGarrison = false,
+                        garrisonSectId = "",
+                        garrisonSectName = ""
+                    )
+                } else {
+                    teamsAfterReturn[teamIdx] = returnedTeam.copy(status = "completed")
+                }
+            }
+
+            currentGameData = currentData.copy(
+                aiBattleTeams = teamsAfterReturn
             )
         }
     }
@@ -1984,8 +2023,8 @@ class CultivationService @Inject constructor(
                 (targetSect.x - playerSect.x) * (targetSect.x - playerSect.x) +
                 (targetSect.y - playerSect.y) * (targetSect.y - playerSect.y)
             )
-            val duration = (distance / 100f).coerceAtLeast(1f).toInt()
-            val progressIncrement = 1f / duration.coerceAtLeast(1) * 1.5f
+            val duration = distance / 33.33f
+            val progressIncrement = 1f / duration.coerceAtLeast(0.001f)
             val newProgress = (team.moveProgress + progressIncrement).coerceAtMost(1f)
 
             val newX = playerSect.x + (targetSect.x - playerSect.x) * newProgress
@@ -2024,8 +2063,8 @@ class CultivationService @Inject constructor(
                 (returnTargetX - team.currentX) * (returnTargetX - team.currentX) +
                 (returnTargetY - team.currentY) * (returnTargetY - team.currentY)
             )
-            val duration = (distance / 100f).coerceAtLeast(1f).toInt()
-            val progressIncrement = 1f / duration.coerceAtLeast(1) * 1.5f
+            val duration = distance / 33.33f
+            val progressIncrement = 1f / duration.coerceAtLeast(0.001f)
             val newProgress = (team.moveProgress + progressIncrement).coerceAtMost(1f)
 
             val startX = if (targetSect != null) targetSect.x else team.currentX
@@ -2120,13 +2159,19 @@ class CultivationService @Inject constructor(
 
         if (garrisonTeam != null) {
             val updatedGarrisonDisciples = garrisonTeam.disciples.filter { it.id !in result.deadDefenderIds }
-            currentGameData = currentGameData.copy(
-                aiBattleTeams = currentGameData.aiBattleTeams.map {
-                    if (it.id == garrisonTeam.id) {
-                        it.copy(disciples = updatedGarrisonDisciples)
-                    } else it
-                }
-            )
+            if (updatedGarrisonDisciples.isEmpty()) {
+                currentGameData = currentGameData.copy(
+                    aiBattleTeams = currentGameData.aiBattleTeams.filter { it.id != garrisonTeam.id }
+                )
+            } else {
+                currentGameData = currentGameData.copy(
+                    aiBattleTeams = currentGameData.aiBattleTeams.map {
+                        if (it.id == garrisonTeam.id) {
+                            it.copy(disciples = updatedGarrisonDisciples)
+                        } else it
+                    }
+                )
+            }
         }
 
         val aliveTeamSlots = team.slots.map { slot ->
@@ -3577,11 +3622,22 @@ class CultivationService @Inject constructor(
 
         val allNewBattles = newBattles + listOfNotNull(playerAttack)
 
-        if (allNewBattles.isNotEmpty()) {
-            currentGameData = data.copy(
-                aiBattleTeams = data.aiBattleTeams + allNewBattles
-            )
+        val sectsWithNoTargets = AISectAttackManager.findSectsWithNoTargets(data)
+        val updatedTeams = if (sectsWithNoTargets.isNotEmpty()) {
+            data.aiBattleTeams.map { team ->
+                if (team.attackerSectId in sectsWithNoTargets && team.status != "completed") {
+                    team.copy(status = "completed")
+                } else {
+                    team
+                }
+            }
+        } else {
+            data.aiBattleTeams
         }
+
+        currentGameData = data.copy(
+            aiBattleTeams = updatedTeams + allNewBattles
+        )
     }
 
     /**

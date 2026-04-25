@@ -91,6 +91,7 @@ import com.xianxia.sect.ui.state.DialogStateManager.DialogType
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.game.map.MapItem
 import com.xianxia.sect.ui.game.map.MapItemMapper
+import com.xianxia.sect.ui.game.map.BattleTeamPathData
 import com.xianxia.sect.ui.game.map.CaveExplorationPathData
 import com.xianxia.sect.ui.game.map.WorldMapScreen
 import com.xianxia.sect.ui.components.discipleCardBorder
@@ -6444,6 +6445,42 @@ private fun WorldMapDialog(
         }
     }
 
+    val battleTeamPaths = remember(mapRenderData.battleTeam, mapRenderData.aiBattleTeams, worldSects) {
+        val pathsList = mutableListOf<BattleTeamPathData>()
+        mapRenderData.battleTeam?.let { bt ->
+            if (bt.status == "moving") {
+                val targetSect = worldSects.find { it.id == bt.targetSectId }
+                if (targetSect != null && playerSect != null) {
+                    pathsList.add(
+                        BattleTeamPathData(
+                            startWorldX = playerSect.x,
+                            startWorldY = playerSect.y,
+                            targetWorldX = targetSect.x,
+                            targetWorldY = targetSect.y,
+                            isRighteous = true
+                        )
+                    )
+                }
+            }
+        }
+        mapRenderData.aiBattleTeams.filter { it.status == "moving" || it.status == "returning" }.forEach { aiTeam ->
+            val attackerSect = worldSects.find { it.id == aiTeam.attackerSectId }
+            val defenderSect = worldSects.find { it.id == aiTeam.defenderSectId }
+            if (attackerSect != null && defenderSect != null) {
+                pathsList.add(
+                    BattleTeamPathData(
+                        startWorldX = attackerSect.x,
+                        startWorldY = attackerSect.y,
+                        targetWorldX = defenderSect.x,
+                        targetWorldY = defenderSect.y,
+                        isRighteous = attackerSect.isRighteous
+                    )
+                )
+            }
+        }
+        pathsList
+    }
+
     val window = LocalContext.current.let {
         (it as? android.app.Activity)?.window
     }
@@ -6476,6 +6513,7 @@ private fun WorldMapDialog(
         items = mapItems,
         paths = paths,
         caveExplorationPaths = caveExplorationPaths,
+        battleTeamPaths = battleTeamPaths,
         hasBattleTeam = mapRenderData.battleTeam != null,
         isBattleTeamAtSect = mapRenderData.battleTeam?.isAtSect == true,
         focusWorldX = playerSectX,

@@ -120,9 +120,14 @@ object MapItemMapper {
                     id = battleTeam.id,
                     worldX = playerSect.x,
                     worldY = playerSect.y,
+                    name = battleTeam.name,
                     isAtSect = true,
                     sectWorldX = playerSect.x,
-                    sectWorldY = playerSect.y
+                    sectWorldY = playerSect.y,
+                    startWorldX = playerSect.x,
+                    startWorldY = playerSect.y,
+                    targetWorldX = 0f,
+                    targetWorldY = 0f
                 )
             )
         }
@@ -132,9 +137,14 @@ object MapItemMapper {
                     id = battleTeam.id + "_moving",
                     worldX = battleTeam.currentX,
                     worldY = battleTeam.currentY,
+                    name = battleTeam.name,
                     isAtSect = false,
                     sectWorldX = 0f,
-                    sectWorldY = 0f
+                    sectWorldY = 0f,
+                    startWorldX = if (battleTeam.status == "moving") playerSect?.x ?: 0f else battleTeam.currentX,
+                    startWorldY = if (battleTeam.status == "moving") playerSect?.y ?: 0f else battleTeam.currentY,
+                    targetWorldX = 0f,
+                    targetWorldY = 0f
                 )
             )
         }
@@ -151,6 +161,7 @@ object MapItemMapper {
         aiTeams.filter { it.status == "moving" || it.status == "battling" || it.status == "returning" }.forEach { aiTeam ->
             if (aiTeam.status == "moving" || aiTeam.status == "returning") {
                 val attackerSect = worldSects.find { it.id == aiTeam.attackerSectId }
+                val defenderSect = worldSects.find { it.id == aiTeam.defenderSectId }
                 teamItems.add(
                     MapItem.AIBattleTeam(
                         id = aiTeam.id,
@@ -158,7 +169,11 @@ object MapItemMapper {
                         worldY = aiTeam.currentY,
                         attackerSectName = aiTeam.attackerSectName,
                         attackerIsRighteous = attackerSect?.isRighteous ?: true,
-                        defenderSectId = aiTeam.defenderSectId
+                        defenderSectId = aiTeam.defenderSectId,
+                        startWorldX = attackerSect?.x ?: 0f,
+                        startWorldY = attackerSect?.y ?: 0f,
+                        targetWorldX = defenderSect?.x ?: 0f,
+                        targetWorldY = defenderSect?.y ?: 0f
                     )
                 )
             }

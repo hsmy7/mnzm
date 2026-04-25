@@ -16,6 +16,7 @@ import kotlin.math.sqrt
 fun MapCanvas(
     paths: List<MapPathData>,
     caveExplorationPaths: List<CaveExplorationPathData>,
+    battleTeamPaths: List<BattleTeamPathData>,
     cameraState: MapCameraState,
     modifier: Modifier = Modifier
 ) {
@@ -106,6 +107,31 @@ fun MapCanvas(
                 )
             )
         }
+
+        battleTeamPaths.forEach { pathData ->
+            val sx = (pathData.startWorldX / MapCoordinateSystem.WORLD_WIDTH) * cw
+            val sy = (pathData.startWorldY / MapCoordinateSystem.WORLD_HEIGHT) * ch
+            val ex = (pathData.targetWorldX / MapCoordinateSystem.WORLD_WIDTH) * cw
+            val ey = (pathData.targetWorldY / MapCoordinateSystem.WORLD_HEIGHT) * ch
+
+            val path = Path().apply {
+                moveTo(sx, sy)
+                lineTo(ex, ey)
+            }
+
+            val pathColor = if (pathData.isRighteous) MapStyle.Colors.righteousTeam.copy(alpha = 0.5f) else MapStyle.Colors.evilTeam.copy(alpha = 0.5f)
+
+            drawPath(
+                path = path,
+                color = pathColor,
+                style = Stroke(
+                    width = MapStyle.Dimensions.battlePathStrokeWidth.toPx(),
+                    pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(
+                        intervals = floatArrayOf(6.dp.toPx(), 4.dp.toPx())
+                    )
+                )
+            )
+        }
     }
 }
 
@@ -114,4 +140,12 @@ data class CaveExplorationPathData(
     val startWorldY: Float,
     val endWorldX: Float,
     val endWorldY: Float
+)
+
+data class BattleTeamPathData(
+    val startWorldX: Float,
+    val startWorldY: Float,
+    val targetWorldX: Float,
+    val targetWorldY: Float,
+    val isRighteous: Boolean
 )
