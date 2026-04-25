@@ -200,8 +200,8 @@ class DiscipleStatCalculatorTest {
 
     @Test
     fun `getBreakthroughChance - 高境界突破更难`() {
-        val lowRealm = createDisciple(realm = 9, realmLayer = 1)
-        val highRealm = createDisciple(realm = 5, realmLayer = 1)
+        val lowRealm = createDisciple(realm = 8, realmLayer = 1)
+        val highRealm = createDisciple(realm = 4, realmLayer = 1)
         val lowChance = DiscipleStatCalculator.getBreakthroughChance(lowRealm)
         val highChance = DiscipleStatCalculator.getBreakthroughChance(highRealm)
         assertTrue("高境界突破应更难", lowChance > highChance)
@@ -224,7 +224,7 @@ class DiscipleStatCalculatorTest {
 
     @Test
     fun `getBreakthroughChance - 内门长老悟性加成`() {
-        val disciple = createDisciple(realm = 7, realmLayer = 1)
+        val disciple = createDisciple(realm = 6, realmLayer = 1)
         val baseChance = DiscipleStatCalculator.getBreakthroughChance(disciple)
         val bonusChance = DiscipleStatCalculator.getBreakthroughChance(disciple, innerElderComprehension = 90)
         assertTrue("长老加成应增加突破概率", bonusChance > baseChance)
@@ -232,17 +232,17 @@ class DiscipleStatCalculatorTest {
 
     @Test
     fun `getBreakthroughChance - 内门长老悟性低于80无加成`() {
-        val disciple = createDisciple(realm = 7, realmLayer = 1)
+        val disciple = createDisciple(realm = 6, realmLayer = 1)
         val baseChance = DiscipleStatCalculator.getBreakthroughChance(disciple)
         val bonusChance = DiscipleStatCalculator.getBreakthroughChance(disciple, innerElderComprehension = 70)
         assertEquals(baseChance, bonusChance, 0.001)
     }
 
     @Test
-    fun `getBreakthroughChance - realm为0返回0`() {
-        val disciple = createDisciple(realm = 0)
+    fun `getBreakthroughChance - realm为0不再返回0`() {
+        val disciple = createDisciple(realm = 0, realmLayer = 1)
         val chance = DiscipleStatCalculator.getBreakthroughChance(disciple)
-        assertEquals(0.0, chance, 0.001)
+        assertTrue("仙人突破概率应>0", chance > 0)
     }
 
     @Test
@@ -260,29 +260,36 @@ class DiscipleStatCalculatorTest {
     }
 
     @Test
-    fun `getBreakthroughChance - 双灵根炼气突破概率90%`() {
-        val disciple = createDisciple(realm = 9, realmLayer = 1, spiritRootType = "metal,wood")
+    fun `getBreakthroughChance - 五灵根炼气突破概率也是100%`() {
+        val disciple = createDisciple(realm = 9, realmLayer = 1, spiritRootType = "metal,wood,water,fire,earth")
+        val chance = DiscipleStatCalculator.getBreakthroughChance(disciple)
+        assertEquals(1.00, chance, 0.001)
+    }
+
+    @Test
+    fun `getBreakthroughChance - 双灵根筑基突破概率90%`() {
+        val disciple = createDisciple(realm = 8, realmLayer = 1, spiritRootType = "metal,wood")
         val chance = DiscipleStatCalculator.getBreakthroughChance(disciple)
         assertEquals(0.90, chance, 0.001)
     }
 
     @Test
-    fun `getBreakthroughChance - 三灵根筑基突破概率75%`() {
-        val disciple = createDisciple(realm = 8, realmLayer = 1, spiritRootType = "metal,wood,water")
+    fun `getBreakthroughChance - 三灵根金丹突破概率75%`() {
+        val disciple = createDisciple(realm = 7, realmLayer = 1, spiritRootType = "metal,wood,water")
         val chance = DiscipleStatCalculator.getBreakthroughChance(disciple)
         assertEquals(0.75, chance, 0.001)
     }
 
     @Test
-    fun `getBreakthroughChance - 四灵根金丹突破概率25%`() {
-        val disciple = createDisciple(realm = 7, realmLayer = 1, spiritRootType = "metal,wood,water,fire")
+    fun `getBreakthroughChance - 四灵根元婴突破概率25%`() {
+        val disciple = createDisciple(realm = 6, realmLayer = 1, spiritRootType = "metal,wood,water,fire")
         val chance = DiscipleStatCalculator.getBreakthroughChance(disciple)
         assertEquals(0.25, chance, 0.001)
     }
 
     @Test
-    fun `getBreakthroughChance - 五灵根元婴突破概率8%`() {
-        val disciple = createDisciple(realm = 6, realmLayer = 1, spiritRootType = "metal,wood,water,fire,earth")
+    fun `getBreakthroughChance - 五灵根化神突破概率8%`() {
+        val disciple = createDisciple(realm = 5, realmLayer = 1, spiritRootType = "metal,wood,water,fire,earth")
         val chance = DiscipleStatCalculator.getBreakthroughChance(disciple)
         assertEquals(0.08, chance, 0.001)
     }
@@ -308,10 +315,17 @@ class DiscipleStatCalculatorTest {
     }
 
     @Test
-    fun `getBreakthroughChance - 五灵根大乘突破概率为0`() {
-        val disciple = createDisciple(realm = 2, realmLayer = 1, spiritRootType = "metal,wood,water,fire,earth")
+    fun `getBreakthroughChance - 五灵根合体突破概率为0`() {
+        val disciple = createDisciple(realm = 3, realmLayer = 1, spiritRootType = "metal,wood,water,fire,earth")
         val chance = DiscipleStatCalculator.getBreakthroughChance(disciple)
         assertEquals(0.0, chance, 0.001)
+    }
+
+    @Test
+    fun `getBreakthroughChance - 单灵根仙人突破概率6%`() {
+        val disciple = createDisciple(realm = 0, realmLayer = 1, spiritRootType = "metal")
+        val chance = DiscipleStatCalculator.getBreakthroughChance(disciple)
+        assertEquals(0.06, chance, 0.001)
     }
 
     @Test

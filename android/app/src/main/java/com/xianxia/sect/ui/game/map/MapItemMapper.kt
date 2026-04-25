@@ -126,7 +126,7 @@ object MapItemMapper {
                 )
             )
         }
-        if (battleTeam.status == "moving" && battleTeam.currentX > 0 && battleTeam.currentY > 0) {
+        if ((battleTeam.status == "moving" || battleTeam.status == "returning") && battleTeam.currentX > 0 && battleTeam.currentY > 0) {
             items.add(
                 MapItem.BattleTeam(
                     id = battleTeam.id + "_moving",

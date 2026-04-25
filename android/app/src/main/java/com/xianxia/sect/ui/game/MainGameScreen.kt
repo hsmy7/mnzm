@@ -8044,6 +8044,7 @@ private fun BattleTeamDialog(
     val discipleSlots = slots.filter { it.slotType == BattleSlotType.DISCIPLE }
     val isIdle = teamStatus == "idle"
     val isStationed = teamStatus == "stationed"
+    val isReturning = teamStatus == "returning"
     val canManageTeam = hasExistingTeam && isIdle && isAtSect
     val canMoveTeam = hasExistingTeam && (isIdle || isStationed)
     var showDisbandConfirm by remember { mutableStateOf(false) }
@@ -8214,6 +8215,12 @@ private fun BattleTeamDialog(
                             text = "解散",
                             onClick = { showDisbandConfirm = true },
                             backgroundColor = Color(0xFFE53935)
+                        )
+                    } else if (isReturning) {
+                        Text(
+                            text = "队伍正在返回中...",
+                            fontSize = 12.sp,
+                            color = Color(0xFF888888)
                         )
                     }
                     GameButton(

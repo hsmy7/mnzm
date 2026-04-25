@@ -24,6 +24,7 @@ import com.xianxia.sect.core.engine.CaveGenerator
 import com.xianxia.sect.core.engine.MSTEdge
 import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.core.engine.AISectAttackManager
+import com.xianxia.sect.core.engine.WarRewards
 import com.xianxia.sect.core.engine.AISectDiscipleManager
 import com.xianxia.sect.core.engine.AIBattleWinner
 import com.xianxia.sect.core.engine.DiscipleStatCalculator
@@ -1949,7 +1950,7 @@ class CultivationService @Inject constructor(
     private suspend fun processAIBattleTeamMovement() {
         val data = currentGameData
         val updatedTeams = data.aiBattleTeams.map { team ->
-            if (team.status == "moving") {
+            if (team.status == "moving" || team.status == "returning") {
                 AISectAttackManager.updateAIBattleTeamMovement(team, data)
             } else {
                 team
@@ -1961,48 +1962,98 @@ class CultivationService @Inject constructor(
         updatedTeams.filter { AISectAttackManager.isTeamArrived(it) }.forEach { team ->
             triggerAISectBattle(team)
         }
+
+        val returnedTeamIds = updatedTeams.filter { AISectAttackManager.isTeamReturned(it) }.map { it.id }
+        if (returnedTeamIds.isNotEmpty()) {
+            currentGameData = currentGameData.copy(
+                aiBattleTeams = currentGameData.aiBattleTeams.filter { it.id !in returnedTeamIds }
+            )
+        }
     }
 
     private suspend fun processPlayerBattleTeamMovement() {
         val data = currentGameData
         val team = data.battleTeam
-        if (team == null || team.status != "moving") return
+        if (team == null) return
 
-        val playerSect = data.worldMapSects.find { it.isPlayerSect } ?: return
-        val targetSect = data.worldMapSects.find { it.id == team.targetSectId } ?: return
+        if (team.status == "moving") {
+            val playerSect = data.worldMapSects.find { it.isPlayerSect } ?: return
+            val targetSect = data.worldMapSects.find { it.id == team.targetSectId } ?: return
 
-        val distance = kotlin.math.sqrt(
-            (targetSect.x - playerSect.x) * (targetSect.x - playerSect.x) +
-            (targetSect.y - playerSect.y) * (targetSect.y - playerSect.y)
-        )
-        val duration = (distance / 100f).coerceAtLeast(1f).toInt()
-        val progressIncrement = 1f / duration.coerceAtLeast(1) * 1.5f
-        val newProgress = (team.moveProgress + progressIncrement).coerceAtMost(1f)
-
-        val newX = playerSect.x + (targetSect.x - playerSect.x) * newProgress
-        val newY = playerSect.y + (targetSect.y - playerSect.y) * newProgress
-
-        val updatedTeam = if (newProgress >= 1f) {
-            team.copy(
-                status = "battle",
-                moveProgress = 1f,
-                currentX = targetSect.x,
-                currentY = targetSect.y,
-                isAtSect = false
+            val distance = kotlin.math.sqrt(
+                (targetSect.x - playerSect.x) * (targetSect.x - playerSect.x) +
+                (targetSect.y - playerSect.y) * (targetSect.y - playerSect.y)
             )
-        } else {
-            team.copy(
-                moveProgress = newProgress,
-                currentX = newX,
-                currentY = newY,
-                isAtSect = false
+            val duration = (distance / 100f).coerceAtLeast(1f).toInt()
+            val progressIncrement = 1f / duration.coerceAtLeast(1) * 1.5f
+            val newProgress = (team.moveProgress + progressIncrement).coerceAtMost(1f)
+
+            val newX = playerSect.x + (targetSect.x - playerSect.x) * newProgress
+            val newY = playerSect.y + (targetSect.y - playerSect.y) * newProgress
+
+            val updatedTeam = if (newProgress >= 1f) {
+                team.copy(
+                    status = "battle",
+                    moveProgress = 1f,
+                    currentX = targetSect.x,
+                    currentY = targetSect.y,
+                    isAtSect = false
+                )
+            } else {
+                team.copy(
+                    moveProgress = newProgress,
+                    currentX = newX,
+                    currentY = newY,
+                    isAtSect = false
+                )
+            }
+
+            currentGameData = data.copy(battleTeam = updatedTeam)
+
+            if (newProgress >= 1f) {
+                executePlayerBattleTeamBattle(updatedTeam, targetSect)
+            }
+        } else if (team.isReturning && team.status == "returning") {
+            val playerSect = data.worldMapSects.find { it.isPlayerSect } ?: return
+            val targetSect = data.worldMapSects.find { it.id == team.targetSectId }
+
+            val returnTargetX = playerSect.x
+            val returnTargetY = playerSect.y
+
+            val distance = kotlin.math.sqrt(
+                (returnTargetX - team.currentX) * (returnTargetX - team.currentX) +
+                (returnTargetY - team.currentY) * (returnTargetY - team.currentY)
             )
-        }
+            val duration = (distance / 100f).coerceAtLeast(1f).toInt()
+            val progressIncrement = 1f / duration.coerceAtLeast(1) * 1.5f
+            val newProgress = (team.moveProgress + progressIncrement).coerceAtMost(1f)
 
-        currentGameData = data.copy(battleTeam = updatedTeam)
+            val startX = if (targetSect != null) targetSect.x else team.currentX
+            val startY = if (targetSect != null) targetSect.y else team.currentY
 
-        if (newProgress >= 1f) {
-            executePlayerBattleTeamBattle(updatedTeam, targetSect)
+            val newX = startX + (returnTargetX - startX) * newProgress
+            val newY = startY + (returnTargetY - startY) * newProgress
+
+            val updatedTeam = if (newProgress >= 1f) {
+                team.copy(
+                    status = "idle",
+                    moveProgress = 0f,
+                    currentX = returnTargetX,
+                    currentY = returnTargetY,
+                    isAtSect = true,
+                    isReturning = false,
+                    targetSectId = ""
+                )
+            } else {
+                team.copy(
+                    moveProgress = newProgress,
+                    currentX = newX,
+                    currentY = newY,
+                    isAtSect = false
+                )
+            }
+
+            currentGameData = data.copy(battleTeam = updatedTeam)
         }
     }
 
@@ -2086,11 +2137,13 @@ class CultivationService @Inject constructor(
             }
         }
 
-        val highRealmDefendersAllDead = updatedDefenderDisciples
-            .filter { it.realm <= 5 }
-            .isEmpty()
+        val playerSect = data.worldMapSects.find { it.isPlayerSect }
 
-        if (result.winner == AIBattleWinner.ATTACKER && highRealmDefendersAllDead) {
+        if (result.winner == AIBattleWinner.ATTACKER && result.canOccupy) {
+            val rewardCount = (80..130).random()
+            val rewards = AISectAttackManager.generateWarRewards(targetSect.level, rewardCount)
+            applyWarRewards(rewards)
+
             currentGameData = currentGameData.copy(
                 worldMapSects = currentGameData.worldMapSects.map { sect ->
                     if (sect.id == targetSect.id) {
@@ -2118,15 +2171,32 @@ class CultivationService @Inject constructor(
                     }
                 }
             )
-            eventService.addGameEvent("我宗攻占了${targetSect.name}！", EventType.SUCCESS)
+            eventService.addGameEvent("我宗攻占了${targetSect.name}！获得${rewardCount}种战利品和${rewards.spiritStones}灵石！", EventType.SUCCESS)
+        } else if (result.winner == AIBattleWinner.ATTACKER) {
+            val rewardCount = (20..60).random()
+            val rewards = AISectAttackManager.generateWarRewards(targetSect.level, rewardCount)
+            applyWarRewards(rewards)
+
+            currentGameData = currentGameData.copy(
+                battleTeam = team.copy(
+                    status = "returning",
+                    isAtSect = false,
+                    targetSectId = "",
+                    moveProgress = 0f,
+                    slots = aliveTeamSlots,
+                    isReturning = true
+                )
+            )
+            eventService.addGameEvent("我宗进攻${targetSect.name}胜利！获得${rewardCount}种战利品和${rewards.spiritStones}灵石！", EventType.SUCCESS)
         } else {
             currentGameData = currentGameData.copy(
                 battleTeam = team.copy(
-                    status = "idle",
-                    isAtSect = true,
+                    status = "returning",
+                    isAtSect = false,
                     targetSectId = "",
                     moveProgress = 0f,
-                    slots = aliveTeamSlots
+                    slots = aliveTeamSlots,
+                    isReturning = true
                 )
             )
             if (result.winner == AIBattleWinner.DEFENDER) {
@@ -2135,6 +2205,18 @@ class CultivationService @Inject constructor(
                 eventService.addGameEvent("我宗与${targetSect.name}战成平局！", EventType.INFO)
             }
         }
+    }
+
+    private fun applyWarRewards(rewards: WarRewards) {
+        currentGameData = currentGameData.copy(
+            spiritStones = currentGameData.spiritStones + rewards.spiritStones
+        )
+        rewards.equipmentStacks.forEach { inventorySystem.addEquipmentStack(it) }
+        rewards.manualStacks.forEach { inventorySystem.addManualStack(it) }
+        rewards.pills.forEach { inventorySystem.addPill(it) }
+        rewards.materials.forEach { inventorySystem.addMaterial(it) }
+        rewards.herbs.forEach { inventorySystem.addHerb(it) }
+        rewards.seeds.forEach { inventorySystem.addSeed(it) }
     }
 
     /**
@@ -2201,7 +2283,7 @@ class CultivationService @Inject constructor(
             .filter { it.realm <= 5 }
             .isEmpty()
 
-        if (result.winner == AIBattleWinner.ATTACKER && highRealmDefendersAllDead) {
+        if (result.winner == AIBattleWinner.ATTACKER && result.canOccupy) {
             val currentData = currentGameData
             val defenderDetail = currentData.sectDetails[team.defenderSectId]
             val defenderWarehouse = defenderDetail?.warehouse ?: SectWarehouse()
@@ -2255,7 +2337,7 @@ class CultivationService @Inject constructor(
                 }
             }
             currentGameData = currentGameData.copy(sectRelations = updatedRelations)
-        } else {
+        } else if (result.winner == AIBattleWinner.ATTACKER) {
             val updatedRelations = currentGameData.sectRelations.map { relation ->
                 val isRelevantRelation = (relation.sectId1 == team.attackerSectId && relation.sectId2 == team.defenderSectId) ||
                                          (relation.sectId1 == team.defenderSectId && relation.sectId2 == team.attackerSectId)
@@ -2283,6 +2365,31 @@ class CultivationService @Inject constructor(
                     } else it
                 }
             )
+            eventService.addGameEvent("${team.attackerSectName}进攻${team.defenderSectName}胜利，但未能占领！", EventType.INFO)
+        } else {
+            val updatedRelations = currentGameData.sectRelations.map { relation ->
+                val isRelevantRelation = (relation.sectId1 == team.attackerSectId && relation.sectId2 == team.defenderSectId) ||
+                                         (relation.sectId1 == team.defenderSectId && relation.sectId2 == team.attackerSectId)
+                if (isRelevantRelation) {
+                    relation.copy(favor = (relation.favor - 10).coerceIn(GameConfig.Diplomacy.MIN_FAVOR, GameConfig.Diplomacy.MAX_FAVOR))
+                } else {
+                    relation
+                }
+            }
+            currentGameData = currentGameData.copy(sectRelations = updatedRelations)
+
+            currentGameData = currentGameData.copy(
+                aiBattleTeams = currentGameData.aiBattleTeams.map {
+                    if (it.id == team.id) {
+                        it.copy(status = "completed")
+                    } else it
+                }
+            )
+            if (result.winner == AIBattleWinner.DEFENDER) {
+                eventService.addGameEvent("${team.attackerSectName}进攻${team.defenderSectName}失败！", EventType.INFO)
+            } else {
+                eventService.addGameEvent("${team.attackerSectName}与${team.defenderSectName}战成平局！", EventType.INFO)
+            }
         }
     }
 
@@ -2377,6 +2484,25 @@ class CultivationService @Inject constructor(
                     } + garrisonTeamObj
                 )
                 eventService.addGameEvent("${team.attackerSectName}攻占了我宗！", EventType.DANGER)
+            } else {
+                val aliveDisciples = team.disciples.filter { it.id !in result.deadAttackerIds }
+                currentGameData = currentGameData.copy(
+                    aiBattleTeams = currentGameData.aiBattleTeams.map {
+                        if (it.id == team.id) {
+                            it.copy(
+                                status = "returning",
+                                disciples = aliveDisciples,
+                                currentX = playerSect.x,
+                                currentY = playerSect.y,
+                                targetX = team.attackerStartX,
+                                targetY = team.attackerStartY,
+                                moveProgress = 0f
+                            )
+                        } else {
+                            it
+                        }
+                    }
+                )
             }
         } else {
             eventService.addGameEvent("我宗成功击退${team.attackerSectName}的进攻！", EventType.SUCCESS)
@@ -2392,19 +2518,10 @@ class CultivationService @Inject constructor(
                 }
             }
 
-            val aliveDisciples = team.disciples.filter { it.id !in result.deadAttackerIds }
             currentGameData = currentGameData.copy(
                 aiBattleTeams = currentGameData.aiBattleTeams.map {
                     if (it.id == team.id) {
-                        it.copy(
-                            status = "returning",
-                            disciples = aliveDisciples,
-                            currentX = playerSect.x,
-                            currentY = playerSect.y,
-                            targetX = team.attackerStartX,
-                            targetY = team.attackerStartY,
-                            moveProgress = 0f
-                        )
+                        it.copy(status = "completed")
                     } else {
                         it
                     }

@@ -232,41 +232,81 @@ object AISectAttackManager {
     }
 
     fun updateAIBattleTeamMovement(team: AIBattleTeam, gameData: GameData): AIBattleTeam {
-        if (team.status != "moving" || team.moveProgress >= 1f) return team
+        if (team.moveProgress >= 1f) return team
 
-        val attackerSect = gameData.worldMapSects.find { it.id == team.attackerSectId } ?: return team
-        val defenderSect = gameData.worldMapSects.find { it.id == team.defenderSectId } ?: return team
+        if (team.status == "moving") {
+            val attackerSect = gameData.worldMapSects.find { it.id == team.attackerSectId } ?: return team
+            val defenderSect = gameData.worldMapSects.find { it.id == team.defenderSectId } ?: return team
 
-        val distance = sqrt(
-            (defenderSect.x - attackerSect.x) * (defenderSect.x - attackerSect.x) +
-            (defenderSect.y - attackerSect.y) * (defenderSect.y - attackerSect.y)
-        )
-
-        val duration = (distance / 100f).coerceAtLeast(1f).toInt()
-        val progressIncrement = 1f / duration.coerceAtLeast(1) * 1.5f
-        val newProgress = (team.moveProgress + progressIncrement).coerceAtMost(1f)
-
-        val newX = attackerSect.x + (defenderSect.x - attackerSect.x) * newProgress
-        val newY = attackerSect.y + (defenderSect.y - attackerSect.y) * newProgress
-
-        return if (newProgress >= 1f) {
-            team.copy(
-                status = "battling",
-                moveProgress = 1f,
-                currentX = defenderSect.x,
-                currentY = defenderSect.y
+            val distance = sqrt(
+                (defenderSect.x - attackerSect.x) * (defenderSect.x - attackerSect.x) +
+                (defenderSect.y - attackerSect.y) * (defenderSect.y - attackerSect.y)
             )
-        } else {
-            team.copy(
-                moveProgress = newProgress,
-                currentX = newX,
-                currentY = newY
-            )
+
+            val duration = (distance / 100f).coerceAtLeast(1f).toInt()
+            val progressIncrement = 1f / duration.coerceAtLeast(1) * 1.5f
+            val newProgress = (team.moveProgress + progressIncrement).coerceAtMost(1f)
+
+            val newX = attackerSect.x + (defenderSect.x - attackerSect.x) * newProgress
+            val newY = attackerSect.y + (defenderSect.y - attackerSect.y) * newProgress
+
+            return if (newProgress >= 1f) {
+                team.copy(
+                    status = "battling",
+                    moveProgress = 1f,
+                    currentX = defenderSect.x,
+                    currentY = defenderSect.y
+                )
+            } else {
+                team.copy(
+                    moveProgress = newProgress,
+                    currentX = newX,
+                    currentY = newY
+                )
+            }
         }
+
+        if (team.status == "returning") {
+            val attackerSect = gameData.worldMapSects.find { it.id == team.attackerSectId } ?: return team
+            val defenderSect = gameData.worldMapSects.find { it.id == team.defenderSectId } ?: return team
+
+            val distance = sqrt(
+                (attackerSect.x - defenderSect.x) * (attackerSect.x - defenderSect.x) +
+                (attackerSect.y - defenderSect.y) * (attackerSect.y - defenderSect.y)
+            )
+
+            val duration = (distance / 100f).coerceAtLeast(1f).toInt()
+            val progressIncrement = 1f / duration.coerceAtLeast(1) * 1.5f
+            val newProgress = (team.moveProgress + progressIncrement).coerceAtMost(1f)
+
+            val newX = defenderSect.x + (team.attackerStartX - defenderSect.x) * newProgress
+            val newY = defenderSect.y + (team.attackerStartY - defenderSect.y) * newProgress
+
+            return if (newProgress >= 1f) {
+                team.copy(
+                    status = "completed",
+                    moveProgress = 1f,
+                    currentX = team.attackerStartX,
+                    currentY = team.attackerStartY
+                )
+            } else {
+                team.copy(
+                    moveProgress = newProgress,
+                    currentX = newX,
+                    currentY = newY
+                )
+            }
+        }
+
+        return team
     }
 
     fun isTeamArrived(team: AIBattleTeam): Boolean {
         return team.status == "battling" && team.moveProgress >= 1f
+    }
+
+    fun isTeamReturned(team: AIBattleTeam): Boolean {
+        return team.status == "completed" && team.moveProgress >= 1f
     }
 
     private fun convertToCombatant(disciple: Disciple, side: CombatantSide): Combatant {
@@ -399,8 +439,9 @@ object AISectAttackManager {
         defenderSect: WorldSect,
         defenderDisciples: List<Disciple>
     ): AIBattleResult {
+        val defenseTeam = createDefenseTeam(defenderDisciples)
         val attackers = attackTeam.disciples.map { convertToCombatant(it, CombatantSide.ATTACKER) }
-        val defenders = createDefenseTeam(defenderDisciples).map { convertToCombatant(it, CombatantSide.DEFENDER) }
+        val defenders = defenseTeam.map { convertToCombatant(it, CombatantSide.DEFENDER) }
 
         val result = executeUnifiedAIBattle(attackers, defenders)
 
@@ -410,17 +451,22 @@ object AISectAttackManager {
             }
             .map { it.id }
 
-        val deadDefenderIds = defenderDisciples
+        val deadDefenderIds = defenseTeam
             .filter { disciple ->
                 result.defenders.find { it.id == disciple.id }?.isDead == true
             }
             .map { it.id }
 
+        val allDefenderDisciples = defenderDisciples.filter { it.isAlive }
+        val highRealmAllDead = allDefenderDisciples.filter { it.realm <= 5 }.isEmpty()
+
+        val canOccupy = result.winner == AIBattleWinner.ATTACKER && highRealmAllDead
+
         return AIBattleResult(
             winner = result.winner,
             deadAttackerIds = deadAttackerIds,
             deadDefenderIds = deadDefenderIds,
-            canOccupy = result.winner == AIBattleWinner.ATTACKER
+            canOccupy = canOccupy
         )
     }
 
@@ -766,14 +812,119 @@ object AISectAttackManager {
         seeds: List<com.xianxia.sect.core.model.Seed>,
         pills: List<com.xianxia.sect.core.model.Pill>
     ): PlayerLootLossResult {
-        val lostSpiritStones = (spiritStones * 0.1).toLong().coerceAtLeast(0)
+        val lostSpiritStones = (spiritStones * 0.4).toLong().coerceAtLeast(0)
         val lostMaterials = mutableMapOf<String, Int>()
         val allItems = materials + herbs + seeds + pills
-        allItems.filter { it.quantity > 0 }.shuffled().take(3).forEach { item ->
-            val loss = (item.quantity * 0.2).toInt().coerceAtLeast(1)
+        allItems.filter { it.quantity > 0 }.forEach { item ->
+            val loss = (item.quantity * 0.4).toInt().coerceAtLeast(1)
             lostMaterials[item.name] = loss
         }
         return PlayerLootLossResult(lostSpiritStones, lostMaterials)
+    }
+
+    data class SectWarRewardConfig(
+        val minRarity: Int,
+        val maxRarity: Int,
+        val spiritStoneValue: Long
+    )
+
+    fun getSectWarRewardConfig(sectLevel: Int): SectWarRewardConfig {
+        return when (sectLevel) {
+            0 -> SectWarRewardConfig(minRarity = 1, maxRarity = 2, spiritStoneValue = 2000)
+            1 -> SectWarRewardConfig(minRarity = 2, maxRarity = 4, spiritStoneValue = 6000)
+            2 -> SectWarRewardConfig(minRarity = 3, maxRarity = 5, spiritStoneValue = 30000)
+            3 -> SectWarRewardConfig(minRarity = 4, maxRarity = 6, spiritStoneValue = 80000)
+            else -> SectWarRewardConfig(minRarity = 1, maxRarity = 2, spiritStoneValue = 2000)
+        }
+    }
+
+    fun generateWarRewards(sectLevel: Int, itemCount: Int): WarRewards {
+        val config = getSectWarRewardConfig(sectLevel)
+        val spiritStones = config.spiritStoneValue * itemCount
+
+        val equipmentStacks = mutableListOf<com.xianxia.sect.core.model.EquipmentStack>()
+        val manualStacks = mutableListOf<com.xianxia.sect.core.model.ManualStack>()
+        val pills = mutableListOf<com.xianxia.sect.core.model.Pill>()
+        val materials = mutableListOf<com.xianxia.sect.core.model.Material>()
+        val herbs = mutableListOf<com.xianxia.sect.core.model.Herb>()
+        val seeds = mutableListOf<com.xianxia.sect.core.model.Seed>()
+
+        repeat(itemCount) {
+            val itemType = Random.nextInt(6)
+            when (itemType) {
+                0 -> {
+                    if (com.xianxia.sect.core.data.EquipmentDatabase.isInitialized) {
+                        try {
+                            equipmentStacks.add(
+                                com.xianxia.sect.core.data.EquipmentDatabase.generateRandom(config.minRarity, config.maxRarity)
+                            )
+                        } catch (_: Exception) {}
+                    }
+                }
+                1 -> {
+                    if (com.xianxia.sect.core.data.ManualDatabase.isInitialized) {
+                        try {
+                            manualStacks.add(
+                                com.xianxia.sect.core.data.ManualDatabase.generateRandom(config.minRarity, config.maxRarity)
+                            )
+                        } catch (_: Exception) {}
+                    }
+                }
+                2 -> {
+                    try {
+                        pills.add(
+                            com.xianxia.sect.core.data.ItemDatabase.generateRandomPill(config.minRarity, config.maxRarity)
+                        )
+                    } catch (_: Exception) {}
+                }
+                3 -> {
+                    try {
+                        materials.add(
+                            com.xianxia.sect.core.data.ItemDatabase.generateRandomMaterial(config.minRarity, config.maxRarity)
+                        )
+                    } catch (_: Exception) {}
+                }
+                4 -> {
+                    try {
+                        val herbTemplate = com.xianxia.sect.core.data.HerbDatabase.generateRandomHerb(config.minRarity, config.maxRarity)
+                        herbs.add(
+                            com.xianxia.sect.core.model.Herb(
+                                name = herbTemplate.name,
+                                rarity = herbTemplate.rarity,
+                                description = herbTemplate.description,
+                                category = herbTemplate.category,
+                                quantity = 1
+                            )
+                        )
+                    } catch (_: Exception) {}
+                }
+                5 -> {
+                    try {
+                        val seedTemplate = com.xianxia.sect.core.data.HerbDatabase.generateRandomSeed(config.minRarity, config.maxRarity)
+                        seeds.add(
+                            com.xianxia.sect.core.model.Seed(
+                                name = seedTemplate.name,
+                                rarity = seedTemplate.rarity,
+                                description = seedTemplate.description,
+                                growTime = seedTemplate.growTime,
+                                yield = seedTemplate.yield,
+                                quantity = 1
+                            )
+                        )
+                    } catch (_: Exception) {}
+                }
+            }
+        }
+
+        return WarRewards(
+            spiritStones = spiritStones,
+            equipmentStacks = equipmentStacks,
+            manualStacks = manualStacks,
+            pills = pills,
+            materials = materials,
+            herbs = herbs,
+            seeds = seeds
+        )
     }
 }
 
@@ -791,4 +942,14 @@ data class AIBattleResult(
 data class PlayerLootLossResult(
     val lostSpiritStones: Long,
     val lostMaterials: Map<String, Int>
+)
+
+data class WarRewards(
+    val spiritStones: Long,
+    val equipmentStacks: List<com.xianxia.sect.core.model.EquipmentStack>,
+    val manualStacks: List<com.xianxia.sect.core.model.ManualStack>,
+    val pills: List<com.xianxia.sect.core.model.Pill>,
+    val materials: List<com.xianxia.sect.core.model.Material>,
+    val herbs: List<com.xianxia.sect.core.model.Herb>,
+    val seeds: List<com.xianxia.sect.core.model.Seed>
 )

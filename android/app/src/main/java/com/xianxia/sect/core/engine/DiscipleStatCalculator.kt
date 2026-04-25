@@ -349,7 +349,7 @@ object DiscipleStatCalculator {
         outerElderComprehensionBonus: Double = 0.0,
         pillBonus: Double = 0.0
     ): Double {
-        if (disciple.realm <= 0) return 0.0
+        if (disciple.realm < 0) return 0.0
 
         if (!meetsSoulPowerRequirement(disciple)) return 0.0
 
