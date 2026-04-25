@@ -1523,7 +1523,8 @@ class GameEngine @Inject constructor(
         val instance = stateStore.manualInstances.value.find { it.id == instanceId } ?: return
         val data = stateStore.gameData.value
         stateStore.update {
-            val bagStackIds = disciples.flatMap { it.equipment.storageBagItems }
+            val currentDisciple = disciples.find { it.id == discipleId } ?: return@update
+            val bagStackIds = currentDisciple.equipment.storageBagItems
                 .filter { it.itemType == "manual_stack" }
                 .map { it.itemId }
                 .toSet()
@@ -1613,7 +1614,7 @@ class GameEngine @Inject constructor(
                 .any { mid -> manualInstances.find { m -> m.id == mid }?.type == ManualType.MIND }
             if (blocked) return@update
 
-            val bagStackIds = disciples.flatMap { it.equipment.storageBagItems }
+            val bagStackIds = disciple.equipment.storageBagItems
                 .filter { it.itemType == "manual_stack" }
                 .map { it.itemId }
                 .toSet()

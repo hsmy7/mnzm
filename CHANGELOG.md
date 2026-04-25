@@ -1,5 +1,15 @@
 # 模拟宗门 - 更新日志
 
+## [2.5.14] - 2026-04-25
+
+### 修复
+- 修复赏赐弟子物品(pill/material/herb/seed)时inventorySystem.removeXxx异步返回值导致物品丢失的bug：改为在stateStore.update事务中同步执行
+- 修复赏赐丹药给弟子时canUse分支调用usePill导致嵌套事务的问题：改为在当前事务内内联丹药使用逻辑
+- 修复赏赐丹药时disciple为null时丹药从仓库扣除但未添加到储物袋的bug：增加null检查提前返回
+- 修复GameEngine.removeEquipment委托方法存在异步返回值问题：改为suspend函数在事务中同步执行
+- 修复buyMerchantItem中seed查找条件自引用bug(s.growTime==s.growTime改为it.growTime==s.growTime)
+- 删除rewardItemsToDisciple中无用的data变量
+
 ## [2.5.13] - 2026-04-25
 
 ### 修复
