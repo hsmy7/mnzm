@@ -148,8 +148,8 @@ object MapItemMapper {
         val teamItems = mutableListOf<MapItem.AIBattleTeam>()
         val battleIndicators = mutableListOf<MapItem.BattleIndicator>()
 
-        aiTeams.filter { it.status == "moving" || it.status == "battling" }.forEach { aiTeam ->
-            if (aiTeam.status == "moving") {
+        aiTeams.filter { it.status == "moving" || it.status == "battling" || it.status == "returning" }.forEach { aiTeam ->
+            if (aiTeam.status == "moving" || aiTeam.status == "returning") {
                 val attackerSect = worldSects.find { it.id == aiTeam.attackerSectId }
                 teamItems.add(
                     MapItem.AIBattleTeam(
@@ -163,14 +163,16 @@ object MapItemMapper {
                 )
             }
 
-            battleIndicators.add(
-                MapItem.BattleIndicator(
-                    id = "battle_${aiTeam.id}",
-                    worldX = aiTeam.currentX,
-                    worldY = aiTeam.currentY,
-                    isBattling = aiTeam.status == "battling"
+            if (aiTeam.status == "battling") {
+                battleIndicators.add(
+                    MapItem.BattleIndicator(
+                        id = "battle_${aiTeam.id}",
+                        worldX = aiTeam.currentX,
+                        worldY = aiTeam.currentY,
+                        isBattling = true
+                    )
                 )
-            )
+            }
         }
 
         return teamItems to battleIndicators

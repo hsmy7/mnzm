@@ -455,32 +455,36 @@ class BattleViewModel @Inject constructor(
             return
         }
 
-        if (!team.isAtSect) {
-            _errorMessage.value = "队伍不在宗门，无法召回"
-            return
-        }
-
-        if (!team.isIdle) {
-            _errorMessage.value = "队伍正在移动或战斗中，无法召回"
+        if (!team.isStationed) {
+            _errorMessage.value = "队伍未在驻守状态，无法召回"
             return
         }
 
         viewModelScope.launch {
             try {
-                gameEngine.updateGameData { it.copy(battleTeam = null) }
-                gameEngine.syncAllDiscipleStatuses()
+                val data = gameEngine.gameData.value
+                val playerSect = data.worldMapSects.find { it.isPlayerSect }
+                val occupiedSect = data.worldMapSects.find { it.id == team.occupiedSectId }
 
-                _battleTeamSlots.value = buildList {
-                    repeat(2) { index ->
-                        add(BattleTeamSlot(index, slotType = BattleSlotType.ELDER))
-                    }
-                    repeat(8) { index ->
-                        add(BattleTeamSlot(index + 2, slotType = BattleSlotType.DISCIPLE))
-                    }
+                if (playerSect != null && occupiedSect != null) {
+                    val updatedTeam = team.copy(
+                        status = "returning",
+                        isReturning = true,
+                        isAtSect = false,
+                        isOccupying = false,
+                        occupiedSectId = "",
+                        moveProgress = 0f,
+                        currentX = occupiedSect.x,
+                        currentY = occupiedSect.y
+                    )
+                    gameEngine.updateGameData { it.copy(battleTeam = updatedTeam) }
+                } else {
+                    gameEngine.updateGameData { it.copy(battleTeam = null) }
+                    gameEngine.syncAllDiscipleStatuses()
                 }
 
                 closeBattleTeamDialog()
-                _successMessage.value = "战斗队伍已召回"
+                _successMessage.value = "战斗队伍正在返回中"
             } catch (e: Exception) {
                 _errorMessage.value = e.message ?: "召回队伍失败"
             }

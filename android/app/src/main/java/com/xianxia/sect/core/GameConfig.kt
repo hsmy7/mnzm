@@ -145,9 +145,9 @@ object GameConfig {
         val BREAKTHROUGH_CHANCES: Map<Int, Map<Int, Double>> = mapOf(
             9 to mapOf(1 to 1.00, 2 to 1.00, 3 to 1.00, 4 to 1.00, 5 to 1.00),
             8 to mapOf(1 to 1.00, 2 to 0.90, 3 to 0.80, 4 to 0.65, 5 to 0.45),
-            7 to mapOf(1 to 1.00, 2 to 0.85, 3 to 0.75, 4 to 0.50, 5 to 0.32),
-            6 to mapOf(1 to 0.95, 2 to 0.70, 3 to 0.55, 4 to 0.25, 5 to 0.18),
-            5 to mapOf(1 to 0.80, 2 to 0.65, 3 to 0.42, 4 to 0.18, 5 to 0.08),
+            7 to mapOf(1 to 0.95, 2 to 0.85, 3 to 0.75, 4 to 0.50, 5 to 0.32),
+            6 to mapOf(1 to 0.85, 2 to 0.70, 3 to 0.55, 4 to 0.25, 5 to 0.18),
+            5 to mapOf(1 to 0.75, 2 to 0.65, 3 to 0.42, 4 to 0.18, 5 to 0.08),
             4 to mapOf(1 to 0.65, 2 to 0.35, 3 to 0.25, 4 to 0.08, 5 to 0.00),
             3 to mapOf(1 to 0.38, 2 to 0.22, 3 to 0.08, 4 to 0.03, 5 to 0.00),
             2 to mapOf(1 to 0.22, 2 to 0.12, 3 to 0.02, 4 to 0.00, 5 to 0.00),

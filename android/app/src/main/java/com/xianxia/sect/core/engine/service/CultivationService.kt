@@ -2181,7 +2181,7 @@ class CultivationService @Inject constructor(
                 battleTeam = team.copy(
                     status = "returning",
                     isAtSect = false,
-                    targetSectId = "",
+                    targetSectId = targetSect.id,
                     moveProgress = 0f,
                     slots = aliveTeamSlots,
                     isReturning = true
@@ -2193,7 +2193,7 @@ class CultivationService @Inject constructor(
                 battleTeam = team.copy(
                     status = "returning",
                     isAtSect = false,
-                    targetSectId = "",
+                    targetSectId = targetSect.id,
                     moveProgress = 0f,
                     slots = aliveTeamSlots,
                     isReturning = true

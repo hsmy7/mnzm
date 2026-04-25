@@ -457,7 +457,7 @@ object AISectAttackManager {
             }
             .map { it.id }
 
-        val allDefenderDisciples = defenderDisciples.filter { it.isAlive }
+        val allDefenderDisciples = defenderDisciples.filter { it.isAlive && it.id !in deadDefenderIds }
         val highRealmAllDead = allDefenderDisciples.filter { it.realm <= 5 }.isEmpty()
 
         val canOccupy = result.winner == AIBattleWinner.ATTACKER && highRealmAllDead
