@@ -2012,7 +2012,8 @@ class SaveDataConverter @Inject constructor() {
             attackerSectId = sect.attackerSectId ?: "",
             occupierSectId = sect.occupierSectId ?: "",
             warehouse = detail?.warehouse?.let { convertSectWarehouse(it) } ?: SerializableSectWarehouse(),
-            giftPreference = detail?.giftPreference?.name ?: "NONE"
+            giftPreference = detail?.giftPreference?.name ?: "NONE",
+            garrisonTeamId = sect.garrisonTeamId ?: ""
         )
     }
 
@@ -2047,7 +2048,8 @@ class SaveDataConverter @Inject constructor() {
             occupierBattleTeamId = occupierBattleTeamId,
             isUnderAttack = data.isUnderAttack,
             attackerSectId = attackerSectId,
-            occupierSectId = occupierSectId
+            occupierSectId = occupierSectId,
+            garrisonTeamId = data.garrisonTeamId
         )
     }
 
@@ -2746,7 +2748,10 @@ class SaveDataConverter @Inject constructor() {
             currentRouteIndex = team.currentRouteIndex ?: 0,
             startYear = team.startYear ?: 0,
             startMonth = team.startMonth ?: 0,
-            isPlayerDefender = team.isPlayerDefender ?: false
+            isPlayerDefender = team.isPlayerDefender ?: false,
+            isGarrison = team.isGarrison,
+            garrisonSectId = team.garrisonSectId,
+            garrisonSectName = team.garrisonSectName
         )
     }
 
@@ -2770,7 +2775,10 @@ class SaveDataConverter @Inject constructor() {
             currentRouteIndex = data.currentRouteIndex,
             startYear = data.startYear,
             startMonth = data.startMonth,
-            isPlayerDefender = data.isPlayerDefender
+            isPlayerDefender = data.isPlayerDefender,
+            isGarrison = data.isGarrison,
+            garrisonSectId = data.garrisonSectId,
+            garrisonSectName = data.garrisonSectName
         )
     }
 
