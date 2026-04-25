@@ -228,21 +228,13 @@ object GameUtils {
     }
 
     fun generateRandomName(style: NameStyle = NameStyle.COMMON): String {
-        val surnames = when (style) {
-            NameStyle.COMMON -> commonSurnames
-            NameStyle.XIANXIA -> xianxiaSurnames
-            NameStyle.FULL -> commonSurnames + xianxiaSurnames
+        val nameStyle = when (style) {
+            NameStyle.COMMON -> NameService.NameStyle.COMMON
+            NameStyle.XIANXIA -> NameService.NameStyle.XIANXIA
+            NameStyle.FULL -> NameService.NameStyle.FULL
         }
-        val names = when (style) {
-            NameStyle.COMMON -> commonNames
-            NameStyle.XIANXIA -> xianxiaNames
-            NameStyle.FULL -> commonNames + xianxiaNames
-        }
-        
-        val surname = randomFrom(surnames) ?: "李"
-        val name = randomFrom(names) ?: "明"
-        
-        return surname + name
+        val gender = if (kotlin.random.Random.nextBoolean()) "male" else "female"
+        return NameService.generateName(gender, nameStyle).fullName
     }
 
     enum class NameStyle {
@@ -251,34 +243,6 @@ object GameUtils {
         FULL
     }
 
-    private val commonSurnames = listOf(
-        "李", "王", "张", "刘", "陈", "杨", "赵", "黄", "周", "吴"
-    )
-
-    private val xianxiaSurnames = listOf(
-        "李", "王", "张", "刘", "陈", "杨", "赵", "黄", "周", "吴",
-        "林", "叶", "萧", "楚", "苏", "慕容", "上官", "欧阳", "司徒", "南宫",
-        "云", "风", "墨", "白", "青", "紫", "玄", "苍", "凌", "寒"
-    )
-
-    private val commonNames = listOf(
-        "明", "华", "强", "伟", "芳", "娟", "敏", "静", "丽", "勇"
-    )
-
-    private val xianxiaNames = listOf(
-        "逍遥", "无忌", "长生", "问道", "清风", "明月", "云飞", "天行",
-        "子轩", "子涵", "子墨", "子瑜", "子琪",
-        "凌霄", "御风", "踏云", "惊鸿", "逐月", "追星",
-        "悟道", "通玄", "归真", "化神", "凝神",
-        "青松", "翠竹", "寒梅", "幽兰", "紫霞", "晨曦",
-        "剑心", "剑尘", "剑歌", "剑影", "剑魄",
-        "丹辰", "丹华", "丹心", "丹青", "丹枫",
-        "器宇", "器灵", "器心", "器魂",
-        "阵玄", "阵灵", "阵心", "阵尘",
-        "符玄", "符灵", "符心", "符尘",
-        "风", "云", "雷", "电", "山", "河", "剑", "刀", "影", "光"
-    )
-    
     fun generateRandomSpiritRoot(): SpiritRootData {
         val types = listOf("metal", "wood", "water", "fire", "earth")
         val type = randomFrom(types) ?: "metal"

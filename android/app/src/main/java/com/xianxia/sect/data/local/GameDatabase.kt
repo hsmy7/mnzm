@@ -425,6 +425,14 @@ val MIGRATION_12_13 = object : androidx.room.migration.Migration(12, 13) {
     }
 }
 
+val MIGRATION_13_14 = object : androidx.room.migration.Migration(13, 14) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        Log.i("GameDatabase", "Migrating database from version 13 to 14: add surname field to disciples and disciples_core")
+        db.execSQL("ALTER TABLE disciples ADD COLUMN surname TEXT NOT NULL DEFAULT ''")
+        db.execSQL("ALTER TABLE disciples_core ADD COLUMN surname TEXT NOT NULL DEFAULT ''")
+    }
+}
+
 private fun mergeStacks(
     db: SupportSQLiteDatabase,
     tableName: String,
@@ -488,7 +496,7 @@ private fun mergeStacks(
         ArchivedGameEvent::class,
         ArchivedDisciple::class
     ],
-    version = 13,
+    version = 14,
     exportSchema = true
 )
 
@@ -763,7 +771,7 @@ abstract class GameDatabase : RoomDatabase() {
                         optimizeDatabase(db)
                     }
                 })
-                .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
+                .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
                 .fallbackToDestructiveMigration()
                 .build()
                 .also { db -> applySafetyPragmas(db) }

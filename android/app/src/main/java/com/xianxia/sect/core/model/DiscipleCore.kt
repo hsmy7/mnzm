@@ -25,6 +25,8 @@ data class DiscipleCore(
     var slotId: Int = 0,
 
     var name: String = "",
+    @ColumnInfo(name = "surname")
+    var surname: String = "",
     /** 境界等级：0=仙人(最高), 1=渡劫, 2=大乘, ..., 9=炼气(最低)。数字越小境界越高 */
     var realm: Int = 9,
     /** 境界层数：1~9层，9层满后突破到下一大境界(realm-1) */
@@ -65,6 +67,7 @@ data class DiscipleCore(
             return DiscipleCore(
                 id = disciple.id,
                 name = disciple.name,
+                surname = disciple.surname,
                 realm = disciple.realm,
                 realmLayer = disciple.realmLayer,
                 cultivation = disciple.cultivation,

@@ -6,6 +6,7 @@ import com.xianxia.sect.core.data.ManualDatabase
 import com.xianxia.sect.core.data.TalentDatabase
 import com.xianxia.sect.core.engine.DiscipleStatCalculator
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.util.NameService
 import kotlin.random.Random
 
 object AISectDiscipleManager {
@@ -14,27 +15,9 @@ object AISectDiscipleManager {
     
     private val spiritRootTypes = listOf("metal", "wood", "water", "fire", "earth")
     
-    private val maleNames = listOf(
-        "云", "风", "雷", "电", "剑", "刀", "枪", "棍", "拳", "掌",
-        "明", "华", "天", "地", "玄", "黄", "宇", "宙", "洪", "荒",
-        "龙", "虎", "鹤", "鹰", "豹", "狼", "熊", "狮", "象", "鲸"
-    )
-    
-    private val femaleNames = listOf(
-        "月", "雪", "花", "梅", "兰", "竹", "菊", "莲", "芸", "芳",
-        "玉", "珠", "翠", "霞", "虹", "露", "霜", "雨", "云", "雾",
-        "凤", "鸾", "燕", "莺", "鹃", "蝶", "蜂", "鹤", "鹭", "鸥"
-    )
-    
-    private val surnames = listOf(
-        "李", "王", "张", "刘", "陈", "杨", "赵", "黄", "周", "吴",
-        "徐", "孙", "胡", "朱", "高", "林", "何", "郭", "马", "罗",
-        "梁", "宋", "郑", "谢", "韩", "唐", "冯", "于", "董", "萧"
-    )
-    
     fun generateRandomDisciple(sectName: String, maxRealm: Int = 9): Disciple {
         val gender = if (Random.nextBoolean()) "male" else "female"
-        val name = generateName(gender)
+        val nameResult = NameService.generateName(gender, NameService.NameStyle.XIANXIA)
         val spiritRoot = generateSpiritRoot()
         val spiritRootCount = spiritRoot.split(",").size
         val comprehension = when (spiritRootCount) {
@@ -63,7 +46,8 @@ object AISectDiscipleManager {
         
         return Disciple(
             id = java.util.UUID.randomUUID().toString(),
-            name = name,
+            name = nameResult.fullName,
+            surname = nameResult.surname,
             realm = 9,
             realmLayer = 1,
             cultivation = 0.0,
@@ -113,18 +97,6 @@ object AISectDiscipleManager {
             combat.basePhysicalDefense = baseStats.basePhysicalDefense
             combat.baseMagicDefense = baseStats.baseMagicDefense
             combat.baseSpeed = baseStats.baseSpeed
-        }
-    }
-    
-    private fun generateName(gender: String): String {
-        val surname = surnames.random()
-        val namePool = if (gender == "male") maleNames else femaleNames
-        val firstName = namePool.random()
-        val hasSecondChar = Random.nextBoolean()
-        return if (hasSecondChar) {
-            "$surname$firstName${namePool.random()}"
-        } else {
-            "$surname$firstName"
         }
     }
     

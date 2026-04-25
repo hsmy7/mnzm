@@ -1179,6 +1179,7 @@ class SaveDataConverter @Inject constructor() {
         return SerializableDisciple(
             id = NullSafeProtoBuf.stringToProto(disciple.id),
             name = NullSafeProtoBuf.stringToProto(disciple.name),
+            surname = NullSafeProtoBuf.stringToProto(disciple.surname),
             realm = disciple.realm ?: 0,
             realmLayer = disciple.realmLayer ?: 0,
             cultivation = disciple.cultivation ?: 0.0,
@@ -1295,6 +1296,7 @@ class SaveDataConverter @Inject constructor() {
         return com.xianxia.sect.core.model.Disciple(
             id = data.id,
             name = data.name,
+            surname = data.surname,
             realm = data.realm,
             realmLayer = data.realmLayer,
             cultivation = data.cultivation,

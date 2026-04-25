@@ -40,6 +40,7 @@ import com.xianxia.sect.di.ApplicationScopeProvider
 import android.util.Log
 import com.xianxia.sect.core.util.BuildingNames
 import com.xianxia.sect.core.util.GameRandom
+import com.xianxia.sect.core.util.NameService
 import com.xianxia.sect.core.engine.system.GameSystem
 import com.xianxia.sect.core.engine.system.SystemPriority
 import com.xianxia.sect.core.state.MutableGameState
@@ -440,23 +441,8 @@ class CultivationService @Inject constructor(
         val id = java.util.UUID.randomUUID().toString()
         val gender = if (GameRandom.nextBoolean()) "male" else "female"
 
-        val fatherSurname = father.name.firstOrNull()?.toString() ?: ""
-        val maleNames = listOf(
-            "逍遥", "无忌", "长生", "问道", "清风", "明月", "玄真", "道尘",
-            "云飞", "天行", "凌霄", "御风", "踏云", "惊鸿", "逐月", "追星",
-            "悟道", "通玄", "归真", "化神", "凝神",
-            "剑心", "剑尘", "剑歌", "剑影", "剑魄",
-            "丹辰", "丹华", "丹心", "丹青", "丹枫",
-            "子轩", "子涵", "子墨", "子瑜", "子琪"
-        )
-        val femaleNames = listOf(
-            "月华", "紫烟", "灵芸", "清音", "玉瑶", "雪晴", "碧云", "青鸾",
-            "紫霞", "晨曦", "幽兰", "寒梅", "翠竹", "青松",
-            "月影", "花颜", "梦璃", "霜华", "冰心", "凝露",
-            "瑶光", "璇玑", "灵犀", "素心", "清浅", "如烟"
-        )
-        val givenName = if (gender == "male") maleNames[GameRandom.nextInt(maleNames.size)] else femaleNames[GameRandom.nextInt(femaleNames.size)]
-        val childName = "$fatherSurname$givenName"
+        val fatherSurname = if (father.surname.isNotEmpty()) father.surname else NameService.extractSurname(father.name)
+        val nameResult = NameService.inheritName(fatherSurname, gender)
 
         val allSpiritRootTypes = listOf("metal", "wood", "water", "fire", "earth")
         val rootCount = when (GameRandom.nextInt(100)) {
@@ -495,7 +481,8 @@ class CultivationService @Inject constructor(
 
         val disciple = Disciple(
             id = id,
-            name = childName,
+            name = nameResult.fullName,
+            surname = nameResult.surname,
             gender = gender,
             age = 1,
             realm = 9,
@@ -3519,8 +3506,16 @@ class CultivationService @Inject constructor(
         )
     }
 
+    private data class PoolEntry(
+        val name: String,
+        val type: String,
+        val grade: String? = null
+    ) {
+        val compositeKey: String get() = if (grade != null) "$name|$grade" else name
+    }
+
     private data class MerchantItemPools(
-        val poolByRarity: MutableMap<Int, MutableList<Pair<String, String>>> = mutableMapOf(),
+        val poolByRarity: MutableMap<Int, MutableList<PoolEntry>> = mutableMapOf(),
         val rarityMap: MutableMap<String, Int> = mutableMapOf(),
         val priceMap: MutableMap<String, Long> = mutableMapOf(),
         val gradeMap: MutableMap<String, String> = mutableMapOf()
@@ -3534,40 +3529,42 @@ class CultivationService @Inject constructor(
         }
 
         EquipmentDatabase.allTemplates.values.forEach { t ->
-            pools.poolByRarity.getOrPut(t.rarity) { mutableListOf() }.add(t.name to "equipment")
+            pools.poolByRarity.getOrPut(t.rarity) { mutableListOf() }.add(PoolEntry(t.name, "equipment"))
             pools.rarityMap[t.name] = t.rarity
             pools.priceMap[t.name] = (t.price * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt().toLong()
         }
 
         if (ManualDatabase.isInitialized) {
             ManualDatabase.allManuals.values.forEach { t ->
-                pools.poolByRarity.getOrPut(t.rarity) { mutableListOf() }.add(t.name to "manual")
+                pools.poolByRarity.getOrPut(t.rarity) { mutableListOf() }.add(PoolEntry(t.name, "manual"))
                 pools.rarityMap[t.name] = t.rarity
                 pools.priceMap[t.name] = (t.price * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt().toLong()
             }
         }
 
         ItemDatabase.allPills.values.forEach { t ->
-            pools.poolByRarity.getOrPut(t.rarity) { mutableListOf() }.add(t.name to "pill")
-            pools.rarityMap[t.name] = t.rarity
-            pools.priceMap[t.name] = (t.price * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt().toLong()
-            pools.gradeMap[t.name] = t.grade.displayName
+            val gradeName = t.grade.displayName
+            val entry = PoolEntry(t.name, "pill", gradeName)
+            pools.poolByRarity.getOrPut(t.rarity) { mutableListOf() }.add(entry)
+            pools.rarityMap[entry.compositeKey] = t.rarity
+            pools.priceMap[entry.compositeKey] = (t.price * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt().toLong()
+            pools.gradeMap[entry.compositeKey] = gradeName
         }
 
         ItemDatabase.allMaterials.values.forEach { t ->
-            pools.poolByRarity.getOrPut(t.rarity) { mutableListOf() }.add(t.name to "material")
+            pools.poolByRarity.getOrPut(t.rarity) { mutableListOf() }.add(PoolEntry(t.name, "material"))
             pools.rarityMap[t.name] = t.rarity
             pools.priceMap[t.name] = (t.price * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt().toLong()
         }
 
         HerbDatabase.getAllHerbs().forEach { h ->
-            pools.poolByRarity.getOrPut(h.rarity) { mutableListOf() }.add(h.name to "herb")
+            pools.poolByRarity.getOrPut(h.rarity) { mutableListOf() }.add(PoolEntry(h.name, "herb"))
             pools.rarityMap[h.name] = h.rarity
             pools.priceMap[h.name] = (h.price * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt().toLong()
         }
 
         HerbDatabase.getAllSeeds().forEach { s ->
-            pools.poolByRarity.getOrPut(s.rarity) { mutableListOf() }.add(s.name to "seed")
+            pools.poolByRarity.getOrPut(s.rarity) { mutableListOf() }.add(PoolEntry(s.name, "seed"))
             pools.rarityMap[s.name] = s.rarity
             pools.priceMap[s.name] = (s.price * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt().toLong()
         }
@@ -3585,12 +3582,12 @@ class CultivationService @Inject constructor(
         return 1
     }
 
-    private fun selectItemByRarity(itemPoolByRarity: Map<Int, List<Pair<String, String>>>, rarity: Int): Pair<String, String>? {
-        return itemPoolByRarity[rarity]?.random()
+    private fun selectItemByRarity(itemPoolByRarity: Map<Int, List<PoolEntry>>, rarity: Int): PoolEntry? {
+        return itemPoolByRarity[rarity]?.takeIf { it.isNotEmpty() }?.random()
     }
 
-    private fun selectFirstAvailableItem(itemPoolByRarity: Map<Int, List<Pair<String, String>>>): Pair<String, String>? {
-        return (1..6).firstNotNullOfOrNull { r -> itemPoolByRarity[r]?.random() }
+    private fun selectFirstAvailableItem(itemPoolByRarity: Map<Int, List<PoolEntry>>): PoolEntry? {
+        return (1..6).firstNotNullOfOrNull { r -> itemPoolByRarity[r]?.takeIf { it.isNotEmpty() }?.random() }
     }
 
     private fun calculateMerchantStock(type: String, rarity: Int): Int {
@@ -3617,22 +3614,23 @@ class CultivationService @Inject constructor(
     }
 
     private fun createMerchantItem(
-        item: Pair<String, String>,
+        entry: PoolEntry,
         pools: MerchantItemPools,
         year: Int,
         month: Int,
         forcedRarity: Int? = null
     ): MerchantItem {
-        val (name, type) = item
-        val rarity = forcedRarity ?: pools.rarityMap[name] ?: 1
-        val basePrice = pools.priceMap[name] ?: (GameConfig.Rarity.get(rarity).materialBasePrice * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt().toLong()
-        val quantity = calculateMerchantStock(type, rarity)
-        val grade = if (type == "pill") pools.gradeMap[name] else null
+        val compositeKey = entry.compositeKey
+        val rarity = forcedRarity ?: pools.rarityMap[compositeKey] ?: pools.rarityMap[entry.name] ?: 1
+        val basePrice = pools.priceMap[compositeKey] ?: pools.priceMap[entry.name]
+            ?: (GameConfig.Rarity.get(rarity).materialBasePrice * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt().toLong()
+        val quantity = calculateMerchantStock(entry.type, rarity)
+        val grade = entry.grade ?: pools.gradeMap[compositeKey]
 
         return MerchantItem(
             id = java.util.UUID.randomUUID().toString(),
-            name = name,
-            type = type,
+            name = entry.name,
+            type = entry.type,
             itemId = java.util.UUID.randomUUID().toString(),
             rarity = rarity,
             price = GameUtils.applyPriceFluctuation(basePrice),
@@ -3646,7 +3644,7 @@ class CultivationService @Inject constructor(
     private fun mergeMerchantItems(items: List<MerchantItem>): List<MerchantItem> {
         val merged = mutableMapOf<String, MerchantItem>()
         for (item in items) {
-            val key = "${item.name}:${item.type}"
+            val key = if (item.grade != null) "${item.name}:${item.type}:${item.grade}" else "${item.name}:${item.type}"
             val existing = merged[key]
             if (existing != null) {
                 val totalQuantity = existing.quantity + item.quantity
@@ -3680,32 +3678,10 @@ class CultivationService @Inject constructor(
 
         newItems.add(guaranteedMythicItem)
 
-        Log.i(TAG, "商人第${refreshCount}次刷新触发保底，优先添加天品物品：${mythicItem.first}")
+        Log.i(TAG, "商人第${refreshCount}次刷新触发保底，优先添加天品物品：${mythicItem.name}")
     }
 
     internal suspend fun refreshRecruitList(year: Int) {
-        val surnames = listOf(
-            "李", "张", "王", "刘", "陈", "杨", "赵", "黄", "周", "吴",
-            "孙", "郑", "冯", "蒋", "沈", "韩", "朱", "秦", "许", "何",
-            "吕", "施", "曹", "袁", "邓", "彭", "苏", "卢", "蔡", "丁",
-            "萧", "叶", "顾", "孟", "林", "徐", "方", "程", "谢", "宋"
-        )
-        val maleNames = listOf(
-            "逍遥", "无忌", "长生", "问道", "清风", "明月",
-            "怀瑾", "景行", "承宇", "君浩", "亦尘", "云深",
-            "晏清", "知远", "修远", "秉文", "若谷", "临渊",
-            "望舒", "归鸿", "寒山", "听雨", "忘机", "抱朴",
-            "乐天", "安然", "致远", "明轩", "文渊", "廷玉",
-            "浩然", "子轩", "瑾瑜", "星野", "澄之", "衡之"
-        )
-        val femaleNames = listOf(
-            "月华", "紫烟", "灵芸", "清音", "玉瑶", "雪晴",
-            "芷若", "沐云", "晓霜", "凌波", "听澜", "念真",
-            "疏影", "流萤", "惜音", "惊鸿", "采薇", "青衣",
-            "婉清", "静姝", "灵犀", "芳菲", "梵音", "墨染",
-            "丹青", "笙箫", "洛神", "湘君", "素问", "兰若",
-            "梦璃", "含烟", "弄影", "踏歌", "凝霜", "映雪"
-        )
         val spiritRootTypes = listOf("metal", "wood", "water", "fire", "earth")
         val spiritRootNames = mapOf(
             "metal" to "金灵根", "wood" to "木灵根", "water" to "水灵根",
@@ -3715,8 +3691,7 @@ class CultivationService @Inject constructor(
         val newRecruitDisciples = mutableListOf<Disciple>()
         repeat(recruitCount) {
             val gender = if (Random.nextBoolean()) "male" else "female"
-            val surname = surnames.random()
-            val name = if (gender == "male") maleNames.random() else femaleNames.random()
+            val nameResult = NameService.generateName(gender, NameService.NameStyle.FULL)
             val spiritRootType = spiritRootTypes.let { types ->
                 val rootCount = when (Random.nextInt(100)) {
                     in 0..4 -> 1
@@ -3744,7 +3719,8 @@ class CultivationService @Inject constructor(
             }
             val disciple = Disciple(
                 id = java.util.UUID.randomUUID().toString(),
-                name = "$surname$name",
+                name = nameResult.fullName,
+                surname = nameResult.surname,
                 gender = gender,
                 age = Random.nextInt(16, 30),
                 realm = 9,

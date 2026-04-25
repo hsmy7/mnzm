@@ -67,6 +67,8 @@ data class Disciple(
     var slotId: Int = 0,
 
     var name: String = "",
+    @ColumnInfo(name = "surname")
+    var surname: String = "",
     var realm: Int = 9,
     var realmLayer: Int = 1,
     var cultivation: Double = 0.0,
@@ -318,6 +320,7 @@ data class Disciple(
     fun copyWith(
         id: String = this.id,
         name: String = this.name,
+        surname: String = this.surname,
         realm: Int = this.realm,
         realmLayer: Int = this.realmLayer,
         cultivation: Double = this.cultivation,
@@ -417,6 +420,7 @@ data class Disciple(
         return Disciple(
             id = id,
             name = name,
+            surname = surname,
             realm = realm,
             realmLayer = realmLayer,
             cultivation = cultivation,

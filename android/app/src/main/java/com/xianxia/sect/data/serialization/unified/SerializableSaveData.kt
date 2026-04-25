@@ -84,6 +84,7 @@ data class SerializableAiSectDiscipleEntry(
 data class SerializableDisciple(
     @ProtoNumber(1) val id: String,
     @ProtoNumber(2) val name: String,
+    @ProtoNumber(100) val surname: String = "",
     @ProtoNumber(3) val realm: Int,
     @ProtoNumber(4) val realmLayer: Int,
     @ProtoNumber(5) val cultivation: Double,

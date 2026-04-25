@@ -13,6 +13,7 @@ import com.xianxia.sect.core.engine.system.GameSystem
 import com.xianxia.sect.core.engine.system.SystemPriority
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.util.StorageBagUtils
+import com.xianxia.sect.core.util.NameService
 import android.util.Log
 import java.util.UUID
 import javax.inject.Inject
@@ -424,12 +425,7 @@ class DiscipleService @Inject constructor(
         val id = UUID.randomUUID().toString()
         val gender = if (Random.nextBoolean()) "male" else "female"
 
-        val surnames = listOf("李", "张", "王", "刘", "陈", "杨", "赵", "黄", "周", "吴")
-        val maleNames = listOf("逍遥", "无忌", "长生", "问道", "清风", "明月", "玄真", "道尘")
-        val femaleNames = listOf("月华", "紫烟", "灵芸", "清音", "玉瑶", "雪晴", "碧云", "青鸾")
-
-        val surname = surnames.random()
-        val name = if (gender == "male") maleNames.random() else femaleNames.random()
+        val nameResult = NameService.generateName(gender, NameService.NameStyle.FULL)
 
         val allSpiritRootTypes = listOf("metal", "wood", "water", "fire", "earth")
         val rootCount = when (Random.nextInt(100)) {
@@ -459,7 +455,8 @@ class DiscipleService @Inject constructor(
 
         val disciple = Disciple(
             id = id,
-            name = "$surname$name",
+            name = nameResult.fullName,
+            surname = nameResult.surname,
             gender = gender,
             age = Random.nextInt(16, 30),
             realm = 9,

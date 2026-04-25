@@ -113,6 +113,7 @@ data class DisciplePoolStats(
 class MutableDisciple {
     var id: String = UUID.randomUUID().toString()
     var name: String = ""
+    var surname: String = ""
     var realm: Int = 9
     var realmLayer: Int = 1
     var cultivation: Double = 0.0
@@ -309,6 +310,7 @@ class MutableDisciple {
     fun copyFrom(disciple: Disciple) {
         id = disciple.id
         name = disciple.name
+        surname = disciple.surname
         realm = disciple.realm
         realmLayer = disciple.realmLayer
         cultivation = disciple.cultivation
@@ -405,6 +407,7 @@ class MutableDisciple {
         return Disciple(
             id = id,
             name = name,
+            surname = surname,
             realm = realm,
             realmLayer = realmLayer,
             cultivation = cultivation,

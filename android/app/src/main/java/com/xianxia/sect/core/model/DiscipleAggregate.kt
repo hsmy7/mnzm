@@ -11,6 +11,7 @@ data class DiscipleAggregate(
 ) {
     val id: String get() = core.id
     val name: String get() = core.name
+    val surname: String get() = core.surname
     val realm: Int get() = core.realm
     val realmLayer: Int get() = core.realmLayer
     val cultivation: Double get() = core.cultivation
@@ -239,6 +240,7 @@ data class DiscipleAggregate(
         return Disciple(
             id = id,
             name = name,
+            surname = surname,
             realm = realm,
             realmLayer = realmLayer,
             cultivation = cultivation,

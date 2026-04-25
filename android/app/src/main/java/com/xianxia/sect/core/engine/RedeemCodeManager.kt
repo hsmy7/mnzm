@@ -9,6 +9,7 @@ import com.xianxia.sect.core.data.ManualDatabase
 import com.xianxia.sect.core.data.TalentDatabase
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.util.GameUtils
+import com.xianxia.sect.core.util.NameService
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.protobuf.ProtoBuf
@@ -683,7 +684,7 @@ object RedeemCodeManager {
             else -> if (Random.nextBoolean()) "male" else "female"
         }
 
-        val name = GameUtils.generateRandomName(GameUtils.NameStyle.XIANXIA)
+        val nameResult = NameService.generateName(gender, NameService.NameStyle.XIANXIA)
 
         val spiritRootType = if (cfg.spiritRootType != null && cfg.spiritRootCount != null) {
             val types = listOf("metal", "wood", "water", "fire", "earth")
@@ -730,7 +731,8 @@ object RedeemCodeManager {
         val speedVariance = Random.nextInt(-50, 51)
 
         return Disciple(
-            name = name,
+            name = nameResult.fullName,
+            surname = nameResult.surname,
             realm = cfg.realm,
             realmLayer = cfg.realmLayer,
             spiritRootType = spiritRootType,
