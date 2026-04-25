@@ -47,8 +47,6 @@ object AISectAttackManager {
 
             for (defender in allTargets) {
                 if (defender.id in underAttackSectIds) continue
-                if (defender.id == attacker.id) continue
-                if (defender.occupierSectId == attacker.id) continue
 
                 if (!checkAttackConditions(attacker, defender, gameData, aiDisciplesMap)) continue
 

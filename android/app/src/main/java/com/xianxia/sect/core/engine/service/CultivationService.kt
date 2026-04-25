@@ -2050,7 +2050,7 @@ class CultivationService @Inject constructor(
 
         val result = AISectAttackManager.executeAISectBattle(aiAttackTeam, targetSect, defenderDisciples)
 
-        val deadPlayerDiscipleIds = result.deadDefenderIds
+        val deadPlayerDiscipleIds = result.deadAttackerIds
         currentDisciples = currentDisciples.map { disciple ->
             if (disciple.id in deadPlayerDiscipleIds) {
                 handleDiscipleDeath(disciple, isOutsideSect = true)
@@ -2060,7 +2060,7 @@ class CultivationService @Inject constructor(
             }
         }
 
-        val updatedDefenderDisciples = (data.aiSectDisciples[targetSect.id] ?: emptyList()).filter { it.id !in result.deadAttackerIds }
+        val updatedDefenderDisciples = (data.aiSectDisciples[targetSect.id] ?: emptyList()).filter { it.id !in result.deadDefenderIds }
         currentGameData = currentGameData.copy(
             aiSectDisciples = currentGameData.aiSectDisciples.toMutableMap().apply {
                 this[targetSect.id] = updatedDefenderDisciples
@@ -2068,7 +2068,7 @@ class CultivationService @Inject constructor(
         )
 
         if (garrisonTeam != null) {
-            val updatedGarrisonDisciples = garrisonTeam.disciples.filter { it.id !in result.deadAttackerIds }
+            val updatedGarrisonDisciples = garrisonTeam.disciples.filter { it.id !in result.deadDefenderIds }
             currentGameData = currentGameData.copy(
                 aiBattleTeams = currentGameData.aiBattleTeams.map {
                     if (it.id == garrisonTeam.id) {
@@ -2088,7 +2088,7 @@ class CultivationService @Inject constructor(
 
         val highRealmDefendersAllDead = defenderDisciples
             .filter { it.isAlive && it.realm <= 5 }
-            .all { it.id in result.deadAttackerIds }
+            .all { it.id in result.deadDefenderIds }
 
         if (result.winner == AIBattleWinner.ATTACKER && highRealmDefendersAllDead) {
             val aliveAttackerDisciples = teamDisciples.filter { it.id !in deadPlayerDiscipleIds }
