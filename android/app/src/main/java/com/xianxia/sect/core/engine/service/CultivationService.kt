@@ -2050,7 +2050,7 @@ class CultivationService @Inject constructor(
 
         val result = AISectAttackManager.executeAISectBattle(aiAttackTeam, targetSect, defenderDisciples)
 
-        val deadPlayerDiscipleIds = result.deadAttackerIds
+        val deadPlayerDiscipleIds = result.deadDefenderIds
         currentDisciples = currentDisciples.map { disciple ->
             if (disciple.id in deadPlayerDiscipleIds) {
                 handleDiscipleDeath(disciple, isOutsideSect = true)
@@ -2060,7 +2060,7 @@ class CultivationService @Inject constructor(
             }
         }
 
-        val updatedDefenderDisciples = (data.aiSectDisciples[targetSect.id] ?: emptyList()).filter { it.id !in result.deadDefenderIds }
+        val updatedDefenderDisciples = (data.aiSectDisciples[targetSect.id] ?: emptyList()).filter { it.id !in result.deadAttackerIds }
         currentGameData = currentGameData.copy(
             aiSectDisciples = currentGameData.aiSectDisciples.toMutableMap().apply {
                 this[targetSect.id] = updatedDefenderDisciples
@@ -2068,7 +2068,7 @@ class CultivationService @Inject constructor(
         )
 
         if (garrisonTeam != null) {
-            val updatedGarrisonDisciples = garrisonTeam.disciples.filter { it.id !in result.deadDefenderIds }
+            val updatedGarrisonDisciples = garrisonTeam.disciples.filter { it.id !in result.deadAttackerIds }
             currentGameData = currentGameData.copy(
                 aiBattleTeams = currentGameData.aiBattleTeams.map {
                     if (it.id == garrisonTeam.id) {
@@ -2088,7 +2088,7 @@ class CultivationService @Inject constructor(
 
         val highRealmDefendersAllDead = defenderDisciples
             .filter { it.isAlive && it.realm <= 5 }
-            .all { it.id in result.deadDefenderIds }
+            .all { it.id in result.deadAttackerIds }
 
         if (result.winner == AIBattleWinner.ATTACKER && highRealmDefendersAllDead) {
             val aliveAttackerDisciples = teamDisciples.filter { it.id !in deadPlayerDiscipleIds }
@@ -2250,6 +2250,17 @@ class CultivationService @Inject constructor(
                 } + garrisonTeamObj
             )
             eventService.addGameEvent(AISectAttackManager.generateSectDestroyedEvent(team.attackerSectName, team.defenderSectName), EventType.DANGER)
+
+            val updatedRelations = currentGameData.sectRelations.map { relation ->
+                val isRelevantRelation = (relation.sectId1 == team.attackerSectId && relation.sectId2 == team.defenderSectId) ||
+                                         (relation.sectId1 == team.defenderSectId && relation.sectId2 == team.attackerSectId)
+                if (isRelevantRelation) {
+                    relation.copy(favor = (relation.favor - 10).coerceIn(GameConfig.Diplomacy.MIN_FAVOR, GameConfig.Diplomacy.MAX_FAVOR))
+                } else {
+                    relation
+                }
+            }
+            currentGameData = currentGameData.copy(sectRelations = updatedRelations)
         } else {
             val updatedRelations = currentGameData.sectRelations.map { relation ->
                 val isRelevantRelation = (relation.sectId1 == team.attackerSectId && relation.sectId2 == team.defenderSectId) ||

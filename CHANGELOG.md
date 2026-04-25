@@ -1,5 +1,11 @@
 # 模拟宗门 - 更新日志
 
+## [2.5.24] - 2026-04-26
+
+### 修复
+- 修复CultivationService中executePlayerSectBattle方法deadAttackerIds/deadDefenderIds使用错误
+- 移除AISectAttackManager中冗余的攻击条件检查（已由allTargets过滤覆盖）
+
 ## [2.5.23] - 2026-04-26
 
 ### 修复

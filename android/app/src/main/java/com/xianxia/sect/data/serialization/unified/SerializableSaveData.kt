@@ -428,7 +428,8 @@ data class SerializableWorldSect(
     @ProtoNumber(34) val attackerSectId: String = "",
     @ProtoNumber(35) val occupierSectId: String = "",
     @ProtoNumber(36) val warehouse: SerializableSectWarehouse = SerializableSectWarehouse(),
-    @ProtoNumber(37) val giftPreference: String = "NONE"
+    @ProtoNumber(37) val giftPreference: String = "NONE",
+    @ProtoNumber(38) val garrisonTeamId: String = ""
 )
 
 @Serializable
@@ -756,7 +757,10 @@ data class SerializableAIBattleTeam(
     @ProtoNumber(16) val currentRouteIndex: Int,
     @ProtoNumber(17) val startYear: Int,
     @ProtoNumber(18) val startMonth: Int,
-    @ProtoNumber(19) val isPlayerDefender: Boolean
+    @ProtoNumber(19) val isPlayerDefender: Boolean,
+    @ProtoNumber(20) val isGarrison: Boolean = false,
+    @ProtoNumber(21) val garrisonSectId: String = "",
+    @ProtoNumber(22) val garrisonSectName: String = ""
 )
 
 @Serializable
