@@ -1,5 +1,3 @@
-@file:Suppress("DEPRECATION")
-
 package com.xianxia.sect.core.model
 
 import com.xianxia.sect.core.engine.DiscipleStatCalculator

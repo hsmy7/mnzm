@@ -78,22 +78,22 @@ object DiscipleStatCalculator {
         val totalSpeedBonus = (realmMultiplier - 1.0) + (layerBonus - 1.0) + speedBonus
 
         return DiscipleStats(
-            hp = (disciple.baseHp * (1.0 + totalHpBonus)).roundToInt() + maxHpGrowth,
-            maxHp = (disciple.baseHp * (1.0 + totalHpBonus)).roundToInt() + maxHpGrowth,
-            mp = (disciple.baseMp * (1.0 + totalMpBonus)).roundToInt() + maxMpGrowth,
-            maxMp = (disciple.baseMp * (1.0 + totalMpBonus)).roundToInt() + maxMpGrowth,
-            physicalAttack = (disciple.basePhysicalAttack * (1.0 + totalAttackBonus)).roundToInt() + physicalAttackGrowth,
-            magicAttack = (disciple.baseMagicAttack * (1.0 + totalMagicAttackBonus)).roundToInt() + magicAttackGrowth,
-            physicalDefense = (disciple.basePhysicalDefense * (1.0 + totalDefenseBonus)).roundToInt() + physicalDefenseGrowth,
-            magicDefense = (disciple.baseMagicDefense * (1.0 + totalMagicDefenseBonus)).roundToInt() + magicDefenseGrowth,
-            speed = (disciple.baseSpeed * (1.0 + totalSpeedBonus)).roundToInt() + speedGrowth,
+            hp = (disciple.combat.baseHp * (1.0 + totalHpBonus)).roundToInt() + maxHpGrowth,
+            maxHp = (disciple.combat.baseHp * (1.0 + totalHpBonus)).roundToInt() + maxHpGrowth,
+            mp = (disciple.combat.baseMp * (1.0 + totalMpBonus)).roundToInt() + maxMpGrowth,
+            maxMp = (disciple.combat.baseMp * (1.0 + totalMpBonus)).roundToInt() + maxMpGrowth,
+            physicalAttack = (disciple.combat.basePhysicalAttack * (1.0 + totalAttackBonus)).roundToInt() + physicalAttackGrowth,
+            magicAttack = (disciple.combat.baseMagicAttack * (1.0 + totalMagicAttackBonus)).roundToInt() + magicAttackGrowth,
+            physicalDefense = (disciple.combat.basePhysicalDefense * (1.0 + totalDefenseBonus)).roundToInt() + physicalDefenseGrowth,
+            magicDefense = (disciple.combat.baseMagicDefense * (1.0 + totalMagicDefenseBonus)).roundToInt() + magicDefenseGrowth,
+            speed = (disciple.combat.baseSpeed * (1.0 + totalSpeedBonus)).roundToInt() + speedGrowth,
             critRate = 0.05 + critBonus,
-            intelligence = disciple.intelligence + intelligenceFlat,
-            charm = disciple.charm + charmFlat,
-            loyalty = disciple.loyalty + loyaltyFlat,
-            comprehension = disciple.comprehension + comprehensionFlat,
-            teaching = disciple.teaching + teachingFlat,
-            morality = disciple.morality + moralityFlat
+            intelligence = disciple.skills.intelligence + intelligenceFlat,
+            charm = disciple.skills.charm + charmFlat,
+            loyalty = disciple.skills.loyalty + loyaltyFlat,
+            comprehension = disciple.skills.comprehension + comprehensionFlat,
+            teaching = disciple.skills.teaching + teachingFlat,
+            morality = disciple.skills.morality + moralityFlat
         )
     }
 
@@ -139,10 +139,10 @@ object DiscipleStatCalculator {
         var totalCritChance = 0.0
 
         listOfNotNull(
-            disciple.weaponId,
-            disciple.armorId,
-            disciple.bootsId,
-            disciple.accessoryId
+            disciple.equipment.weaponId,
+            disciple.equipment.armorId,
+            disciple.equipment.bootsId,
+            disciple.equipment.accessoryId
         ).forEach { equipId ->
             val equipment = equipments[equipId]
             if (equipment != null) {
@@ -183,10 +183,10 @@ object DiscipleStatCalculator {
 
         // 装备加成
         listOfNotNull(
-            disciple.weaponId,
-            disciple.armorId,
-            disciple.bootsId,
-            disciple.accessoryId
+            disciple.equipment.weaponId,
+            disciple.equipment.armorId,
+            disciple.equipment.bootsId,
+            disciple.equipment.accessoryId
         ).forEach { equipId ->
             val equipment = equipments[equipId]
             if (equipment != null) {
@@ -223,7 +223,7 @@ object DiscipleStatCalculator {
         }
 
         // 丹药临时效果
-        if (disciple.pillEffectDuration > 0) {
+        if (disciple.pillEffects.pillEffectDuration > 0) {
             val pe = disciple.pillEffects
             val pillBonus = DiscipleStats(
                 hp = pe.pillHpBonus,
@@ -287,7 +287,7 @@ object DiscipleStatCalculator {
 
         totalBonus += (disciple.spiritRoot.cultivationBonus - 1.0)
 
-        totalBonus += (disciple.comprehensionSpeedBonus - 1.0)
+        totalBonus += (disciple.skills.comprehensionSpeedBonus - 1.0)
 
         if (manuals.isNotEmpty()) {
             disciple.manualIds.forEach { manualId ->
@@ -383,7 +383,7 @@ object DiscipleStatCalculator {
      * 非大境界突破（层内突破）不需要神魂检查
      */
     fun meetsSoulPowerRequirement(disciple: Disciple): Boolean {
-        return meetsSoulPowerRequirement(disciple.realm, disciple.realmLayer, disciple.soulPower)
+        return meetsSoulPowerRequirement(disciple.realm, disciple.realmLayer, disciple.equipment.soulPower)
     }
 
     /**

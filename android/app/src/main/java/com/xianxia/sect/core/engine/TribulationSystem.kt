@@ -19,7 +19,7 @@ object TribulationSystem {
     fun trialHeartDemon(disciple: Disciple): TribulationResult {
         val newRealmIndex = disciple.realm - 1
         val requiredSoul = GameConfig.Realm.getSoulPowerRequirement(newRealmIndex)
-        val currentSoul = disciple.soulPower
+        val currentSoul = disciple.equipment.soulPower
 
         return if (requiredSoul <= 0 || currentSoul >= requiredSoul) {
             TribulationResult(

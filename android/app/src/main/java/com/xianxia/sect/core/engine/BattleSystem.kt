@@ -77,8 +77,8 @@ class BattleSystem @Inject constructor() {
             ).toCombatSkill(manualName = manual.name)
         }
 
-        val effectiveHp = if (disciple.currentHp < 0) stats.maxHp else disciple.currentHp.coerceAtMost(stats.maxHp)
-        val effectiveMp = if (disciple.currentMp < 0) stats.maxMp else disciple.currentMp.coerceAtMost(stats.maxMp)
+        val effectiveHp = if (disciple.combat.currentHp < 0) stats.maxHp else disciple.combat.currentHp.coerceAtMost(stats.maxHp)
+        val effectiveMp = if (disciple.combat.currentMp < 0) stats.maxMp else disciple.combat.currentMp.coerceAtMost(stats.maxMp)
 
         val spiritRootTypes = disciple.spiritRoot.types
         val primaryElement = spiritRootTypes.firstOrNull()?.trim() ?: "metal"

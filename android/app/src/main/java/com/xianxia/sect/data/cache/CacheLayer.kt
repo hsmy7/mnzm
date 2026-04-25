@@ -318,6 +318,10 @@ class GameDataCacheManager @Inject constructor(
         }
     }
 
+    override fun onLowMemory() {
+        scope.launch { emergencyPurge() }
+    }
+
     private fun evictByRatio(ratio: Float) {
         val entries = memoryCache.keys.toList()
         val toRemove = entries.take((entries.size * (1 - ratio)).toInt())
@@ -354,13 +358,6 @@ class GameDataCacheManager @Inject constructor(
     }
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {}
-
-    @Deprecated("Deprecated in ComponentCallbacks2")
-    @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
-    override fun onLowMemory() {
-        Log.w(TAG, "onLowMemory called, performing emergency cleanup")
-        scope.launch { evictColdData() }
-    }
 
     /**
      * Startup memory budget check

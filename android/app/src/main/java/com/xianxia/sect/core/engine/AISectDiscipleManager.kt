@@ -1,5 +1,3 @@
-@file:Suppress("DEPRECATION")
-
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.GameConfig
@@ -108,13 +106,13 @@ object AISectDiscipleManager {
                 hpVariance, mpVariance, physicalAttackVariance, magicAttackVariance,
                 physicalDefenseVariance, magicDefenseVariance, speedVariance
             )
-            baseHp = baseStats.baseHp
-            baseMp = baseStats.baseMp
-            basePhysicalAttack = baseStats.basePhysicalAttack
-            baseMagicAttack = baseStats.baseMagicAttack
-            basePhysicalDefense = baseStats.basePhysicalDefense
-            baseMagicDefense = baseStats.baseMagicDefense
-            baseSpeed = baseStats.baseSpeed
+            combat.baseHp = baseStats.baseHp
+            combat.baseMp = baseStats.baseMp
+            combat.basePhysicalAttack = baseStats.basePhysicalAttack
+            combat.baseMagicAttack = baseStats.baseMagicAttack
+            combat.basePhysicalDefense = baseStats.basePhysicalDefense
+            combat.baseMagicDefense = baseStats.baseMagicDefense
+            combat.baseSpeed = baseStats.baseSpeed
         }
     }
     
@@ -218,11 +216,11 @@ object AISectDiscipleManager {
             var newCultivation = disciple.cultivation + monthlyGain
             var newRealm = disciple.realm
             var newRealmLayer = disciple.realmLayer
-            var newBreakthroughFailCount = disciple.breakthroughFailCount
+            var newBreakthroughFailCount = disciple.combat.breakthroughFailCount
             
             while (newCultivation >= disciple.maxCultivation && newRealm > 0) {
                 val isMajorBreakthrough = newRealmLayer >= GameConfig.Realm.get(newRealm).maxLayers
-                if (isMajorBreakthrough && !DiscipleStatCalculator.meetsSoulPowerRequirement(newRealm, newRealmLayer, disciple.soulPower)) {
+                if (isMajorBreakthrough && !DiscipleStatCalculator.meetsSoulPowerRequirement(newRealm, newRealmLayer, disciple.equipment.soulPower)) {
                     break
                 }
 
@@ -294,29 +292,29 @@ object AISectDiscipleManager {
             
             updatedDisciple = updateEquipmentNurture(
                 disciple = updatedDisciple,
-                equipmentId = disciple.weaponId,
-                currentNurture = disciple.weaponNurture,
+                equipmentId = disciple.equipment.weaponId,
+                currentNurture = disciple.equipment.weaponNurture,
                 nurtureSetter = { d, n -> d.copyWith(weaponNurture = n) }
             )
 
             updatedDisciple = updateEquipmentNurture(
                 disciple = updatedDisciple,
-                equipmentId = disciple.armorId,
-                currentNurture = disciple.armorNurture,
+                equipmentId = disciple.equipment.armorId,
+                currentNurture = disciple.equipment.armorNurture,
                 nurtureSetter = { d, n -> d.copyWith(armorNurture = n) }
             )
 
             updatedDisciple = updateEquipmentNurture(
                 disciple = updatedDisciple,
-                equipmentId = disciple.bootsId,
-                currentNurture = disciple.bootsNurture,
+                equipmentId = disciple.equipment.bootsId,
+                currentNurture = disciple.equipment.bootsNurture,
                 nurtureSetter = { d, n -> d.copyWith(bootsNurture = n) }
             )
 
             updatedDisciple = updateEquipmentNurture(
                 disciple = updatedDisciple,
-                equipmentId = disciple.accessoryId,
-                currentNurture = disciple.accessoryNurture,
+                equipmentId = disciple.equipment.accessoryId,
+                currentNurture = disciple.equipment.accessoryNurture,
                 nurtureSetter = { d, n -> d.copyWith(accessoryNurture = n) }
             )
             

@@ -1,5 +1,3 @@
-@file:Suppress("DEPRECATION")
-
 package com.xianxia.sect.core.engine.service
 
 import kotlinx.coroutines.flow.StateFlow
@@ -175,11 +173,11 @@ class CombatService @Inject constructor(
                 }
             } else {
                 val returnEquipIds = mutableListOf<String>()
-                disciple.weaponId?.let { returnEquipIds.add(it) }
-                disciple.armorId?.let { returnEquipIds.add(it) }
-                disciple.bootsId?.let { returnEquipIds.add(it) }
-                disciple.accessoryId?.let { returnEquipIds.add(it) }
-                disciple.storageBagItems.filter { it.itemType == "equipment_stack" || it.itemType == "equipment_instance" }.forEach { returnEquipIds.add(it.itemId) }
+                disciple.equipment.weaponId?.let { returnEquipIds.add(it) }
+                disciple.equipment.armorId?.let { returnEquipIds.add(it) }
+                disciple.equipment.bootsId?.let { returnEquipIds.add(it) }
+                disciple.equipment.accessoryId?.let { returnEquipIds.add(it) }
+                disciple.equipment.storageBagItems.filter { it.itemType == "equipment_stack" || it.itemType == "equipment_instance" }.forEach { returnEquipIds.add(it.itemId) }
 
                 returnEquipIds.forEach { eid ->
                     val eq = currentEquipmentInstances.find { it.id == eid } ?: return@forEach
@@ -193,7 +191,7 @@ class CombatService @Inject constructor(
                         if (it.id == manualId) it.copy(isLearned = false, ownerId = null) else it
                     }
                 }
-                disciple.storageBagItems.filter { it.itemType == "manual_stack" || it.itemType == "manual_instance" }.forEach { bagItem ->
+                disciple.equipment.storageBagItems.filter { it.itemType == "manual_stack" || it.itemType == "manual_instance" }.forEach { bagItem ->
                     currentManualInstances = currentManualInstances.map {
                         if (it.id == bagItem.itemId) it.copy(isLearned = false, ownerId = null) else it
                     }
@@ -297,7 +295,7 @@ class CombatService @Inject constructor(
             val discipleIndex = currentDisciples.indexOfFirst { it.id == memberId }
             if (discipleIndex >= 0 && !deadMemberIds.contains(memberId)) {
                 val disciple = currentDisciples[discipleIndex]
-                val mp = survivorMpMap[memberId] ?: disciple.currentMp
+                val mp = survivorMpMap[memberId] ?: disciple.combat.currentMp
                 val updatedStatus = if (disciple.status == DiscipleStatus.IN_TEAM) DiscipleStatus.IDLE else disciple.status
                 val updatedDisciple = disciple.copyWith(
                     status = updatedStatus,

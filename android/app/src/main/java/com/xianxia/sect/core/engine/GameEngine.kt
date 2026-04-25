@@ -1027,7 +1027,7 @@ class GameEngine @Inject constructor(
                         val disciple = disciples.find { it.id == discipleId }
                         if (disciple == null) return@update
 
-                        val bagStackIds = disciples.flatMap { it.storageBagItems }
+                        val bagStackIds = disciples.flatMap { it.equipment.storageBagItems }
                             .filter { it.itemType == "equipment_stack" }
                             .map { it.itemId }
                             .toSet()
@@ -1037,10 +1037,10 @@ class GameEngine @Inject constructor(
                         if (canEquip) {
                             val slot = stack.slot
                             val oldEquipId = when (slot) {
-                                EquipmentSlot.WEAPON -> disciple.weaponId
-                                EquipmentSlot.ARMOR -> disciple.armorId
-                                EquipmentSlot.BOOTS -> disciple.bootsId
-                                EquipmentSlot.ACCESSORY -> disciple.accessoryId
+                                EquipmentSlot.WEAPON -> disciple.equipment.weaponId
+                                EquipmentSlot.ARMOR -> disciple.equipment.armorId
+                                EquipmentSlot.BOOTS -> disciple.equipment.bootsId
+                                EquipmentSlot.ACCESSORY -> disciple.equipment.accessoryId
                                 else -> ""
                             }
 
@@ -1069,7 +1069,7 @@ class GameEngine @Inject constructor(
 
                                     updatedDisciple = updatedDisciple.copyWith(
                                         storageBagItems = StorageBagUtils.increaseItemQuantity(
-                                            updatedDisciple.storageBagItems,
+                                            updatedDisciple.equipment.storageBagItems,
                                             StorageBagItem(
                                                 itemId = storageItemId,
                                                 itemType = "equipment_stack",
@@ -1153,7 +1153,7 @@ class GameEngine @Inject constructor(
                                 if (d.id == discipleId) {
                                     d.copyWith(
                                         storageBagItems = StorageBagUtils.increaseItemQuantity(
-                                            d.storageBagItems,
+                                            d.equipment.storageBagItems,
                                             StorageBagItem(
                                                 itemId = bagStackId,
                                                 itemType = "equipment_stack",
@@ -1217,7 +1217,7 @@ class GameEngine @Inject constructor(
                                 }
                             }
 
-                            val bagStackIds = disciples.flatMap { it.storageBagItems }
+                            val bagStackIds = disciples.flatMap { it.equipment.storageBagItems }
                                 .filter { it.itemType == "manual_stack" }
                                 .map { it.itemId }
                                 .toSet()
@@ -1243,7 +1243,7 @@ class GameEngine @Inject constructor(
                                 if (it.id == discipleId) {
                                     it.copyWith(
                                         storageBagItems = StorageBagUtils.increaseItemQuantity(
-                                            it.storageBagItems,
+                                            it.equipment.storageBagItems,
                                             StorageBagItem(
                                                 itemId = storageItemId,
                                                 itemType = "manual_stack",
@@ -1285,7 +1285,7 @@ class GameEngine @Inject constructor(
                                 updateDisciple(discipleId) { d ->
                                     d.copyWith(
                                         storageBagItems = StorageBagUtils.increaseItemQuantity(
-                                            d.storageBagItems,
+                                            d.equipment.storageBagItems,
                                             pillItem,
                                             inventoryConfig.getMaxStackSize("pill")
                                         )
@@ -1300,7 +1300,7 @@ class GameEngine @Inject constructor(
                         updateDisciple(discipleId) { disciple ->
                             disciple.copyWith(
                                 storageBagItems = StorageBagUtils.increaseItemQuantity(
-                                    disciple.storageBagItems,
+                                    disciple.equipment.storageBagItems,
                                     StorageBagItem(
                                         itemId = item.id,
                                         itemType = "material",
@@ -1321,7 +1321,7 @@ class GameEngine @Inject constructor(
                         updateDisciple(discipleId) { disciple ->
                             disciple.copyWith(
                                 storageBagItems = StorageBagUtils.increaseItemQuantity(
-                                    disciple.storageBagItems,
+                                    disciple.equipment.storageBagItems,
                                     StorageBagItem(
                                         itemId = item.id,
                                         itemType = "herb",
@@ -1342,7 +1342,7 @@ class GameEngine @Inject constructor(
                         updateDisciple(discipleId) { disciple ->
                             disciple.copyWith(
                                 storageBagItems = StorageBagUtils.increaseItemQuantity(
-                                    disciple.storageBagItems,
+                                    disciple.equipment.storageBagItems,
                                     StorageBagItem(
                                         itemId = item.id,
                                         itemType = "seed",
@@ -1398,7 +1398,7 @@ class GameEngine @Inject constructor(
         val instance = stateStore.manualInstances.value.find { it.id == instanceId } ?: return
         val data = stateStore.gameData.value
         stateStore.update {
-            val bagStackIds = disciples.flatMap { it.storageBagItems }
+            val bagStackIds = disciples.flatMap { it.equipment.storageBagItems }
                 .filter { it.itemType == "manual_stack" }
                 .map { it.itemId }
                 .toSet()
@@ -1427,7 +1427,7 @@ class GameEngine @Inject constructor(
                         )
                         it.copyWith(
                             manualIds = it.manualIds.filter { mid -> mid != instanceId },
-                            storageBagItems = StorageBagUtils.increaseItemQuantity(it.storageBagItems, storageItem, maxStack)
+                            storageBagItems = StorageBagUtils.increaseItemQuantity(it.equipment.storageBagItems, storageItem, maxStack)
                                 .map { bagItem ->
                                     if (bagItem.itemId == existingStack.id && bagItem.itemType == "manual_stack") {
                                         bagItem.copy(forgetYear = data.gameYear, forgetMonth = data.gameMonth, forgetDay = data.gameDay)
@@ -1455,7 +1455,7 @@ class GameEngine @Inject constructor(
                         )
                         it.copyWith(
                             manualIds = it.manualIds.filter { mid -> mid != instanceId },
-                            storageBagItems = StorageBagUtils.increaseItemQuantity(it.storageBagItems, storageItem, inventoryConfig.getMaxStackSize("manual_stack"))
+                            storageBagItems = StorageBagUtils.increaseItemQuantity(it.equipment.storageBagItems, storageItem, inventoryConfig.getMaxStackSize("manual_stack"))
                         )
                     } else it
                 }
@@ -1488,7 +1488,7 @@ class GameEngine @Inject constructor(
                 .any { mid -> manualInstances.find { m -> m.id == mid }?.type == ManualType.MIND }
             if (blocked) return@update
 
-            val bagStackIds = disciples.flatMap { it.storageBagItems }
+            val bagStackIds = disciples.flatMap { it.equipment.storageBagItems }
                 .filter { it.itemType == "manual_stack" }
                 .map { it.itemId }
                 .toSet()
@@ -1552,7 +1552,7 @@ class GameEngine @Inject constructor(
                 if (it.id == discipleId) {
                     it.copyWith(
                         manualIds = (it.manualIds.filter { mid -> mid != oldInstanceId }) + newInstance.id,
-                        storageBagItems = StorageBagUtils.increaseItemQuantity(it.storageBagItems, storageItem, inventoryConfig.getMaxStackSize("manual_stack"))
+                        storageBagItems = StorageBagUtils.increaseItemQuantity(it.equipment.storageBagItems, storageItem, inventoryConfig.getMaxStackSize("manual_stack"))
                             .map { bagItem ->
                                 if (bagItem.itemId == storageItemId && bagItem.itemType == "manual_stack") {
                                     bagItem.copy(forgetYear = data.gameYear, forgetMonth = data.gameMonth, forgetDay = data.gameDay)

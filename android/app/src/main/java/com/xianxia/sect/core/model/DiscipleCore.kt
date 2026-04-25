@@ -1,5 +1,3 @@
-@file:Suppress("DEPRECATION")
-
 package com.xianxia.sect.core.model
 
 import androidx.room.ColumnInfo
@@ -77,7 +75,7 @@ data class DiscipleCore(
                 lifespan = disciple.lifespan,
                 gender = disciple.gender,
                 spiritRootType = disciple.spiritRootType,
-                recruitedMonth = disciple.recruitedMonth,
+                recruitedMonth = disciple.usage.recruitedMonth,
                 updatedAt = System.currentTimeMillis()
             )
         }

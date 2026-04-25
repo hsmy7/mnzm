@@ -18,11 +18,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.ParagraphStyle
 import androidx.compose.ui.text.SpanStyle
-import androidx.compose.foundation.text.ClickableText
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -299,13 +300,16 @@ private fun PrivacySummaryContent(
             pop()
         }
     }
-    @Suppress("DEPRECATION") ClickableText(
+    Text(
         text = tapTapAnnotatedString,
-        modifier = Modifier.padding(bottom = 4.dp, start = 8.dp),
-        onClick = { offset: Int ->
-            tapTapAnnotatedString.getStringAnnotations(tag = "URL", start = offset, end = offset)
-                .firstOrNull()?.let { onTapTapSdkLinkClick() }
-        }
+        modifier = Modifier
+            .padding(bottom = 4.dp, start = 8.dp)
+            .pointerInput(tapTapAnnotatedString) {
+                detectTapGestures { offset ->
+                    tapTapAnnotatedString.getStringAnnotations(tag = "URL", start = offset.x.toInt(), end = offset.x.toInt())
+                        .firstOrNull()?.let { onTapTapSdkLinkClick() }
+                }
+            }
     )
 
     val mmkvAnnotatedString = buildAnnotatedString {
@@ -319,13 +323,16 @@ private fun PrivacySummaryContent(
             pop()
         }
     }
-    @Suppress("DEPRECATION") ClickableText(
+    Text(
         text = mmkvAnnotatedString,
-        modifier = Modifier.padding(bottom = 12.dp, start = 8.dp),
-        onClick = { offset: Int ->
-            mmkvAnnotatedString.getStringAnnotations(tag = "URL", start = offset, end = offset)
-                .firstOrNull()?.let { onMmkvLinkClick() }
-        }
+        modifier = Modifier
+            .padding(bottom = 12.dp, start = 8.dp)
+            .pointerInput(mmkvAnnotatedString) {
+                detectTapGestures { offset ->
+                    mmkvAnnotatedString.getStringAnnotations(tag = "URL", start = offset.x.toInt(), end = offset.x.toInt())
+                        .firstOrNull()?.let { onMmkvLinkClick() }
+                }
+            }
     )
 
     Text(

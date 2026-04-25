@@ -1,5 +1,3 @@
-@file:Suppress("DEPRECATION")
-
 package com.xianxia.sect.core.engine.service
 
 import kotlinx.coroutines.flow.StateFlow

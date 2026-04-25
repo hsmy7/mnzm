@@ -13,6 +13,7 @@ import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.ResponseBody
 import okhttp3.ResponseBody.Companion.toResponseBody
+import androidx.core.content.pm.PackageInfoCompat
 import java.io.IOException
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.TimeUnit
@@ -258,8 +259,7 @@ class SecureHttpClient @Inject constructor(
             val packageInfo = context.packageManager.getPackageInfo(
                 context.packageName, 0
             )
-            @Suppress("DEPRECATION")
-            "${packageInfo.versionName}(${packageInfo.versionCode})"
+            "${packageInfo.versionName}(${PackageInfoCompat.getLongVersionCode(packageInfo)})"
         } catch (e: Exception) {
             "unknown"
         }

@@ -1,5 +1,3 @@
-@file:Suppress("DEPRECATION")
-
 package com.xianxia.sect.core.engine
 
 import android.util.Log
@@ -772,13 +770,13 @@ object RedeemCodeManager {
                 hpVariance, mpVariance, physicalAttackVariance, magicAttackVariance,
                 physicalDefenseVariance, magicDefenseVariance, speedVariance
             )
-            baseHp = baseStats.baseHp
-            baseMp = baseStats.baseMp
-            basePhysicalAttack = baseStats.basePhysicalAttack
-            baseMagicAttack = baseStats.baseMagicAttack
-            basePhysicalDefense = baseStats.basePhysicalDefense
-            baseMagicDefense = baseStats.baseMagicDefense
-            baseSpeed = baseStats.baseSpeed
+            combat.baseHp = baseStats.baseHp
+            combat.baseMp = baseStats.baseMp
+            combat.basePhysicalAttack = baseStats.basePhysicalAttack
+            combat.baseMagicAttack = baseStats.baseMagicAttack
+            combat.basePhysicalDefense = baseStats.basePhysicalDefense
+            combat.baseMagicDefense = baseStats.baseMagicDefense
+            combat.baseSpeed = baseStats.baseSpeed
         }
     }
 

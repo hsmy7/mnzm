@@ -302,7 +302,7 @@ fun fixStorageBagReferences(
     val manualInstanceIds = manualInstances.map { it.id }.toSet()
 
     return disciples.map { disciple ->
-        val fixedItems = disciple.storageBagItems.map { item ->
+        val fixedItems = disciple.equipment.storageBagItems.map { item ->
             when {
                 item.itemType == "equipment" -> {
                     when {

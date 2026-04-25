@@ -34,7 +34,7 @@ object DiscipleManualManager {
         var lastStackUpdate: StackUpdate? = null
         var lastReplacedManualStack: ManualStack? = null
 
-        val bagStackRefs = disciple.storageBagItems
+        val bagStackRefs = disciple.equipment.storageBagItems
             .filter { it.itemType == "manual_stack" && !StorageBagUtils.isInCoolingPeriod(it, gameYear, gameMonth, gameDay) }
 
         if (bagStackRefs.isEmpty()) {
@@ -157,7 +157,7 @@ object DiscipleManualManager {
 
         updatedDisciple = updatedDisciple.copyWith(
             manualIds = updatedDisciple.manualIds + instanceId,
-            storageBagItems = StorageBagUtils.decreaseItemQuantity(updatedDisciple.storageBagItems, stack.id)
+            storageBagItems = StorageBagUtils.decreaseItemQuantity(updatedDisciple.equipment.storageBagItems, stack.id)
         )
 
         val messagePrefix = if (instantMessage) "立即" else "自动"
@@ -186,7 +186,7 @@ object DiscipleManualManager {
 
         val oldStack = existingInstance.toStack(quantity = 1)
 
-        val bagStackIds = disciple.storageBagItems
+        val bagStackIds = disciple.equipment.storageBagItems
             .filter { it.itemType == "manual_stack" }
             .map { it.itemId }
             .toSet()
@@ -220,7 +220,7 @@ object DiscipleManualManager {
             forgetDay = gameDay
         )
         updatedDisciple = updatedDisciple.copyWith(
-            storageBagItems = StorageBagUtils.increaseItemQuantity(updatedDisciple.storageBagItems, storageItem, maxStack)
+            storageBagItems = StorageBagUtils.increaseItemQuantity(updatedDisciple.equipment.storageBagItems, storageItem, maxStack)
                 .map { bagItem ->
                     if (bagItem.itemId == storageItemId && bagItem.itemType == "manual_stack") {
                         bagItem.copy(forgetYear = gameYear, forgetMonth = gameMonth, forgetDay = gameDay)
@@ -240,7 +240,7 @@ object DiscipleManualManager {
 
         updatedDisciple = updatedDisciple.copyWith(
             manualIds = updatedDisciple.manualIds.map { if (it == existingInstanceId) instanceId else it },
-            storageBagItems = StorageBagUtils.decreaseItemQuantity(updatedDisciple.storageBagItems, stack.id)
+            storageBagItems = StorageBagUtils.decreaseItemQuantity(updatedDisciple.equipment.storageBagItems, stack.id)
         )
 
         val messagePrefix = if (instantMessage) "立即" else "自动"

@@ -1,4 +1,3 @@
-@file:Suppress("DEPRECATION")
 @file:OptIn(DelicateCoroutinesApi::class)
 
 package com.xianxia.sect.core.engine

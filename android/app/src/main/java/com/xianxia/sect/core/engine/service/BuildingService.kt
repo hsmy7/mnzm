@@ -1,5 +1,3 @@
-@file:Suppress("DEPRECATION")
-
 package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.GameConfig
@@ -522,17 +520,17 @@ class BuildingService @Inject constructor(
         return when (buildingId) {
             "forge" -> {
                 val baseline = 80
-                val diff = (elderDisciple.artifactRefining - baseline).coerceAtLeast(0)
+                val diff = (elderDisciple.skills.artifactRefining - baseline).coerceAtLeast(0)
                 diff * 0.01
             }
             "alchemy" -> {
                 val baseline = 80
-                val diff = (elderDisciple.pillRefining - baseline).coerceAtLeast(0)
+                val diff = (elderDisciple.skills.pillRefining - baseline).coerceAtLeast(0)
                 diff * 0.01
             }
             "herbGarden" -> {
                 val baseline = 80
-                val diff = (elderDisciple.spiritPlanting - baseline).coerceAtLeast(0)
+                val diff = (elderDisciple.skills.spiritPlanting - baseline).coerceAtLeast(0)
                 diff * 0.01
             }
             else -> 0.0

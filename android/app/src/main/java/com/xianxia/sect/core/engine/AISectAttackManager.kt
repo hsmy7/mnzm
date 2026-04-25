@@ -1,5 +1,3 @@
-@file:Suppress("DEPRECATION")
-
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.BuffType
@@ -124,10 +122,10 @@ object AISectAttackManager {
             val realmPower = (10 - disciple.realm) * weights.REALM_BASE
 
             val equipmentPower = buildMap {
-                disciple.weaponId?.let { put(it, 1.0) }
-                disciple.armorId?.let { put(it, 1.0) }
-                disciple.bootsId?.let { put(it, 1.0) }
-                disciple.accessoryId?.let { put(it, 1.0) }
+                disciple.equipment.weaponId?.let { put(it, 1.0) }
+                disciple.equipment.armorId?.let { put(it, 1.0) }
+                disciple.equipment.bootsId?.let { put(it, 1.0) }
+                disciple.equipment.accessoryId?.let { put(it, 1.0) }
             }.entries.sumOf { (id, _) ->
                 EquipmentDatabase.getById(id)?.let { template ->
                     template.rarity * weights.EQUIPMENT_RARITY
@@ -296,31 +294,31 @@ object AISectAttackManager {
         }
 
         val equipmentMap = buildMap {
-            disciple.weaponId?.let { weaponId ->
+            disciple.equipment.weaponId?.let { weaponId ->
                 EquipmentDatabase.getById(weaponId)?.let { template ->
                     val eq = EquipmentDatabase.createFromTemplate(template).toInstance(id = weaponId)
-                    val nurture = disciple.weaponNurture
+                    val nurture = disciple.equipment.weaponNurture
                     put(weaponId, if (nurture.equipmentId == weaponId) eq.copy(nurtureLevel = nurture.nurtureLevel, nurtureProgress = nurture.nurtureProgress) else eq)
                 }
             }
-            disciple.armorId?.let { armorId ->
+            disciple.equipment.armorId?.let { armorId ->
                 EquipmentDatabase.getById(armorId)?.let { template ->
                     val eq = EquipmentDatabase.createFromTemplate(template).toInstance(id = armorId)
-                    val nurture = disciple.armorNurture
+                    val nurture = disciple.equipment.armorNurture
                     put(armorId, if (nurture.equipmentId == armorId) eq.copy(nurtureLevel = nurture.nurtureLevel, nurtureProgress = nurture.nurtureProgress) else eq)
                 }
             }
-            disciple.bootsId?.let { bootsId ->
+            disciple.equipment.bootsId?.let { bootsId ->
                 EquipmentDatabase.getById(bootsId)?.let { template ->
                     val eq = EquipmentDatabase.createFromTemplate(template).toInstance(id = bootsId)
-                    val nurture = disciple.bootsNurture
+                    val nurture = disciple.equipment.bootsNurture
                     put(bootsId, if (nurture.equipmentId == bootsId) eq.copy(nurtureLevel = nurture.nurtureLevel, nurtureProgress = nurture.nurtureProgress) else eq)
                 }
             }
-            disciple.accessoryId?.let { accessoryId ->
+            disciple.equipment.accessoryId?.let { accessoryId ->
                 EquipmentDatabase.getById(accessoryId)?.let { template ->
                     val eq = EquipmentDatabase.createFromTemplate(template).toInstance(id = accessoryId)
-                    val nurture = disciple.accessoryNurture
+                    val nurture = disciple.equipment.accessoryNurture
                     put(accessoryId, if (nurture.equipmentId == accessoryId) eq.copy(nurtureLevel = nurture.nurtureLevel, nurtureProgress = nurture.nurtureProgress) else eq)
                 }
             }

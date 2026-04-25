@@ -1,5 +1,3 @@
-@file:Suppress("DEPRECATION")
-
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.GameConfig
@@ -22,13 +20,13 @@ object DisciplePillManager {
     ): PillUseResult {
         val events = mutableListOf<String>()
 
-        if (disciple.storageBagItems.isEmpty()) {
+        if (disciple.equipment.storageBagItems.isEmpty()) {
             return PillUseResult(disciple, events)
         }
 
         var updatedDisciple = disciple
 
-        val pillItems = disciple.storageBagItems
+        val pillItems = disciple.equipment.storageBagItems
             .filter { it.itemType == "pill" }
             .sortedByDescending { it.rarity }
 
@@ -44,7 +42,7 @@ object DisciplePillManager {
 
             updatedDisciple = updatedDisciple.copyWith(
                 storageBagItems = StorageBagUtils.decreaseItemQuantity(
-                    updatedDisciple.storageBagItems,
+                    updatedDisciple.equipment.storageBagItems,
                     pillItem.itemId
                 )
             )

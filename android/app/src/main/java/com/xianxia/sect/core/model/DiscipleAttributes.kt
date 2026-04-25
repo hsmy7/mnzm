@@ -1,5 +1,3 @@
-@file:Suppress("DEPRECATION")
-
 package com.xianxia.sect.core.model
 
 import androidx.room.ColumnInfo
@@ -38,17 +36,17 @@ data class DiscipleAttributes(
         fun fromDisciple(disciple: Disciple): DiscipleAttributes {
             return DiscipleAttributes(
                 discipleId = disciple.id,
-                intelligence = disciple.intelligence,
-                charm = disciple.charm,
-                loyalty = disciple.loyalty,
-                comprehension = disciple.comprehension,
-                artifactRefining = disciple.artifactRefining,
-                pillRefining = disciple.pillRefining,
-                spiritPlanting = disciple.spiritPlanting,
-                teaching = disciple.teaching,
-                morality = disciple.morality,
-                salaryPaidCount = disciple.salaryPaidCount,
-                salaryMissedCount = disciple.salaryMissedCount
+                intelligence = disciple.skills.intelligence,
+                charm = disciple.skills.charm,
+                loyalty = disciple.skills.loyalty,
+                comprehension = disciple.skills.comprehension,
+                artifactRefining = disciple.skills.artifactRefining,
+                pillRefining = disciple.skills.pillRefining,
+                spiritPlanting = disciple.skills.spiritPlanting,
+                teaching = disciple.skills.teaching,
+                morality = disciple.skills.morality,
+                salaryPaidCount = disciple.skills.salaryPaidCount,
+                salaryMissedCount = disciple.skills.salaryMissedCount
             )
         }
     }

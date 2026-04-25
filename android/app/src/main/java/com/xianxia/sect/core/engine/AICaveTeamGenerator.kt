@@ -1,5 +1,3 @@
-@file:Suppress("DEPRECATION")
-
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.GameConfig
@@ -77,10 +75,10 @@ object AICaveTeamGenerator {
         val baseStats = disciple.getBaseStats()
         
         val equipments = mutableListOf<AIRandomEquipment>()
-        disciple.weaponId?.let { equipments.add(createEquipmentFromId(it, EquipmentSlot.WEAPON)) }
-        disciple.armorId?.let { equipments.add(createEquipmentFromId(it, EquipmentSlot.ARMOR)) }
-        disciple.bootsId?.let { equipments.add(createEquipmentFromId(it, EquipmentSlot.BOOTS)) }
-        disciple.accessoryId?.let { equipments.add(createEquipmentFromId(it, EquipmentSlot.ACCESSORY)) }
+        disciple.equipment.weaponId?.let { equipments.add(createEquipmentFromId(it, EquipmentSlot.WEAPON)) }
+        disciple.equipment.armorId?.let { equipments.add(createEquipmentFromId(it, EquipmentSlot.ARMOR)) }
+        disciple.equipment.bootsId?.let { equipments.add(createEquipmentFromId(it, EquipmentSlot.BOOTS)) }
+        disciple.equipment.accessoryId?.let { equipments.add(createEquipmentFromId(it, EquipmentSlot.ACCESSORY)) }
         
         val equipStats = calculateEquipmentStats(equipments)
         

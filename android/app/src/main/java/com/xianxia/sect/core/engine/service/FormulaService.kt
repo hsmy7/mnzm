@@ -1,5 +1,3 @@
-@file:Suppress("DEPRECATION")
-
 package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.model.*
@@ -213,17 +211,17 @@ class FormulaService @Inject constructor(
         return when (buildingId) {
             "forge" -> {
                 val baseline = 80
-                val diff = (elderDisciple.artifactRefining - baseline).coerceAtLeast(0)
+                val diff = (elderDisciple.skills.artifactRefining - baseline).coerceAtLeast(0)
                 diff * 0.01
             }
             "alchemy" -> {
                 val baseline = 80
-                val diff = (elderDisciple.pillRefining - baseline).coerceAtLeast(0)
+                val diff = (elderDisciple.skills.pillRefining - baseline).coerceAtLeast(0)
                 diff * 0.01
             }
             "herbGarden" -> {
                 val baseline = 80
-                val diff = (elderDisciple.spiritPlanting - baseline).coerceAtLeast(0)
+                val diff = (elderDisciple.skills.spiritPlanting - baseline).coerceAtLeast(0)
                 diff * 0.01
             }
             else -> 0.0
@@ -263,11 +261,11 @@ class FormulaService @Inject constructor(
                 val discipleBaseline = 80
 
                 elder?.let { e ->
-                    val diff = (e.spiritPlanting - elderBaseline).coerceAtLeast(0)
+                    val diff = (e.skills.spiritPlanting - elderBaseline).coerceAtLeast(0)
                     speedBonus += diff * 0.01
                 }
                 disciples.forEach { d ->
-                    val diff = (d.spiritPlanting - discipleBaseline).coerceAtLeast(0)
+                    val diff = (d.skills.spiritPlanting - discipleBaseline).coerceAtLeast(0)
                     speedBonus += diff * 0.01
                 }
             }
@@ -276,11 +274,11 @@ class FormulaService @Inject constructor(
                 val discipleBaseline = 80
 
                 elder?.let { e ->
-                    val diff = (e.pillRefining - elderBaseline).coerceAtLeast(0)
+                    val diff = (e.skills.pillRefining - elderBaseline).coerceAtLeast(0)
                     successBonus += diff * 0.01
                 }
                 disciples.forEach { d ->
-                    val diff = (d.pillRefining - discipleBaseline).coerceAtLeast(0)
+                    val diff = (d.skills.pillRefining - discipleBaseline).coerceAtLeast(0)
                     speedBonus += diff * 0.01
                 }
             }
@@ -289,11 +287,11 @@ class FormulaService @Inject constructor(
                 val discipleBaseline = 80
 
                 elder?.let { e ->
-                    val diff = (e.artifactRefining - elderBaseline).coerceAtLeast(0)
+                    val diff = (e.skills.artifactRefining - elderBaseline).coerceAtLeast(0)
                     successBonus += diff * 0.01
                 }
                 disciples.forEach { d ->
-                    val diff = (d.artifactRefining - discipleBaseline).coerceAtLeast(0)
+                    val diff = (d.skills.artifactRefining - discipleBaseline).coerceAtLeast(0)
                     speedBonus += diff * 0.01
                 }
             }

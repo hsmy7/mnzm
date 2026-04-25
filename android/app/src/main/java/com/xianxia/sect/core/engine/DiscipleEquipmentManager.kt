@@ -26,22 +26,22 @@ object DiscipleEquipmentManager {
     private val slotConfigs = listOf(
         SlotConfig(
             slotType = EquipmentSlot.WEAPON,
-            currentEquipIdGetter = { it.weaponId },
+            currentEquipIdGetter = { it.equipment.weaponId },
             equipSetter = { d, id -> d.copyWith(weaponId = id) }
         ),
         SlotConfig(
             slotType = EquipmentSlot.ARMOR,
-            currentEquipIdGetter = { it.armorId },
+            currentEquipIdGetter = { it.equipment.armorId },
             equipSetter = { d, id -> d.copyWith(armorId = id) }
         ),
         SlotConfig(
             slotType = EquipmentSlot.BOOTS,
-            currentEquipIdGetter = { it.bootsId },
+            currentEquipIdGetter = { it.equipment.bootsId },
             equipSetter = { d, id -> d.copyWith(bootsId = id) }
         ),
         SlotConfig(
             slotType = EquipmentSlot.ACCESSORY,
-            currentEquipIdGetter = { it.accessoryId },
+            currentEquipIdGetter = { it.equipment.accessoryId },
             equipSetter = { d, id -> d.copyWith(accessoryId = id) }
         )
     )
@@ -213,10 +213,10 @@ object DiscipleEquipmentManager {
 
     fun getEquipSlot(disciple: Disciple, slot: EquipmentSlot): String? {
         return when (slot) {
-            EquipmentSlot.WEAPON -> disciple.weaponId
-            EquipmentSlot.ARMOR -> disciple.armorId
-            EquipmentSlot.BOOTS -> disciple.bootsId
-            EquipmentSlot.ACCESSORY -> disciple.accessoryId
+            EquipmentSlot.WEAPON -> disciple.equipment.weaponId
+            EquipmentSlot.ARMOR -> disciple.equipment.armorId
+            EquipmentSlot.BOOTS -> disciple.equipment.bootsId
+            EquipmentSlot.ACCESSORY -> disciple.equipment.accessoryId
         }
     }
 }

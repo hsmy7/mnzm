@@ -198,7 +198,7 @@ class GameViewModel @Inject constructor(
         gameEngine.disciples
     ) { stacks, disciples ->
         val bagStackIds = disciples.filter { it.isAlive }
-            .flatMap { it.storageBagItems }
+            .flatMap { it.equipment.storageBagItems }
             .filter { it.itemType == "equipment_stack" }
             .map { it.itemId }
             .toSet()
@@ -213,7 +213,7 @@ class GameViewModel @Inject constructor(
         gameEngine.disciples
     ) { stacks, disciples ->
         val bagStackIds = disciples.filter { it.isAlive }
-            .flatMap { it.storageBagItems }
+            .flatMap { it.equipment.storageBagItems }
             .filter { it.itemType == "manual_stack" }
             .map { it.itemId }
             .toSet()

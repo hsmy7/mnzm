@@ -329,14 +329,12 @@ class SectViewModel @Inject constructor(
         }
     }
     
-    @Suppress("DEPRECATION")
     // TODO: 迁移到 DiscipleAggregate
     fun getOuterElder(): DiscipleAggregate? {
         val outerElderId = gameEngine.gameData.value?.elderSlots?.outerElder
         return getElderDisciple(outerElderId)
     }
 
-    @Suppress("DEPRECATION")
     // TODO: 迁移到 DiscipleAggregate
     fun getPreachingElder(): DiscipleAggregate? {
         val preachingElderId = gameEngine.gameData.value?.elderSlots?.preachingElder
@@ -360,7 +358,6 @@ class SectViewModel @Inject constructor(
         return gameEngine.gameData.value?.elderSlots?.lawEnforcementReserveDisciples ?: emptyList()
     }
 
-    @Suppress("DEPRECATION")
     // TODO: 迁移到 DiscipleAggregate
     fun getLawEnforcementReserveDisciplesWithInfo(): List<DiscipleAggregate> {
         val reserveSlots = gameEngine.gameData.value?.elderSlots?.lawEnforcementReserveDisciples ?: emptyList()

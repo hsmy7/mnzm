@@ -1,5 +1,3 @@
-@file:Suppress("DEPRECATION")
-
 package com.xianxia.sect.core.util
 
 import com.xianxia.sect.core.model.Disciple
@@ -319,88 +317,88 @@ class MutableDisciple {
         lifespan = disciple.lifespan
         isAlive = disciple.isAlive
         gender = disciple.gender
-        partnerId = disciple.partnerId
-        partnerSectId = disciple.partnerSectId
-        parentId1 = disciple.parentId1
-        parentId2 = disciple.parentId2
-        lastChildYear = disciple.lastChildYear
-        griefEndYear = disciple.griefEndYear
-        weaponId = disciple.weaponId
-        armorId = disciple.armorId
-        bootsId = disciple.bootsId
-        accessoryId = disciple.accessoryId
+        partnerId = disciple.social.partnerId
+        partnerSectId = disciple.social.partnerSectId
+        parentId1 = disciple.social.parentId1
+        parentId2 = disciple.social.parentId2
+        lastChildYear = disciple.social.lastChildYear
+        griefEndYear = disciple.social.griefEndYear
+        weaponId = disciple.equipment.weaponId
+        armorId = disciple.equipment.armorId
+        bootsId = disciple.equipment.bootsId
+        accessoryId = disciple.equipment.accessoryId
         manualIds.clear()
         manualIds.addAll(disciple.manualIds)
         talentIds.clear()
         talentIds.addAll(disciple.talentIds)
         manualMasteries.clear()
         manualMasteries.putAll(disciple.manualMasteries)
-        weaponNurture = disciple.weaponNurture
-        armorNurture = disciple.armorNurture
-        bootsNurture = disciple.bootsNurture
-        accessoryNurture = disciple.accessoryNurture
-        spiritStones = disciple.spiritStones
-        soulPower = disciple.soulPower
+        weaponNurture = disciple.equipment.weaponNurture
+        armorNurture = disciple.equipment.armorNurture
+        bootsNurture = disciple.equipment.bootsNurture
+        accessoryNurture = disciple.equipment.accessoryNurture
+        spiritStones = disciple.equipment.spiritStones
+        soulPower = disciple.equipment.soulPower
         storageBagItems.clear()
-        storageBagItems.addAll(disciple.storageBagItems)
-        storageBagSpiritStones = disciple.storageBagSpiritStones
+        storageBagItems.addAll(disciple.equipment.storageBagItems)
+        storageBagSpiritStones = disciple.equipment.storageBagSpiritStones
         status = disciple.status
         statusData.clear()
         statusData.putAll(disciple.statusData)
         cultivationSpeedBonus = disciple.cultivationSpeedBonus
         cultivationSpeedDuration = disciple.cultivationSpeedDuration
-        pillPhysicalAttackBonus = disciple.pillPhysicalAttackBonus
-        pillMagicAttackBonus = disciple.pillMagicAttackBonus
-        pillPhysicalDefenseBonus = disciple.pillPhysicalDefenseBonus
-        pillMagicDefenseBonus = disciple.pillMagicDefenseBonus
-        pillHpBonus = disciple.pillHpBonus
-        pillMpBonus = disciple.pillMpBonus
-        pillSpeedBonus = disciple.pillSpeedBonus
-        pillCritRateBonus = disciple.pillCritRateBonus
-        pillCritEffectBonus = disciple.pillCritEffectBonus
-        pillCultivationSpeedBonus = disciple.pillCultivationSpeedBonus
-        pillSkillExpSpeedBonus = disciple.pillSkillExpSpeedBonus
-        pillNurtureSpeedBonus = disciple.pillNurtureSpeedBonus
-        pillEffectDuration = disciple.pillEffectDuration
-        activePillCategory = disciple.activePillCategory
-        totalCultivation = disciple.totalCultivation
-        breakthroughCount = disciple.breakthroughCount
-        breakthroughFailCount = disciple.breakthroughFailCount
-        intelligence = disciple.intelligence
-        charm = disciple.charm
-        loyalty = disciple.loyalty
-        comprehension = disciple.comprehension
-        artifactRefining = disciple.artifactRefining
-        pillRefining = disciple.pillRefining
-        spiritPlanting = disciple.spiritPlanting
-        teaching = disciple.teaching
-        morality = disciple.morality
-        salaryPaidCount = disciple.salaryPaidCount
-        salaryMissedCount = disciple.salaryMissedCount
-        recruitedMonth = disciple.recruitedMonth
-        hpVariance = disciple.hpVariance
-        mpVariance = disciple.mpVariance
-        physicalAttackVariance = disciple.physicalAttackVariance
-        magicAttackVariance = disciple.magicAttackVariance
-        physicalDefenseVariance = disciple.physicalDefenseVariance
-        magicDefenseVariance = disciple.magicDefenseVariance
-        speedVariance = disciple.speedVariance
-        baseHp = disciple.baseHp
-        baseMp = disciple.baseMp
-        basePhysicalAttack = disciple.basePhysicalAttack
-        baseMagicAttack = disciple.baseMagicAttack
-        basePhysicalDefense = disciple.basePhysicalDefense
-        baseMagicDefense = disciple.baseMagicDefense
-        baseSpeed = disciple.baseSpeed
+        pillPhysicalAttackBonus = disciple.pillEffects.pillPhysicalAttackBonus
+        pillMagicAttackBonus = disciple.pillEffects.pillMagicAttackBonus
+        pillPhysicalDefenseBonus = disciple.pillEffects.pillPhysicalDefenseBonus
+        pillMagicDefenseBonus = disciple.pillEffects.pillMagicDefenseBonus
+        pillHpBonus = disciple.pillEffects.pillHpBonus
+        pillMpBonus = disciple.pillEffects.pillMpBonus
+        pillSpeedBonus = disciple.pillEffects.pillSpeedBonus
+        pillCritRateBonus = disciple.pillEffects.pillCritRateBonus
+        pillCritEffectBonus = disciple.pillEffects.pillCritEffectBonus
+        pillCultivationSpeedBonus = disciple.pillEffects.pillCultivationSpeedBonus
+        pillSkillExpSpeedBonus = disciple.pillEffects.pillSkillExpSpeedBonus
+        pillNurtureSpeedBonus = disciple.pillEffects.pillNurtureSpeedBonus
+        pillEffectDuration = disciple.pillEffects.pillEffectDuration
+        activePillCategory = disciple.pillEffects.activePillCategory
+        totalCultivation = disciple.combat.totalCultivation
+        breakthroughCount = disciple.combat.breakthroughCount
+        breakthroughFailCount = disciple.combat.breakthroughFailCount
+        intelligence = disciple.skills.intelligence
+        charm = disciple.skills.charm
+        loyalty = disciple.skills.loyalty
+        comprehension = disciple.skills.comprehension
+        artifactRefining = disciple.skills.artifactRefining
+        pillRefining = disciple.skills.pillRefining
+        spiritPlanting = disciple.skills.spiritPlanting
+        teaching = disciple.skills.teaching
+        morality = disciple.skills.morality
+        salaryPaidCount = disciple.skills.salaryPaidCount
+        salaryMissedCount = disciple.skills.salaryMissedCount
+        recruitedMonth = disciple.usage.recruitedMonth
+        hpVariance = disciple.combat.hpVariance
+        mpVariance = disciple.combat.mpVariance
+        physicalAttackVariance = disciple.combat.physicalAttackVariance
+        magicAttackVariance = disciple.combat.magicAttackVariance
+        physicalDefenseVariance = disciple.combat.physicalDefenseVariance
+        magicDefenseVariance = disciple.combat.magicDefenseVariance
+        speedVariance = disciple.combat.speedVariance
+        baseHp = disciple.combat.baseHp
+        baseMp = disciple.combat.baseMp
+        basePhysicalAttack = disciple.combat.basePhysicalAttack
+        baseMagicAttack = disciple.combat.baseMagicAttack
+        basePhysicalDefense = disciple.combat.basePhysicalDefense
+        baseMagicDefense = disciple.combat.baseMagicDefense
+        baseSpeed = disciple.combat.baseSpeed
         discipleType = disciple.discipleType
         usedFunctionalPillTypes.clear()
-        usedFunctionalPillTypes.addAll(disciple.monthlyUsedPillIds)
+        usedFunctionalPillTypes.addAll(disciple.usage.usedFunctionalPillTypes)
         usedExtendLifePillIds.clear()
-        usedExtendLifePillIds.addAll(disciple.usedExtendLifePillIds)
-        hasReviveEffect = disciple.hasReviveEffect
-        hasClearAllEffect = disciple.hasClearAllEffect
-        currentHp = disciple.currentHp
-        currentMp = disciple.currentMp
+        usedExtendLifePillIds.addAll(disciple.usage.usedExtendLifePillIds)
+        hasReviveEffect = disciple.usage.hasReviveEffect
+        hasClearAllEffect = disciple.usage.hasClearAllEffect
+        currentHp = disciple.combat.currentHp
+        currentMp = disciple.combat.currentMp
     }
     
     fun toDisciple(): Disciple {

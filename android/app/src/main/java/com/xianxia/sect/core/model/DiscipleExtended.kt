@@ -1,5 +1,3 @@
-@file:Suppress("DEPRECATION")
-
 package com.xianxia.sect.core.model
 
 import androidx.room.ColumnInfo
@@ -45,16 +43,16 @@ data class DiscipleExtended(
                 statusData = disciple.statusData,
                 cultivationSpeedBonus = disciple.cultivationSpeedBonus,
                 cultivationSpeedDuration = disciple.cultivationSpeedDuration,
-                partnerId = disciple.partnerId,
-                partnerSectId = disciple.partnerSectId,
-                parentId1 = disciple.parentId1,
-                parentId2 = disciple.parentId2,
-                lastChildYear = disciple.lastChildYear,
-                griefEndYear = disciple.griefEndYear,
-                usedFunctionalPillTypes = disciple.monthlyUsedPillIds,
-                usedExtendLifePillIds = disciple.usedExtendLifePillIds,
-                hasReviveEffect = disciple.hasReviveEffect,
-                hasClearAllEffect = disciple.hasClearAllEffect
+                partnerId = disciple.social.partnerId,
+                partnerSectId = disciple.social.partnerSectId,
+                parentId1 = disciple.social.parentId1,
+                parentId2 = disciple.social.parentId2,
+                lastChildYear = disciple.social.lastChildYear,
+                griefEndYear = disciple.social.griefEndYear,
+                usedFunctionalPillTypes = disciple.usage.usedFunctionalPillTypes,
+                usedExtendLifePillIds = disciple.usage.usedExtendLifePillIds,
+                hasReviveEffect = disciple.usage.hasReviveEffect,
+                hasClearAllEffect = disciple.usage.hasClearAllEffect
             )
         }
     }

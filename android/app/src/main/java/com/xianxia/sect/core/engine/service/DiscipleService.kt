@@ -1,5 +1,3 @@
-@file:Suppress("DEPRECATION")
-
 package com.xianxia.sect.core.engine.service
 
 import kotlinx.coroutines.flow.StateFlow
@@ -496,13 +494,13 @@ class DiscipleService @Inject constructor(
                 hpVariance, mpVariance, physicalAttackVariance, magicAttackVariance,
                 physicalDefenseVariance, magicDefenseVariance, speedVariance
             )
-            baseHp = baseStats.baseHp
-            baseMp = baseStats.baseMp
-            basePhysicalAttack = baseStats.basePhysicalAttack
-            baseMagicAttack = baseStats.baseMagicAttack
-            basePhysicalDefense = baseStats.basePhysicalDefense
-            baseMagicDefense = baseStats.baseMagicDefense
-            baseSpeed = baseStats.baseSpeed
+            combat.baseHp = baseStats.baseHp
+            combat.baseMp = baseStats.baseMp
+            combat.basePhysicalAttack = baseStats.basePhysicalAttack
+            combat.baseMagicAttack = baseStats.baseMagicAttack
+            combat.basePhysicalDefense = baseStats.basePhysicalDefense
+            combat.baseMagicDefense = baseStats.baseMagicDefense
+            combat.baseSpeed = baseStats.baseSpeed
 
             // 计算寿命天赋加成（如"寿元绵长"/"寿元亏损"）
             val talentEffects = TalentDatabase.calculateTalentEffects(talentIds)
@@ -514,7 +512,7 @@ class DiscipleService @Inject constructor(
         // Set recruitment time
         val data = currentGameData
         val currentMonthValue = data.gameYear * 12 + data.gameMonth
-        disciple.recruitedMonth = currentMonthValue
+        disciple.usage.recruitedMonth = currentMonthValue
 
         addDisciple(disciple)
         eventService.addGameEvent("新弟子 ${disciple.name} 加入宗门", EventType.SUCCESS)
@@ -543,13 +541,13 @@ class DiscipleService @Inject constructor(
             clearDiscipleFromAllSlots(discipleId)
 
             val returnEquipIds = mutableListOf<String>()
-            disciple.weaponId.takeIf { it.isNotEmpty() }?.let { returnEquipIds.add(it) }
-            disciple.armorId.takeIf { it.isNotEmpty() }?.let { returnEquipIds.add(it) }
-            disciple.bootsId.takeIf { it.isNotEmpty() }?.let { returnEquipIds.add(it) }
-            disciple.accessoryId.takeIf { it.isNotEmpty() }?.let { returnEquipIds.add(it) }
-            disciple.storageBagItems.filter { it.itemType == "equipment_stack" || it.itemType == "equipment_instance" }.forEach { returnEquipIds.add(it.itemId) }
+            disciple.equipment.weaponId.takeIf { it.isNotEmpty() }?.let { returnEquipIds.add(it) }
+            disciple.equipment.armorId.takeIf { it.isNotEmpty() }?.let { returnEquipIds.add(it) }
+            disciple.equipment.bootsId.takeIf { it.isNotEmpty() }?.let { returnEquipIds.add(it) }
+            disciple.equipment.accessoryId.takeIf { it.isNotEmpty() }?.let { returnEquipIds.add(it) }
+            disciple.equipment.storageBagItems.filter { it.itemType == "equipment_stack" || it.itemType == "equipment_instance" }.forEach { returnEquipIds.add(it.itemId) }
 
-            val bagStackIds = disciples.flatMap { it.storageBagItems }
+            val bagStackIds = disciples.flatMap { it.equipment.storageBagItems }
                 .filter { it.itemType == "equipment_stack" }
                 .map { it.itemId }
                 .toSet()
@@ -572,7 +570,7 @@ class DiscipleService @Inject constructor(
                 equipmentInstances = equipmentInstances.filter { it.id != eid }
             }
 
-            disciple.storageBagItems.filter { it.itemType == "manual_stack" || it.itemType == "manual_instance" }.forEach { bagItem ->
+            disciple.equipment.storageBagItems.filter { it.itemType == "manual_stack" || it.itemType == "manual_instance" }.forEach { bagItem ->
                 val m = manualInstances.find { it.id == bagItem.itemId }
                 if (m != null) {
                     val stack = m.toStack()
@@ -662,10 +660,10 @@ class DiscipleService @Inject constructor(
 
         val slot = equipmentInstance?.slot ?: equipmentStack!!.slot
         when (slot) {
-            EquipmentSlot.WEAPON -> disciple.weaponId.takeIf { it.isNotEmpty() }?.let { unequipEquipment(discipleId, it) }
-            EquipmentSlot.ARMOR -> disciple.armorId.takeIf { it.isNotEmpty() }?.let { unequipEquipment(discipleId, it) }
-            EquipmentSlot.BOOTS -> disciple.bootsId.takeIf { it.isNotEmpty() }?.let { unequipEquipment(discipleId, it) }
-            EquipmentSlot.ACCESSORY -> disciple.accessoryId.takeIf { it.isNotEmpty() }?.let { unequipEquipment(discipleId, it) }
+            EquipmentSlot.WEAPON -> disciple.equipment.weaponId.takeIf { it.isNotEmpty() }?.let { unequipEquipment(discipleId, it) }
+            EquipmentSlot.ARMOR -> disciple.equipment.armorId.takeIf { it.isNotEmpty() }?.let { unequipEquipment(discipleId, it) }
+            EquipmentSlot.BOOTS -> disciple.equipment.bootsId.takeIf { it.isNotEmpty() }?.let { unequipEquipment(discipleId, it) }
+            EquipmentSlot.ACCESSORY -> disciple.equipment.accessoryId.takeIf { it.isNotEmpty() }?.let { unequipEquipment(discipleId, it) }
             else -> {}
         }
 
@@ -721,10 +719,10 @@ class DiscipleService @Inject constructor(
 
         val disciple = currentDisciples[discipleIndex]
         val updatedDisciple = when {
-            disciple.weaponId == equipmentId -> disciple.copyWith(weaponId = "")
-            disciple.armorId == equipmentId -> disciple.copyWith(armorId = "")
-            disciple.bootsId == equipmentId -> disciple.copyWith(bootsId = "")
-            disciple.accessoryId == equipmentId -> disciple.copyWith(accessoryId = "")
+            disciple.equipment.weaponId == equipmentId -> disciple.copyWith(weaponId = "")
+            disciple.equipment.armorId == equipmentId -> disciple.copyWith(armorId = "")
+            disciple.equipment.bootsId == equipmentId -> disciple.copyWith(bootsId = "")
+            disciple.equipment.accessoryId == equipmentId -> disciple.copyWith(accessoryId = "")
             else -> disciple
         }
 
@@ -733,7 +731,7 @@ class DiscipleService @Inject constructor(
             val data = currentGameData
 
             if (eq != null) {
-                val bagStackIds = currentDisciples.flatMap { it.storageBagItems }
+                val bagStackIds = currentDisciples.flatMap { it.equipment.storageBagItems }
                     .filter { it.itemType == "equipment_stack" }
                     .map { it.itemId }
                     .toSet()
@@ -759,7 +757,7 @@ class DiscipleService @Inject constructor(
                         forgetDay = data.gameDay
                     )
                     val discipleWithBag = updatedDisciple.copyWith(
-                        storageBagItems = StorageBagUtils.increaseItemQuantity(updatedDisciple.storageBagItems, storageItem, inventoryConfig.getMaxStackSize("equipment_stack"))
+                        storageBagItems = StorageBagUtils.increaseItemQuantity(updatedDisciple.equipment.storageBagItems, storageItem, inventoryConfig.getMaxStackSize("equipment_stack"))
                             .map { bagItem ->
                                 if (bagItem.itemId == mergedId && bagItem.itemType == "equipment_stack") {
                                     bagItem.copy(forgetYear = data.gameYear, forgetMonth = data.gameMonth, forgetDay = data.gameDay)
@@ -786,7 +784,7 @@ class DiscipleService @Inject constructor(
                         forgetDay = data.gameDay
                     )
                     val discipleWithBag = updatedDisciple.copyWith(
-                        storageBagItems = StorageBagUtils.increaseItemQuantity(updatedDisciple.storageBagItems, storageItem, inventoryConfig.getMaxStackSize("equipment_stack"))
+                        storageBagItems = StorageBagUtils.increaseItemQuantity(updatedDisciple.equipment.storageBagItems, storageItem, inventoryConfig.getMaxStackSize("equipment_stack"))
                     )
                     currentDisciples = currentDisciples.toMutableList().also { it[discipleIndex] = discipleWithBag }
                     currentEquipmentStacks = currentEquipmentStacks + newStack
@@ -926,7 +924,7 @@ class DiscipleService @Inject constructor(
                 } else null
             }
             // 排序：智力降序 → 境界升序（realm 越小境界越高）
-            .sortedWith(compareByDescending<Triple<String, String, Disciple>> { it.third.intelligence }
+            .sortedWith(compareByDescending<Triple<String, String, Disciple>> { it.third.skills.intelligence }
                 .thenBy { it.third.realm })
 
         if (candidates.isEmpty()) return 0

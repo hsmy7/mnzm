@@ -1,5 +1,3 @@
-@file:Suppress("DEPRECATION")
-
 package com.xianxia.sect.core.model
 
 import androidx.room.ColumnInfo
@@ -37,18 +35,18 @@ data class DiscipleEquipment(
         fun fromDisciple(disciple: Disciple): DiscipleEquipment {
             return DiscipleEquipment(
                 discipleId = disciple.id,
-                weaponId = disciple.weaponId,
-                armorId = disciple.armorId,
-                bootsId = disciple.bootsId,
-                accessoryId = disciple.accessoryId,
-                weaponNurture = disciple.weaponNurture,
-                armorNurture = disciple.armorNurture,
-                bootsNurture = disciple.bootsNurture,
-                accessoryNurture = disciple.accessoryNurture,
-                storageBagItems = disciple.storageBagItems,
-                storageBagSpiritStones = disciple.storageBagSpiritStones,
-                spiritStones = disciple.spiritStones,
-                soulPower = disciple.soulPower
+                weaponId = disciple.equipment.weaponId,
+                armorId = disciple.equipment.armorId,
+                bootsId = disciple.equipment.bootsId,
+                accessoryId = disciple.equipment.accessoryId,
+                weaponNurture = disciple.equipment.weaponNurture,
+                armorNurture = disciple.equipment.armorNurture,
+                bootsNurture = disciple.equipment.bootsNurture,
+                accessoryNurture = disciple.equipment.accessoryNurture,
+                storageBagItems = disciple.equipment.storageBagItems,
+                storageBagSpiritStones = disciple.equipment.storageBagSpiritStones,
+                spiritStones = disciple.equipment.spiritStones,
+                soulPower = disciple.equipment.soulPower
             )
         }
     }

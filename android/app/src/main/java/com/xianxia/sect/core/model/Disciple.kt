@@ -532,14 +532,14 @@ data class Disciple(
         }
 
         fun fixBaseStats(disciple: Disciple): Disciple {
-            val needsFix = disciple.hpVariance == 0 &&
-                           disciple.mpVariance == 0 &&
-                           disciple.physicalAttackVariance == 0 &&
-                           disciple.magicAttackVariance == 0 &&
-                           disciple.physicalDefenseVariance == 0 &&
-                           disciple.magicDefenseVariance == 0 &&
-                           disciple.speedVariance == 0 &&
-                           disciple.baseHp == 120
+            val needsFix = disciple.combat.hpVariance == 0 &&
+                           disciple.combat.mpVariance == 0 &&
+                           disciple.combat.physicalAttackVariance == 0 &&
+                           disciple.combat.magicAttackVariance == 0 &&
+                           disciple.combat.physicalDefenseVariance == 0 &&
+                           disciple.combat.magicDefenseVariance == 0 &&
+                           disciple.combat.speedVariance == 0 &&
+                           disciple.combat.baseHp == 120
 
             if (!needsFix) return disciple
 

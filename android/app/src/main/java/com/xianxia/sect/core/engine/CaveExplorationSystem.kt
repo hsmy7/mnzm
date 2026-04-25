@@ -50,16 +50,16 @@ object CaveExplorationSystem {
     ): Battle {
         val playerCombatants = playerDisciples.map { disciple ->
             val discipleEquipment = buildMap {
-                disciple.weaponId?.let { id -> playerEquipmentMap[id]?.let { put(id, it) } }
-                disciple.armorId?.let { id -> playerEquipmentMap[id]?.let { put(id, it) } }
-                disciple.bootsId?.let { id -> playerEquipmentMap[id]?.let { put(id, it) } }
-                disciple.accessoryId?.let { id -> playerEquipmentMap[id]?.let { put(id, it) } }
+                disciple.equipment.weaponId?.let { id -> playerEquipmentMap[id]?.let { put(id, it) } }
+                disciple.equipment.armorId?.let { id -> playerEquipmentMap[id]?.let { put(id, it) } }
+                disciple.equipment.bootsId?.let { id -> playerEquipmentMap[id]?.let { put(id, it) } }
+                disciple.equipment.accessoryId?.let { id -> playerEquipmentMap[id]?.let { put(id, it) } }
             }
             val discipleManuals = disciple.manualIds.mapNotNull { id -> playerManualMap[id]?.let { id to it } }.toMap()
             val discipleProficiencies = playerManualProficiencies[disciple.id] ?: emptyMap()
             val stats = disciple.getFinalStats(discipleEquipment, discipleManuals, discipleProficiencies)
-            val effectiveHp = if (disciple.currentHp < 0) stats.maxHp else disciple.currentHp.coerceAtMost(stats.maxHp)
-            val effectiveMp = if (disciple.currentMp < 0) stats.maxMp else disciple.currentMp.coerceAtMost(stats.maxMp)
+            val effectiveHp = if (disciple.combat.currentHp < 0) stats.maxHp else disciple.combat.currentHp.coerceAtMost(stats.maxHp)
+            val effectiveMp = if (disciple.combat.currentMp < 0) stats.maxMp else disciple.combat.currentMp.coerceAtMost(stats.maxMp)
             val skills = disciple.manualIds.mapNotNull { manualId ->
                 val manual = discipleManuals[manualId] ?: return@mapNotNull null
                 val proficiencyData = discipleProficiencies[manualId]
@@ -134,16 +134,16 @@ object CaveExplorationSystem {
     ): Battle {
         val playerCombatants = playerDisciples.map { disciple ->
             val discipleEquipment = buildMap {
-                disciple.weaponId?.let { id -> playerEquipmentMap[id]?.let { put(id, it) } }
-                disciple.armorId?.let { id -> playerEquipmentMap[id]?.let { put(id, it) } }
-                disciple.bootsId?.let { id -> playerEquipmentMap[id]?.let { put(id, it) } }
-                disciple.accessoryId?.let { id -> playerEquipmentMap[id]?.let { put(id, it) } }
+                disciple.equipment.weaponId?.let { id -> playerEquipmentMap[id]?.let { put(id, it) } }
+                disciple.equipment.armorId?.let { id -> playerEquipmentMap[id]?.let { put(id, it) } }
+                disciple.equipment.bootsId?.let { id -> playerEquipmentMap[id]?.let { put(id, it) } }
+                disciple.equipment.accessoryId?.let { id -> playerEquipmentMap[id]?.let { put(id, it) } }
             }
             val discipleManuals = disciple.manualIds.mapNotNull { id -> playerManualMap[id]?.let { id to it } }.toMap()
             val discipleProficiencies = playerManualProficiencies[disciple.id] ?: emptyMap()
             val stats = disciple.getFinalStats(discipleEquipment, discipleManuals, discipleProficiencies)
-            val effectiveHp = if (disciple.currentHp < 0) stats.maxHp else disciple.currentHp.coerceAtMost(stats.maxHp)
-            val effectiveMp = if (disciple.currentMp < 0) stats.maxMp else disciple.currentMp.coerceAtMost(stats.maxMp)
+            val effectiveHp = if (disciple.combat.currentHp < 0) stats.maxHp else disciple.combat.currentHp.coerceAtMost(stats.maxHp)
+            val effectiveMp = if (disciple.combat.currentMp < 0) stats.maxMp else disciple.combat.currentMp.coerceAtMost(stats.maxMp)
             val skills = disciple.manualIds.mapNotNull { manualId ->
                 val manual = discipleManuals[manualId] ?: return@mapNotNull null
                 val proficiencyData = discipleProficiencies[manualId]

@@ -1,5 +1,3 @@
-@file:Suppress("DEPRECATION")
-
 package com.xianxia.sect.core.engine.service
 
 import kotlinx.coroutines.Dispatchers
@@ -335,22 +333,22 @@ class CultivationService @Inject constructor(
 
                     val nurtureGain = 5.0 * elapsedSeconds
 
-                    d.weaponId?.let { eqId ->
+                    d.equipment.weaponId?.let { eqId ->
                         val eq = equipmentInstanceMap[eqId] ?: return@let
                         val result = EquipmentNurtureSystem.updateNurtureExp(eq, nurtureGain)
                         equipmentInstanceUpdates[eqId] = result.equipment
                     }
-                    d.armorId?.let { eqId ->
+                    d.equipment.armorId?.let { eqId ->
                         val eq = equipmentInstanceMap[eqId] ?: return@let
                         val result = EquipmentNurtureSystem.updateNurtureExp(eq, nurtureGain)
                         equipmentInstanceUpdates[eqId] = result.equipment
                     }
-                    d.bootsId?.let { eqId ->
+                    d.equipment.bootsId?.let { eqId ->
                         val eq = equipmentInstanceMap[eqId] ?: return@let
                         val result = EquipmentNurtureSystem.updateNurtureExp(eq, nurtureGain)
                         equipmentInstanceUpdates[eqId] = result.equipment
                     }
-                    d.accessoryId?.let { eqId ->
+                    d.equipment.accessoryId?.let { eqId ->
                         val eq = equipmentInstanceMap[eqId] ?: return@let
                         val result = EquipmentNurtureSystem.updateNurtureExp(eq, nurtureGain)
                         equipmentInstanceUpdates[eqId] = result.equipment
@@ -535,13 +533,13 @@ class CultivationService @Inject constructor(
                 hpVariance, mpVariance, physicalAttackVariance, magicAttackVariance,
                 physicalDefenseVariance, magicDefenseVariance, speedVariance
             )
-            baseHp = baseStats.baseHp
-            baseMp = baseStats.baseMp
-            basePhysicalAttack = baseStats.basePhysicalAttack
-            baseMagicAttack = baseStats.baseMagicAttack
-            basePhysicalDefense = baseStats.basePhysicalDefense
-            baseMagicDefense = baseStats.baseMagicDefense
-            baseSpeed = baseStats.baseSpeed
+            combat.baseHp = baseStats.baseHp
+            combat.baseMp = baseStats.baseMp
+            combat.basePhysicalAttack = baseStats.basePhysicalAttack
+            combat.baseMagicAttack = baseStats.baseMagicAttack
+            combat.basePhysicalDefense = baseStats.basePhysicalDefense
+            combat.baseMagicDefense = baseStats.baseMagicDefense
+            combat.baseSpeed = baseStats.baseSpeed
 
             // 计算寿命天赋加成（如"寿元绵长"/"寿元亏损"）
             val talentEffects = TalentDatabase.calculateTalentEffects(talentIds)
@@ -634,7 +632,7 @@ class CultivationService @Inject constructor(
             var newCultivation = disciple.cultivation
             var newRealm = disciple.realm
             var newRealmLayer = disciple.realmLayer
-            var newBreakthroughFailCount = disciple.breakthroughFailCount
+            var newBreakthroughFailCount = disciple.combat.breakthroughFailCount
             var newLifespan = disciple.lifespan
             var shouldContinue = true
 
@@ -646,7 +644,7 @@ class CultivationService @Inject constructor(
                 if (newCultivation < currentMaxCultivation) break
 
                 val isMajorBreakthrough = newRealmLayer >= GameConfig.Realm.get(newRealm).maxLayers
-                if (isMajorBreakthrough && !DiscipleStatCalculator.meetsSoulPowerRequirement(newRealm, newRealmLayer, disciple.soulPower)) {
+                if (isMajorBreakthrough && !DiscipleStatCalculator.meetsSoulPowerRequirement(newRealm, newRealmLayer, disciple.equipment.soulPower)) {
                     shouldContinue = false
                     continue
                 }
@@ -836,8 +834,8 @@ class CultivationService @Inject constructor(
                 }
             }
 
-            if (updated.pillEffectDuration > 0) {
-                val newDuration = updated.pillEffectDuration - 1
+            if (updated.pillEffects.pillEffectDuration > 0) {
+                val newDuration = updated.pillEffects.pillEffectDuration - 1
                 if (newDuration <= 0) {
                     updated = updated.copy(pillEffects = PillEffects())
                 } else {
@@ -977,10 +975,10 @@ class CultivationService @Inject constructor(
         currentDisciples = currentDisciples.map { disciple ->
             if (!disciple.isAlive || disciple.id in inBattleIds) return@map disciple
 
-            val maxHp = disciple.baseHp
-            val maxMp = disciple.baseMp
-            val currentHp = disciple.currentHp
-            val currentMp = disciple.currentMp
+            val maxHp = disciple.combat.baseHp
+            val maxMp = disciple.combat.baseMp
+            val currentHp = disciple.combat.currentHp
+            val currentMp = disciple.combat.currentMp
 
             val hpRecovery = (maxHp * 0.01).toInt().coerceAtLeast(1)
             val mpRecovery = (maxMp * 0.01).toInt().coerceAtLeast(1)
@@ -1187,10 +1185,10 @@ class CultivationService @Inject constructor(
         clearDiscipleFromAllSlots(disciple.id)
 
         if (isOutsideSect) {
-            disciple.weaponId?.let { removeEquipmentFromDisciple(disciple.id, it) }
-            disciple.armorId?.let { removeEquipmentFromDisciple(disciple.id, it) }
-            disciple.bootsId?.let { removeEquipmentFromDisciple(disciple.id, it) }
-            disciple.accessoryId?.let { removeEquipmentFromDisciple(disciple.id, it) }
+            disciple.equipment.weaponId?.let { removeEquipmentFromDisciple(disciple.id, it) }
+            disciple.equipment.armorId?.let { removeEquipmentFromDisciple(disciple.id, it) }
+            disciple.equipment.bootsId?.let { removeEquipmentFromDisciple(disciple.id, it) }
+            disciple.equipment.accessoryId?.let { removeEquipmentFromDisciple(disciple.id, it) }
 
             disciple.manualIds.forEach { manualId ->
                 currentManualInstances = currentManualInstances.map {
@@ -1205,16 +1203,16 @@ class CultivationService @Inject constructor(
                 currentGameData = data.copy(manualProficiencies = updatedProficiencies)
             }
         } else {
-            disciple.weaponId?.let { returnEquipmentToWarehouse(it) }
-            disciple.armorId?.let { returnEquipmentToWarehouse(it) }
-            disciple.bootsId?.let { returnEquipmentToWarehouse(it) }
-            disciple.accessoryId?.let { returnEquipmentToWarehouse(it) }
+            disciple.equipment.weaponId?.let { returnEquipmentToWarehouse(it) }
+            disciple.equipment.armorId?.let { returnEquipmentToWarehouse(it) }
+            disciple.equipment.bootsId?.let { returnEquipmentToWarehouse(it) }
+            disciple.equipment.accessoryId?.let { returnEquipmentToWarehouse(it) }
 
-            disciple.storageBagItems.filter { it.itemType == "equipment_stack" || it.itemType == "equipment_instance" }.forEach { bagItem ->
+            disciple.equipment.storageBagItems.filter { it.itemType == "equipment_stack" || it.itemType == "equipment_instance" }.forEach { bagItem ->
                 returnEquipmentToWarehouse(bagItem.itemId)
             }
 
-            disciple.storageBagItems.filter { it.itemType == "manual_stack" || it.itemType == "manual_instance" }.forEach { bagItem ->
+            disciple.equipment.storageBagItems.filter { it.itemType == "manual_stack" || it.itemType == "manual_instance" }.forEach { bagItem ->
                 currentManualInstances = currentManualInstances.map {
                     if (it.id == bagItem.itemId) it.copy(isLearned = false, ownerId = null) else it
                 }
@@ -1248,7 +1246,7 @@ class CultivationService @Inject constructor(
         if (isMajorBreakthrough && !DiscipleStatCalculator.meetsSoulPowerRequirement(disciple)) {
             val targetRealm = disciple.realm - 1
             val requiredSoul = GameConfig.Realm.getSoulPowerRequirement(targetRealm)
-            eventService.addGameEvent("${disciple.name}神魂不足（${disciple.soulPower}/$requiredSoul），无法突破至${GameConfig.Realm.getName(targetRealm)}", EventType.WARNING)
+            eventService.addGameEvent("${disciple.name}神魂不足（${disciple.equipment.soulPower}/$requiredSoul），无法突破至${GameConfig.Realm.getName(targetRealm)}", EventType.WARNING)
             return false
         }
 
@@ -1626,15 +1624,15 @@ class CultivationService @Inject constructor(
                     if (!disciple.isAlive || enabledConfig[disciple.realm] != true) return@map disciple
 
                     val salary = salaryConfig[disciple.realm] ?: 0
-                    val newPaidCount = disciple.salaryPaidCount + 1
+                    val newPaidCount = disciple.skills.salaryPaidCount + 1
                     val newLoyalty = if (newPaidCount % 3 == 0) {
-                        (disciple.loyalty + 1).coerceIn(0, 100)
+                        (disciple.skills.loyalty + 1).coerceIn(0, 100)
                     } else {
-                        disciple.loyalty
+                        disciple.skills.loyalty
                     }
 
                     disciple.copyWith(
-                        storageBagSpiritStones = disciple.storageBagSpiritStones + salary.toLong(),
+                        storageBagSpiritStones = disciple.equipment.storageBagSpiritStones + salary.toLong(),
                         salaryPaidCount = newPaidCount,
                         loyalty = newLoyalty
                     )
@@ -1648,11 +1646,11 @@ class CultivationService @Inject constructor(
                 val discipleUpdates = currentDisciples.map { disciple ->
                     if (!disciple.isAlive || enabledConfig[disciple.realm] != true) return@map disciple
 
-                    val newMissedCount = disciple.salaryMissedCount + 1
+                    val newMissedCount = disciple.skills.salaryMissedCount + 1
                     val newLoyalty = if (newMissedCount % 3 == 0) {
-                        (disciple.loyalty - 1).coerceIn(0, 100)
+                        (disciple.skills.loyalty - 1).coerceIn(0, 100)
                     } else {
-                        disciple.loyalty
+                        disciple.skills.loyalty
                     }
 
                     disciple.copyWith(
@@ -1746,7 +1744,7 @@ class CultivationService @Inject constructor(
             it.isAlive &&
             it.status == DiscipleStatus.IDLE &&
             DiscipleStatCalculator.getBaseStats(it).loyalty < GameConfig.LawEnforcementConfig.LOYALTY_THRESHOLD &&
-            (currentMonthValue - it.recruitedMonth) >= GameConfig.LawEnforcementConfig.NEW_DISCIPLE_PROTECTION_MONTHS
+            (currentMonthValue - it.usage.recruitedMonth) >= GameConfig.LawEnforcementConfig.NEW_DISCIPLE_PROTECTION_MONTHS
         }
 
         for (disciple in atRiskDisciples) {
@@ -1787,7 +1785,7 @@ class CultivationService @Inject constructor(
             it.isAlive &&
             it.status == DiscipleStatus.IDLE &&
             DiscipleStatCalculator.getBaseStats(it).morality < GameConfig.LawEnforcementConfig.MORALITY_THRESHOLD &&
-            (currentMonthValue - it.recruitedMonth) >= GameConfig.LawEnforcementConfig.NEW_DISCIPLE_PROTECTION_MONTHS
+            (currentMonthValue - it.usage.recruitedMonth) >= GameConfig.LawEnforcementConfig.NEW_DISCIPLE_PROTECTION_MONTHS
         }
 
         val thiefIds = mutableSetOf<String>()
@@ -2126,7 +2124,7 @@ class CultivationService @Inject constructor(
                 .map { it.id }.toSet()
             currentDisciples = currentDisciples.map { disciple ->
                 if (disciple.id in aliveDefenderIds) {
-                    disciple.copyWith(soulPower = disciple.soulPower + 1)
+                    disciple.copyWith(soulPower = disciple.equipment.soulPower + 1)
                 } else {
                     disciple
                 }
@@ -2383,8 +2381,8 @@ class CultivationService @Inject constructor(
         if (data.smartBattleEnabled) {
             val allFullStatus = teamMembers.all { disciple ->
                 val stats = disciple.getBaseStats()
-                val hp = if (disciple.currentHp == -1) stats.maxHp else disciple.currentHp
-                val mp = if (disciple.currentMp == -1) stats.maxMp else disciple.currentMp
+                val hp = if (disciple.combat.currentHp == -1) stats.maxHp else disciple.combat.currentHp
+                val mp = if (disciple.combat.currentMp == -1) stats.maxMp else disciple.combat.currentMp
                 hp >= stats.maxHp && mp >= stats.maxMp
             }
             if (!allFullStatus) {
@@ -2535,7 +2533,7 @@ class CultivationService @Inject constructor(
                 val disciple = currentDisciples[discipleIndex]
                 if (!disciple.isAlive) return@forEach
 
-                val newSoulPower = disciple.soulPower + 1
+                val newSoulPower = disciple.equipment.soulPower + 1
 
                 val talentEffects = com.xianxia.sect.core.data.TalentDatabase.calculateTalentEffects(disciple.talentIds)
                 val winGrowthAttr = if (talentEffects["winBattleRandomAttrPlus"] != null) {
@@ -2552,13 +2550,13 @@ class CultivationService @Inject constructor(
                         put("winGrowth.$winGrowthAttr", (currentGrowth + 1).toString())
                     }
                     updatedDisciple = when (winGrowthAttr) {
-                        "maxHp" -> updatedDisciple.copyWith(baseHp = updatedDisciple.baseHp + 1, statusData = newStatusData)
-                        "maxMp" -> updatedDisciple.copyWith(baseMp = updatedDisciple.baseMp + 1, statusData = newStatusData)
-                        "physicalAttack" -> updatedDisciple.copyWith(basePhysicalAttack = updatedDisciple.basePhysicalAttack + 1, statusData = newStatusData)
-                        "magicAttack" -> updatedDisciple.copyWith(baseMagicAttack = updatedDisciple.baseMagicAttack + 1, statusData = newStatusData)
-                        "physicalDefense" -> updatedDisciple.copyWith(basePhysicalDefense = updatedDisciple.basePhysicalDefense + 1, statusData = newStatusData)
-                        "magicDefense" -> updatedDisciple.copyWith(baseMagicDefense = updatedDisciple.baseMagicDefense + 1, statusData = newStatusData)
-                        "speed" -> updatedDisciple.copyWith(baseSpeed = updatedDisciple.baseSpeed + 1, statusData = newStatusData)
+                        "maxHp" -> updatedDisciple.copyWith(baseHp = updatedDisciple.combat.baseHp + 1, statusData = newStatusData)
+                        "maxMp" -> updatedDisciple.copyWith(baseMp = updatedDisciple.combat.baseMp + 1, statusData = newStatusData)
+                        "physicalAttack" -> updatedDisciple.copyWith(basePhysicalAttack = updatedDisciple.combat.basePhysicalAttack + 1, statusData = newStatusData)
+                        "magicAttack" -> updatedDisciple.copyWith(baseMagicAttack = updatedDisciple.combat.baseMagicAttack + 1, statusData = newStatusData)
+                        "physicalDefense" -> updatedDisciple.copyWith(basePhysicalDefense = updatedDisciple.combat.basePhysicalDefense + 1, statusData = newStatusData)
+                        "magicDefense" -> updatedDisciple.copyWith(baseMagicDefense = updatedDisciple.combat.baseMagicDefense + 1, statusData = newStatusData)
+                        "speed" -> updatedDisciple.copyWith(baseSpeed = updatedDisciple.combat.baseSpeed + 1, statusData = newStatusData)
                         else -> updatedDisciple
                     }
                 }
@@ -2591,25 +2589,25 @@ class CultivationService @Inject constructor(
                     }
                 }
 
-                updatedDisciple.weaponId?.let { eqId ->
+                updatedDisciple.equipment.weaponId?.let { eqId ->
                     val eq = equipmentInstanceMap[eqId] ?: return@let
                     val expRequired = EquipmentNurtureSystem.getExpRequiredForLevelUp(eq.nurtureLevel, eq.rarity)
                     val result = EquipmentNurtureSystem.updateNurtureExp(eq, expRequired * 0.03)
                     equipmentInstanceUpdates[eqId] = result.equipment
                 }
-                updatedDisciple.armorId?.let { eqId ->
+                updatedDisciple.equipment.armorId?.let { eqId ->
                     val eq = equipmentInstanceMap[eqId] ?: return@let
                     val expRequired = EquipmentNurtureSystem.getExpRequiredForLevelUp(eq.nurtureLevel, eq.rarity)
                     val result = EquipmentNurtureSystem.updateNurtureExp(eq, expRequired * 0.03)
                     equipmentInstanceUpdates[eqId] = result.equipment
                 }
-                updatedDisciple.bootsId?.let { eqId ->
+                updatedDisciple.equipment.bootsId?.let { eqId ->
                     val eq = equipmentInstanceMap[eqId] ?: return@let
                     val expRequired = EquipmentNurtureSystem.getExpRequiredForLevelUp(eq.nurtureLevel, eq.rarity)
                     val result = EquipmentNurtureSystem.updateNurtureExp(eq, expRequired * 0.03)
                     equipmentInstanceUpdates[eqId] = result.equipment
                 }
-                updatedDisciple.accessoryId?.let { eqId ->
+                updatedDisciple.equipment.accessoryId?.let { eqId ->
                     val eq = equipmentInstanceMap[eqId] ?: return@let
                     val expRequired = EquipmentNurtureSystem.getExpRequiredForLevelUp(eq.nurtureLevel, eq.rarity)
                     val result = EquipmentNurtureSystem.updateNurtureExp(eq, expRequired * 0.03)
@@ -2666,8 +2664,8 @@ class CultivationService @Inject constructor(
                 currentDisciples = currentDisciples.map { d ->
                     if (d.id == memberId) {
                         if (shouldKeepAlive) {
-                            val hp = survivorHpMap[memberId] ?: d.currentHp
-                            val mp = survivorMpMap[memberId] ?: d.currentMp
+                            val hp = survivorHpMap[memberId] ?: d.combat.currentHp
+                            val mp = survivorMpMap[memberId] ?: d.combat.currentMp
                             d.copy(status = DiscipleStatus.IDLE, combat = d.combat.copy(currentHp = hp, currentMp = mp))
                         } else {
                             handleDiscipleDeath(d, isOutsideSect = true)
@@ -2886,8 +2884,8 @@ class CultivationService @Inject constructor(
         currentDisciples = currentDisciples.map { disciple ->
             if (disciple.id in team.memberIds) {
                 if (disciple.id in survivorIds) {
-                    val hp = survivorHpMap[disciple.id] ?: disciple.currentHp
-                    val mp = survivorMpMap[disciple.id] ?: disciple.currentMp
+                    val hp = survivorHpMap[disciple.id] ?: disciple.combat.currentHp
+                    val mp = survivorMpMap[disciple.id] ?: disciple.combat.currentMp
                     disciple.copy(status = DiscipleStatus.IDLE, combat = disciple.combat.copy(currentHp = hp, currentMp = mp))
                 } else {
                     eventService.addGameEvent("${disciple.name}在${cave.name}探索中阵亡", EventType.DANGER)
@@ -2918,7 +2916,7 @@ class CultivationService @Inject constructor(
 
         currentDisciples = currentDisciples.map { disciple ->
             if (disciple.id in survivorIds && disciple.isAlive) {
-                disciple.copyWith(soulPower = disciple.soulPower + 1)
+                disciple.copyWith(soulPower = disciple.equipment.soulPower + 1)
             } else {
                 disciple
             }
@@ -3296,7 +3294,7 @@ class CultivationService @Inject constructor(
                 compareBy<Disciple> { it.realm }
                     .thenByDescending { it.realmLayer }
                     .thenByDescending { it.cultivation }
-                    .thenByDescending { it.comprehension }
+                    .thenByDescending { it.skills.comprehension }
             )
 
             val topCount = minOf(10, sortedDisciples.size)
@@ -3781,13 +3779,13 @@ class CultivationService @Inject constructor(
                     hpVariance, mpVariance, physicalAttackVariance, magicAttackVariance,
                     physicalDefenseVariance, magicDefenseVariance, speedVariance
                 )
-                baseHp = baseStats.baseHp
-                baseMp = baseStats.baseMp
-                basePhysicalAttack = baseStats.basePhysicalAttack
-                baseMagicAttack = baseStats.baseMagicAttack
-                basePhysicalDefense = baseStats.basePhysicalDefense
-                baseMagicDefense = baseStats.baseMagicDefense
-                baseSpeed = baseStats.baseSpeed
+                combat.baseHp = baseStats.baseHp
+                combat.baseMp = baseStats.baseMp
+                combat.basePhysicalAttack = baseStats.basePhysicalAttack
+                combat.baseMagicAttack = baseStats.baseMagicAttack
+                combat.basePhysicalDefense = baseStats.basePhysicalDefense
+                combat.baseMagicDefense = baseStats.baseMagicDefense
+                combat.baseSpeed = baseStats.baseSpeed
 
                 // 计算寿命天赋加成（如"寿元绵长"/"寿元亏损"）
                 val talentEffects = TalentDatabase.calculateTalentEffects(talentIds)
