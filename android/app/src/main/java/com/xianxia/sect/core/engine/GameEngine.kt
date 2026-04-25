@@ -1155,9 +1155,10 @@ class GameEngine @Inject constructor(
                         if (disciple == null) return@update
 
                         val canLearn = GameConfig.Realm.meetsRealmRequirement(disciple.realm, stack.minRealm) &&
-                            !(stack.type == ManualType.MIND && disciple.manualIds.any { mid ->
-                                manualInstances.find { m -> m.id == mid }?.type == ManualType.MIND
-                            })
+                            !disciple.manualIds.any { mid ->
+                                manualInstances.find { m -> m.id == mid }?.type == stack.type
+                            } &&
+                            disciple.manualIds.size < DiscipleStatCalculator.getMaxManualSlots(disciple)
 
                         if (canLearn) {
                             val newQty = stack.quantity - 1
@@ -1533,10 +1534,10 @@ class GameEngine @Inject constructor(
             if (newStack.quantity < 1) return@update
             if (!GameConfig.Realm.meetsRealmRequirement(disciple.realm, newStack.minRealm)) return@update
 
-            val blocked = newStack.type == ManualType.MIND && oldInstance.type != ManualType.MIND && disciple.manualIds
+            val hasTypeConflict = disciple.manualIds
                 .filter { it != oldInstanceId }
-                .any { mid -> manualInstances.find { m -> m.id == mid }?.type == ManualType.MIND }
-            if (blocked) return@update
+                .any { mid -> manualInstances.find { m -> m.id == mid }?.type == newStack.type }
+            if (hasTypeConflict) return@update
 
             val bagStackIds = disciple.manualBagStackIds()
             val data = gameData
@@ -1594,12 +1595,13 @@ class GameEngine @Inject constructor(
 
             if (!GameConfig.Realm.meetsRealmRequirement(disciple.realm, stack.minRealm)) return@update
 
-            if (stack.type == ManualType.MIND) {
-                val hasMind = disciple.manualIds.any { mid ->
-                    manualInstances.find { it.id == mid }?.type == ManualType.MIND
-                }
-                if (hasMind) return@update
+            val maxSlots = DiscipleStatCalculator.getMaxManualSlots(disciple)
+            if (disciple.manualIds.size >= maxSlots) return@update
+
+            val hasSameType = disciple.manualIds.any { mid ->
+                manualInstances.find { it.id == mid }?.type == stack.type
             }
+            if (hasSameType) return@update
 
             val newQty = stack.quantity - 1
             if (newQty <= 0) {

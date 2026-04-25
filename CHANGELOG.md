@@ -1,5 +1,20 @@
 # 模拟宗门 - 更新日志
 
+## [2.5.17] - 2026-04-25
+
+### 修复
+- 修复learnManual缺少槽位上限检查：弟子可学习超过maxManualSlots数量的功法，超出部分在UI中不可见
+- 修复learnManual缺少同类型冲突检查：仅检查MIND类型，未检查ATTACK/DEFENSE/SUPPORT类型冲突，与自动学习逻辑不一致
+- 修复replaceManual缺少通用同类型冲突检查：仅检查MIND类型冲突，替换后可能导致同类型功法重复
+- 修复rewardItemsToDisciple功法路径缺少同类型冲突和槽位上限检查
+- 修复ManualSelectionDialog缺少槽位上限过滤：槽位已满时仍显示可选功法
+- 修复ManualSelectionDialog缺少同类型过滤：允许选择已有类型的功法
+- 修复功法替换UI缺少同类型过滤：替换后可能导致同类型功法重复
+
+### 重构
+- DiscipleManualManager.processAutoLearn移除MIND类型特殊分支，统一由通用同类型替换逻辑处理
+- DiscipleManualManager.canLearn增加同类型冲突和槽位上限检查，与learnManual保持一致
+
 ## [2.5.16] - 2026-04-25
 
 ### 重构

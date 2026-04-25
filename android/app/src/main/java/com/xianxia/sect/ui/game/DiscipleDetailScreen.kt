@@ -471,6 +471,7 @@ fun DiscipleDetailDialog(
             allManuals = allManuals,
             currentManualIds = disciple.manualIds,
             discipleRealm = disciple.realm,
+            maxManualSlots = maxManualSlots,
             selectedManualId = selectedManualId,
             onSelect = { id -> 
                 selectedManualId = if (selectedManualId == id) null else id
@@ -515,11 +516,12 @@ fun DiscipleDetailDialog(
 
         if (showManualReplaceSelection) {
             val availableManualStacks = remember(manualStacks, allManuals, disciple.manualIds, manual, disciple.realm) {
-                val hasMindManual = disciple.manualIds.any { mid ->
-                    allManuals.find { it.id == mid }?.type == ManualType.MIND
-                }
+                val otherTypes = disciple.manualIds
+                    .filter { it != manual.id }
+                    .mapNotNull { mid -> allManuals.find { it.id == mid }?.type }
+                    .toSet()
                 manualStacks.filter { stack ->
-                    !(hasMindManual && manual.type != ManualType.MIND && stack.type == ManualType.MIND) &&
+                    stack.type !in otherTypes &&
                     GameConfig.Realm.meetsRealmRequirement(disciple.realm, stack.minRealm)
                 }.sortedByDescending { it.rarity }
             }
@@ -928,17 +930,22 @@ private fun ManualSelectionDialog(
     allManuals: List<ManualInstance>,
     currentManualIds: List<String>,
     discipleRealm: Int,
+    maxManualSlots: Int,
     selectedManualId: String?,
     onSelect: (String) -> Unit,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    val availableManualStacks = remember(manualStacks, allManuals, currentManualIds, discipleRealm) {
-        val hasMindManual = currentManualIds.any { mid -> allManuals.find { it.id == mid }?.type == ManualType.MIND }
-        manualStacks.filter { stack ->
-            !(hasMindManual && stack.type == ManualType.MIND) &&
-            GameConfig.Realm.meetsRealmRequirement(discipleRealm, stack.minRealm)
-        }.sortedByDescending { it.rarity }
+    val availableManualStacks = remember(manualStacks, allManuals, currentManualIds, discipleRealm, maxManualSlots) {
+        if (currentManualIds.size >= maxManualSlots) {
+            emptyList()
+        } else {
+            val existingTypes = currentManualIds.mapNotNull { mid -> allManuals.find { it.id == mid }?.type }.toSet()
+            manualStacks.filter { stack ->
+                stack.type !in existingTypes &&
+                GameConfig.Realm.meetsRealmRequirement(discipleRealm, stack.minRealm)
+            }.sortedByDescending { it.rarity }
+        }
     }
 
     var showDetailStack by remember { mutableStateOf<ManualStack?>(null) }

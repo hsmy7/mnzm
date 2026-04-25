@@ -53,34 +53,6 @@ object DiscipleManualManager {
         val currentTypes = currentManualIds.mapNotNull { manualInstances[it]?.type }.toSet()
 
         for (stack in availableStacks.sortedByDescending { it.rarity }) {
-            if (stack.type == ManualType.MIND && currentTypes.contains(ManualType.MIND)) {
-                val existingMindId = currentManualIds.find { manualInstances[it]?.type == ManualType.MIND }
-                if (existingMindId != null) {
-                    val replaceResult = tryReplaceManual(
-                        disciple = updatedDisciple,
-                        stack = stack,
-                        existingInstanceId = existingMindId,
-                        manualInstances = manualInstances,
-                        manualStacks = manualStacks,
-                        gameYear = gameYear,
-                        gameMonth = gameMonth,
-                        gameDay = gameDay,
-                        maxStack = maxStack,
-                        instantMessage = instantMessage
-                    )
-                    if (replaceResult.newInstance != null) {
-                        updatedDisciple = replaceResult.disciple
-                        lastNewInstance = replaceResult.newInstance
-                        lastReplacedInstance = replaceResult.replacedInstance
-                        lastStackUpdate = replaceResult.stackUpdate
-                        lastReplacedManualStack = replaceResult.replacedManualStack
-                        events.addAll(replaceResult.events)
-                        break
-                    }
-                }
-                continue
-            }
-
             if (!currentTypes.contains(stack.type)) {
                 val learnResult = learnNewManual(
                     disciple = updatedDisciple,
@@ -249,11 +221,19 @@ object DiscipleManualManager {
         return ManualLearnResult(updatedDisciple, newInstance, existingInstance, stackUpdate, replacedManualStack, events)
     }
 
-    fun canLearn(disciple: Disciple, stack: ManualStack): Boolean {
-        return disciple.realm <= stack.minRealm
+    fun canLearn(disciple: Disciple, stack: ManualStack, manualInstances: Map<String, ManualInstance>): Boolean {
+        if (disciple.realm > stack.minRealm) return false
+        val maxSlots = DiscipleStatCalculator.getMaxManualSlots(disciple)
+        if (disciple.manualIds.size >= maxSlots) return false
+        val hasSameType = disciple.manualIds.any { mid -> manualInstances[mid]?.type == stack.type }
+        return !hasSameType
     }
 
-    fun canLearn(disciple: Disciple, instance: ManualInstance): Boolean {
-        return disciple.realm <= instance.minRealm
+    fun canLearn(disciple: Disciple, instance: ManualInstance, manualInstances: Map<String, ManualInstance>): Boolean {
+        if (disciple.realm > instance.minRealm) return false
+        val maxSlots = DiscipleStatCalculator.getMaxManualSlots(disciple)
+        if (disciple.manualIds.size >= maxSlots) return false
+        val hasSameType = disciple.manualIds.any { mid -> manualInstances[mid]?.type == instance.type }
+        return !hasSameType
     }
 }
