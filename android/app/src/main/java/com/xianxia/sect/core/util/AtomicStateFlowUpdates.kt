@@ -9,6 +9,17 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
+/**
+ * MutableStateFlow 原子更新工具
+ *
+ * **重要约束**: 同一个 MutableStateFlow 实例不得同时使用协程方法（atomicUpdate/atomicUpdateWithResult）
+ * 和同步方法（atomicUpdateSync/atomicRead），因为协程方法使用 Mutex 而同步方法使用 ReentrantLock，
+ * 两种锁互不感知，混用无法保证原子性。
+ *
+ * 选择指南：
+ * - 在协程上下文中 → 使用 atomicUpdate / atomicUpdateWithResult（非阻塞挂起）
+ * - 在同步上下文中 → 使用 atomicUpdateSync / atomicRead（阻塞锁）
+ */
 object AtomicStateFlowUpdates {
     private val flowMutexes = ConcurrentHashMap<MutableStateFlow<*>, Mutex>()
     private val flowLocks = Collections.synchronizedMap(

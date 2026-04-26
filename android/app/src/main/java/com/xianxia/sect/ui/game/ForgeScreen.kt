@@ -22,7 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.offset
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.data.ForgeRecipeDatabase
+import com.xianxia.sect.core.registry.ForgeRecipeDatabase
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.theme.GameColors
@@ -277,7 +277,7 @@ private fun EquipmentSelectionDialog(
         val recipesWithStatus = remember(allRecipes, materialIndex) {
             allRecipes.map { recipe ->
                 val canCraft = recipe.materials.all { (materialId, requiredQuantity) ->
-                    val materialData = com.xianxia.sect.core.data.BeastMaterialDatabase.getMaterialById(materialId)
+                    val materialData = com.xianxia.sect.core.registry.BeastMaterialDatabase.getMaterialById(materialId)
                     materialData != null && run {
                         val available = materialIndex[materialData.name to materialData.rarity] ?: 0
                         available >= requiredQuantity
@@ -424,7 +424,7 @@ private fun EquipmentDetailDialog(
 
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     recipe.materials.forEach { (materialId, requiredQuantity) ->
-                        val materialData = com.xianxia.sect.core.data.BeastMaterialDatabase.getMaterialById(materialId)
+                        val materialData = com.xianxia.sect.core.registry.BeastMaterialDatabase.getMaterialById(materialId)
                         val materialName = materialData?.name
                         val materialRarity = materialData?.rarity ?: 1
                         val material = materials.find { it.name == materialName && it.rarity == materialRarity }
@@ -444,7 +444,7 @@ private fun EquipmentDetailDialog(
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(text = "部位: ${recipe.type.displayName}", fontSize = 11.sp, color = Color(0xFF666666))
 
-                    val template = com.xianxia.sect.core.data.EquipmentDatabase.getTemplateByName(recipe.name)
+                    val template = com.xianxia.sect.core.registry.EquipmentDatabase.getTemplateByName(recipe.name)
                     if (template != null) {
                         if (template.physicalAttack > 0) Text(text = "物理攻击 +${template.physicalAttack}", fontSize = 11.sp, color = Color(0xFF666666))
                         if (template.magicAttack > 0) Text(text = "法术攻击 +${template.magicAttack}", fontSize = 11.sp, color = Color(0xFF666666))

@@ -6,9 +6,9 @@ import com.xianxia.sect.core.DamageType
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.HealType
 import com.xianxia.sect.core.SkillType
-import com.xianxia.sect.core.data.EquipmentDatabase
-import com.xianxia.sect.core.data.ManualDatabase
-import com.xianxia.sect.core.data.TalentDatabase
+import com.xianxia.sect.core.registry.EquipmentDatabase
+import com.xianxia.sect.core.registry.ManualDatabase
+import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.model.AIBattleTeam
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
@@ -853,19 +853,19 @@ object AISectAttackManager {
             val itemType = Random.nextInt(6)
             when (itemType) {
                 0 -> {
-                    if (com.xianxia.sect.core.data.EquipmentDatabase.isInitialized) {
+                    if (com.xianxia.sect.core.registry.EquipmentDatabase.isInitialized) {
                         try {
                             equipmentStacks.add(
-                                com.xianxia.sect.core.data.EquipmentDatabase.generateRandom(config.minRarity, config.maxRarity)
+                                com.xianxia.sect.core.registry.EquipmentDatabase.generateRandom(config.minRarity, config.maxRarity)
                             )
                         } catch (_: Exception) {}
                     }
                 }
                 1 -> {
-                    if (com.xianxia.sect.core.data.ManualDatabase.isInitialized) {
+                    if (com.xianxia.sect.core.registry.ManualDatabase.isInitialized) {
                         try {
                             manualStacks.add(
-                                com.xianxia.sect.core.data.ManualDatabase.generateRandom(config.minRarity, config.maxRarity)
+                                com.xianxia.sect.core.registry.ManualDatabase.generateRandom(config.minRarity, config.maxRarity)
                             )
                         } catch (_: Exception) {}
                     }
@@ -873,20 +873,20 @@ object AISectAttackManager {
                 2 -> {
                     try {
                         pills.add(
-                            com.xianxia.sect.core.data.ItemDatabase.generateRandomPill(config.minRarity, config.maxRarity)
+                            com.xianxia.sect.core.registry.ItemDatabase.generateRandomPill(config.minRarity, config.maxRarity)
                         )
                     } catch (_: Exception) {}
                 }
                 3 -> {
                     try {
                         materials.add(
-                            com.xianxia.sect.core.data.ItemDatabase.generateRandomMaterial(config.minRarity, config.maxRarity)
+                            com.xianxia.sect.core.registry.ItemDatabase.generateRandomMaterial(config.minRarity, config.maxRarity)
                         )
                     } catch (_: Exception) {}
                 }
                 4 -> {
                     try {
-                        val herbTemplate = com.xianxia.sect.core.data.HerbDatabase.generateRandomHerb(config.minRarity, config.maxRarity)
+                        val herbTemplate = com.xianxia.sect.core.registry.HerbDatabase.generateRandomHerb(config.minRarity, config.maxRarity)
                         herbs.add(
                             com.xianxia.sect.core.model.Herb(
                                 name = herbTemplate.name,
@@ -900,7 +900,7 @@ object AISectAttackManager {
                 }
                 5 -> {
                     try {
-                        val seedTemplate = com.xianxia.sect.core.data.HerbDatabase.generateRandomSeed(config.minRarity, config.maxRarity)
+                        val seedTemplate = com.xianxia.sect.core.registry.HerbDatabase.generateRandomSeed(config.minRarity, config.maxRarity)
                         seeds.add(
                             com.xianxia.sect.core.model.Seed(
                                 name = seedTemplate.name,

@@ -3,7 +3,7 @@ package com.xianxia.sect.core.engine.service
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import com.xianxia.sect.core.model.*
-import com.xianxia.sect.core.data.*
+import com.xianxia.sect.core.registry.*
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.state.GameStateStore

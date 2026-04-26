@@ -25,7 +25,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import com.xianxia.sect.core.data.TalentDatabase
+import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.engine.DiscipleStatCalculator
 import com.xianxia.sect.core.engine.ManualProficiencySystem
 import com.xianxia.sect.core.model.*

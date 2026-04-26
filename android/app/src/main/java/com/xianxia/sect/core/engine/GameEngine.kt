@@ -14,8 +14,8 @@ import com.xianxia.sect.core.engine.BattleSystem
 import com.xianxia.sect.core.engine.DisciplePillManager
 import com.xianxia.sect.core.engine.production.ProductionCoordinator
 import com.xianxia.sect.core.model.production.ProductionSlot
-import com.xianxia.sect.core.data.ForgeRecipeDatabase
-import com.xianxia.sect.core.data.HerbDatabase
+import com.xianxia.sect.core.registry.ForgeRecipeDatabase
+import com.xianxia.sect.core.registry.HerbDatabase
 import com.xianxia.sect.core.engine.HerbGardenSystem
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.util.StorageBagUtils

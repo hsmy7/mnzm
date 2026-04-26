@@ -1,9 +1,9 @@
 package com.xianxia.sect.core.engine
 
-import com.xianxia.sect.core.data.BeastMaterialDatabase
-import com.xianxia.sect.core.data.EquipmentDatabase
-import com.xianxia.sect.core.data.ItemDatabase
-import com.xianxia.sect.core.data.ManualDatabase
+import com.xianxia.sect.core.registry.BeastMaterialDatabase
+import com.xianxia.sect.core.registry.EquipmentDatabase
+import com.xianxia.sect.core.registry.ItemDatabase
+import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.model.ActiveMission
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus

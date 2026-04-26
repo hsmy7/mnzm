@@ -4,7 +4,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.util.Log
 import com.xianxia.sect.BuildConfig
-import com.xianxia.sect.core.data.*
+import com.xianxia.sect.core.registry.*
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.config.InventoryConfig

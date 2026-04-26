@@ -21,7 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.offset
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.data.PillRecipeDatabase
+import com.xianxia.sect.core.registry.PillRecipeDatabase
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.getQualityColor
@@ -272,7 +272,7 @@ private fun PillSelectionDialog(
         val recipesWithStatus = remember(allRecipes, herbs) {
             allRecipes.map { recipe ->
                 val canCraft = recipe.materials.all { (materialId, requiredQuantity) ->
-                    val herbData = com.xianxia.sect.core.data.HerbDatabase.getHerbById(materialId)
+                    val herbData = com.xianxia.sect.core.registry.HerbDatabase.getHerbById(materialId)
                     val herbName = herbData?.name
                     val herbRarity = herbData?.rarity ?: 1
                     val herb = herbs.find { it.name == herbName && it.rarity == herbRarity }
@@ -446,7 +446,7 @@ private fun PillDetailDialog(
 
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     recipe.materials.forEach { (materialId, requiredQuantity) ->
-                        val herbData = com.xianxia.sect.core.data.HerbDatabase.getHerbById(materialId)
+                        val herbData = com.xianxia.sect.core.registry.HerbDatabase.getHerbById(materialId)
                         val herbName = herbData?.name
                         val herbRarity = herbData?.rarity ?: 1
                         val herb = herbs.find { it.name == herbName && it.rarity == herbRarity }

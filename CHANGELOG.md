@@ -1,6 +1,15 @@
 # 模拟宗门 - 更新日志
 
+## [2.5.58] - 2026-04-27
+
+### 架构优化
+- 重命名包 `com.xianxia.sect.core.data` 为 `com.xianxia.sect.core.registry`，消除与 `com.xianxia.sect.data` 的命名冲突
+- 迁移 20 个 Kotlin 源文件至新包路径，更新全项目 26 个引用文件的 import 语句和完全限定名引用
+
 ## [2.5.57] - 2026-04-27
+
+### 修复
+- P0-06: AtomicStateFlowUpdates 添加混锁约束文档 — 同一 MutableStateFlow 禁止混用协程方法(Mutex)和同步方法(ReentrantLock)
 
 ### 架构优化
 - 提取 StorageKeyUtil：消除 WarehouseCache/OptimizedWarehouseManager/WarehouseDiffManager 中重复的 generateKey 实现，统一 key 生成格式为 `itemId:itemType:rarity:itemName`

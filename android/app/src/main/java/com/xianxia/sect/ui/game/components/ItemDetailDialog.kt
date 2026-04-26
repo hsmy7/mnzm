@@ -17,12 +17,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.data.EquipmentDatabase
-import com.xianxia.sect.core.data.ForgeRecipeDatabase
-import com.xianxia.sect.core.data.HerbDatabase
-import com.xianxia.sect.core.data.ItemDatabase
-import com.xianxia.sect.core.data.ManualDatabase
-import com.xianxia.sect.core.data.PillRecipeDatabase
+import com.xianxia.sect.core.registry.EquipmentDatabase
+import com.xianxia.sect.core.registry.ForgeRecipeDatabase
+import com.xianxia.sect.core.registry.HerbDatabase
+import com.xianxia.sect.core.registry.ItemDatabase
+import com.xianxia.sect.core.registry.ManualDatabase
+import com.xianxia.sect.core.registry.PillRecipeDatabase
 import com.xianxia.sect.core.engine.ManualProficiencySystem
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.util.GameUtils
@@ -101,7 +101,7 @@ fun ItemDetailDialog(
                 "pill" -> ItemDatabase.getPillByName(item.name)?.description ?: item.description
                 "herb" -> HerbDatabase.getHerbByName(item.name)?.description ?: item.description
                 "seed" -> HerbDatabase.getSeedByName(item.name)?.description ?: item.description
-                "material" -> com.xianxia.sect.core.data.BeastMaterialDatabase.getMaterialByName(item.name)?.description ?: item.description
+                "material" -> com.xianxia.sect.core.registry.BeastMaterialDatabase.getMaterialByName(item.name)?.description ?: item.description
                 else -> item.description
             }
             effects = getMerchantItemEffects(item)
@@ -115,7 +115,7 @@ fun ItemDetailDialog(
                 "pill" -> ItemDatabase.getPillByName(item.name)?.description ?: ""
                 "herb" -> HerbDatabase.getHerbByName(item.name)?.description ?: ""
                 "seed" -> HerbDatabase.getSeedByName(item.name)?.description ?: ""
-                "material" -> com.xianxia.sect.core.data.BeastMaterialDatabase.getMaterialByName(item.name)?.description ?: ""
+                "material" -> com.xianxia.sect.core.registry.BeastMaterialDatabase.getMaterialByName(item.name)?.description ?: ""
                 else -> ""
             }
             effects = getStorageBagItemEffects(item)
@@ -615,7 +615,7 @@ private fun MutableList<String>.addForgeMaterialsInfo(equipmentName: String) {
         add("")
         add("锻造所需:")
         forgeRecipe.materials.forEach { (materialId, count) ->
-            val materialName = com.xianxia.sect.core.data.BeastMaterialDatabase.getMaterialById(materialId)?.name ?: materialId
+            val materialName = com.xianxia.sect.core.registry.BeastMaterialDatabase.getMaterialById(materialId)?.name ?: materialId
             add("  · $materialName x$count")
         }
     }
@@ -850,7 +850,7 @@ private fun getMaterialEffects(item: Material): List<String> = buildList {
     add("类型: ${item.category.displayName}")
     add("数量: ${item.quantity}")
 
-    val forgeRecipes = com.xianxia.sect.core.data.ForgeRecipeDatabase.getRecipesByMaterial(item.id)
+    val forgeRecipes = com.xianxia.sect.core.registry.ForgeRecipeDatabase.getRecipesByMaterial(item.id)
     if (forgeRecipes.isNotEmpty()) {
         add("")
         add("可用于炼器:")
@@ -867,7 +867,7 @@ private fun getHerbEffects(item: Herb): List<String> = buildList {
     add("类型: ${getHerbCategoryName(item.category)}")
     add("数量: ${item.quantity}")
 
-    val pillRecipes = com.xianxia.sect.core.data.PillRecipeDatabase.getRecipesByHerb(item.id)
+    val pillRecipes = com.xianxia.sect.core.registry.PillRecipeDatabase.getRecipesByHerb(item.id)
     if (pillRecipes.isNotEmpty()) {
         add("")
         add("可用于炼丹:")
@@ -893,15 +893,15 @@ private fun getSeedEffects(item: Seed): List<String> = buildList {
     add("收获数量: ${item.yield}")
     add("数量: ${item.quantity}")
 
-    val herb = com.xianxia.sect.core.data.HerbDatabase.getHerbFromSeedName(item.name)
-        ?: com.xianxia.sect.core.data.HerbDatabase.getHerbFromSeed(item.id)
+    val herb = com.xianxia.sect.core.registry.HerbDatabase.getHerbFromSeedName(item.name)
+        ?: com.xianxia.sect.core.registry.HerbDatabase.getHerbFromSeed(item.id)
     if (herb != null) {
         add("")
         add("长成后:")
         add("  · ${herb.name}")
         add("  · ${herb.description}")
 
-        val pillRecipes = com.xianxia.sect.core.data.PillRecipeDatabase.getRecipesByHerb(herb.id)
+        val pillRecipes = com.xianxia.sect.core.registry.PillRecipeDatabase.getRecipesByHerb(herb.id)
         if (pillRecipes.isNotEmpty()) {
             add("")
             add("可用于炼丹:")
@@ -913,7 +913,7 @@ private fun getSeedEffects(item: Seed): List<String> = buildList {
             }
         }
     } else {
-        val herbName = com.xianxia.sect.core.data.HerbDatabase.getHerbNameFromSeedName(item.name)
+        val herbName = com.xianxia.sect.core.registry.HerbDatabase.getHerbNameFromSeedName(item.name)
         add("")
         add("长成后: $herbName")
     }

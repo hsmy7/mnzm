@@ -1,9 +1,9 @@
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.data.EquipmentDatabase
-import com.xianxia.sect.core.data.ManualDatabase
-import com.xianxia.sect.core.data.TalentDatabase
+import com.xianxia.sect.core.registry.EquipmentDatabase
+import com.xianxia.sect.core.registry.ManualDatabase
+import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.util.NameService
 import kotlin.random.Random

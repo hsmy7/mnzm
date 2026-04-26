@@ -1,12 +1,12 @@
 package com.xianxia.sect.core.engine.system
 
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.data.BeastMaterialDatabase
-import com.xianxia.sect.core.data.EquipmentDatabase
-import com.xianxia.sect.core.data.HerbDatabase
-import com.xianxia.sect.core.data.ItemDatabase
-import com.xianxia.sect.core.data.ManualDatabase
-import com.xianxia.sect.core.data.PillRecipeDatabase
+import com.xianxia.sect.core.registry.BeastMaterialDatabase
+import com.xianxia.sect.core.registry.EquipmentDatabase
+import com.xianxia.sect.core.registry.HerbDatabase
+import com.xianxia.sect.core.registry.ItemDatabase
+import com.xianxia.sect.core.registry.ManualDatabase
+import com.xianxia.sect.core.registry.PillRecipeDatabase
 import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualStack

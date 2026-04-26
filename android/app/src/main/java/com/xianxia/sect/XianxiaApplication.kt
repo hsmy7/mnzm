@@ -4,7 +4,7 @@ import android.app.Application
 import android.content.ComponentCallbacks2
 import android.content.res.Configuration
 import android.util.Log
-import com.xianxia.sect.core.data.ManualDatabase
+import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.util.GameMonitorManager
 import com.xianxia.sect.core.util.VivoGCJITOptimizer
 import com.xianxia.sect.data.crypto.SaveCrypto

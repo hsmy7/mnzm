@@ -1,10 +1,10 @@
 package com.xianxia.sect.ui.game
 
 import androidx.lifecycle.viewModelScope
-import com.xianxia.sect.core.data.BeastMaterialDatabase
-import com.xianxia.sect.core.data.ForgeRecipeDatabase
-import com.xianxia.sect.core.data.HerbDatabase
-import com.xianxia.sect.core.data.PillRecipeDatabase
+import com.xianxia.sect.core.registry.BeastMaterialDatabase
+import com.xianxia.sect.core.registry.ForgeRecipeDatabase
+import com.xianxia.sect.core.registry.HerbDatabase
+import com.xianxia.sect.core.registry.PillRecipeDatabase
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.model.production.BuildingType

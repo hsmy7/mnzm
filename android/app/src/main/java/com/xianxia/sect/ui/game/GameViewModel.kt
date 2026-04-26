@@ -7,7 +7,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.SharingStarted
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.data.ForgeRecipeDatabase
+import com.xianxia.sect.core.registry.ForgeRecipeDatabase
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.GameEngineCore
 import com.xianxia.sect.core.engine.service.HighFrequencyData
@@ -282,7 +282,7 @@ class GameViewModel @Inject constructor(
         .map { slots ->
             slots.filter { it.buildingType == com.xianxia.sect.core.model.production.BuildingType.FORGE }.map { slot ->
                 val recipe = slot.recipeId?.let {
-                    com.xianxia.sect.core.data.ForgeRecipeDatabase.getRecipeById(it)
+                    com.xianxia.sect.core.registry.ForgeRecipeDatabase.getRecipeById(it)
                 }
                 ForgeSlot(
                     id = slot.id,

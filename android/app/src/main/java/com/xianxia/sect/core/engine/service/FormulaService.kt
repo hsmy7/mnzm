@@ -1,7 +1,7 @@
 package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.model.*
-import com.xianxia.sect.core.data.*
+import com.xianxia.sect.core.registry.*
 import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState

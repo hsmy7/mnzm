@@ -9,13 +9,13 @@ import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.data.*
+import com.xianxia.sect.core.registry.*
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.engine.BattleSystem
 import com.xianxia.sect.core.engine.BattleMemberData
 import com.xianxia.sect.core.engine.production.ProductionCoordinator
 import com.xianxia.sect.core.engine.HerbGardenSystem
-import com.xianxia.sect.core.data.HerbDatabase
+import com.xianxia.sect.core.registry.HerbDatabase
 import com.xianxia.sect.core.engine.CaveExplorationSystem
 import com.xianxia.sect.core.engine.AICaveTeamGenerator
 import com.xianxia.sect.core.engine.SectWarehouseManager
@@ -495,7 +495,7 @@ class CultivationService @Inject constructor(
             spiritRootType = spiritRootType,
             status = DiscipleStatus.IDLE,
             discipleType = "outer",
-            talentIds = com.xianxia.sect.core.data.TalentDatabase.generateTalentsForDisciple().map { it.id },
+            talentIds = com.xianxia.sect.core.registry.TalentDatabase.generateTalentsForDisciple().map { it.id },
             combat = com.xianxia.sect.core.model.CombatAttributes(
                 hpVariance = hpVariance,
                 mpVariance = mpVariance,
@@ -3159,7 +3159,7 @@ class CultivationService @Inject constructor(
 
                 val newSoulPower = disciple.equipment.soulPower + 1
 
-                val talentEffects = com.xianxia.sect.core.data.TalentDatabase.calculateTalentEffects(disciple.talentIds)
+                val talentEffects = com.xianxia.sect.core.registry.TalentDatabase.calculateTalentEffects(disciple.talentIds)
                 val winGrowthAttr = if (talentEffects["winBattleRandomAttrPlus"] != null) {
                     listOf("maxHp", "maxMp", "physicalAttack", "magicAttack", "physicalDefense", "magicDefense", "speed").random()
                 } else null

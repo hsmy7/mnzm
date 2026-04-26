@@ -2,11 +2,11 @@ package com.xianxia.sect.core.engine
 
 import android.util.Log
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.data.EquipmentDatabase
-import com.xianxia.sect.core.data.HerbDatabase
-import com.xianxia.sect.core.data.ItemDatabase
-import com.xianxia.sect.core.data.ManualDatabase
-import com.xianxia.sect.core.data.TalentDatabase
+import com.xianxia.sect.core.registry.EquipmentDatabase
+import com.xianxia.sect.core.registry.HerbDatabase
+import com.xianxia.sect.core.registry.ItemDatabase
+import com.xianxia.sect.core.registry.ManualDatabase
+import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.core.util.NameService

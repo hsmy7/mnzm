@@ -4,7 +4,7 @@ import com.xianxia.sect.core.GameConfig
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import com.xianxia.sect.core.model.*
-import com.xianxia.sect.core.data.*
+import com.xianxia.sect.core.registry.*
 import com.xianxia.sect.core.engine.production.ProductionCoordinator
 import com.xianxia.sect.core.engine.HerbGardenSystem
 import com.xianxia.sect.core.model.production.ProductionError
