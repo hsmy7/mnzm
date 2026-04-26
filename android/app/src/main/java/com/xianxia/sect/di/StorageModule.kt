@@ -9,6 +9,10 @@ import com.xianxia.sect.data.config.SaveLimitsConfig
 import com.xianxia.sect.data.config.StorageConfig
 import com.xianxia.sect.data.crypto.CryptoModule
 import com.xianxia.sect.data.crypto.KeyRotationManager
+import com.xianxia.sect.data.engine.DataArchiveScheduler
+import com.xianxia.sect.data.engine.DataPruningScheduler
+import com.xianxia.sect.data.engine.ProactiveMemoryGuard
+import com.xianxia.sect.data.engine.StorageCircuitBreaker
 import com.xianxia.sect.data.engine.StorageEngine
 import com.xianxia.sect.data.facade.StorageFacade
 import com.xianxia.sect.data.incremental.ChangeLogPersistence
@@ -124,7 +128,7 @@ object StorageModule {
 
     @Provides
     @Singleton
-    fun provideStorageEngine(
+    internal fun provideStorageEngine(
         @ApplicationContext context: Context,
         database: GameDatabase,
         cache: CacheLayer,
@@ -138,7 +142,11 @@ object StorageModule {
         dataArchiver: DataArchiver,
         memoryManager: DynamicMemoryManager,
         metadataManager: MetadataManager,
-        applicationScopeProvider: ApplicationScopeProvider
+        applicationScopeProvider: ApplicationScopeProvider,
+        circuitBreaker: StorageCircuitBreaker,
+        pruningScheduler: DataPruningScheduler,
+        archiveScheduler: DataArchiveScheduler,
+        memoryGuard: ProactiveMemoryGuard
     ): StorageEngine {
         return StorageEngine(
             context = context,
@@ -154,7 +162,11 @@ object StorageModule {
             dataArchiver = dataArchiver,
             memoryManager = memoryManager,
             metadataManager = metadataManager,
-            applicationScopeProvider = applicationScopeProvider
+            applicationScopeProvider = applicationScopeProvider,
+            circuitBreaker = circuitBreaker,
+            pruningScheduler = pruningScheduler,
+            archiveScheduler = archiveScheduler,
+            memoryGuard = memoryGuard
         )
     }
 
