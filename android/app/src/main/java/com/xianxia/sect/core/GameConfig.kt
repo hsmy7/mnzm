@@ -624,14 +624,13 @@ object GameConfig {
         const val FAVOR_DECAY_THRESHOLD = 80
         const val MIN_FAVOR = 0
         const val MAX_FAVOR = 100
-        const val SAME_ALIGNMENT_BONUS = 10
-        
+
         object AllianceScore {
             const val THRESHOLD = 80
             const val PROBABILITY_DIVISOR = 200.0
             const val MAX_AI_ALLIANCES = 2
         }
-        
+
         object BreakPenalty {
             const val SPIRIT_STONE_PENALTY_RATIO = 0.1
         }

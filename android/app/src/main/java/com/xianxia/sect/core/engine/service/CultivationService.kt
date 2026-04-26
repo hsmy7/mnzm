@@ -1134,13 +1134,10 @@ class CultivationService @Inject constructor(
         // 9. Process AI alliances
         processAIAlliances(year)
 
-        // 10. Process alliance favor maintenance
-        processAllianceFavorMaintenance()
-
-        // 11. Process reflection cliff release (思过崖期满释放)
+        // 10. Process reflection cliff release (思过崖期满释放)
         processReflectionRelease(year)
 
-        // 12. Process favor decay for high favor relations
+        // 11. Process favor decay for high favor relations
         processFavorDecay(year)
     }
 
@@ -2421,23 +2418,11 @@ class CultivationService @Inject constructor(
             )
             eventService.addGameEvent(AISectAttackManager.generateSectDestroyedEvent(team.attackerSectName, team.defenderSectName), EventType.DANGER)
 
-            val attackerSect = currentGameData.worldMapSects.find { it.id == team.attackerSectId }
-            val defenderSectForRelation = currentGameData.worldMapSects.find { it.id == team.defenderSectId }
-            val isAlliedAttack = attackerSect != null && defenderSectForRelation != null &&
-                attackerSect.allianceId.isNotEmpty() && attackerSect.allianceId == defenderSectForRelation.allianceId
-            val isSameAlignment = attackerSect != null && defenderSectForRelation != null &&
-                attackerSect.isRighteous == defenderSectForRelation.isRighteous
-
             val updatedRelations = currentGameData.sectRelations.map { relation ->
                 val isRelevantRelation = (relation.sectId1 == team.attackerSectId && relation.sectId2 == team.defenderSectId) ||
                                          (relation.sectId1 == team.defenderSectId && relation.sectId2 == team.attackerSectId)
                 if (isRelevantRelation) {
-                    val baseLoss = if (isAlliedAttack) DiplomaticEventConfig.BattleFavor.ALLIANCE_BETRAYAL_FAVOR_LOSS
-                               else DiplomaticEventConfig.BattleFavor.DESTROY_FAVOR_LOSS
-                    val loss = if (isSameAlignment && !isAlliedAttack)
-                        (baseLoss * DiplomaticEventConfig.BattleFavor.SAME_ALIGNMENT_FAVOR_REDUCTION).toInt()
-                    else baseLoss
-                    relation.copy(favor = (relation.favor + loss).coerceIn(GameConfig.Diplomacy.MIN_FAVOR, GameConfig.Diplomacy.MAX_FAVOR))
+                    relation.copy(favor = (relation.favor - 10).coerceIn(GameConfig.Diplomacy.MIN_FAVOR, GameConfig.Diplomacy.MAX_FAVOR))
                 } else {
                     relation
                 }
@@ -2448,7 +2433,7 @@ class CultivationService @Inject constructor(
                 val isRelevantRelation = (relation.sectId1 == team.attackerSectId && relation.sectId2 == team.defenderSectId) ||
                                          (relation.sectId1 == team.defenderSectId && relation.sectId2 == team.attackerSectId)
                 if (isRelevantRelation) {
-                    relation.copy(favor = (relation.favor + DiplomaticEventConfig.BattleFavor.ATTACKER_WIN_FAVOR_LOSS).coerceIn(GameConfig.Diplomacy.MIN_FAVOR, GameConfig.Diplomacy.MAX_FAVOR))
+                    relation.copy(favor = (relation.favor - 10).coerceIn(GameConfig.Diplomacy.MIN_FAVOR, GameConfig.Diplomacy.MAX_FAVOR))
                 } else {
                     relation
                 }
@@ -2473,16 +2458,11 @@ class CultivationService @Inject constructor(
             )
             eventService.addGameEvent("${team.attackerSectName}进攻${team.defenderSectName}胜利，但未能占领！", EventType.INFO)
         } else {
-            val battleFavorLoss = if (result.winner == AIBattleWinner.DEFENDER)
-                DiplomaticEventConfig.BattleFavor.DEFENDER_WIN_FAVOR_LOSS
-            else
-                DiplomaticEventConfig.BattleFavor.DRAW_FAVOR_LOSS
-
             val updatedRelations = currentGameData.sectRelations.map { relation ->
                 val isRelevantRelation = (relation.sectId1 == team.attackerSectId && relation.sectId2 == team.defenderSectId) ||
                                          (relation.sectId1 == team.defenderSectId && relation.sectId2 == team.attackerSectId)
                 if (isRelevantRelation) {
-                    relation.copy(favor = (relation.favor + battleFavorLoss).coerceIn(GameConfig.Diplomacy.MIN_FAVOR, GameConfig.Diplomacy.MAX_FAVOR))
+                    relation.copy(favor = (relation.favor - 10).coerceIn(GameConfig.Diplomacy.MIN_FAVOR, GameConfig.Diplomacy.MAX_FAVOR))
                 } else {
                     relation
                 }
@@ -2712,14 +2692,11 @@ class CultivationService @Inject constructor(
             )
         }
 
-        val playerBattleFavorLoss = (DiplomaticEventConfig.BattleFavor.ATTACKER_WIN_FAVOR_LOSS *
-            DiplomaticEventConfig.BattleFavor.PLAYER_ATTACKED_FAVOR_MULTIPLIER).toInt()
-
         val updatedPlayerRelations = currentGameData.sectRelations.map { relation ->
             val isRelevantRelation = (relation.sectId1 == team.attackerSectId && relation.sectId2 == playerSect.id) ||
                                      (relation.sectId1 == playerSect.id && relation.sectId2 == team.attackerSectId)
             if (isRelevantRelation) {
-                relation.copy(favor = (relation.favor + playerBattleFavorLoss).coerceIn(GameConfig.Diplomacy.MIN_FAVOR, GameConfig.Diplomacy.MAX_FAVOR))
+                relation.copy(favor = (relation.favor - 15).coerceIn(GameConfig.Diplomacy.MIN_FAVOR, GameConfig.Diplomacy.MAX_FAVOR))
             } else {
                 relation
             }
@@ -4139,59 +4116,36 @@ class CultivationService @Inject constructor(
         val updatedRelations = data.sectRelations.toMutableList()
         var relationsChanged = false
 
-        val playerEvents = DiplomaticEventConfig.Events.getEventsByScope(DiplomaticEventConfig.EventScope.PLAYER_ONLY)
-        val allScopeEvents = DiplomaticEventConfig.Events.getEventsByScope(DiplomaticEventConfig.EventScope.ALL)
-        val aiOnlyEvents = DiplomaticEventConfig.Events.getEventsByScope(DiplomaticEventConfig.EventScope.AI_ONLY)
+        val events = DiplomaticEventConfig.Events.ALL_EVENTS
 
         for (relation in data.sectRelations) {
+            if (Random.nextDouble() >= DiplomaticEventConfig.MONTHLY_TRIGGER_CHANCE) continue
+
+            val eventDef = events.random()
             val involvesPlayer = relation.sectId1 == playerSectId || relation.sectId2 == playerSectId
             val sect1 = data.worldMapSects.find { it.id == relation.sectId1 }
             val sect2 = data.worldMapSects.find { it.id == relation.sectId2 }
             if (sect1 == null || sect2 == null) continue
 
-            val isAdjacent = sect1.connectedSectIds.contains(sect2.id) || sect2.connectedSectIds.contains(sect1.id)
-            val isAllied = sect1.allianceId.isNotEmpty() && sect1.allianceId == sect2.allianceId
-            val sameAlignment = sect1.isRighteous == sect2.isRighteous
-            val differentAlignment = sect1.isRighteous != sect2.isRighteous
+            val favorChange = eventDef.favorChange
+            val newFavor = (relation.favor + favorChange).coerceIn(GameConfig.Diplomacy.MIN_FAVOR, GameConfig.Diplomacy.MAX_FAVOR)
 
-            val candidateEvents = if (involvesPlayer) {
-                playerEvents + allScopeEvents
-            } else {
-                allScopeEvents + aiOnlyEvents
+            val index = updatedRelations.indexOfFirst { it.sectId1 == relation.sectId1 && it.sectId2 == relation.sectId2 }
+            if (index >= 0) {
+                updatedRelations[index] = updatedRelations[index].copy(favor = newFavor)
+                relationsChanged = true
             }
 
-            for (eventDef in candidateEvents) {
-                if (relation.favor < eventDef.minFavorToTrigger) continue
-                if (relation.favor > eventDef.maxFavorToTrigger) continue
-                if (eventDef.requiresAlliance && !isAllied) continue
-                if (eventDef.requiresAdjacent && !isAdjacent) continue
-                if (eventDef.requiresSameAlignment && !sameAlignment) continue
-                if (eventDef.requiresDifferentAlignment && !differentAlignment) continue
+            val sect1Name = sect1.name
+            val sect2Name = sect2.name
+            val eventType = if (eventDef.isPositive) EventType.SUCCESS else EventType.WARNING
+            val favorText = if (favorChange > 0) "+$favorChange" else "$favorChange"
 
-                if (Random.nextDouble() >= eventDef.baseChance) continue
-
-                val favorChange = eventDef.favorChange
-                val newFavor = (relation.favor + favorChange).coerceIn(GameConfig.Diplomacy.MIN_FAVOR, GameConfig.Diplomacy.MAX_FAVOR)
-
-                val index = updatedRelations.indexOfFirst { it.sectId1 == relation.sectId1 && it.sectId2 == relation.sectId2 }
-                if (index >= 0) {
-                    updatedRelations[index] = updatedRelations[index].copy(favor = newFavor)
-                    relationsChanged = true
-                }
-
-                val sect1Name = sect1.name
-                val sect2Name = sect2.name
-                val eventType = if (eventDef.isPositive) EventType.SUCCESS else EventType.WARNING
-                val favorText = if (favorChange > 0) "+$favorChange" else "$favorChange"
-
-                if (involvesPlayer) {
-                    val otherSectName = if (sect1.id == playerSectId) sect2Name else sect1Name
-                    eventService.addGameEvent("${eventDef.name}：${eventDef.description}（与${otherSectName}关系${favorText}）", eventType)
-                } else if (eventDef.favorChange <= -10 || eventDef.favorChange >= 10) {
-                    eventService.addGameEvent("${eventDef.name}：${sect1Name}与${sect2Name}${eventDef.description}", eventType)
-                }
-
-                break
+            if (involvesPlayer) {
+                val otherSectName = if (sect1.id == playerSectId) sect2Name else sect1Name
+                eventService.addGameEvent("${eventDef.name}：${eventDef.description}（与${otherSectName}关系${favorText}）", eventType)
+            } else if (eventDef.favorChange <= -10 || eventDef.favorChange >= 10) {
+                eventService.addGameEvent("${eventDef.name}：${sect1Name}与${sect2Name}${eventDef.description}", eventType)
             }
         }
 
@@ -4616,52 +4570,18 @@ class CultivationService @Inject constructor(
     private fun processFavorDecay(currentYear: Int) {
         val data = currentGameData
         val playerSect = data.worldMapSects.find { it.isPlayerSect } ?: return
-        val playerSectId = playerSect.id
 
         val updatedRelations = data.sectRelations.map { relation ->
-            val involvesPlayer = relation.sectId1 == playerSectId || relation.sectId2 == playerSectId
-            val favor = relation.favor
+            val involvesPlayer = relation.sectId1 == playerSect.id || relation.sectId2 == playerSect.id
+            if (!involvesPlayer) return@map relation
 
-            if (involvesPlayer) {
-                val effectiveLastYear = if (relation.lastInteractionYear <= 0) currentYear else relation.lastInteractionYear
-                val yearsSinceGift = currentYear - effectiveLastYear
+            if (relation.favor <= GameConfig.Diplomacy.FAVOR_DECAY_THRESHOLD) return@map relation
 
-                when {
-                    favor > DiplomaticEventConfig.Decay.HIGH_FAVOR_DECAY_THRESHOLD -> {
-                        if (yearsSinceGift >= DiplomaticEventConfig.Decay.HIGH_FAVOR_DECAY_YEARS) {
-                            val decay = DiplomaticEventConfig.Decay.HIGH_FAVOR_DECAY_AMOUNT
-                            relation.copy(
-                                favor = (favor - decay).coerceAtLeast(DiplomaticEventConfig.Decay.HIGH_FAVOR_DECAY_THRESHOLD),
-                                noGiftYears = relation.noGiftYears + 1
-                            )
-                        } else relation
-                    }
-                    favor > DiplomaticEventConfig.Decay.MEDIUM_FAVOR_DECAY_THRESHOLD -> {
-                        if (yearsSinceGift >= DiplomaticEventConfig.Decay.MEDIUM_FAVOR_DECAY_YEARS) {
-                            val decay = DiplomaticEventConfig.Decay.MEDIUM_FAVOR_DECAY_AMOUNT
-                            relation.copy(
-                                favor = (favor - decay).coerceAtLeast(DiplomaticEventConfig.Decay.MEDIUM_FAVOR_DECAY_THRESHOLD),
-                                noGiftYears = relation.noGiftYears + 1
-                            )
-                        } else relation
-                    }
-                    favor < DiplomaticEventConfig.Decay.LOW_FAVOR_RECOVERY_THRESHOLD -> {
-                        if (yearsSinceGift >= DiplomaticEventConfig.Decay.LOW_FAVOR_RECOVERY_YEARS) {
-                            val recovery = DiplomaticEventConfig.Decay.LOW_FAVOR_RECOVERY_AMOUNT
-                            relation.copy(
-                                favor = (favor + recovery).coerceAtMost(DiplomaticEventConfig.Decay.LOW_FAVOR_RECOVERY_THRESHOLD),
-                                noGiftYears = 0
-                            )
-                        } else relation
-                    }
-                    else -> relation
-                }
-            } else {
-                if (Random.nextDouble() < DiplomaticEventConfig.Decay.AI_RELATION_DECAY_CHANCE) {
-                    val drift = if (Random.nextBoolean()) -DiplomaticEventConfig.Decay.AI_RELATION_DECAY_AMOUNT else DiplomaticEventConfig.Decay.AI_RELATION_DECAY_AMOUNT
-                    relation.copy(favor = (favor + drift).coerceIn(GameConfig.Diplomacy.MIN_FAVOR, GameConfig.Diplomacy.MAX_FAVOR))
-                } else relation
-            }
+            val yearsSinceGift = currentYear - relation.lastInteractionYear
+            if (yearsSinceGift < GameConfig.Diplomacy.FAVOR_DECAY_NO_GIFT_YEARS) return@map relation
+
+            val newFavor = (relation.favor - GameConfig.Diplomacy.FAVOR_DECAY_AMOUNT).coerceAtLeast(GameConfig.Diplomacy.FAVOR_DECAY_THRESHOLD)
+            relation.copy(favor = newFavor, noGiftYears = relation.noGiftYears + 1)
         }
 
         val hasChanges = updatedRelations.zip(data.sectRelations).any { (a, b) -> a != b }
@@ -4671,97 +4591,8 @@ class CultivationService @Inject constructor(
     }
 
     private fun processAIAlliances(year: Int) {
-        val data = currentGameData
-        val playerSect = data.worldMapSects.find { it.isPlayerSect } ?: return
-        val aiSects = data.worldMapSects.filter {
-            !it.isPlayerSect && !it.isOccupied && it.allianceId.isEmpty()
-        }
-
-        if (aiSects.size < 2) return
-
-        val newAlliances = mutableListOf<Alliance>()
-        val updatedSects = data.worldMapSects.toMutableList()
-        val allianceCountBySect = mutableMapOf<String, Int>()
-
-        for (alliance in data.alliances) {
-            alliance.sectIds.forEach { sectId ->
-                allianceCountBySect[sectId] = (allianceCountBySect[sectId] ?: 0) + 1
-            }
-        }
-
-        val candidates = aiSects.filter {
-            (allianceCountBySect[it.id] ?: 0) < DiplomaticEventConfig.AIRelation.AI_ALLIANCE_MAX_PER_SECT
-        }
-
-        for (i in candidates.indices) {
-            val sect1 = candidates[i]
-            for (j in (i + 1) until candidates.size) {
-                val sect2 = candidates[j]
-
-                if (sect1.allianceId.isNotEmpty() || sect2.allianceId.isNotEmpty()) continue
-
-                val relation = data.sectRelations.find {
-                    (it.sectId1 == sect1.id && it.sectId2 == sect2.id) ||
-                    (it.sectId1 == sect2.id && it.sectId2 == sect1.id)
-                } ?: continue
-
-                if (relation.favor < DiplomaticEventConfig.AIRelation.AI_ALLIANCE_MIN_FAVOR) continue
-
-                if (Random.nextDouble() >= DiplomaticEventConfig.AIRelation.AI_ALLIANCE_CHANCE_PER_YEAR) continue
-
-                val alliance = Alliance(
-                    sectIds = listOf(sect1.id, sect2.id),
-                    startYear = year,
-                    initiatorId = sect1.id
-                )
-                newAlliances.add(alliance)
-
-                val idx1 = updatedSects.indexOfFirst { it.id == sect1.id }
-                if (idx1 >= 0) updatedSects[idx1] = updatedSects[idx1].copy(allianceId = alliance.id, allianceStartYear = year)
-                val idx2 = updatedSects.indexOfFirst { it.id == sect2.id }
-                if (idx2 >= 0) updatedSects[idx2] = updatedSects[idx2].copy(allianceId = alliance.id, allianceStartYear = year)
-
-                eventService.addGameEvent("${sect1.name}与${sect2.name}结为盟友", EventType.INFO)
-                break
-            }
-        }
-
-        if (newAlliances.isNotEmpty()) {
-            currentGameData = data.copy(
-                alliances = data.alliances + newAlliances,
-                worldMapSects = updatedSects.toList()
-            )
-        }
-    }
-
-    private fun processAllianceFavorMaintenance() {
-        val data = currentGameData
-        if (data.alliances.isEmpty()) return
-
-        val updatedRelations = data.sectRelations.toMutableList()
-        var changed = false
-
-        for (alliance in data.alliances) {
-            val sectIds = alliance.sectIds
-            if (sectIds.size < 2) continue
-
-            val id1 = minOf(sectIds[0], sectIds[1])
-            val id2 = maxOf(sectIds[0], sectIds[1])
-
-            val index = updatedRelations.indexOfFirst { it.sectId1 == id1 && it.sectId2 == id2 }
-            if (index >= 0) {
-                val relation = updatedRelations[index]
-                if (relation.favor < GameConfig.Diplomacy.MAX_FAVOR) {
-                    val newFavor = (relation.favor + DiplomaticEventConfig.AllianceFavor.ALLIANCE_YEARLY_FAVOR_BONUS)
-                        .coerceAtMost(GameConfig.Diplomacy.MAX_FAVOR)
-                    updatedRelations[index] = relation.copy(favor = newFavor)
-                    changed = true
-                }
-            }
-        }
-
-        if (changed) {
-            currentGameData = data.copy(sectRelations = updatedRelations.toList())
-        }
+        // AI sect alliance formation logic
+        // 当前版本：AI宗门自动结盟逻辑尚未实现，此方法保留为扩展点。
+        // 玩家宗门的盟约管理已由 checkAllianceExpiry / checkAllianceFavorDrop 处理。
     }
 }
