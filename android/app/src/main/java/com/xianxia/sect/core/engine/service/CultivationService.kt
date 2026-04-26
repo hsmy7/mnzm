@@ -3361,6 +3361,7 @@ class CultivationService @Inject constructor(
             val cave = activeCaves.find { it.id == aiTeam.caveId } ?: return@forEach
 
             if (Random.nextDouble() < 0.3) {
+                eventService.addGameEvent("${aiTeam.sectName}的弟子在${cave.name}探索成功！", EventType.SUCCESS)
                 aiTeamsToRemove.add(aiTeam.id)
             }
         }
@@ -3774,6 +3775,16 @@ class CultivationService @Inject constructor(
         val data = currentGameData
         val aiDisciples = data.aiSectDisciples
 
+        val cleanedSectDetails = data.sectDetails.mapValues { (sectId, detail) ->
+            val sect = data.worldMapSects.find { it.id == sectId }
+            if (sect != null && !sect.isPlayerSect && detail.warehouse.items.isNotEmpty()) {
+                detail.copy(warehouse = SectWarehouse())
+            } else {
+                detail
+            }
+        }
+        currentGameData = data.copy(sectDetails = cleanedSectDetails)
+
         val updatedAiDisciples = aiDisciples.mapValues { (sectId, disciples) ->
             val sect = data.worldMapSects.find { it.id == sectId }
             if (sect == null || sect.isPlayerSect) return@mapValues disciples
@@ -3781,7 +3792,7 @@ class CultivationService @Inject constructor(
             AISectDiscipleManager.processMonthlyCultivation(disciples)
         }
 
-        currentGameData = data.copy(aiSectDisciples = updatedAiDisciples)
+        currentGameData = currentGameData.copy(aiSectDisciples = updatedAiDisciples)
 
         if (month == 1) {
             processSectDisciplesYearlyRecruitment(year)

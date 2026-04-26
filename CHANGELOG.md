@@ -1,5 +1,13 @@
 # 模拟宗门 - 更新日志
 
+## [2.5.44] - 2026-04-26
+
+### 修复
+- calculateWarehouseLootLoss中使用itemId作为Map key导致同名不同品质物品损失计算不准确，现改为复合key格式
+- convertWarRewardsToWarehouseItems中EquipmentStack/ManualStack的id可能为UUID导致仓库无法正确堆叠，现改为name+rarity组合
+- 旧存档中AI宗门仓库残留无用数据，现每月处理时自动清理非玩家宗门仓库
+- AI洞府探索成功后无事件通知，现添加探索成功事件记录
+
 ## [2.5.43] - 2026-04-26
 
 ### 修复

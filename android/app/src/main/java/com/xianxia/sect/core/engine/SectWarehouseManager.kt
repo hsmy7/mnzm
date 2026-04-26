@@ -100,7 +100,7 @@ object SectWarehouseManager {
         
         rewards.equipmentStacks.forEach { stack ->
             items.add(WarehouseItem(
-                itemId = stack.id,
+                itemId = "equipment_${stack.name}_${stack.rarity}",
                 itemName = stack.name,
                 itemType = "equipment_stack",
                 rarity = stack.rarity,
@@ -110,7 +110,7 @@ object SectWarehouseManager {
         
         rewards.manualStacks.forEach { stack ->
             items.add(WarehouseItem(
-                itemId = stack.id,
+                itemId = "manual_${stack.name}_${stack.rarity}",
                 itemName = stack.name,
                 itemType = "manual_stack",
                 rarity = stack.rarity,
@@ -166,7 +166,8 @@ object SectWarehouseManager {
         val lostMaterials = mutableMapOf<String, Int>()
         warehouse.items.filter { it.quantity > 0 }.forEach { item ->
             val loss = (item.quantity * 0.4).toInt().coerceAtLeast(1)
-            lostMaterials[item.itemId] = loss
+            val key = "${item.itemId}:${item.itemType}:${item.rarity}:${item.itemName}"
+            lostMaterials[key] = loss
         }
         return PlayerLootLossResult(lostSpiritStones, lostMaterials)
     }
@@ -175,7 +176,8 @@ object SectWarehouseManager {
         val updatedSpiritStones = (warehouse.spiritStones - loss.lostSpiritStones).coerceAtLeast(0)
         val removals = loss.lostMaterials
         val updatedItems = warehouse.items.mapNotNull { item ->
-            val removeCount = removals[item.itemId] ?: 0
+            val key = "${item.itemId}:${item.itemType}:${item.rarity}:${item.itemName}"
+            val removeCount = removals[key] ?: 0
             if (removeCount <= 0) return@mapNotNull item
             val newQuantity = item.quantity - removeCount
             if (newQuantity > 0) {
