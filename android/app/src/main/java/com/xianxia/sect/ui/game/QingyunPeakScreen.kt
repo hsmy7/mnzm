@@ -35,14 +35,14 @@ fun QingyunPeakDialog(
                 elder = innerElder,
                 bonusInfo = ElderBonusInfoProvider.getInnerElderInfo(),
                 onClick = { showInnerElderSelection = true },
-                onRemove = { productionViewModel.removeElder("innerElder") }
+                onRemove = { productionViewModel.removeElder(ElderSlotType.INNER_ELDER) }
             ),
             slot2 = PeakElderSlotConfig(
                 title = "青云峰传道长老",
                 elder = preachingElder,
                 bonusInfo = ElderBonusInfoProvider.getQingyunPreachingElderInfo(),
                 onClick = { showPreachingElderSelection = true },
-                onRemove = { productionViewModel.removeElder("qingyunPreachingElder") }
+                onRemove = { productionViewModel.removeElder(ElderSlotType.CLOUD_PREACHING) }
             )
         )
 
@@ -77,7 +77,7 @@ fun QingyunPeakDialog(
             currentDiscipleId = innerElder?.id,
             requirementText = "需要元婴及以上境界",
             onSelect = { disciple ->
-                productionViewModel.assignElder("innerElder", disciple.id)
+                productionViewModel.assignElder(ElderSlotType.INNER_ELDER, disciple.id)
                 showInnerElderSelection = false
             },
             onDismiss = { showInnerElderSelection = false }
@@ -91,7 +91,7 @@ fun QingyunPeakDialog(
             currentDiscipleId = preachingElder?.id,
             requirementText = "需要元婴及以上境界",
             onSelect = { disciple ->
-                productionViewModel.assignElder("qingyunPreachingElder", disciple.id)
+                productionViewModel.assignElder(ElderSlotType.CLOUD_PREACHING, disciple.id)
                 showPreachingElderSelection = false
             },
             onDismiss = { showPreachingElderSelection = false }

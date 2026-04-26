@@ -22,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.xianxia.sect.core.model.ElderSlotType
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.PlantSlotData
 import com.xianxia.sect.core.model.Seed
@@ -76,7 +77,7 @@ fun HerbGardenDialog(
                     if (hasDirectDisciples) {
                         showElderRemoveConfirm = true
                     } else {
-                        productionViewModel.removeElder("herbGarden")
+                        productionViewModel.removeElder(ElderSlotType.HERB_GARDEN)
                     }
                 }
             )
@@ -161,7 +162,7 @@ fun HerbGardenDialog(
             elderSlots = elderSlots,
             onDismiss = { showElderSelection = false },
             onSelect = { discipleId ->
-                productionViewModel.assignElder("herbGarden", discipleId)
+                productionViewModel.assignElder(ElderSlotType.HERB_GARDEN, discipleId)
                 showElderSelection = false
             }
         )
@@ -184,7 +185,7 @@ fun HerbGardenDialog(
             elderName = herbGardenElder?.name ?: "长老",
             discipleCount = herbGardenDisciples.count { it.isActive },
             onConfirm = {
-                productionViewModel.removeElder("herbGarden")
+                productionViewModel.removeElder(ElderSlotType.HERB_GARDEN)
                 showElderRemoveConfirm = false
             },
             onDismiss = { showElderRemoveConfirm = false }

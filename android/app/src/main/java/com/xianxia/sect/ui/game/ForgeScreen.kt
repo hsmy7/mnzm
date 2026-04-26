@@ -85,7 +85,7 @@ fun ForgeDialog(
                 theme = theme,
                 elder = forgeElder,
                 onElderClick = { showElderSelection = true },
-                onElderRemove = { productionViewModel.removeElder("forge") }
+                onElderRemove = { productionViewModel.removeElder(ElderSlotType.FORGE) }
             )
 
             ProductionDirectDiscipleSection(
@@ -185,7 +185,7 @@ fun ForgeDialog(
             elderSlots = elderSlots ?: ElderSlots(),
             onDismiss = { showElderSelection = false },
             onSelect = { discipleId ->
-                productionViewModel.assignElder("forge", discipleId)
+                productionViewModel.assignElder(ElderSlotType.FORGE, discipleId)
                 showElderSelection = false
             }
         )

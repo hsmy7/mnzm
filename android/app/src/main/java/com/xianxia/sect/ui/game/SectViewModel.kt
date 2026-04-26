@@ -1,7 +1,6 @@
 package com.xianxia.sect.ui.game
 
 import android.util.Log
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.GameEngine
@@ -14,13 +13,22 @@ import javax.inject.Inject
 @HiltViewModel
 class SectViewModel @Inject constructor(
     private val gameEngine: GameEngine
-) : ViewModel() {
+) : BaseViewModel() {
     
     companion object {
         private const val TAG = "SectViewModel"
         private const val REALM_VICE_SECT_MASTER = 4
         private const val REALM_ELDER = 6
     }
+
+    private val _errorMessage = MutableStateFlow<String?>(null)
+    val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
+
+    private val _successMessage = MutableStateFlow<String?>(null)
+    val successMessage: StateFlow<String?> = _successMessage.asStateFlow()
+
+    fun clearErrorMessage() { _errorMessage.value = null }
+    fun clearSuccessMessage() { _successMessage.value = null }
     
     val gameData: StateFlow<GameData> = gameEngine.gameData
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), gameEngine.gameData.value)
@@ -33,20 +41,6 @@ class SectViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val disciples: StateFlow<List<DiscipleAggregate>> = disciplesAggregates
-    
-    private val _errorMessage = MutableStateFlow<String?>(null)
-    val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
-    
-    private val _successMessage = MutableStateFlow<String?>(null)
-    val successMessage: StateFlow<String?> = _successMessage.asStateFlow()
-    
-    fun clearErrorMessage() {
-        _errorMessage.value = null
-    }
-    
-    fun clearSuccessMessage() {
-        _successMessage.value = null
-    }
     
     fun getViceSectMaster(): DiscipleAggregate? {
         val viceSectMasterId = gameEngine.gameData.value?.elderSlots?.viceSectMaster
@@ -114,7 +108,7 @@ class SectViewModel @Inject constructor(
         }
     }
     
-    fun assignElder(slotType: String, discipleId: String) {
+    fun assignElder(slotType: ElderSlotType, discipleId: String) {
         viewModelScope.launch {
             try {
                 val disciple = disciples.value.find { it.id == discipleId }
@@ -124,7 +118,7 @@ class SectViewModel @Inject constructor(
                 }
                 
                 val minRealm = when (slotType) {
-                    "viceSectMaster" -> REALM_VICE_SECT_MASTER
+                    ElderSlotType.VICE_SECT_MASTER -> REALM_VICE_SECT_MASTER
                     else -> REALM_ELDER
                 }
                 if (disciple.realm > minRealm) {
@@ -134,7 +128,7 @@ class SectViewModel @Inject constructor(
                         else -> "元婴"
                     }
                     val positionName = when (slotType) {
-                        "viceSectMaster" -> "副宗主"
+                        ElderSlotType.VICE_SECT_MASTER -> "副宗主"
                         else -> "长老"
                     }
                     _errorMessage.value = "${positionName}需要达到${realmName}境界"
@@ -177,40 +171,39 @@ class SectViewModel @Inject constructor(
                 }
                 
                 val newElderSlots = when (slotType) {
-                    "herbGarden" -> elderSlots.copy(
+                    ElderSlotType.HERB_GARDEN -> elderSlots.copy(
                         herbGardenElder = discipleId,
                         herbGardenDisciples = emptyList()
                     )
-                    "alchemy" -> elderSlots.copy(
+                    ElderSlotType.ALCHEMY -> elderSlots.copy(
                         alchemyElder = discipleId,
                         alchemyDisciples = emptyList()
                     )
-                    "forge" -> elderSlots.copy(
+                    ElderSlotType.FORGE -> elderSlots.copy(
                         forgeElder = discipleId,
                         forgeDisciples = emptyList()
                     )
-                    "viceSectMaster" -> elderSlots.copy(
+                    ElderSlotType.VICE_SECT_MASTER -> elderSlots.copy(
                         viceSectMaster = discipleId
                     )
-                    "outerElder" -> elderSlots.copy(
+                    ElderSlotType.OUTER_ELDER -> elderSlots.copy(
                         outerElder = discipleId
                     )
-                    "preachingElder" -> elderSlots.copy(
+                    ElderSlotType.PREACHING -> elderSlots.copy(
                         preachingElder = discipleId,
                         preachingMasters = emptyList()
                     )
-                    "lawEnforcementElder" -> elderSlots.copy(
+                    ElderSlotType.LAW_ENFORCEMENT -> elderSlots.copy(
                         lawEnforcementElder = discipleId,
                         lawEnforcementDisciples = emptyList()
                     )
-                    "innerElder" -> elderSlots.copy(
+                    ElderSlotType.INNER_ELDER -> elderSlots.copy(
                         innerElder = discipleId
                     )
-                    "qingyunPreachingElder" -> elderSlots.copy(
+                    ElderSlotType.CLOUD_PREACHING -> elderSlots.copy(
                         qingyunPreachingElder = discipleId,
                         qingyunPreachingMasters = emptyList()
                     )
-                    else -> elderSlots
                 }
                 gameEngine.updateElderSlots(newElderSlots)
                 _successMessage.value = "长老任命成功"
@@ -220,46 +213,45 @@ class SectViewModel @Inject constructor(
         }
     }
     
-    fun removeElder(slotType: String) {
+    fun removeElder(slotType: ElderSlotType) {
         viewModelScope.launch {
             try {
                 val currentGameData = gameEngine.gameData.value
                 val elderSlots = currentGameData.elderSlots
                 val newElderSlots = when (slotType) {
-                    "herbGarden" -> elderSlots.copy(
+                    ElderSlotType.HERB_GARDEN -> elderSlots.copy(
                         herbGardenElder = "",
                         herbGardenDisciples = emptyList()
                     )
-                    "alchemy" -> elderSlots.copy(
+                    ElderSlotType.ALCHEMY -> elderSlots.copy(
                         alchemyElder = "",
                         alchemyDisciples = emptyList()
                     )
-                    "forge" -> elderSlots.copy(
+                    ElderSlotType.FORGE -> elderSlots.copy(
                         forgeElder = "",
                         forgeDisciples = emptyList()
                     )
-                    "viceSectMaster" -> elderSlots.copy(
+                    ElderSlotType.VICE_SECT_MASTER -> elderSlots.copy(
                         viceSectMaster = ""
                     )
-                    "outerElder" -> elderSlots.copy(
+                    ElderSlotType.OUTER_ELDER -> elderSlots.copy(
                         outerElder = ""
                     )
-                    "preachingElder" -> elderSlots.copy(
+                    ElderSlotType.PREACHING -> elderSlots.copy(
                         preachingElder = "",
                         preachingMasters = emptyList()
                     )
-                    "lawEnforcementElder" -> elderSlots.copy(
+                    ElderSlotType.LAW_ENFORCEMENT -> elderSlots.copy(
                         lawEnforcementElder = "",
                         lawEnforcementDisciples = emptyList()
                     )
-                    "innerElder" -> elderSlots.copy(
+                    ElderSlotType.INNER_ELDER -> elderSlots.copy(
                         innerElder = ""
                     )
-                    "qingyunPreachingElder" -> elderSlots.copy(
+                    ElderSlotType.CLOUD_PREACHING -> elderSlots.copy(
                         qingyunPreachingElder = "",
                         qingyunPreachingMasters = emptyList()
                     )
-                    else -> elderSlots
                 }
                 gameEngine.updateElderSlots(newElderSlots)
                 _successMessage.value = "长老已卸任"

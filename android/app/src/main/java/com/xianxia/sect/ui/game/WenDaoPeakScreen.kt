@@ -35,14 +35,14 @@ fun WenDaoPeakDialog(
                 elder = outerElder,
                 bonusInfo = ElderBonusInfoProvider.getOuterElderInfo(),
                 onClick = { showOuterElderSelection = true },
-                onRemove = { productionViewModel.removeElder("outerElder") }
+                onRemove = { productionViewModel.removeElder(ElderSlotType.OUTER_ELDER) }
             ),
             slot2 = PeakElderSlotConfig(
                 title = "问道峰传道长老",
                 elder = preachingElder,
                 bonusInfo = ElderBonusInfoProvider.getWenDaoPreachingElderInfo(),
                 onClick = { showPreachingElderSelection = true },
-                onRemove = { productionViewModel.removeElder("preachingElder") }
+                onRemove = { productionViewModel.removeElder(ElderSlotType.PREACHING) }
             )
         )
 
@@ -75,7 +75,7 @@ fun WenDaoPeakDialog(
             currentDiscipleId = outerElder?.id,
             requirementText = "需要元婴及以上境界",
             onSelect = { disciple ->
-                productionViewModel.assignElder("outerElder", disciple.id)
+                productionViewModel.assignElder(ElderSlotType.OUTER_ELDER, disciple.id)
                 showOuterElderSelection = false
             },
             onDismiss = { showOuterElderSelection = false }
@@ -89,7 +89,7 @@ fun WenDaoPeakDialog(
             currentDiscipleId = preachingElder?.id,
             requirementText = "需要元婴及以上境界",
             onSelect = { disciple ->
-                productionViewModel.assignElder("preachingElder", disciple.id)
+                productionViewModel.assignElder(ElderSlotType.PREACHING, disciple.id)
                 showPreachingElderSelection = false
             },
             onDismiss = { showPreachingElderSelection = false }

@@ -111,7 +111,7 @@ fun LawEnforcementHallDialog(
                 LawElderSection(
                     elder = lawElder,
                     onElderClick = { showElderSelection = true },
-                    onElderRemove = { productionViewModel.removeElder("lawEnforcementElder") }
+                    onElderRemove = { productionViewModel.removeElder(ElderSlotType.LAW_ENFORCEMENT) }
                 )
 
                 LawDisciplesSection(
@@ -132,7 +132,7 @@ fun LawEnforcementHallDialog(
             currentDiscipleId = lawElder?.id,
             requirementText = "需要化神及以上境界",
             onSelect = { disciple ->
-                productionViewModel.assignElder("lawEnforcementElder", disciple.id)
+                productionViewModel.assignElder(ElderSlotType.LAW_ENFORCEMENT, disciple.id)
                 showElderSelection = false
             },
             onDismiss = { showElderSelection = false }

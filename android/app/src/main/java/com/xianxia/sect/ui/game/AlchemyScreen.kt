@@ -81,7 +81,7 @@ fun AlchemyDialog(
                 theme = theme,
                 elder = alchemyElder,
                 onElderClick = { showElderSelection = true },
-                onElderRemove = { productionViewModel.removeElder("alchemy") }
+                onElderRemove = { productionViewModel.removeElder(ElderSlotType.ALCHEMY) }
             )
 
             ProductionDirectDiscipleSection(
@@ -183,7 +183,7 @@ fun AlchemyDialog(
             elderSlots = elderSlots,
             onDismiss = { showElderSelection = false },
             onSelect = { discipleId ->
-                productionViewModel.assignElder("alchemy", discipleId)
+                productionViewModel.assignElder(ElderSlotType.ALCHEMY, discipleId)
                 showElderSelection = false
             }
         )
