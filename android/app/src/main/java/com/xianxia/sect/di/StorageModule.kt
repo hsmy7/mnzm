@@ -135,7 +135,8 @@ object StorageModule {
         changeLogPersistence: ChangeLogPersistence,
         backupManager: BackupManager,
         dataArchiver: DataArchiver,
-        memoryManager: DynamicMemoryManager
+        memoryManager: DynamicMemoryManager,
+        metadataManager: MetadataManager
     ): StorageEngine {
         return StorageEngine(
             context = context,
@@ -149,7 +150,8 @@ object StorageModule {
             changeLogPersistence = changeLogPersistence,
             backupManager = backupManager,
             dataArchiver = dataArchiver,
-            memoryManager = memoryManager
+            memoryManager = memoryManager,
+            metadataManager = metadataManager
         )
     }
 

@@ -55,72 +55,72 @@ class GameStateStore @Inject constructor(
 
     val gameData: StateFlow<GameData> = _state.map { it.gameData }
         .distinctUntilChanged()
-        .stateIn(applicationScopeProvider.scope, SharingStarted.Eagerly, GameData())
+        .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000, replayExpirationMillis = 30_000), GameData())
 
     val disciples: StateFlow<List<Disciple>> = _state.map { it.disciples }
         .distinctUntilChanged()
-        .stateIn(applicationScopeProvider.scope, SharingStarted.Eagerly, emptyList())
+        .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000, replayExpirationMillis = 30_000), emptyList())
 
     val equipmentStacks: StateFlow<List<EquipmentStack>> = _state.map { it.equipmentStacks }
         .distinctUntilChanged()
-        .stateIn(applicationScopeProvider.scope, SharingStarted.Eagerly, emptyList())
+        .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000, replayExpirationMillis = 30_000), emptyList())
 
     val equipmentInstances: StateFlow<List<EquipmentInstance>> = _state.map { it.equipmentInstances }
         .distinctUntilChanged()
-        .stateIn(applicationScopeProvider.scope, SharingStarted.Eagerly, emptyList())
+        .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000, replayExpirationMillis = 30_000), emptyList())
 
     val manualStacks: StateFlow<List<ManualStack>> = _state.map { it.manualStacks }
         .distinctUntilChanged()
-        .stateIn(applicationScopeProvider.scope, SharingStarted.Eagerly, emptyList())
+        .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000, replayExpirationMillis = 30_000), emptyList())
 
     val manualInstances: StateFlow<List<ManualInstance>> = _state.map { it.manualInstances }
         .distinctUntilChanged()
-        .stateIn(applicationScopeProvider.scope, SharingStarted.Eagerly, emptyList())
+        .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000, replayExpirationMillis = 30_000), emptyList())
 
     val pills: StateFlow<List<Pill>> = _state.map { it.pills }
         .distinctUntilChanged()
-        .stateIn(applicationScopeProvider.scope, SharingStarted.Eagerly, emptyList())
+        .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000, replayExpirationMillis = 30_000), emptyList())
 
     val materials: StateFlow<List<Material>> = _state.map { it.materials }
         .distinctUntilChanged()
-        .stateIn(applicationScopeProvider.scope, SharingStarted.Eagerly, emptyList())
+        .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000, replayExpirationMillis = 30_000), emptyList())
 
     val herbs: StateFlow<List<Herb>> = _state.map { it.herbs }
         .distinctUntilChanged()
-        .stateIn(applicationScopeProvider.scope, SharingStarted.Eagerly, emptyList())
+        .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000, replayExpirationMillis = 30_000), emptyList())
 
     val seeds: StateFlow<List<Seed>> = _state.map { it.seeds }
         .distinctUntilChanged()
-        .stateIn(applicationScopeProvider.scope, SharingStarted.Eagerly, emptyList())
+        .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000, replayExpirationMillis = 30_000), emptyList())
 
     val events: StateFlow<List<GameEvent>> = _state.map { it.events }
         .distinctUntilChanged()
-        .stateIn(applicationScopeProvider.scope, SharingStarted.Eagerly, emptyList())
+        .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000, replayExpirationMillis = 30_000), emptyList())
 
     val battleLogs: StateFlow<List<BattleLog>> = _state.map { it.battleLogs }
         .distinctUntilChanged()
-        .stateIn(applicationScopeProvider.scope, SharingStarted.Eagerly, emptyList())
+        .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000, replayExpirationMillis = 30_000), emptyList())
 
     val teams: StateFlow<List<ExplorationTeam>> = _state.map { it.teams }
         .distinctUntilChanged()
-        .stateIn(applicationScopeProvider.scope, SharingStarted.Eagerly, emptyList())
+        .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000, replayExpirationMillis = 30_000), emptyList())
 
     val isPaused: StateFlow<Boolean> = _state.map { it.isPaused }
         .distinctUntilChanged()
-        .stateIn(applicationScopeProvider.scope, SharingStarted.Eagerly, true)
+        .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000, replayExpirationMillis = 30_000), true)
 
     val isLoading: StateFlow<Boolean> = _state.map { it.isLoading }
         .distinctUntilChanged()
-        .stateIn(applicationScopeProvider.scope, SharingStarted.Eagerly, false)
+        .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000, replayExpirationMillis = 30_000), false)
 
     val isSaving: StateFlow<Boolean> = _state.map { it.isSaving }
         .distinctUntilChanged()
-        .stateIn(applicationScopeProvider.scope, SharingStarted.Eagerly, false)
+        .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000, replayExpirationMillis = 30_000), false)
 
     val discipleAggregates: StateFlow<List<DiscipleAggregate>> = _state
         .map { state -> state.disciples.map { it.toAggregate() } }
         .distinctUntilChanged()
-        .stateIn(applicationScopeProvider.scope, SharingStarted.Eagerly, emptyList())
+        .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000, replayExpirationMillis = 30_000), emptyList())
 
     internal fun isInTransaction(): Boolean = currentTransactionState != null
 

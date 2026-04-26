@@ -885,16 +885,12 @@ class SaveLoadViewModel @Inject constructor(
                 alliances = snapshot.alliances,
                 productionSlots = snapshot.productionSlots
             )
-            val result = runBlocking(Dispatchers.IO) {
+            kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) {
                 withTimeoutOrNull(5_000L) {
                     storageFacade.save(autoSaveSlot, saveData)
-                } ?: SaveResult.failure(SaveError.TIMEOUT, "Save timeout on background pause")
-            }
-            if (result.isSuccess) {
-                Log.i(TAG, "pauseAndSaveForBackground: synchronous save completed, slot: $autoSaveSlot")
-            } else {
-                val failureInfo = (result as? SaveResult.Failure)?.let { "${it.error}: ${it.message}" } ?: "unknown"
-                Log.w(TAG, "pauseAndSaveForBackground: synchronous save failed, slot: $autoSaveSlot, error: $failureInfo")
+                } ?: run {
+                    Log.w(TAG, "pauseAndSaveForBackground: save timeout, slot: $autoSaveSlot")
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "pauseAndSaveForBackground error: ${e.message}", e)
@@ -1099,7 +1095,7 @@ class SaveLoadViewModel @Inject constructor(
         if (stateManager.state.value.isSaving) {
             Log.i(TAG, "Waiting for current save operation to complete before exit")
             val waitStartTime = System.currentTimeMillis()
-            val maxWaitTime = 3000L
+            val maxWaitTime = 2000L
             while (stateManager.state.value.isSaving && System.currentTimeMillis() - waitStartTime < maxWaitTime) {
                 Thread.sleep(100)
             }
@@ -1108,7 +1104,7 @@ class SaveLoadViewModel @Inject constructor(
             }
         }
 
-        runBlocking { gameEngineCore.stopGameLoopAndWait(3000) }
+        runBlocking { gameEngineCore.stopGameLoopAndWait(2000) }
         stateManager.setLoadingDirect(false)
         stateManager.setSavingDirect(false)
         _pendingSlot.value = null
@@ -1136,7 +1132,7 @@ class SaveLoadViewModel @Inject constructor(
                     productionSlots = snapshotToSave.productionSlots
                 )
                 val result = runBlocking(Dispatchers.IO) {
-                    withTimeoutOrNull(5_000L) {
+                    withTimeoutOrNull(3_000L) {
                         storageFacade.save(autoSaveSlot, saveData)
                     } ?: SaveResult.failure(SaveError.TIMEOUT, "Save timeout on exit")
                 }

@@ -217,13 +217,14 @@ object OptimizedWarehouseManager {
     }
     
     private fun shiftIndicesAfter(removedIndex: Int) {
-        val newIndices = ConcurrentHashMap<String, Int>()
-        itemIndex.forEach { (key, idx) ->
-            newIndices[key] = if (idx > removedIndex) idx - 1 else idx
+        val iterator = itemIndex.entries.iterator()
+        while (iterator.hasNext()) {
+            val entry = iterator.next()
+            if (entry.value > removedIndex) {
+                entry.setValue(entry.value - 1)
+            }
         }
-        itemIndex.clear()
-        itemIndex.putAll(newIndices)
-        
+
         typeIndex.values.forEach { list ->
             synchronized(list) {
                 for (i in list.indices) {
@@ -233,7 +234,7 @@ object OptimizedWarehouseManager {
                 }
             }
         }
-        
+
         rarityIndex.values.forEach { list ->
             synchronized(list) {
                 for (i in list.indices) {
@@ -356,7 +357,7 @@ object OptimizedWarehouseManager {
     
     fun convertCaveRewardsToWarehouseItems(rewards: CaveRewards): List<WarehouseItem> {
         return rewards.items.filter { it.type != "spiritStones" }.map { reward ->
-            WarehouseItemPool.acquire(
+            WarehouseItem(
                 itemId = reward.itemId,
                 itemName = reward.name,
                 itemType = reward.type,
@@ -372,14 +373,12 @@ object OptimizedWarehouseManager {
             typeIndexCount = typeIndex.size,
             rarityIndexCount = rarityIndex.size,
             cacheMetrics = WarehouseCache.getCacheMetrics(),
-            poolStats = WarehouseItemPool.getStats(),
             compressionStats = WarehouseCompressor.getPoolStats(),
             pendingChanges = WarehouseDiffManager.getPendingChangeCount()
         )
     }
     
     fun warmUpCache(items: List<WarehouseItem>) {
-        WarehouseItemPool.warmUp(items)
         WarehouseCache.putAll(items)
     }
     
@@ -390,7 +389,6 @@ object OptimizedWarehouseManager {
         currentWarehouseItems = emptyList()
         WarehouseCache.clear()
         WarehouseDiffManager.reset()
-        WarehouseItemPool.clear()
         WarehouseCompressor.clearPools()
     }
     
@@ -404,7 +402,6 @@ data class PerformanceMetrics(
     val typeIndexCount: Int,
     val rarityIndexCount: Int,
     val cacheMetrics: CacheMetrics,
-    val poolStats: PoolStatsSnapshot,
     val compressionStats: CompressionStats,
     val pendingChanges: Int
 )

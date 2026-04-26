@@ -1,6 +1,10 @@
 package com.xianxia.sect.data.incremental
 
 import android.util.Log
+import com.xianxia.sect.data.serialization.NullSafeProtoBuf
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.InternalSerializationApi
+import kotlinx.serialization.serializer
 import java.security.MessageDigest
 import java.util.Collections
 import java.util.LinkedHashMap
@@ -289,19 +293,36 @@ class ChangeTracker {
         }
     }
     
+    @OptIn(InternalSerializationApi::class)
     private fun computeChecksum(data: Any): String {
         return try {
-            val json = when (data) {
-                is String -> data
-                else -> data.toString()
+            val bytes = when (data) {
+                is String -> data.toByteArray(Charsets.UTF_8)
+                else -> {
+                    @Suppress("UNCHECKED_CAST")
+                    val serializer = data::class.serializer() as KSerializer<Any>
+                    NullSafeProtoBuf.protoBuf.encodeToByteArray(serializer, data)
+                }
             }
             val digest = MessageDigest.getInstance("SHA-256")
-            val hash = digest.digest(json.toByteArray(Charsets.UTF_8))
+            val hash = digest.digest(bytes)
             hash.joinToString("") { "%02x".format(it) }
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to compute checksum: ${e.message}")
-            "${data.hashCode()}_${System.currentTimeMillis()}"
+            Log.w(TAG, "ProtoBuf serialization failed for ${data::class.simpleName}, using reflective hash", e)
+            computeReflectiveChecksum(data)
         }
+    }
+
+    private fun computeReflectiveChecksum(data: Any): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        data::class.java.declaredFields.sortedBy { it.name }.forEach { field ->
+            try {
+                field.isAccessible = true
+                val value = field.get(data) ?: return@forEach
+                digest.update(value.toString().toByteArray(Charsets.UTF_8))
+            } catch (_: Exception) { }
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
     }
     
     private fun computeFieldChanges(oldValue: Any, newValue: Any): Map<String, FieldChange> {

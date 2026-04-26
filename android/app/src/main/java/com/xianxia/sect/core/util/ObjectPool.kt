@@ -120,10 +120,10 @@ class ObjectPool @Inject constructor() {
             while (true) {
                 val current = currentSize.get()
                 if (current >= maxSize) {
-                    return factory()
+                    return factory.create()
                 }
                 if (currentSize.compareAndSet(current, current + 1)) {
-                    return factory()
+                    return factory.create()
                 }
             }
         }

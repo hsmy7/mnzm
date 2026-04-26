@@ -77,11 +77,11 @@ sealed class GameResult<out T> {
 object ErrorHandler {
     
     fun handleException(e: Throwable): String {
+        if (e is kotlinx.coroutines.CancellationException) throw e
         return when (e) {
             is java.net.UnknownHostException -> "网络连接失败，请检查网络设置"
             is java.net.SocketTimeoutException -> "网络请求超时，请稍后重试"
             is java.io.IOException -> "网络错误，请检查网络连接"
-            is kotlinx.coroutines.CancellationException -> "操作已取消"
             is IllegalArgumentException -> "参数错误：${e.message}"
             is IllegalStateException -> "状态错误：${e.message}"
             is NoSuchElementException -> "未找到相关数据"
@@ -101,6 +101,8 @@ object ErrorHandler {
     suspend fun <T> safeCallSuspend(block: suspend () -> T): GameResult<T> {
         return try {
             GameResult.Success(block())
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             GameResult.Failure(GameError.fromException(e))
         }

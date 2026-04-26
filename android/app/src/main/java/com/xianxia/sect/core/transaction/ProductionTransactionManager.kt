@@ -115,7 +115,7 @@ class ProductionTransactionManager @Inject constructor(
                 outputItemId = outputItemId,
                 outputItemName = outputItemName,
                 outputItemRarity = outputItemRarity
-            ).getOrThrow()
+            ).getOrElse { return@updateSlotAtomic currentSlot }
         }
         
         return if (result.isSuccess) {
@@ -225,7 +225,7 @@ class ProductionTransactionManager @Inject constructor(
                 outputItemId = outputItemId,
                 outputItemName = outputItemName,
                 outputItemRarity = outputItemRarity
-            ).getOrThrow()
+            ).getOrElse { return@updateSlotByBuildingId currentSlot }
         }
         
         return if (result.isSuccess) {
@@ -293,7 +293,7 @@ class ProductionTransactionManager @Inject constructor(
         val previousState = slot
         
         val result = repository.updateSlotAtomic(buildingType, slotIndex) { currentSlot ->
-            SlotStateMachine.completeProduction(currentSlot).getOrThrow()
+            SlotStateMachine.completeProduction(currentSlot).getOrElse { return@updateSlotAtomic currentSlot }
         }
         
         return if (result.isSuccess) {
@@ -360,7 +360,7 @@ class ProductionTransactionManager @Inject constructor(
         val previousState = slot
         
         val result = repository.updateSlotByBuildingId(buildingId, slotIndex) { currentSlot ->
-            SlotStateMachine.completeProduction(currentSlot).getOrThrow()
+            SlotStateMachine.completeProduction(currentSlot).getOrElse { return@updateSlotByBuildingId currentSlot }
         }
         
         return if (result.isSuccess) {
@@ -404,7 +404,7 @@ class ProductionTransactionManager @Inject constructor(
         val previousState = slot
         
         val result = repository.updateSlotAtomic(buildingType, slotIndex) { currentSlot ->
-            SlotStateMachine.resetSlot(currentSlot).getOrThrow()
+            SlotStateMachine.resetSlot(currentSlot).getOrElse { return@updateSlotAtomic currentSlot }
         }
         
         return if (result.isSuccess) {

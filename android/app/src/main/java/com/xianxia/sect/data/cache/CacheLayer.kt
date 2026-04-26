@@ -208,7 +208,58 @@ class GameDataCacheManager @Inject constructor(
 
     // ==================== Core in-memory cache ====================
 
-    private val memoryCache = ConcurrentHashMap<String, Any>()
+    private val memoryCache = object : LinkedHashMap<String, CacheEntry>(
+        16, 0.75f, true
+    ) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, CacheEntry>): Boolean {
+            return size > currentConfig.maxEntryCount
+        }
+    }
+
+    @Synchronized
+    fun <T : Any> getSync(key: String): T? {
+        val entry = memoryCache[key] ?: return null
+        if (entry.isExpired) {
+            memoryCache.remove(key)
+            return null
+        }
+        @Suppress("UNCHECKED_CAST")
+        return entry.data as? T
+    }
+
+    @Synchronized
+    fun putSync(key: String, value: Any, ttl: Long = CacheKey.DEFAULT_TTL) {
+        memoryCache[key] = CacheEntry(value, System.currentTimeMillis(), ttl)
+        bloomFilter.put(key)
+        while (memoryCache.size > currentConfig.maxEntryCount) {
+            val eldest = memoryCache.keys.firstOrNull() ?: break
+            memoryCache.remove(eldest)
+            evictedCount.incrementAndGet()
+        }
+    }
+
+    @Synchronized
+    fun removeSync(key: String) {
+        memoryCache.remove(key)
+    }
+
+    @Synchronized
+    fun containsSync(key: String): Boolean {
+        val entry = memoryCache[key] ?: return false
+        if (entry.isExpired) {
+            memoryCache.remove(key)
+            return false
+        }
+        return true
+    }
+
+    @Synchronized
+    fun clearSync() {
+        memoryCache.clear()
+    }
+
+    @Synchronized
+    fun sizeSync(): Int = memoryCache.size
 
     private val bloomFilter: SimpleBloomFilter = SimpleBloomFilter(
         expectedItems = 10000,
@@ -325,9 +376,9 @@ class GameDataCacheManager @Inject constructor(
     }
 
     private fun evictByRatio(ratio: Float) {
-        val entries = memoryCache.keys.toList()
+        val entries = synchronized(memoryCache) { memoryCache.keys.toList() }
         val toRemove = entries.take((entries.size * (1 - ratio)).toInt())
-        toRemove.forEach { memoryCache.remove(it) }
+        toRemove.forEach { removeSync(it) }
         evictedCount.addAndGet(toRemove.size.toLong())
         if (toRemove.isNotEmpty()) {
             Log.d(TAG, "Evicted ${toRemove.size} entries (ratio=$ratio)")
@@ -336,8 +387,8 @@ class GameDataCacheManager @Inject constructor(
 
     private fun emergencyPurge() {
         Log.e(TAG, "Emergency purge triggered!")
-        val beforeSize = memoryCache.size
-        memoryCache.clear()
+        val beforeSize = sizeSync()
+        clearSync()
         evictedCount.addAndGet(beforeSize.toLong())
         memoryManager?.forceGcAndWait()
         Log.e(TAG, "Emergency purge completed: cleared $beforeSize entries")
@@ -458,20 +509,19 @@ class GameDataCacheManager @Inject constructor(
 
         Log.d(TAG, "Adjusting cache for pressure ${snapshot.pressureLevel.name}: maxEntries=$adjustedEntries")
 
-        // Evict excess entries if over the adjusted limit
-        while (memoryCache.size > adjustedEntries) {
-            val key = memoryCache.keys.firstOrNull() ?: break
-            memoryCache.remove(key)
+        while (sizeSync() > adjustedEntries) {
+            val key = synchronized(memoryCache) { memoryCache.keys.firstOrNull() } ?: break
+            removeSync(key)
             evictedCount.incrementAndGet()
         }
     }
 
     private fun reduceCacheSize(ratio: Float) {
         Log.w(TAG, "Reducing cache size by ratio: $ratio")
-        val targetSize = (memoryCache.size * ratio).toInt()
-        while (memoryCache.size > targetSize) {
-            val key = memoryCache.keys.firstOrNull() ?: break
-            memoryCache.remove(key)
+        val targetSize = (sizeSync() * ratio).toInt()
+        while (sizeSync() > targetSize) {
+            val key = synchronized(memoryCache) { memoryCache.keys.firstOrNull() } ?: break
+            removeSync(key)
             evictedCount.incrementAndGet()
         }
     }
@@ -480,20 +530,22 @@ class GameDataCacheManager @Inject constructor(
      * Evict cold data (public interface, called by ProactiveMemoryGuard)
      */
     fun evictColdData(): Int {
-        val beforeSize = memoryCache.size
-        // Simple eviction: remove entries up to half the current size
-        // (ConcurrentHashMap has no access-order tracking, so we evict arbitrary entries)
+        val beforeSize = sizeSync()
         val targetSize = beforeSize / 2
         var evicted = 0
-        val iterator = memoryCache.keys.iterator()
-        while (iterator.hasNext() && memoryCache.size > targetSize) {
-            iterator.next()
-            iterator.remove()
+        val keysToEvict = synchronized(memoryCache) {
+            memoryCache.entries
+                .sortedBy { it.value.createdAt }
+                .take(beforeSize - targetSize)
+                .map { it.key }
+        }
+        keysToEvict.forEach { key ->
+            removeSync(key)
             evicted++
         }
         evictedCount.addAndGet(evicted.toLong())
         if (evicted > 0) {
-            Log.d(TAG, "Evicted $evicted cold entries (before=$beforeSize, after=${memoryCache.size})")
+            Log.d(TAG, "Evicted $evicted cold entries (before=$beforeSize, after=${sizeSync()})")
         }
         return evicted
     }
@@ -595,22 +647,18 @@ class GameDataCacheManager @Inject constructor(
     ): T {
         val cacheKey = key.toString()
 
-        // Bloom Filter anti-penetration: if key was never seen, skip cache lookup
         if (!bloomFilter.mightContain(cacheKey)) {
             val value = loader()
             putInternal(key, value)
             return value
         }
 
-        // 1. Try in-memory cache
-        val cached = memoryCache[cacheKey]
+        val cached = getSync<T>(cacheKey)
         if (cached != null) {
             hitCount.incrementAndGet()
-            @Suppress("UNCHECKED_CAST")
-            return cached as T
+            return cached
         }
 
-        // 2. Cache miss - execute loader
         missCount.incrementAndGet()
         val value = loader()
         putInternal(key, value)
@@ -624,13 +672,13 @@ class GameDataCacheManager @Inject constructor(
     @Suppress("UNCHECKED_CAST")
     suspend fun <T : Any> getOrNull(key: CacheKey): T? {
         val cacheKey = key.toString()
-        val cached = memoryCache[cacheKey]
+        val cached = getSync<T>(cacheKey)
         if (cached != null) {
             hitCount.incrementAndGet()
         } else {
             missCount.incrementAndGet()
         }
-        return cached as? T
+        return cached
     }
 
     // ==================== Core put methods ====================
@@ -661,50 +709,44 @@ class GameDataCacheManager @Inject constructor(
 
     private fun putInternal(key: CacheKey, value: Any) {
         val cacheKey = key.toString()
-        memoryCache[cacheKey] = value
-        bloomFilter.put(cacheKey)
-
-        // Enforce max entry count
-        while (memoryCache.size > currentConfig.maxEntryCount) {
-            val oldest = memoryCache.keys.firstOrNull() ?: break
-            memoryCache.remove(oldest)
-            evictedCount.incrementAndGet()
-        }
+        putSync(cacheKey, value, key.ttl)
     }
 
     // ==================== remove / contains ====================
 
     fun remove(key: CacheKey) {
         val cacheKey = key.toString()
-        memoryCache.remove(cacheKey)
+        removeSync(cacheKey)
     }
 
     fun contains(key: CacheKey): Boolean {
         val cacheKey = key.toString()
-        return memoryCache.containsKey(cacheKey)
+        return containsSync(cacheKey)
     }
 
     // ==================== clear / invalidate ====================
 
     fun clearCache(key: CacheKey? = null) {
         if (key != null) {
-            memoryCache.remove(key.toString())
+            removeSync(key.toString())
         } else {
-            memoryCache.clear()
+            clearSync()
         }
     }
 
     fun invalidateSlot(slot: Int) {
         val prefix = ":$slot:"
         scope.launch {
-            val keysToRemove = memoryCache.keys.filter { it.contains(prefix) }
-            keysToRemove.forEach { memoryCache.remove(it) }
+            val keysToRemove = synchronized(memoryCache) {
+                memoryCache.keys.filter { it.contains(prefix) }
+            }
+            keysToRemove.forEach { removeSync(it) }
             Log.i(TAG, "Invalidated all cache entries for slot $slot (${keysToRemove.size} entries)")
         }
     }
 
     fun clearMemoryCache() {
-        memoryCache.clear()
+        clearSync()
     }
 
     // ==================== Periodic cleanup ====================
@@ -713,11 +755,18 @@ class GameDataCacheManager @Inject constructor(
         val now = System.currentTimeMillis()
 
         if (now - lastCleanupTime.get() >= currentConfig.cleanupIntervalMs) {
-            // Enforce max entry count
             var evicted = 0
-            while (memoryCache.size > currentConfig.maxEntryCount) {
-                val key = memoryCache.keys.firstOrNull() ?: break
-                memoryCache.remove(key)
+            val expiredKeys = synchronized(memoryCache) {
+                memoryCache.entries.filter { it.value.isExpired }.map { it.key }
+            }
+            expiredKeys.forEach { key ->
+                removeSync(key)
+                evicted++
+            }
+
+            while (sizeSync() > currentConfig.maxEntryCount) {
+                val eldest = synchronized(memoryCache) { memoryCache.keys.firstOrNull() } ?: break
+                removeSync(eldest)
                 evicted++
             }
             evictedCount.addAndGet(evicted.toLong())
@@ -725,7 +774,7 @@ class GameDataCacheManager @Inject constructor(
             lastCleanupTime.set(now)
 
             if (evicted > 0) {
-                Log.d(TAG, "Cleanup completed: evicted=$evicted")
+                Log.d(TAG, "Cleanup completed: evicted=$evicted (expired=${expiredKeys.size})")
             }
         }
 
@@ -747,7 +796,7 @@ class GameDataCacheManager @Inject constructor(
             memoryHitCount = hits,
             memoryMissCount = misses,
             memorySize = 0L,
-            memoryEntryCount = memoryCache.size,
+            memoryEntryCount = sizeSync(),
             memoryHitRate = hitRate,
             evictedCount = evictedCount.get(),
             memoryPressureLevel = currentPressureLevel.ordinalValue
@@ -847,6 +896,14 @@ class GameDataCacheManager @Inject constructor(
 /**
  * Simplified cache statistics
  */
+data class CacheEntry(
+    val data: Any,
+    val createdAt: Long = System.currentTimeMillis(),
+    val ttl: Long = CacheKey.DEFAULT_TTL
+) {
+    val isExpired: Boolean get() = System.currentTimeMillis() - createdAt > ttl
+}
+
 data class CacheStats(
     val memoryHitCount: Long = 0,
     val memoryMissCount: Long = 0,

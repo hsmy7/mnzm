@@ -2,6 +2,7 @@ package com.xianxia.sect.data.facade
 
 import android.content.Context
 import android.util.Log
+import androidx.annotation.WorkerThread
 import com.xianxia.sect.data.StorageConstants
 import com.xianxia.sect.data.concurrent.SlotLockManager
 import com.xianxia.sect.data.engine.StorageEngine
@@ -246,6 +247,7 @@ class StorageFacade @Inject constructor(
 
     // ==================== 同步存取方法 ====================
 
+    @WorkerThread
     fun saveSync(slot: Int, data: SaveData): Boolean {
         return try {
             runBlocking(Dispatchers.IO) {
@@ -258,6 +260,7 @@ class StorageFacade @Inject constructor(
         }
     }
 
+    @WorkerThread
     fun saveSyncWithResult(slot: Int, data: SaveData): SaveResult<Unit> {
         return try {
             runBlocking(Dispatchers.IO) {
@@ -269,6 +272,7 @@ class StorageFacade @Inject constructor(
         }
     }
 
+    @WorkerThread
     fun loadSync(slot: Int): SaveData? {
         return try {
             runBlocking(Dispatchers.IO) {
@@ -283,22 +287,28 @@ class StorageFacade @Inject constructor(
 
     // ==================== 删除方法 ====================
 
-    suspend fun delete(slot: Int) {
-        try {
+    suspend fun delete(slot: Int): SaveResult<Unit> {
+        return try {
             val result = engine.delete(slot)
             if (result.isSuccess) {
                 deleteCount.incrementAndGet()
                 Log.i(TAG, "Deleted slot $slot")
+                SaveResult.success(Unit)
             } else {
                 Log.e(TAG, "Delete failed for slot $slot: ${result.getOrNull()}")
+                SaveResult.failure(SaveError.DELETE_FAILED, "Delete failed for slot $slot")
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "Delete failed for slot $slot", e)
+            SaveResult.failure(SaveError.DELETE_FAILED, e.message ?: "Unknown error", e)
         }
     }
 
     // ==================== 槽位管理方法 ====================
 
+    @WorkerThread
     fun getSaveSlots(): List<SaveSlot> {
         return try {
             runBlocking(Dispatchers.IO) {
@@ -314,6 +324,7 @@ class StorageFacade @Inject constructor(
         }
     }
 
+    @WorkerThread
     fun getSaveSlotsFresh(): List<SaveSlot> {
         return try {
             runBlocking(Dispatchers.IO) {
@@ -349,6 +360,7 @@ class StorageFacade @Inject constructor(
         }
     }
 
+    @WorkerThread
     fun loadEmergencySave(): SaveData? {
         return try {
             runBlocking(Dispatchers.IO) {
@@ -360,6 +372,7 @@ class StorageFacade @Inject constructor(
         }
     }
 
+    @WorkerThread
     fun clearEmergencySave() {
         try {
             runBlocking(Dispatchers.IO) {
@@ -370,6 +383,7 @@ class StorageFacade @Inject constructor(
         }
     }
 
+    @WorkerThread
     fun emergencySave(data: SaveData): Boolean {
         return try {
             runBlocking(Dispatchers.IO) {
@@ -384,6 +398,7 @@ class StorageFacade @Inject constructor(
 
     // ==================== 数据检查方法 ====================
 
+    @WorkerThread
     fun hasSave(slot: Int): Boolean {
         return try {
             runBlocking(Dispatchers.IO) {
@@ -395,6 +410,7 @@ class StorageFacade @Inject constructor(
         }
     }
 
+    @WorkerThread
     fun isSaveCorrupted(slot: Int): Boolean {
         return try {
             runBlocking(Dispatchers.IO) {
@@ -403,7 +419,7 @@ class StorageFacade @Inject constructor(
             }
         } catch (e: Exception) {
             Log.e(TAG, "isSaveCorrupted check failed for slot $slot", e)
-            true
+            false
         }
     }
 
@@ -495,6 +511,7 @@ class StorageFacade @Inject constructor(
         }
     }
 
+    @WorkerThread
     fun getStorageUsage(): StorageUsage {
         return try {
             val slotBytes = mutableMapOf<Int, Long>()
