@@ -1,5 +1,46 @@
 # 模拟宗门 - 更新日志
 
+## [2.5.65] - 2026-04-27
+
+### 代码质量 P1 修复（完整）
+
+#### 安全性修复
+- S1: StorageFacade.delete() 返回 SaveResult<Unit> 而非 Unit，正确传播错误
+- S2: isSaveCorrupted() 异常时默认返回 false（而非 true），避免误触发恢复流程
+- S3: ProductionTransactionManager 消除 getOrThrow 反模式，改用 getOrElse 保持原状态
+- S4: GameLoopError.kt 空文件补充错误类型定义
+- S5: CancellationException 正确传播（ErrorHandler/safeCallSuspend 不再吞掉 CancellationException）
+- S6: ChangeTracker.computeChecksum 使用 ProtoBuf 序列化替代 toString()，保证确定性
+
+#### 性能修复
+- P1: GameStateStore 16 个派生 StateFlow 从 SharingStarted.Eagerly 改为 WhileSubscribed(5s)
+- P2: CacheLayer 实现 LRU 淘汰策略（LinkedHashMap access-order）替代随机淘汰
+- P3: CacheLayer 启用 TTL 过期检查（CacheEntry.isExpired），CacheKey.ttl 字段生效
+- P4: 删除 WarehouseItemPool 伪池化层，调用方直接构造 WarehouseItem
+- P5: shiftIndicesAfter 原地更新 itemIndex，避免每次删除创建新 ConcurrentHashMap
+- P7: 9 个独立 CoroutineScope 统一到 ApplicationScopeProvider（CacheLayer/GCOptimizer/GameMonitorManager/UnifiedPerformanceMonitor/PerformanceMonitor/MemoryMonitor/FunctionalWAL/SaveCrypto/StorageEngine）
+
+#### 架构修复
+- A1: GameRepository（24参数构造）拆分为 6 个领域 Repository（GameData/Disciple/Equipment/Inventory/World/Forge）
+- A3: StorageEngine.kt（1799行）拆分为 5 个文件（StorageEngine/StorageCircuitBreaker/ProactiveMemoryGuard/DataPruningScheduler/DataArchiveScheduler）
+- A4: Hilt 版本统一（Plugin 2.53 → 2.56，与 Runtime 一致）
+- A5: StorageFacade 11 个同步方法添加 @WorkerThread 注解
+- C3: 提取 BaseViewModel 统一 errorMessage/successMessage 样板代码（7个 ViewModel 受益）
+- C1/C2: 提取 3 个 UseCase 消除 ViewModel 重复代码（DisciplePositionQueryUseCase/SectPolicyToggleUseCase/ElderManagementUseCase）
+
+#### 代码复查修复
+- 修复 ElderManagementUseCase 境界检查条件反转（> 改为 <）
+- 修复 CacheLayer @Synchronized 与 synchronized(memoryCache) 混用导致的 AB-BA 死锁风险
+- 修复 SectPolicyToggleUseCase 灵石检查与扣除非原子操作竞态条件
+- 修复 ProductionTransactionManager getOrElse 无日志记录
+- 修复 MainActivity delete() 返回值未处理
+- 修复 CacheLayer removeEldestEntry 与手动驱逐逻辑冲突（统一为手动驱逐）
+- 修复 CacheLayer clearSync 未清除 BloomFilter
+
+#### 其他
+- C5: SaveLoadViewModel pauseAndSaveForBackground 改为非阻塞（使用 ApplicationScopeProvider.ioScope）
+- C5: SaveLoadViewModel onCleared 超时从 5s 缩短到 3s，游戏循环停止等待从 3s 缩短到 2s
+
 ## [2.5.64] - 2026-04-27
 
 ### 代码质量 P2 修复（完整）
