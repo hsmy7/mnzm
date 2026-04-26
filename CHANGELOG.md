@@ -1,5 +1,11 @@
 # 模拟宗门 - 更新日志
 
+## [2.5.57] - 2026-04-27
+
+### 架构优化
+- 提取 StorageKeyUtil：消除 WarehouseCache/OptimizedWarehouseManager/WarehouseDiffManager 中重复的 generateKey 实现，统一 key 生成格式为 `itemId:itemType:rarity:itemName`
+- 修复 WarehouseDiffManager.generateKey 缺失 itemName 字段导致 key 格式不一致的问题
+
 ## [2.5.56] - 2026-04-27
 
 ### 架构优化
