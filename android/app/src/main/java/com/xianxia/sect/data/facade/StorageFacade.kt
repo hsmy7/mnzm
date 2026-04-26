@@ -311,7 +311,7 @@ class StorageFacade @Inject constructor(
 
     // ==================== 槽位管理方法 ====================
 
-    @Deprecated("Use the suspend getSaveSlots() instead")
+    @Deprecated("Use the suspend getSaveSlotsSuspend() instead", ReplaceWith("getSaveSlotsSuspend()"))
     @WorkerThread
     fun getSaveSlots(): List<SaveSlot> {
         return try {
@@ -361,7 +361,7 @@ class StorageFacade @Inject constructor(
         }
     }
 
-    @Deprecated("Use the suspend loadEmergencySaveSuspend() instead")
+    @Deprecated("Use the suspend loadEmergencySaveSuspend() instead", ReplaceWith("loadEmergencySaveSuspend()"))
     @WorkerThread
     fun loadEmergencySave(): SaveData? {
         return try {
@@ -383,7 +383,7 @@ class StorageFacade @Inject constructor(
         }
     }
 
-    @Deprecated("Use the suspend clearEmergencySaveSuspend() instead")
+    @Deprecated("Use the suspend clearEmergencySaveSuspend() instead", ReplaceWith("clearEmergencySaveSuspend()"))
     @WorkerThread
     fun clearEmergencySave() {
         try {
@@ -403,7 +403,7 @@ class StorageFacade @Inject constructor(
         }
     }
 
-    @Deprecated("Use the suspend emergencySaveSuspend() instead")
+    @Deprecated("Use the suspend emergencySaveSuspend() instead", ReplaceWith("emergencySaveSuspend(data)"))
     @WorkerThread
     fun emergencySave(data: SaveData): Boolean {
         return try {
@@ -428,7 +428,7 @@ class StorageFacade @Inject constructor(
 
     // ==================== 数据检查方法 ====================
 
-    @Deprecated("Use the suspend hasSaveSuspend() instead")
+    @Deprecated("Use the suspend hasSaveSuspend() instead", ReplaceWith("hasSaveSuspend(slot)"))
     @WorkerThread
     fun hasSave(slot: Int): Boolean {
         return try {
@@ -450,7 +450,7 @@ class StorageFacade @Inject constructor(
         }
     }
 
-    @Deprecated("Use the suspend isSaveCorruptedSuspend() instead")
+    @Deprecated("Use the suspend isSaveCorruptedSuspend() instead", ReplaceWith("isSaveCorruptedSuspend(slot)"))
     @WorkerThread
     fun isSaveCorrupted(slot: Int): Boolean {
         return try {
@@ -561,7 +561,7 @@ class StorageFacade @Inject constructor(
         }
     }
 
-    @Deprecated("Use the suspend getStorageUsageSuspend() instead")
+    @Deprecated("Use the suspend getStorageUsageSuspend() instead", ReplaceWith("getStorageUsageSuspend()"))
     @WorkerThread
     fun getStorageUsage(): StorageUsage {
         return try {
