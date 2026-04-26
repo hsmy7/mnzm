@@ -2371,18 +2371,14 @@ class CultivationService @Inject constructor(
         }
 
         if (canActuallyOccupy) {
-            val currentData = currentGameData
-            val defenderDetail = currentData.sectDetails[team.defenderSectId]
-            val defenderWarehouse = defenderDetail?.warehouse ?: SectWarehouse()
-
             val aliveAttackerDisciples = team.disciples.filter { it.id !in result.deadAttackerIds }
             val supplementedDisciples = AISectAttackManager.supplementDisciples(
                 aliveAttackerDisciples,
                 updatedDefenderDisciples
             )
 
-            currentGameData = currentData.copy(
-                worldMapSects = currentData.worldMapSects.map { sect ->
+            currentGameData = currentGameData.copy(
+                worldMapSects = currentGameData.worldMapSects.map { sect ->
                     if (sect.id == team.defenderSectId) {
                         sect.copy(
                             occupierSectId = team.attackerSectId,
@@ -2391,13 +2387,6 @@ class CultivationService @Inject constructor(
                     } else {
                         sect
                     }
-                },
-                sectDetails = currentData.sectDetails.toMutableMap().apply {
-                    this[team.defenderSectId] = (this[team.defenderSectId] ?: SectDetail(sectId = team.defenderSectId)).copy(warehouse = SectWarehouse())
-                    val attackerDetail = this[team.attackerSectId] ?: SectDetail(sectId = team.attackerSectId)
-                    val mergedWarehouse = SectWarehouseManager.addItemsToWarehouse(attackerDetail.warehouse, defenderWarehouse.items)
-                    val finalWarehouse = SectWarehouseManager.addSpiritStonesToWarehouse(mergedWarehouse, defenderWarehouse.spiritStones)
-                    this[team.attackerSectId] = attackerDetail.copy(warehouse = finalWarehouse)
                 },
                 aiBattleTeams = currentGameData.aiBattleTeams.map {
                     if (it.id == team.id) {
@@ -2566,11 +2555,7 @@ class CultivationService @Inject constructor(
             if (canActuallyOccupy) {
                 val supplementedDisciples = AISectAttackManager.supplementDisciples(aliveAttackerDisciples, updatedSectDisciples)
 
-                val currentData = currentGameData
-                val defenderDetail = currentData.sectDetails[team.defenderSectId]
-                val defenderWarehouse = defenderDetail?.warehouse ?: SectWarehouse()
-
-                currentGameData = currentData.copy(
+                currentGameData = currentGameData.copy(
                     worldMapSects = currentGameData.worldMapSects.map { sect ->
                         if (sect.id == team.defenderSectId) {
                             sect.copy(
@@ -2581,13 +2566,6 @@ class CultivationService @Inject constructor(
                         } else {
                             sect
                         }
-                    },
-                    sectDetails = currentGameData.sectDetails.toMutableMap().apply {
-                        this[team.defenderSectId] = (this[team.defenderSectId] ?: SectDetail(sectId = team.defenderSectId)).copy(warehouse = SectWarehouse())
-                        val attackerDetail = this[team.attackerSectId] ?: SectDetail(sectId = team.attackerSectId)
-                        val mergedWarehouse = SectWarehouseManager.addItemsToWarehouse(attackerDetail.warehouse, defenderWarehouse.items)
-                        val finalWarehouse = SectWarehouseManager.addSpiritStonesToWarehouse(mergedWarehouse, defenderWarehouse.spiritStones)
-                        this[team.attackerSectId] = attackerDetail.copy(warehouse = finalWarehouse)
                     },
                     battleTeam = playerBattleTeam.copy(
                         status = "returning",
