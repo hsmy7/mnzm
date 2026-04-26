@@ -1,5 +1,25 @@
 # 模拟宗门 - 更新日志
 
+## [2.5.45] - 2026-04-27
+
+### 修复
+- P0-01: GameRepository双存档写入路径统一，所有写方法标记@Deprecated并委托到StorageFacade
+- P0-02: 完整性校验三重缺陷修复——加载完整SaveData参与签名、实现Merkle根验证、verifyFullDataSignature/verifySignedPayload使用constantTimeEquals防计时攻击
+- P0-04: GCOptimizer协程泄漏修复，使用类级别SupervisorJob作用域并在cleanup()中取消
+- P0-05: ObjectPool.Pool线程安全修复，ArrayDeque替换为ConcurrentLinkedQueue+AtomicInteger CAS
+- P0-06: AtomicStateFlowUpdates混锁修复，使用flow对象作为锁键、ReentrantLock替代synchronized
+- P0-07: SecureKeyManager Base64兼容性修复，java.util.Base64(API 26+)替换为android.util.Base64
+- ChangeTracker校验和使用ProtoBuf序列化替代toString()/hashCode()
+- CacheLayer线程安全修复，使用sizeSync/clearSync替代直接访问memoryCache
+
+### 重构
+- P0-03: MainGameScreen.kt从8709行拆分为860行+10个模块文件(tabs/, dialogs/, components/)
+- GameLoopError改为sealed class实现
+- GameResult正确传播CancellationException
+- ProductionTransactionManager消除getOrThrow调用
+- 移除WarehouseItemPool伪池化实现
+- OptimizedWarehouseManager shiftIndicesAfter改为原地更新
+
 ## [2.5.44] - 2026-04-26
 
 ### 修复
