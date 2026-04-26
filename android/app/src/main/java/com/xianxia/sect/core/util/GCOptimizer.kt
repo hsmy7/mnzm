@@ -2,10 +2,8 @@ package com.xianxia.sect.core.util
 
 import android.util.Log
 import com.xianxia.sect.di.ApplicationScopeProvider
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -31,7 +29,6 @@ class GCOptimizer @Inject constructor(
     }
     
     private val scope get() = applicationScopeProvider.scope
-    private val mainScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var optimizerJob: Job? = null
     private var lastGCTime = 0L
     private var gcCount = 0L
@@ -268,7 +265,7 @@ class GCOptimizer @Inject constructor(
     }
     
     private fun notifyListeners(action: (GCEventListener) -> Unit) {
-        mainScope.launch {
+        scope.launch(Dispatchers.Main) {
             listeners.forEach { listener ->
                 try {
                     action(listener)
@@ -281,7 +278,6 @@ class GCOptimizer @Inject constructor(
     
     fun cleanup() {
         stopOptimization()
-        mainScope.cancel()
         listeners.clear()
     }
 }

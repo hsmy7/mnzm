@@ -1,5 +1,12 @@
 # 模拟宗门 - 更新日志
 
+## [2.5.56] - 2026-04-27
+
+### 架构优化
+- 提取 DisciplePositionQueryUseCase：整合5个 ViewModel 中重复的弟子职位查询方法（hasDisciplePosition/getDisciplePosition/isReserveDisciple/isPositionWorkStatus），内部委托 DisciplePositionHelper
+- 提取 SectPolicyToggleUseCase：整合 SectViewModel 和 ProductionViewModel 中重复的7个政策切换方法、7个 isEnabled 查询方法和效果计算方法（约400行重复代码）
+- 提取 ElderManagementUseCase：整合 SectViewModel 和 ProductionViewModel 中重复的长老任命/卸任逻辑（assignElder/removeElder/assignDirectDisciple/removeDirectDisciple），统一境界要求判断
+
 ## [2.5.54] - 2026-04-27
 
 ### 架构优化

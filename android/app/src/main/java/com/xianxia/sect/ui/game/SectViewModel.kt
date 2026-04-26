@@ -4,6 +4,7 @@ import androidx.lifecycle.viewModelScope
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.usecase.DisciplePositionQueryUseCase
+import com.xianxia.sect.core.usecase.ElderManagementUseCase
 import com.xianxia.sect.core.usecase.SectPolicyToggleUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
@@ -14,14 +15,9 @@ import javax.inject.Inject
 class SectViewModel @Inject constructor(
     private val gameEngine: GameEngine,
     private val disciplePositionQuery: DisciplePositionQueryUseCase,
-    private val sectPolicyToggle: SectPolicyToggleUseCase
+    private val sectPolicyToggle: SectPolicyToggleUseCase,
+    private val elderManagement: ElderManagementUseCase
 ) : BaseViewModel() {
-    
-    companion object {
-        private const val TAG = "SectViewModel"
-        private const val REALM_VICE_SECT_MASTER = 4
-        private const val REALM_ELDER = 6
-    }
 
     val gameData: StateFlow<GameData> = gameEngine.gameData
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), gameEngine.gameData.value)
@@ -53,7 +49,7 @@ class SectViewModel @Inject constructor(
                     showError(("弟子不存在"))
                     return@launch
                 }
-                if (disciple.realm > REALM_VICE_SECT_MASTER) {
+                if (disciple.realm > ElderManagementUseCase.REALM_VICE_SECT_MASTER) {
                     showError(("副宗主需要达到炼虚境界"))
                     return@launch
                 }
@@ -104,104 +100,12 @@ class SectViewModel @Inject constructor(
     fun assignElder(slotType: ElderSlotType, discipleId: String) {
         viewModelScope.launch {
             try {
-                val disciple = disciples.value.find { it.id == discipleId }
-                if (disciple == null) {
-                    showError(("弟子不存在"))
-                    return@launch
+                when (val result = elderManagement.assignElder(slotType, discipleId)) {
+                    is ElderManagementUseCase.ElderResult.Success -> showSuccess(result.message)
+                    is ElderManagementUseCase.ElderResult.Error -> showError(result.message)
                 }
-                
-                val minRealm = when (slotType) {
-                    ElderSlotType.VICE_SECT_MASTER -> REALM_VICE_SECT_MASTER
-                    else -> REALM_ELDER
-                }
-                if (disciple.realm > minRealm) {
-                    val realmName = when (minRealm) {
-                        REALM_VICE_SECT_MASTER -> "炼虚"
-                        REALM_ELDER -> "元婴"
-                        else -> "元婴"
-                    }
-                    val positionName = when (slotType) {
-                        ElderSlotType.VICE_SECT_MASTER -> "副宗主"
-                        else -> "长老"
-                    }
-                    showError(("${positionName}需要达到${realmName}境界"))
-                    return@launch
-                }
-                
-                val currentGameData = gameEngine.gameData.value
-                val elderSlots = currentGameData.elderSlots
-                
-                val allElderIds = listOf(
-                    elderSlots.viceSectMaster,
-                    elderSlots.herbGardenElder,
-                    elderSlots.alchemyElder,
-                    elderSlots.forgeElder,
-                    elderSlots.outerElder,
-                    elderSlots.preachingElder,
-                    elderSlots.lawEnforcementElder,
-                    elderSlots.innerElder,
-                    elderSlots.qingyunPreachingElder
-                ).filter { it.isNotBlank() }
-                val allDirectDiscipleIds = listOf(
-                    elderSlots.herbGardenDisciples,
-                    elderSlots.alchemyDisciples,
-                    elderSlots.forgeDisciples,
-                    elderSlots.preachingMasters,
-                    elderSlots.lawEnforcementDisciples,
-                    elderSlots.lawEnforcementReserveDisciples,
-                    elderSlots.qingyunPreachingMasters,
-                    elderSlots.spiritMineDeaconDisciples
-                ).flatten().mapNotNull { it.discipleId }.filter { it.isNotBlank() }
-
-                if (allElderIds.contains(discipleId)) {
-                    showError(("该弟子已担任长老职位"))
-                    return@launch
-                }
-
-                if (allDirectDiscipleIds.contains(discipleId)) {
-                    showError(("该弟子已是其他长老的亲传弟子"))
-                    return@launch
-                }
-                
-                val newElderSlots = when (slotType) {
-                    ElderSlotType.HERB_GARDEN -> elderSlots.copy(
-                        herbGardenElder = discipleId,
-                        herbGardenDisciples = emptyList()
-                    )
-                    ElderSlotType.ALCHEMY -> elderSlots.copy(
-                        alchemyElder = discipleId,
-                        alchemyDisciples = emptyList()
-                    )
-                    ElderSlotType.FORGE -> elderSlots.copy(
-                        forgeElder = discipleId,
-                        forgeDisciples = emptyList()
-                    )
-                    ElderSlotType.VICE_SECT_MASTER -> elderSlots.copy(
-                        viceSectMaster = discipleId
-                    )
-                    ElderSlotType.OUTER_ELDER -> elderSlots.copy(
-                        outerElder = discipleId
-                    )
-                    ElderSlotType.PREACHING -> elderSlots.copy(
-                        preachingElder = discipleId,
-                        preachingMasters = emptyList()
-                    )
-                    ElderSlotType.LAW_ENFORCEMENT -> elderSlots.copy(
-                        lawEnforcementElder = discipleId,
-                        lawEnforcementDisciples = emptyList()
-                    )
-                    ElderSlotType.INNER_ELDER -> elderSlots.copy(
-                        innerElder = discipleId
-                    )
-                    ElderSlotType.CLOUD_PREACHING -> elderSlots.copy(
-                        qingyunPreachingElder = discipleId,
-                        qingyunPreachingMasters = emptyList()
-                    )
-                }
-                gameEngine.updateElderSlots(newElderSlots)
-                showSuccess(("长老任命成功"))
             } catch (e: Exception) {
-                showError((e.message ?: "任命失败"))
+                showError(e.message ?: "任命失败")
             }
         }
     }
@@ -209,47 +113,12 @@ class SectViewModel @Inject constructor(
     fun removeElder(slotType: ElderSlotType) {
         viewModelScope.launch {
             try {
-                val currentGameData = gameEngine.gameData.value
-                val elderSlots = currentGameData.elderSlots
-                val newElderSlots = when (slotType) {
-                    ElderSlotType.HERB_GARDEN -> elderSlots.copy(
-                        herbGardenElder = "",
-                        herbGardenDisciples = emptyList()
-                    )
-                    ElderSlotType.ALCHEMY -> elderSlots.copy(
-                        alchemyElder = "",
-                        alchemyDisciples = emptyList()
-                    )
-                    ElderSlotType.FORGE -> elderSlots.copy(
-                        forgeElder = "",
-                        forgeDisciples = emptyList()
-                    )
-                    ElderSlotType.VICE_SECT_MASTER -> elderSlots.copy(
-                        viceSectMaster = ""
-                    )
-                    ElderSlotType.OUTER_ELDER -> elderSlots.copy(
-                        outerElder = ""
-                    )
-                    ElderSlotType.PREACHING -> elderSlots.copy(
-                        preachingElder = "",
-                        preachingMasters = emptyList()
-                    )
-                    ElderSlotType.LAW_ENFORCEMENT -> elderSlots.copy(
-                        lawEnforcementElder = "",
-                        lawEnforcementDisciples = emptyList()
-                    )
-                    ElderSlotType.INNER_ELDER -> elderSlots.copy(
-                        innerElder = ""
-                    )
-                    ElderSlotType.CLOUD_PREACHING -> elderSlots.copy(
-                        qingyunPreachingElder = "",
-                        qingyunPreachingMasters = emptyList()
-                    )
+                when (val result = elderManagement.removeElder(slotType)) {
+                    is ElderManagementUseCase.ElderResult.Success -> showSuccess(result.message)
+                    is ElderManagementUseCase.ElderResult.Error -> showError(result.message)
                 }
-                gameEngine.updateElderSlots(newElderSlots)
-                showSuccess(("长老已卸任"))
             } catch (e: Exception) {
-                showError((e.message ?: "卸任失败"))
+                showError(e.message ?: "卸任失败")
             }
         }
     }
@@ -257,48 +126,12 @@ class SectViewModel @Inject constructor(
     fun assignDirectDisciple(elderSlotType: String, slotIndex: Int, discipleId: String) {
         viewModelScope.launch {
             try {
-                val disciple = disciples.value.find { it.id == discipleId }
-                if (disciple == null) {
-                    showError(("弟子不存在"))
-                    return@launch
+                when (val result = elderManagement.assignDirectDisciple(elderSlotType, slotIndex, discipleId)) {
+                    is ElderManagementUseCase.ElderResult.Success -> showSuccess(result.message)
+                    is ElderManagementUseCase.ElderResult.Error -> showError(result.message)
                 }
-                
-                val currentGameData = gameEngine.gameData.value
-                val elderSlots = currentGameData.elderSlots
-                
-                val allElderIds = listOf(
-                    elderSlots.herbGardenElder,
-                    elderSlots.alchemyElder,
-                    elderSlots.forgeElder
-                )
-                val allDirectDiscipleIds = listOf(
-                    elderSlots.herbGardenDisciples,
-                    elderSlots.alchemyDisciples,
-                    elderSlots.forgeDisciples,
-                    elderSlots.spiritMineDeaconDisciples
-                ).flatten().mapNotNull { it.discipleId }
-
-                if (allElderIds.contains(discipleId)) {
-                    showError(("该弟子已担任长老职位"))
-                    return@launch
-                }
-
-                if (allDirectDiscipleIds.contains(discipleId)) {
-                    showError(("该弟子已是其他长老的亲传弟子"))
-                    return@launch
-                }
-
-                gameEngine.assignDirectDisciple(
-                    elderSlotType = elderSlotType,
-                    slotIndex = slotIndex,
-                    discipleId = discipleId,
-                    discipleName = disciple.name,
-                    discipleRealm = disciple.realmName,
-                    discipleSpiritRootColor = disciple.spiritRoot.countColor
-                )
-                showSuccess(("亲传弟子任命成功"))
             } catch (e: Exception) {
-                showError((e.message ?: "分配失败"))
+                showError(e.message ?: "分配失败")
             }
         }
     }
@@ -306,10 +139,12 @@ class SectViewModel @Inject constructor(
     fun removeDirectDisciple(elderSlotType: String, slotIndex: Int) {
         viewModelScope.launch {
             try {
-                gameEngine.removeDirectDisciple(elderSlotType, slotIndex)
-                showSuccess(("亲传弟子已移除"))
+                when (val result = elderManagement.removeDirectDisciple(elderSlotType, slotIndex)) {
+                    is ElderManagementUseCase.ElderResult.Success -> showSuccess(result.message)
+                    is ElderManagementUseCase.ElderResult.Error -> showError(result.message)
+                }
             } catch (e: Exception) {
-                showError((e.message ?: "卸任失败"))
+                showError(e.message ?: "卸任失败")
             }
         }
     }
