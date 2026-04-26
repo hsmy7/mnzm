@@ -130,38 +130,6 @@ object BattleCalculator {
         }
     }
 
-    @Deprecated("Use calculateDamage(isPhysicalAttack = true) instead", ReplaceWith("calculateDamage(attacker, defender, multiplier, isPhysicalAttack = true).damage"))
-    fun calculatePhysicalDamage(
-        attacker: CombatantStats,
-        defender: CombatantStats,
-        multiplier: Double = 1.0
-    ): Int {
-        val isCrit = Random.nextDouble() < attacker.critRate
-        val critMultiplier = if (isCrit) GameConfig.Battle.CRIT_MULTIPLIER else 1.0
-        val reduction = defender.physicalDefense.toDouble() / (defender.physicalDefense.toDouble() + GameConfig.Battle.DEFENSE_CONSTANT)
-        val realmGapMultiplier = calculateRealmGapMultiplier(attacker.realm, defender.realm)
-        val elementMultiplier = calculateElementMultiplier(attacker.element, defender.element)
-        val baseDamage = (attacker.physicalAttack * multiplier * (1.0 - reduction) * critMultiplier * realmGapMultiplier * elementMultiplier).toInt()
-        val variance = calculateDamageVariance()
-        return (baseDamage * variance).toInt().coerceAtLeast(GameConfig.Battle.MIN_DAMAGE).coerceAtMost(Int.MAX_VALUE / 2)
-    }
-
-    @Deprecated("Use calculateDamage(isPhysicalAttack = false) instead", ReplaceWith("calculateDamage(attacker, defender, multiplier, isPhysicalAttack = false).damage"))
-    fun calculateMagicDamage(
-        attacker: CombatantStats,
-        defender: CombatantStats,
-        multiplier: Double = 1.0
-    ): Int {
-        val isCrit = Random.nextDouble() < attacker.critRate
-        val critMultiplier = if (isCrit) GameConfig.Battle.CRIT_MULTIPLIER else 1.0
-        val reduction = defender.magicDefense.toDouble() / (defender.magicDefense.toDouble() + GameConfig.Battle.DEFENSE_CONSTANT)
-        val realmGapMultiplier = calculateRealmGapMultiplier(attacker.realm, defender.realm)
-        val elementMultiplier = calculateElementMultiplier(attacker.element, defender.element)
-        val baseDamage = (attacker.magicAttack * multiplier * (1.0 - reduction) * critMultiplier * realmGapMultiplier * elementMultiplier).toInt()
-        val variance = calculateDamageVariance()
-        return (baseDamage * variance).toInt().coerceAtLeast(GameConfig.Battle.MIN_DAMAGE).coerceAtMost(Int.MAX_VALUE / 2)
-    }
-
     fun generateBattleMessage(
         attackerName: String,
         targetName: String,

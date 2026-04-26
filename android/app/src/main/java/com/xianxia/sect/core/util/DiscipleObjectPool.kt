@@ -10,7 +10,6 @@ import com.xianxia.sect.core.model.SkillStats
 import com.xianxia.sect.core.model.UsageTracking
 import com.xianxia.sect.core.model.EquipmentNurtureData
 import com.xianxia.sect.core.model.StorageBagItem
-import java.util.UUID
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicInteger
 import javax.inject.Inject
@@ -111,7 +110,7 @@ data class DisciplePoolStats(
 }
 
 class MutableDisciple {
-    var id: String = UUID.randomUUID().toString()
+    var id: String = ""
     var name: String = ""
     var surname: String = ""
     var realm: Int = 9
@@ -220,7 +219,7 @@ class MutableDisciple {
     var currentMp: Int = -1
     
     fun reset() {
-        id = UUID.randomUUID().toString()
+        id = ""
         name = ""
         surname = ""
         realm = 9

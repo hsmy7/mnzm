@@ -1,18 +1,16 @@
-@file:Suppress("DEPRECATION")
 package com.xianxia.sect.core.engine.coordinator
 
 import android.util.Log
 import com.xianxia.sect.core.util.ListenerManager
-import com.xianxia.sect.core.util.PerformanceMonitor
+import com.xianxia.sect.core.performance.UnifiedPerformanceMonitor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
-@Suppress("DEPRECATION") // TODO: Migrate to UnifiedPerformanceMonitor (P1/P3 task)
 @Singleton
 class SaveLoadCoordinator @Inject constructor(
-    private val performanceMonitor: PerformanceMonitor
+    private val unifiedPerformanceMonitor: UnifiedPerformanceMonitor
 ) {
     companion object {
         private const val TAG = "SaveLoadCoordinator"
@@ -67,7 +65,7 @@ class SaveLoadCoordinator @Inject constructor(
         notifyOperationStart(context)
         
         return try {
-            performanceMonitor.measureOperation("save_${operationType.name.lowercase()}") {
+            unifiedPerformanceMonitor.measureOperation("save_${operationType.name.lowercase()}") {
                 withContext(Dispatchers.IO) {
                     saveOperation()
                 }
@@ -114,7 +112,7 @@ class SaveLoadCoordinator @Inject constructor(
         return try {
             notifyProgressUpdate(context, 0.3f)
             
-            val data = performanceMonitor.measureOperation("load_game") {
+            val data = unifiedPerformanceMonitor.measureOperation("load_game") {
                 withContext(Dispatchers.IO) {
                     loadOperation()
                 }

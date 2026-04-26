@@ -233,14 +233,14 @@ class BattleCalculatorTest {
     }
 
     @Test
-    fun `calculatePhysicalDamage - basic physical damage`() {
+    fun `calculateDamage isPhysicalAttack true - basic physical damage`() {
         val attacker = createCombatant(physicalAttack = 200, critRate = 0.0)
         val defender = createCombatant(physicalDefense = 50)
         var totalDamage = 0
         var count = 0
         for (i in 1..1000) {
-            val damage = BattleCalculator.calculatePhysicalDamage(attacker, defender)
-            totalDamage += damage
+            val result = BattleCalculator.calculateDamage(attacker, defender, isPhysicalAttack = true, dodgeChanceModifier = 0.0)
+            totalDamage += result.damage
             count++
         }
         val avgDamage = totalDamage.toDouble() / count
@@ -249,22 +249,22 @@ class BattleCalculatorTest {
     }
 
     @Test
-    fun `calculatePhysicalDamage - low attack vs high defense still deals damage`() {
+    fun `calculateDamage isPhysicalAttack true - low attack vs high defense still deals damage`() {
         val attacker = createCombatant(physicalAttack = 1, critRate = 0.0)
         val defender = createCombatant(physicalDefense = 9999)
-        val damage = BattleCalculator.calculatePhysicalDamage(attacker, defender)
-        assertTrue(damage >= 0)
+        val result = BattleCalculator.calculateDamage(attacker, defender, isPhysicalAttack = true, dodgeChanceModifier = 0.0)
+        assertTrue(result.damage >= 0)
     }
 
     @Test
-    fun `calculateMagicDamage - basic magic damage`() {
+    fun `calculateDamage isPhysicalAttack false - basic magic damage`() {
         val attacker = createCombatant(magicAttack = 200, critRate = 0.0)
         val defender = createCombatant(magicDefense = 30)
         var totalDamage = 0
         var count = 0
         for (i in 1..1000) {
-            val damage = BattleCalculator.calculateMagicDamage(attacker, defender)
-            totalDamage += damage
+            val result = BattleCalculator.calculateDamage(attacker, defender, isPhysicalAttack = false, dodgeChanceModifier = 0.0)
+            totalDamage += result.damage
             count++
         }
         val avgDamage = totalDamage.toDouble() / count
@@ -377,8 +377,8 @@ class BattleCalculatorTest {
         var lowTotal = 0
         var highTotal = 0
         for (i in 1..500) {
-            lowTotal += BattleCalculator.calculatePhysicalDamage(attacker, lowDefender)
-            highTotal += BattleCalculator.calculatePhysicalDamage(attacker, highDefender)
+            lowTotal += BattleCalculator.calculateDamage(attacker, lowDefender, isPhysicalAttack = true, dodgeChanceModifier = 0.0).damage
+            highTotal += BattleCalculator.calculateDamage(attacker, highDefender, isPhysicalAttack = true, dodgeChanceModifier = 0.0).damage
         }
         assertTrue("high defense should take less damage", highTotal < lowTotal)
         val lowReduction = 100.0 / (100.0 + GameConfig.Battle.DEFENSE_CONSTANT)

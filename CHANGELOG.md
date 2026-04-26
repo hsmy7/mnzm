@@ -1,5 +1,21 @@
 # 模拟宗门 - 更新日志
 
+## [2.5.68] - 2026-04-27
+
+### 性能监控统一 (U-06)
+- 将 GamePerformanceMonitor 和 PerformanceMonitor 两个废弃类合并到 UnifiedPerformanceMonitor
+- UnifiedPerformanceMonitor 新增 GameEngineCore 所需方法：start/stop, recordTick, recordEntityCount, recordSaveQueueSize, forceGc, getMemoryReport
+- UnifiedPerformanceMonitor 新增 GameMonitorManager 所需方法：initialize, startMonitoring/stopMonitoring, isPerformanceAcceptable, getRecommendedOptimizationLevel, logPerformanceStatus, startOperationTimer/endOperationTimer/measureOperation
+- UnifiedPerformanceMonitor 新增月度事件追踪：recordMonthlyEventStart/End, measureMonthlyEvent, getMonthlyEventSummaries/RecentMonthlyEvents/SlowMonthlyEvents/MonthlyEventPerformanceReport, logMonthlyEventStats
+- UnifiedPerformanceMonitor 新增帧率统计：getFrameStats, capturePerformanceSnapshot, resetStats, cleanup（增强版）
+- 新增 OptimizationLevel 枚举到 performance 包
+- 合并数据类：PerformanceMetrics, PerformanceWarning, WarningType, PerformanceListener, FrameStats, OperationMetric, MonthlyEventMetric, MonthlyEventSummary, PerformanceSnapshot, PerformanceEventListener
+- 集成 Choreographer 帧监控到 UnifiedPerformanceMonitor
+- GameEngineCore：替换 GamePerformanceMonitor 为 UnifiedPerformanceMonitor，移除 @Suppress("DEPRECATION")
+- GameMonitorManager：移除 PerformanceMonitor 依赖，所有调用委托到 UnifiedPerformanceMonitor，OptimizationRecommendation 使用 UnifiedPerformanceMonitor.OptimizationLevel
+- SaveLoadCoordinator：替换 PerformanceMonitor 为 UnifiedPerformanceMonitor，移除 @Suppress("DEPRECATION")
+- 删除废弃文件 GamePerformanceMonitor.kt 和 PerformanceMonitor.kt
+
 ## [2.5.67] - 2026-04-27
 
 ### 测试修复

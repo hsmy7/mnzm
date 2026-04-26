@@ -90,41 +90,41 @@ class GameUtilsTest {
         assertTrue("50%概率应大致正确: $trueCount/${iterations}", trueCount > 400 && trueCount < 600)
     }
 
-    // ========== clamp 测试 ==========
+    // ========== coerceIn 测试 ==========
 
     @Test
-    fun `clamp - Int值在范围内不变`() {
-        assertEquals(5, GameUtils.clamp(5, 1, 10))
+    fun `coerceIn - Int值在范围内不变`() {
+        assertEquals(5, 5.coerceIn(1, 10))
     }
 
     @Test
-    fun `clamp - Int值低于最小值`() {
-        assertEquals(1, GameUtils.clamp(0, 1, 10))
+    fun `coerceIn - Int值低于最小值`() {
+        assertEquals(1, 0.coerceIn(1, 10))
     }
 
     @Test
-    fun `clamp - Int值超过最大值`() {
-        assertEquals(10, GameUtils.clamp(15, 1, 10))
+    fun `coerceIn - Int值超过最大值`() {
+        assertEquals(10, 15.coerceIn(1, 10))
     }
 
     @Test
-    fun `clamp - Double值在范围内不变`() {
-        assertEquals(5.0, GameUtils.clamp(5.0, 1.0, 10.0), 0.001)
+    fun `coerceIn - Double值在范围内不变`() {
+        assertEquals(5.0, 5.0.coerceIn(1.0, 10.0), 0.001)
     }
 
     @Test
-    fun `clamp - Double值低于最小值`() {
-        assertEquals(1.0, GameUtils.clamp(0.0, 1.0, 10.0), 0.001)
+    fun `coerceIn - Double值低于最小值`() {
+        assertEquals(1.0, 0.0.coerceIn(1.0, 10.0), 0.001)
     }
 
     @Test
-    fun `clamp - Double值超过最大值`() {
-        assertEquals(10.0, GameUtils.clamp(15.0, 1.0, 10.0), 0.001)
+    fun `coerceIn - Double值超过最大值`() {
+        assertEquals(10.0, 15.0.coerceIn(1.0, 10.0), 0.001)
     }
 
     @Test
-    fun `clamp - Long值在范围内不变`() {
-        assertEquals(5L, GameUtils.clamp(5L, 1L, 10L))
+    fun `coerceIn - Long值在范围内不变`() {
+        assertEquals(5L, 5L.coerceIn(1L, 10L))
     }
 
     // ========== formatNumber 测试 ==========
@@ -584,21 +584,21 @@ class GameUtilsTest {
         assertEquals(8, GameUtils.generateShortId().length)
     }
 
-    // ========== StringUtils 测试 ==========
+    // ========== String 标准库扩展测试 ==========
 
     @Test
-    fun `StringUtils isEmpty - null返回true`() {
-        assertTrue(StringUtils.isEmpty(null))
+    fun `isNullOrEmpty - null返回true`() {
+        assertTrue((null as String?).isNullOrEmpty())
     }
 
     @Test
-    fun `StringUtils isEmpty - 空字符串返回true`() {
-        assertTrue(StringUtils.isEmpty(""))
+    fun `isNullOrEmpty - 空字符串返回true`() {
+        assertTrue("".isNullOrEmpty())
     }
 
     @Test
-    fun `StringUtils isEmpty - 非空字符串返回false`() {
-        assertFalse(StringUtils.isEmpty("test"))
+    fun `isNullOrEmpty - 非空字符串返回false`() {
+        assertFalse("test".isNullOrEmpty())
     }
 
     @Test
@@ -619,13 +619,13 @@ class GameUtilsTest {
     }
 
     @Test
-    fun `StringUtils padLeft - 左填充`() {
-        assertEquals("  hello", StringUtils.padLeft("hello", 7))
+    fun `padStart - 左填充`() {
+        assertEquals("  hello", "hello".padStart(7))
     }
 
     @Test
-    fun `StringUtils padRight - 右填充`() {
-        assertEquals("hello  ", StringUtils.padRight("hello", 7))
+    fun `padEnd - 右填充`() {
+        assertEquals("hello  ", "hello".padEnd(7))
     }
 
     // ========== CollectionUtils 测试 ==========

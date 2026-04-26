@@ -8,9 +8,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
@@ -51,7 +53,17 @@ class GameStateStore @Inject constructor(
 
     private val _state = MutableStateFlow(UnifiedGameState())
 
-    val unifiedState: StateFlow<UnifiedGameState> = _state.asStateFlow()
+    private val _isPaused = MutableStateFlow(true)
+    private val _isLoading = MutableStateFlow(false)
+    private val _isSaving = MutableStateFlow(false)
+
+    val unifiedState: StateFlow<UnifiedGameState> = combine(_state, _isPaused, _isLoading, _isSaving) { state, paused, loading, saving ->
+        if (state.isPaused == paused && state.isLoading == loading && state.isSaving == saving) {
+            state
+        } else {
+            state.copy(isPaused = paused, isLoading = loading, isSaving = saving)
+        }
+    }.stateIn(applicationScopeProvider.scope, SharingStarted.Eagerly, UnifiedGameState())
 
     val gameData: StateFlow<GameData> = _state.map { it.gameData }
         .distinctUntilChanged()
@@ -105,17 +117,11 @@ class GameStateStore @Inject constructor(
         .distinctUntilChanged()
         .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000, replayExpirationMillis = 30_000), emptyList())
 
-    val isPaused: StateFlow<Boolean> = _state.map { it.isPaused }
-        .distinctUntilChanged()
-        .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000, replayExpirationMillis = 30_000), true)
+    val isPaused: StateFlow<Boolean> = _isPaused.asStateFlow()
 
-    val isLoading: StateFlow<Boolean> = _state.map { it.isLoading }
-        .distinctUntilChanged()
-        .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000, replayExpirationMillis = 30_000), false)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
-    val isSaving: StateFlow<Boolean> = _state.map { it.isSaving }
-        .distinctUntilChanged()
-        .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000, replayExpirationMillis = 30_000), false)
+    val isSaving: StateFlow<Boolean> = _isSaving.asStateFlow()
 
     val discipleAggregates: StateFlow<List<DiscipleAggregate>> = _state
         .map { state -> state.disciples.map { it.toAggregate() } }
@@ -152,36 +158,15 @@ class GameStateStore @Inject constructor(
     )
 
     fun setPausedDirect(paused: Boolean) {
-        var attempts = 0
-        while (attempts < 10) {
-            val current = _state.value
-            if (current.isPaused == paused) return
-            if (_state.compareAndSet(current, current.copy(isPaused = paused))) return
-            attempts++
-        }
-        _state.value = _state.value.copy(isPaused = paused)
+        _isPaused.value = paused
     }
 
     fun setLoadingDirect(loading: Boolean) {
-        var attempts = 0
-        while (attempts < 10) {
-            val current = _state.value
-            if (current.isLoading == loading) return
-            if (_state.compareAndSet(current, current.copy(isLoading = loading))) return
-            attempts++
-        }
-        _state.value = _state.value.copy(isLoading = loading)
+        _isLoading.value = loading
     }
 
     fun setSavingDirect(saving: Boolean) {
-        var attempts = 0
-        while (attempts < 10) {
-            val current = _state.value
-            if (current.isSaving == saving) return
-            if (_state.compareAndSet(current, current.copy(isSaving = saving))) return
-            attempts++
-        }
-        _state.value = _state.value.copy(isSaving = saving)
+        _isSaving.value = saving
     }
 
     suspend fun update(block: suspend MutableGameState.() -> Unit) {
@@ -212,29 +197,36 @@ class GameStateStore @Inject constructor(
             currentTransactionState = reusableMutableState
             try {
                 reusableMutableState.block()
-                val latest = _state.value
-                val mergedIsPaused = if (latest.isPaused != current.isPaused) latest.isPaused else reusableMutableState.isPaused
-                val mergedIsLoading = if (latest.isLoading != current.isLoading) latest.isLoading else reusableMutableState.isLoading
-                val mergedIsSaving = if (latest.isSaving != current.isSaving) latest.isSaving else reusableMutableState.isSaving
-                _state.value = UnifiedGameState(
-                    gameData = reusableMutableState.gameData,
-                    disciples = reusableMutableState.disciples,
-                    equipmentStacks = reusableMutableState.equipmentStacks,
-                    equipmentInstances = reusableMutableState.equipmentInstances,
-                    manualStacks = reusableMutableState.manualStacks,
-                    manualInstances = reusableMutableState.manualInstances,
-                    pills = reusableMutableState.pills,
-                    materials = reusableMutableState.materials,
-                    herbs = reusableMutableState.herbs,
-                    seeds = reusableMutableState.seeds,
-                    teams = reusableMutableState.teams,
-                    events = reusableMutableState.events,
-                    battleLogs = reusableMutableState.battleLogs,
-                    alliances = reusableMutableState.gameData.alliances,
-                    isPaused = mergedIsPaused,
-                    isLoading = mergedIsLoading,
-                    isSaving = mergedIsSaving
-                )
+                val latestPaused = _isPaused.value
+                val latestLoading = _isLoading.value
+                val latestSaving = _isSaving.value
+                val mergedIsPaused = if (latestPaused != current.isPaused) latestPaused else reusableMutableState.isPaused
+                val mergedIsLoading = if (latestLoading != current.isLoading) latestLoading else reusableMutableState.isLoading
+                val mergedIsSaving = if (latestSaving != current.isSaving) latestSaving else reusableMutableState.isSaving
+                _state.update { latest ->
+                    UnifiedGameState(
+                        gameData = reusableMutableState.gameData,
+                        disciples = reusableMutableState.disciples,
+                        equipmentStacks = reusableMutableState.equipmentStacks,
+                        equipmentInstances = reusableMutableState.equipmentInstances,
+                        manualStacks = reusableMutableState.manualStacks,
+                        manualInstances = reusableMutableState.manualInstances,
+                        pills = reusableMutableState.pills,
+                        materials = reusableMutableState.materials,
+                        herbs = reusableMutableState.herbs,
+                        seeds = reusableMutableState.seeds,
+                        teams = reusableMutableState.teams,
+                        events = reusableMutableState.events,
+                        battleLogs = reusableMutableState.battleLogs,
+                        alliances = reusableMutableState.gameData.alliances,
+                        isPaused = mergedIsPaused,
+                        isLoading = mergedIsLoading,
+                        isSaving = mergedIsSaving
+                    )
+                }
+                _isPaused.value = mergedIsPaused
+                _isLoading.value = mergedIsLoading
+                _isSaving.value = mergedIsSaving
             } finally {
                 currentTransactionState = null
             }
@@ -260,31 +252,39 @@ class GameStateStore @Inject constructor(
         isSaving: Boolean = false
     ) {
         transactionMutex.withLock {
-            _state.value = UnifiedGameState(
-                gameData = gameData,
-                disciples = disciples,
-                equipmentStacks = equipmentStacks,
-                equipmentInstances = equipmentInstances,
-                manualStacks = manualStacks,
-                manualInstances = manualInstances,
-                pills = pills,
-                materials = materials,
-                herbs = herbs,
-                seeds = seeds,
-                teams = teams,
-                events = events,
-                battleLogs = battleLogs,
-                alliances = gameData.alliances,
-                isPaused = isPaused,
-                isLoading = isLoading,
-                isSaving = isSaving
-            )
+            _state.update {
+                UnifiedGameState(
+                    gameData = gameData,
+                    disciples = disciples,
+                    equipmentStacks = equipmentStacks,
+                    equipmentInstances = equipmentInstances,
+                    manualStacks = manualStacks,
+                    manualInstances = manualInstances,
+                    pills = pills,
+                    materials = materials,
+                    herbs = herbs,
+                    seeds = seeds,
+                    teams = teams,
+                    events = events,
+                    battleLogs = battleLogs,
+                    alliances = gameData.alliances,
+                    isPaused = isPaused,
+                    isLoading = isLoading,
+                    isSaving = isSaving
+                )
+            }
+            _isPaused.value = isPaused
+            _isLoading.value = isLoading
+            _isSaving.value = isSaving
         }
     }
 
     suspend fun reset() {
         transactionMutex.withLock {
-            _state.value = UnifiedGameState()
+            _state.update { UnifiedGameState() }
+            _isPaused.value = true
+            _isLoading.value = false
+            _isSaving.value = false
         }
     }
 }

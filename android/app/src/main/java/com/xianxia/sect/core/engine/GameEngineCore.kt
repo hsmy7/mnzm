@@ -1,5 +1,4 @@
 @file:OptIn(DelicateCoroutinesApi::class)
-@file:Suppress("DEPRECATION")
 
 package com.xianxia.sect.core.engine
 
@@ -10,7 +9,7 @@ import com.xianxia.sect.core.engine.system.SystemManager
 import com.xianxia.sect.core.event.*
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.*
-import com.xianxia.sect.core.performance.GamePerformanceMonitor
+import com.xianxia.sect.core.performance.UnifiedPerformanceMonitor
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
@@ -42,13 +41,12 @@ import javax.inject.Singleton
  * GameStateStore.unifiedState 通过 combine 自动派生，
  * UI 层订阅 unifiedState 即可获得最新状态，无需手动同步。
  */
-@Suppress("DEPRECATION") // TODO: Migrate to UnifiedPerformanceMonitor (P1/P3 task)
 @Singleton
 class GameEngineCore @Inject constructor(
     private val stateStore: GameStateStore,
     private val stateManager: UnifiedGameStateManager,
     private val eventBus: EventBus,
-    private val performanceMonitor: GamePerformanceMonitor,
+    private val unifiedPerformanceMonitor: UnifiedPerformanceMonitor,
     private val systemManager: SystemManager
 ) {
     
@@ -126,7 +124,7 @@ class GameEngineCore @Inject constructor(
         
         dayAccumulator = 0.0
         gameLoopStoppedSignal = CompletableDeferred()
-        performanceMonitor.start()
+        unifiedPerformanceMonitor.start()
 
         stateManager.setPausedDirect(false)
         Log.i(TAG, "Game state resumed (isPaused=false)")
@@ -167,7 +165,7 @@ class GameEngineCore @Inject constructor(
     }
     
     fun stopGameLoop() {
-        performanceMonitor.stop()
+        unifiedPerformanceMonitor.stop()
         stateManager.setPausedDirect(true)
         gameLoopJob?.cancel()
         gameLoopJob = null
@@ -235,10 +233,10 @@ class GameEngineCore @Inject constructor(
         tickInternal()
         
         val tickTime = (System.currentTimeMillis() - tickStartTime).toFloat()
-        performanceMonitor.recordTick(tickTime)
+        unifiedPerformanceMonitor.recordTick(tickTime)
         
         val entityCount = stateStore.unifiedState.value.disciples.size
-        performanceMonitor.recordEntityCount(entityCount)
+        unifiedPerformanceMonitor.recordEntityCount(entityCount)
         
         if (tickTime > TICK_WARNING_THRESHOLD_MS) {
             Log.w(TAG, "Slow tick detected: ${tickTime}ms")
