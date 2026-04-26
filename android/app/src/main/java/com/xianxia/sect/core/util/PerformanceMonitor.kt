@@ -6,10 +6,7 @@ import android.os.Looper
 import android.util.Log
 import android.view.Choreographer
 import com.xianxia.sect.di.ApplicationScopeProvider
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive

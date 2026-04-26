@@ -5,10 +5,8 @@ import android.os.Build
 import android.util.Log
 import com.xianxia.sect.data.config.StorageConfig
 import com.xianxia.sect.di.ApplicationScopeProvider
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch

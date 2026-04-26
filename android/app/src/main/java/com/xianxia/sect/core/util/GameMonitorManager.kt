@@ -10,10 +10,7 @@ import com.xianxia.sect.core.performance.MetricStats
 import com.xianxia.sect.core.performance.Trace
 import com.xianxia.sect.core.performance.UnifiedPerformanceMonitor
 import com.xianxia.sect.di.ApplicationScopeProvider
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive

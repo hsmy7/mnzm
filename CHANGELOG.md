@@ -1,5 +1,23 @@
 # 模拟宗门 - 更新日志
 
+## [2.5.52] - 2026-04-27
+
+### 重构
+- 统一协程作用域管理：9个类/对象从自建CoroutineScope迁移至ApplicationScopeProvider，确保应用销毁时统一取消所有协程
+  - CacheLayer (GameDataCacheManager): 注入ApplicationScopeProvider，使用ioScope
+  - GCOptimizer: 注入ApplicationScopeProvider，使用scope（mainScope保留自有SupervisorJob用于UI线程调度）
+  - GameMonitorManager: 注入ApplicationScopeProvider，使用scope
+  - UnifiedPerformanceMonitor: 注入ApplicationScopeProvider，使用scope
+  - PerformanceMonitor: 注入ApplicationScopeProvider，使用scope
+  - MemoryMonitor: 注入ApplicationScopeProvider，使用scope
+  - FunctionalWAL: 注入ApplicationScopeProvider，使用ioScope
+  - SaveCrypto: 使用lateinit+initialize()模式注入ApplicationScopeProvider（object单例无法构造器注入），使用ioScope
+  - StorageEngine及其3个内部类(ProactiveMemoryGuard/DataPruningScheduler/DataArchiveScheduler): 注入ApplicationScopeProvider，使用ioScope
+- 移除所有迁移类中的scope.cancel()调用（作用域由ApplicationScopeProvider统一管理）
+- StorageModule中provideStorageEngine添加applicationScopeProvider参数
+- XianxiaApplication.onCreate()中调用SaveCrypto.initialize(applicationScopeProvider)
+- 清理所有迁移文件中不再使用的import（CoroutineScope/SupervisorJob/Dispatchers等）
+
 ## [2.5.50] - 2026-04-27
 
 ### 修复

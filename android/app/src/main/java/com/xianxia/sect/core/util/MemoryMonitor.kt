@@ -6,10 +6,8 @@ import android.os.Debug
 import android.os.Process
 import android.util.Log
 import com.xianxia.sect.di.ApplicationScopeProvider
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
