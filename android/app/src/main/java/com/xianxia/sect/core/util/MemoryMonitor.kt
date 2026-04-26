@@ -190,19 +190,19 @@ class MemoryMonitor @Inject constructor(
         val currentTime = System.currentTimeMillis()
         
         if (info.isCritical) {
-            Log.e(TAG, "CRITICAL MEMORY: Used ${formatMemory(snapshot.usedMemory)} / ${formatMemory(Runtime.getRuntime().maxMemory())} (${String.format("%.1f", snapshot.usedPercent * 100)}%)")
+            Log.e(TAG, "CRITICAL MEMORY: Used ${MemoryFormatUtil.formatMemory(snapshot.usedMemory)} / ${MemoryFormatUtil.formatMemory(Runtime.getRuntime().maxMemory())} (${String.format("%.1f", snapshot.usedPercent * 100)}%)")
             if (currentTime - lastMemoryWarningTime > warningCooldownMs) {
                 lastMemoryWarningTime = currentTime
                 notifyListeners { it.onMemoryCritical(info) }
             }
         } else if (info.isWarning) {
-            Log.w(TAG, "MEMORY WARNING: Used ${formatMemory(snapshot.usedMemory)} / ${formatMemory(Runtime.getRuntime().maxMemory())} (${String.format("%.1f", snapshot.usedPercent * 100)}%)")
+            Log.w(TAG, "MEMORY WARNING: Used ${MemoryFormatUtil.formatMemory(snapshot.usedMemory)} / ${MemoryFormatUtil.formatMemory(Runtime.getRuntime().maxMemory())} (${String.format("%.1f", snapshot.usedPercent * 100)}%)")
             if (currentTime - lastMemoryWarningTime > warningCooldownMs) {
                 lastMemoryWarningTime = currentTime
                 notifyListeners { it.onMemoryWarning(info) }
             }
         } else if (snapshot.usedPercent >= MEMORY_LOG_THRESHOLD) {
-            Log.d(TAG, "Memory usage: ${formatMemory(snapshot.usedMemory)} / ${formatMemory(Runtime.getRuntime().maxMemory())} (${String.format("%.1f", snapshot.usedPercent * 100)}%)")
+            Log.d(TAG, "Memory usage: ${MemoryFormatUtil.formatMemory(snapshot.usedMemory)} / ${MemoryFormatUtil.formatMemory(Runtime.getRuntime().maxMemory())} (${String.format("%.1f", snapshot.usedPercent * 100)}%)")
         }
         
         notifyListeners { it.onMemorySnapshot(snapshot) }
@@ -222,9 +222,9 @@ class MemoryMonitor @Inject constructor(
         
         Log.i(tag, """
             |=== Memory Status at ${dateFormat.format(Date())} ===
-            |Dalvik Heap: ${formatMemory(info.usedMemory)} / ${formatMemory(runtime.maxMemory())} (${String.format("%.1f", info.usedPercent * 100)}%)
-            |Native Heap: ${formatMemory(Debug.getNativeHeapAllocatedSize())}
-            |System Available: ${formatMemory(info.availableMemory)}
+            |Dalvik Heap: ${MemoryFormatUtil.formatMemory(info.usedMemory)} / ${MemoryFormatUtil.formatMemory(runtime.maxMemory())} (${String.format("%.1f", info.usedPercent * 100)}%)
+            |Native Heap: ${MemoryFormatUtil.formatMemory(Debug.getNativeHeapAllocatedSize())}
+            |System Available: ${MemoryFormatUtil.formatMemory(info.availableMemory)}
             |Low Memory: ${info.isLowMemory}
             |Memory Class: ${activityManager?.memoryClass}MB
             |===============================================
@@ -239,14 +239,14 @@ class MemoryMonitor @Inject constructor(
         Log.i(tag, """
             |=== Detailed Memory Info ===
             |Dalvik:
-            |  - Total: ${formatMemory(runtime.totalMemory())}
-            |  - Free: ${formatMemory(runtime.freeMemory())}
-            |  - Used: ${formatMemory(runtime.totalMemory() - runtime.freeMemory())}
-            |  - Max: ${formatMemory(runtime.maxMemory())}
+            |  - Total: ${MemoryFormatUtil.formatMemory(runtime.totalMemory())}
+            |  - Free: ${MemoryFormatUtil.formatMemory(runtime.freeMemory())}
+            |  - Used: ${MemoryFormatUtil.formatMemory(runtime.totalMemory() - runtime.freeMemory())}
+            |  - Max: ${MemoryFormatUtil.formatMemory(runtime.maxMemory())}
             |Native:
-            |  - Allocated: ${formatMemory(Debug.getNativeHeapAllocatedSize())}
-            |  - Free: ${formatMemory(Debug.getNativeHeapFreeSize())}
-            |  - Size: ${formatMemory(Debug.getNativeHeapSize())}
+            |  - Allocated: ${MemoryFormatUtil.formatMemory(Debug.getNativeHeapAllocatedSize())}
+            |  - Free: ${MemoryFormatUtil.formatMemory(Debug.getNativeHeapFreeSize())}
+            |  - Size: ${MemoryFormatUtil.formatMemory(Debug.getNativeHeapSize())}
             |Memory Info:
             |  - Dalvik PSS: ${memoryInfo.dalvikPss}KB
             |  - Native PSS: ${memoryInfo.nativePss}KB
@@ -279,15 +279,6 @@ class MemoryMonitor @Inject constructor(
                     Log.e(TAG, "Error notifying listener", e)
                 }
             }
-        }
-    }
-    
-    private fun formatMemory(bytes: Long): String {
-        return when {
-            bytes < 1024 -> "$bytes B"
-            bytes < 1024 * 1024 -> String.format(Locale.ROOT, "%.1f KB", bytes / 1024.0)
-            bytes < 1024 * 1024 * 1024 -> String.format(Locale.ROOT, "%.1f MB", bytes / (1024.0 * 1024.0))
-            else -> String.format(Locale.ROOT, "%.2f GB", bytes / (1024.0 * 1024.0 * 1024.0))
         }
     }
     

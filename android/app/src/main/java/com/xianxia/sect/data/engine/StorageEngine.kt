@@ -34,6 +34,7 @@ import com.xianxia.sect.data.serialization.unified.SerializationModule
 import com.xianxia.sect.data.unified.SlotMetadata
 import com.xianxia.sect.data.validation.StorageValidator
 import com.xianxia.sect.data.wal.WALProvider
+import com.xianxia.sect.di.ApplicationScopeProvider
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.CoroutineScope
@@ -103,12 +104,13 @@ class StorageEngine @Inject constructor(
     private val backupManager: BackupManager,
     private val dataArchiver: DataArchiver,
     private val memoryManager: DynamicMemoryManager,
-    private val metadataManager: MetadataManager
+    private val metadataManager: MetadataManager,
+    private val applicationScopeProvider: ApplicationScopeProvider
 ) {
     private val circuitBreaker = StorageCircuitBreaker()
-    private val pruningScheduler = DataPruningScheduler(database, circuitBreaker)
-    private val archiveScheduler = DataArchiveScheduler(database)
-    private val memoryGuard = ProactiveMemoryGuard(memoryManager, cache)
+    private val pruningScheduler = DataPruningScheduler(database, circuitBreaker, applicationScopeProvider)
+    private val archiveScheduler = DataArchiveScheduler(database, applicationScopeProvider)
+    private val memoryGuard = ProactiveMemoryGuard(memoryManager, cache, applicationScopeProvider)
     companion object {
         private const val TAG = "StorageEngine"
         private const val MAX_BATCH_SIZE = 200
@@ -139,7 +141,7 @@ class StorageEngine @Inject constructor(
         }
     }
 
-    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val scope get() = applicationScopeProvider.ioScope
 
     private val _progress = MutableStateFlow(EngineProgress(EngineProgress.Stage.IDLE, 0f))
     val progress: StateFlow<EngineProgress> = _progress.asStateFlow()
@@ -629,7 +631,6 @@ class StorageEngine @Inject constructor(
         cache.shutdown()
         wal.shutdown()
         lockManager.shutdown()
-        (scope.coroutineContext[Job] as? Job)?.cancel()
         Log.i(TAG, "StorageEngine shutdown completed")
     }
 
@@ -1225,11 +1226,12 @@ internal data class MemoryGuardSnapshot(
 
 internal class ProactiveMemoryGuard(
     private val memoryManager: DynamicMemoryManager,
-    private val cache: CacheLayer
+    private val cache: CacheLayer,
+    private val applicationScopeProvider: ApplicationScopeProvider
 ) {
     private val config = MemoryGuardConfig()
     private var monitorJob: Job? = null
-    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val scope get() = applicationScopeProvider.ioScope
 
     private val totalChecks = AtomicLong(0)
     private val totalWarnings = AtomicLong(0)
@@ -1287,7 +1289,6 @@ internal class ProactiveMemoryGuard(
 
     fun shutdown() {
         stopMonitoring()
-        scope.cancel()
         Log.i(TAG, "Proactive memory guard shutdown")
     }
 
@@ -1446,12 +1447,13 @@ internal data class PruningStats(
 
 internal class DataPruningScheduler(
     private val database: GameDatabase,
-    private val circuitBreaker: StorageCircuitBreaker
+    private val circuitBreaker: StorageCircuitBreaker,
+    private val applicationScopeProvider: ApplicationScopeProvider
 ) {
     private val config = PruningConfig()
     private var pruningJob: Job? = null
     private val isRunning = AtomicBoolean(false)
-    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val scope get() = applicationScopeProvider.ioScope
 
     private val totalPruningRuns = AtomicLong(0)
     private val totalBattleLogsDeleted = AtomicLong(0)
@@ -1500,7 +1502,6 @@ internal class DataPruningScheduler(
 
     fun shutdown() {
         stop()
-        scope.cancel()
         Log.i(TAG, "Data pruning scheduler shutdown")
     }
     suspend fun performPruning(): PruningResult {
@@ -1613,11 +1614,12 @@ internal data class ArchiveOperationResult(
 )
 
 internal class DataArchiveScheduler(
-    private val database: GameDatabase
+    private val database: GameDatabase,
+    private val applicationScopeProvider: ApplicationScopeProvider
 ) {
     private val config = ArchiveConfig()
     private var archiveJob: Job? = null
-    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val scope get() = applicationScopeProvider.ioScope
 
     fun start() {
         if (!config.enableAutoArchive) {
@@ -1654,7 +1656,6 @@ internal class DataArchiveScheduler(
 
     fun shutdown() {
         stop()
-        scope.cancel()
         Log.i(TAG, "Data archive scheduler shutdown")
     }
 

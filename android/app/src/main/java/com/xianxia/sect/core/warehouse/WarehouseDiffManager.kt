@@ -28,13 +28,13 @@ object WarehouseDiffManager {
         
         val currentKeyMap = mutableMapOf<String, WarehouseItem>()
         current.items.forEach { item ->
-            val key = generateKey(item)
+            val key = StorageKeyUtil.generateKey(item)
             currentKeyMap[key] = item
         }
         
         val lastKeyMap = mutableMapOf<String, WarehouseItem>()
         last.items.forEach { item ->
-            val key = generateKey(item)
+            val key = StorageKeyUtil.generateKey(item)
             lastKeyMap[key] = item
         }
         
@@ -249,9 +249,5 @@ object WarehouseDiffManager {
         }.filter { it.quantity > 0 }
         
         return warehouse.copy(items = items)
-    }
-    
-    private fun generateKey(item: WarehouseItem): String {
-        return "${item.itemId}:${item.itemType}:${item.rarity}"
     }
 }

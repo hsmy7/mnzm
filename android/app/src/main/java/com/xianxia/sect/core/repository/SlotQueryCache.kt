@@ -124,11 +124,3 @@ class SlotQueryCache {
         }
     }
 }
-
-data class SlotCacheStatistics(
-    val total: Int,
-    val working: Int,
-    val completed: Int,
-    val idle: Int,
-    val byTypeCount: Map<BuildingType, Int>
-)

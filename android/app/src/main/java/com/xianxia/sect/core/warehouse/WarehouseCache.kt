@@ -122,7 +122,7 @@ object WarehouseCache {
     fun getStats(): WarehouseStats? = statsCacheRef.get()
     
     fun put(item: WarehouseItem) {
-        val key = generateKey(item)
+        val key = StorageKeyUtil.generateKey(item)
         
         synchronized(cacheLock) {
             while (itemCache.size >= maxCacheSize && !itemCache.containsKey(key)) {
@@ -137,12 +137,12 @@ object WarehouseCache {
             }.add(key)
             
             typeCache.getOrPut(item.itemType) { mutableListOf() }.apply {
-                removeAll { generateKey(it) == key }
+                removeAll { StorageKeyUtil.generateKey(it) == key }
                 add(item)
             }
             
             rarityCache.getOrPut(item.rarity) { mutableListOf() }.apply {
-                removeAll { generateKey(it) == key }
+                removeAll { StorageKeyUtil.generateKey(it) == key }
                 add(item)
             }
         }
@@ -160,8 +160,8 @@ object WarehouseCache {
             keys.forEach { key ->
                 val item = itemCache.remove(key)
                 if (item != null) {
-                    typeCache[item.itemType]?.removeAll { generateKey(it) == key }
-                    rarityCache[item.rarity]?.removeAll { generateKey(it) == key }
+                    typeCache[item.itemType]?.removeAll { StorageKeyUtil.generateKey(it) == key }
+                    rarityCache[item.rarity]?.removeAll { StorageKeyUtil.generateKey(it) == key }
                 }
                 accessOrder.remove(key)
             }
@@ -170,7 +170,7 @@ object WarehouseCache {
     }
     
     fun removeItem(item: WarehouseItem) {
-        val key = generateKey(item)
+        val key = StorageKeyUtil.generateKey(item)
         
         synchronized(cacheLock) {
             itemCache.remove(key)
@@ -180,8 +180,8 @@ object WarehouseCache {
                 itemIdToKeys.remove(item.itemId)
             }
             
-            typeCache[item.itemType]?.removeAll { generateKey(it) == key }
-            rarityCache[item.rarity]?.removeAll { generateKey(it) == key }
+            typeCache[item.itemType]?.removeAll { StorageKeyUtil.generateKey(it) == key }
+            rarityCache[item.rarity]?.removeAll { StorageKeyUtil.generateKey(it) == key }
         }
         
         accessOrder.remove(key)
@@ -230,8 +230,8 @@ object WarehouseCache {
                     if (itemIdToKeys[item.itemId]?.isEmpty() == true) {
                         itemIdToKeys.remove(item.itemId)
                     }
-                    typeCache[item.itemType]?.removeAll { generateKey(it) == key }
-                    rarityCache[item.rarity]?.removeAll { generateKey(it) == key }
+                    typeCache[item.itemType]?.removeAll { StorageKeyUtil.generateKey(it) == key }
+                    rarityCache[item.rarity]?.removeAll { StorageKeyUtil.generateKey(it) == key }
                 }
                 accessOrder.remove(key)
                 evictionCount.incrementAndGet()
@@ -249,8 +249,8 @@ object WarehouseCache {
             if (itemIdToKeys[item.itemId]?.isEmpty() == true) {
                 itemIdToKeys.remove(item.itemId)
             }
-            typeCache[item.itemType]?.removeAll { generateKey(it) == eldestKey }
-            rarityCache[item.rarity]?.removeAll { generateKey(it) == eldestKey }
+            typeCache[item.itemType]?.removeAll { StorageKeyUtil.generateKey(it) == eldestKey }
+            rarityCache[item.rarity]?.removeAll { StorageKeyUtil.generateKey(it) == eldestKey }
         }
         
         evictionCount.incrementAndGet()
@@ -265,10 +265,6 @@ object WarehouseCache {
     fun getTypeCount(): Int = typeCache.size
     
     fun getMaxCacheSize(): Int = maxCacheSize
-    
-    fun generateKey(item: WarehouseItem): String {
-        return "${item.itemId}:${item.itemType}:${item.rarity}:${item.itemName}"
-    }
     
     fun getCacheMetrics(): CacheMetrics {
         synchronized(cacheLock) {

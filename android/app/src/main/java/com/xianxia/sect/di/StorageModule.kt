@@ -49,9 +49,10 @@ object StorageModule {
     @Provides
     @Singleton
     fun provideWAL(
-        @ApplicationContext context: Context
+        @ApplicationContext context: Context,
+        applicationScopeProvider: ApplicationScopeProvider
     ): WALProvider {
-        return FunctionalWAL(context)
+        return FunctionalWAL(context, applicationScopeProvider)
     }
 
     @Provides
@@ -136,7 +137,8 @@ object StorageModule {
         backupManager: BackupManager,
         dataArchiver: DataArchiver,
         memoryManager: DynamicMemoryManager,
-        metadataManager: MetadataManager
+        metadataManager: MetadataManager,
+        applicationScopeProvider: ApplicationScopeProvider
     ): StorageEngine {
         return StorageEngine(
             context = context,
@@ -151,7 +153,8 @@ object StorageModule {
             backupManager = backupManager,
             dataArchiver = dataArchiver,
             memoryManager = memoryManager,
-            metadataManager = metadataManager
+            metadataManager = metadataManager,
+            applicationScopeProvider = applicationScopeProvider
         )
     }
 

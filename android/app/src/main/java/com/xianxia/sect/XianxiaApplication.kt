@@ -7,6 +7,7 @@ import android.util.Log
 import com.xianxia.sect.core.data.ManualDatabase
 import com.xianxia.sect.core.util.GameMonitorManager
 import com.xianxia.sect.core.util.VivoGCJITOptimizer
+import com.xianxia.sect.data.crypto.SaveCrypto
 import com.xianxia.sect.data.facade.StorageFacade
 import com.xianxia.sect.data.recovery.RecoveryManager
 import dagger.hilt.android.HiltAndroidApp
@@ -59,6 +60,8 @@ class XianxiaApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+
+        SaveCrypto.initialize(applicationScopeProvider)
 
         gameMonitorManager.initialize(this)
         gameMonitorManager.startMonitoring()

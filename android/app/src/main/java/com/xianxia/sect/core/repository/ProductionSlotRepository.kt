@@ -207,7 +207,7 @@ class ProductionSlotRepository @Inject constructor(
 
             currentSlots[index] = newSlot
             _slots.value = currentSlots
-            cache.markDirty()
+            cache.updateCache(currentSlots)
 
             dao.update(newSlot)
 
@@ -254,7 +254,7 @@ class ProductionSlotRepository @Inject constructor(
             }
 
             _slots.value = currentSlots
-            cache.markDirty()
+            cache.updateCache(currentSlots)
 
             if (updatedSlots.isNotEmpty()) {
                 dao.updateAll(updatedSlots)
@@ -278,7 +278,7 @@ class ProductionSlotRepository @Inject constructor(
 
             currentSlots.add(slot)
             _slots.value = currentSlots
-            cache.markDirty()
+            cache.updateCache(currentSlots)
 
             dao.insert(slot)
 
@@ -301,7 +301,7 @@ class ProductionSlotRepository @Inject constructor(
 
             val removed = currentSlots.removeAt(index)
             _slots.value = currentSlots
-            cache.markDirty()
+            cache.updateCache(currentSlots)
 
             dao.deleteById(slotId)
 
@@ -325,7 +325,7 @@ class ProductionSlotRepository @Inject constructor(
             }
 
             _slots.value = allSlots
-            cache.invalidate()
+            cache.updateCache(allSlots)
             dao.deleteBySlot(slotId)
             dao.insertAll(allSlots)
 
@@ -348,7 +348,7 @@ class ProductionSlotRepository @Inject constructor(
             val allSlots = currentSlots + newSlots
 
             _slots.value = allSlots
-            cache.markDirty()
+            cache.updateCache(allSlots)
 
             dao.deleteBySlotAndBuildingType(slotId, buildingType)
             dao.insertAll(newSlots)
@@ -376,7 +376,7 @@ class ProductionSlotRepository @Inject constructor(
     suspend fun restoreSlots(slots: List<ProductionSlot>, slotId: Int) {
         globalMutex.withLock {
             _slots.value = slots
-            cache.invalidate()
+            cache.updateCache(slots)
             dao.deleteBySlot(slotId)
             dao.insertAll(slots)
             Log.d(TAG, "Restored ${slots.size} slots from save data for slotId=$slotId")
@@ -384,7 +384,7 @@ class ProductionSlotRepository @Inject constructor(
     }
 
     fun getStatistics(): SlotCacheStatistics {
-        return cache.getStatistics(_slots.value)
+        return cache.getStatistics()
     }
 
     fun isCacheDirty(): Boolean = cache.isDirty()

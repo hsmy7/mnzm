@@ -3,7 +3,6 @@ package com.xianxia.sect.core.util
 import android.os.Build
 import android.util.Log
 import java.lang.reflect.Method
-import java.util.Locale
 
 object VivoGCJITOptimizer {
 
@@ -100,7 +99,7 @@ object VivoGCJITOptimizer {
             val maxMem = Runtime.getRuntime().maxMemory()
             val targetLimit = (maxMem * 0.85).toLong()
             setGrowthLimitMethod.invoke(runtime, targetLimit)
-            Log.i(TAG, "Growth limit set to ${formatMemory(targetLimit)} (max=${formatMemory(maxMem)})")
+            Log.i(TAG, "Growth limit set to ${MemoryFormatUtil.formatMemory(targetLimit)} (max=${MemoryFormatUtil.formatMemory(maxMem)})")
         } catch (e: Exception) {
             Log.w(TAG, "setGrowthLimit not available: ${e.message}")
         }
@@ -307,17 +306,9 @@ object VivoGCJITOptimizer {
             |JIT Paused: $jitPaused
             |Original JIT State: $originalJitState
             |Initialized: $initialized
-            |Heap: used=${formatMemory(used)}, max=${formatMemory(rt.maxMemory())}
+            |Heap: used=${MemoryFormatUtil.formatMemory(used)}, max=${MemoryFormatUtil.formatMemory(rt.maxMemory())}
             |========================
         """.trimMargin())
     }
 
-    internal fun formatMemory(bytes: Long): String {
-        return when {
-            bytes < 1024 -> "$bytes B"
-            bytes < 1024 * 1024 -> String.format(Locale.getDefault(), "%.1f KB", bytes / 1024.0)
-            bytes < 1024 * 1024 * 1024 -> String.format(Locale.getDefault(), "%.1f MB", bytes / (1024.0 * 1024.0))
-            else -> String.format(Locale.getDefault(), "%.2f GB", bytes / (1024.0 * 1024.0 * 1024.0))
-        }
-    }
 }

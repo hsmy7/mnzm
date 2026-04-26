@@ -143,16 +143,16 @@ object OptimizedWarehouseManager {
     fun addItemsBatch(warehouse: SectWarehouse, items: List<WarehouseItem>): SectWarehouse {
         items.forEach { WarehouseDiffManager.queueAdd(it) }
         
-        val itemMap = warehouse.items.associateBy { generateKey(it) }.toMutableMap()
+        val itemMap = warehouse.items.associateBy { StorageKeyUtil.generateKey(it) }.toMutableMap()
         val existingIndices = mutableMapOf<String, Int>()
         
         warehouse.items.forEachIndexed { idx, item ->
-            existingIndices[generateKey(item)] = idx
+            existingIndices[StorageKeyUtil.generateKey(item)] = idx
         }
         
         var nextIndex = warehouse.items.size
         items.forEach { newItem ->
-            val key = generateKey(newItem)
+            val key = StorageKeyUtil.generateKey(newItem)
             val existing = itemMap[key]
             if (existing != null) {
                 val maxStack = inventoryConfig.getMaxStackSize(newItem.itemType)
@@ -166,7 +166,7 @@ object OptimizedWarehouseManager {
         val newWarehouse = warehouse.copy(items = newItems)
         
         newItems.forEachIndexed { idx, item ->
-            val key = generateKey(item)
+            val key = StorageKeyUtil.generateKey(item)
             if (!itemIndex.containsKey(key)) {
                 addToIndex(item, idx)
             }
@@ -390,10 +390,6 @@ object OptimizedWarehouseManager {
         WarehouseCache.clear()
         WarehouseDiffManager.reset()
         WarehouseCompressor.clearPools()
-    }
-    
-    fun generateKey(item: WarehouseItem): String {
-        return "${item.itemId}:${item.itemType}:${item.rarity}:${item.itemName}"
     }
 }
 
