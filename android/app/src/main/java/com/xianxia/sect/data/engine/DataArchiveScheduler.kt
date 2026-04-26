@@ -83,7 +83,7 @@ class DataArchiveScheduler @Inject constructor(
         Log.i(TAG, "Data archive scheduler shutdown")
     }
 
-    internal suspend fun performArchive(): ArchiveOperationResult = withContext(Dispatchers.IO) {
+    suspend fun performArchive(): ArchiveOperationResult = withContext(Dispatchers.IO) {
         val startTime = System.currentTimeMillis()
         var battleLogsArchived = 0
         var gameEventsArchived = 0

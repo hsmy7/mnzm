@@ -1,5 +1,14 @@
 # 模拟宗门 - 更新日志
 
+## [2.5.62] - 2026-04-27
+
+### 修复
+- 修复 Kotlin 可见性错误：public 函数暴露 internal 类型
+- DataArchiveScheduler.performArchive() 添加 internal 修饰符（返回 internal ArchiveOperationResult）
+- DataPruningScheduler.performPruning() 添加 internal 修饰符
+- DataPruningScheduler.getStats() 添加 internal 修饰符（返回 internal PruningStats）
+- StorageModule.provideStorageEngine() 添加 internal 修饰符（接收 internal ProactiveMemoryGuard 参数）
+
 ## [2.5.61] - 2026-04-27
 
 ### 架构优化
