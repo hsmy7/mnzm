@@ -1,5 +1,10 @@
 # 模拟宗门 - 更新日志
 
+## [2.5.61] - 2026-04-27
+
+### 架构优化
+- 在 GameEngineCore、GameMonitorManager、SaveLoadCoordinator 的注入点添加 @Suppress("DEPRECATION") 和 TODO 注释，标记待迁移至 UnifiedPerformanceMonitor
+
 ## [2.5.60] - 2026-04-27
 
 ### 架构优化

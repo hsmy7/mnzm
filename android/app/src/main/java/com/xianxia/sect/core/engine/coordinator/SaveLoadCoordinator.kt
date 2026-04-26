@@ -1,3 +1,4 @@
+@file:Suppress("DEPRECATION")
 package com.xianxia.sect.core.engine.coordinator
 
 import android.util.Log
@@ -8,9 +9,9 @@ import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
+@Suppress("DEPRECATION") // TODO: Migrate to UnifiedPerformanceMonitor (P1/P3 task)
 @Singleton
 class SaveLoadCoordinator @Inject constructor(
-    @Suppress("DEPRECATION") // TODO: Migrate to UnifiedPerformanceMonitor (P1/P3 task)
     private val performanceMonitor: PerformanceMonitor
 ) {
     companion object {

@@ -1,4 +1,5 @@
 @file:OptIn(DelicateCoroutinesApi::class)
+@file:Suppress("DEPRECATION")
 
 package com.xianxia.sect.core.engine
 
@@ -41,12 +42,12 @@ import javax.inject.Singleton
  * GameStateStore.unifiedState 通过 combine 自动派生，
  * UI 层订阅 unifiedState 即可获得最新状态，无需手动同步。
  */
+@Suppress("DEPRECATION") // TODO: Migrate to UnifiedPerformanceMonitor (P1/P3 task)
 @Singleton
 class GameEngineCore @Inject constructor(
     private val stateStore: GameStateStore,
     private val stateManager: UnifiedGameStateManager,
     private val eventBus: EventBus,
-    @Suppress("DEPRECATION") // TODO: Migrate to UnifiedPerformanceMonitor (P1/P3 task)
     private val performanceMonitor: GamePerformanceMonitor,
     private val systemManager: SystemManager
 ) {

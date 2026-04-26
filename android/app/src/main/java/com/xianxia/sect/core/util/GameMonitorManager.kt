@@ -182,7 +182,6 @@ class GameMonitorManager @Inject constructor(
     
     fun getMemoryMonitor(): MemoryMonitor = memoryMonitor
     
-    @Suppress("DEPRECATION") // TODO: Migrate to UnifiedPerformanceMonitor (P1/P3 task)
     fun getPerformanceMonitor(): PerformanceMonitor = performanceMonitor
     
     fun getGCOptimizer(): GCOptimizer = gcOptimizer
@@ -221,7 +220,6 @@ class GameMonitorManager @Inject constructor(
         unifiedPerformanceMonitor.removeListener(listener)
     }
     
-    @Suppress("DEPRECATION") // TODO: Migrate to UnifiedPerformanceMonitor (P1/P3 task)
     fun isPerformanceHealthy(): Boolean {
         val memoryInfo = memoryMonitor.getCurrentMemoryInfo()
         val isPerformanceOk = performanceMonitor.isPerformanceAcceptable()
@@ -229,7 +227,6 @@ class GameMonitorManager @Inject constructor(
         return isPerformanceOk && (memoryInfo == null || !memoryInfo.isCritical)
     }
     
-    @Suppress("DEPRECATION") // TODO: Migrate to UnifiedPerformanceMonitor (P1/P3 task)
     fun getOptimizationRecommendation(): OptimizationRecommendation {
         val memoryInfo = memoryMonitor.getCurrentMemoryInfo()
         val perfLevel = performanceMonitor.getRecommendedOptimizationLevel()
@@ -244,7 +241,6 @@ class GameMonitorManager @Inject constructor(
         )
     }
     
-    @Suppress("DEPRECATION") // TODO: Migrate to UnifiedPerformanceMonitor (P1/P3 task)
     data class OptimizationRecommendation(
         val performanceLevel: PerformanceMonitor.OptimizationLevel,
         val recommendedGCType: GCOptimizer.GCType,
