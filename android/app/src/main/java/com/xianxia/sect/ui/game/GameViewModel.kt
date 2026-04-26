@@ -133,7 +133,7 @@ class GameViewModel @Inject constructor(
     }
 
     val gameData: StateFlow<GameData> = gameEngine.gameData
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), gameEngine.gameData.value ?: GameData())
+        .stateIn(viewModelScope, sharingStarted, gameEngine.gameData.value ?: GameData())
 
     /**
      * 弟子聚合数据 - 用于 UI 层显示（推荐使用）
@@ -142,7 +142,7 @@ class GameViewModel @Inject constructor(
      * 确保 UI 层统一使用新的多表架构类型。
      */
     val discipleAggregates: StateFlow<List<DiscipleAggregate>> = gameEngine.discipleAggregates
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        .stateIn(viewModelScope, sharingStarted, emptyList())
 
     val disciples: StateFlow<List<DiscipleAggregate>> = discipleAggregates
 
@@ -154,13 +154,13 @@ class GameViewModel @Inject constructor(
      */
     val recruitListAggregates: StateFlow<List<DiscipleAggregate>> = gameData
         .map { data -> data.recruitList.map { it.toAggregate() } }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, sharingStarted, emptyList())
 
     val equipment: StateFlow<List<EquipmentInstance>> = gameEngine.equipmentInstances
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, sharingStarted, emptyList())
 
     val manuals: StateFlow<List<ManualInstance>> = gameEngine.manualInstances
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, sharingStarted, emptyList())
 
     val equipmentStacks: StateFlow<List<EquipmentStack>> = combine(
         gameEngine.equipmentStacks,
@@ -172,10 +172,10 @@ class GameViewModel @Inject constructor(
             .map { it.itemId }
             .toSet()
         stacks.filter { it.id !in bagStackIds }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    }.stateIn(viewModelScope, sharingStarted, emptyList())
 
     val equipmentInstances: StateFlow<List<EquipmentInstance>> = gameEngine.equipmentInstances
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, sharingStarted, emptyList())
 
     val manualStacks: StateFlow<List<ManualStack>> = combine(
         gameEngine.manualStacks,
@@ -187,41 +187,41 @@ class GameViewModel @Inject constructor(
             .map { it.itemId }
             .toSet()
         stacks.filter { it.id !in bagStackIds }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    }.stateIn(viewModelScope, sharingStarted, emptyList())
 
     val manualInstances: StateFlow<List<ManualInstance>> = gameEngine.manualInstances
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, sharingStarted, emptyList())
 
     val pills: StateFlow<List<Pill>> = gameEngine.pills
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, sharingStarted, emptyList())
 
     val materials: StateFlow<List<Material>> = gameEngine.materials
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, sharingStarted, emptyList())
 
     val herbs: StateFlow<List<Herb>> = gameEngine.herbs
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, sharingStarted, emptyList())
 
     val seeds: StateFlow<List<Seed>> = gameEngine.seeds
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, sharingStarted, emptyList())
 
     val teams: StateFlow<List<ExplorationTeam>> = gameEngine.teams
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, sharingStarted, emptyList())
 
     val events: StateFlow<List<GameEvent>> = gameEngine.events
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, sharingStarted, emptyList())
 
     val battleLogs: StateFlow<List<BattleLog>> = gameEngine.battleLogs
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, sharingStarted, emptyList())
 
     val alliances: StateFlow<List<Alliance>> = gameEngine.gameData
         .map { it.alliances }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, sharingStarted, emptyList())
 
     val productionSlots: StateFlow<List<com.xianxia.sect.core.model.production.ProductionSlot>> = gameEngine.productionSlots
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, sharingStarted, emptyList())
 
     val worldMapRenderData: StateFlow<WorldMapRenderData> = gameEngine.worldMapRenderData
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), WorldMapRenderData())
+        .stateIn(viewModelScope, sharingStarted, WorldMapRenderData())
 
     val alchemySlots: StateFlow<List<AlchemySlot>> = productionSlots
         .map { slots ->
@@ -246,13 +246,13 @@ class GameViewModel @Inject constructor(
                 )
             }
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, sharingStarted, emptyList())
 
     val highFrequencyData: StateFlow<HighFrequencyData> = gameEngine.highFrequencyData
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), HighFrequencyData())
+        .stateIn(viewModelScope, sharingStarted, HighFrequencyData())
 
     val realtimeCultivation: StateFlow<Map<String, Double>> = gameEngine.realtimeCultivation
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+        .stateIn(viewModelScope, sharingStarted, emptyMap())
 
     fun hasDisciplePosition(discipleId: String): Boolean {
         return disciplePositionQuery.hasDisciplePosition(discipleId)
@@ -302,7 +302,7 @@ class GameViewModel @Inject constructor(
                 )
             }
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, sharingStarted, emptyList())
 
     val allForgeRecipes: StateFlow<List<ForgeRecipeDatabase.ForgeRecipe>> = flow {
         emit(ForgeRecipeDatabase.getAllRecipes())
@@ -778,7 +778,7 @@ class GameViewModel @Inject constructor(
     val isGameOver: StateFlow<Boolean> = gameEngine.gameData
         .map { it.isGameOver }
         .distinctUntilChanged()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+        .stateIn(viewModelScope, sharingStarted, false)
 
     fun openGameOverDialog() {
         viewModelScope.launch {

@@ -20,14 +20,14 @@ class SectViewModel @Inject constructor(
 ) : BaseViewModel() {
 
     val gameData: StateFlow<GameData> = gameEngine.gameData
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), gameEngine.gameData.value)
+        .stateIn(viewModelScope, sharingStarted, gameEngine.gameData.value)
 
     /**
      * 转换后的弟子列表（使用新的 DiscipleAggregate 模型）
      * 用于 UI 层展示，避免使用废弃的 Disciple 类
      */
     val disciplesAggregates: StateFlow<List<DiscipleAggregate>> = gameEngine.discipleAggregates
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        .stateIn(viewModelScope, sharingStarted, emptyList())
 
     val disciples: StateFlow<List<DiscipleAggregate>> = disciplesAggregates
     

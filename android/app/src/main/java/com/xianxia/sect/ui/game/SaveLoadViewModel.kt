@@ -91,13 +91,13 @@ class SaveLoadViewModel @Inject constructor(
             pendingSlot = slot,
             pendingAction = action
         )
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), SaveLoadState())
+    }.stateIn(viewModelScope, sharingStarted, SaveLoadState())
 
     val isLoading: StateFlow<Boolean> = saveLoadState.map { it.isLoading }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+        .stateIn(viewModelScope, sharingStarted, false)
 
     val isSaving: StateFlow<Boolean> = saveLoadState.map { it.isSaving }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+        .stateIn(viewModelScope, sharingStarted, false)
 
     private val _isTimeRunning = MutableStateFlow(false)
     val isTimeRunning: StateFlow<Boolean> = _isTimeRunning.asStateFlow()

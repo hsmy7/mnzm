@@ -1,5 +1,31 @@
 # 模拟宗门 - 更新日志
 
+## [2.5.64] - 2026-04-27
+
+### 代码质量 P2 修复（完整）
+- P2-1: GameUtils.clamp/StringUtils.isEmpty/isNotEmpty/padLeft/padRight 添加 @Deprecated，推荐使用 Kotlin 标准库
+- P2-2: BattleCalculator.calculatePhysicalDamage/calculateMagicDamage 添加 @Deprecated，推荐使用 calculateDamage(isPhysicalAttack)
+- P2-3: 提取 MaterialChecker 接口，AlchemyRecipe/ForgeRecipe 实现该接口消除重复代码
+- P2-4: 提取 TimeProgressUtil 工具对象，8个类委托时间进度计算
+- P2-5: 删除 GameViewModel 中 11 个 closeXxxDialog 委托方法，调用方改用 closeCurrentDialog()
+- P2-6: 删除 showBuildingDetailDialog（与 openBuildingDetailDialog 完全重复）
+- P2-7: 创建 ElderSlotType 枚举替代字符串 slotType 参数
+- P2-8: 跳过（Pill/PillEffect @Embedded 重构需破坏性 Room Migration，留待大版本）
+- P2-9: 删除 getSaveSlotsFresh，调用方改用 getSaveSlots
+- P2-10: 重命名 com.xianxia.sect.core.data 包为 com.xianxia.sect.core.registry
+- P2-11: 提取 MemoryFormatUtil，4个文件的 formatMemory/formatBytes 统一使用 Locale.ROOT
+- P2-12: 提取 StorageKeyUtil，3个仓库文件的 generateKey 统一实现
+- P2-13: GamePerformanceMonitor/PerformanceMonitor 添加 @Deprecated，标注使用处 @Suppress
+- P2-14: 删除空 PerformanceModule 文件
+- P2-15: 合并 LazySlotCache/SlotQueryCache 为 SlotCache
+
+### 额外修复
+- 删除 StorageEngine.kt 中重复的内部类声明（已被提取到独立文件）
+- StorageModule.kt 添加缺失的构造函数参数（circuitBreaker/pruningScheduler/archiveScheduler/memoryGuard）
+- 修复 Kotlin 可见性错误（internal 类型通过 public API 暴露）
+- 修复 MaterialChecker key 映射错误（使用 name 而非 id）
+- DynamicMemoryManager.formatBytes 委托到 MemoryFormatUtil
+
 ## [2.5.62] - 2026-04-27
 
 ### 修复

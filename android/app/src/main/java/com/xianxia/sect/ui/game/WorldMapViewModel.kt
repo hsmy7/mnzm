@@ -18,13 +18,13 @@ class WorldMapViewModel @Inject constructor(
     }
 
     val worldMapRenderData: StateFlow<WorldMapRenderData> = gameEngine.worldMapRenderData
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), WorldMapRenderData())
+        .stateIn(viewModelScope, sharingStarted, WorldMapRenderData())
 
     val gameData: StateFlow<GameData> = gameEngine.gameData
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), GameData())
+        .stateIn(viewModelScope, sharingStarted, GameData())
 
     val discipleAggregates: StateFlow<List<DiscipleAggregate>> = gameEngine.discipleAggregates
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        .stateIn(viewModelScope, sharingStarted, emptyList())
 
     private val _showScoutDialog = MutableStateFlow(false)
     val showScoutDialog: StateFlow<Boolean> = _showScoutDialog.asStateFlow()

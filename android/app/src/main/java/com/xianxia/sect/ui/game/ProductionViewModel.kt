@@ -32,7 +32,7 @@ class ProductionViewModel @Inject constructor(
     }
 
     val productionSlots: StateFlow<List<ProductionSlot>> = gameEngine.productionSlots
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, sharingStarted, emptyList())
 
     val alchemySlots: StateFlow<List<AlchemySlot>> = productionSlots
         .map { slots ->
@@ -57,7 +57,7 @@ class ProductionViewModel @Inject constructor(
                 )
             }
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, sharingStarted, emptyList())
 
     val forgeSlots: StateFlow<List<ForgeSlot>> = productionSlots
         .map { slots ->
@@ -83,20 +83,20 @@ class ProductionViewModel @Inject constructor(
                 )
             }
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, sharingStarted, emptyList())
 
     val allForgeRecipes: StateFlow<List<ForgeRecipeDatabase.ForgeRecipe>> = flow {
         emit(ForgeRecipeDatabase.getAllRecipes())
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     val herbs: StateFlow<List<Herb>> = gameEngine.herbs
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, sharingStarted, emptyList())
 
     val seeds: StateFlow<List<Seed>> = gameEngine.seeds
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, sharingStarted, emptyList())
 
     val materials: StateFlow<List<Material>> = gameEngine.materials
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, sharingStarted, emptyList())
 
     private val _isStartingAlchemy = MutableStateFlow(false)
     val isStartingAlchemy: StateFlow<Boolean> = _isStartingAlchemy.asStateFlow()
@@ -300,7 +300,7 @@ class ProductionViewModel @Inject constructor(
     }
 
     val discipleAggregates: StateFlow<List<DiscipleAggregate>> = gameEngine.discipleAggregates
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        .stateIn(viewModelScope, sharingStarted, emptyList())
 
     private val disciples = gameEngine.disciples
 
@@ -528,7 +528,7 @@ class ProductionViewModel @Inject constructor(
     val autoPlantEnabled: StateFlow<Boolean> = gameEngine.gameData
         .map { it.sectPolicies.autoPlant }
         .distinctUntilChanged()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+        .stateIn(viewModelScope, sharingStarted, false)
 
     fun toggleAutoPlant() {
         viewModelScope.launch {
@@ -539,7 +539,7 @@ class ProductionViewModel @Inject constructor(
     val autoAlchemyEnabled: StateFlow<Boolean> = gameEngine.gameData
         .map { it.sectPolicies.autoAlchemy }
         .distinctUntilChanged()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+        .stateIn(viewModelScope, sharingStarted, false)
 
     fun toggleAutoAlchemy() {
         viewModelScope.launch {
@@ -550,7 +550,7 @@ class ProductionViewModel @Inject constructor(
     val autoForgeEnabled: StateFlow<Boolean> = gameEngine.gameData
         .map { it.sectPolicies.autoForge }
         .distinctUntilChanged()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+        .stateIn(viewModelScope, sharingStarted, false)
 
     fun toggleAutoForge() {
         viewModelScope.launch {
