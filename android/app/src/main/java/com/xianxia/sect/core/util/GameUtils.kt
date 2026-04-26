@@ -156,10 +156,13 @@ object GameUtils {
     
     fun <T> shuffle(list: List<T>): List<T> = list.shuffled()
     
+    @Deprecated("Use Kotlin coerceIn() directly", ReplaceWith("value.coerceIn(min, max)"))
     fun clamp(value: Int, min: Int, max: Int): Int = value.coerceIn(min, max)
-    
+
+    @Deprecated("Use Kotlin coerceIn() directly", ReplaceWith("value.coerceIn(min, max)"))
     fun clamp(value: Long, min: Long, max: Long): Long = value.coerceIn(min, max)
-    
+
+    @Deprecated("Use Kotlin coerceIn() directly", ReplaceWith("value.coerceIn(min, max)"))
     fun clamp(value: Double, min: Double, max: Double): Double = value.coerceIn(min, max)
     
     fun formatNumber(value: Long): String {
@@ -302,9 +305,11 @@ object CollectionUtils {
 }
 
 object StringUtils {
-    
+
+    @Deprecated("Use String?.isNullOrEmpty() directly", ReplaceWith("str.isNullOrEmpty()"))
     fun isEmpty(str: String?): Boolean = str.isNullOrEmpty()
-    
+
+    @Deprecated("Use !String?.isNullOrEmpty() directly", ReplaceWith("!str.isNullOrEmpty()"))
     fun isNotEmpty(str: String?): Boolean = !str.isNullOrEmpty()
     
     fun truncate(str: String, maxLength: Int, suffix: String = "..."): String {
@@ -313,11 +318,13 @@ object StringUtils {
         if (maxLength <= suffix.length) return suffix.take(maxLength)
         return str.take(maxLength - suffix.length) + suffix
     }
-    
+
+    @Deprecated("Use String.padStart() directly", ReplaceWith("str.padStart(length, padChar)"))
     fun padLeft(str: String, length: Int, padChar: Char = ' '): String {
         return str.padStart(length, padChar)
     }
-    
+
+    @Deprecated("Use String.padEnd() directly", ReplaceWith("str.padEnd(length, padChar)"))
     fun padRight(str: String, length: Int, padChar: Char = ' '): String {
         return str.padEnd(length, padChar)
     }

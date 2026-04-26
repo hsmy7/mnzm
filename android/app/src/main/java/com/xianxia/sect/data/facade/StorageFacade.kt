@@ -324,22 +324,6 @@ class StorageFacade @Inject constructor(
         }
     }
 
-    @WorkerThread
-    fun getSaveSlotsFresh(): List<SaveSlot> {
-        return try {
-            runBlocking(Dispatchers.IO) {
-                engine.getSaveSlots()
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "getSaveSlotsFresh failed", e)
-            val autoSlot = SaveSlot(StorageConstants.AUTO_SAVE_SLOT, "", 0, 1, 1, "", 0, 0, true, isAutoSave = true)
-            val manualSlots = (1..lockManager.getMaxSlots()).map { slot ->
-                SaveSlot(slot, "", 0, 1, 1, "", 0, 0, true)
-            }
-            listOf(autoSlot) + manualSlots
-        }
-    }
-
     fun setCurrentSlot(slot: Int) {
         if (lockManager.isValidSlot(slot)) {
             _currentSlot.value = slot

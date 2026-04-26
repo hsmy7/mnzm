@@ -5,6 +5,7 @@ import androidx.room.Entity
 import androidx.room.Index
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.production.ProductionSlot
+import com.xianxia.sect.core.util.TimeProgressUtil
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 
@@ -394,18 +395,12 @@ data class PlantSlotData(
 
     fun isFinished(currentYear: Int, currentMonth: Int): Boolean {
         if (status != "growing") return status == "mature"
-        val yearDiff = (currentYear - startYear).toLong()
-        val monthDiff = (currentMonth - startMonth).toLong()
-        val elapsedMonths = yearDiff * 12 + monthDiff
-        return elapsedMonths >= growTime
+        return TimeProgressUtil.isTimeElapsed(startYear, startMonth, growTime, currentYear, currentMonth)
     }
 
     fun remainingTime(currentYear: Int, currentMonth: Int): Int {
         if (status != "growing") return 0
-        val yearDiff = (currentYear - startYear).toLong()
-        val monthDiff = (currentMonth - startMonth).toLong()
-        val elapsedMonths = yearDiff * 12 + monthDiff
-        return (growTime - elapsedMonths.toInt()).coerceAtLeast(0)
+        return TimeProgressUtil.calculateRemainingMonths(startYear, startMonth, growTime, currentYear, currentMonth)
     }
 
     companion object {

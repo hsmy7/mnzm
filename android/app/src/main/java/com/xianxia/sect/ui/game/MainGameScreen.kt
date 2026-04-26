@@ -230,7 +230,7 @@ fun MainGameScreen(
                 recruitList = recruitList,
                 gameData = gameData,
                 viewModel = viewModel,
-                onDismiss = { viewModel.closeRecruitDialog() }
+                onDismiss = { viewModel.closeCurrentDialog() }
             )
         }
         
@@ -239,7 +239,7 @@ fun MainGameScreen(
                 gameData = gameData,
                 viewModel = viewModel,
                 worldMapViewModel = worldMapViewModel,
-                onDismiss = { viewModel.closeDiplomacyDialog() }
+                onDismiss = { viewModel.closeCurrentDialog() }
             )
         }
 
@@ -247,14 +247,14 @@ fun MainGameScreen(
             MerchantDialog(
                 gameData = gameData,
                 viewModel = viewModel,
-                onDismiss = { viewModel.closeMerchantDialog() }
+                onDismiss = { viewModel.closeCurrentDialog() }
             )
         }
 
         if (showEventLogDialog) {
             EventLogDialog(
                 events = events,
-                onDismiss = { viewModel.closeEventLogDialog() }
+                onDismiss = { viewModel.closeCurrentDialog() }
             )
         }
 
@@ -262,7 +262,7 @@ fun MainGameScreen(
             SalaryConfigDialog(
                 gameData = gameData,
                 viewModel = viewModel,
-                onDismiss = { viewModel.closeSalaryConfigDialog() }
+                onDismiss = { viewModel.closeCurrentDialog() }
             )
         }
 
@@ -277,7 +277,7 @@ fun MainGameScreen(
                 worldMapViewModel = worldMapViewModel,
                 battleViewModel = battleViewModel,
                 battleTeamMoveMode = battleTeamMoveMode,
-                onDismiss = { viewModel.closeWorldMapDialog() }
+                onDismiss = { viewModel.closeCurrentDialog() }
             )
         }
 
@@ -285,7 +285,7 @@ fun MainGameScreen(
             SecretRealmDialog(
                 disciples = disciples.filter { it.isAlive },
                 viewModel = viewModel,
-                onDismiss = { viewModel.closeSecretRealmDialog() }
+                onDismiss = { viewModel.closeCurrentDialog() }
             )
         }
 
@@ -399,18 +399,18 @@ fun MainGameScreen(
         if (showBattleLogDialog) {
             BattleLogListDialog(
                 battleLogs = battleLogs,
-                onDismiss = { viewModel.closeBattleLogDialog() }
+                onDismiss = { viewModel.closeCurrentDialog() }
             )
         }
 
         if (showGameOverDialog) {
             GameOverDialog(
                 onRestartGame = {
-                    viewModel.closeGameOverDialog()
+                    viewModel.closeCurrentDialog()
                     onRestartGame()
                 },
                 onReturnToMain = {
-                    viewModel.closeGameOverDialog()
+                    viewModel.closeCurrentDialog()
                     onLogout()
                 }
             )

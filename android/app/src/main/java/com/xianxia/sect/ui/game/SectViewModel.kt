@@ -27,8 +27,8 @@ class SectViewModel @Inject constructor(
     private val _successMessage = MutableStateFlow<String?>(null)
     val successMessage: StateFlow<String?> = _successMessage.asStateFlow()
 
-    fun clearErrorMessage() { _errorMessage.value = null }
-    fun clearSuccessMessage() { _successMessage.value = null }
+    fun clearErrorMessage() { clearErrorMessage() }
+    fun clearSuccessMessage() { clearSuccessMessage() }
     
     val gameData: StateFlow<GameData> = gameEngine.gameData
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), gameEngine.gameData.value)
@@ -57,11 +57,11 @@ class SectViewModel @Inject constructor(
             try {
                 val disciple = disciples.value.find { it.id == discipleId }
                 if (disciple == null) {
-                    _errorMessage.value = "弟子不存在"
+                    showError("弟子不存在")
                     return@launch
                 }
                 if (disciple.realm > REALM_VICE_SECT_MASTER) {
-                    _errorMessage.value = "副宗主需要达到炼虚境界"
+                    showError("副宗主需要达到炼虚境界")
                     return@launch
                 }
 
@@ -80,16 +80,16 @@ class SectViewModel @Inject constructor(
                 ).filterNotNull().filter { it.isNotBlank() }
 
                 if (!allElderIds.contains(discipleId)) {
-                    _errorMessage.value = "副宗主需要由长老担任"
+                    showError("副宗主需要由长老担任")
                     return@launch
                 }
 
                 gameEngine.updateGameData {
                     it.copy(elderSlots = it.elderSlots.copy(viceSectMaster = discipleId))
                 }
-                _successMessage.value = "副宗主任命成功"
+                showSuccess("副宗主任命成功")
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "任命失败"
+                showError(e.message ?: "任命失败")
             }
         }
     }
@@ -101,9 +101,9 @@ class SectViewModel @Inject constructor(
                 gameEngine.updateGameData {
                     it.copy(elderSlots = it.elderSlots.copy(viceSectMaster = ""))
                 }
-                _successMessage.value = "副宗主已卸任"
+                showSuccess("副宗主已卸任")
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "卸任失败"
+                showError(e.message ?: "卸任失败")
             }
         }
     }
@@ -113,7 +113,7 @@ class SectViewModel @Inject constructor(
             try {
                 val disciple = disciples.value.find { it.id == discipleId }
                 if (disciple == null) {
-                    _errorMessage.value = "弟子不存在"
+                    showError("弟子不存在")
                     return@launch
                 }
                 
@@ -131,7 +131,7 @@ class SectViewModel @Inject constructor(
                         ElderSlotType.VICE_SECT_MASTER -> "副宗主"
                         else -> "长老"
                     }
-                    _errorMessage.value = "${positionName}需要达到${realmName}境界"
+                    showError("${positionName}需要达到${realmName}境界")
                     return@launch
                 }
                 
@@ -161,12 +161,12 @@ class SectViewModel @Inject constructor(
                 ).flatten().mapNotNull { it.discipleId }.filter { it.isNotBlank() }
 
                 if (allElderIds.contains(discipleId)) {
-                    _errorMessage.value = "该弟子已担任长老职位"
+                    showError("该弟子已担任长老职位")
                     return@launch
                 }
 
                 if (allDirectDiscipleIds.contains(discipleId)) {
-                    _errorMessage.value = "该弟子已是其他长老的亲传弟子"
+                    showError("该弟子已是其他长老的亲传弟子")
                     return@launch
                 }
                 
@@ -206,9 +206,9 @@ class SectViewModel @Inject constructor(
                     )
                 }
                 gameEngine.updateElderSlots(newElderSlots)
-                _successMessage.value = "长老任命成功"
+                showSuccess("长老任命成功")
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "任命失败"
+                showError(e.message ?: "任命失败")
             }
         }
     }
@@ -254,9 +254,9 @@ class SectViewModel @Inject constructor(
                     )
                 }
                 gameEngine.updateElderSlots(newElderSlots)
-                _successMessage.value = "长老已卸任"
+                showSuccess("长老已卸任")
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "卸任失败"
+                showError(e.message ?: "卸任失败")
             }
         }
     }
@@ -266,7 +266,7 @@ class SectViewModel @Inject constructor(
             try {
                 val disciple = disciples.value.find { it.id == discipleId }
                 if (disciple == null) {
-                    _errorMessage.value = "弟子不存在"
+                    showError("弟子不存在")
                     return@launch
                 }
                 
@@ -286,12 +286,12 @@ class SectViewModel @Inject constructor(
                 ).flatten().mapNotNull { it.discipleId }
 
                 if (allElderIds.contains(discipleId)) {
-                    _errorMessage.value = "该弟子已担任长老职位"
+                    showError("该弟子已担任长老职位")
                     return@launch
                 }
 
                 if (allDirectDiscipleIds.contains(discipleId)) {
-                    _errorMessage.value = "该弟子已是其他长老的亲传弟子"
+                    showError("该弟子已是其他长老的亲传弟子")
                     return@launch
                 }
 
@@ -303,9 +303,9 @@ class SectViewModel @Inject constructor(
                     discipleRealm = disciple.realmName,
                     discipleSpiritRootColor = disciple.spiritRoot.countColor
                 )
-                _successMessage.value = "亲传弟子任命成功"
+                showSuccess("亲传弟子任命成功")
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "分配失败"
+                showError(e.message ?: "分配失败")
             }
         }
     }
@@ -314,9 +314,9 @@ class SectViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 gameEngine.removeDirectDisciple(elderSlotType, slotIndex)
-                _successMessage.value = "亲传弟子已移除"
+                showSuccess("亲传弟子已移除")
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "卸任失败"
+                showError(e.message ?: "卸任失败")
             }
         }
     }
@@ -364,24 +364,24 @@ class SectViewModel @Inject constructor(
             try {
                 val disciple = disciples.value.find { it.id == discipleId }
                 if (disciple == null) {
-                    _errorMessage.value = "弟子不存在"
+                    showError("弟子不存在")
                     return@launch
                 }
                 
                 if (hasDisciplePosition(discipleId)) {
                     val position = getDisciplePosition(discipleId)
-                    _errorMessage.value = "该弟子已担任${position}，不可同时担任多个职务"
+                    showError("该弟子已担任${position}，不可同时担任多个职务")
                     return@launch
                 }
                 
                 if (isReserveDisciple(discipleId)) {
-                    _errorMessage.value = "该弟子已是其他部门的储备弟子"
+                    showError("该弟子已是其他部门的储备弟子")
                     return@launch
                 }
                 
                 val currentReserveDisciples = gameEngine.gameData.value.elderSlots.lawEnforcementReserveDisciples
                 if (currentReserveDisciples.any { it.discipleId == discipleId }) {
-                    _errorMessage.value = "该弟子已是储备弟子"
+                    showError("该弟子已是储备弟子")
                     return@launch
                 }
                 
@@ -400,9 +400,9 @@ class SectViewModel @Inject constructor(
                 )
                 gameEngine.updateGameData { it.copy(elderSlots = updatedElderSlots) }
                 gameEngine.syncAllDiscipleStatuses()
-                _successMessage.value = "储备弟子添加成功"
+                showSuccess("储备弟子添加成功")
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "添加失败"
+                showError(e.message ?: "添加失败")
             }
         }
     }
@@ -417,9 +417,9 @@ class SectViewModel @Inject constructor(
                 )
                 gameEngine.updateGameData { it.copy(elderSlots = updatedElderSlots) }
                 gameEngine.syncAllDiscipleStatuses()
-                _successMessage.value = "储备弟子已移除"
+                showSuccess("储备弟子已移除")
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "移除失败"
+                showError(e.message ?: "移除失败")
             }
         }
     }
@@ -447,7 +447,7 @@ class SectViewModel @Inject constructor(
             viewModelScope.launch {
                 gameEngine.updateGameData {
                     if (it.spiritStones < requiredStones) {
-                        _errorMessage.value = "灵石不足${requiredStones}，无法开启增强治安政策"
+                        showError("灵石不足${requiredStones}，无法开启增强治安政策")
                         it
                     } else {
                         it.copy(
@@ -480,7 +480,7 @@ class SectViewModel @Inject constructor(
             viewModelScope.launch {
                 gameEngine.updateGameData {
                     if (it.spiritStones < requiredStones) {
-                        _errorMessage.value = "灵石不足${requiredStones}，无法开启丹道激励政策"
+                        showError("灵石不足${requiredStones}，无法开启丹道激励政策")
                         it
                     } else {
                         it.copy(
@@ -511,7 +511,7 @@ class SectViewModel @Inject constructor(
             viewModelScope.launch {
                 gameEngine.updateGameData {
                     if (it.spiritStones < requiredStones) {
-                        _errorMessage.value = "灵石不足${requiredStones}，无法开启锻造激励政策"
+                        showError("灵石不足${requiredStones}，无法开启锻造激励政策")
                         it
                     } else {
                         it.copy(
@@ -542,7 +542,7 @@ class SectViewModel @Inject constructor(
             viewModelScope.launch {
                 gameEngine.updateGameData {
                     if (it.spiritStones < requiredStones) {
-                        _errorMessage.value = "灵石不足${requiredStones}，无法开启灵药培育政策"
+                        showError("灵石不足${requiredStones}，无法开启灵药培育政策")
                         it
                     } else {
                         it.copy(
@@ -573,7 +573,7 @@ class SectViewModel @Inject constructor(
             viewModelScope.launch {
                 gameEngine.updateGameData {
                     if (it.spiritStones < requiredStones) {
-                        _errorMessage.value = "灵石不足${requiredStones}，无法开启修行津贴政策"
+                        showError("灵石不足${requiredStones}，无法开启修行津贴政策")
                         it
                     } else {
                         it.copy(
@@ -604,7 +604,7 @@ class SectViewModel @Inject constructor(
             viewModelScope.launch {
                 gameEngine.updateGameData {
                     if (it.spiritStones < requiredStones) {
-                        _errorMessage.value = "灵石不足${requiredStones}，无法开启功法研习政策"
+                        showError("灵石不足${requiredStones}，无法开启功法研习政策")
                         it
                     } else {
                         it.copy(

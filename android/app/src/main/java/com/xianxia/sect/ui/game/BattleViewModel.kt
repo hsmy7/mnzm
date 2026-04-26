@@ -1,7 +1,6 @@
 package com.xianxia.sect.ui.game
 
 import android.util.Log
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.model.*
@@ -13,7 +12,7 @@ import javax.inject.Inject
 @HiltViewModel
 class BattleViewModel @Inject constructor(
     private val gameEngine: GameEngine
-) : ViewModel() {
+) : BaseViewModel() {
     
     companion object {
         private const val TAG = "BattleViewModel"
@@ -32,12 +31,6 @@ class BattleViewModel @Inject constructor(
 
     val disciples: StateFlow<List<DiscipleAggregate>> = disciplesAggregates
     
-    private val _errorMessage = MutableStateFlow<String?>(null)
-    val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
-    
-    private val _successMessage = MutableStateFlow<String?>(null)
-    val successMessage: StateFlow<String?> = _successMessage.asStateFlow()
-    
     private val _battleTeamMoveMode = MutableStateFlow(false)
     val battleTeamMoveMode: StateFlow<Boolean> = _battleTeamMoveMode.asStateFlow()
     
@@ -50,14 +43,6 @@ class BattleViewModel @Inject constructor(
         }
     })
     val battleTeamSlots: StateFlow<List<BattleTeamSlot>> = _battleTeamSlots.asStateFlow()
-    
-    fun clearErrorMessage() {
-        _errorMessage.value = null
-    }
-    
-    fun clearSuccessMessage() {
-        _successMessage.value = null
-    }
     
     fun hasBattleTeam(): Boolean {
         return gameEngine.gameData.value.battleTeam != null
@@ -87,7 +72,7 @@ class BattleViewModel @Inject constructor(
     
     fun formBattleTeam(elderIds: List<String>, discipleIds: List<String>): Boolean {
         if (elderIds.isEmpty() && discipleIds.isEmpty()) {
-            _errorMessage.value = "请至少选择一名成员"
+            showError("请至少选择一名成员")
             return false
         }
 
@@ -97,7 +82,7 @@ class BattleViewModel @Inject constructor(
                 val cost = BATTLE_TEAM_FORMATION_COST
 
                 if (currentStones < cost) {
-                    _errorMessage.value = "灵石不足1000，无法组建战斗队伍"
+                    showError("灵石不足1000，无法组建战斗队伍")
                     return@launch
                 }
 
@@ -154,9 +139,9 @@ class BattleViewModel @Inject constructor(
                 }
                 
                 _battleTeamSlots.value = slots
-                _successMessage.value = "战斗队伍组建成功"
+                showSuccess("战斗队伍组建成功")
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "组建队伍失败"
+                showError(e.message ?: "组建队伍失败")
             }
         }
         return true
@@ -165,17 +150,17 @@ class BattleViewModel @Inject constructor(
     fun disbandBattleTeam(): Boolean {
         val team = gameEngine.gameData.value.battleTeam
         if (team == null) {
-            _errorMessage.value = "没有可解散的战斗队伍"
+            showError("没有可解散的战斗队伍")
             return false
         }
         
         if (!team.isIdle) {
-            _errorMessage.value = "队伍正在移动或战斗中，无法解散"
+            showError("队伍正在移动或战斗中，无法解散")
             return false
         }
         
         if (!team.isAtSect) {
-            _errorMessage.value = "队伍不在宗门，无法解散"
+            showError("队伍不在宗门，无法解散")
             return false
         }
         
@@ -193,9 +178,9 @@ class BattleViewModel @Inject constructor(
                     }
                 }
                 
-                _successMessage.value = "战斗队伍已解散"
+                showSuccess("战斗队伍已解散")
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "解散队伍失败"
+                showError(e.message ?: "解散队伍失败")
             }
         }
         return true
@@ -261,7 +246,7 @@ class BattleViewModel @Inject constructor(
     fun startBattleTeamMoveMode() {
         val team = gameEngine.gameData.value.battleTeam
         if (team == null || !team.isIdle || !team.isAtSect) {
-            _errorMessage.value = "战斗队伍无法移动"
+            showError("战斗队伍无法移动")
             return
         }
         _battleTeamMoveMode.value = true
@@ -277,20 +262,20 @@ class BattleViewModel @Inject constructor(
         val targetSect = data.worldMapSects.find { it.id == targetSectId }
         
         if (playerSect == null || targetSect == null) {
-            _errorMessage.value = "无效的目标宗门"
+            showError("无效的目标宗门")
             _battleTeamMoveMode.value = false
             return
         }
         
         if (targetSect.isPlayerSect) {
-            _errorMessage.value = "不能攻击自己的宗门"
+            showError("不能攻击自己的宗门")
             _battleTeamMoveMode.value = false
             return
         }
 
         val playerSectId = playerSect.id
         if (targetSect.isPlayerOccupied && targetSect.occupierSectId == playerSectId) {
-            _errorMessage.value = "不能攻击自己占领的宗门"
+            showError("不能攻击自己占领的宗门")
             _battleTeamMoveMode.value = false
             return
         }
@@ -381,14 +366,14 @@ class BattleViewModel @Inject constructor(
         val currentSlots = _battleTeamSlots.value.toMutableList()
 
         if (slotIndex < 0 || slotIndex >= currentSlots.size) {
-            _errorMessage.value = "槽位索引无效"
+            showError("槽位索引无效")
             return
         }
 
         val slotType = currentSlots[slotIndex].slotType
 
         if (slotType == BattleSlotType.ELDER && disciple.realm > 5) {
-            _errorMessage.value = "战斗长老需要达到化神境界"
+            showError("战斗长老需要达到化神境界")
             return
         }
 
@@ -411,19 +396,19 @@ class BattleViewModel @Inject constructor(
         val filledSlots = currentSlots.count { it.discipleId.isNotEmpty() }
 
         if (filledSlots < 10) {
-            _errorMessage.value = "必须满10名弟子才可组建队伍"
+            showError("必须满10名弟子才可组建队伍")
             return false
         }
 
         val elderSlots = currentSlots.filter { it.slotType == BattleSlotType.ELDER }
         if (elderSlots.any { it.discipleId.isEmpty() }) {
-            _errorMessage.value = "必须填满长老槽位才可组建队伍"
+            showError("必须填满长老槽位才可组建队伍")
             return false
         }
 
         val existingTeam = gameEngine.gameData.value.battleTeam
         if (existingTeam != null && existingTeam.isAtSect) {
-            _errorMessage.value = "宗门地址上已存在战斗队伍"
+            showError("宗门地址上已存在战斗队伍")
             return false
         }
 
@@ -442,7 +427,7 @@ class BattleViewModel @Inject constructor(
 
                 closeBattleTeamDialog()
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "组建队伍失败"
+                showError(e.message ?: "组建队伍失败")
             }
         }
         return true
@@ -451,12 +436,12 @@ class BattleViewModel @Inject constructor(
     fun returnStationedBattleTeam() {
         val team = gameEngine.gameData.value.battleTeam
         if (team == null) {
-            _errorMessage.value = "没有可召回的战斗队伍"
+            showError("没有可召回的战斗队伍")
             return
         }
 
         if (!team.isStationed) {
-            _errorMessage.value = "队伍未在驻守状态，无法召回"
+            showError("队伍未在驻守状态，无法召回")
             return
         }
 
@@ -510,9 +495,9 @@ class BattleViewModel @Inject constructor(
                 }
 
                 closeBattleTeamDialog()
-                _successMessage.value = "战斗队伍正在返回中"
+                showSuccess("战斗队伍正在返回中")
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "召回队伍失败"
+                showError(e.message ?: "召回队伍失败")
             }
         }
     }

@@ -130,6 +130,7 @@ object BattleCalculator {
         }
     }
 
+    @Deprecated("Use calculateDamage(isPhysicalAttack = true) instead", ReplaceWith("calculateDamage(attacker, defender, multiplier, isPhysicalAttack = true).damage"))
     fun calculatePhysicalDamage(
         attacker: CombatantStats,
         defender: CombatantStats,
@@ -145,6 +146,7 @@ object BattleCalculator {
         return (baseDamage * variance).toInt().coerceAtLeast(GameConfig.Battle.MIN_DAMAGE).coerceAtMost(Int.MAX_VALUE / 2)
     }
 
+    @Deprecated("Use calculateDamage(isPhysicalAttack = false) instead", ReplaceWith("calculateDamage(attacker, defender, multiplier, isPhysicalAttack = false).damage"))
     fun calculateMagicDamage(
         attacker: CombatantStats,
         defender: CombatantStats,

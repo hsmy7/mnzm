@@ -172,22 +172,21 @@ data class DiscipleAggregate(
      * 与旧 Disciple.getBaseStats() 保持完全一致
      */
     fun getBaseStats(): DiscipleStats {
-        // 将 DiscipleAggregate 转换为 Disciple 后调用计算器
-        return DiscipleStatCalculator.getBaseStats(this.toDisciple())
+        return DiscipleStatCalculator.getBaseStats(this)
     }
     
     /**
      * 获取弟子所有天赋的效果汇总
      */
     fun getTalentEffects(): Map<String, Double> {
-        return DiscipleStatCalculator.getTalentEffects(this.toDisciple())
+        return DiscipleStatCalculator.getTalentEffects(this)
     }
     
     /**
      * 计算弟子穿戴装备后的属性（不含功法和丹药）
      */
     fun getStatsWithEquipment(equipments: Map<String, EquipmentInstance>): DiscipleStats {
-        return DiscipleStatCalculator.getStatsWithEquipment(this.toDisciple(), equipments)
+        return DiscipleStatCalculator.getStatsWithEquipment(this, equipments)
     }
     
     /**
@@ -199,9 +198,7 @@ data class DiscipleAggregate(
         manuals: Map<String, ManualInstance>,
         manualProficiencies: Map<String, ManualProficiencyData> = emptyMap()
     ): DiscipleStats {
-        return DiscipleStatCalculator.getFinalStats(
-            this.toDisciple(), equipments, manuals, manualProficiencies
-        )
+        return DiscipleStatCalculator.getFinalStats(this, equipments, manuals, manualProficiencies)
     }
     
     /**
@@ -217,7 +214,7 @@ data class DiscipleAggregate(
         cultivationSubsidyBonus: Double = 0.0
     ): Double {
         return DiscipleStatCalculator.calculateCultivationSpeed(
-            this.toDisciple(), manuals, manualProficiencies,
+            this, manuals, manualProficiencies,
             buildingBonus = buildingBonus,
             additionalBonus = additionalBonus,
             preachingElderBonus = preachingElderBonus,
@@ -233,7 +230,7 @@ data class DiscipleAggregate(
      * 计算突破成功率
      */
     fun getBreakthroughChance(): Double {
-        return DiscipleStatCalculator.getBreakthroughChance(this.toDisciple())
+        return DiscipleStatCalculator.getBreakthroughChance(this)
     }
     
     fun toDisciple(): Disciple {

@@ -301,9 +301,9 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             val saveSlots = withContext(Dispatchers.IO) {
                 try {
-                    storageFacade.getSaveSlotsFresh()
+                    storageFacade.getSaveSlots()
                 } catch (e: Exception) {
-                    Log.e(TAG, "getSaveSlotsFresh failed, falling back to cache", e)
+                    Log.e(TAG, "getSaveSlots failed, falling back to cache", e)
                     storageFacade.getSaveSlots()
                 }
             }

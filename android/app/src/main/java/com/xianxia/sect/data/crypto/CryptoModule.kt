@@ -113,6 +113,7 @@ class CryptoModule @Inject constructor(
     fun importKeyRecoveryToken(context: Context, token: String): Boolean =
         SecureKeyManager.importKeyRecoveryToken(token, context)
 
+    @Deprecated("Use StorageEngine.validateIntegrity() instead — this method cannot verify Merkle root without database access", ReplaceWith("storageEngine.validateIntegrity(slot)"))
     fun validateIntegrity(slot: Int): IntegrityReport {
         return try {
             val key = getOrCreateKey(context)
@@ -122,8 +123,6 @@ class CryptoModule @Inject constructor(
                 .digest(key)
                 .joinToString("") { "%02x".format(it) }
 
-            val merkleRoot = IntegrityValidator.computeMerkleRoot(slot)
-
             val errors = mutableListOf<String>()
             if (!keyIntegrityValid) {
                 errors.add("Key integrity verification failed")
@@ -132,10 +131,10 @@ class CryptoModule @Inject constructor(
             IntegrityReport(
                 isValid = keyIntegrityValid && errors.isEmpty(),
                 dataHash = keyHash,
-                merkleRoot = merkleRoot,
+                merkleRoot = "",
                 signatureValid = keyIntegrityValid,
                 hashValid = keyIntegrityValid,
-                merkleValid = true,
+                merkleValid = false,
                 errors = errors
             )
         } catch (e: Exception) {

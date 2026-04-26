@@ -1,6 +1,5 @@
 package com.xianxia.sect.ui.game
 
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.model.*
@@ -12,7 +11,7 @@ import javax.inject.Inject
 @HiltViewModel
 class WorldMapViewModel @Inject constructor(
     private val gameEngine: GameEngine
-) : ViewModel() {
+) : BaseViewModel() {
 
     companion object {
         private const val TAG = "WorldMapViewModel"
@@ -45,15 +44,6 @@ class WorldMapViewModel @Inject constructor(
     private val _battleTeamMoveMode = MutableStateFlow(false)
     val battleTeamMoveMode: StateFlow<Boolean> = _battleTeamMoveMode.asStateFlow()
 
-    private val _errorMessage = MutableStateFlow<String?>(null)
-    val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
-
-    private val _successMessage = MutableStateFlow<String?>(null)
-    val successMessage: StateFlow<String?> = _successMessage.asStateFlow()
-
-    fun clearErrorMessage() { _errorMessage.value = null }
-    fun clearSuccessMessage() { _successMessage.value = null }
-
     fun openScoutDialog(sectId: String) {
         _selectedScoutSectId.value = sectId
         _showScoutDialog.value = true
@@ -84,7 +74,7 @@ class WorldMapViewModel @Inject constructor(
             try {
                 gameEngine.giftSpiritStones(sectId, tier)
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "送礼失败"
+                showError(e.message ?: "送礼失败")
             }
         }
     }
@@ -115,10 +105,10 @@ class WorldMapViewModel @Inject constructor(
                     closeEnvoyDiscipleSelectDialog()
                     closeAllianceDialog()
                 } else {
-                    _errorMessage.value = message
+                    showError(message)
                 }
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "结盟失败"
+                showError(e.message ?: "结盟失败")
             }
         }
     }
@@ -130,10 +120,10 @@ class WorldMapViewModel @Inject constructor(
                 if (success) {
                     closeAllianceDialog()
                 } else {
-                    _errorMessage.value = message
+                    showError(message)
                 }
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "解除结盟失败"
+                showError(e.message ?: "解除结盟失败")
             }
         }
     }
@@ -189,20 +179,20 @@ class WorldMapViewModel @Inject constructor(
         val targetSect = data.worldMapSects.find { it.id == targetSectId }
 
         if (playerSect == null || targetSect == null) {
-            _errorMessage.value = "无效的目标宗门"
+            showError("无效的目标宗门")
             _battleTeamMoveMode.value = false
             return
         }
 
         if (targetSect.isPlayerSect) {
-            _errorMessage.value = "不能攻击自己的宗门"
+            showError("不能攻击自己的宗门")
             _battleTeamMoveMode.value = false
             return
         }
 
         val playerSectId = playerSect.id
         if (targetSect.isPlayerOccupied && targetSect.occupierSectId == playerSectId) {
-            _errorMessage.value = "不能攻击自己占领的宗门"
+            showError("不能攻击自己占领的宗门")
             _battleTeamMoveMode.value = false
             return
         }
@@ -249,7 +239,7 @@ class WorldMapViewModel @Inject constructor(
                 gameEngine.buyFromSectTradeSync(sectId, itemId, quantity)
                 _sectTradeItems.value = gameEngine.getOrRefreshSectTradeItems(sectId)
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "购买失败"
+                showError(e.message ?: "购买失败")
             }
         }
     }
@@ -333,7 +323,7 @@ class WorldMapViewModel @Inject constructor(
                 closeOuterTournamentDialogUi()
                 gameEngine.updateGameData { it.copy(pendingCompetitionResults = emptyList()) }
             } catch (e: Exception) {
-                _errorMessage.value = "晋升弟子失败: ${e.message}"
+                showError("晋升弟子失败: ${e.message}")
                 closeOuterTournamentDialogUi()
                 gameEngine.updateGameData { it.copy(pendingCompetitionResults = emptyList()) }
             }

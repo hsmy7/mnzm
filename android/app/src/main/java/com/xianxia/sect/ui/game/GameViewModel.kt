@@ -39,7 +39,7 @@ class GameViewModel @Inject constructor(
         viewModelScope.launch {
             systemManager.errors.collect { error ->
                 Log.e(TAG, "System error in ${error.systemName} (${error.tickType}): ${error.error.message}")
-                _errorMessage.value = "系统异常：${error.systemName}"
+                showError("系统异常：${error.systemName}")
             }
         }
     }
@@ -123,44 +123,12 @@ class GameViewModel @Inject constructor(
         openDialog(DialogType.WorldMap)
     }
 
-    fun closeWorldMapDialog() {
-        closeCurrentDialog()
-    }
-
     fun openSecretRealmDialog() {
         openDialog(DialogType.SecretRealm)
     }
 
-    fun closeSecretRealmDialog() {
-        closeCurrentDialog()
-    }
-
     fun openBattleLogDialog() {
         openDialog(DialogType.BattleLog)
-    }
-
-    fun closeBattleLogDialog() {
-        closeCurrentDialog()
-    }
-
-    fun closeRecruitDialog() {
-        closeCurrentDialog()
-    }
-
-    fun closeInventoryDialog() {
-        closeCurrentDialog()
-    }
-
-    fun closeDiplomacyDialog() {
-        closeCurrentDialog()
-    }
-
-    fun closeMerchantDialog() {
-        closeCurrentDialog()
-    }
-
-    fun closeEventLogDialog() {
-        closeCurrentDialog()
     }
 
     val gameData: StateFlow<GameData> = gameEngine.gameData
@@ -292,7 +260,7 @@ class GameViewModel @Inject constructor(
     val successMessage: StateFlow<String?> = _successMessage.asStateFlow()
 
     fun clearSuccessMessage() {
-        _successMessage.value = null
+        clearSuccessMessage()
     }
 
     fun hasDisciplePosition(discipleId: String): Boolean {
@@ -372,18 +340,9 @@ class GameViewModel @Inject constructor(
 
 
     // 建筑详情对话框 (带参数)
-    fun showBuildingDetailDialog(buildingId: String) {
-        _selectedBuildingId.value = buildingId
-        openDialog(DialogType.BuildingDetail, mapOf("buildingId" to buildingId))
-    }
-
     fun openBuildingDetailDialog(buildingId: String) {
         _selectedBuildingId.value = buildingId
         openDialog(DialogType.BuildingDetail, mapOf("buildingId" to buildingId))
-    }
-
-    fun closeBuildingDetailDialog() {
-        closeCurrentDialog()
     }
 
     fun dispatchTeamToDungeon(dungeonId: String, discipleIds: List<String>) {
@@ -391,7 +350,7 @@ class GameViewModel @Inject constructor(
             try {
                 val dungeonConfig = GameConfig.Dungeons.get(dungeonId)
                 if (dungeonConfig == null) {
-                    _errorMessage.value = "秘境不存在"
+                    showError("秘境不存在")
                     return@launch
                 }
 
@@ -400,7 +359,7 @@ class GameViewModel @Inject constructor(
 
                 gameEngine.startExploration(teamName, discipleIds, dungeonId, duration)
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "派遣失败"
+                showError(e.message ?: "派遣失败")
             }
         }
     }
@@ -411,7 +370,7 @@ class GameViewModel @Inject constructor(
             try {
                 gameEngine.recruitDisciple()
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "招募弟子失败"
+                showError(e.message ?: "招募弟子失败")
             }
         }
     }
@@ -421,7 +380,7 @@ class GameViewModel @Inject constructor(
             try {
                 gameEngine.assignDiscipleToBuilding(buildingId, slotIndex, discipleId)
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "分配失败"
+                showError(e.message ?: "分配失败")
             }
         }
     }
@@ -469,7 +428,7 @@ class GameViewModel @Inject constructor(
         viewModelScope.launch {
             val success = gameEngine.recruitAllFromList()
             if (!success) {
-                _errorMessage.value = "无弟子可招募"
+                showError("无弟子可招募")
             }
         }
     }
@@ -485,7 +444,7 @@ class GameViewModel @Inject constructor(
             try {
                 gameEngine.equipItem(discipleId, equipmentId)
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "装备失败"
+                showError(e.message ?: "装备失败")
             }
         }
     }
@@ -495,7 +454,7 @@ class GameViewModel @Inject constructor(
             try {
                 gameEngine.unequipItem(discipleId, slot)
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "卸下装备失败"
+                showError(e.message ?: "卸下装备失败")
             }
         }
     }
@@ -505,7 +464,7 @@ class GameViewModel @Inject constructor(
             try {
                 gameEngine.unequipItemById(discipleId, equipmentId)
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "卸下装备失败"
+                showError(e.message ?: "卸下装备失败")
             }
         }
     }
@@ -515,7 +474,7 @@ class GameViewModel @Inject constructor(
             try {
                 gameEngine.forgetManual(discipleId, instanceId)
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "遗忘功法失败"
+                showError(e.message ?: "遗忘功法失败")
             }
         }
     }
@@ -525,7 +484,7 @@ class GameViewModel @Inject constructor(
             try {
                 gameEngine.replaceManual(discipleId, oldInstanceId, newStackId)
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "功法替换失败"
+                showError(e.message ?: "功法替换失败")
             }
         }
     }
@@ -535,7 +494,7 @@ class GameViewModel @Inject constructor(
             try {
                 gameEngine.learnManual(discipleId, stackId)
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "学习功法失败"
+                showError(e.message ?: "学习功法失败")
             }
         }
     }
@@ -545,7 +504,7 @@ class GameViewModel @Inject constructor(
             try {
                 gameEngine.recallTeam(teamId)
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "召回失败"
+                showError(e.message ?: "召回失败")
             }
         }
     }
@@ -561,7 +520,7 @@ class GameViewModel @Inject constructor(
             try {
                 gameEngine.buyMerchantItem(itemId, quantity)
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "购买失败"
+                showError(e.message ?: "购买失败")
             }
         }
     }
@@ -571,7 +530,7 @@ class GameViewModel @Inject constructor(
             try {
                 gameEngine.listItemsToMerchant(items)
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "上架失败"
+                showError(e.message ?: "上架失败")
             }
         }
     }
@@ -581,7 +540,7 @@ class GameViewModel @Inject constructor(
             try {
                 gameEngine.removePlayerListedItem(itemId)
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "下架失败"
+                showError(e.message ?: "下架失败")
             }
         }
     }
@@ -609,7 +568,7 @@ class GameViewModel @Inject constructor(
             try {
                 gameEngine.startManualPlanting(slotIndex, seed.id)
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "种植失败"
+                showError(e.message ?: "种植失败")
             }
         }
     }
@@ -642,7 +601,7 @@ class GameViewModel @Inject constructor(
             try {
                 gameEngine.usePill(discipleId, pillId)
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "使用丹药失败"
+                showError(e.message ?: "使用丹药失败")
             }
         }
     }
@@ -652,13 +611,13 @@ class GameViewModel @Inject constructor(
             try {
                 gameEngine.usePill(discipleId, pill.id)
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "使用丹药失败"
+                showError(e.message ?: "使用丹药失败")
             }
         }
     }
 
     fun clearErrorMessage() {
-        _errorMessage.value = null
+        clearErrorMessage()
     }
 
     fun getDiscipleById(id: String): DiscipleAggregate? {
@@ -696,7 +655,7 @@ class GameViewModel @Inject constructor(
                 else -> false
             }
             if (!result) {
-                _errorMessage.value = "售卖失败，物品可能已被锁定或不存在"
+                showError("售卖失败，物品可能已被锁定或不存在")
             }
         }
     }
@@ -759,7 +718,7 @@ class GameViewModel @Inject constructor(
                 }
 
                 if (operations.isEmpty()) {
-                    _errorMessage.value = "没有符合条件的物品可出售（已排除锁定物品）"
+                    showError("没有符合条件的物品可出售（已排除锁定物品）")
                     return@launch
                 }
 
@@ -772,15 +731,15 @@ class GameViewModel @Inject constructor(
                                 append("\n以下物品出售失败：${result.failedItemNames.joinToString("、")}")
                             }
                         }
-                        _successMessage.value = msg
+                        showSuccess(msg)
                     } else {
-                        _errorMessage.value = "出售失败，物品可能已被锁定或不存在"
+                        showError("出售失败，物品可能已被锁定或不存在")
                     }
                 } catch (e: Exception) {
-                    _errorMessage.value = "出售过程中发生错误: ${e.message}"
+                    showError("出售过程中发生错误: ${e.message}")
                 }
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "一键出售失败"
+                showError(e.message ?: "一键出售失败")
             }
         }
     }
@@ -802,7 +761,7 @@ class GameViewModel @Inject constructor(
             try {
                 gameEngine.startMission(mission, selectedDisciples.map { it.toDisciple() })
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "开始任务失败"
+                showError(e.message ?: "开始任务失败")
             }
         }
     }
@@ -833,16 +792,12 @@ class GameViewModel @Inject constructor(
         } catch (e: Exception) {
             Log.w(TAG, "stopGameLoop failed: ${e.message}")
         }
-        _errorMessage.value = null
-        _successMessage.value = null
+        clearErrorMessage()
+        clearSuccessMessage()
     }
 
     fun openSalaryConfigDialog() {
         openDialog(DialogType.SalaryConfig)
-    }
-
-    fun closeSalaryConfigDialog() {
-        closeCurrentDialog()
     }
 
     val isGameOver: StateFlow<Boolean> = gameEngine.gameData
@@ -860,10 +815,6 @@ class GameViewModel @Inject constructor(
             dialogStateManager.closeDialog()
             openDialog(DialogType.GameOver)
         }
-    }
-
-    fun closeGameOverDialog() {
-        closeCurrentDialog()
     }
 
     private val _showRedeemCodeDialog = MutableStateFlow(false)
@@ -894,13 +845,13 @@ class GameViewModel @Inject constructor(
                 )
                 _redeemResult.value = result
                 if (result.success) {
-                    _successMessage.value = result.message
+                    showSuccess(result.message)
                 } else {
-                    _errorMessage.value = result.message
+                    showError(result.message)
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error redeeming code", e)
-                _errorMessage.value = "兑换失败: ${e.message}"
+                showError("兑换失败: ${e.message}")
             }
         }
     }

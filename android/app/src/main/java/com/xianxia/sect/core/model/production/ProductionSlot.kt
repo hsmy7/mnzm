@@ -6,6 +6,7 @@ import androidx.room.Index
 import androidx.room.TypeConverter
 import androidx.room.TypeConverters
 import com.xianxia.sect.core.model.EquipmentSlot
+import com.xianxia.sect.core.util.TimeProgressUtil
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -56,26 +57,17 @@ data class ProductionSlot(
 
     fun remainingTime(currentYear: Int, currentMonth: Int): Int {
         if (status != ProductionSlotStatus.WORKING) return 0
-        val yearDiff = (currentYear - startYear).toLong()
-        val monthDiff = (currentMonth - startMonth).toLong()
-        val elapsedMonths = yearDiff * 12 + monthDiff
-        return (duration - elapsedMonths.toInt()).coerceAtLeast(0)
+        return TimeProgressUtil.calculateRemainingMonths(startYear, startMonth, duration, currentYear, currentMonth)
     }
 
     fun getProgressPercent(currentYear: Int, currentMonth: Int): Int {
         if (status != ProductionSlotStatus.WORKING || duration <= 0) return 0
-        val yearDiff = (currentYear - startYear).toLong()
-        val monthDiff = (currentMonth - startMonth).toLong()
-        val elapsed = yearDiff * 12 + monthDiff
-        return ((elapsed.toDouble() / duration) * 100).toInt().coerceIn(0, 100)
+        return TimeProgressUtil.calculateProgressPercent(startYear, startMonth, duration, currentYear, currentMonth)
     }
 
     fun isFinished(currentYear: Int, currentMonth: Int): Boolean {
         if (status != ProductionSlotStatus.WORKING) return status == ProductionSlotStatus.COMPLETED
-        val yearDiff = (currentYear - startYear).toLong()
-        val monthDiff = (currentMonth - startMonth).toLong()
-        val elapsedMonths = yearDiff * 12 + monthDiff
-        return elapsedMonths >= duration
+        return TimeProgressUtil.isTimeElapsed(startYear, startMonth, duration, currentYear, currentMonth)
     }
 
     companion object {

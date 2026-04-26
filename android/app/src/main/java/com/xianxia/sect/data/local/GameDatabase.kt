@@ -495,6 +495,136 @@ val MIGRATION_14_15 = object : androidx.room.migration.Migration(14, 15) {
     }
 }
 
+val MIGRATION_15_16 = object : androidx.room.migration.Migration(15, 16) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        try {
+            Log.i("GameDatabase", "Migrating database from version 15 to 16: Split GameData into sub-tables")
+
+            db.execSQL("""
+                CREATE TABLE IF NOT EXISTS game_data_core (
+                    id TEXT NOT NULL,
+                    slot_id INTEGER NOT NULL,
+                    sectName TEXT NOT NULL DEFAULT '青云宗',
+                    currentSlot INTEGER NOT NULL DEFAULT 1,
+                    gameYear INTEGER NOT NULL DEFAULT 1,
+                    gameMonth INTEGER NOT NULL DEFAULT 1,
+                    gameDay INTEGER NOT NULL DEFAULT 1,
+                    isGameStarted INTEGER NOT NULL DEFAULT 0,
+                    gameSpeed INTEGER NOT NULL DEFAULT 1,
+                    spiritStones INTEGER NOT NULL DEFAULT 1000,
+                    spiritHerbs INTEGER NOT NULL DEFAULT 0,
+                    sectCultivation REAL NOT NULL DEFAULT 0.0,
+                    autoSaveIntervalMonths INTEGER NOT NULL DEFAULT 3,
+                    monthlySalary TEXT NOT NULL DEFAULT '',
+                    monthlySalaryEnabled TEXT NOT NULL DEFAULT '',
+                    playerProtectionEnabled INTEGER NOT NULL DEFAULT 1,
+                    playerProtectionStartYear INTEGER NOT NULL DEFAULT 1,
+                    playerHasAttackedAI INTEGER NOT NULL DEFAULT 0,
+                    playerAllianceSlots INTEGER NOT NULL DEFAULT 3,
+                    smartBattleEnabled INTEGER NOT NULL DEFAULT 0,
+                    lastSaveTime INTEGER NOT NULL DEFAULT 0,
+                    isGameOver INTEGER NOT NULL DEFAULT 0,
+                    PRIMARY KEY(id, slot_id)
+                )
+            """)
+
+            db.execSQL("""
+                CREATE TABLE IF NOT EXISTS game_data_world_map (
+                    id TEXT NOT NULL,
+                    slot_id INTEGER NOT NULL,
+                    worldMapSects TEXT NOT NULL DEFAULT '',
+                    sectDetails TEXT NOT NULL DEFAULT '',
+                    exploredSects TEXT NOT NULL DEFAULT '',
+                    scoutInfo TEXT NOT NULL DEFAULT '',
+                    sectRelations TEXT NOT NULL DEFAULT '',
+                    PRIMARY KEY(id, slot_id),
+                    FOREIGN KEY(id, slot_id) REFERENCES game_data(id, slot_id) ON DELETE CASCADE
+                )
+            """)
+
+            db.execSQL("""
+                CREATE TABLE IF NOT EXISTS game_data_buildings (
+                    id TEXT NOT NULL,
+                    slot_id INTEGER NOT NULL,
+                    productionSlots TEXT NOT NULL DEFAULT '',
+                    spiritMineSlots TEXT NOT NULL DEFAULT '',
+                    librarySlots TEXT NOT NULL DEFAULT '',
+                    PRIMARY KEY(id, slot_id),
+                    FOREIGN KEY(id, slot_id) REFERENCES game_data(id, slot_id) ON DELETE CASCADE
+                )
+            """)
+
+            db.execSQL("""
+                CREATE TABLE IF NOT EXISTS game_data_economy (
+                    id TEXT NOT NULL,
+                    slot_id INTEGER NOT NULL,
+                    travelingMerchantItems TEXT NOT NULL DEFAULT '',
+                    merchantLastRefreshYear INTEGER NOT NULL DEFAULT 0,
+                    merchantRefreshCount INTEGER NOT NULL DEFAULT 0,
+                    playerListedItems TEXT NOT NULL DEFAULT '',
+                    PRIMARY KEY(id, slot_id),
+                    FOREIGN KEY(id, slot_id) REFERENCES game_data(id, slot_id) ON DELETE CASCADE
+                )
+            """)
+
+            db.execSQL("""
+                CREATE TABLE IF NOT EXISTS game_data_organization (
+                    id TEXT NOT NULL,
+                    slot_id INTEGER NOT NULL,
+                    elderSlots TEXT NOT NULL DEFAULT '',
+                    alliances TEXT NOT NULL DEFAULT '',
+                    battleTeam TEXT NOT NULL DEFAULT '',
+                    aiBattleTeams TEXT NOT NULL DEFAULT '',
+                    sectPolicies TEXT NOT NULL DEFAULT '',
+                    activeMissions TEXT NOT NULL DEFAULT '',
+                    availableMissions TEXT NOT NULL DEFAULT '',
+                    usedRedeemCodes TEXT NOT NULL DEFAULT '',
+                    PRIMARY KEY(id, slot_id),
+                    FOREIGN KEY(id, slot_id) REFERENCES game_data(id, slot_id) ON DELETE CASCADE
+                )
+            """)
+
+            db.execSQL("""
+                CREATE TABLE IF NOT EXISTS game_data_exploration (
+                    id TEXT NOT NULL,
+                    slot_id INTEGER NOT NULL,
+                    recruitList TEXT NOT NULL DEFAULT '',
+                    lastRecruitYear INTEGER NOT NULL DEFAULT 0,
+                    cultivatorCaves TEXT NOT NULL DEFAULT '',
+                    caveExplorationTeams TEXT NOT NULL DEFAULT '',
+                    aiCaveTeams TEXT NOT NULL DEFAULT '',
+                    unlockedDungeons TEXT NOT NULL DEFAULT '',
+                    unlockedRecipes TEXT NOT NULL DEFAULT '',
+                    unlockedManuals TEXT NOT NULL DEFAULT '',
+                    manualProficiencies TEXT NOT NULL DEFAULT '',
+                    pendingCompetitionResults TEXT NOT NULL DEFAULT '',
+                    lastCompetitionYear INTEGER NOT NULL DEFAULT 0,
+                    PRIMARY KEY(id, slot_id),
+                    FOREIGN KEY(id, slot_id) REFERENCES game_data(id, slot_id) ON DELETE CASCADE
+                )
+            """)
+
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_game_data_core_slot_id ON game_data_core(slot_id)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_game_data_core_lastSaveTime ON game_data_core(lastSaveTime)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_game_data_core_gameYear_gameMonth ON game_data_core(gameYear, gameMonth)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_game_data_core_sectName ON game_data_core(sectName)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_game_data_core_spiritStones ON game_data_core(spiritStones)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_game_data_core_isGameStarted ON game_data_core(isGameStarted)")
+
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_game_data_world_map_slot_id ON game_data_world_map(slot_id)")
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_game_data_buildings_slot_id ON game_data_buildings(slot_id)")
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_game_data_economy_slot_id ON game_data_economy(slot_id)")
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_game_data_organization_slot_id ON game_data_organization(slot_id)")
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_game_data_exploration_slot_id ON game_data_exploration(slot_id)")
+
+            Log.i("GameDatabase", "Migration 15->16 completed: GameData sub-tables created (data sync deferred)")
+        } catch (e: Exception) {
+            Log.e("GameDatabase", "Migration 15->16 failed", e)
+            throw e
+        }
+    }
+}
+
 private fun mergeStacks(
     db: SupportSQLiteDatabase,
     tableName: String,
@@ -529,6 +659,12 @@ private fun mergeStacks(
 @Database(
     entities = [
         GameData::class,
+        GameDataCore::class,
+        GameDataWorldMap::class,
+        GameDataBuildings::class,
+        GameDataEconomy::class,
+        GameDataOrganization::class,
+        GameDataExploration::class,
         Disciple::class,
         DiscipleCore::class,
         DiscipleCombatStats::class,
@@ -558,7 +694,7 @@ private fun mergeStacks(
         ArchivedGameEvent::class,
         ArchivedDisciple::class
     ],
-    version = 15,
+    version = 16,
     exportSchema = true
 )
 
@@ -566,6 +702,12 @@ private fun mergeStacks(
 abstract class GameDatabase : RoomDatabase() {
 
     abstract fun gameDataDao(): GameDataDao
+    abstract fun gameDataCoreDao(): GameDataCoreDao
+    abstract fun gameDataWorldMapDao(): GameDataWorldMapDao
+    abstract fun gameDataBuildingsDao(): GameDataBuildingsDao
+    abstract fun gameDataEconomyDao(): GameDataEconomyDao
+    abstract fun gameDataOrganizationDao(): GameDataOrganizationDao
+    abstract fun gameDataExplorationDao(): GameDataExplorationDao
     abstract fun discipleDao(): DiscipleDao
     abstract fun discipleCoreDao(): DiscipleCoreDao
     abstract fun discipleCombatStatsDao(): DiscipleCombatStatsDao
@@ -841,7 +983,7 @@ abstract class GameDatabase : RoomDatabase() {
                         optimizeDatabase(db)
                     }
                 })
-                .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
+                .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16)
                 .fallbackToDestructiveMigrationFrom(1, 2, 3)
                 .build()
                 .also { db -> applySafetyPragmas(db) }

@@ -2,6 +2,7 @@ package com.xianxia.sect.core.model
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import com.xianxia.sect.core.util.TimeProgressUtil
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -34,26 +35,17 @@ data class AlchemySlot(
 
     fun getRemainingMonths(currentYear: Int, currentMonth: Int): Int {
         if (status != AlchemySlotStatus.WORKING) return 0
-        val yearDiff = (currentYear - startYear).toLong()
-        val monthDiff = (currentMonth - startMonth).toLong()
-        val elapsedMonths = yearDiff * 12 + monthDiff
-        return (duration - elapsedMonths.toInt()).coerceAtLeast(0)
+        return TimeProgressUtil.calculateRemainingMonths(startYear, startMonth, duration, currentYear, currentMonth)
     }
 
     fun getProgressPercent(currentYear: Int, currentMonth: Int): Int {
         if (status != AlchemySlotStatus.WORKING || duration <= 0) return 0
-        val yearDiff = (currentYear - startYear).toLong()
-        val monthDiff = (currentMonth - startMonth).toLong()
-        val elapsed = yearDiff * 12 + monthDiff
-        return ((elapsed.toDouble() / duration) * 100).toInt().coerceIn(0, 100)
+        return TimeProgressUtil.calculateProgressPercent(startYear, startMonth, duration, currentYear, currentMonth)
     }
 
     fun isFinished(currentYear: Int, currentMonth: Int): Boolean {
         if (status != AlchemySlotStatus.WORKING) return status == AlchemySlotStatus.FINISHED
-        val yearDiff = (currentYear - startYear).toLong()
-        val monthDiff = (currentMonth - startMonth).toLong()
-        val elapsedMonths = yearDiff * 12 + monthDiff
-        return elapsedMonths >= duration
+        return TimeProgressUtil.isTimeElapsed(startYear, startMonth, duration, currentYear, currentMonth)
     }
 }
 
@@ -84,26 +76,8 @@ data class AlchemyRecipe(
     val duration: Int,
     val successRate: Double,
     val effects: PillEffect
-) {
-    fun hasEnoughMaterials(materials: List<Material>): Boolean {
-        val materialMap = materials.associateBy { it.id }
-        return this.materials.all { (materialId, requiredQuantity) ->
-            val available = materialMap[materialId]
-            available != null && available.quantity >= requiredQuantity
-        }
-    }
-
-    fun getMissingMaterials(materials: List<Material>): List<Pair<String, Int>> {
-        val materialMap = materials.associateBy { it.id }
-        return this.materials.filter { (materialId, requiredQuantity) ->
-            val available = materialMap[materialId]
-            available == null || available.quantity < requiredQuantity
-        }.map { (materialId, requiredQuantity) ->
-            val available = materialMap[materialId]
-            val have = available?.quantity ?: 0
-            materialId to (requiredQuantity - have)
-        }
-    }
+) : MaterialChecker {
+    override val requiredMaterials: Map<String, Int> get() = materials
 }
 
 @Serializable
@@ -144,26 +118,17 @@ data class ForgeSlot(
 
     fun getRemainingMonths(currentYear: Int, currentMonth: Int): Int {
         if (status != ForgeSlotStatus.WORKING) return 0
-        val yearDiff = (currentYear - startYear).toLong()
-        val monthDiff = (currentMonth - startMonth).toLong()
-        val elapsedMonths = yearDiff * 12 + monthDiff
-        return (duration - elapsedMonths.toInt()).coerceAtLeast(0)
+        return TimeProgressUtil.calculateRemainingMonths(startYear, startMonth, duration, currentYear, currentMonth)
     }
 
     fun getProgressPercent(currentYear: Int, currentMonth: Int): Float {
         if (status != ForgeSlotStatus.WORKING || duration <= 0) return 0f
-        val yearDiff = (currentYear - startYear).toLong()
-        val monthDiff = (currentMonth - startMonth).toLong()
-        val elapsed = yearDiff * 12 + monthDiff
-        return (elapsed.toDouble() / duration).toFloat().coerceIn(0f, 1f)
+        return TimeProgressUtil.calculateProgressFraction(startYear, startMonth, duration, currentYear, currentMonth)
     }
 
     fun isFinished(currentYear: Int, currentMonth: Int): Boolean {
         if (status != ForgeSlotStatus.WORKING) return status == ForgeSlotStatus.FINISHED
-        val yearDiff = (currentYear - startYear).toLong()
-        val monthDiff = (currentMonth - startMonth).toLong()
-        val elapsedMonths = yearDiff * 12 + monthDiff
-        return elapsedMonths >= duration
+        return TimeProgressUtil.isTimeElapsed(startYear, startMonth, duration, currentYear, currentMonth)
     }
 }
 
@@ -193,26 +158,8 @@ data class ForgeRecipe(
     val materials: Map<String, Int>,
     val duration: Int,
     val successRate: Double
-) {
-    fun hasEnoughMaterials(materials: List<Material>): Boolean {
-        val materialMap = materials.associateBy { it.id }
-        return this.materials.all { (materialId, requiredQuantity) ->
-            val available = materialMap[materialId]
-            available != null && available.quantity >= requiredQuantity
-        }
-    }
-
-    fun getMissingMaterials(materials: List<Material>): List<Pair<String, Int>> {
-        val materialMap = materials.associateBy { it.id }
-        return this.materials.filter { (materialId, requiredQuantity) ->
-            val available = materialMap[materialId]
-            available == null || available.quantity < requiredQuantity
-        }.map { (materialId, requiredQuantity) ->
-            val available = materialMap[materialId]
-            val have = available?.quantity ?: 0
-            materialId to (requiredQuantity - have)
-        }
-    }
+) : MaterialChecker {
+    override val requiredMaterials: Map<String, Int> get() = materials
 }
 
 @Serializable

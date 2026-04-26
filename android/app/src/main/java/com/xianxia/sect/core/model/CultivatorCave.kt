@@ -3,6 +3,7 @@ package com.xianxia.sect.core.model
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import com.xianxia.sect.core.model.production.SlotType
+import com.xianxia.sect.core.util.TimeProgressUtil
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -54,18 +55,12 @@ data class ExplorationTeam(
     val isMoving: Boolean get() = isScouting && moveProgress < 1f
 
     fun getRemainingMonths(currentYear: Int, currentMonth: Int): Int {
-        val yearDiff = (currentYear - startYear).toLong()
-        val monthDiff = (currentMonth - startMonth).toLong()
-        val totalMonths = yearDiff * 12 + monthDiff
-        return (duration - totalMonths.toInt()).coerceAtLeast(0)
+        return TimeProgressUtil.calculateRemainingMonths(startYear, startMonth, duration, currentYear, currentMonth)
     }
 
     fun getProgressPercent(currentYear: Int, currentMonth: Int): Int {
         if (duration <= 0) return 0
-        val yearDiff = (currentYear - startYear).toLong()
-        val monthDiff = (currentMonth - startMonth).toLong()
-        val elapsed = yearDiff * 12 + monthDiff
-        return ((elapsed.toDouble() / duration) * 100).toInt().coerceIn(0, 100)
+        return TimeProgressUtil.calculateProgressPercent(startYear, startMonth, duration, currentYear, currentMonth)
     }
 }
 
@@ -112,18 +107,12 @@ data class BuildingSlot(
 ) {
     fun remainingTime(currentYear: Int, currentMonth: Int): Int {
         if (status != SlotStatus.WORKING) return 0
-        val yearDiff = (currentYear - startYear).toLong()
-        val monthDiff = (currentMonth - startMonth).toLong()
-        val elapsedMonths = yearDiff * 12 + monthDiff
-        return (duration - elapsedMonths.toInt()).coerceAtLeast(0)
+        return TimeProgressUtil.calculateRemainingMonths(startYear, startMonth, duration, currentYear, currentMonth)
     }
 
     fun isFinished(currentYear: Int, currentMonth: Int): Boolean {
         if (status != SlotStatus.WORKING) return false
-        val yearDiff = (currentYear - startYear).toLong()
-        val monthDiff = (currentMonth - startMonth).toLong()
-        val elapsedMonths = yearDiff * 12 + monthDiff
-        return elapsedMonths >= duration
+        return TimeProgressUtil.isTimeElapsed(startYear, startMonth, duration, currentYear, currentMonth)
     }
 }
 
@@ -454,18 +443,12 @@ data class CaveExplorationTeam(
     val isMoving: Boolean get() = isTraveling && moveProgress < 1f
     
     fun getRemainingMonths(currentYear: Int, currentMonth: Int): Int {
-        val yearDiff = (currentYear - startYear).toLong()
-        val monthDiff = (currentMonth - startMonth).toLong()
-        val totalMonths = yearDiff * 12 + monthDiff
-        return (duration - totalMonths.toInt()).coerceAtLeast(0)
+        return TimeProgressUtil.calculateRemainingMonths(startYear, startMonth, duration, currentYear, currentMonth)
     }
 
     fun getProgressPercent(currentYear: Int, currentMonth: Int): Int {
         if (duration <= 0) return 0
-        val yearDiff = (currentYear - startYear).toLong()
-        val monthDiff = (currentMonth - startMonth).toLong()
-        val elapsed = yearDiff * 12 + monthDiff
-        return ((elapsed.toDouble() / duration) * 100).toInt().coerceIn(0, 100)
+        return TimeProgressUtil.calculateProgressPercent(startYear, startMonth, duration, currentYear, currentMonth)
     }
 }
 

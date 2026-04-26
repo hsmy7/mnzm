@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.model
 
 import java.util.UUID
+import com.xianxia.sect.core.util.TimeProgressUtil
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -332,18 +333,12 @@ data class ActiveMission(
     val memberCount: Int get() = discipleIds.size
 
     fun getRemainingMonths(currentYear: Int, currentMonth: Int): Int {
-        val yearDiff = (currentYear - startYear).toLong()
-        val monthDiff = (currentMonth - startMonth).toLong()
-        val elapsedMonths = yearDiff * 12 + monthDiff
-        return (duration - elapsedMonths.toInt()).coerceAtLeast(0)
+        return TimeProgressUtil.calculateRemainingMonths(startYear, startMonth, duration, currentYear, currentMonth)
     }
 
     fun getProgressPercent(currentYear: Int, currentMonth: Int): Int {
         if (duration <= 0) return 100
-        val yearDiff = (currentYear - startYear).toLong()
-        val monthDiff = (currentMonth - startMonth).toLong()
-        val elapsedMonths = yearDiff * 12 + monthDiff
-        return ((elapsedMonths.toDouble() / duration) * 100).toInt().coerceIn(0, 100)
+        return TimeProgressUtil.calculateProgressPercent(startYear, startMonth, duration, currentYear, currentMonth)
     }
 
     fun isComplete(currentYear: Int, currentMonth: Int): Boolean {

@@ -103,6 +103,15 @@ class ProductionViewModel @Inject constructor(
     private val _selectedPlantSlotIndex = MutableStateFlow<Int?>(null)
     val selectedPlantSlotIndex: StateFlow<Int?> = _selectedPlantSlotIndex.asStateFlow()
 
+    private val _errorMessage = MutableStateFlow<String?>(null)
+    val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
+
+    private val _successMessage = MutableStateFlow<String?>(null)
+    val successMessage: StateFlow<String?> = _successMessage.asStateFlow()
+
+    fun clearErrorMessage() { _errorMessage.value = null }
+    fun clearSuccessMessage() { _successMessage.value = null }
+
     fun startAlchemy(slotIndex: Int, recipe: PillRecipeDatabase.PillRecipe) {
         if (_isStartingAlchemy.value) return
         _isStartingAlchemy.value = true

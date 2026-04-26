@@ -1,7 +1,6 @@
 package com.xianxia.sect.ui.game
 
 import android.util.Log
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.model.*
@@ -13,7 +12,7 @@ import javax.inject.Inject
 @HiltViewModel
 class DiscipleViewModel @Inject constructor(
     private val gameEngine: GameEngine
-) : ViewModel() {
+) : BaseViewModel() {
     
     companion object {
         private const val TAG = "DiscipleViewModel"
@@ -25,22 +24,8 @@ class DiscipleViewModel @Inject constructor(
     val disciples: StateFlow<List<DiscipleAggregate>> = gameEngine.discipleAggregates
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     
-    private val _errorMessage = MutableStateFlow<String?>(null)
-    val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
-    
-    private val _successMessage = MutableStateFlow<String?>(null)
-    val successMessage: StateFlow<String?> = _successMessage.asStateFlow()
-    
     private val _selectedDiscipleId = MutableStateFlow<String?>(null)
     val selectedDiscipleId: StateFlow<String?> = _selectedDiscipleId.asStateFlow()
-    
-    fun clearErrorMessage() {
-        _errorMessage.value = null
-    }
-    
-    fun clearSuccessMessage() {
-        _successMessage.value = null
-    }
     
     fun selectDisciple(discipleId: String?) {
         _selectedDiscipleId.value = discipleId
@@ -73,7 +58,7 @@ class DiscipleViewModel @Inject constructor(
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error getting selected disciple", e)
-            _errorMessage.value = "获取选中弟子信息失败"
+            showError("获取选中弟子信息失败")
             null
         }
     }
@@ -172,9 +157,9 @@ class DiscipleViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 gameEngine.recruitDisciple()
-                _successMessage.value = "成功招募弟子"
+                showSuccess("成功招募弟子")
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "招募失败"
+                showError(e.message ?: "招募失败")
             }
         }
     }
@@ -184,9 +169,9 @@ class DiscipleViewModel @Inject constructor(
             try {
                 val disciple = getDiscipleById(discipleId) ?: return@launch
                 gameEngine.dismissDisciple(discipleId)
-                _successMessage.value = "已将${disciple.name}逐出宗门"
+                showSuccess("已将${disciple.name}逐出宗门")
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "逐出失败"
+                showError(e.message ?: "逐出失败")
             }
         }
     }
@@ -195,9 +180,9 @@ class DiscipleViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 gameEngine.giveItemToDisciple(discipleId, itemId, itemType)
-                _successMessage.value = "物品使用成功"
+                showSuccess("物品使用成功")
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "使用失败"
+                showError(e.message ?: "使用失败")
             }
         }
     }
@@ -206,9 +191,9 @@ class DiscipleViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 gameEngine.equipItem(discipleId, equipmentId)
-                _successMessage.value = "装备成功"
+                showSuccess("装备成功")
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "装备失败"
+                showError(e.message ?: "装备失败")
             }
         }
     }
@@ -217,9 +202,9 @@ class DiscipleViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 gameEngine.unequipItemById(discipleId, equipmentId)
-                _successMessage.value = "卸下装备成功"
+                showSuccess("卸下装备成功")
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "卸下失败"
+                showError(e.message ?: "卸下失败")
             }
         }
     }
@@ -228,9 +213,9 @@ class DiscipleViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 gameEngine.assignManual(discipleId, manualId)
-                _successMessage.value = "功法分配成功"
+                showSuccess("功法分配成功")
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "分配失败"
+                showError(e.message ?: "分配失败")
             }
         }
     }
@@ -239,9 +224,9 @@ class DiscipleViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 gameEngine.removeManual(discipleId, manualId)
-                _successMessage.value = "功法已收回"
+                showSuccess("功法已收回")
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "收回失败"
+                showError(e.message ?: "收回失败")
             }
         }
     }
@@ -251,9 +236,9 @@ class DiscipleViewModel @Inject constructor(
             try {
                 val disciple = getDiscipleById(discipleId) ?: return@launch
                 gameEngine.usePill(discipleId, pillId)
-                _successMessage.value = "${disciple.name}尝试突破"
+                showSuccess("${disciple.name}尝试突破")
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "突破失败"
+                showError(e.message ?: "突破失败")
             }
         }
     }
