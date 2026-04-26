@@ -617,7 +617,51 @@ val MIGRATION_15_16 = object : androidx.room.migration.Migration(15, 16) {
             db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_game_data_organization_slot_id ON game_data_organization(slot_id)")
             db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_game_data_exploration_slot_id ON game_data_exploration(slot_id)")
 
-            Log.i("GameDatabase", "Migration 15->16 completed: GameData sub-tables created (data sync deferred)")
+            db.execSQL("""
+                INSERT INTO game_data_core (id, slot_id, sectName, currentSlot, gameYear, gameMonth, gameDay,
+                    isGameStarted, gameSpeed, spiritStones, spiritHerbs, sectCultivation,
+                    autoSaveIntervalMonths, monthlySalary, monthlySalaryEnabled,
+                    playerProtectionEnabled, playerProtectionStartYear, playerHasAttackedAI,
+                    playerAllianceSlots, smartBattleEnabled, lastSaveTime, isGameOver)
+                SELECT id, slot_id, sectName, currentSlot, gameYear, gameMonth, gameDay,
+                    isGameStarted, gameSpeed, spiritStones, spiritHerbs, sectCultivation,
+                    autoSaveIntervalMonths, monthlySalary, monthlySalaryEnabled,
+                    playerProtectionEnabled, playerProtectionStartYear, playerHasAttackedAI,
+                    playerAllianceSlots, smartBattleEnabled, lastSaveTime, isGameOver
+                FROM game_data
+            """)
+
+            db.execSQL("""
+                INSERT INTO game_data_world_map (id, slot_id, worldMapSects, sectDetails, exploredSects, scoutInfo, sectRelations)
+                SELECT id, slot_id, worldMapSects, sectDetails, exploredSects, scoutInfo, sectRelations
+                FROM game_data
+            """)
+
+            db.execSQL("""
+                INSERT INTO game_data_buildings (id, slot_id, productionSlots, spiritMineSlots, librarySlots)
+                SELECT id, slot_id, productionSlots, spiritMineSlots, librarySlots
+                FROM game_data
+            """)
+
+            db.execSQL("""
+                INSERT INTO game_data_economy (id, slot_id, travelingMerchantItems, merchantLastRefreshYear, merchantRefreshCount, playerListedItems)
+                SELECT id, slot_id, travelingMerchantItems, merchantLastRefreshYear, merchantRefreshCount, playerListedItems
+                FROM game_data
+            """)
+
+            db.execSQL("""
+                INSERT INTO game_data_organization (id, slot_id, elderSlots, alliances, battleTeam, aiBattleTeams, sectPolicies, activeMissions, availableMissions, usedRedeemCodes)
+                SELECT id, slot_id, elderSlots, alliances, battleTeam, aiBattleTeams, sectPolicies, activeMissions, availableMissions, usedRedeemCodes
+                FROM game_data
+            """)
+
+            db.execSQL("""
+                INSERT INTO game_data_exploration (id, slot_id, recruitList, lastRecruitYear, cultivatorCaves, caveExplorationTeams, aiCaveTeams, unlockedDungeons, unlockedRecipes, unlockedManuals, manualProficiencies, pendingCompetitionResults, lastCompetitionYear)
+                SELECT id, slot_id, recruitList, lastRecruitYear, cultivatorCaves, caveExplorationTeams, aiCaveTeams, unlockedDungeons, unlockedRecipes, unlockedManuals, manualProficiencies, pendingCompetitionResults, lastCompetitionYear
+                FROM game_data
+            """)
+
+            Log.i("GameDatabase", "Migration 15->16 completed: GameData split into sub-tables with data sync")
         } catch (e: Exception) {
             Log.e("GameDatabase", "Migration 15->16 failed", e)
             throw e

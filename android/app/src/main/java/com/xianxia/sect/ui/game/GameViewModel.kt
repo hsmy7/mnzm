@@ -14,6 +14,7 @@ import com.xianxia.sect.core.engine.service.HighFrequencyData
 import com.xianxia.sect.core.engine.system.SystemError
 import com.xianxia.sect.core.engine.system.SystemManager
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.usecase.DisciplePositionQueryUseCase
 import com.xianxia.sect.ui.state.DialogStateManager
 import com.xianxia.sect.ui.state.DialogStateManager.DialogType
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -27,7 +28,8 @@ class GameViewModel @Inject constructor(
     private val gameEngineCore: GameEngineCore,
     val dialogStateManager: DialogStateManager,
     @ApplicationContext private val appContext: Context,
-    private val systemManager: SystemManager
+    private val systemManager: SystemManager,
+    private val disciplePositionQuery: DisciplePositionQueryUseCase
 ) : BaseViewModel() {
 
     companion object {
@@ -253,23 +255,19 @@ class GameViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     fun hasDisciplePosition(discipleId: String): Boolean {
-        return DisciplePositionHelper.hasDisciplePosition(discipleId, gameEngine.gameData.value)
+        return disciplePositionQuery.hasDisciplePosition(discipleId)
     }
 
     fun getDisciplePosition(discipleId: String): String? {
-        return DisciplePositionHelper.getDisciplePosition(discipleId, gameEngine.gameData.value)
+        return disciplePositionQuery.getDisciplePosition(discipleId)
     }
 
     fun isReserveDisciple(discipleId: String): Boolean {
-        val elderSlots = gameEngine.gameData.value.elderSlots
-        return elderSlots.lawEnforcementReserveDisciples.any { it.discipleId == discipleId } ||
-               elderSlots.herbGardenReserveDisciples.any { it.discipleId == discipleId } ||
-               elderSlots.alchemyReserveDisciples.any { it.discipleId == discipleId } ||
-               elderSlots.forgeReserveDisciples.any { it.discipleId == discipleId }
+        return disciplePositionQuery.isReserveDisciple(discipleId)
     }
 
     fun isPositionWorkStatus(discipleId: String): Boolean {
-        return DisciplePositionHelper.isPositionWorkStatus(discipleId, gameEngine.gameData.value)
+        return disciplePositionQuery.isPositionWorkStatus(discipleId)
     }
 
     // 防止重复点击标志

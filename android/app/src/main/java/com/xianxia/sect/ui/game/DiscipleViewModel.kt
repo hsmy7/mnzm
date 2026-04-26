@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.lifecycle.viewModelScope
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.usecase.DisciplePositionQueryUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -11,7 +12,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class DiscipleViewModel @Inject constructor(
-    private val gameEngine: GameEngine
+    private val gameEngine: GameEngine,
+    private val disciplePositionQuery: DisciplePositionQueryUseCase
 ) : BaseViewModel() {
     
     companion object {
@@ -110,7 +112,7 @@ class DiscipleViewModel @Inject constructor(
             disciple.realmLayer > 0 &&
             disciple.status == DiscipleStatus.IDLE &&
             !currentSlotDiscipleIds.contains(disciple.id) &&
-            !isPositionWorkStatus(disciple.id)
+            !disciplePositionQuery.isPositionWorkStatus(disciple.id)
         }.sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
     
@@ -138,19 +140,19 @@ class DiscipleViewModel @Inject constructor(
     }
     
     fun isPositionWorkStatus(discipleId: String): Boolean {
-        return DisciplePositionHelper.isPositionWorkStatus(discipleId, gameEngine.gameData.value)
+        return disciplePositionQuery.isPositionWorkStatus(discipleId)
     }
     
     fun getDisciplePosition(discipleId: String): String? {
-        return DisciplePositionHelper.getDisciplePosition(discipleId, gameEngine.gameData.value)
+        return disciplePositionQuery.getDisciplePosition(discipleId)
     }
     
     fun hasDisciplePosition(discipleId: String): Boolean {
-        return DisciplePositionHelper.hasDisciplePosition(discipleId, gameEngine.gameData.value)
+        return disciplePositionQuery.hasDisciplePosition(discipleId)
     }
     
     fun isReserveDisciple(discipleId: String): Boolean {
-        return DisciplePositionHelper.isReserveDisciple(discipleId, gameEngine.gameData.value)
+        return disciplePositionQuery.isReserveDisciple(discipleId)
     }
     
     fun recruitDisciple() {

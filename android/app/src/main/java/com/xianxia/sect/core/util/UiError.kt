@@ -33,7 +33,7 @@ data class UiError(
                 is AppError.Network.Timeout -> Triple("网络请求超时，请稍后重试", UiErrorSeverity.WARNING, true)
                 is AppError.Network.Unknown -> Triple("网络错误", UiErrorSeverity.WARNING, true)
 
-                is AppError.Production.SlotBusy -> Triple("槽位正在工作中", UiErrorSeverity.INFO, false)
+                is AppError.Production.SlotBusy -> Triple("槽位正在工作中", UiErrorSeverity.INFO, true)
                 is AppError.Production.InsufficientMaterials -> Triple("材料不足", UiErrorSeverity.INFO, false)
                 is AppError.Production.InvalidSlot -> Triple("无效的槽位", UiErrorSeverity.INFO, false)
                 is AppError.Production.RecipeNotFound -> Triple("配方不存在", UiErrorSeverity.INFO, false)

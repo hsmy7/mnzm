@@ -298,8 +298,18 @@ data class Disciple(
     val maxHp: Int get() = getBaseStats().maxHp
     val maxMp: Int get() = getBaseStats().maxMp
 
-    val hpPercent: Double get() = if (maxHp > 0) baseHp.toDouble() / maxHp * 100 else 100.0
-    val mpPercent: Double get() = if (maxMp > 0) baseMp.toDouble() / maxMp * 100 else 100.0
+    val hpPercent: Double get() {
+        val max = maxHp
+        if (max <= 0) return 100.0
+        val current = if (currentHp < 0) max else currentHp
+        return current.toDouble() / max * 100.0
+    }
+    val mpPercent: Double get() {
+        val max = maxMp
+        if (max <= 0) return 100.0
+        val current = if (currentMp < 0) max else currentMp
+        return current.toDouble() / max * 100.0
+    }
 
     val equippedItems: Map<EquipmentSlot, EquipmentInstance?> get() = emptyMap()
     val learnedManuals: List<ManualInstance> get() = emptyList()

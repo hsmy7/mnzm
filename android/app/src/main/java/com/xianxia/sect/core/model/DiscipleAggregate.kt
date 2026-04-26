@@ -151,10 +151,18 @@ data class DiscipleAggregate(
     val maxMpFinal: Int get() = getBaseStats().maxMp
     
     /** 当前生命百分比 */
-    val hpPercent: Double get() = if (maxHpFinal > 0) baseHp.toDouble() / maxHpFinal * 100 else 100.0
-    
-    /** 当前灵力百分比 */
-    val mpPercent: Double get() = if (maxMpFinal > 0) baseMp.toDouble() / maxMpFinal * 100 else 100.0
+    val hpPercent: Double get() {
+        val max = maxHpFinal
+        if (max <= 0) return 100.0
+        val current = if (currentHp < 0) max else currentHp
+        return current.toDouble() / max * 100.0
+    }
+    val mpPercent: Double get() {
+        val max = maxMpFinal
+        if (max <= 0) return 100.0
+        val current = if (currentMp < 0) max else currentMp
+        return current.toDouble() / max * 100.0
+    }
     
     /** 是否有道侣 */
     val hasPartner: Boolean get() = partnerId != null

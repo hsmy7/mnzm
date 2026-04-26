@@ -1,5 +1,17 @@
 # 模拟宗门 - 更新日志
 
+## [2.5.53] - 2026-04-27
+
+### 修复
+- BaseViewModel Channel缓冲区从BUFFERED改为UNLIMITED，防止消息丢失
+- ProductionViewModel.hasDisciplePosition()/isReserveDisciple()委托至DisciplePositionHelper，修复遗漏灵矿弟子/执法弟子等职位检查
+- ProductionViewModel.assignElder() LAW_ENFORCEMENT槽位添加清空lawEnforcementDisciples，防止数据不一致
+
+### 代码质量
+- CryptoModule.validateIntegrity()标记@Deprecated，merkleValid从true改为false（该方法无法验证Merkle根）
+- BaseViewModel同时提供Channel(errorEvents/successEvents)和StateFlow(errorMessage/successMessage)双模式错误处理
+- FunctionalWAL添加缺失的Dispatchers import
+
 ## [2.5.52] - 2026-04-27
 
 ### 重构

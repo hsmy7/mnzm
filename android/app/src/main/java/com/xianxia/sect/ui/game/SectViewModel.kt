@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.usecase.DisciplePositionQueryUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -12,7 +13,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class SectViewModel @Inject constructor(
-    private val gameEngine: GameEngine
+    private val gameEngine: GameEngine,
+    private val disciplePositionQuery: DisciplePositionQueryUseCase
 ) : BaseViewModel() {
     
     companion object {
@@ -359,13 +361,13 @@ class SectViewModel @Inject constructor(
                     return@launch
                 }
                 
-                if (hasDisciplePosition(discipleId)) {
-                    val position = getDisciplePosition(discipleId)
+                if (disciplePositionQuery.hasDisciplePosition(discipleId)) {
+                    val position = disciplePositionQuery.getDisciplePosition(discipleId)
                     showError(("该弟子已担任${position}，不可同时担任多个职务"))
                     return@launch
                 }
                 
-                if (isReserveDisciple(discipleId)) {
+                if (disciplePositionQuery.isReserveDisciple(discipleId)) {
                     showError(("该弟子已是其他部门的储备弟子"))
                     return@launch
                 }
@@ -626,18 +628,4 @@ class SectViewModel @Inject constructor(
         return ((intelligence - baseIntelligence) / step.toDouble() * bonusPerStep).coerceAtLeast(0.0)
     }
     
-    fun getDisciplePosition(discipleId: String): String? {
-        val gameData = gameEngine.gameData.value ?: return null
-        return DisciplePositionHelper.getDisciplePosition(discipleId, gameData)
-    }
-
-    fun hasDisciplePosition(discipleId: String): Boolean {
-        val gameData = gameEngine.gameData.value ?: return false
-        return DisciplePositionHelper.hasDisciplePosition(discipleId, gameData)
-    }
-
-    fun isReserveDisciple(discipleId: String): Boolean {
-        val gameData = gameEngine.gameData.value ?: return false
-        return DisciplePositionHelper.isReserveDisciple(discipleId, gameData)
-    }
 }

@@ -11,6 +11,7 @@ import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.model.production.ProductionSlotStatus
+import com.xianxia.sect.core.usecase.DisciplePositionQueryUseCase
 import com.xianxia.sect.core.util.sortedByFollowAndRealm
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
@@ -19,7 +20,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class ProductionViewModel @Inject constructor(
-    private val gameEngine: GameEngine
+    private val gameEngine: GameEngine,
+    private val disciplePositionQuery: DisciplePositionQueryUseCase
 ) : BaseViewModel() {
 
     companion object {
@@ -373,7 +375,8 @@ class ProductionViewModel @Inject constructor(
                         preachingElder = discipleId
                     )
                     ElderSlotType.LAW_ENFORCEMENT -> elderSlots.copy(
-                        lawEnforcementElder = discipleId
+                        lawEnforcementElder = discipleId,
+                        lawEnforcementDisciples = emptyList()
                     )
                     ElderSlotType.INNER_ELDER -> elderSlots.copy(
                         innerElder = discipleId
@@ -500,8 +503,8 @@ class ProductionViewModel @Inject constructor(
                 discipleIds.forEach { discipleId ->
                     if (existingIds.contains(discipleId)) return@forEach
                     val disciple = disciples.value.find { it.id == discipleId } ?: return@forEach
-                    if (hasDisciplePosition(discipleId)) return@forEach
-                    if (isReserveDisciple(discipleId)) return@forEach
+                    if (disciplePositionQuery.hasDisciplePosition(discipleId)) return@forEach
+                    if (disciplePositionQuery.isReserveDisciple(discipleId)) return@forEach
 
                     val newIndex = if (currentReserveDisciples.isEmpty()) 0 else currentReserveDisciples.maxOf { it.index } + 1
                     val newSlot = DirectDiscipleSlot(
@@ -603,8 +606,8 @@ class ProductionViewModel @Inject constructor(
                 discipleIds.forEach { discipleId ->
                     if (existingIds.contains(discipleId)) return@forEach
                     val disciple = disciples.value.find { it.id == discipleId } ?: return@forEach
-                    if (hasDisciplePosition(discipleId)) return@forEach
-                    if (isReserveDisciple(discipleId)) return@forEach
+                    if (disciplePositionQuery.hasDisciplePosition(discipleId)) return@forEach
+                    if (disciplePositionQuery.isReserveDisciple(discipleId)) return@forEach
 
                     val newIndex = if (currentReserveDisciples.isEmpty()) 0 else currentReserveDisciples.maxOf { it.index } + 1
                     val newSlot = DirectDiscipleSlot(
@@ -1204,12 +1207,12 @@ class ProductionViewModel @Inject constructor(
                     return@launch
                 }
 
-                if (hasDisciplePosition(discipleId)) {
+                if (disciplePositionQuery.hasDisciplePosition(discipleId)) {
                     showError("该弟子已担任其他职务，不可同时担任多个职务")
                     return@launch
                 }
 
-                if (isReserveDisciple(discipleId)) {
+                if (disciplePositionQuery.isReserveDisciple(discipleId)) {
                     showError("该弟子已是其他部门的储备弟子")
                     return@launch
                 }
@@ -1253,9 +1256,9 @@ class ProductionViewModel @Inject constructor(
                     val disciple = disciples.value.find { it.id == discipleId }
                     if (disciple == null) continue
 
-                    if (hasDisciplePosition(discipleId)) continue
+                    if (disciplePositionQuery.hasDisciplePosition(discipleId)) continue
 
-                    if (isReserveDisciple(discipleId)) continue
+                    if (disciplePositionQuery.isReserveDisciple(discipleId)) continue
 
                     newSlots.add(
                         DirectDiscipleSlot(
@@ -1420,9 +1423,9 @@ class ProductionViewModel @Inject constructor(
 
                     val disciple = disciples.value.find { it.id == discipleId } ?: return@forEach
 
-                    if (hasDisciplePosition(discipleId)) return@forEach
+                    if (disciplePositionQuery.hasDisciplePosition(discipleId)) return@forEach
 
-                    if (isReserveDisciple(discipleId)) return@forEach
+                    if (disciplePositionQuery.isReserveDisciple(discipleId)) return@forEach
 
                     val newIndex = if (currentReserveDisciples.isEmpty()) 0 else currentReserveDisciples.maxOf { it.index } + 1
                     val newSlot = DirectDiscipleSlot(
@@ -1510,27 +1513,4 @@ class ProductionViewModel @Inject constructor(
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 
-    fun hasDisciplePosition(discipleId: String): Boolean {
-        val gameData = gameEngine.gameData.value
-        val elderSlots = gameData.elderSlots
-        val allElderIds = elderSlots.getAllElderIds()
-        val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
-        return allElderIds.contains(discipleId) || allDirectDiscipleIds.contains(discipleId)
-    }
-
-    fun isReserveDisciple(discipleId: String): Boolean {
-        val elderSlots = gameEngine.gameData.value.elderSlots
-        return elderSlots.lawEnforcementReserveDisciples.any { it.discipleId == discipleId } ||
-               elderSlots.herbGardenReserveDisciples.any { it.discipleId == discipleId } ||
-               elderSlots.alchemyReserveDisciples.any { it.discipleId == discipleId } ||
-               elderSlots.forgeReserveDisciples.any { it.discipleId == discipleId }
-    }
-
-    fun isPositionWorkStatus(discipleId: String): Boolean {
-        return com.xianxia.sect.ui.game.DisciplePositionHelper.isPositionWorkStatus(discipleId, gameEngine.gameData.value)
-    }
-
-    fun getDisciplePosition(discipleId: String): String? {
-        return com.xianxia.sect.ui.game.DisciplePositionHelper.getDisciplePosition(discipleId, gameEngine.gameData.value)
-    }
 }

@@ -9,10 +9,10 @@ import kotlinx.coroutines.flow.receiveAsFlow
 
 abstract class BaseViewModel : ViewModel() {
 
-    private val _errorEvents = Channel<String>(Channel.BUFFERED)
+    private val _errorEvents = Channel<String>(Channel.UNLIMITED)
     val errorEvents = _errorEvents.receiveAsFlow()
 
-    private val _successEvents = Channel<String>(Channel.BUFFERED)
+    private val _successEvents = Channel<String>(Channel.UNLIMITED)
     val successEvents = _successEvents.receiveAsFlow()
 
     private val _errorMessage = MutableStateFlow<String?>(null)

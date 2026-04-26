@@ -7,6 +7,7 @@ import androidx.room.Index
 import com.xianxia.sect.core.model.production.ProductionSlot
 import kotlinx.serialization.Serializable
 
+@Serializable
 @Entity(
     tableName = "game_data_core",
     primaryKeys = ["id", "slot_id"],
