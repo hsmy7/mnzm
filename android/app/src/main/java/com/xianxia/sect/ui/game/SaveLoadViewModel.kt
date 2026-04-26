@@ -551,7 +551,7 @@ class SaveLoadViewModel @Inject constructor(
                 if (saveData == null) {
                     val elapsed = System.currentTimeMillis() - loadStartTime
                     Log.e(TAG, "=== loadGame FAILED === timeout or null for slot ${saveSlot.slot}, elapsed=${elapsed}ms")
-                    _errorMessage.value = if (elapsed >= 60_000L "读档超时，请重试" else "存档为空或已损坏，请重试")
+                    _errorMessage.value = if (elapsed >= 60_000L) "读档超时，请重试" else "存档为空或已损坏，请重试"
                     return@launch
                 }
 
