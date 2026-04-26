@@ -27,7 +27,7 @@ class SectViewModel @Inject constructor(
      * 用于 UI 层展示，避免使用废弃的 Disciple 类
      */
     val disciplesAggregates: StateFlow<List<DiscipleAggregate>> = gameEngine.discipleAggregates
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val disciples: StateFlow<List<DiscipleAggregate>> = disciplesAggregates
     

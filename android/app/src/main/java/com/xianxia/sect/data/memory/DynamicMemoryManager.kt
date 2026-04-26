@@ -5,6 +5,7 @@ import android.content.Context
 import android.os.Build
 import android.util.Log
 import dagger.hilt.android.qualifiers.ApplicationContext
+import com.xianxia.sect.core.util.MemoryFormatUtil
 import java.lang.ref.WeakReference
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicLong
@@ -106,12 +107,7 @@ data class MemorySnapshot(
             appendLine("  预算分配: ${formatBytes(budgetAllocatedBytes)}")
         }
 
-    private fun formatBytes(bytes: Long): String = when {
-        bytes >= 1024 * 1024 * 1024 -> String.format(Locale.getDefault(), "%.2f GB", bytes.toDouble() / (1024 * 1024 * 1024))
-        bytes >= 1024 * 1024 -> String.format(Locale.getDefault(), "%.1f MB", bytes.toDouble() / (1024 * 1024))
-        bytes >= 1024 -> String.format(Locale.getDefault(), "%.1f KB", bytes.toDouble() / 1024)
-        else -> "$bytes B"
-    }
+    private fun formatBytes(bytes: Long): String = MemoryFormatUtil.formatMemory(bytes)
 }
 
 /**

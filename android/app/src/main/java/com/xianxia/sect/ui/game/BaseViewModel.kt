@@ -3,11 +3,14 @@ package com.xianxia.sect.ui.game
 import androidx.lifecycle.ViewModel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 
 abstract class BaseViewModel : ViewModel() {
+
+    protected val sharingStarted = SharingStarted.WhileSubscribed(5_000)
 
     private val _errorEvents = Channel<String>(Channel.UNLIMITED)
     val errorEvents = _errorEvents.receiveAsFlow()

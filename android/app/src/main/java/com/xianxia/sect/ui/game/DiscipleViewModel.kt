@@ -24,7 +24,7 @@ class DiscipleViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), gameEngine.gameData.value)
     
     val disciples: StateFlow<List<DiscipleAggregate>> = gameEngine.discipleAggregates
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     
     private val _selectedDiscipleId = MutableStateFlow<String?>(null)
     val selectedDiscipleId: StateFlow<String?> = _selectedDiscipleId.asStateFlow()

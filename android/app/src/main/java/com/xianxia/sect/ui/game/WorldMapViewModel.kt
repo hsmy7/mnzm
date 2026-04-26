@@ -24,7 +24,7 @@ class WorldMapViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), GameData())
 
     val discipleAggregates: StateFlow<List<DiscipleAggregate>> = gameEngine.discipleAggregates
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val _showScoutDialog = MutableStateFlow(false)
     val showScoutDialog: StateFlow<Boolean> = _showScoutDialog.asStateFlow()

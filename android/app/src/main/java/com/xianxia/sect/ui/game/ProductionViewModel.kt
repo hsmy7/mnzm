@@ -300,7 +300,7 @@ class ProductionViewModel @Inject constructor(
     }
 
     val discipleAggregates: StateFlow<List<DiscipleAggregate>> = gameEngine.discipleAggregates
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val disciples = gameEngine.disciples
 

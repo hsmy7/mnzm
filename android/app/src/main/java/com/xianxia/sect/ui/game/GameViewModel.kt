@@ -142,7 +142,7 @@ class GameViewModel @Inject constructor(
      * 确保 UI 层统一使用新的多表架构类型。
      */
     val discipleAggregates: StateFlow<List<DiscipleAggregate>> = gameEngine.discipleAggregates
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val disciples: StateFlow<List<DiscipleAggregate>> = discipleAggregates
 
