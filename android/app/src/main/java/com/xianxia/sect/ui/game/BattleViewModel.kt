@@ -477,7 +477,33 @@ class BattleViewModel @Inject constructor(
                         currentX = occupiedSect.x,
                         currentY = occupiedSect.y
                     )
-                    gameEngine.updateGameData { it.copy(battleTeam = updatedTeam) }
+                    gameEngine.updateGameData { gameData ->
+                        val updatedSects = gameData.worldMapSects.map { sect ->
+                            if (sect.id == occupiedSect.id) {
+                                sect.copy(
+                                    garrisonTeamId = "",
+                                    isPlayerOccupied = false,
+                                    occupierSectId = ""
+                                )
+                            } else {
+                                sect
+                            }
+                        }
+                        val playerSectId = gameData.worldMapSects.find { it.isPlayerSect }?.id
+                        val isGameOver = if (playerSectId != null && !gameData.isGameOver) {
+                            !updatedSects.any { sect ->
+                                (sect.isPlayerSect && sect.occupierSectId.isEmpty()) ||
+                                (sect.occupierSectId == playerSectId && !sect.isPlayerSect)
+                            }
+                        } else {
+                            gameData.isGameOver
+                        }
+                        gameData.copy(
+                            battleTeam = updatedTeam,
+                            worldMapSects = updatedSects,
+                            isGameOver = isGameOver
+                        )
+                    }
                 } else {
                     gameEngine.updateGameData { it.copy(battleTeam = null) }
                     gameEngine.syncAllDiscipleStatuses()

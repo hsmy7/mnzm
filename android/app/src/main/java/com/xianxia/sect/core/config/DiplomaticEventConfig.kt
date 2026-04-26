@@ -7,7 +7,11 @@ object DiplomaticEventConfig {
         val name: String,
         val description: String,
         val favorChange: Int,
-        val isPositive: Boolean = true
+        val isPositive: Boolean = true,
+        val requiresPlayer: Boolean = false,
+        val requiresSameAlignment: Boolean = false,
+        val requiresOpposingAlignment: Boolean = false,
+        val requiresAlliance: Boolean = false
     )
 
     const val MONTHLY_TRIGGER_CHANCE = 0.03
@@ -66,7 +70,8 @@ object DiplomaticEventConfig {
             name = "盟友协作",
             description = "盟约宗门之间加深合作",
             favorChange = 2,
-            isPositive = true
+            isPositive = true,
+            requiresAlliance = true
         )
 
         val TRADE_BOOM = DiplomaticEventDef(
@@ -106,7 +111,8 @@ object DiplomaticEventConfig {
             name = "同道相惜",
             description = "正道/邪道宗门之间因立场一致而亲近",
             favorChange = 5,
-            isPositive = true
+            isPositive = true,
+            requiresSameAlignment = true
         )
 
         val OPPOSING_ALIGNMENT_CLASH = DiplomaticEventDef(
@@ -114,7 +120,8 @@ object DiplomaticEventConfig {
             name = "正邪对立",
             description = "正道与邪道宗门之间爆发冲突",
             favorChange = -7,
-            isPositive = false
+            isPositive = false,
+            requiresOpposingAlignment = true
         )
 
         val PLAYER_DISCIPLE_ENCOUNTER = DiplomaticEventDef(
@@ -122,7 +129,8 @@ object DiplomaticEventConfig {
             name = "弟子偶遇",
             description = "我宗弟子在外偶遇他宗弟子，相谈甚欢",
             favorChange = 2,
-            isPositive = true
+            isPositive = true,
+            requiresPlayer = true
         )
 
         val PLAYER_ESCORT_MISSION = DiplomaticEventDef(
@@ -130,7 +138,8 @@ object DiplomaticEventConfig {
             name = "护送之恩",
             description = "我宗弟子护送了他宗遇险弟子",
             favorChange = 6,
-            isPositive = true
+            isPositive = true,
+            requiresPlayer = true
         )
 
         val PLAYER_INSULT_INCIDENT = DiplomaticEventDef(
@@ -138,7 +147,8 @@ object DiplomaticEventConfig {
             name = "口角之争",
             description = "我宗弟子与他宗弟子发生口角",
             favorChange = -4,
-            isPositive = false
+            isPositive = false,
+            requiresPlayer = true
         )
 
         val ALL_EVENTS: List<DiplomaticEventDef> = listOf(

@@ -2143,7 +2143,7 @@ class CultivationService @Inject constructor(
                     aiBattleTeams = currentGameData.aiBattleTeams.filter { it.id != garrisonTeam.id },
                     worldMapSects = currentGameData.worldMapSects.map { sect ->
                         if (sect.garrisonTeamId == garrisonTeam.id) {
-                            sect.copy(garrisonTeamId = "")
+                            sect.copy(garrisonTeamId = "", occupierSectId = "", isPlayerOccupied = false)
                         } else sect
                     }
                 )
@@ -2332,7 +2332,7 @@ class CultivationService @Inject constructor(
                     aiBattleTeams = currentGameData.aiBattleTeams.filter { it.id != garrisonTeam.id },
                     worldMapSects = currentGameData.worldMapSects.map { sect ->
                         if (sect.garrisonTeamId == garrisonTeam.id) {
-                            sect.copy(garrisonTeamId = "")
+                            sect.copy(garrisonTeamId = "", occupierSectId = "", isPlayerOccupied = false)
                         } else sect
                     }
                 )
@@ -2555,49 +2555,113 @@ class CultivationService @Inject constructor(
 
         if (result.winner == AIBattleWinner.ATTACKER) {
             val aliveAttackerDisciples = team.disciples.filter { it.id !in result.deadAttackerIds }
-            val supplementedDisciples = AISectAttackManager.supplementDisciples(aliveAttackerDisciples, updatedSectDisciples)
 
-            currentGameData = currentGameData.copy(
-                worldMapSects = currentGameData.worldMapSects.map { sect ->
-                    if (sect.id == team.defenderSectId) {
-                        sect.copy(
-                            occupierSectId = team.attackerSectId,
-                            isPlayerOccupied = false,
-                            garrisonTeamId = team.id
-                        )
-                    } else {
-                        sect
+            val currentDefenderSect = currentGameData.worldMapSects.find { it.id == team.defenderSectId } ?: defenderSect
+            val survivingHighRealmSectDisciples = updatedSectDisciples.filter { it.isAlive && it.realm <= 5 }
+            val hasAiGarrison = currentGameData.aiBattleTeams.any {
+                ((it.isGarrison && it.garrisonSectId == team.defenderSectId) || it.id == currentDefenderSect.garrisonTeamId) && it.status != "completed"
+            }
+            val canActuallyOccupy = aliveAttackerDisciples.isNotEmpty() && survivingHighRealmSectDisciples.isEmpty() && !hasAiGarrison
+
+            if (canActuallyOccupy) {
+                val supplementedDisciples = AISectAttackManager.supplementDisciples(aliveAttackerDisciples, updatedSectDisciples)
+
+                val currentData = currentGameData
+                val defenderDetail = currentData.sectDetails[team.defenderSectId]
+                val defenderWarehouse = defenderDetail?.warehouse ?: SectWarehouse()
+
+                currentGameData = currentData.copy(
+                    worldMapSects = currentGameData.worldMapSects.map { sect ->
+                        if (sect.id == team.defenderSectId) {
+                            sect.copy(
+                                occupierSectId = team.attackerSectId,
+                                isPlayerOccupied = false,
+                                garrisonTeamId = team.id
+                            )
+                        } else {
+                            sect
+                        }
+                    },
+                    sectDetails = currentGameData.sectDetails.toMutableMap().apply {
+                        this[team.defenderSectId] = (this[team.defenderSectId] ?: SectDetail(sectId = team.defenderSectId)).copy(warehouse = SectWarehouse())
+                        val attackerDetail = this[team.attackerSectId] ?: SectDetail(sectId = team.attackerSectId)
+                        val mergedWarehouse = SectWarehouseManager.addItemsToWarehouse(attackerDetail.warehouse, defenderWarehouse.items)
+                        val finalWarehouse = SectWarehouseManager.addSpiritStonesToWarehouse(mergedWarehouse, defenderWarehouse.spiritStones)
+                        this[team.attackerSectId] = attackerDetail.copy(warehouse = finalWarehouse)
+                    },
+                    battleTeam = playerBattleTeam.copy(
+                        status = "returning",
+                        isReturning = true,
+                        isAtSect = false,
+                        isOccupying = false,
+                        occupiedSectId = "",
+                        slots = updatedSlots,
+                        moveProgress = 0f,
+                        currentX = defenderSect.x,
+                        currentY = defenderSect.y,
+                        targetX = data.worldMapSects.find { it.isPlayerSect }?.x ?: 0f,
+                        targetY = data.worldMapSects.find { it.isPlayerSect }?.y ?: 0f
+                    ),
+                    aiBattleTeams = currentGameData.aiBattleTeams.map {
+                        if (it.id == team.id) {
+                            it.copy(
+                                status = "stationed",
+                                isGarrison = true,
+                                garrisonSectId = team.defenderSectId,
+                                garrisonSectName = defenderSect.name,
+                                disciples = supplementedDisciples,
+                                moveProgress = 1f
+                            )
+                        } else {
+                            it
+                        }
                     }
-                },
-                battleTeam = playerBattleTeam.copy(
-                    status = "returning",
-                    isReturning = true,
-                    isAtSect = false,
-                    isOccupying = false,
-                    occupiedSectId = "",
-                    slots = updatedSlots,
-                    moveProgress = 0f,
-                    currentX = defenderSect.x,
-                    currentY = defenderSect.y,
-                    targetX = data.worldMapSects.find { it.isPlayerSect }?.x ?: 0f,
-                    targetY = data.worldMapSects.find { it.isPlayerSect }?.y ?: 0f
-                ),
-                aiBattleTeams = currentGameData.aiBattleTeams.map {
-                    if (it.id == team.id) {
-                        it.copy(
-                            status = "stationed",
-                            isGarrison = true,
-                            garrisonSectId = team.defenderSectId,
-                            garrisonSectName = defenderSect.name,
-                            disciples = supplementedDisciples,
-                            moveProgress = 1f
-                        )
-                    } else {
-                        it
+                )
+                eventService.addGameEvent("${team.attackerSectName}攻占了${defenderSect.name}，我宗驻守队伍撤回！", EventType.DANGER)
+            } else {
+                currentGameData = currentGameData.copy(
+                    worldMapSects = currentGameData.worldMapSects.map { sect ->
+                        if (sect.id == team.defenderSectId) {
+                            sect.copy(
+                                occupierSectId = "",
+                                isPlayerOccupied = false,
+                                garrisonTeamId = ""
+                            )
+                        } else {
+                            sect
+                        }
+                    },
+                    battleTeam = playerBattleTeam.copy(
+                        status = "returning",
+                        isReturning = true,
+                        isAtSect = false,
+                        isOccupying = false,
+                        occupiedSectId = "",
+                        slots = updatedSlots,
+                        moveProgress = 0f,
+                        currentX = defenderSect.x,
+                        currentY = defenderSect.y,
+                        targetX = data.worldMapSects.find { it.isPlayerSect }?.x ?: 0f,
+                        targetY = data.worldMapSects.find { it.isPlayerSect }?.y ?: 0f
+                    ),
+                    aiBattleTeams = currentGameData.aiBattleTeams.map {
+                        if (it.id == team.id) {
+                            it.copy(
+                                status = "returning",
+                                disciples = aliveAttackerDisciples,
+                                currentX = defenderSect.x,
+                                currentY = defenderSect.y,
+                                targetX = team.attackerStartX,
+                                targetY = team.attackerStartY,
+                                moveProgress = 0f
+                            )
+                        } else {
+                            it
+                        }
                     }
-                }
-            )
-            eventService.addGameEvent("${team.attackerSectName}攻占了${defenderSect.name}，我宗驻守队伍撤回！", EventType.DANGER)
+                )
+                eventService.addGameEvent("${team.attackerSectName}击败了我宗驻守队伍，但未能占领${defenderSect.name}！", EventType.INFO)
+            }
         } else {
             currentGameData = currentGameData.copy(
                 battleTeam = playerBattleTeam.copy(slots = updatedSlots),
@@ -4116,17 +4180,32 @@ class CultivationService @Inject constructor(
         val updatedRelations = data.sectRelations.toMutableList()
         var relationsChanged = false
 
-        val events = DiplomaticEventConfig.Events.ALL_EVENTS
+        val allEvents = DiplomaticEventConfig.Events.ALL_EVENTS
 
         for (relation in data.sectRelations) {
             if (Random.nextDouble() >= DiplomaticEventConfig.MONTHLY_TRIGGER_CHANCE) continue
 
-            val eventDef = events.random()
             val involvesPlayer = relation.sectId1 == playerSectId || relation.sectId2 == playerSectId
             val sect1 = data.worldMapSects.find { it.id == relation.sectId1 }
             val sect2 = data.worldMapSects.find { it.id == relation.sectId2 }
             if (sect1 == null || sect2 == null) continue
 
+            val isSameAlignment = sect1.isRighteous == sect2.isRighteous
+            val isAllied = sect1.allianceId.isNotEmpty() && sect1.allianceId == sect2.allianceId
+
+            val eligibleEvents = allEvents.filter { event ->
+                when {
+                    event.requiresPlayer && !involvesPlayer -> false
+                    event.requiresSameAlignment && !isSameAlignment -> false
+                    event.requiresOpposingAlignment && isSameAlignment -> false
+                    event.requiresAlliance && !isAllied -> false
+                    else -> true
+                }
+            }
+
+            if (eligibleEvents.isEmpty()) continue
+
+            val eventDef = eligibleEvents.random()
             val favorChange = eventDef.favorChange
             val newFavor = (relation.favor + favorChange).coerceIn(GameConfig.Diplomacy.MIN_FAVOR, GameConfig.Diplomacy.MAX_FAVOR)
 

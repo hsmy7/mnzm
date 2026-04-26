@@ -852,10 +852,14 @@ class GameViewModel @Inject constructor(
 
     fun openGameOverDialog() {
         viewModelScope.launch {
-            gameEngineCore.pause()
+            try {
+                gameEngineCore.pause()
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to pause game engine on game over", e)
+            }
+            dialogStateManager.closeDialog()
+            openDialog(DialogType.GameOver)
         }
-        dialogStateManager.closeDialog()
-        openDialog(DialogType.GameOver)
     }
 
     fun closeGameOverDialog() {

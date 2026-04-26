@@ -287,7 +287,7 @@ class DiplomacyService @Inject constructor(
         val newSpiritStones = (data.spiritStones - spiritStonePenalty).coerceAtLeast(0L)
 
         val updatedSects = data.worldMapSects.map { s ->
-            if (s.id == sectId) s.copy(allianceId = "", allianceStartYear = 0)
+            if (alliance.sectIds.contains(s.id)) s.copy(allianceId = "", allianceStartYear = 0)
             else s
         }
 
