@@ -10,6 +10,7 @@ import javax.inject.Singleton
 
 @Singleton
 class SaveLoadCoordinator @Inject constructor(
+    @Suppress("DEPRECATION") // TODO: Migrate to UnifiedPerformanceMonitor (P1/P3 task)
     private val performanceMonitor: PerformanceMonitor
 ) {
     companion object {

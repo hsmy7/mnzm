@@ -58,6 +58,8 @@ sealed class GameResult<out T> {
         inline fun <T> of(block: () -> T): GameResult<T> {
             return try {
                 Success(block())
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Failure(GameError.fromException(e))
             }
@@ -67,6 +69,8 @@ sealed class GameResult<out T> {
             return try {
                 val result = block()
                 if (result != null) Success(result) else Failure(GameError.NotFound("结果为空"))
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Failure(GameError.fromException(e))
             }
@@ -93,6 +97,8 @@ object ErrorHandler {
     fun <T> safeCall(block: () -> T): GameResult<T> {
         return try {
             GameResult.Success(block())
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             GameResult.Failure(GameError.fromException(e))
         }
@@ -120,6 +126,8 @@ object ErrorHandler {
     ): GameResult<T> {
         return try {
             GameResult.Success(block())
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             GameLogger.e(tag, "Error in $operation", context, e)
             GameResult.Failure(GameError.fromException(e))

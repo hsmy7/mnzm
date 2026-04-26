@@ -18,6 +18,7 @@ import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 import javax.inject.Singleton
 
+@Deprecated("Use UnifiedPerformanceMonitor instead", ReplaceWith("UnifiedPerformanceMonitor"))
 @Singleton
 class PerformanceMonitor @Inject constructor(
     private val applicationScopeProvider: ApplicationScopeProvider

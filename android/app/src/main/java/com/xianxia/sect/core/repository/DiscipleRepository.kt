@@ -3,23 +3,13 @@ package com.xianxia.sect.core.repository
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.data.local.DiscipleDao
-import com.xianxia.sect.data.local.DiscipleAttributesDao
-import com.xianxia.sect.data.local.DiscipleCombatStatsDao
-import com.xianxia.sect.data.local.DiscipleCoreDao
-import com.xianxia.sect.data.local.DiscipleEquipmentDao
-import com.xianxia.sect.data.local.DiscipleExtendedDao
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class DiscipleRepository @Inject constructor(
-    private val discipleDao: DiscipleDao,
-    private val discipleCoreDao: DiscipleCoreDao,
-    private val discipleCombatStatsDao: DiscipleCombatStatsDao,
-    private val discipleEquipmentDao: DiscipleEquipmentDao,
-    private val discipleExtendedDao: DiscipleExtendedDao,
-    private val discipleAttributesDao: DiscipleAttributesDao
+    private val discipleDao: DiscipleDao
 ) {
     companion object {
         const val DEFAULT_SLOT_ID = 0

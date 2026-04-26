@@ -1,5 +1,20 @@
 # 模拟宗门 - 更新日志
 
+## [2.5.60] - 2026-04-27
+
+### 架构优化
+- 拆分 GameRepository 为 6 个领域专用仓库：GameDataRepository、DiscipleRepository、EquipmentRepository、InventoryRepository、WorldRepository、ForgeRepository
+- 新仓库仅保留非废弃的 Flow 读方法和生命周期方法（clearAllData、initializeNewGame），跳过所有 @Deprecated 写方法
+- 旧 GameRepository 标记 @Deprecated，读方法委托到新仓库，保留废弃写方法以维持向后兼容
+- 移除 AppModule.kt 中手动 provideGameRepository 方法，新仓库使用 @Inject constructor 由 Hilt 自动注入
+- 清理 GameRepository 中未使用的 DAO 依赖（discipleCoreDao、alchemySlotDao、productionSlotDao 等）
+
+## [2.5.59] - 2026-04-27
+
+### 架构优化
+- 标记 GamePerformanceMonitor 和 PerformanceMonitor 为 @Deprecated，统一使用 UnifiedPerformanceMonitor
+- 在 GameEngineCore、GameMonitorManager、SaveLoadCoordinator 的注入点添加 @Suppress("DEPRECATION") 和 TODO 注释，待后续 P1/P3 任务完成迁移
+
 ## [2.5.58] - 2026-04-27
 
 ### 架构优化

@@ -53,6 +53,7 @@ interface PerformanceListener {
     fun onWarning(warning: PerformanceWarning)
 }
 
+@Deprecated("Use UnifiedPerformanceMonitor instead", ReplaceWith("UnifiedPerformanceMonitor"))
 @Singleton
 class GamePerformanceMonitor @Inject constructor(
     private val applicationScopeProvider: ApplicationScopeProvider

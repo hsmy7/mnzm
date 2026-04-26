@@ -4,7 +4,6 @@ import android.app.ActivityManager
 import android.content.Context
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.data.local.*
-import com.xianxia.sect.data.GameRepository
 import com.xianxia.sect.data.SessionManager
 import com.xianxia.sect.data.cache.CacheConfig
 import com.xianxia.sect.data.cache.GameDataCacheManager
@@ -118,66 +117,6 @@ object AppModule {
     @Provides
     fun provideDiscipleAttributesDao(database: GameDatabase): DiscipleAttributesDao = database.discipleAttributesDao()
     
-    @Provides
-    @Singleton
-    fun provideGameRepository(
-        database: GameDatabase,
-        storageFacade: StorageFacade,
-        gameDataDao: GameDataDao,
-        discipleDao: DiscipleDao,
-        discipleCoreDao: DiscipleCoreDao,
-        discipleCombatStatsDao: DiscipleCombatStatsDao,
-        discipleEquipmentDao: DiscipleEquipmentDao,
-        discipleExtendedDao: DiscipleExtendedDao,
-        discipleAttributesDao: DiscipleAttributesDao,
-        equipmentStackDao: EquipmentStackDao,
-        equipmentInstanceDao: EquipmentInstanceDao,
-        manualStackDao: ManualStackDao,
-        manualInstanceDao: ManualInstanceDao,
-        pillDao: PillDao,
-        materialDao: MaterialDao,
-        seedDao: SeedDao,
-        herbDao: HerbDao,
-        explorationTeamDao: ExplorationTeamDao,
-        buildingSlotDao: BuildingSlotDao,
-        gameEventDao: GameEventDao,
-        dungeonDao: DungeonDao,
-        recipeDao: RecipeDao,
-        battleLogDao: BattleLogDao,
-        forgeSlotDao: ForgeSlotDao,
-        alchemySlotDao: AlchemySlotDao,
-        productionSlotDao: ProductionSlotDao
-    ): GameRepository {
-        return GameRepository(
-            database,
-            storageFacade,
-            gameDataDao,
-            discipleDao,
-            discipleCoreDao,
-            discipleCombatStatsDao,
-            discipleEquipmentDao,
-            discipleExtendedDao,
-            discipleAttributesDao,
-            equipmentStackDao,
-            equipmentInstanceDao,
-            manualStackDao,
-            manualInstanceDao,
-            pillDao,
-            materialDao,
-            seedDao,
-            herbDao,
-            explorationTeamDao,
-            buildingSlotDao,
-            gameEventDao,
-            dungeonDao,
-            recipeDao,
-            battleLogDao,
-            forgeSlotDao,
-            alchemySlotDao,
-            productionSlotDao
-        )
-    }
-
     @Provides
     @Singleton
     fun provideCacheConfig(@ApplicationContext context: Context): CacheConfig {
