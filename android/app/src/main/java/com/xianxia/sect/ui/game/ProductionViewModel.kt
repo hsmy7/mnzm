@@ -1,6 +1,7 @@
 package com.xianxia.sect.ui.game
 
 import androidx.lifecycle.viewModelScope
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.registry.BeastMaterialDatabase
 import com.xianxia.sect.core.registry.ForgeRecipeDatabase
 import com.xianxia.sect.core.registry.HerbDatabase
@@ -309,57 +310,17 @@ class ProductionViewModel @Inject constructor(
         return discipleAggregates.value.find { it.id == elderId }
     }
 
-    fun assignElder(slotType: ElderSlotType, discipleId: String) {
-        viewModelScope.launch {
-            try {
-                when (val result = elderManagement.assignElder(slotType, discipleId)) {
-                    is ElderManagementUseCase.ElderResult.Success -> showSuccess(result.message)
-                    is ElderManagementUseCase.ElderResult.Error -> showError(result.message)
-                }
-            } catch (e: Exception) {
-                showError(e.message ?: "任命失败")
-            }
-        }
-    }
+    fun assignElder(slotType: ElderSlotType, discipleId: String) =
+        launchElderAction({ elderManagement.assignElder(slotType, discipleId) }, "任命失败")
 
-    fun removeElder(slotType: ElderSlotType) {
-        viewModelScope.launch {
-            try {
-                when (val result = elderManagement.removeElder(slotType)) {
-                    is ElderManagementUseCase.ElderResult.Success -> showSuccess(result.message)
-                    is ElderManagementUseCase.ElderResult.Error -> showError(result.message)
-                }
-            } catch (e: Exception) {
-                showError(e.message ?: "卸任失败")
-            }
-        }
-    }
+    fun removeElder(slotType: ElderSlotType) =
+        launchElderAction({ elderManagement.removeElder(slotType) }, "卸任失败")
 
-    fun assignDirectDisciple(elderSlotType: String, slotIndex: Int, discipleId: String) {
-        viewModelScope.launch {
-            try {
-                when (val result = elderManagement.assignDirectDisciple(elderSlotType, slotIndex, discipleId)) {
-                    is ElderManagementUseCase.ElderResult.Success -> showSuccess(result.message)
-                    is ElderManagementUseCase.ElderResult.Error -> showError(result.message)
-                }
-            } catch (e: Exception) {
-                showError(e.message ?: "分配失败")
-            }
-        }
-    }
+    fun assignDirectDisciple(elderSlotType: String, slotIndex: Int, discipleId: String) =
+        launchElderAction({ elderManagement.assignDirectDisciple(elderSlotType, slotIndex, discipleId) }, "分配失败")
 
-    fun removeDirectDisciple(elderSlotType: String, slotIndex: Int) {
-        viewModelScope.launch {
-            try {
-                when (val result = elderManagement.removeDirectDisciple(elderSlotType, slotIndex)) {
-                    is ElderManagementUseCase.ElderResult.Success -> showSuccess(result.message)
-                    is ElderManagementUseCase.ElderResult.Error -> showError(result.message)
-                }
-            } catch (e: Exception) {
-                showError(e.message ?: "卸任失败")
-            }
-        }
-    }
+    fun removeDirectDisciple(elderSlotType: String, slotIndex: Int) =
+        launchElderAction({ elderManagement.removeDirectDisciple(elderSlotType, slotIndex) }, "卸任失败")
 
     fun getAlchemyReserveDisciplesWithInfo(): List<DiscipleAggregate> {
         val reserveSlots = gameEngine.gameData.value?.elderSlots?.alchemyReserveDisciples ?: emptyList()
@@ -652,7 +613,7 @@ class ProductionViewModel @Inject constructor(
             .filter {
                 it.isAlive &&
                 it.discipleType == "inner" &&
-                it.age >= 5 &&
+                it.age >= GameConfig.Disciple.MIN_AGE &&
                 it.realmLayer > 0 &&
                 it.status == DiscipleStatus.IDLE &&
                 !allElderIds.contains(it.id) &&
@@ -810,7 +771,7 @@ class ProductionViewModel @Inject constructor(
     private suspend fun assignDisciplesToEmptyMineSlotsInternal(disciples: List<DiscipleAggregate>) {
         val currentGameData = gameEngine.gameData.value
         var currentSlots = currentGameData.spiritMineSlots.toMutableList()
-        while (currentSlots.size < 12) {
+        while (currentSlots.size < GameConfig.Production.MAX_SPIRIT_MINE_SLOTS) {
             currentSlots.add(SpiritMineSlot(index = currentSlots.size))
         }
         val disciplesToAssign = disciples.take(currentSlots.count { it.discipleId.isEmpty() })
@@ -1027,7 +988,7 @@ class ProductionViewModel @Inject constructor(
     private fun isSelectableDisciple(disciple: DiscipleAggregate): Boolean {
         return disciple.isAlive &&
                disciple.discipleType == "inner" &&
-               disciple.age >= 5 &&
+               disciple.age >= GameConfig.Disciple.MIN_AGE &&
                disciple.realmLayer > 0 &&
                disciple.status == DiscipleStatus.IDLE
     }
@@ -1046,7 +1007,7 @@ class ProductionViewModel @Inject constructor(
         val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
 
         return discipleAggregates.value
-            .filter { isSelectableDisciple(it) && it.realm <= 5 && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
+            .filter { isSelectableDisciple(it) && it.realm <= ElderManagementUseCase.REALM_LAW_ENFORCEMENT && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 
@@ -1079,8 +1040,8 @@ class ProductionViewModel @Inject constructor(
             .filter {
                 it.isAlive &&
                 it.discipleType == "inner" &&
-                it.realm <= 6 &&
-                it.age >= 5 &&
+                it.realm <= ElderManagementUseCase.REALM_ELDER &&
+                it.age >= GameConfig.Disciple.MIN_AGE &&
                 it.realmLayer > 0 &&
                 it.status == DiscipleStatus.IDLE &&
                 !allElderIds.contains(it.id) &&
@@ -1095,7 +1056,7 @@ class ProductionViewModel @Inject constructor(
         val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
 
         return discipleAggregates.value
-            .filter { isSelectableDisciple(it) && it.realm <= 6 && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
+            .filter { isSelectableDisciple(it) && it.realm <= ElderManagementUseCase.REALM_ELDER && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 
@@ -1105,7 +1066,7 @@ class ProductionViewModel @Inject constructor(
         val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
 
         return discipleAggregates.value
-            .filter { isSelectableDisciple(it) && it.realm <= 7 && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
+            .filter { isSelectableDisciple(it) && it.realm <= ElderManagementUseCase.REALM_PREACHING_MASTER && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 
@@ -1217,7 +1178,7 @@ class ProductionViewModel @Inject constructor(
         val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
 
         return discipleAggregates.value
-            .filter { isSelectableDisciple(it) && it.realm <= 6 && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
+            .filter { isSelectableDisciple(it) && it.realm <= ElderManagementUseCase.REALM_ELDER && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 
@@ -1227,7 +1188,7 @@ class ProductionViewModel @Inject constructor(
         val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
 
         return discipleAggregates.value
-            .filter { isSelectableDisciple(it) && it.realm <= 6 && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
+            .filter { isSelectableDisciple(it) && it.realm <= ElderManagementUseCase.REALM_ELDER && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 
@@ -1237,7 +1198,7 @@ class ProductionViewModel @Inject constructor(
         val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
 
         return discipleAggregates.value
-            .filter { isSelectableDisciple(it) && it.realm <= 7 && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
+            .filter { isSelectableDisciple(it) && it.realm <= ElderManagementUseCase.REALM_PREACHING_MASTER && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 

@@ -97,57 +97,17 @@ class SectViewModel @Inject constructor(
         }
     }
     
-    fun assignElder(slotType: ElderSlotType, discipleId: String) {
-        viewModelScope.launch {
-            try {
-                when (val result = elderManagement.assignElder(slotType, discipleId)) {
-                    is ElderManagementUseCase.ElderResult.Success -> showSuccess(result.message)
-                    is ElderManagementUseCase.ElderResult.Error -> showError(result.message)
-                }
-            } catch (e: Exception) {
-                showError(e.message ?: "任命失败")
-            }
-        }
-    }
+    fun assignElder(slotType: ElderSlotType, discipleId: String) =
+        launchElderAction({ elderManagement.assignElder(slotType, discipleId) }, "任命失败")
     
-    fun removeElder(slotType: ElderSlotType) {
-        viewModelScope.launch {
-            try {
-                when (val result = elderManagement.removeElder(slotType)) {
-                    is ElderManagementUseCase.ElderResult.Success -> showSuccess(result.message)
-                    is ElderManagementUseCase.ElderResult.Error -> showError(result.message)
-                }
-            } catch (e: Exception) {
-                showError(e.message ?: "卸任失败")
-            }
-        }
-    }
+    fun removeElder(slotType: ElderSlotType) =
+        launchElderAction({ elderManagement.removeElder(slotType) }, "卸任失败")
     
-    fun assignDirectDisciple(elderSlotType: String, slotIndex: Int, discipleId: String) {
-        viewModelScope.launch {
-            try {
-                when (val result = elderManagement.assignDirectDisciple(elderSlotType, slotIndex, discipleId)) {
-                    is ElderManagementUseCase.ElderResult.Success -> showSuccess(result.message)
-                    is ElderManagementUseCase.ElderResult.Error -> showError(result.message)
-                }
-            } catch (e: Exception) {
-                showError(e.message ?: "分配失败")
-            }
-        }
-    }
+    fun assignDirectDisciple(elderSlotType: String, slotIndex: Int, discipleId: String) =
+        launchElderAction({ elderManagement.assignDirectDisciple(elderSlotType, slotIndex, discipleId) }, "分配失败")
     
-    fun removeDirectDisciple(elderSlotType: String, slotIndex: Int) {
-        viewModelScope.launch {
-            try {
-                when (val result = elderManagement.removeDirectDisciple(elderSlotType, slotIndex)) {
-                    is ElderManagementUseCase.ElderResult.Success -> showSuccess(result.message)
-                    is ElderManagementUseCase.ElderResult.Error -> showError(result.message)
-                }
-            } catch (e: Exception) {
-                showError(e.message ?: "卸任失败")
-            }
-        }
-    }
+    fun removeDirectDisciple(elderSlotType: String, slotIndex: Int) =
+        launchElderAction({ elderManagement.removeDirectDisciple(elderSlotType, slotIndex) }, "卸任失败")
     
     // TODO: 迁移到 DiscipleAggregate
     fun getOuterElder(): DiscipleAggregate? {

@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.usecase
 
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.ElderSlotType
@@ -18,9 +19,10 @@ class ElderManagementUseCase @Inject constructor(
     private val gameEngine: GameEngine
 ) {
     companion object {
-        const val REALM_VICE_SECT_MASTER = 4
-        const val REALM_LAW_ENFORCEMENT = 5
-        const val REALM_ELDER = 6
+        const val REALM_VICE_SECT_MASTER = GameConfig.Elder.REALM_VICE_SECT_MASTER
+        const val REALM_LAW_ENFORCEMENT = GameConfig.Elder.REALM_LAW_ENFORCEMENT
+        const val REALM_ELDER = GameConfig.Elder.REALM_ELDER
+        const val REALM_PREACHING_MASTER = GameConfig.Elder.REALM_PREACHING_MASTER
     }
 
     sealed class ElderResult {

@@ -1,7 +1,6 @@
 package com.xianxia.sect.core.util
 
 import android.util.Log
-import java.util.ArrayDeque
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue

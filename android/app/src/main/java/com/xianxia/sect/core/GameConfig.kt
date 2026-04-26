@@ -86,6 +86,13 @@ object GameConfig {
         const val MAX_AGE = 100
         const val PROTECTION_MONTHS = 12
     }
+
+    object Elder {
+        const val REALM_VICE_SECT_MASTER = 4
+        const val REALM_LAW_ENFORCEMENT = 5
+        const val REALM_ELDER = 6
+        const val REALM_PREACHING_MASTER = 7
+    }
     
     object Time {
         const val TICK_INTERVAL = 200L
@@ -102,6 +109,10 @@ object GameConfig {
         const val BASE_SPEED = 8.0
         const val REALM_SPEED_BONUS_THRESHOLD = 3
         const val REALM_SPEED_BONUS = 1.5
+    }
+
+    object Production {
+        const val MAX_SPIRIT_MINE_SLOTS = 12
     }
     
     object Rarity {
@@ -411,6 +422,9 @@ object GameConfig {
         const val DEFENSE_CONSTANT: Double = 500.0
         const val DAMAGE_VARIANCE_PERCENT: Double = 20.0
         const val MIN_DAMAGE: Int = 1
+        const val ELDER_SLOTS = 2
+        const val DISCIPLE_SLOTS = 8
+        const val MIN_FORMATION_SIZE = ELDER_SLOTS + DISCIPLE_SLOTS
 
         object Element {
             const val ADVANTAGE_MULTIPLIER: Double = 1.3

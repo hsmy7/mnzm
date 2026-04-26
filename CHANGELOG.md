@@ -1,5 +1,30 @@
 # 模拟宗门 - 更新日志
 
+## [2.5.66] - 2026-04-27
+
+### 代码质量报告复查修复
+
+#### 架构修复
+- P0-01 完成: 删除已废弃的 GameRepository（无任何外部调用，所有功能已迁移到6个领域子Repository）
+- C2: BaseViewModel 新增 launchElderAction 辅助方法，SectViewModel/ProductionViewModel 的 assignElder/removeElder/assignDirectDisciple/removeDirectDisciple 从10行重复代码缩减为1-2行
+- C5: SaveLoadViewModel.pauseAndSaveForBackground() 从 runBlocking 改为 ApplicationScopeProvider.ioScope.launch，消除主线程 ANR 风险
+- C5: SaveLoadViewModel.onCleared() 保存超时从3秒缩短为2秒
+
+#### 代码规范修复
+- C4: 提取魔法数字为命名常量
+  - 新增 GameConfig.Battle.ELDER_SLOTS(2)、DISCIPLE_SLOTS(8)、MIN_FORMATION_SIZE(10)
+  - 新增 GameConfig.Production.MAX_SPIRIT_MINE_SLOTS(12)
+  - 新增 GameConfig.Elder 命名空间（REALM_VICE_SECT_MASTER/REALM_LAW_ENFORCEMENT/REALM_ELDER/REALM_PREACHING_MASTER）
+  - ElderManagementUseCase 常量委托到 GameConfig.Elder（单一事实来源）
+  - BattleViewModel: repeat(2/8)、age>=5、realm<=5、filledSlots<10 全部替换为常量引用
+  - ProductionViewModel: size<12、age>=5、realm<=5/6/7 全部替换为常量引用
+
+#### 安全性修复
+- launchElderAction 正确传播 CancellationException，避免破坏结构化并发
+
+#### 清理
+- ObjectPool.kt 删除残留的无用 import java.util.ArrayDeque
+
 ## [2.5.65] - 2026-04-27
 
 ### 代码质量 P1 修复（完整）

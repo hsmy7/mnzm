@@ -11,6 +11,7 @@ import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.model.SaveSlot
 import com.xianxia.sect.data.unified.SaveError
 import com.xianxia.sect.data.unified.SaveResult
+import com.xianxia.sect.di.ApplicationScopeProvider
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
@@ -26,7 +27,8 @@ class SaveLoadViewModel @Inject constructor(
     private val gameEngineCore: GameEngineCore,
     private val storageFacade: StorageFacade,
     private val stateManager: UnifiedGameStateManager,
-    private val savePipeline: SavePipeline
+    private val savePipeline: SavePipeline,
+    private val applicationScopeProvider: ApplicationScopeProvider
 ) : BaseViewModel() {
 
     companion object {
@@ -855,7 +857,8 @@ class SaveLoadViewModel @Inject constructor(
             return
         }
 
-        // 关键修复：同步保存而非异步入队，确保 app 被杀前数据已写入磁盘
+        // 使用 ApplicationScopeProvider 确保保存协程不被 ViewModel 生命周期取消
+        // 保存数据的构建必须在协程启动前同步完成，确保数据快照在协程启动前已捕获
         try {
             val autoSaveSlot = com.xianxia.sect.data.StorageConstants.AUTO_SAVE_SLOT
             val saveData = SaveData(
@@ -875,7 +878,7 @@ class SaveLoadViewModel @Inject constructor(
                 alliances = snapshot.alliances,
                 productionSlots = snapshot.productionSlots
             )
-            kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) {
+            applicationScopeProvider.ioScope.launch {
                 withTimeoutOrNull(5_000L) {
                     storageFacade.save(autoSaveSlot, saveData)
                 } ?: run {
@@ -1122,7 +1125,7 @@ class SaveLoadViewModel @Inject constructor(
                     productionSlots = snapshotToSave.productionSlots
                 )
                 val result = runBlocking(Dispatchers.IO) {
-                    withTimeoutOrNull(3_000L) {
+                    withTimeoutOrNull(2_000L) {
                         storageFacade.save(autoSaveSlot, saveData)
                     } ?: SaveResult.failure(SaveError.TIMEOUT, "Save timeout on exit")
                 }

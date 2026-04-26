@@ -2,9 +2,11 @@ package com.xianxia.sect.ui.game
 
 import android.util.Log
 import androidx.lifecycle.viewModelScope
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.usecase.DisciplePositionQueryUseCase
+import com.xianxia.sect.core.usecase.ElderManagementUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -37,11 +39,11 @@ class BattleViewModel @Inject constructor(
     val battleTeamMoveMode: StateFlow<Boolean> = _battleTeamMoveMode.asStateFlow()
     
     private val _battleTeamSlots = MutableStateFlow<List<BattleTeamSlot>>(buildList {
-        repeat(2) { index ->
+        repeat(GameConfig.Battle.ELDER_SLOTS) { index ->
             add(BattleTeamSlot(index, slotType = BattleSlotType.ELDER))
         }
-        repeat(8) { index ->
-            add(BattleTeamSlot(index + 2, slotType = BattleSlotType.DISCIPLE))
+        repeat(GameConfig.Battle.DISCIPLE_SLOTS) { index ->
+            add(BattleTeamSlot(index + GameConfig.Battle.ELDER_SLOTS, slotType = BattleSlotType.DISCIPLE))
         }
     })
     val battleTeamSlots: StateFlow<List<BattleTeamSlot>> = _battleTeamSlots.asStateFlow()
@@ -172,11 +174,11 @@ class BattleViewModel @Inject constructor(
                 gameEngine.syncAllDiscipleStatuses()
                 
                 _battleTeamSlots.value = buildList {
-                    repeat(2) { index ->
+                    repeat(GameConfig.Battle.ELDER_SLOTS) { index ->
                         add(BattleTeamSlot(index, slotType = BattleSlotType.ELDER))
                     }
-                    repeat(8) { index ->
-                        add(BattleTeamSlot(index + 2, slotType = BattleSlotType.DISCIPLE))
+                    repeat(GameConfig.Battle.DISCIPLE_SLOTS) { index ->
+                        add(BattleTeamSlot(index + GameConfig.Battle.ELDER_SLOTS, slotType = BattleSlotType.DISCIPLE))
                     }
                 }
                 
@@ -318,11 +320,11 @@ class BattleViewModel @Inject constructor(
             _battleTeamSlots.value = existingTeam.slots
         } else {
             _battleTeamSlots.value = buildList {
-                repeat(2) { index ->
+                repeat(GameConfig.Battle.ELDER_SLOTS) { index ->
                     add(BattleTeamSlot(index, slotType = BattleSlotType.ELDER))
                 }
-                repeat(8) { index ->
-                    add(BattleTeamSlot(index + 2, slotType = BattleSlotType.DISCIPLE))
+                repeat(GameConfig.Battle.DISCIPLE_SLOTS) { index ->
+                    add(BattleTeamSlot(index + GameConfig.Battle.ELDER_SLOTS, slotType = BattleSlotType.DISCIPLE))
                 }
             }
         }
@@ -342,9 +344,9 @@ class BattleViewModel @Inject constructor(
                 disciple.isAlive &&
                 disciple.discipleType == "inner" &&
                 disciple.realmLayer > 0 &&
-                disciple.age >= 5 &&
+                disciple.age >= GameConfig.Disciple.MIN_AGE &&
                 disciple.status == DiscipleStatus.IDLE &&
-                disciple.realm <= 5 &&
+                disciple.realm <= ElderManagementUseCase.REALM_LAW_ENFORCEMENT &&
                 !occupiedIds.contains(disciple.id)
             }
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
@@ -374,7 +376,7 @@ class BattleViewModel @Inject constructor(
 
         val slotType = currentSlots[slotIndex].slotType
 
-        if (slotType == BattleSlotType.ELDER && disciple.realm > 5) {
+        if (slotType == BattleSlotType.ELDER && disciple.realm > ElderManagementUseCase.REALM_LAW_ENFORCEMENT) {
             showError("战斗长老需要达到化神境界")
             return
         }
@@ -397,8 +399,8 @@ class BattleViewModel @Inject constructor(
         val currentSlots = _battleTeamSlots.value
         val filledSlots = currentSlots.count { it.discipleId.isNotEmpty() }
 
-        if (filledSlots < 10) {
-            showError("必须满10名弟子才可组建队伍")
+        if (filledSlots < GameConfig.Battle.MIN_FORMATION_SIZE) {
+            showError("必须满${GameConfig.Battle.MIN_FORMATION_SIZE}名弟子才可组建队伍")
             return false
         }
 
