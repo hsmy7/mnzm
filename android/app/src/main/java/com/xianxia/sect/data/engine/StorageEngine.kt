@@ -1,6 +1,5 @@
 package com.xianxia.sect.data.engine
 
-import android.content.Context
 import android.util.Log
 import com.xianxia.sect.core.state.fixStorageBagReferences
 import com.xianxia.sect.core.model.*
@@ -9,28 +8,21 @@ import com.xianxia.sect.data.cache.CacheLayer
 import com.xianxia.sect.data.cache.CacheKey
 import com.xianxia.sect.data.config.SaveLimitsConfig
 import com.xianxia.sect.data.concurrent.SlotLockManager
-import com.xianxia.sect.data.crypto.CryptoModule
 import com.xianxia.sect.data.crypto.IntegrityReport
-import com.xianxia.sect.data.crypto.IntegrityValidator
 import com.xianxia.sect.data.incremental.ChangeLogOperation
 import com.xianxia.sect.data.incremental.ChangeLogPersistence
 import com.xianxia.sect.data.local.GameDatabase
 import com.xianxia.sect.data.local.SaveSlotMetadata
-import com.xianxia.sect.data.memory.DynamicMemoryManager
 import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.model.SaveSlot
 import com.xianxia.sect.data.result.StorageError
 import com.xianxia.sect.data.result.StorageResult
 import com.xianxia.sect.data.StorageConstants
 import com.xianxia.sect.data.unified.BackupInfo
-import com.xianxia.sect.data.unified.BackupManager
-import com.xianxia.sect.data.unified.MetadataManager
-import com.xianxia.sect.data.serialization.unified.SerializationModule
 import com.xianxia.sect.data.unified.SlotMetadata
 import com.xianxia.sect.data.validation.StorageValidator
 import com.xianxia.sect.data.wal.WALProvider
 import com.xianxia.sect.di.ApplicationScopeProvider
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -39,9 +31,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.room.withTransaction
 import java.io.File
-import java.io.FileOutputStream
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -78,24 +68,22 @@ enum class SavePriority {
 
 @Singleton
 class StorageEngine @Inject internal constructor(
-    @ApplicationContext private val context: Context,
     private val database: GameDatabase,
     private val cache: CacheLayer,
-    private val crypto: CryptoModule,
     private val lockManager: SlotLockManager,
     private val wal: WALProvider,
     private val saveLimitsConfig: SaveLimitsConfig,
-    private val serializationModule: SerializationModule,
     private val changeLogPersistence: ChangeLogPersistence,
-    private val backupManager: BackupManager,
     private val dataArchiver: DataArchiver,
-    private val memoryManager: DynamicMemoryManager,
-    private val metadataManager: MetadataManager,
     private val applicationScopeProvider: ApplicationScopeProvider,
     private val circuitBreaker: StorageCircuitBreaker,
     private val pruningScheduler: DataPruningScheduler,
     private val archiveScheduler: DataArchiveScheduler,
-    private val memoryGuard: ProactiveMemoryGuard
+    private val memoryGuard: ProactiveMemoryGuard,
+    private val storageIntegrity: StorageIntegrity,
+    private val storageBackup: StorageBackup,
+    private val storageWal: StorageWal,
+    private val storageMetrics: StorageMetrics
 ) {
     companion object {
         private const val TAG = "StorageEngine"
@@ -137,11 +125,6 @@ class StorageEngine @Inject internal constructor(
 
     private val isEmergencySaving = AtomicBoolean(false)
 
-    private val saveCount = AtomicLong(0)
-    private val loadCount = AtomicLong(0)
-    private val cacheHits = AtomicLong(0)
-    private val cacheMisses = AtomicLong(0)
-
     suspend fun save(slot: Int, data: SaveData, priority: SavePriority = SavePriority.NORMAL): StorageResult<SaveOperationStats> {
         if (!lockManager.isValidSlot(slot)) {
             return StorageResult.failure(StorageError.INVALID_SLOT, "Invalid slot: $slot")
@@ -166,18 +149,18 @@ class StorageEngine @Inject internal constructor(
                     logSaveChanges(slot, dataWithTimestamp)
 
                     if (priority == SavePriority.CRITICAL) {
-                        createCriticalSnapshot(slot, dataWithTimestamp)
+                        storageWal.createCriticalSnapshot(slot, dataWithTimestamp)
                     }
 
                     scope.launch(Dispatchers.IO) {
                         try {
-                            backupManager.createBackup(slot)
+                            storageBackup.createBackup(slot)
                         } catch (e: Exception) {
                             Log.w(TAG, "Auto-backup failed for slot $slot (non-fatal)", e)
                         }
                     }
 
-                    saveCount.incrementAndGet()
+                    storageMetrics.recordSave()
                     _progress.value = EngineProgress(EngineProgress.Stage.COMPLETED, 1.0f, "Save completed")
                 }
 
@@ -209,19 +192,19 @@ class StorageEngine @Inject internal constructor(
 
                 val cachedData = loadFromCache(slot)
                 if (cachedData != null) {
-                    cacheHits.incrementAndGet()
-                    loadCount.incrementAndGet()
+                    storageMetrics.recordCacheHit()
+                    storageMetrics.recordLoad()
                     Log.d(TAG, "Cache hit for slot $slot")
                     _progress.value = EngineProgress(EngineProgress.Stage.COMPLETED, 1.0f, "Load completed (cache)")
                     return@withReadLockLight StorageResult.success(cachedData)
                 }
 
-                cacheMisses.incrementAndGet()
+                storageMetrics.recordCacheMiss()
                 _progress.value = EngineProgress(EngineProgress.Stage.SAVING_CORE, 0.2f, "Loading from database")
                 val dbData = loadFromDatabase(slot)
 
                 if (dbData != null) {
-                    loadCount.incrementAndGet()
+                    storageMetrics.recordLoad()
                     clearCacheForSlot(slot)
                     updateCacheAfterSave(slot, dbData)
                     _progress.value = EngineProgress(EngineProgress.Stage.COMPLETED, 1.0f, "Load completed (database)")
@@ -281,7 +264,7 @@ class StorageEngine @Inject internal constructor(
                 clearCacheForSlot(slot)
 
                 try {
-                    backupManager.deleteBackupVersions(slot)
+                    storageBackup.deleteBackupVersions(slot)
                 } catch (e: Exception) {
                     Log.w(TAG, "Backup cleanup failed for slot $slot (non-fatal)", e)
                 }
@@ -307,64 +290,7 @@ class StorageEngine @Inject internal constructor(
     }
 
     suspend fun exportToFile(slot: Int, file: File): StorageResult<Unit> {
-        if (!lockManager.isValidSlot(slot)) {
-            return StorageResult.failure(StorageError.INVALID_SLOT, "Invalid slot: $slot")
-        }
-
-        return lockManager.withReadLockLight(slot) {
-            try {
-                val saveData = database.withTransaction {
-                    val gameData = database.gameDataDao().getGameDataSync(slot)
-                        ?: return@withTransaction null
-
-                    val disciples = database.discipleDao().getAllSync(slot)
-                    val equipmentStacks = database.equipmentStackDao().getAllSync(slot)
-                    val equipmentInstances = database.equipmentInstanceDao().getAllSync(slot)
-                    val manualStacks = database.manualStackDao().getAllSync(slot)
-                    val manualInstances = database.manualInstanceDao().getAllSync(slot)
-                    val pills = database.pillDao().getAllSync(slot)
-                    val materials = database.materialDao().getAllSync(slot)
-                    val herbs = database.herbDao().getAllSync(slot)
-                    val seeds = database.seedDao().getAllSync(slot)
-                    val teams = database.explorationTeamDao().getAllSync(slot)
-                    val alliances = gameData.alliances ?: emptyList()
-                    val battleLogs = database.battleLogDao().getAllSync(slot)
-                    val events = database.gameEventDao().getAllSync(slot)
-                    val productionSlots = database.productionSlotDao().getBySlotSync(slot)
-
-                    SaveData(
-                        gameData = gameData,
-                        disciples = disciples,
-                        equipmentStacks = equipmentStacks,
-                        equipmentInstances = equipmentInstances,
-                        manualStacks = manualStacks,
-                        manualInstances = manualInstances,
-                        pills = pills,
-                        materials = materials,
-                        herbs = herbs,
-                        seeds = seeds,
-                        teams = teams,
-                        events = events,
-                        battleLogs = battleLogs,
-                        alliances = alliances,
-                        productionSlots = productionSlots
-                    )
-                } ?: return@withReadLockLight StorageResult.failure(StorageError.SLOT_EMPTY, "No data in slot $slot")
-
-                val saveDataBytes = serializationModule.serializeAndCompressSaveData(saveData)
-
-                file.parentFile?.mkdirs()
-                FileOutputStream(file).use { output ->
-                    output.write(saveDataBytes)
-                }
-
-                Log.i(TAG, "Exported slot $slot to ${file.absolutePath} (${saveDataBytes.size} bytes)")
-                StorageResult.success(Unit)
-            } catch (e: Exception) {
-                Log.e(TAG, "Export failed for slot $slot", e)
-                StorageResult.failure(StorageError.IO_ERROR, e.message ?: "Export failed", e)
-            }
-        }
+        return storageBackup.exportToFile(slot, file)
     }
 
     suspend fun emergencySave(data: SaveData): StorageResult<SaveOperationStats> {
@@ -408,11 +334,11 @@ class StorageEngine @Inject internal constructor(
     }
 
     suspend fun createBackup(slot: Int): com.xianxia.sect.data.unified.SaveResult<String> {
-        return backupManager.createBackup(slot)
+        return storageBackup.createBackup(slot)
     }
 
     fun getBackupVersions(slot: Int): List<BackupInfo> {
-        return backupManager.getBackupVersions(slot)
+        return storageBackup.getBackupVersions(slot)
     }
 
     suspend fun restoreBackup(slot: Int, backupId: String): com.xianxia.sect.data.unified.SaveResult<SaveData> {
@@ -433,7 +359,7 @@ class StorageEngine @Inject internal constructor(
                 )
             }
         }
-        val restoreResult = backupManager.restoreFromBackup(slot, backupId, loadFunc)
+        val restoreResult = storageBackup.restoreBackup(slot, backupId, loadFunc)
 
         if (restoreResult.isSuccess) {
             clearCacheForSlot(slot)
@@ -486,48 +412,7 @@ class StorageEngine @Inject internal constructor(
             val saveData = loadFromDatabase(slot)
                 ?: return StorageResult.failure(StorageError.SLOT_EMPTY, "No data found for slot $slot")
 
-            val key = crypto.getOrCreateKey(context)
-            val currentDataHash = crypto.computeFullDataSignature(saveData, key)
-            val currentMerkleRoot = crypto.computeMerkleRoot(saveData)
-
-            val storedMetadata = metadataManager.loadSlotMetadata(slot)
-            val errors = mutableListOf<String>()
-
-            val signatureValid = if (storedMetadata != null && storedMetadata.checksum.isNotEmpty()) {
-                val result = IntegrityValidator.verifyFullDataSignature(saveData, storedMetadata.checksum, key)
-                if (!result) errors.add("Signature verification failed")
-                result
-            } else {
-                null
-            }
-
-            val hashValid = if (storedMetadata != null && storedMetadata.dataHash.isNotEmpty()) {
-                val result = constantTimeEquals(currentDataHash, storedMetadata.dataHash)
-                if (!result) errors.add("Data hash mismatch")
-                result
-            } else {
-                null
-            }
-
-            val merkleValid = if (storedMetadata != null && storedMetadata.merkleRoot.isNotEmpty()) {
-                val result = constantTimeEquals(currentMerkleRoot, storedMetadata.merkleRoot)
-                if (!result) errors.add("Merkle root mismatch")
-                result
-            } else {
-                null
-            }
-
-            val isValid = signatureValid != false && hashValid != false && merkleValid != false
-
-            StorageResult.success(IntegrityReport(
-                isValid = isValid,
-                dataHash = currentDataHash,
-                merkleRoot = currentMerkleRoot,
-                signatureValid = signatureValid ?: true,
-                hashValid = hashValid ?: true,
-                merkleValid = merkleValid ?: true,
-                errors = errors
-            ))
+            storageIntegrity.validateIntegrity(slot, saveData)
         } catch (e: Exception) {
             Log.e(TAG, "Integrity validation failed for slot $slot", e)
             StorageResult.failure(StorageError.SLOT_CORRUPTED, e.message ?: "Integrity check failed")
@@ -864,29 +749,6 @@ class StorageEngine @Inject internal constructor(
             cache.remove(cacheKey)
         } catch (e: Exception) {
             Log.w(TAG, "Failed to clear cache for slot $slot", e)
-        }
-    }
-
-    private fun constantTimeEquals(a: String, b: String): Boolean {
-        if (a.length != b.length) return false
-        var result = 0
-        for (i in a.indices) {
-            result = result or (a[i].code xor b[i].code)
-        }
-        return result == 0
-    }
-
-    private suspend fun createCriticalSnapshot(slot: Int, data: SaveData) {
-        try {
-            val snapshotData = serializationModule.serializeAndCompressSaveData(data)
-            wal.createImportantSnapshot(
-                slot = slot,
-                snapshotProvider = { snapshotData },
-                eventType = "CRITICAL_SAVE"
-            )
-            Log.d(TAG, "Created critical snapshot for slot $slot")
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to create critical snapshot for slot $slot", e)
         }
     }
 

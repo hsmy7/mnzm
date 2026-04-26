@@ -26,6 +26,7 @@ import com.xianxia.sect.core.model.*
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.getQualityColor
 import com.xianxia.sect.ui.theme.GameColors
+import com.xianxia.sect.ui.game.AlchemyViewModel
 import com.xianxia.sect.ui.game.ProductionViewModel
 import java.util.Locale
 
@@ -38,6 +39,7 @@ fun AlchemyDialog(
     disciples: List<DiscipleAggregate>,
     viewModel: GameViewModel,
     productionViewModel: ProductionViewModel,
+    alchemyViewModel: AlchemyViewModel,
     colors: com.xianxia.sect.ui.theme.XianxiaColorScheme,
     onDismiss: () -> Unit
 ) {
@@ -109,12 +111,12 @@ fun AlchemyDialog(
                     fontWeight = FontWeight.Bold,
                     color = Color.Black
                 )
-                val autoAlchemyEnabled by productionViewModel.autoAlchemyEnabled.collectAsState()
+                val autoAlchemyEnabled by alchemyViewModel.autoAlchemyEnabled.collectAsState()
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(4.dp))
                         .background(if (autoAlchemyEnabled) Color(0xFFFFD700) else Color(0xFF999999))
-                        .clickable { productionViewModel.toggleAutoAlchemy() }
+                        .clickable { alchemyViewModel.toggleAutoAlchemy() }
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
                     Text(
@@ -167,6 +169,7 @@ fun AlchemyDialog(
                 slotIndex = slotIdx,
                 viewModel = viewModel,
                 productionViewModel = productionViewModel,
+                alchemyViewModel = alchemyViewModel,
                 onDismiss = {
                     showPillSelection = false
                     selectedSlotIndex = null
@@ -207,6 +210,7 @@ fun AlchemyDialog(
             disciples = disciples,
             viewModel = viewModel,
             productionViewModel = productionViewModel,
+            alchemyViewModel = alchemyViewModel,
             onDismiss = { showReserveDiscipleDialog = false }
         )
     }
@@ -217,26 +221,27 @@ private fun AlchemyReserveDiscipleDialogWrapper(
     disciples: List<DiscipleAggregate>,
     viewModel: GameViewModel,
     productionViewModel: ProductionViewModel,
+    alchemyViewModel: AlchemyViewModel,
     onDismiss: () -> Unit
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
-    val reserveDisciples = productionViewModel.getAlchemyReserveDisciplesWithInfo()
+    val reserveDisciples = alchemyViewModel.getAlchemyReserveDisciplesWithInfo()
 
     ProductionReserveDiscipleDialog(
         theme = ALCHEMY_THEME,
         reserveDisciples = reserveDisciples,
         onDismiss = onDismiss,
         onAddClick = { showAddDialog = true },
-        onRemove = { productionViewModel.removeAlchemyReserveDisciple(it) }
+        onRemove = { alchemyViewModel.removeAlchemyReserveDisciple(it) }
     )
 
     if (showAddDialog) {
         ProductionAddReserveDiscipleDialog(
             theme = ALCHEMY_THEME,
-            availableDisciples = productionViewModel.getAvailableDisciplesForAlchemyReserve(),
+            availableDisciples = alchemyViewModel.getAvailableDisciplesForAlchemyReserve(),
             onDismiss = { showAddDialog = false },
             onConfirm = { selectedIds ->
-                productionViewModel.addAlchemyReserveDisciples(selectedIds)
+                alchemyViewModel.addAlchemyReserveDisciples(selectedIds)
                 showAddDialog = false
             }
         )
@@ -250,6 +255,7 @@ private fun PillSelectionDialog(
     slotIndex: Int,
     viewModel: GameViewModel,
     productionViewModel: ProductionViewModel,
+    alchemyViewModel: AlchemyViewModel,
     onDismiss: () -> Unit
 ) {
     var selectedRecipe by remember { mutableStateOf<PillRecipeDatabase.PillRecipe?>(null) }
@@ -399,7 +405,7 @@ private fun PillSelectionDialog(
                 text = ALCHEMY_THEME.startProductionText,
                 onClick = {
                     selectedRecipe?.let { recipe ->
-                        productionViewModel.startAlchemy(slotIndex, recipe)
+                        alchemyViewModel.startAlchemy(slotIndex, recipe)
                         onDismiss()
                     }
                 },

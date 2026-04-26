@@ -26,6 +26,7 @@ import com.xianxia.sect.core.registry.ForgeRecipeDatabase
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.theme.GameColors
+import com.xianxia.sect.ui.game.ForgeViewModel
 import com.xianxia.sect.ui.game.ProductionViewModel
 import java.util.Locale
 
@@ -36,6 +37,7 @@ fun ForgeDialog(
     gameData: GameData?,
     viewModel: GameViewModel,
     productionViewModel: ProductionViewModel,
+    forgeViewModel: ForgeViewModel,
     colors: com.xianxia.sect.ui.theme.XianxiaColorScheme,
     onDismiss: () -> Unit
 ) {
@@ -113,12 +115,12 @@ fun ForgeDialog(
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF666666)
                 )
-                val autoForgeEnabled by productionViewModel.autoForgeEnabled.collectAsState()
+                val autoForgeEnabled by forgeViewModel.autoForgeEnabled.collectAsState()
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(4.dp))
                         .background(if (autoForgeEnabled) Color(0xFFFFD700) else Color(0xFF999999))
-                        .clickable { productionViewModel.toggleAutoForge() }
+                        .clickable { forgeViewModel.toggleAutoForge() }
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
                     Text(
@@ -169,6 +171,7 @@ fun ForgeDialog(
                 slotIndex = slotIdx,
                 viewModel = viewModel,
                 productionViewModel = productionViewModel,
+                forgeViewModel = forgeViewModel,
                 onDismiss = {
                     showEquipmentSelection = false
                     selectedSlotIndex = null
@@ -208,6 +211,7 @@ fun ForgeDialog(
         ForgeReserveDiscipleDialogWrapper(
             viewModel = viewModel,
             productionViewModel = productionViewModel,
+            forgeViewModel = forgeViewModel,
             onDismiss = { showReserveDiscipleDialog = false },
             onAddClick = { showAddReserveDialog = true }
         )
@@ -216,10 +220,10 @@ fun ForgeDialog(
     if (showAddReserveDialog) {
         ProductionAddReserveDiscipleDialog(
             theme = theme,
-            availableDisciples = productionViewModel.getAvailableDisciplesForForgeReserve(),
+            availableDisciples = forgeViewModel.getAvailableDisciplesForForgeReserve(),
             onDismiss = { showAddReserveDialog = false },
             onConfirm = { selectedIds ->
-                productionViewModel.addForgeReserveDisciples(selectedIds)
+                forgeViewModel.addForgeReserveDisciples(selectedIds)
                 showAddReserveDialog = false
             }
         )
@@ -230,17 +234,18 @@ fun ForgeDialog(
 private fun ForgeReserveDiscipleDialogWrapper(
     viewModel: GameViewModel,
     productionViewModel: ProductionViewModel,
+    forgeViewModel: ForgeViewModel,
     onDismiss: () -> Unit,
     onAddClick: () -> Unit
 ) {
-    val reserveDisciples by remember { derivedStateOf { productionViewModel.getForgeReserveDisciplesWithInfo() } }
+    val reserveDisciples by remember { derivedStateOf { forgeViewModel.getForgeReserveDisciplesWithInfo() } }
 
     ProductionReserveDiscipleDialog(
         theme = FORGE_THEME,
         reserveDisciples = reserveDisciples,
         onDismiss = onDismiss,
         onAddClick = onAddClick,
-        onRemove = { productionViewModel.removeForgeReserveDisciple(it) }
+        onRemove = { forgeViewModel.removeForgeReserveDisciple(it) }
     )
 }
 
@@ -250,13 +255,14 @@ private fun EquipmentSelectionDialog(
     slotIndex: Int,
     viewModel: GameViewModel,
     productionViewModel: ProductionViewModel,
+    forgeViewModel: ForgeViewModel,
     onDismiss: () -> Unit
 ) {
     var selectedRecipe by remember { mutableStateOf<ForgeRecipeDatabase.ForgeRecipe?>(null) }
     var clickedRecipe by remember { mutableStateOf<ForgeRecipeDatabase.ForgeRecipe?>(null) }
     var showDetail by remember { mutableStateOf(false) }
 
-    val allRecipes by productionViewModel.allForgeRecipes.collectAsState()
+    val allRecipes by forgeViewModel.allForgeRecipes.collectAsState()
 
     ProductionCommonDialog(
         title = FORGE_THEME.selectionDialogTitle,
@@ -377,7 +383,7 @@ private fun EquipmentSelectionDialog(
                 text = FORGE_THEME.startProductionText,
                 onClick = {
                     selectedRecipe?.let { recipe ->
-                        productionViewModel.startForge(slotIndex, recipe)
+                        forgeViewModel.startForge(slotIndex, recipe)
                         onDismiss()
                     }
                 },

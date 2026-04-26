@@ -1,5 +1,19 @@
 # 模拟宗门 - 更新日志
 
+## [2.5.69] - 2026-04-27
+
+### StorageEngine 拆分重构 (U-02)
+- 将 StorageEngine.kt (~920行) 拆分为5个职责单一的类
+- StorageEngine.kt: 核心读写逻辑 (~480行)，委托给提取的类
+- StorageIntegrity.kt: 完整性验证 (validateIntegrity, Merkle, 签名验证, constantTimeEquals)
+- StorageBackup.kt: 备份/恢复/导出逻辑 (exportToFile, createBackup, getBackupVersions, restoreBackup, deleteBackupVersions)
+- StorageWal.kt: WAL 快照管理 (createCriticalSnapshot)
+- StorageMetrics.kt: 存储指标收集 (saveCount, loadCount, cacheHits, cacheMisses, cacheHitRate)
+- 所有新类使用 @Singleton @Inject constructor 注解，由 Hilt 自动管理
+- StorageEngine 保持原有公共 API 不变，通过委托模式调用提取的类
+- StorageModule.provideStorageEngine 更新参数列表，移除不再需要的直接依赖
+- 清理 StorageEngine 和 StorageModule 中不再使用的导入
+
 ## [2.5.68] - 2026-04-27
 
 ### 性能监控统一 (U-06)

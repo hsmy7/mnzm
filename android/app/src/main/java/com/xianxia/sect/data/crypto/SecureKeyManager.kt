@@ -1152,7 +1152,7 @@ class KeyRotationManager(
             Log.i(TAG, "Starting key rotation process")
 
             val slots = (1..6).filter { slot ->
-                storageFacade.hasSave(slot)
+                storageFacade.hasSaveSuspend(slot)
             }
 
             SecureKeyManager.rotateKey(context)

@@ -301,10 +301,10 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             val saveSlots = withContext(Dispatchers.IO) {
                 try {
-                    storageFacade.getSaveSlots()
+                    storageFacade.getSaveSlotsSuspend()
                 } catch (e: Exception) {
                     Log.e(TAG, "getSaveSlots failed, falling back to cache", e)
-                    storageFacade.getSaveSlots()
+                    storageFacade.getSaveSlotsSuspend()
                 }
             }
             setContent {
@@ -391,16 +391,16 @@ class MainActivity : ComponentActivity() {
     private fun recoverFromEmergencySave() {
         try {
             lifecycleScope.launch {
-                val emergencyData = storageFacade.loadEmergencySave()
+                val emergencyData = storageFacade.loadEmergencySaveSuspend()
                 if (emergencyData != null) {
                     Log.i(TAG, "Emergency save loaded successfully, sect: ${emergencyData.gameData.sectName}")
                     
-                    storageFacade.clearEmergencySave()
+                    storageFacade.clearEmergencySaveSuspend()
                     crashHandler.clearCrashState()
                     
                     val slot = if (emergencyData.gameData.currentSlot > 0) emergencyData.gameData.currentSlot else 1
                     
-                    storageFacade.saveSync(slot, emergencyData)
+                    storageFacade.save(slot, emergencyData)
                     
                     val intent = Intent(this@MainActivity, GameActivity::class.java)
                     intent.putExtra(EXTRA_SLOT, slot)
@@ -422,7 +422,7 @@ class MainActivity : ComponentActivity() {
     private fun clearCrashStateAndContinue() {
         try {
             lifecycleScope.launch {
-                storageFacade.clearEmergencySave()
+                storageFacade.clearEmergencySaveSuspend()
             }
             crashHandler.clearCrashState()
         } catch (e: Exception) {

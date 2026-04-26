@@ -66,9 +66,12 @@ import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlotStatus
 import com.xianxia.sect.ui.game.AlchemyDialog
+import com.xianxia.sect.ui.game.AlchemyViewModel
 import com.xianxia.sect.ui.game.ForgeDialog
+import com.xianxia.sect.ui.game.ForgeViewModel
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.HerbGardenDialog
+import com.xianxia.sect.ui.game.HerbGardenViewModel
 import com.xianxia.sect.ui.game.LawEnforcementHallDialog
 import com.xianxia.sect.ui.game.LibraryDialog
 import com.xianxia.sect.ui.game.MissionHallDialog
@@ -76,6 +79,7 @@ import com.xianxia.sect.ui.game.ProductionViewModel
 import com.xianxia.sect.ui.game.QingyunPeakDialog
 import com.xianxia.sect.ui.game.ReflectionCliffDialog
 import com.xianxia.sect.ui.game.SpiritMineDialog
+import com.xianxia.sect.ui.game.SpiritMineViewModel
 import com.xianxia.sect.ui.game.TianshuHallDialog
 import com.xianxia.sect.ui.game.WenDaoPeakDialog
 import com.xianxia.sect.ui.state.DialogStateManager.DialogType
@@ -85,7 +89,11 @@ import com.xianxia.sect.ui.theme.XianxiaColorScheme
 @Composable
 internal fun BuildingsTab(
     viewModel: GameViewModel,
-    productionViewModel: ProductionViewModel
+    productionViewModel: ProductionViewModel,
+    alchemyViewModel: AlchemyViewModel,
+    forgeViewModel: ForgeViewModel,
+    herbGardenViewModel: HerbGardenViewModel,
+    spiritMineViewModel: SpiritMineViewModel
 ) {
     val gameData by viewModel.gameData.collectAsState()
     val alchemySlots by viewModel.alchemySlots.collectAsState()
@@ -189,6 +197,7 @@ internal fun BuildingsTab(
         SpiritMineDialog(
             viewModel = viewModel,
             productionViewModel = productionViewModel,
+            spiritMineViewModel = spiritMineViewModel,
             onDismiss = { viewModel.closeCurrentDialog() }
         )
     }

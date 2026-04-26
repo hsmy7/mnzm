@@ -7,13 +7,16 @@ import com.xianxia.sect.data.compression.DataCompressor
 import com.xianxia.sect.data.concurrent.SlotLockManager
 import com.xianxia.sect.data.config.SaveLimitsConfig
 import com.xianxia.sect.data.config.StorageConfig
-import com.xianxia.sect.data.crypto.CryptoModule
 import com.xianxia.sect.data.crypto.KeyRotationManager
 import com.xianxia.sect.data.engine.DataArchiveScheduler
 import com.xianxia.sect.data.engine.DataPruningScheduler
 import com.xianxia.sect.data.engine.ProactiveMemoryGuard
+import com.xianxia.sect.data.engine.StorageBackup
 import com.xianxia.sect.data.engine.StorageCircuitBreaker
 import com.xianxia.sect.data.engine.StorageEngine
+import com.xianxia.sect.data.engine.StorageIntegrity
+import com.xianxia.sect.data.engine.StorageMetrics
+import com.xianxia.sect.data.engine.StorageWal
 import com.xianxia.sect.data.facade.StorageFacade
 import com.xianxia.sect.data.incremental.ChangeLogPersistence
 import com.xianxia.sect.data.local.GameDatabase
@@ -129,44 +132,40 @@ object StorageModule {
     @Provides
     @Singleton
     internal fun provideStorageEngine(
-        @ApplicationContext context: Context,
         database: GameDatabase,
         cache: CacheLayer,
-        crypto: CryptoModule,
         lockManager: SlotLockManager,
         wal: WALProvider,
         saveLimitsConfig: SaveLimitsConfig,
-        serializationModule: SerializationModule,
         changeLogPersistence: ChangeLogPersistence,
-        backupManager: BackupManager,
         dataArchiver: DataArchiver,
-        memoryManager: DynamicMemoryManager,
-        metadataManager: MetadataManager,
         applicationScopeProvider: ApplicationScopeProvider,
         circuitBreaker: StorageCircuitBreaker,
         pruningScheduler: DataPruningScheduler,
         archiveScheduler: DataArchiveScheduler,
-        memoryGuard: ProactiveMemoryGuard
+        memoryGuard: ProactiveMemoryGuard,
+        storageIntegrity: StorageIntegrity,
+        storageBackup: StorageBackup,
+        storageWal: StorageWal,
+        storageMetrics: StorageMetrics
     ): StorageEngine {
         return StorageEngine(
-            context = context,
             database = database,
             cache = cache,
-            crypto = crypto,
             lockManager = lockManager,
             wal = wal,
             saveLimitsConfig = saveLimitsConfig,
-            serializationModule = serializationModule,
             changeLogPersistence = changeLogPersistence,
-            backupManager = backupManager,
             dataArchiver = dataArchiver,
-            memoryManager = memoryManager,
-            metadataManager = metadataManager,
             applicationScopeProvider = applicationScopeProvider,
             circuitBreaker = circuitBreaker,
             pruningScheduler = pruningScheduler,
             archiveScheduler = archiveScheduler,
-            memoryGuard = memoryGuard
+            memoryGuard = memoryGuard,
+            storageIntegrity = storageIntegrity,
+            storageBackup = storageBackup,
+            storageWal = storageWal,
+            storageMetrics = storageMetrics
         )
     }
 

@@ -247,6 +247,7 @@ class StorageFacade @Inject constructor(
 
     // ==================== 同步存取方法 ====================
 
+    @Deprecated("Use the suspend save() instead", ReplaceWith("save(slot, data)"))
     @WorkerThread
     fun saveSync(slot: Int, data: SaveData): Boolean {
         return try {
@@ -260,6 +261,7 @@ class StorageFacade @Inject constructor(
         }
     }
 
+    @Deprecated("Use the suspend save() instead", ReplaceWith("save(slot, data)"))
     @WorkerThread
     fun saveSyncWithResult(slot: Int, data: SaveData): SaveResult<Unit> {
         return try {
@@ -272,6 +274,7 @@ class StorageFacade @Inject constructor(
         }
     }
 
+    @Deprecated("Use the suspend load() instead", ReplaceWith("load(slot)"))
     @WorkerThread
     fun loadSync(slot: Int): SaveData? {
         return try {
@@ -308,12 +311,26 @@ class StorageFacade @Inject constructor(
 
     // ==================== 槽位管理方法 ====================
 
+    @Deprecated("Use the suspend getSaveSlots() instead")
     @WorkerThread
     fun getSaveSlots(): List<SaveSlot> {
         return try {
             runBlocking(Dispatchers.IO) {
                 engine.getSaveSlots()
             }
+        } catch (e: Exception) {
+            Log.e(TAG, "getSaveSlots failed", e)
+            val autoSlot = SaveSlot(StorageConstants.AUTO_SAVE_SLOT, "", 0, 1, 1, "", 0, 0, true, isAutoSave = true)
+            val manualSlots = (1..lockManager.getMaxSlots()).map { slot ->
+                SaveSlot(slot, "", 0, 1, 1, "", 0, 0, true)
+            }
+            listOf(autoSlot) + manualSlots
+        }
+    }
+
+    suspend fun getSaveSlotsSuspend(): List<SaveSlot> {
+        return try {
+            engine.getSaveSlots()
         } catch (e: Exception) {
             Log.e(TAG, "getSaveSlots failed", e)
             val autoSlot = SaveSlot(StorageConstants.AUTO_SAVE_SLOT, "", 0, 1, 1, "", 0, 0, true, isAutoSave = true)
@@ -344,6 +361,7 @@ class StorageFacade @Inject constructor(
         }
     }
 
+    @Deprecated("Use the suspend loadEmergencySaveSuspend() instead")
     @WorkerThread
     fun loadEmergencySave(): SaveData? {
         return try {
@@ -356,6 +374,16 @@ class StorageFacade @Inject constructor(
         }
     }
 
+    suspend fun loadEmergencySaveSuspend(): SaveData? {
+        return try {
+            engine.loadEmergencySave()
+        } catch (e: Exception) {
+            Log.e(TAG, "loadEmergencySave failed", e)
+            null
+        }
+    }
+
+    @Deprecated("Use the suspend clearEmergencySaveSuspend() instead")
     @WorkerThread
     fun clearEmergencySave() {
         try {
@@ -367,6 +395,15 @@ class StorageFacade @Inject constructor(
         }
     }
 
+    suspend fun clearEmergencySaveSuspend() {
+        try {
+            engine.clearEmergencySave()
+        } catch (e: Exception) {
+            Log.e(TAG, "clearEmergencySave failed", e)
+        }
+    }
+
+    @Deprecated("Use the suspend emergencySaveSuspend() instead")
     @WorkerThread
     fun emergencySave(data: SaveData): Boolean {
         return try {
@@ -380,8 +417,18 @@ class StorageFacade @Inject constructor(
         }
     }
 
+    suspend fun emergencySaveSuspend(data: SaveData): Boolean {
+        return try {
+            engine.emergencySave(data).isSuccess
+        } catch (e: Exception) {
+            Log.e(TAG, "emergencySave failed", e)
+            false
+        }
+    }
+
     // ==================== 数据检查方法 ====================
 
+    @Deprecated("Use the suspend hasSaveSuspend() instead")
     @WorkerThread
     fun hasSave(slot: Int): Boolean {
         return try {
@@ -394,6 +441,16 @@ class StorageFacade @Inject constructor(
         }
     }
 
+    suspend fun hasSaveSuspend(slot: Int): Boolean {
+        return try {
+            engine.hasData(slot)
+        } catch (e: Exception) {
+            Log.e(TAG, "hasSave check failed for slot $slot", e)
+            false
+        }
+    }
+
+    @Deprecated("Use the suspend isSaveCorruptedSuspend() instead")
     @WorkerThread
     fun isSaveCorrupted(slot: Int): Boolean {
         return try {
@@ -401,6 +458,15 @@ class StorageFacade @Inject constructor(
                 val result = engine.validateIntegrity(slot)
                 result.isFailure
             }
+        } catch (e: Exception) {
+            Log.e(TAG, "isSaveCorrupted check failed for slot $slot", e)
+            false
+        }
+    }
+
+    suspend fun isSaveCorruptedSuspend(slot: Int): Boolean {
+        return try {
+            engine.validateIntegrity(slot).isFailure
         } catch (e: Exception) {
             Log.e(TAG, "isSaveCorrupted check failed for slot $slot", e)
             false
@@ -495,6 +561,7 @@ class StorageFacade @Inject constructor(
         }
     }
 
+    @Deprecated("Use the suspend getStorageUsageSuspend() instead")
     @WorkerThread
     fun getStorageUsage(): StorageUsage {
         return try {
@@ -511,6 +578,38 @@ class StorageFacade @Inject constructor(
                             } else 0L
                         } else 0L
                     }
+                } catch (e: Exception) {
+                    0L
+                }
+                slotBytes[slot] = size
+                totalBytes += size
+            }
+
+            StorageUsage(
+                totalBytes = totalBytes,
+                slotBytes = slotBytes,
+                cacheBytes = 0L,
+                walBytes = 0L
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "getStorageUsage failed", e)
+            StorageUsage(0L, emptyMap(), 0L, 0L)
+        }
+    }
+
+    suspend fun getStorageUsageSuspend(): StorageUsage {
+        return try {
+            val slotBytes = mutableMapOf<Int, Long>()
+            var totalBytes = 0L
+
+            for (slot in 0..lockManager.getMaxSlots()) {
+                val size = try {
+                    if (engine.hasData(slot)) {
+                        val data = engine.load(slot).getOrNull()
+                        if (data != null) {
+                            com.xianxia.sect.data.engine.StorageEngine.estimateSaveSize(data)
+                        } else 0L
+                    } else 0L
                 } catch (e: Exception) {
                     0L
                 }

@@ -102,6 +102,10 @@ fun MainGameScreen(
     viewModel: GameViewModel,
     saveLoadViewModel: SaveLoadViewModel,
     productionViewModel: ProductionViewModel,
+    alchemyViewModel: AlchemyViewModel,
+    forgeViewModel: ForgeViewModel,
+    herbGardenViewModel: HerbGardenViewModel,
+    spiritMineViewModel: SpiritMineViewModel,
     worldMapViewModel: WorldMapViewModel,
     battleViewModel: BattleViewModel,
     onLogout: () -> Unit,
@@ -212,7 +216,14 @@ fun MainGameScreen(
                         equipmentStacks = equipmentStacks,
                         viewModel = viewModel
                     )
-                    MainTab.BUILDINGS -> BuildingsTab(viewModel = viewModel, productionViewModel = productionViewModel)
+                    MainTab.BUILDINGS -> BuildingsTab(
+                        viewModel = viewModel,
+                        productionViewModel = productionViewModel,
+                        alchemyViewModel = alchemyViewModel,
+                        forgeViewModel = forgeViewModel,
+                        herbGardenViewModel = herbGardenViewModel,
+                        spiritMineViewModel = spiritMineViewModel
+                    )
                     MainTab.WAREHOUSE -> WarehouseTab(viewModel = viewModel)
                     MainTab.SETTINGS -> SettingsTab(viewModel = viewModel, saveLoadViewModel = saveLoadViewModel, onLogout = onLogout, limitAdTracking = limitAdTracking, onLimitAdTrackingChanged = onLimitAdTrackingChanged)
                 }

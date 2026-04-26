@@ -1,5 +1,3 @@
-@file:OptIn(DelicateCoroutinesApi::class)
-
 package com.xianxia.sect.core.engine
 
 import android.util.Log
@@ -10,6 +8,7 @@ import com.xianxia.sect.core.event.*
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.*
 import com.xianxia.sect.core.performance.UnifiedPerformanceMonitor
+import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
@@ -47,24 +46,24 @@ class GameEngineCore @Inject constructor(
     private val stateManager: UnifiedGameStateManager,
     private val eventBus: EventBus,
     private val unifiedPerformanceMonitor: UnifiedPerformanceMonitor,
-    private val systemManager: SystemManager
+    private val systemManager: SystemManager,
+    private val applicationScopeProvider: ApplicationScopeProvider
 ) {
     
     companion object {
         private const val TAG = "GameEngineCore"
         private const val TICK_INTERVAL_MS = 200L
         private const val TICK_WARNING_THRESHOLD_MS = 50f
-        /** isSaving/isLoading 看门狗超时阈值（毫秒），超过此时间强制重置 */
         private const val STUCK_STATE_TIMEOUT_MS = 30_000L
     }
     
-    private var scopeJob = SupervisorJob()
     private val engineExceptionHandler = CoroutineExceptionHandler { _, throwable ->
         if (throwable !is CancellationException) {
             Log.e(TAG, "Unhandled exception in engine coroutine", throwable)
         }
     }
-    private var engineScope: CoroutineScope = CoroutineScope(scopeJob + Dispatchers.Default + engineExceptionHandler)
+    private var engineJob = SupervisorJob(applicationScopeProvider.scope.coroutineContext[Job])
+    private var engineScope: CoroutineScope = CoroutineScope(engineJob + Dispatchers.Default + engineExceptionHandler)
 
     fun launchInScope(block: suspend CoroutineScope.() -> Unit): Job = engineScope.launch(block = block)
 
@@ -189,9 +188,9 @@ class GameEngineCore @Inject constructor(
         deathEventJob = null
         systemManager.releaseAll()
         _autoSaveTrigger.close()
-        scopeJob.cancel()
-        scopeJob = SupervisorJob()
-        engineScope = CoroutineScope(scopeJob + Dispatchers.Default + engineExceptionHandler)
+        engineJob.cancel()
+        engineJob = SupervisorJob(applicationScopeProvider.scope.coroutineContext[Job])
+        engineScope = CoroutineScope(engineJob + Dispatchers.Default + engineExceptionHandler)
         isInitialized = false
         Log.i(TAG, "GameEngineCore shutdown complete")
     }

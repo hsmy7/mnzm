@@ -32,6 +32,7 @@ import com.xianxia.sect.core.model.ElderSlots
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.theme.GameColors
+import com.xianxia.sect.ui.game.HerbGardenViewModel
 import com.xianxia.sect.ui.game.ProductionViewModel
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.core.util.sortedByFollowAttributeAndRealm
@@ -50,6 +51,7 @@ fun HerbGardenDialog(
     disciples: List<DiscipleAggregate>,
     viewModel: GameViewModel,
     productionViewModel: ProductionViewModel,
+    herbGardenViewModel: HerbGardenViewModel,
     onDismiss: () -> Unit
 ) {
     var showSeedSelection by remember { mutableStateOf<Int?>(null) }

@@ -105,7 +105,7 @@ class SaveLoadViewModel @Inject constructor(
     val isTimeRunning: StateFlow<Boolean> = _isTimeRunning.asStateFlow()
 
     init {
-        _saveSlots.value = storageFacade.getSaveSlots()
+        viewModelScope.launch { _saveSlots.value = storageFacade.getSaveSlotsSuspend() }
 
         viewModelScope.launch {
             while (isActive) {
@@ -130,7 +130,7 @@ class SaveLoadViewModel @Inject constructor(
         viewModelScope.launch {
             savePipeline.saveResults.collect { result ->
                 if (result.success) {
-                    _saveSlots.value = storageFacade.getSaveSlots()
+                    _saveSlots.value = storageFacade.getSaveSlotsSuspend()
                     Log.d(TAG, "Save slots refreshed after save completed: slot=${result.slot}, source=${result.source}")
                 }
             }
@@ -444,7 +444,7 @@ class SaveLoadViewModel @Inject constructor(
                 _loadingProgress.value = PROGRESS_START
                 if (needSlotRefresh) {
                     try {
-                        _saveSlots.value = storageFacade.getSaveSlots()
+                        _saveSlots.value = storageFacade.getSaveSlotsSuspend()
                     } catch (e: Exception) {
                         Log.w(TAG, "startNewGame: Failed to refresh save slots after completion: ${e.message}")
                     }
@@ -464,7 +464,7 @@ class SaveLoadViewModel @Inject constructor(
             val saveData = trimSaveData(snapshot).copy(gameData = updatedGameData)
 
             val result = withTimeoutOrNull(30_000L) {
-                storageFacade.saveSyncWithResult(slot, saveData)
+                storageFacade.save(slot, saveData)
             }
 
             when {
@@ -475,7 +475,7 @@ class SaveLoadViewModel @Inject constructor(
                 }
                 result.isSuccess -> {
                     gameEngine.updateGameData { updatedGameData }
-                    _saveSlots.value = storageFacade.getSaveSlots()
+                    _saveSlots.value = storageFacade.getSaveSlotsSuspend()
                     Log.i(TAG, "performSynchronousSave SUCCESS for slot $slot")
                     true
                 }
@@ -542,7 +542,7 @@ class SaveLoadViewModel @Inject constructor(
 
                 val saveData = withTimeoutOrNull(60_000L) {
                     try {
-                        val data = storageFacade.loadSync(saveSlot.slot)
+                        val data = storageFacade.load(saveSlot.slot).getOrNull()
                         Log.d(TAG, "Save data loaded in ${System.currentTimeMillis() - loadStartTime}ms")
                         data
                     } catch (e: Exception) {
@@ -651,7 +651,7 @@ class SaveLoadViewModel @Inject constructor(
 
                 val saveData = withTimeoutOrNull(60_000L) {
                     try {
-                        val data = storageFacade.loadSync(slot)
+                        val data = storageFacade.load(slot).getOrNull()
                         Log.d(TAG, "Save data loaded in ${System.currentTimeMillis() - loadStartTime}ms")
                         data
                     } catch (e: Exception) {
@@ -778,11 +778,11 @@ class SaveLoadViewModel @Inject constructor(
                     val saveData = trimSaveData(snapshot).copy(gameData = updatedGameData)
 
                     val saveResult = withTimeoutOrNull(30_000L) {
-                        storageFacade.saveSyncWithResult(slot, saveData)
+                        storageFacade.save(slot, saveData)
                     }
 
                     if (saveResult != null && saveResult.isSuccess) {
-                        _saveSlots.value = storageFacade.getSaveSlots()
+                        _saveSlots.value = storageFacade.getSaveSlotsSuspend()
                         showSuccess("游戏保存成功")
 
                         Log.i(TAG, "=== saveGame SUCCESS === " +
@@ -1006,19 +1006,19 @@ class SaveLoadViewModel @Inject constructor(
                 )
 
                 val success = withTimeoutOrNull(30_000L) {
-                    storageFacade.saveSync(slot, saveData)
+                    storageFacade.save(slot, saveData).isSuccess
                 }
 
                 when (success) {
                     true -> {
-                        _saveSlots.value = storageFacade.getSaveSlots()
+                        _saveSlots.value = storageFacade.getSaveSlotsSuspend()
                         Log.i(TAG, "performRestartSave success for slot $slot")
                         true
                     }
                     null -> {
                         Log.e(TAG, "performRestartSave timeout for slot $slot")
                         storageFacade.setCurrentSlot(previousSlot)
-                        if (storageFacade.isSaveCorrupted(slot)) {
+                        if (storageFacade.isSaveCorruptedSuspend(slot)) {
                             storageFacade.restoreFromBackupIfCorrupted(slot)
                             Log.w(TAG, "Save may be corrupted, attempted to restore from backup")
                         }
@@ -1053,7 +1053,7 @@ class SaveLoadViewModel @Inject constructor(
     }
 
     fun refreshSaveSlots() {
-        _saveSlots.value = storageFacade.getSaveSlots()
+        viewModelScope.launch { _saveSlots.value = storageFacade.getSaveSlotsSuspend() }
     }
 
     fun setGameLoaded(loaded: Boolean) {

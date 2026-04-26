@@ -43,6 +43,10 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
     private val viewModel: GameViewModel by viewModels()
     private val saveLoadViewModel: SaveLoadViewModel by viewModels()
     private val productionViewModel: ProductionViewModel by viewModels()
+    private val alchemyViewModel: AlchemyViewModel by viewModels()
+    private val forgeViewModel: ForgeViewModel by viewModels()
+    private val herbGardenViewModel: HerbGardenViewModel by viewModels()
+    private val spiritMineViewModel: SpiritMineViewModel by viewModels()
     private val worldMapViewModel: WorldMapViewModel by viewModels()
     private val battleViewModel: BattleViewModel by viewModels()
 
@@ -111,6 +115,10 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
                             viewModel = viewModel,
                             saveLoadViewModel = saveLoadViewModel,
                             productionViewModel = productionViewModel,
+                            alchemyViewModel = alchemyViewModel,
+                            forgeViewModel = forgeViewModel,
+                            herbGardenViewModel = herbGardenViewModel,
+                            spiritMineViewModel = spiritMineViewModel,
                             worldMapViewModel = worldMapViewModel,
                             battleViewModel = battleViewModel,
                             onLogout = {
@@ -344,7 +352,7 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
                 val saveData = saveLoadViewModel.createSaveDataSync()
                 kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) {
                     kotlinx.coroutines.withTimeoutOrNull(2_000L) {
-                        storageFacade.emergencySave(saveData)
+                        storageFacade.emergencySaveSuspend(saveData)
                     } ?: false
                 }
             } else {
