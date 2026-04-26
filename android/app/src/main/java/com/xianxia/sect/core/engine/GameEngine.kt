@@ -27,8 +27,8 @@ import com.xianxia.sect.core.state.addManualInstanceToDiscipleBag
 import com.xianxia.sect.core.state.equipmentBagStackIds
 import com.xianxia.sect.core.state.manualBagStackIds
 import com.xianxia.sect.core.event.EventBus
-import dagger.hilt.android.scopes.ViewModelScoped
 import javax.inject.Inject
+import javax.inject.Singleton
 import android.util.Log
 
 typealias GiftResult = DiplomacyService.GiftResult
@@ -53,7 +53,7 @@ data class GameStateSnapshot(
     val productionSlots: List<com.xianxia.sect.core.model.production.ProductionSlot> = emptyList()
 )
 
-@ViewModelScoped
+@Singleton
 class GameEngine @Inject constructor(
     private val gameEngineCore: GameEngineCore,
     private val stateStore: GameStateStore,

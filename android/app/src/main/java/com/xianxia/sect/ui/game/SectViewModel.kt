@@ -1,11 +1,10 @@
 package com.xianxia.sect.ui.game
 
-import android.util.Log
 import androidx.lifecycle.viewModelScope
-import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.usecase.DisciplePositionQueryUseCase
+import com.xianxia.sect.core.usecase.SectPolicyToggleUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -14,7 +13,8 @@ import javax.inject.Inject
 @HiltViewModel
 class SectViewModel @Inject constructor(
     private val gameEngine: GameEngine,
-    private val disciplePositionQuery: DisciplePositionQueryUseCase
+    private val disciplePositionQuery: DisciplePositionQueryUseCase,
+    private val sectPolicyToggle: SectPolicyToggleUseCase
 ) : BaseViewModel() {
     
     companion object {
@@ -420,212 +420,87 @@ class SectViewModel @Inject constructor(
     fun toggleSpiritMineBoost(): Boolean {
         val currentGameData = gameEngine.gameData.value ?: return false
         viewModelScope.launch {
-            gameEngine.updateGameData { it.copy(sectPolicies = it.sectPolicies.copy(spiritMineBoost = !it.sectPolicies.spiritMineBoost)) }
+            val result = sectPolicyToggle.toggleSpiritMineBoost()
+            if (result is SectPolicyToggleUseCase.ToggleResult.Error) showError(result.message)
         }
         return true
     }
 
-    fun isSpiritMineBoostEnabled(): Boolean {
-        return gameEngine.gameData.value?.sectPolicies?.spiritMineBoost ?: false
-    }
+    fun isSpiritMineBoostEnabled(): Boolean = sectPolicyToggle.isSpiritMineBoostEnabled()
     
-    fun getSpiritMineBoostEffect(): Double = GameConfig.PolicyConfig.SPIRIT_MINE_BOOST_BASE_EFFECT
+    fun getSpiritMineBoostEffect(): Double = sectPolicyToggle.getSpiritMineBoostEffect()
     
     fun toggleEnhancedSecurity(): Boolean {
         val currentGameData = gameEngine.gameData.value ?: return false
-        val currentPolicies = currentGameData.sectPolicies
-        val requiredStones = GameConfig.PolicyConfig.ENHANCED_SECURITY_COST
-
-        if (!currentPolicies.enhancedSecurity) {
-            viewModelScope.launch {
-                gameEngine.updateGameData {
-                    if (it.spiritStones < requiredStones) {
-                        showError(("灵石不足${requiredStones}，无法开启增强治安政策"))
-                        it
-                    } else {
-                        it.copy(
-                            spiritStones = it.spiritStones - requiredStones,
-                            sectPolicies = it.sectPolicies.copy(enhancedSecurity = true)
-                        )
-                    }
-                }
-            }
-        } else {
-            viewModelScope.launch {
-                gameEngine.updateGameData { it.copy(sectPolicies = it.sectPolicies.copy(enhancedSecurity = false)) }
-            }
+        viewModelScope.launch {
+            val result = sectPolicyToggle.toggleEnhancedSecurity()
+            if (result is SectPolicyToggleUseCase.ToggleResult.Error) showError(result.message)
         }
         return true
     }
 
-    fun isEnhancedSecurityEnabled(): Boolean {
-        return gameEngine.gameData.value?.sectPolicies?.enhancedSecurity ?: false
-    }
+    fun isEnhancedSecurityEnabled(): Boolean = sectPolicyToggle.isEnhancedSecurityEnabled()
     
-    fun getEnhancedSecurityBaseBonus(): Double = GameConfig.PolicyConfig.ENHANCED_SECURITY_BASE_EFFECT
+    fun getEnhancedSecurityBaseBonus(): Double = sectPolicyToggle.getEnhancedSecurityBaseBonus()
     
     fun toggleAlchemyIncentive(): Boolean {
         val currentGameData = gameEngine.gameData.value ?: return false
-        val currentPolicies = currentGameData.sectPolicies
-        val requiredStones = GameConfig.PolicyConfig.ALCHEMY_INCENTIVE_COST
-
-        if (!currentPolicies.alchemyIncentive) {
-            viewModelScope.launch {
-                gameEngine.updateGameData {
-                    if (it.spiritStones < requiredStones) {
-                        showError(("灵石不足${requiredStones}，无法开启丹道激励政策"))
-                        it
-                    } else {
-                        it.copy(
-                            spiritStones = it.spiritStones - requiredStones,
-                            sectPolicies = it.sectPolicies.copy(alchemyIncentive = true)
-                        )
-                    }
-                }
-            }
-        } else {
-            viewModelScope.launch {
-                gameEngine.updateGameData { it.copy(sectPolicies = it.sectPolicies.copy(alchemyIncentive = false)) }
-            }
+        viewModelScope.launch {
+            val result = sectPolicyToggle.toggleAlchemyIncentive()
+            if (result is SectPolicyToggleUseCase.ToggleResult.Error) showError(result.message)
         }
         return true
     }
 
-    fun isAlchemyIncentiveEnabled(): Boolean {
-        return gameEngine.gameData.value?.sectPolicies?.alchemyIncentive ?: false
-    }
+    fun isAlchemyIncentiveEnabled(): Boolean = sectPolicyToggle.isAlchemyIncentiveEnabled()
 
     fun toggleForgeIncentive(): Boolean {
         val currentGameData = gameEngine.gameData.value ?: return false
-        val currentPolicies = currentGameData.sectPolicies
-        val requiredStones = GameConfig.PolicyConfig.FORGE_INCENTIVE_COST
-
-        if (!currentPolicies.forgeIncentive) {
-            viewModelScope.launch {
-                gameEngine.updateGameData {
-                    if (it.spiritStones < requiredStones) {
-                        showError(("灵石不足${requiredStones}，无法开启锻造激励政策"))
-                        it
-                    } else {
-                        it.copy(
-                            spiritStones = it.spiritStones - requiredStones,
-                            sectPolicies = it.sectPolicies.copy(forgeIncentive = true)
-                        )
-                    }
-                }
-            }
-        } else {
-            viewModelScope.launch {
-                gameEngine.updateGameData { it.copy(sectPolicies = it.sectPolicies.copy(forgeIncentive = false)) }
-            }
+        viewModelScope.launch {
+            val result = sectPolicyToggle.toggleForgeIncentive()
+            if (result is SectPolicyToggleUseCase.ToggleResult.Error) showError(result.message)
         }
         return true
     }
 
-    fun isForgeIncentiveEnabled(): Boolean {
-        return gameEngine.gameData.value?.sectPolicies?.forgeIncentive ?: false
-    }
+    fun isForgeIncentiveEnabled(): Boolean = sectPolicyToggle.isForgeIncentiveEnabled()
 
     fun toggleHerbCultivation(): Boolean {
         val currentGameData = gameEngine.gameData.value ?: return false
-        val currentPolicies = currentGameData.sectPolicies
-        val requiredStones = GameConfig.PolicyConfig.HERB_CULTIVATION_COST
-
-        if (!currentPolicies.herbCultivation) {
-            viewModelScope.launch {
-                gameEngine.updateGameData {
-                    if (it.spiritStones < requiredStones) {
-                        showError(("灵石不足${requiredStones}，无法开启灵药培育政策"))
-                        it
-                    } else {
-                        it.copy(
-                            spiritStones = it.spiritStones - requiredStones,
-                            sectPolicies = it.sectPolicies.copy(herbCultivation = true)
-                        )
-                    }
-                }
-            }
-        } else {
-            viewModelScope.launch {
-                gameEngine.updateGameData { it.copy(sectPolicies = it.sectPolicies.copy(herbCultivation = false)) }
-            }
+        viewModelScope.launch {
+            val result = sectPolicyToggle.toggleHerbCultivation()
+            if (result is SectPolicyToggleUseCase.ToggleResult.Error) showError(result.message)
         }
         return true
     }
 
-    fun isHerbCultivationEnabled(): Boolean {
-        return gameEngine.gameData.value?.sectPolicies?.herbCultivation ?: false
-    }
+    fun isHerbCultivationEnabled(): Boolean = sectPolicyToggle.isHerbCultivationEnabled()
 
     fun toggleCultivationSubsidy(): Boolean {
         val currentGameData = gameEngine.gameData.value ?: return false
-        val currentPolicies = currentGameData.sectPolicies
-        val requiredStones = GameConfig.PolicyConfig.CULTIVATION_SUBSIDY_COST
-
-        if (!currentPolicies.cultivationSubsidy) {
-            viewModelScope.launch {
-                gameEngine.updateGameData {
-                    if (it.spiritStones < requiredStones) {
-                        showError(("灵石不足${requiredStones}，无法开启修行津贴政策"))
-                        it
-                    } else {
-                        it.copy(
-                            spiritStones = it.spiritStones - requiredStones,
-                            sectPolicies = it.sectPolicies.copy(cultivationSubsidy = true)
-                        )
-                    }
-                }
-            }
-        } else {
-            viewModelScope.launch {
-                gameEngine.updateGameData { it.copy(sectPolicies = it.sectPolicies.copy(cultivationSubsidy = false)) }
-            }
+        viewModelScope.launch {
+            val result = sectPolicyToggle.toggleCultivationSubsidy()
+            if (result is SectPolicyToggleUseCase.ToggleResult.Error) showError(result.message)
         }
         return true
     }
 
-    fun isCultivationSubsidyEnabled(): Boolean {
-        return gameEngine.gameData.value?.sectPolicies?.cultivationSubsidy ?: false
-    }
+    fun isCultivationSubsidyEnabled(): Boolean = sectPolicyToggle.isCultivationSubsidyEnabled()
 
     fun toggleManualResearch(): Boolean {
         val currentGameData = gameEngine.gameData.value ?: return false
-        val currentPolicies = currentGameData.sectPolicies
-        val requiredStones = GameConfig.PolicyConfig.MANUAL_RESEARCH_COST
-
-        if (!currentPolicies.manualResearch) {
-            viewModelScope.launch {
-                gameEngine.updateGameData {
-                    if (it.spiritStones < requiredStones) {
-                        showError(("灵石不足${requiredStones}，无法开启功法研习政策"))
-                        it
-                    } else {
-                        it.copy(
-                            spiritStones = it.spiritStones - requiredStones,
-                            sectPolicies = it.sectPolicies.copy(manualResearch = true)
-                        )
-                    }
-                }
-            }
-        } else {
-            viewModelScope.launch {
-                gameEngine.updateGameData { it.copy(sectPolicies = it.sectPolicies.copy(manualResearch = false)) }
-            }
+        viewModelScope.launch {
+            val result = sectPolicyToggle.toggleManualResearch()
+            if (result is SectPolicyToggleUseCase.ToggleResult.Error) showError(result.message)
         }
         return true
     }
 
-    fun isManualResearchEnabled(): Boolean {
-        return gameEngine.gameData.value?.sectPolicies?.manualResearch ?: false
-    }
+    fun isManualResearchEnabled(): Boolean = sectPolicyToggle.isManualResearchEnabled()
     
     fun getViceSectMasterIntelligenceBonus(): Double {
         val viceSectMaster = getViceSectMaster() ?: return 0.0
-        val intelligence = viceSectMaster.intelligence
-        val baseIntelligence = GameConfig.PolicyConfig.VICE_SECT_MASTER_INTELLIGENCE_BASE
-        val step = GameConfig.PolicyConfig.VICE_SECT_MASTER_INTELLIGENCE_STEP
-        val bonusPerStep = GameConfig.PolicyConfig.VICE_SECT_MASTER_INTELLIGENCE_BONUS_PER_STEP
-        return ((intelligence - baseIntelligence) / step.toDouble() * bonusPerStep).coerceAtLeast(0.0)
+        return sectPolicyToggle.getViceSectMasterIntelligenceBonus(viceSectMaster.intelligence)
     }
     
 }

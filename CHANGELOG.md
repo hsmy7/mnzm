@@ -1,5 +1,20 @@
 # 模拟宗门 - 更新日志
 
+## [2.5.54] - 2026-04-27
+
+### 架构优化
+- P3-1: Disciple双模型迁移Phase1 - DiscipleStatCalculator新增DiscipleAggregate重载方法，DiscipleAggregate计算方法不再需要toDisciple()转换
+- P3-2: GameData拆分为多Entity - 创建GameDataCore/WorldMap/Buildings/Economy/Organization/Exploration六张子表，编写MIGRATION_15_16迁移并同步数据，新增对应DAO
+- P3-3: 统一错误类型体系 - 创建AppError基类(Storage/Network/Production/GameLoop分类)和UiError UI展示层，为GameError/StorageError/SaveError/ProductionError/GameLoopError添加toAppError()转换函数
+
+### 修复
+- Disciple/DiscipleAggregate的hpPercent/mpPercent计算错误：使用currentHp/currentMp替代baseHp/baseMp
+- GameEngine作用域从@ViewModelScoped改为@Singleton，修复Hilt IncompatiblyScopedBindings错误
+- SlotQueryCache中重复的SlotCacheStatistics声明已移除
+- StorageModule.provideStorageEngine添加缺失的applicationScopeProvider参数
+- GameViewModel/ProductionViewModel/SaveLoadViewModel从_errorMessage/_successMessage迁移至BaseViewModel.showError()/showSuccess()
+- GameActivity从saveLoadViewModel.errorMessage StateFlow迁移至errorEvents SharedFlow
+
 ## [2.5.53] - 2026-04-27
 
 ### 修复

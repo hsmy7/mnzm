@@ -12,6 +12,7 @@ import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.model.production.ProductionSlotStatus
 import com.xianxia.sect.core.usecase.DisciplePositionQueryUseCase
+import com.xianxia.sect.core.usecase.SectPolicyToggleUseCase
 import com.xianxia.sect.core.util.sortedByFollowAndRealm
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
@@ -21,7 +22,8 @@ import javax.inject.Inject
 @HiltViewModel
 class ProductionViewModel @Inject constructor(
     private val gameEngine: GameEngine,
-    private val disciplePositionQuery: DisciplePositionQueryUseCase
+    private val disciplePositionQuery: DisciplePositionQueryUseCase,
+    private val sectPolicyToggle: SectPolicyToggleUseCase
 ) : BaseViewModel() {
 
     companion object {
