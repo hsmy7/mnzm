@@ -36,7 +36,7 @@ import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.core.util.SectRelationLevel
 import com.xianxia.sect.ui.game.getSpiritRootCount
 import com.xianxia.sect.ui.game.applyFilters
-import com.xianxia.sect.ui.game.SpiritRootAttributeFilterBar
+import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
 
 @Composable
 fun AllianceDialog(

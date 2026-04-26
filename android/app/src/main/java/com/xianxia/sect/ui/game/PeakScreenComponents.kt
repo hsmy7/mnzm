@@ -28,6 +28,7 @@ import com.xianxia.sect.ui.components.ElderBonusInfo
 import com.xianxia.sect.ui.components.ElderBonusInfoProvider
 import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.core.util.isFollowed
+import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
 
 data class PeakElderSlotConfig(
     val title: String,

@@ -10,7 +10,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.*
 import java.security.*
-import java.util.Base64
+
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import javax.crypto.*
@@ -975,8 +975,10 @@ object SecureKeyManager {
                 tokenCipher.init(Cipher.ENCRYPT_MODE, tokenKeySpec, GCMParameterSpec(GCM_TAG_LENGTH, tokenIv))
                 val encryptedKey = tokenCipher.doFinal(key)
 
-                @Suppress("NewApi")
-                val result = Base64.getEncoder().encodeToString(tokenIv + encryptedKey)
+                val result = android.util.Base64.encodeToString(
+                    tokenIv + encryptedKey,
+                    android.util.Base64.NO_WRAP
+                )
                 
                 Log.i(TAG, "Key recovery token exported successfully")
                 result
@@ -992,8 +994,7 @@ object SecureKeyManager {
             try {
                 require(token.isNotEmpty()) { "Token must not be empty" }
 
-                @Suppress("NewApi")
-                val tokenBytes = Base64.getDecoder().decode(token)
+                val tokenBytes = android.util.Base64.decode(token, android.util.Base64.NO_WRAP)
                 if (tokenBytes.size < GCM_IV_LENGTH + 32) {
                     throw IllegalArgumentException("Invalid token format")
                 }

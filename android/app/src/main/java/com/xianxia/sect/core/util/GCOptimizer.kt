@@ -4,6 +4,7 @@ import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -26,6 +27,8 @@ class GCOptimizer @Inject constructor(
         private const val MEMORY_THRESHOLD_CRITICAL_GC = 0.92
     }
     
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val mainScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var optimizerJob: Job? = null
     private var lastGCTime = 0L
     private var gcCount = 0L
@@ -70,7 +73,7 @@ class GCOptimizer @Inject constructor(
             return
         }
         
-        optimizerJob = CoroutineScope(Dispatchers.Default).launch {
+        optimizerJob = scope.launch {
             Log.i(TAG, "Starting GC optimization")
             while (isActive) {
                 try {
@@ -262,7 +265,7 @@ class GCOptimizer @Inject constructor(
     }
     
     private fun notifyListeners(action: (GCEventListener) -> Unit) {
-        CoroutineScope(Dispatchers.Main).launch {
+        mainScope.launch {
             listeners.forEach { listener ->
                 try {
                     action(listener)
@@ -284,6 +287,8 @@ class GCOptimizer @Inject constructor(
     
     fun cleanup() {
         stopOptimization()
+        scope.cancel()
+        mainScope.cancel()
         listeners.clear()
     }
 }

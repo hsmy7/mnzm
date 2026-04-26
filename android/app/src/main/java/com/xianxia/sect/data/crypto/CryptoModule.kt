@@ -187,7 +187,7 @@ object IntegrityValidator {
 
     fun verifyFullDataSignature(data: Any, expectedSignature: String, key: ByteArray): Boolean {
         val actualSignature = computeFullDataSignature(data, key)
-        return actualSignature == expectedSignature
+        return constantTimeEquals(actualSignature, expectedSignature)
     }
 
     fun computeMerkleRoot(data: Any): String {
@@ -298,13 +298,13 @@ object IntegrityValidator {
         val dataJson = dataToJsonString(data)
         val currentDataHash = sha256Hex(dataJson.toByteArray(Charsets.UTF_8))
 
-        if (currentDataHash != payload.dataHash) {
+        if (!constantTimeEquals(currentDataHash, payload.dataHash)) {
             Log.w(TAG, "Data hash mismatch: expected=${payload.dataHash}, actual=$currentDataHash")
             return VerificationResult.Tampered("Data hash mismatch")
         }
 
         val currentMerkleRoot = computeMerkleRoot(data)
-        if (currentMerkleRoot != payload.merkleRoot) {
+        if (!constantTimeEquals(currentMerkleRoot, payload.merkleRoot)) {
             Log.w(TAG, "Merkle root mismatch: expected=${payload.merkleRoot}, actual=$currentMerkleRoot")
             return VerificationResult.Tampered("Merkle root mismatch")
         }

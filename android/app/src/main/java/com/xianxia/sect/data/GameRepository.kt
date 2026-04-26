@@ -5,6 +5,8 @@ import androidx.room.withTransaction
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.data.local.*
+import com.xianxia.sect.data.facade.StorageFacade
+import com.xianxia.sect.data.model.SaveData
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -12,6 +14,7 @@ import javax.inject.Singleton
 @Singleton
 class GameRepository @Inject constructor(
     private val database: GameDatabase,
+    private val storageFacade: StorageFacade,
     private val gameDataDao: GameDataDao,
     private val discipleDao: DiscipleDao,
     private val discipleCoreDao: DiscipleCoreDao,
@@ -42,20 +45,16 @@ class GameRepository @Inject constructor(
         const val DEFAULT_SLOT_ID = 0
     }
 
-    init {
-        Log.w(TAG, "GameRepository initialized directly. " +
-                "Consider using StorageGateway for unified storage access. " +
-                "Direct usage may cause storage path confusion.")
-    }
-
     // ==================== GameData ====================
 
     fun getGameData(slotId: Int = DEFAULT_SLOT_ID): Flow<GameData?> = gameDataDao.getGameData(slotId)
     
     suspend fun getGameDataSync(slotId: Int = DEFAULT_SLOT_ID): GameData? = gameDataDao.getGameDataSync(slotId)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun saveGameData(gameData: GameData) = gameDataDao.insert(gameData)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun updateGameData(gameData: GameData) = gameDataDao.update(gameData)
 
     // ==================== Disciple ====================
@@ -72,14 +71,19 @@ class GameRepository @Inject constructor(
     suspend fun getAllDisciplesSync(slotId: Int = DEFAULT_SLOT_ID): List<Disciple> = 
         discipleDao.getAllAliveSync(slotId)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun addDisciple(disciple: Disciple) = discipleDao.insert(disciple)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun addDisciples(disciples: List<Disciple>) = discipleDao.insertAll(disciples)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun updateDisciple(disciple: Disciple) = discipleDao.update(disciple)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun updateDisciples(disciples: List<Disciple>) = discipleDao.updateAll(disciples)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun deleteDisciple(disciple: Disciple) = discipleDao.delete(disciple)
 
     // ==================== EquipmentStack ====================
@@ -88,12 +92,16 @@ class GameRepository @Inject constructor(
     
     suspend fun getEquipmentStackById(id: String, slotId: Int = DEFAULT_SLOT_ID): EquipmentStack? = equipmentStackDao.getById(slotId, id)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun addEquipmentStack(stack: EquipmentStack) = equipmentStackDao.insert(stack)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun addEquipmentStacks(stacks: List<EquipmentStack>) = equipmentStackDao.insertAll(stacks)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun updateEquipmentStack(stack: EquipmentStack) = equipmentStackDao.update(stack)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun deleteEquipmentStack(stack: EquipmentStack) = equipmentStackDao.delete(stack)
 
     // ==================== EquipmentInstance ====================
@@ -105,12 +113,16 @@ class GameRepository @Inject constructor(
     suspend fun getEquipmentInstancesByOwner(discipleId: String, slotId: Int = DEFAULT_SLOT_ID): List<EquipmentInstance> = 
         equipmentInstanceDao.getByOwner(slotId, discipleId)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun addEquipmentInstance(instance: EquipmentInstance) = equipmentInstanceDao.insert(instance)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun addEquipmentInstances(instances: List<EquipmentInstance>) = equipmentInstanceDao.insertAll(instances)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun updateEquipmentInstance(instance: EquipmentInstance) = equipmentInstanceDao.update(instance)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun deleteEquipmentInstance(instance: EquipmentInstance) = equipmentInstanceDao.delete(instance)
 
     // ==================== ManualStack ====================
@@ -119,12 +131,16 @@ class GameRepository @Inject constructor(
     
     suspend fun getManualStackById(id: String, slotId: Int = DEFAULT_SLOT_ID): ManualStack? = manualStackDao.getById(slotId, id)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun addManualStack(stack: ManualStack) = manualStackDao.insert(stack)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun addManualStacks(stacks: List<ManualStack>) = manualStackDao.insertAll(stacks)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun updateManualStack(stack: ManualStack) = manualStackDao.update(stack)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun deleteManualStack(stack: ManualStack) = manualStackDao.delete(stack)
 
     // ==================== ManualInstance ====================
@@ -136,12 +152,16 @@ class GameRepository @Inject constructor(
     suspend fun getManualInstancesByOwner(discipleId: String, slotId: Int = DEFAULT_SLOT_ID): List<ManualInstance> = 
         manualInstanceDao.getByOwner(slotId, discipleId)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun addManualInstance(instance: ManualInstance) = manualInstanceDao.insert(instance)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun addManualInstances(instances: List<ManualInstance>) = manualInstanceDao.insertAll(instances)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun updateManualInstance(instance: ManualInstance) = manualInstanceDao.update(instance)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun deleteManualInstance(instance: ManualInstance) = manualInstanceDao.delete(instance)
 
     // ==================== Pill ====================
@@ -150,12 +170,16 @@ class GameRepository @Inject constructor(
     
     suspend fun getPillById(id: String, slotId: Int = DEFAULT_SLOT_ID): Pill? = pillDao.getById(slotId, id)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun addPill(pill: Pill) = pillDao.insert(pill)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun addPills(pills: List<Pill>) = pillDao.insertAll(pills)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun updatePill(pill: Pill) = pillDao.update(pill)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun deletePill(pill: Pill) = pillDao.delete(pill)
 
     // ==================== Material ====================
@@ -167,12 +191,16 @@ class GameRepository @Inject constructor(
     fun getMaterialsByCategory(category: MaterialCategory, slotId: Int = DEFAULT_SLOT_ID): Flow<List<Material>> = 
         materialDao.getByCategory(slotId, category)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun addMaterial(material: Material) = materialDao.insert(material)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun addMaterials(materials: List<Material>) = materialDao.insertAll(materials)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun updateMaterial(material: Material) = materialDao.update(material)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun deleteMaterial(material: Material) = materialDao.delete(material)
 
     // ==================== Seed ====================
@@ -181,12 +209,16 @@ class GameRepository @Inject constructor(
     
     suspend fun getSeedById(id: String, slotId: Int = DEFAULT_SLOT_ID): Seed? = seedDao.getById(slotId, id)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun addSeed(seed: Seed) = seedDao.insert(seed)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun addSeeds(seeds: List<Seed>) = seedDao.insertAll(seeds)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun updateSeed(seed: Seed) = seedDao.update(seed)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun deleteSeed(seed: Seed) = seedDao.delete(seed)
 
     // ==================== Herb ====================
@@ -195,12 +227,16 @@ class GameRepository @Inject constructor(
     
     suspend fun getHerbById(id: String, slotId: Int = DEFAULT_SLOT_ID): Herb? = herbDao.getById(slotId, id)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun addHerb(herb: Herb) = herbDao.insert(herb)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun addHerbs(herbs: List<Herb>) = herbDao.insertAll(herbs)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun updateHerb(herb: Herb) = herbDao.update(herb)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun deleteHerb(herb: Herb) = herbDao.delete(herb)
 
     // ==================== ExplorationTeam ====================
@@ -213,12 +249,16 @@ class GameRepository @Inject constructor(
     
     suspend fun getAllTeamsSync(slotId: Int = DEFAULT_SLOT_ID): List<ExplorationTeam> = explorationTeamDao.getAllSync(slotId)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun addTeam(team: ExplorationTeam) = explorationTeamDao.insert(team)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun updateTeam(team: ExplorationTeam) = explorationTeamDao.update(team)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun updateTeams(teams: List<ExplorationTeam>) = explorationTeamDao.updateAll(teams)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun deleteTeam(team: ExplorationTeam) = explorationTeamDao.delete(team)
 
     // ==================== BuildingSlot ====================
@@ -231,12 +271,16 @@ class GameRepository @Inject constructor(
     suspend fun getBuildingSlotsSync(buildingId: String, slotId: Int = DEFAULT_SLOT_ID): List<BuildingSlot> = 
         buildingSlotDao.getByBuildingSync(slotId, buildingId)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun addBuildingSlot(slot: BuildingSlot) = buildingSlotDao.insert(slot)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun addBuildingSlots(slots: List<BuildingSlot>) = buildingSlotDao.insertAll(slots)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun updateBuildingSlot(slot: BuildingSlot) = buildingSlotDao.update(slot)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun deleteBuildingSlot(slot: BuildingSlot) = buildingSlotDao.delete(slot)
 
     // ==================== GameEvent ====================
@@ -245,8 +289,10 @@ class GameRepository @Inject constructor(
     
     fun getAllEvents(slotId: Int = DEFAULT_SLOT_ID): Flow<List<GameEvent>> = gameEventDao.getAll(slotId)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun addEvent(event: GameEvent) = gameEventDao.insert(event)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun deleteOldEvents(before: Long, slotId: Int = DEFAULT_SLOT_ID) = gameEventDao.deleteOld(slotId, before)
 
     // ==================== Dungeon ====================
@@ -257,10 +303,13 @@ class GameRepository @Inject constructor(
     
     suspend fun getDungeonById(id: String, slotId: Int = DEFAULT_SLOT_ID): Dungeon? = dungeonDao.getById(slotId, id)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun addDungeon(dungeon: Dungeon) = dungeonDao.insert(dungeon)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun addDungeons(dungeons: List<Dungeon>) = dungeonDao.insertAll(dungeons)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun updateDungeon(dungeon: Dungeon) = dungeonDao.update(dungeon)
 
     // ==================== Recipe ====================
@@ -273,10 +322,13 @@ class GameRepository @Inject constructor(
     
     suspend fun getRecipeById(id: String, slotId: Int = DEFAULT_SLOT_ID): Recipe? = recipeDao.getById(slotId, id)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun addRecipe(recipe: Recipe) = recipeDao.insert(recipe)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun addRecipes(recipes: List<Recipe>) = recipeDao.insertAll(recipes)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun updateRecipe(recipe: Recipe) = recipeDao.update(recipe)
 
     // ==================== BattleLog ====================
@@ -287,8 +339,10 @@ class GameRepository @Inject constructor(
     
     suspend fun getBattleLogById(id: String, slotId: Int = DEFAULT_SLOT_ID): BattleLog? = battleLogDao.getById(slotId, id)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun addBattleLog(log: BattleLog) = battleLogDao.insert(log)
 
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun deleteOldBattleLogs(before: Long, slotId: Int = DEFAULT_SLOT_ID) = battleLogDao.deleteOld(slotId, before)
 
     // ==================== ForgeSlot ====================
@@ -296,20 +350,25 @@ class GameRepository @Inject constructor(
     suspend fun getForgeSlotBySlotIndex(slotIndex: Int, slotId: Int = DEFAULT_SLOT_ID): ForgeSlot? = 
         forgeSlotDao.getBySlotIndex(slotId, slotIndex)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun saveForgeSlot(slot: ForgeSlot) = forgeSlotDao.insert(slot)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun saveForgeSlots(slots: List<ForgeSlot>) = forgeSlotDao.insertAll(slots)
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun deleteForgeSlot(slot: ForgeSlot) = forgeSlotDao.delete(slot)
 
     // ==================== Lifecycle ====================
 
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, saveData)"))
     suspend fun initializeNewGame(): GameData {
         val gameData = GameData(id = "game_data_0")
         gameDataDao.insert(gameData)
         return gameData
     }
     
+    @Deprecated("Use StorageFacade.delete() instead", ReplaceWith("storageFacade.delete(slotId)"))
     suspend fun clearAllData(slotId: Int = DEFAULT_SLOT_ID) {
         database.withTransaction {
             gameDataDao.deleteAll(slotId)
@@ -339,6 +398,7 @@ class GameRepository @Inject constructor(
         }
     }
     
+    @Deprecated("Use StorageFacade.save() instead", ReplaceWith("storageFacade.save(slotId, SaveData(...))"))
     suspend fun saveAll(
         gameData: GameData,
         disciples: List<Disciple>,
@@ -366,45 +426,22 @@ class GameRepository @Inject constructor(
         productionSlots: List<ProductionSlot> = emptyList(),
         slotId: Int = DEFAULT_SLOT_ID
     ) {
-        database.withTransaction {
-            gameDataDao.insert(gameData)
-            discipleDao.insertAll(disciples)
-            discipleCoreDao.insertAll(discipleCores)
-            discipleCombatStatsDao.insertAll(discipleCombatStats)
-            discipleEquipmentDao.insertAll(discipleEquipment)
-            discipleExtendedDao.insertAll(discipleExtended)
-            discipleAttributesDao.insertAll(discipleAttributes)
-            equipmentStackDao.insertAll(equipmentStacks)
-            equipmentInstanceDao.insertAll(equipmentInstances)
-            manualStackDao.insertAll(manualStacks)
-            manualInstanceDao.insertAll(manualInstances)
-            pillDao.insertAll(pills)
-            materialDao.insertAll(materials)
-            seedDao.insertAll(seeds)
-            herbDao.insertAll(herbs)
-            explorationTeamDao.insertAll(teams)
-            buildingSlotDao.insertAll(slots)
-
-            gameEventDao.deleteAll(slotId)
-            gameEventDao.insertAll(events)
-
-            dungeonDao.deleteAll(slotId)
-            dungeonDao.insertAll(dungeons)
-
-            recipeDao.deleteAll(slotId)
-            recipeDao.insertAll(recipes)
-
-            battleLogDao.deleteAll(slotId)
-            battleLogDao.insertAll(battleLogs)
-
-            forgeSlotDao.deleteAll(slotId)
-            forgeSlotDao.insertAll(forgeSlots)
-
-            alchemySlotDao.deleteAll(slotId)
-            alchemySlotDao.insertAll(alchemySlots)
-
-            productionSlotDao.deleteBySlot(slotId)
-            productionSlotDao.insertAll(productionSlots)
-        }
+        val saveData = SaveData(
+            gameData = gameData,
+            disciples = disciples,
+            equipmentStacks = equipmentStacks,
+            equipmentInstances = equipmentInstances,
+            manualStacks = manualStacks,
+            manualInstances = manualInstances,
+            pills = pills,
+            materials = materials,
+            herbs = herbs,
+            seeds = seeds,
+            teams = teams,
+            events = events,
+            battleLogs = battleLogs,
+            productionSlots = productionSlots
+        )
+        storageFacade.save(slotId, saveData)
     }
 }

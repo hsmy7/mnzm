@@ -39,6 +39,7 @@ import com.xianxia.sect.ui.components.ElderBonusInfoButton
 import com.xianxia.sect.ui.components.ElderBonusInfoProvider
 import com.xianxia.sect.ui.theme.getRarityColor
 import com.xianxia.sect.ui.game.components.ItemDetailDialog
+import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
 
 @Composable
 fun HerbGardenDialog(

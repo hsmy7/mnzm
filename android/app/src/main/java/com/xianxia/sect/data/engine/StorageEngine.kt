@@ -14,6 +14,7 @@ import com.xianxia.sect.data.config.SaveLimitsConfig
 import com.xianxia.sect.data.concurrent.SlotLockManager
 import com.xianxia.sect.data.crypto.CryptoModule
 import com.xianxia.sect.data.crypto.IntegrityReport
+import com.xianxia.sect.data.crypto.IntegrityValidator
 import com.xianxia.sect.data.incremental.ChangeLogOperation
 import com.xianxia.sect.data.incremental.ChangeLogPersistence
 import com.xianxia.sect.data.local.GameDatabase
@@ -28,6 +29,7 @@ import com.xianxia.sect.data.StorageConstants
 import com.xianxia.sect.data.unified.BackupInfo
 import com.xianxia.sect.data.unified.BackupManager
 import com.xianxia.sect.data.unified.IntegrityResult
+import com.xianxia.sect.data.unified.MetadataManager
 import com.xianxia.sect.data.serialization.unified.SerializationModule
 import com.xianxia.sect.data.unified.SlotMetadata
 import com.xianxia.sect.data.validation.StorageValidator
@@ -100,7 +102,8 @@ class StorageEngine @Inject constructor(
     private val changeLogPersistence: ChangeLogPersistence,
     private val backupManager: BackupManager,
     private val dataArchiver: DataArchiver,
-    private val memoryManager: DynamicMemoryManager
+    private val memoryManager: DynamicMemoryManager,
+    private val metadataManager: MetadataManager
 ) {
     private val circuitBreaker = StorageCircuitBreaker()
     private val pruningScheduler = DataPruningScheduler(database, circuitBreaker)
@@ -492,30 +495,50 @@ class StorageEngine @Inject constructor(
         }
 
         return try {
-            val gameData = database.gameDataDao().getGameDataSync(slot)
+            val saveData = loadFromDatabase(slot)
                 ?: return StorageResult.failure(StorageError.SLOT_EMPTY, "No data found for slot $slot")
 
             val key = crypto.getOrCreateKey(context)
-            val dataHash = crypto.computeFullDataSignature(
-                SaveData(
-                    gameData = gameData,
-                    disciples = emptyList(),
-                    pills = emptyList(),
-                    materials = emptyList(),
-                    herbs = emptyList(),
-                    seeds = emptyList(),
-                    teams = emptyList(),
-                    events = emptyList()
-                ), key
-            )
+            val currentDataHash = crypto.computeFullDataSignature(saveData, key)
+            val currentMerkleRoot = crypto.computeMerkleRoot(saveData)
+
+            val storedMetadata = metadataManager.loadSlotMetadata(slot)
+            val errors = mutableListOf<String>()
+
+            val signatureValid = if (storedMetadata != null && storedMetadata.checksum.isNotEmpty()) {
+                val result = IntegrityValidator.verifyFullDataSignature(saveData, storedMetadata.checksum, key)
+                if (!result) errors.add("Signature verification failed")
+                result
+            } else {
+                null
+            }
+
+            val hashValid = if (storedMetadata != null && storedMetadata.dataHash.isNotEmpty()) {
+                val result = constantTimeEquals(currentDataHash, storedMetadata.dataHash)
+                if (!result) errors.add("Data hash mismatch")
+                result
+            } else {
+                null
+            }
+
+            val merkleValid = if (storedMetadata != null && storedMetadata.merkleRoot.isNotEmpty()) {
+                val result = constantTimeEquals(currentMerkleRoot, storedMetadata.merkleRoot)
+                if (!result) errors.add("Merkle root mismatch")
+                result
+            } else {
+                null
+            }
+
+            val isValid = signatureValid != false && hashValid != false && merkleValid != false
 
             StorageResult.success(IntegrityReport(
-                isValid = true,
-                dataHash = dataHash,
-                merkleRoot = "",
-                signatureValid = true,
-                hashValid = true,
-                merkleValid = true
+                isValid = isValid,
+                dataHash = currentDataHash,
+                merkleRoot = currentMerkleRoot,
+                signatureValid = signatureValid ?: true,
+                hashValid = hashValid ?: true,
+                merkleValid = merkleValid ?: true,
+                errors = errors
             ))
         } catch (e: Exception) {
             Log.e(TAG, "Integrity validation failed for slot $slot", e)
@@ -855,6 +878,15 @@ class StorageEngine @Inject constructor(
         } catch (e: Exception) {
             Log.w(TAG, "Failed to clear cache for slot $slot", e)
         }
+    }
+
+    private fun constantTimeEquals(a: String, b: String): Boolean {
+        if (a.length != b.length) return false
+        var result = 0
+        for (i in a.indices) {
+            result = result or (a[i].code xor b[i].code)
+        }
+        return result == 0
     }
 
     private suspend fun createCriticalSnapshot(slot: Int, data: SaveData) {

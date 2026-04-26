@@ -4,6 +4,7 @@ import android.util.Log
 import java.util.ArrayDeque
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicInteger
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -58,7 +59,7 @@ class ObjectPool @Inject constructor() {
         private val factory: PoolFactory<T>,
         private val maxSize: Int = DEFAULT_MAX_POOL_SIZE
     ) {
-        private val available = ArrayDeque<T>()
+        private val available = ConcurrentLinkedQueue<T>()
         private val currentSize = AtomicInteger(0)
         private val borrowed = AtomicInteger(0)
         private val returned = AtomicInteger(0)
@@ -69,26 +70,24 @@ class ObjectPool @Inject constructor() {
         init {
             repeat(DEFAULT_INITIAL_SIZE.coerceAtMost(maxSize)) {
                 val instance = factory.create()
-                available.add(instance)
+                available.offer(instance)
                 created.incrementAndGet()
                 currentSize.incrementAndGet()
             }
         }
         
         fun borrow(): T {
-            repeat(MAX_BORROW_RETRIES) {
-                val instance = available.pollFirst()
-                if (instance != null) {
-                    currentSize.decrementAndGet()
-                    if (factory.validate(instance)) {
-                        borrowed.incrementAndGet()
-                        hitCount.incrementAndGet()
-                        return instance
-                    }
+            val instance = available.poll()
+            if (instance != null) {
+                currentSize.decrementAndGet()
+                if (factory.validate(instance)) {
+                    borrowed.incrementAndGet()
+                    hitCount.incrementAndGet()
+                    return instance
                 }
             }
             
-            val newInstance = factory.create()
+            val newInstance = createNew()
             created.incrementAndGet()
             borrowed.incrementAndGet()
             missCount.incrementAndGet()
@@ -96,25 +95,36 @@ class ObjectPool @Inject constructor() {
         }
         
         fun release(instance: T) {
-            if (currentSize.get() >= maxSize) {
-                return
-            }
-            
-            try {
-                factory.reset(instance)
-                if (factory.validate(instance)) {
-                    if (currentSize.incrementAndGet() <= maxSize) {
-                        available.add(instance)
-                        returned.incrementAndGet()
-                    } else {
+            while (true) {
+                val current = currentSize.get()
+                if (current >= maxSize) return
+                if (currentSize.compareAndSet(current, current + 1)) {
+                    try {
+                        factory.reset(instance)
+                        if (factory.validate(instance)) {
+                            available.offer(instance)
+                            returned.incrementAndGet()
+                        } else {
+                            currentSize.decrementAndGet()
+                        }
+                    } catch (e: Exception) {
                         currentSize.decrementAndGet()
+                        Log.w(TAG, "Failed to release object to pool: $key", e)
                     }
-                } else {
-                    currentSize.decrementAndGet()
+                    return
                 }
-            } catch (e: Exception) {
-                currentSize.decrementAndGet()
-                Log.w(TAG, "Failed to release object to pool: $key", e)
+            }
+        }
+        
+        private fun createNew(): T {
+            while (true) {
+                val current = currentSize.get()
+                if (current >= maxSize) {
+                    return factory()
+                }
+                if (currentSize.compareAndSet(current, current + 1)) {
+                    return factory()
+                }
             }
         }
         

@@ -8,6 +8,7 @@ import com.xianxia.sect.data.GameRepository
 import com.xianxia.sect.data.SessionManager
 import com.xianxia.sect.data.cache.CacheConfig
 import com.xianxia.sect.data.cache.GameDataCacheManager
+import com.xianxia.sect.data.facade.StorageFacade
 import com.xianxia.sect.data.incremental.ChangeTracker
 import com.xianxia.sect.data.incremental.ChangeLogPersistence
 import com.xianxia.sect.data.serialization.unified.SaveDataConverter
@@ -121,6 +122,7 @@ object AppModule {
     @Singleton
     fun provideGameRepository(
         database: GameDatabase,
+        storageFacade: StorageFacade,
         gameDataDao: GameDataDao,
         discipleDao: DiscipleDao,
         discipleCoreDao: DiscipleCoreDao,
@@ -148,6 +150,7 @@ object AppModule {
     ): GameRepository {
         return GameRepository(
             database,
+            storageFacade,
             gameDataDao,
             discipleDao,
             discipleCoreDao,
