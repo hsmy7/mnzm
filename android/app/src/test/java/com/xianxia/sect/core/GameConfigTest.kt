@@ -494,42 +494,42 @@ class GameConfigTest {
     // ============================================================
 
     @Test
-    fun `炼气单灵根1层突破概率应为100%`() {
+    fun `炼气单灵根1层突破概率应为1`() {
         assertEquals(1.00, GameConfig.Realm.getBreakthroughChance(9, 1, 1), 0.001)
     }
 
     @Test
-    fun `筑基双灵根1层突破概率应为90%`() {
+    fun `筑基双灵根1层突破概率应为0点9`() {
         assertEquals(0.90, GameConfig.Realm.getBreakthroughChance(8, 2, 1), 0.001)
     }
 
     @Test
-    fun `金丹三灵根1层突破概率应为75%`() {
+    fun `金丹三灵根1层突破概率应为0点75`() {
         assertEquals(0.75, GameConfig.Realm.getBreakthroughChance(7, 3, 1), 0.001)
     }
 
     @Test
-    fun `元婴单灵根1层突破概率应为85%`() {
+    fun `元婴单灵根1层突破概率应为0点85`() {
         assertEquals(0.85, GameConfig.Realm.getBreakthroughChance(6, 1, 1), 0.001)
     }
 
     @Test
-    fun `化神五灵根1层突破概率应为8%`() {
+    fun `化神五灵根1层突破概率应为0点08`() {
         assertEquals(0.08, GameConfig.Realm.getBreakthroughChance(5, 5, 1), 0.001)
     }
 
     @Test
-    fun `炼虚五灵根1层突破概率应为0%`() {
+    fun `炼虚五灵根1层突破概率应为0`() {
         assertEquals(0.00, GameConfig.Realm.getBreakthroughChance(4, 5, 1), 0.001)
     }
 
     @Test
-    fun `渡劫三灵根1层突破概率应为0%`() {
+    fun `渡劫三灵根1层突破概率应为0`() {
         assertEquals(0.00, GameConfig.Realm.getBreakthroughChance(1, 3, 1), 0.001)
     }
 
     @Test
-    fun `仙人单灵根1层突破概率应为6%`() {
+    fun `仙人单灵根1层突破概率应为0点06`() {
         assertEquals(0.06, GameConfig.Realm.getBreakthroughChance(0, 1, 1), 0.001)
     }
 
@@ -596,7 +596,7 @@ class GameConfigTest {
     }
 
     @Test
-    fun `筑基双灵根5层突破概率应为88%`() {
+    fun `筑基双灵根5层突破概率应为0点88`() {
         assertEquals(0.88, GameConfig.Realm.getBreakthroughChance(8, 2, 5), 0.001)
     }
 

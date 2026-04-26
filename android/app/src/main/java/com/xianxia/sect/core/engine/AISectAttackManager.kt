@@ -822,23 +822,6 @@ object AISectAttackManager {
         return "⚔️ $attackerName 攻破了 $defenderName！"
     }
 
-    fun calculatePlayerLootLoss(
-        spiritStones: Long,
-        materials: List<com.xianxia.sect.core.model.Material>,
-        herbs: List<com.xianxia.sect.core.model.Herb>,
-        seeds: List<com.xianxia.sect.core.model.Seed>,
-        pills: List<com.xianxia.sect.core.model.Pill>
-    ): PlayerLootLossResult {
-        val lostSpiritStones = (spiritStones * 0.4).toLong().coerceAtLeast(0)
-        val lostMaterials = mutableMapOf<String, Int>()
-        val allItems = materials + herbs + seeds + pills
-        allItems.filter { it.quantity > 0 }.forEach { item ->
-            val loss = (item.quantity * 0.4).toInt().coerceAtLeast(1)
-            lostMaterials[item.name] = loss
-        }
-        return PlayerLootLossResult(lostSpiritStones, lostMaterials)
-    }
-
     data class SectWarRewardConfig(
         val minRarity: Int,
         val maxRarity: Int,

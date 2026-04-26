@@ -81,7 +81,7 @@ class GameUtilsTest {
     }
 
     @Test
-    fun `randomChance - 50%概率大致正确`() {
+    fun `randomChance - 0点5概率大致正确`() {
         var trueCount = 0
         val iterations = 1000
         for (i in 1..iterations) {
@@ -163,13 +163,13 @@ class GameUtilsTest {
     }
 
     @Test
-    fun `formatPercent - 0%`() {
+    fun `formatPercent - 零值`() {
         val result = GameUtils.formatPercent(0.0)
         assertTrue(result.contains("0"))
     }
 
     @Test
-    fun `formatPercent - 100%`() {
+    fun `formatPercent - 满值`() {
         val result = GameUtils.formatPercent(1.0)
         assertTrue(result.contains("100"))
     }
@@ -515,7 +515,7 @@ class GameUtilsTest {
     // ========== applyPriceFluctuation 测试 ==========
 
     @Test
-    fun `applyPriceFluctuation - 价格在正负20%范围内`() {
+    fun `applyPriceFluctuation - 价格在正负20百分比范围内`() {
         val basePrice = 100
         for (i in 1..100) {
             val result = GameUtils.applyPriceFluctuation(basePrice)

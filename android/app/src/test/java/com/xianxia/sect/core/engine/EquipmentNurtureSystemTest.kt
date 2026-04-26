@@ -132,7 +132,7 @@ class EquipmentNurtureSystemTest {
     }
 
     @Test
-    fun `NURTURE_BONUS_PER_LEVEL 为5%`() {
+    fun `NURTURE_BONUS_PER_LEVEL 为0点05`() {
         assertEquals(0.05, EquipmentNurtureSystem.NURTURE_BONUS_PER_LEVEL, 0.001)
     }
 }

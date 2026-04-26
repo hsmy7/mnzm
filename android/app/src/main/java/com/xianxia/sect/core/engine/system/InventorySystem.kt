@@ -87,7 +87,7 @@ class InventorySystem @Inject constructor(
         Log.d(TAG, "InventorySystem released")
     }
 
-    override suspend fun clearForSlot(slotId: Int) {
+    override suspend fun clear() {
         stateStore.update {
             equipmentStacks = emptyList()
             equipmentInstances = emptyList()
@@ -98,6 +98,10 @@ class InventorySystem @Inject constructor(
             herbs = emptyList()
             seeds = emptyList()
         }
+    }
+
+    override suspend fun clearForSlot(slotId: Int) {
+        clear()
     }
 
     fun loadInventory(
@@ -146,13 +150,37 @@ class InventorySystem @Inject constructor(
 
     private fun getMaxStackForType(type: String): Int = inventoryConfig.getMaxStackSize(type)
 
+    private fun currentEquipmentStacks(): List<EquipmentStack> =
+        stateStore.currentTransactionMutableState()?.equipmentStacks ?: stateStore.unifiedState.value.equipmentStacks
+
+    private fun currentEquipmentInstances(): List<EquipmentInstance> =
+        stateStore.currentTransactionMutableState()?.equipmentInstances ?: stateStore.unifiedState.value.equipmentInstances
+
+    private fun currentManualStacks(): List<ManualStack> =
+        stateStore.currentTransactionMutableState()?.manualStacks ?: stateStore.unifiedState.value.manualStacks
+
+    private fun currentManualInstances(): List<ManualInstance> =
+        stateStore.currentTransactionMutableState()?.manualInstances ?: stateStore.unifiedState.value.manualInstances
+
+    private fun currentPills(): List<Pill> =
+        stateStore.currentTransactionMutableState()?.pills ?: stateStore.unifiedState.value.pills
+
+    private fun currentMaterials(): List<Material> =
+        stateStore.currentTransactionMutableState()?.materials ?: stateStore.unifiedState.value.materials
+
+    private fun currentHerbs(): List<Herb> =
+        stateStore.currentTransactionMutableState()?.herbs ?: stateStore.unifiedState.value.herbs
+
+    private fun currentSeeds(): List<Seed> =
+        stateStore.currentTransactionMutableState()?.seeds ?: stateStore.unifiedState.value.seeds
+
     private fun getTotalSlotCount(): Int {
-        return stateStore.equipmentStacks.value.size +
-               stateStore.manualStacks.value.size +
-               stateStore.pills.value.size +
-               stateStore.materials.value.size +
-               stateStore.herbs.value.size +
-               stateStore.seeds.value.size
+        return currentEquipmentStacks().size +
+               currentManualStacks().size +
+               currentPills().size +
+               currentMaterials().size +
+               currentHerbs().size +
+               currentSeeds().size
     }
 
     fun getCapacityInfo(): CapacityInfo {
@@ -171,7 +199,7 @@ class InventorySystem @Inject constructor(
 
     fun canAddEquipment(name: String, rarity: Int, slot: EquipmentSlot): Boolean {
         val ts = stateStore.currentTransactionMutableState()
-        val current = ts?.equipmentStacks ?: stateStore.equipmentStacks.value
+        val current = ts?.equipmentStacks ?: stateStore.unifiedState.value.equipmentStacks
         val maxStack = getMaxStackForType("equipment_stack")
         val canMerge = current.any { it.name == name && it.rarity == rarity && it.slot == slot && it.quantity < maxStack }
         return canMerge || canAddItem()
@@ -179,7 +207,7 @@ class InventorySystem @Inject constructor(
 
     fun canAddPill(name: String, rarity: Int, category: PillCategory, grade: PillGrade = PillGrade.MEDIUM): Boolean {
         val ts = stateStore.currentTransactionMutableState()
-        val current = ts?.pills ?: stateStore.pills.value
+        val current = ts?.pills ?: stateStore.unifiedState.value.pills
         val maxStack = getMaxStackForType("pill")
         val canMerge = current.any { it.name == name && it.rarity == rarity && it.category == category && it.grade == grade && it.quantity < maxStack }
         return canMerge || canAddItem()
@@ -187,7 +215,7 @@ class InventorySystem @Inject constructor(
 
     fun canAddManual(name: String, rarity: Int, type: ManualType): Boolean {
         val ts = stateStore.currentTransactionMutableState()
-        val current = ts?.manualStacks ?: stateStore.manualStacks.value
+        val current = ts?.manualStacks ?: stateStore.unifiedState.value.manualStacks
         val maxStack = getMaxStackForType("manual_stack")
         val canMerge = current.any { it.name == name && it.rarity == rarity && it.type == type && it.quantity < maxStack }
         return canMerge || canAddItem()
@@ -195,7 +223,7 @@ class InventorySystem @Inject constructor(
 
     fun canAddMaterial(name: String, rarity: Int, category: MaterialCategory): Boolean {
         val ts = stateStore.currentTransactionMutableState()
-        val current = ts?.materials ?: stateStore.materials.value
+        val current = ts?.materials ?: stateStore.unifiedState.value.materials
         val maxStack = getMaxStackForType("material")
         val canMerge = current.any { it.name == name && it.rarity == rarity && it.category == category && it.quantity < maxStack }
         return canMerge || canAddItem()
@@ -203,7 +231,7 @@ class InventorySystem @Inject constructor(
 
     fun canAddHerb(name: String, rarity: Int, category: String): Boolean {
         val ts = stateStore.currentTransactionMutableState()
-        val current = ts?.herbs ?: stateStore.herbs.value
+        val current = ts?.herbs ?: stateStore.unifiedState.value.herbs
         val maxStack = getMaxStackForType("herb")
         val canMerge = current.any { it.name == name && it.rarity == rarity && it.category == category && it.quantity < maxStack }
         return canMerge || canAddItem()
@@ -211,7 +239,7 @@ class InventorySystem @Inject constructor(
 
     fun canAddSeed(name: String, rarity: Int, growTime: Int): Boolean {
         val ts = stateStore.currentTransactionMutableState()
-        val current = ts?.seeds ?: stateStore.seeds.value
+        val current = ts?.seeds ?: stateStore.unifiedState.value.seeds
         val maxStack = getMaxStackForType("seed")
         val canMerge = current.any { it.name == name && it.rarity == rarity && it.growTime == growTime && it.quantity < maxStack }
         return canMerge || canAddItem()
@@ -229,7 +257,7 @@ class InventorySystem @Inject constructor(
         if (validation != AddResult.SUCCESS) return validation
 
         val ts = stateStore.currentTransactionMutableState()
-        val currentStacks = ts?.equipmentStacks ?: stateStore.equipmentStacks.value
+        val currentStacks = ts?.equipmentStacks ?: stateStore.unifiedState.value.equipmentStacks
         val maxStack = getMaxStackForType("equipment_stack")
 
         val existing = currentStacks.find {
@@ -268,7 +296,7 @@ class InventorySystem @Inject constructor(
         if (item.rarity !in VALID_RARITY_RANGE) return AddResult.INVALID_RARITY
 
         val ts = stateStore.currentTransactionMutableState()
-        val currentInstances = ts?.equipmentInstances ?: stateStore.equipmentInstances.value
+        val currentInstances = ts?.equipmentInstances ?: stateStore.unifiedState.value.equipmentInstances
         if (currentInstances.any { it.id == item.id }) return AddResult.DUPLICATE_ID
 
         if (ts != null) {
@@ -286,7 +314,7 @@ class InventorySystem @Inject constructor(
         if (validation != AddResult.SUCCESS) return validation
 
         val ts = stateStore.currentTransactionMutableState()
-        val currentStacks = ts?.manualStacks ?: stateStore.manualStacks.value
+        val currentStacks = ts?.manualStacks ?: stateStore.unifiedState.value.manualStacks
         val maxStack = getMaxStackForType("manual_stack")
 
         if (merge) {
@@ -327,7 +355,7 @@ class InventorySystem @Inject constructor(
         if (item.rarity !in VALID_RARITY_RANGE) return AddResult.INVALID_RARITY
 
         val ts = stateStore.currentTransactionMutableState()
-        val currentInstances = ts?.manualInstances ?: stateStore.manualInstances.value
+        val currentInstances = ts?.manualInstances ?: stateStore.unifiedState.value.manualInstances
         if (currentInstances.any { it.id == item.id }) return AddResult.DUPLICATE_ID
 
         if (ts != null) {
@@ -342,7 +370,7 @@ class InventorySystem @Inject constructor(
 
     fun returnEquipmentToStack(instance: EquipmentInstance): AddResult {
         val ts = stateStore.currentTransactionMutableState()
-        val currentStacks = ts?.equipmentStacks ?: stateStore.equipmentStacks.value
+        val currentStacks = ts?.equipmentStacks ?: stateStore.unifiedState.value.equipmentStacks
         val maxStack = getMaxStackForType("equipment_stack")
 
         val existing = currentStacks.find {
@@ -378,7 +406,7 @@ class InventorySystem @Inject constructor(
 
     fun returnManualToStack(instance: ManualInstance): AddResult {
         val ts = stateStore.currentTransactionMutableState()
-        val currentStacks = ts?.manualStacks ?: stateStore.manualStacks.value
+        val currentStacks = ts?.manualStacks ?: stateStore.unifiedState.value.manualStacks
         val maxStack = getMaxStackForType("manual_stack")
 
         val existing = currentStacks.find {
@@ -414,7 +442,7 @@ class InventorySystem @Inject constructor(
 
     fun removeEquipment(id: String, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
         if (!validateQuantity(quantity, "remove quantity")) return false
-        val existing = stateStore.equipmentStacks.value.find { it.id == id }
+        val existing = currentEquipmentStacks().find { it.id == id }
         if (!bypassLock && existing?.isLocked == true) {
             logWarning("Cannot remove locked equipment stack: ${existing.name}")
             return false
@@ -532,16 +560,16 @@ class InventorySystem @Inject constructor(
     }
 
     fun getEquipmentStackById(id: String): EquipmentStack? {
-        return stateStore.equipmentStacks.value.find { it.id == id }
+        return currentEquipmentStacks().find { it.id == id }
     }
 
     fun getEquipmentInstanceById(id: String): EquipmentInstance? {
-        return stateStore.equipmentInstances.value.find { it.id == id }
+        return currentEquipmentInstances().find { it.id == id }
     }
 
     fun removeManual(id: String, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
         if (!validateQuantity(quantity, "remove quantity")) return false
-        val existing = stateStore.manualStacks.value.find { it.id == id }
+        val existing = currentManualStacks().find { it.id == id }
         if (!bypassLock && existing?.isLocked == true) {
             logWarning("Cannot remove locked manual stack: ${existing.name}")
             return false
@@ -659,11 +687,11 @@ class InventorySystem @Inject constructor(
     }
 
     fun getManualStackById(id: String): ManualStack? {
-        return stateStore.manualStacks.value.find { it.id == id }
+        return currentManualStacks().find { it.id == id }
     }
 
     fun getManualInstanceById(id: String): ManualInstance? {
-        return stateStore.manualInstances.value.find { it.id == id }
+        return currentManualInstances().find { it.id == id }
     }
 
     fun addPill(item: Pill, merge: Boolean = true): AddResult {
@@ -671,7 +699,7 @@ class InventorySystem @Inject constructor(
         if (validation != AddResult.SUCCESS) return validation
 
         val ts = stateStore.currentTransactionMutableState()
-        val currentPills = ts?.pills ?: stateStore.pills.value
+        val currentPills = ts?.pills ?: stateStore.unifiedState.value.pills
 
         if (merge) {
             val existing = currentPills.find {
@@ -708,7 +736,7 @@ class InventorySystem @Inject constructor(
 
     fun removePill(id: String, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
         if (!validateQuantity(quantity, "remove quantity")) return false
-        val existing = stateStore.pills.value.find { it.id == id }
+        val existing = currentPills().find { it.id == id }
         if (!bypassLock && existing?.isLocked == true) {
             logWarning("Cannot remove locked pill: ${existing.name}")
             return false
@@ -764,7 +792,7 @@ class InventorySystem @Inject constructor(
 
     fun removePillByName(name: String, rarity: Int, quantity: Int = 1, bypassLock: Boolean = false, grade: PillGrade? = null): Boolean {
         if (!validateQuantity(quantity, "remove quantity")) return false
-        val existing = stateStore.pills.value.find {
+        val existing = currentPills().find {
             it.name == name && it.rarity == rarity && (grade == null || it.grade == grade)
         }
             ?: return false
@@ -849,15 +877,15 @@ class InventorySystem @Inject constructor(
     }
 
     fun getPillById(id: String): Pill? {
-        return stateStore.pills.value.find { it.id == id }
+        return currentPills().find { it.id == id }
     }
 
     fun getPillQuantity(id: String): Int {
-        return stateStore.pills.value.find { it.id == id }?.quantity ?: 0
+        return currentPills().find { it.id == id }?.quantity ?: 0
     }
 
     fun hasPill(name: String, rarity: Int, quantity: Int = 1, grade: PillGrade? = null): Boolean {
-        val item = stateStore.pills.value.find {
+        val item = currentPills().find {
             it.name == name && it.rarity == rarity && (grade == null || it.grade == grade)
         } ?: return false
         return item.quantity >= quantity
@@ -868,7 +896,7 @@ class InventorySystem @Inject constructor(
         if (validation != AddResult.SUCCESS) return validation
 
         val ts = stateStore.currentTransactionMutableState()
-        val currentMaterials = ts?.materials ?: stateStore.materials.value
+        val currentMaterials = ts?.materials ?: stateStore.unifiedState.value.materials
 
         if (merge) {
             val existing = currentMaterials.find {
@@ -905,7 +933,7 @@ class InventorySystem @Inject constructor(
 
     fun removeMaterial(id: String, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
         if (!validateQuantity(quantity, "remove quantity")) return false
-        val existing = stateStore.materials.value.find { it.id == id }
+        val existing = currentMaterials().find { it.id == id }
         if (!bypassLock && existing?.isLocked == true) {
             logWarning("Cannot remove locked material: ${existing.name}")
             return false
@@ -961,7 +989,7 @@ class InventorySystem @Inject constructor(
 
     fun removeMaterialByName(name: String, rarity: Int, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
         if (!validateQuantity(quantity, "remove quantity")) return false
-        val existing = stateStore.materials.value.find { it.name == name && it.rarity == rarity }
+        val existing = currentMaterials().find { it.name == name && it.rarity == rarity }
             ?: return false
         if (!bypassLock && existing.isLocked) {
             logWarning("Cannot remove locked material: ${existing.name}")
@@ -1044,15 +1072,15 @@ class InventorySystem @Inject constructor(
     }
 
     fun getMaterialById(id: String): Material? {
-        return stateStore.materials.value.find { it.id == id }
+        return currentMaterials().find { it.id == id }
     }
 
     fun getMaterialQuantity(id: String): Int {
-        return stateStore.materials.value.find { it.id == id }?.quantity ?: 0
+        return currentMaterials().find { it.id == id }?.quantity ?: 0
     }
 
     fun hasMaterial(name: String, rarity: Int, quantity: Int = 1): Boolean {
-        val item = stateStore.materials.value.find { it.name == name && it.rarity == rarity } ?: return false
+        val item = currentMaterials().find { it.name == name && it.rarity == rarity } ?: return false
         return item.quantity >= quantity
     }
 
@@ -1061,7 +1089,7 @@ class InventorySystem @Inject constructor(
         if (validation != AddResult.SUCCESS) return validation
 
         val ts = stateStore.currentTransactionMutableState()
-        val currentHerbs = ts?.herbs ?: stateStore.herbs.value
+        val currentHerbs = ts?.herbs ?: stateStore.unifiedState.value.herbs
 
         if (merge) {
             val existing = currentHerbs.find {
@@ -1098,7 +1126,7 @@ class InventorySystem @Inject constructor(
 
     fun removeHerb(id: String, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
         if (!validateQuantity(quantity, "remove quantity")) return false
-        val existing = stateStore.herbs.value.find { it.id == id }
+        val existing = currentHerbs().find { it.id == id }
         if (!bypassLock && existing?.isLocked == true) {
             logWarning("Cannot remove locked herb: ${existing.name}")
             return false
@@ -1154,7 +1182,7 @@ class InventorySystem @Inject constructor(
 
     fun removeHerbByName(name: String, rarity: Int, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
         if (!validateQuantity(quantity, "remove quantity")) return false
-        val existing = stateStore.herbs.value.find { it.name == name && it.rarity == rarity }
+        val existing = currentHerbs().find { it.name == name && it.rarity == rarity }
             ?: return false
         if (!bypassLock && existing.isLocked) {
             logWarning("Cannot remove locked herb: ${existing.name}")
@@ -1237,15 +1265,15 @@ class InventorySystem @Inject constructor(
     }
 
     fun getHerbById(id: String): Herb? {
-        return stateStore.herbs.value.find { it.id == id }
+        return currentHerbs().find { it.id == id }
     }
 
     fun getHerbQuantity(id: String): Int {
-        return stateStore.herbs.value.find { it.id == id }?.quantity ?: 0
+        return currentHerbs().find { it.id == id }?.quantity ?: 0
     }
 
     fun hasHerb(name: String, rarity: Int, quantity: Int = 1): Boolean {
-        val item = stateStore.herbs.value.find { it.name == name && it.rarity == rarity } ?: return false
+        val item = currentHerbs().find { it.name == name && it.rarity == rarity } ?: return false
         return item.quantity >= quantity
     }
 
@@ -1254,7 +1282,7 @@ class InventorySystem @Inject constructor(
         if (validation != AddResult.SUCCESS) return validation
 
         val ts = stateStore.currentTransactionMutableState()
-        val currentSeeds = ts?.seeds ?: stateStore.seeds.value
+        val currentSeeds = ts?.seeds ?: stateStore.unifiedState.value.seeds
 
         if (merge) {
             val existing = currentSeeds.find {
@@ -1343,7 +1371,7 @@ class InventorySystem @Inject constructor(
 
     fun removeSeed(id: String, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
         if (!validateQuantity(quantity, "remove quantity")) return false
-        val existing = stateStore.seeds.value.find { it.id == id }
+        val existing = currentSeeds().find { it.id == id }
         if (!bypassLock && existing?.isLocked == true) {
             logWarning("Cannot remove locked seed: ${existing.name}")
             return false
@@ -1430,7 +1458,7 @@ class InventorySystem @Inject constructor(
             return removed
         }
 
-        val existing = stateStore.getCurrentSeeds().find { it.id == id }
+        val existing = currentSeeds().find { it.id == id }
         if (!bypassLock && existing?.isLocked == true) {
             logWarning("Cannot remove locked seed: ${existing.name}")
             return false
@@ -1467,7 +1495,7 @@ class InventorySystem @Inject constructor(
 
     fun removeSeedByName(name: String, rarity: Int, quantity: Int = 1, bypassLock: Boolean = false): Boolean {
         if (!validateQuantity(quantity, "remove quantity")) return false
-        val existing = stateStore.seeds.value.find { it.name == name && it.rarity == rarity }
+        val existing = currentSeeds().find { it.name == name && it.rarity == rarity }
             ?: return false
         if (!bypassLock && existing.isLocked) {
             logWarning("Cannot remove locked seed: ${existing.name}")
@@ -1550,30 +1578,30 @@ class InventorySystem @Inject constructor(
     }
 
     fun getSeedById(id: String): Seed? {
-        return stateStore.seeds.value.find { it.id == id }
+        return currentSeeds().find { it.id == id }
     }
 
     fun getSeedQuantity(id: String): Int {
-        return stateStore.seeds.value.find { it.id == id }?.quantity ?: 0
+        return currentSeeds().find { it.id == id }?.quantity ?: 0
     }
 
     fun hasSeed(name: String, rarity: Int, quantity: Int = 1): Boolean {
-        val item = stateStore.seeds.value.find { it.name == name && it.rarity == rarity } ?: return false
+        val item = currentSeeds().find { it.name == name && it.rarity == rarity } ?: return false
         return item.quantity >= quantity
     }
 
     fun getItemCountByType(type: String): Int {
         return when (type.lowercase(java.util.Locale.getDefault())) {
-            "equipment_stack" -> stateStore.equipmentStacks.value.size
-            "equipment_instance" -> stateStore.equipmentInstances.value.size
-            "manual_stack" -> stateStore.manualStacks.value.size
-            "manual_instance" -> stateStore.manualInstances.value.size
-            "equipment" -> stateStore.equipmentStacks.value.size + stateStore.equipmentInstances.value.size
-            "manual" -> stateStore.manualStacks.value.size + stateStore.manualInstances.value.size
-            "pill" -> stateStore.pills.value.size
-            "material" -> stateStore.materials.value.size
-            "herb" -> stateStore.herbs.value.size
-            "seed" -> stateStore.seeds.value.size
+            "equipment_stack" -> currentEquipmentStacks().size
+            "equipment_instance" -> currentEquipmentInstances().size
+            "manual_stack" -> currentManualStacks().size
+            "manual_instance" -> currentManualInstances().size
+            "equipment" -> currentEquipmentStacks().size + currentEquipmentInstances().size
+            "manual" -> currentManualStacks().size + currentManualInstances().size
+            "pill" -> currentPills().size
+            "material" -> currentMaterials().size
+            "herb" -> currentHerbs().size
+            "seed" -> currentSeeds().size
             else -> 0
         }
     }

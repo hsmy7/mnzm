@@ -1122,10 +1122,7 @@ class CultivationService @Inject constructor(
         // 5. Process cross-sect partner matching
         processCrossSectPartnerMatching(year, 1)
 
-        // 6. Generate items for AI sects
-        generateYearlyItemsForAISects()
-
-        // 7. Process alliance expiry
+        // 6. Process alliance expiry
         checkAllianceExpiry(year)
 
         // 8. Process alliance favor drop
@@ -2261,15 +2258,16 @@ class CultivationService @Inject constructor(
     }
 
     private fun applyWarRewards(rewards: WarRewards) {
+        val playerSectId = currentGameData.worldMapSects.find { it.isPlayerSect }?.id ?: return
+        val playerDetail = currentGameData.sectDetails[playerSectId] ?: SectDetail(sectId = playerSectId)
+        val warehouseItems = SectWarehouseManager.convertWarRewardsToWarehouseItems(rewards)
+        val updatedWarehouse = SectWarehouseManager.addItemsToWarehouse(playerDetail.warehouse, warehouseItems)
+        val finalWarehouse = SectWarehouseManager.addSpiritStonesToWarehouse(updatedWarehouse, rewards.spiritStones)
         currentGameData = currentGameData.copy(
-            spiritStones = currentGameData.spiritStones + rewards.spiritStones
+            sectDetails = currentGameData.sectDetails.toMutableMap().apply {
+                this[playerSectId] = playerDetail.copy(warehouse = finalWarehouse)
+            }
         )
-        rewards.equipmentStacks.forEach { inventorySystem.addEquipmentStack(it) }
-        rewards.manualStacks.forEach { inventorySystem.addManualStack(it) }
-        rewards.pills.forEach { inventorySystem.addPill(it) }
-        rewards.materials.forEach { inventorySystem.addMaterial(it) }
-        rewards.herbs.forEach { inventorySystem.addHerb(it) }
-        rewards.seeds.forEach { inventorySystem.addSeed(it) }
     }
 
     /**
@@ -2835,70 +2833,16 @@ class CultivationService @Inject constructor(
      * Process player defeat in AI battle
      */
     private suspend fun processPlayerDefeat(team: AIBattleTeam, attackerSect: WorldSect?) {
-        val data = currentGameData
-        val lootResult = AISectAttackManager.calculatePlayerLootLoss(
-            data.spiritStones,
-            currentMaterials,
-            currentHerbs,
-            currentSeeds,
-            currentPills
-        )
+        val playerSectId = currentGameData.worldMapSects.find { it.isPlayerSect }?.id ?: return
+        val playerDetail = currentGameData.sectDetails[playerSectId] ?: SectDetail(sectId = playerSectId)
+        val lootResult = SectWarehouseManager.calculateWarehouseLootLoss(playerDetail.warehouse)
+        val updatedWarehouse = SectWarehouseManager.applyLootLossToWarehouse(playerDetail.warehouse, lootResult)
 
-        currentGameData = data.copy(
-            spiritStones = (data.spiritStones - lootResult.lostSpiritStones).coerceAtLeast(0L)
-        )
-
-        lootResult.lostMaterials.forEach { (itemName, itemCount) ->
-            when {
-                currentMaterials.any { it.name == itemName } -> {
-                    currentMaterials = currentMaterials.map { material ->
-                        if (material.name == itemName && material.quantity > 0) {
-                            material.copy(quantity = (material.quantity - itemCount).coerceAtLeast(0))
-                        } else material
-                    }
-                }
-                currentHerbs.any { it.name == itemName } -> {
-                    currentHerbs = currentHerbs.map { herb ->
-                        if (herb.name == itemName && herb.quantity > 0) {
-                            herb.copy(quantity = (herb.quantity - itemCount).coerceAtLeast(0))
-                        } else herb
-                    }
-                }
-                currentSeeds.any { it.name == itemName } -> {
-                    currentSeeds = currentSeeds.map { seed ->
-                        if (seed.name == itemName && seed.quantity > 0) {
-                            seed.copy(quantity = (seed.quantity - itemCount).coerceAtLeast(0))
-                        } else seed
-                    }
-                }
-                currentPills.any { it.name == itemName } -> {
-                    currentPills = currentPills.map { pill ->
-                        if (pill.name == itemName && pill.quantity > 0) {
-                            pill.copy(quantity = (pill.quantity - itemCount).coerceAtLeast(0))
-                        } else pill
-                    }
-                }
+        currentGameData = currentGameData.copy(
+            sectDetails = currentGameData.sectDetails.toMutableMap().apply {
+                this[playerSectId] = playerDetail.copy(warehouse = updatedWarehouse)
             }
-        }
-
-        if (attackerSect != null) {
-            val warehouseItems = SectWarehouseManager.convertLootLossToWarehouseItems(
-                lootResult.lostMaterials,
-                currentMaterials,
-                currentHerbs,
-                currentSeeds,
-                currentPills
-            )
-            val attackerDetail = currentGameData.sectDetails[attackerSect.id] ?: SectDetail(sectId = attackerSect.id)
-            val updatedWarehouse = SectWarehouseManager.addItemsToWarehouse(attackerDetail.warehouse, warehouseItems)
-            val finalWarehouse = SectWarehouseManager.addSpiritStonesToWarehouse(updatedWarehouse, lootResult.lostSpiritStones)
-
-            currentGameData = currentGameData.copy(
-                sectDetails = currentGameData.sectDetails.toMutableMap().apply {
-                    this[attackerSect.id] = attackerDetail.copy(warehouse = finalWarehouse)
-                }
-            )
-        }
+        )
 
         eventService.addGameEvent("我宗防守失败，被${team.attackerSectName}掠夺了${lootResult.lostSpiritStones}灵石和${lootResult.lostMaterials.size}种道具！", EventType.DANGER)
 
@@ -3417,22 +3361,6 @@ class CultivationService @Inject constructor(
             val cave = activeCaves.find { it.id == aiTeam.caveId } ?: return@forEach
 
             if (Random.nextDouble() < 0.3) {
-                val rewards = CaveExplorationSystem.generateVictoryRewards(cave)
-                val warehouseItems = SectWarehouseManager.convertCaveRewardsToWarehouseItems(rewards)
-
-                val sectIndex = updatedSectsForAI.indexOfFirst { it.id == aiTeam.sectId }
-                if (sectIndex >= 0) {
-                    val sect = updatedSectsForAI[sectIndex]
-                    val detail = currentGameData.sectDetails[sect.id] ?: SectDetail(sectId = sect.id)
-                    val updatedWarehouse = SectWarehouseManager.addItemsToWarehouse(detail.warehouse, warehouseItems)
-                    val warehouseWithStones = SectWarehouseManager.addSpiritStonesToWarehouse(
-                        updatedWarehouse,
-                        rewards.items.filter { it.type == "spiritStones" }.sumOf { it.quantity.toLong() }
-                    )
-                    updatedSectsForAI[sectIndex] = sect
-                    updatedSectDetails[aiTeam.sectId] = detail.copy(warehouse = warehouseWithStones)
-                }
-
                 aiTeamsToRemove.add(aiTeam.id)
             }
         }
@@ -3911,34 +3839,6 @@ class CultivationService @Inject constructor(
         currentGameData = data.copy(
             aiBattleTeams = updatedTeams + allNewBattles
         )
-    }
-
-    /**
-     * Generate yearly items for AI sects
-     */
-    private fun generateYearlyItemsForAISects() {
-        val data = currentGameData
-        val updatedDetails = data.sectDetails.toMutableMap()
-        val updatedSects = data.worldMapSects.map { sect ->
-            if (!sect.isPlayerSect && !sect.isPlayerOccupied) {
-                val newWarehouse = SectWarehouseManager.generateYearlyItemsForAISect(sect)
-                val detail = updatedDetails[sect.id] ?: SectDetail(sectId = sect.id)
-                val existingWarehouse = detail.warehouse
-                val mergedWarehouse = SectWarehouseManager.addItemsToWarehouse(
-                    existingWarehouse,
-                    newWarehouse.items
-                )
-                val finalWarehouse = SectWarehouseManager.addSpiritStonesToWarehouse(
-                    mergedWarehouse,
-                    newWarehouse.spiritStones
-                )
-                updatedDetails[sect.id] = detail.copy(warehouse = finalWarehouse)
-                sect
-            } else {
-                sect
-            }
-        }
-        currentGameData = data.copy(worldMapSects = updatedSects, sectDetails = updatedDetails)
     }
 
     /**
