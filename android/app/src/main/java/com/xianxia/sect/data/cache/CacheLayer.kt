@@ -814,7 +814,7 @@ class GameDataCacheManager @Inject constructor(
         }
 
         Log.d(TAG, "Cache stats: hitRate=${"%.2f".format(hitRate)}, " +
-                "entries=${memoryCache.size}, " +
+                "entries=${sizeSync()}, " +
                 "hits=$hits, misses=$misses, " +
                 "evicted=${evictedCount.get()}, " +
                 "pressure=${currentPressureLevel.name}, " +
@@ -881,8 +881,7 @@ class GameDataCacheManager @Inject constructor(
         // 4. Clear bloom filter
         bloomFilter.clear()
 
-        // 5. Clear in-memory cache
-        memoryCache.clear()
+        clearSync()
 
         // 6. Cancel all coroutines
         scope.cancel()
