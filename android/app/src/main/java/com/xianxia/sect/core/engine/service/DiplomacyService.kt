@@ -240,8 +240,11 @@ class DiplomacyService @Inject constructor(
             )
 
             val updatedSects = data.worldMapSects.map { s ->
-                if (s.id == sectId) s.copy(allianceId = alliance.id, allianceStartYear = data.gameYear)
-                else s
+                when {
+                    s.id == sectId -> s.copy(allianceId = alliance.id, allianceStartYear = data.gameYear)
+                    s.isPlayerSect -> s.copy(allianceId = alliance.id, allianceStartYear = data.gameYear)
+                    else -> s
+                }
             }
 
             currentGameData = data.copy(
