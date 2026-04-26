@@ -107,12 +107,12 @@ fun HerbGardenDialog(
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF666666)
                 )
-                val autoPlantEnabled by productionViewModel.autoPlantEnabled.collectAsState()
+                val autoPlantEnabled by herbGardenViewModel.autoPlantEnabled.collectAsState()
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(4.dp))
                         .background(if (autoPlantEnabled) Color(0xFFFFD700) else Color(0xFF999999))
-                        .clickable { productionViewModel.toggleAutoPlant() }
+                        .clickable { herbGardenViewModel.toggleAutoPlant() }
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
                     Text(
@@ -149,7 +149,7 @@ fun HerbGardenDialog(
         SeedPlantingDialog(
             seeds = seeds,
             onSelect = { seed ->
-                productionViewModel.plantSeed(slotIndex, seed)
+                herbGardenViewModel.plantSeed(slotIndex, seed)
                 showSeedSelection = null
             },
             onDismiss = { showSeedSelection = null }

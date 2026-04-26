@@ -227,6 +227,7 @@ internal fun BuildingsTab(
             disciples = disciples.filter { it.isAlive },
             viewModel = viewModel,
             productionViewModel = productionViewModel,
+            herbGardenViewModel = herbGardenViewModel,
             onDismiss = { viewModel.closeCurrentDialog() }
         )
     }
@@ -240,6 +241,7 @@ internal fun BuildingsTab(
             disciples = disciples.filter { it.isAlive },
             viewModel = viewModel,
             productionViewModel = productionViewModel,
+            alchemyViewModel = alchemyViewModel,
             colors = XianxiaColorScheme(),
             onDismiss = { viewModel.closeCurrentDialog() }
         )
@@ -252,6 +254,7 @@ internal fun BuildingsTab(
             gameData = gameData,
             viewModel = viewModel,
             productionViewModel = productionViewModel,
+            forgeViewModel = forgeViewModel,
             colors = XianxiaColorScheme(),
             onDismiss = { viewModel.closeCurrentDialog() }
         )
