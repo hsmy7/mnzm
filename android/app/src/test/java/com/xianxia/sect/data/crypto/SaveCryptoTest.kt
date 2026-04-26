@@ -1,5 +1,7 @@
 package com.xianxia.sect.data.crypto
 
+import com.xianxia.sect.di.ApplicationScopeProvider
+import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -10,10 +12,19 @@ class SaveCryptoTest {
     private val testPassword = "MySecurePassword123!"
     private val wrongPassword = "WrongPassword456!"
     private val testKey = ByteArray(32) { (it * 7 + 13).toByte() }
+    private lateinit var scopeProvider: ApplicationScopeProvider
 
     @Before
     fun setUp() {
+        scopeProvider = ApplicationScopeProvider()
+        SaveCrypto.initialize(scopeProvider)
         SaveCrypto.clearAllKeyCache()
+    }
+
+    @After
+    fun tearDown() {
+        SaveCrypto.clearAllKeyCache()
+        scopeProvider.close()
     }
 
     @Test

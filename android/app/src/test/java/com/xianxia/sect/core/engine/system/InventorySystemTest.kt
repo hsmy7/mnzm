@@ -434,7 +434,7 @@ class InventorySystemTest {
             result = system.returnEquipmentToStack(instance)
         }
         assertEquals(AddResult.SUCCESS, result)
-        val stack = stateStore.equipmentStacks.value.find { it.name == "铁剑" }
+        val stack = stateStore.unifiedState.value.equipmentStacks.find { it.name == "铁剑" }
         assertNotNull(stack)
         assertEquals(6, stack!!.quantity)
     }
@@ -447,7 +447,7 @@ class InventorySystemTest {
             result = system.returnEquipmentToStack(instance)
         }
         assertEquals(AddResult.SUCCESS, result)
-        val stack = stateStore.equipmentStacks.value.find { it.name == "铁剑" }
+        val stack = stateStore.unifiedState.value.equipmentStacks.find { it.name == "铁剑" }
         assertNotNull(stack)
         assertEquals(1, stack!!.quantity)
     }

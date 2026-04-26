@@ -1,5 +1,12 @@
 # 模拟宗门 - 更新日志
 
+## [2.5.67] - 2026-04-27
+
+### 测试修复
+- 修复 SaveCryptoTest 全部11个测试失败：SaveCrypto 是 object 单例，applicationScopeProvider 为 lateinit，测试中未调用 initialize() 导致 UninitializedPropertyAccessException
+- 修复 InventorySystemTest returnEquipmentToStack 两个测试失败：派生 StateFlow 使用 WhileSubscribed(5s) 策略，无订阅者时 .value 返回初始空列表，改用 unifiedState.value 直接读取
+- SaveCryptoTest 添加 tearDown 清理：clearAllKeyCache() + scopeProvider.close()
+
 ## [2.5.66] - 2026-04-27
 
 ### 代码质量报告复查修复
