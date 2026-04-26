@@ -47,14 +47,14 @@ class ProductionSlotRepository @Inject constructor(
 
     private val shardedLock = ShardedSlotLock()
     private val globalMutex = Mutex()
-    private val cache = SlotQueryCache()
+    private val cache = SlotCache()
     private val scope get() = applicationScopeProvider.scope
 
     private val _slots = MutableStateFlow<List<ProductionSlot>>(emptyList())
     val slots: StateFlow<List<ProductionSlot>> = _slots.asStateFlow()
 
     val workingSlots: StateFlow<List<ProductionSlot>> = _slots
-        .map { cache.getWorkingSlots(it) }
+        .map { cache.updateCache(it); cache.getWorkingSlots() }
         .stateIn(
             scope = scope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -62,7 +62,7 @@ class ProductionSlotRepository @Inject constructor(
         )
 
     val completedSlots: StateFlow<List<ProductionSlot>> = _slots
-        .map { cache.getCompletedSlots(it) }
+        .map { cache.updateCache(it); cache.getCompletedSlots() }
         .stateIn(
             scope = scope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -70,7 +70,7 @@ class ProductionSlotRepository @Inject constructor(
         )
 
     val idleSlots: StateFlow<List<ProductionSlot>> = _slots
-        .map { cache.getIdleSlots(it) }
+        .map { cache.updateCache(it); cache.getIdleSlots() }
         .stateIn(
             scope = scope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -81,7 +81,7 @@ class ProductionSlotRepository @Inject constructor(
         globalMutex.withLock {
             val loaded = dao.getAllSync()
             _slots.value = loaded
-            cache.invalidate()
+            cache.updateCache(loaded)
             Log.d(TAG, "Initialized with ${loaded.size} slots")
         }
     }
@@ -89,7 +89,7 @@ class ProductionSlotRepository @Inject constructor(
     suspend fun loadSlots(slots: List<ProductionSlot>) {
         globalMutex.withLock {
             _slots.value = slots
-            cache.invalidate()
+            cache.updateCache(slots)
             dao.insertAll(slots)
         }
     }
@@ -101,33 +101,33 @@ class ProductionSlotRepository @Inject constructor(
     }
 
     fun getSlotByIndex(buildingType: BuildingType, slotIndex: Int): ProductionSlot? {
-        return cache.getByIndex(_slots.value, buildingType, slotIndex)
+        return cache.getByIndex(buildingType, slotIndex)
     }
 
     fun getSlotByBuildingId(buildingId: String, slotIndex: Int): ProductionSlot? {
-        return cache.getByBuildingIdIndex(_slots.value, buildingId, slotIndex)
+        return cache.getByBuildingIdIndex(buildingId, slotIndex)
     }
 
     fun getSlotsByType(buildingType: BuildingType): List<ProductionSlot> {
-        return cache.getByType(_slots.value, buildingType)
+        return cache.getByType(buildingType)
     }
 
     fun getSlotsByBuildingId(buildingId: String): List<ProductionSlot> {
-        return cache.getByBuildingId(_slots.value, buildingId)
+        return cache.getByBuildingId(buildingId)
     }
 
-    fun getWorkingSlots(): List<ProductionSlot> = cache.getWorkingSlots(_slots.value)
+    fun getWorkingSlots(): List<ProductionSlot> = cache.getWorkingSlots()
 
-    fun getCompletedSlots(): List<ProductionSlot> = cache.getCompletedSlots(_slots.value)
+    fun getCompletedSlots(): List<ProductionSlot> = cache.getCompletedSlots()
 
-    fun getIdleSlots(): List<ProductionSlot> = cache.getIdleSlots(_slots.value)
+    fun getIdleSlots(): List<ProductionSlot> = cache.getIdleSlots()
 
     fun getFinishedSlots(currentYear: Int, currentMonth: Int): List<ProductionSlot> {
-        return cache.getFinishedSlots(_slots.value, currentYear, currentMonth)
+        return cache.getFinishedSlots(currentYear, currentMonth)
     }
 
     fun getSlotById(slotId: String): ProductionSlot? {
-        return _slots.value.find { it.id == slotId }
+        return cache.getById(slotId)
     }
 
     suspend fun updateSlot(
@@ -167,7 +167,7 @@ class ProductionSlotRepository @Inject constructor(
         val newSlots = currentSlots.toMutableList()
         newSlots[targetIndex] = newSlot
         _slots.value = newSlots
-        cache.markDirty()
+        cache.updateCache(newSlots)
 
         withContext(Dispatchers.IO) {
             dao.update(newSlot)

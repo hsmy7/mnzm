@@ -93,7 +93,7 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
                 ) {
                     val isLoading by saveLoadViewModel.isLoading.collectAsState()
                     val loadingProgress by saveLoadViewModel.loadingProgress.collectAsState()
-                    val errorMessage by saveLoadViewModel.errorMessage.collectAsState()
+                    var errorMessage by remember { mutableStateOf<String?>(null) }
                     val isRestarting by saveLoadViewModel.isRestarting.collectAsState()
                     
                     val gameData by viewModel.gameData.collectAsState()
@@ -144,13 +144,13 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
 
                         errorMessage?.let { error ->
                             AlertDialog(
-                                onDismissRequest = { saveLoadViewModel.clearErrorMessage() },
+                                onDismissRequest = { errorMessage = null },
                                 title = { Text("提示") },
                                 text = { Text(error) },
                                 confirmButton = {
                                     GameButton(
                                         text = "确定",
-                                        onClick = { saveLoadViewModel.clearErrorMessage() }
+                                        onClick = { errorMessage = null }
                                     )
                                 }
                             )

@@ -12,6 +12,7 @@ import com.xianxia.sect.data.memory.MemoryEventListener
 import com.xianxia.sect.data.memory.MemoryPressureLevel
 import com.xianxia.sect.data.memory.MemorySnapshot
 import com.xianxia.sect.data.memory.DegradationStrategy
+import com.xianxia.sect.di.ApplicationScopeProvider
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.BitSet
 import java.util.concurrent.ConcurrentHashMap
@@ -197,7 +198,8 @@ class GameDataCacheManager @Inject constructor(
     @ApplicationContext private val context: Context,
     @Suppress("UNUSED_PARAMETER") private val database: GameDatabase, // Kept for DI compatibility; disk I/O handled by StorageEngine
     private val config: CacheConfig = CacheConfig.DEFAULT,
-    private val memoryManager: DynamicMemoryManager? = null
+    private val memoryManager: DynamicMemoryManager? = null,
+    private val applicationScopeProvider: ApplicationScopeProvider
 ) : MemoryEventListener, ComponentCallbacks2 {
     companion object {
         private const val TAG = "GameDataCacheManager"
@@ -266,7 +268,7 @@ class GameDataCacheManager @Inject constructor(
         falsePositiveRate = 0.01
     )
 
-    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val scope get() = applicationScopeProvider.ioScope
 
     // ==================== Statistics counters ====================
 
@@ -882,9 +884,6 @@ class GameDataCacheManager @Inject constructor(
         bloomFilter.clear()
 
         clearSync()
-
-        // 6. Cancel all coroutines
-        scope.cancel()
 
         Log.i(TAG, "GameDataCacheManager shutdown completed. Final stats: ${getStats().formatSummary()}")
     }

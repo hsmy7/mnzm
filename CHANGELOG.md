@@ -1,5 +1,20 @@
 # 模拟宗门 - 更新日志
 
+## [2.5.50] - 2026-04-27
+
+### 修复
+- 修复SaveLoadViewModel中所有_errorMessage.value和_successMessage.value对BaseViewModel私有成员的访问，替换为showError()和showSuccess()
+- 修复loadGameFromSlot中if表达式语法错误（缺少右括号）
+
+## [2.5.49] - 2026-04-27
+
+### 修复
+- P2-5/P2-6: 删除GameViewModel中11个仅委托closeCurrentDialog()的冗余方法，删除重复的showBuildingDetailDialog，MainGameScreen中统一使用closeCurrentDialog()
+- P2-9: 删除StorageFacade中与getSaveSlots完全重复的getSaveSlotsFresh方法，MainActivity改用getSaveSlots
+- P2-14: 删除空的PerformanceModule
+- 修复GameViewModel继承BaseViewModel，消除showError/showSuccess未定义的编译错误
+- 修复SaveLoadViewModel中if表达式语法错误，迁移至BaseViewModel的showError/showSuccess
+
 ## [2.5.48] - 2026-04-27
 
 ### 重构

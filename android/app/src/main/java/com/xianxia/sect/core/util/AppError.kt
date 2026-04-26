@@ -357,7 +357,7 @@ fun com.xianxia.sect.core.model.production.ProductionError.toAppError(): AppErro
         AppError.Production.Unknown(message)
 }
 
-fun GameLoopError.toAppError(): AppError.GameLoop = when (this) {
+fun GameLoopError.toAppError(): AppError = when (this) {
     is GameLoopError.TickTimeout -> AppError.GameLoop.TickTimeout(elapsedMs)
     is GameLoopError.StateInconsistency -> AppError.GameLoop.StateInconsistency(detail)
     is GameLoopError.EngineNotRunning -> AppError.GameLoop.EngineNotRunning(operation)

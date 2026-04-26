@@ -315,7 +315,7 @@ class SaveLoadViewModel @Inject constructor(
                 val failures = consecutiveSaveFailures.incrementAndGet()
                 Log.e(TAG, "Auto save failed (source=$source): ${e.message}", e)
                 if (failures >= MAX_CONSECUTIVE_SAVE_FAILURES) {
-                    _errorMessage.value = "自动保存连续失败，请手动保存或重启游戏"
+                    showError("自动保存连续失败，请手动保存或重启游戏")
                     consecutiveSaveFailures.set(0)
                 }
             } finally {
@@ -390,7 +390,7 @@ class SaveLoadViewModel @Inject constructor(
                 needSlotRefresh = true
                 if (!saveSuccess) {
                     Log.e(TAG, "=== startNewGame SAVE FAILED === but continuing with game for slot $slot")
-                    _errorMessage.value = "保存失败，游戏已启动，请稍后手动保存"
+                    showError("保存失败，游戏已启动，请稍后手动保存")
                 } else {
                     Log.d(TAG, "Game saved to slot $slot, elapsed=${System.currentTimeMillis() - startTime}ms")
                 }
@@ -428,7 +428,7 @@ class SaveLoadViewModel @Inject constructor(
                     Log.e(TAG, "startNewGame: Game data not initialized, game loop will not start")
                 }
 
-                _errorMessage.value = e.message ?: "开始新游戏失败"
+                showError(e.message ?: "开始新游戏失败")
             } finally {
                 try {
                     setSaveLoadState(isLoading = false, pendingSlot = null, pendingAction = null)
@@ -468,7 +468,7 @@ class SaveLoadViewModel @Inject constructor(
             when {
                 result == null -> {
                     Log.e(TAG, "performSynchronousSave TIMEOUT for slot $slot")
-                    _errorMessage.value = "保存超时，请稍后手动保存"
+                    showError("保存超时，请稍后手动保存")
                     false
                 }
                 result.isSuccess -> {
@@ -479,28 +479,28 @@ class SaveLoadViewModel @Inject constructor(
                 }
                 result is SaveResult.Failure && result.error == SaveError.KEY_DERIVATION_ERROR -> {
                     Log.e(TAG, "performSynchronousSave KEY_DERIVATION_ERROR for slot $slot")
-                    _errorMessage.value = "密钥错误：${result.message}\n请尝试清除应用数据或联系支持"
+                    showError("密钥错误：${result.message}\n请尝试清除应用数据或联系支持")
                     false
                 }
                 result is SaveResult.Failure && result.error == SaveError.IO_ERROR -> {
                     Log.e(TAG, "performSynchronousSave IO_ERROR for slot $slot")
-                    _errorMessage.value = "存储错误：${result.message}\n请检查存储空间或重启应用"
+                    showError("存储错误：${result.message}\n请检查存储空间或重启应用")
                     false
                 }
                 result is SaveResult.Failure -> {
                     Log.e(TAG, "performSynchronousSave FAILED for slot $slot: ${result.error} - ${result.message}")
-                    _errorMessage.value = "保存失败，请稍后手动保存"
+                    showError("保存失败，请稍后手动保存")
                     false
                 }
                 else -> {
                     Log.e(TAG, "performSynchronousSave FAILED for slot $slot: unknown error")
-                    _errorMessage.value = "保存失败，请稍后手动保存"
+                    showError("保存失败，请稍后手动保存")
                     false
                 }
             }
         } catch (e: Exception) {
             Log.e(TAG, "performSynchronousSave ERROR: ${e.message}", e)
-            _errorMessage.value = "保存错误：${e.message}"
+            showError("保存错误：${e.message}")
             false
         }
     }
@@ -513,7 +513,7 @@ class SaveLoadViewModel @Inject constructor(
 
         if (!canPerformSaveOperation()) {
             Log.e(TAG, "=== loadGame FAILED === insufficient memory")
-            _errorMessage.value = "内存不足，无法读档。请关闭其他应用后重试。"
+            showError("内存不足，无法读档。请关闭其他应用后重试。")
             return
         }
 
@@ -551,7 +551,7 @@ class SaveLoadViewModel @Inject constructor(
                 if (saveData == null) {
                     val elapsed = System.currentTimeMillis() - loadStartTime
                     Log.e(TAG, "=== loadGame FAILED === timeout or null for slot ${saveSlot.slot}, elapsed=${elapsed}ms")
-                    _errorMessage.value = if (elapsed >= 60_000L) "读档超时，请重试" else "存档为空或已损坏，请重试"
+                    showError(if (elapsed >= 60_000L) "读档超时，请重试" else "存档为空或已损坏，请重试")
                     return@launch
                 }
 
@@ -578,7 +578,7 @@ class SaveLoadViewModel @Inject constructor(
                 setSaveLoadState(isLoading = false, pendingSlot = saveSlot.slot, pendingAction = null)
                 startGameLoop()
                 _isGameLoaded = true
-                _successMessage.value = "读档成功"
+                showSuccess("读档成功")
 
                 val gd = gameEngine.gameData.value
                 Log.i(TAG, "=== loadGame SUCCESS === " +
@@ -599,7 +599,7 @@ class SaveLoadViewModel @Inject constructor(
                         Log.e(TAG, "loadGame: Failed to start game loop with partial data: ${loopEx.message}", loopEx)
                     }
                 }
-                _errorMessage.value = "加载游戏失败: ${e.message}"
+                showError("加载游戏失败: ${e.message}")
             } finally {
                 try {
                     setSaveLoadState(isLoading = false, pendingSlot = null, pendingAction = null)
@@ -621,7 +621,7 @@ class SaveLoadViewModel @Inject constructor(
 
         if (!canPerformSaveOperation()) {
             Log.e(TAG, "=== loadGameFromSlot FAILED === insufficient memory")
-            _errorMessage.value = "内存不足，无法读档。请关闭其他应用后重试。"
+            showError("内存不足，无法读档。请关闭其他应用后重试。")
             return
         }
 
@@ -695,7 +695,7 @@ class SaveLoadViewModel @Inject constructor(
                 } else {
                     val elapsed = System.currentTimeMillis() - loadStartTime
                     Log.e(TAG, "=== loadGameFromSlot FAILED === timeout or null for slot $slot, elapsed=${elapsed}ms")
-                    _errorMessage.value = if (elapsed >= 60_000L "读档超时，请重试" else "存档为空或已损坏，请重试")
+                    showError(if (elapsed >= 60_000L) "读档超时，请重试" else "存档为空或已损坏，请重试")
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "=== loadGameFromSlot FAILED === error=${e.message}", e)
@@ -713,7 +713,7 @@ class SaveLoadViewModel @Inject constructor(
                     }
                 }
 
-                _errorMessage.value = "加载游戏失败: ${e.message}"
+                showError("加载游戏失败: ${e.message}")
             } finally {
                 try {
                     setSaveLoadState(isLoading = false, pendingSlot = null, pendingAction = null)
@@ -736,7 +736,7 @@ class SaveLoadViewModel @Inject constructor(
 
         if (!canPerformSaveOperation()) {
             Log.e(TAG, "=== saveGame FAILED === insufficient memory")
-            _errorMessage.value = "内存不足，无法保存。请关闭其他应用后重试。"
+            showError("内存不足，无法保存。请关闭其他应用后重试。")
             return
         }
 
@@ -750,7 +750,7 @@ class SaveLoadViewModel @Inject constructor(
             try {
                 if (!waitForSaveLock(timeoutMs = 5000)) {
                     Log.e(TAG, "=== saveGame FAILED === saveLock busy after timeout")
-                    _errorMessage.value = "保存操作繁忙，请稍后重试"
+                    showError("保存操作繁忙，请稍后重试")
                     return@launch
                 }
 
@@ -769,7 +769,7 @@ class SaveLoadViewModel @Inject constructor(
                     if (snapshot.gameData.sectName.isBlank()) {
                         Log.e(TAG, "=== saveGame FAILED === gameData not initialized (sectName is blank)")
                         storageFacade.setCurrentSlot(previousSlot)
-                        _errorMessage.value = "游戏数据未初始化"
+                        showError("游戏数据未初始化")
                         return@launch
                     }
                     val updatedGameData = snapshot.gameData.copy(currentSlot = slot)
@@ -781,7 +781,7 @@ class SaveLoadViewModel @Inject constructor(
 
                     if (saveResult != null && saveResult.isSuccess) {
                         _saveSlots.value = storageFacade.getSaveSlots()
-                        _successMessage.value = "游戏保存成功"
+                        showSuccess("游戏保存成功")
 
                         Log.i(TAG, "=== saveGame SUCCESS === " +
                             "sectName=${snapshot.gameData.sectName}, year=${snapshot.gameData.gameYear}, " +
@@ -792,17 +792,17 @@ class SaveLoadViewModel @Inject constructor(
                     } else {
                         storageFacade.setCurrentSlot(previousSlot)
                         val errorMsg = if (saveResult == null) "保存超时，请重试" else "保存失败，请重试"
-                        _errorMessage.value = errorMsg
+                        showError(errorMsg)
                         Log.e(TAG, "=== saveGame FAILED === ${if (saveResult == null) "timeout" else "save returned failure"}")
                     }
                 } catch (e: OutOfMemoryError) {
                     Log.e(TAG, "=== saveGame FAILED === OutOfMemoryError", e)
                     storageFacade.setCurrentSlot(previousSlot)
-                    _errorMessage.value = "内存不足，保存失败。请关闭其他应用后重试。"
+                    showError("内存不足，保存失败。请关闭其他应用后重试。")
                 } catch (e: Exception) {
                     Log.e(TAG, "=== saveGame FAILED === error=${e.message}", e)
                     storageFacade.setCurrentSlot(previousSlot)
-                    _errorMessage.value = "保存失败: ${e.message}"
+                    showError("保存失败: ${e.message}")
                 } finally {
                     saveLock.set(false)
                     saveLockAcquireTime.set(0)
@@ -903,7 +903,7 @@ class SaveLoadViewModel @Inject constructor(
 
         if (!canPerformSaveOperation()) {
             Log.e(TAG, "=== restartGame FAILED === insufficient memory")
-            _errorMessage.value = "内存不足，无法重置。请关闭其他应用后重试。"
+            showError("内存不足，无法重置。请关闭其他应用后重试。")
             saveLock.set(false)
             return
         }
@@ -918,7 +918,7 @@ class SaveLoadViewModel @Inject constructor(
                     val stopped = gameEngineCore.stopGameLoopAndWait(5000)
                     if (!stopped) {
                         Log.e(TAG, "Failed to stop game loop within timeout")
-                        _errorMessage.value = "无法停止游戏循环，请重试"
+                        showError("无法停止游戏循环，请重试")
                         return@launch
                     }
                     _isTimeRunning.value = false
@@ -944,22 +944,22 @@ class SaveLoadViewModel @Inject constructor(
 
                 if (saveSuccess) {
                     Log.i(TAG, "=== restartGame SAVE SUCCESS === slot=$currentSlot")
-                    _successMessage.value = "游戏已重置"
+                    showSuccess("游戏已重置")
                 } else {
                     Log.e(TAG, "=== restartGame SAVE FAILED === slot=$currentSlot")
-                    _errorMessage.value = "游戏已重置，但保存失败，请手动保存"
+                    showError("游戏已重置，但保存失败，请手动保存")
                 }
 
                 setSaveLoadState(isSaving = false, pendingSlot = null, pendingAction = null)
             } catch (e: OutOfMemoryError) {
                 Log.e(TAG, "=== restartGame FAILED === OutOfMemoryError", e)
                 storageFacade.setCurrentSlot(previousSlot)
-                _errorMessage.value = "内存不足，重置失败。请关闭其他应用后重试。"
+                showError("内存不足，重置失败。请关闭其他应用后重试。")
                 setSaveLoadState(isSaving = false, pendingSlot = null, pendingAction = null)
             } catch (e: Exception) {
                 Log.e(TAG, "=== restartGame FAILED === error=${e.message}", e)
                 storageFacade.setCurrentSlot(previousSlot)
-                _errorMessage.value = e.message ?: "重置游戏失败"
+                showError(e.message ?: "重置游戏失败")
                 setSaveLoadState(isSaving = false, pendingSlot = null, pendingAction = null)
             } finally {
                 _isRestarting.value = false

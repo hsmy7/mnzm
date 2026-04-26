@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.util
 
 import android.util.Log
+import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -10,13 +11,13 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.util.concurrent.CopyOnWriteArrayList
-import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class GCOptimizer @Inject constructor(
-    private val memoryMonitor: MemoryMonitor
+    private val memoryMonitor: MemoryMonitor,
+    private val applicationScopeProvider: ApplicationScopeProvider
 ) {
     
     companion object {
@@ -28,7 +29,7 @@ class GCOptimizer @Inject constructor(
         private const val MEMORY_THRESHOLD_CRITICAL_GC = 0.92
     }
     
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val scope get() = applicationScopeProvider.scope
     private val mainScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var optimizerJob: Job? = null
     private var lastGCTime = 0L
@@ -169,9 +170,9 @@ class GCOptimizer @Inject constructor(
         Log.i(TAG, """
             |GC Completed (${type.name}):
             |  - Duration: ${durationMs}ms
-            |  - Memory before: ${formatMemory(memoryBefore)}
-            |  - Memory after: ${formatMemory(memoryAfter)}
-            |  - Memory freed: ${formatMemory(memoryFreed.coerceAtLeast(0))}
+            |  - Memory before: ${MemoryFormatUtil.formatMemory(memoryBefore)}
+            |  - Memory after: ${MemoryFormatUtil.formatMemory(memoryAfter)}
+            |  - Memory freed: ${MemoryFormatUtil.formatMemory(memoryFreed.coerceAtLeast(0))}
         """.trimMargin())
         
         notifyListeners { it.onGCPerformed(result) }
@@ -277,18 +278,8 @@ class GCOptimizer @Inject constructor(
         }
     }
     
-    private fun formatMemory(bytes: Long): String {
-        return when {
-            bytes < 1024 -> "$bytes B"
-            bytes < 1024 * 1024 -> String.format(Locale.getDefault(), "%.1f KB", bytes / 1024.0)
-            bytes < 1024 * 1024 * 1024 -> String.format(Locale.getDefault(), "%.1f MB", bytes / (1024.0 * 1024.0))
-            else -> String.format(Locale.getDefault(), "%.2f GB", bytes / (1024.0 * 1024.0 * 1024.0))
-        }
-    }
-    
     fun cleanup() {
         stopOptimization()
-        scope.cancel()
         mainScope.cancel()
         listeners.clear()
     }

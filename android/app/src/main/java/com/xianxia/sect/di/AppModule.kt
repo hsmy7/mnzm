@@ -208,9 +208,10 @@ object AppModule {
     fun provideGameDataCacheManager(
         @ApplicationContext context: Context,
         database: GameDatabase,
-        cacheConfig: CacheConfig
+        cacheConfig: CacheConfig,
+        applicationScopeProvider: ApplicationScopeProvider
     ): GameDataCacheManager {
-        return GameDataCacheManager(context, database, cacheConfig)
+        return GameDataCacheManager(context, database, cacheConfig, null, applicationScopeProvider)
     }
     
 

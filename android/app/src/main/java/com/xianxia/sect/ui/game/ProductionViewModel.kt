@@ -103,15 +103,6 @@ class ProductionViewModel @Inject constructor(
     private val _selectedPlantSlotIndex = MutableStateFlow<Int?>(null)
     val selectedPlantSlotIndex: StateFlow<Int?> = _selectedPlantSlotIndex.asStateFlow()
 
-    private val _errorMessage = MutableStateFlow<String?>(null)
-    val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
-
-    private val _successMessage = MutableStateFlow<String?>(null)
-    val successMessage: StateFlow<String?> = _successMessage.asStateFlow()
-
-    fun clearErrorMessage() { _errorMessage.value = null }
-    fun clearSuccessMessage() { _successMessage.value = null }
-
     fun startAlchemy(slotIndex: Int, recipe: PillRecipeDatabase.PillRecipe) {
         if (_isStartingAlchemy.value) return
         _isStartingAlchemy.value = true
@@ -120,7 +111,7 @@ class ProductionViewModel @Inject constructor(
             try {
                 gameEngine.startAlchemy(slotIndex, recipe.id)
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "开始炼制失败"
+                showError(e.message ?: "开始炼制失败")
             } finally {
                 _isStartingAlchemy.value = false
             }
@@ -135,7 +126,7 @@ class ProductionViewModel @Inject constructor(
             try {
                 gameEngine.startForging(slotIndex, recipe.id)
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "开始锻造失败"
+                showError(e.message ?: "开始锻造失败")
             } finally {
                 _isStartingForge.value = false
             }
@@ -147,7 +138,7 @@ class ProductionViewModel @Inject constructor(
             try {
                 gameEngine.startManualPlanting(slotIndex, seedId)
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "种植失败"
+                showError(e.message ?: "种植失败")
             }
         }
     }
@@ -161,7 +152,7 @@ class ProductionViewModel @Inject constructor(
             try {
                 gameEngine.startManualPlanting(slotIndex, seed.id)
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "种植失败"
+                showError(e.message ?: "种植失败")
             }
         }
     }
@@ -175,7 +166,7 @@ class ProductionViewModel @Inject constructor(
                 }
                 val idleSlots = herbGardenSlots.filter { it.status == ProductionSlotStatus.IDLE }
                 if (idleSlots.isEmpty()) {
-                    _errorMessage.value = "没有空闲的种植槽位"
+                    showError("没有空闲的种植槽位")
                     return@launch
                 }
 
@@ -192,12 +183,12 @@ class ProductionViewModel @Inject constructor(
                 }
 
                 if (plantedCount > 0) {
-                    _successMessage.value = "自动种植完成，已种植${plantedCount}个槽位"
+                    showSuccess("自动种植完成，已种植${plantedCount}个槽位")
                 } else {
-                    _errorMessage.value = "仓库中没有可用的种子"
+                    showError("仓库中没有可用的种子")
                 }
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "自动种植失败"
+                showError(e.message ?: "自动种植失败")
             }
         }
     }
@@ -214,7 +205,7 @@ class ProductionViewModel @Inject constructor(
                     .map { it.slotIndex }
 
                 if (idleSlotIndices.isEmpty()) {
-                    _errorMessage.value = "没有空闲的炼丹槽位"
+                    showError("没有空闲的炼丹槽位")
                     return@launch
                 }
 
@@ -240,12 +231,12 @@ class ProductionViewModel @Inject constructor(
                 }
 
                 if (startedCount > 0) {
-                    _successMessage.value = "自动炼丹完成，已启动${startedCount}个槽位"
+                    showSuccess("自动炼丹完成，已启动${startedCount}个槽位")
                 } else {
-                    _errorMessage.value = "没有足够的草药进行炼丹"
+                    showError("没有足够的草药进行炼丹")
                 }
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "自动炼丹失败"
+                showError(e.message ?: "自动炼丹失败")
             }
         }
     }
@@ -265,7 +256,7 @@ class ProductionViewModel @Inject constructor(
                 }
 
                 if (idleSlotIndices.isEmpty()) {
-                    _errorMessage.value = "没有空闲的锻造槽位"
+                    showError("没有空闲的锻造槽位")
                     return@launch
                 }
 
@@ -294,12 +285,12 @@ class ProductionViewModel @Inject constructor(
                 }
 
                 if (startedCount > 0) {
-                    _successMessage.value = "自动炼器完成，已启动${startedCount}个槽位"
+                    showSuccess("自动炼器完成，已启动${startedCount}个槽位")
                 } else {
-                    _errorMessage.value = "没有足够的材料进行锻造"
+                    showError("没有足够的材料进行锻造")
                 }
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "自动炼器失败"
+                showError(e.message ?: "自动炼器失败")
             }
         }
     }
@@ -319,7 +310,7 @@ class ProductionViewModel @Inject constructor(
             try {
                 val disciple = disciples.value.find { it.id == discipleId }
                 if (disciple == null) {
-                    _errorMessage.value = "弟子不存在"
+                    showError("弟子不存在")
                     return@launch
                 }
 
@@ -339,7 +330,7 @@ class ProductionViewModel @Inject constructor(
                         ElderSlotType.VICE_SECT_MASTER -> "副宗主"
                         else -> "长老"
                     }
-                    _errorMessage.value = "${positionName}需要达到${realmName}境界"
+                    showError("${positionName}需要达到${realmName}境界")
                     return@launch
                 }
 
@@ -350,12 +341,12 @@ class ProductionViewModel @Inject constructor(
                 val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
 
                 if (allElderIds.contains(discipleId)) {
-                    _errorMessage.value = "该弟子已担任长老职位"
+                    showError("该弟子已担任长老职位")
                     return@launch
                 }
 
                 if (allDirectDiscipleIds.contains(discipleId)) {
-                    _errorMessage.value = "该弟子已是其他长老的亲传弟子"
+                    showError("该弟子已是其他长老的亲传弟子")
                     return@launch
                 }
 
@@ -393,7 +384,7 @@ class ProductionViewModel @Inject constructor(
                 }
                 gameEngine.updateElderSlots(newElderSlots)
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "任命失败"
+                showError(e.message ?: "任命失败")
             }
         }
     }
@@ -437,7 +428,7 @@ class ProductionViewModel @Inject constructor(
                 }
                 gameEngine.updateElderSlots(newElderSlots)
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "卸任失败"
+                showError(e.message ?: "卸任失败")
             }
         }
     }
@@ -447,7 +438,7 @@ class ProductionViewModel @Inject constructor(
             try {
                 val disciple = disciples.value.find { it.id == discipleId }
                 if (disciple == null) {
-                    _errorMessage.value = "弟子不存在"
+                    showError("弟子不存在")
                     return@launch
                 }
 
@@ -458,12 +449,12 @@ class ProductionViewModel @Inject constructor(
                 val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
 
                 if (allElderIds.contains(discipleId)) {
-                    _errorMessage.value = "该弟子已担任长老职位"
+                    showError("该弟子已担任长老职位")
                     return@launch
                 }
 
                 if (allDirectDiscipleIds.contains(discipleId)) {
-                    _errorMessage.value = "该弟子已是其他长老的亲传弟子"
+                    showError("该弟子已是其他长老的亲传弟子")
                     return@launch
                 }
 
@@ -476,7 +467,7 @@ class ProductionViewModel @Inject constructor(
                     discipleSpiritRootColor = disciple.spiritRoot.countColor
                 )
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "分配失败"
+                showError(e.message ?: "分配失败")
             }
         }
     }
@@ -486,7 +477,7 @@ class ProductionViewModel @Inject constructor(
             try {
                 gameEngine.removeDirectDisciple(elderSlotType, slotIndex)
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "卸任失败"
+                showError(e.message ?: "卸任失败")
             }
         }
     }
@@ -527,10 +518,10 @@ class ProductionViewModel @Inject constructor(
                 if (addedCount > 0) {
                     gameEngine.updateGameData { it.copy(elderSlots = it.elderSlots.copy(alchemyReserveDisciples = currentReserveDisciples)) }
                 } else {
-                    _errorMessage.value = "没有可添加的弟子"
+                    showError("没有可添加的弟子")
                 }
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "添加失败"
+                showError(e.message ?: "添加失败")
             }
         }
     }
@@ -543,7 +534,7 @@ class ProductionViewModel @Inject constructor(
                 gameEngine.updateGameData { it.copy(elderSlots = it.elderSlots.copy(alchemyReserveDisciples = updatedReserveDisciples)) }
                 gameEngine.syncAllDiscipleStatuses()
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "移除失败"
+                showError(e.message ?: "移除失败")
             }
         }
     }
@@ -634,7 +625,7 @@ class ProductionViewModel @Inject constructor(
                     gameEngine.updateGameData { it.copy(elderSlots = updatedElderSlots) }
                 }
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "添加失败"
+                showError(e.message ?: "添加失败")
             }
         }
     }
@@ -650,7 +641,7 @@ class ProductionViewModel @Inject constructor(
                 gameEngine.updateGameData { it.copy(elderSlots = updatedElderSlots) }
                 gameEngine.syncAllDiscipleStatuses()
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "移除失败"
+                showError(e.message ?: "移除失败")
             }
         }
     }
@@ -732,7 +723,7 @@ class ProductionViewModel @Inject constructor(
             viewModelScope.launch {
                 gameEngine.updateGameData {
                     if (it.spiritStones < requiredStones) {
-                        _errorMessage.value = "灵石不足${requiredStones}，无法开启增强治安政策"
+                        showError("灵石不足${requiredStones}，无法开启增强治安政策")
                         it
                     } else {
                         it.copy(
@@ -767,7 +758,7 @@ class ProductionViewModel @Inject constructor(
             viewModelScope.launch {
                 gameEngine.updateGameData {
                     if (it.spiritStones < requiredStones) {
-                        _errorMessage.value = "灵石不足${requiredStones}，无法开启丹道激励政策"
+                        showError("灵石不足${requiredStones}，无法开启丹道激励政策")
                         it
                     } else {
                         it.copy(
@@ -798,7 +789,7 @@ class ProductionViewModel @Inject constructor(
             viewModelScope.launch {
                 gameEngine.updateGameData {
                     if (it.spiritStones < requiredStones) {
-                        _errorMessage.value = "灵石不足${requiredStones}，无法开启锻造激励政策"
+                        showError("灵石不足${requiredStones}，无法开启锻造激励政策")
                         it
                     } else {
                         it.copy(
@@ -829,7 +820,7 @@ class ProductionViewModel @Inject constructor(
             viewModelScope.launch {
                 gameEngine.updateGameData {
                     if (it.spiritStones < requiredStones) {
-                        _errorMessage.value = "灵石不足${requiredStones}，无法开启灵药培育政策"
+                        showError("灵石不足${requiredStones}，无法开启灵药培育政策")
                         it
                     } else {
                         it.copy(
@@ -860,7 +851,7 @@ class ProductionViewModel @Inject constructor(
             viewModelScope.launch {
                 gameEngine.updateGameData {
                     if (it.spiritStones < requiredStones) {
-                        _errorMessage.value = "灵石不足${requiredStones}，无法开启修行津贴政策"
+                        showError("灵石不足${requiredStones}，无法开启修行津贴政策")
                         it
                     } else {
                         it.copy(
@@ -891,7 +882,7 @@ class ProductionViewModel @Inject constructor(
             viewModelScope.launch {
                 gameEngine.updateGameData {
                     if (it.spiritStones < requiredStones) {
-                        _errorMessage.value = "灵石不足${requiredStones}，无法开启功法研习政策"
+                        showError("灵石不足${requiredStones}，无法开启功法研习政策")
                         it
                     } else {
                         it.copy(
@@ -940,12 +931,12 @@ class ProductionViewModel @Inject constructor(
             try {
                 val disciple = disciples.value.find { it.id == discipleId }
                 if (disciple == null) {
-                    _errorMessage.value = "弟子不存在"
+                    showError("弟子不存在")
                     return@launch
                 }
 
                 if (disciple.discipleType != "inner") {
-                    _errorMessage.value = "执事只能由内门弟子担任"
+                    showError("执事只能由内门弟子担任")
                     return@launch
                 }
 
@@ -956,12 +947,12 @@ class ProductionViewModel @Inject constructor(
                 val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
 
                 if (allElderIds.contains(discipleId)) {
-                    _errorMessage.value = "该弟子已担任长老职位"
+                    showError("该弟子已担任长老职位")
                     return@launch
                 }
 
                 if (allDirectDiscipleIds.contains(discipleId)) {
-                    _errorMessage.value = "该弟子已是其他长老的亲传弟子"
+                    showError("该弟子已是其他长老的亲传弟子")
                     return@launch
                 }
 
@@ -987,7 +978,7 @@ class ProductionViewModel @Inject constructor(
 
                 gameEngine.updateDiscipleStatus(discipleId, DiscipleStatus.DEACONING)
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "任命失败"
+                showError(e.message ?: "任命失败")
             }
         }
     }
@@ -1006,7 +997,7 @@ class ProductionViewModel @Inject constructor(
 
                 removedDeaconId?.let { gameEngine.updateDiscipleStatus(it, DiscipleStatus.IDLE) }
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "卸任失败"
+                showError(e.message ?: "卸任失败")
             }
         }
     }
@@ -1040,7 +1031,7 @@ class ProductionViewModel @Inject constructor(
             try {
                 assignDisciplesToEmptyMineSlotsInternal(selectedDisciples)
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "分配失败"
+                showError(e.message ?: "分配失败")
             }
         }
     }
@@ -1064,7 +1055,7 @@ class ProductionViewModel @Inject constructor(
                     gameEngine.updateSpiritMineSlots(currentSlots)
                 }
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "卸任失败"
+                showError(e.message ?: "卸任失败")
             }
         }
     }
@@ -1076,7 +1067,7 @@ class ProductionViewModel @Inject constructor(
                 if (availableDisciples.isEmpty()) return@launch
                 assignDisciplesToEmptyMineSlotsInternal(availableDisciples)
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "一键任命失败"
+                showError(e.message ?: "一键任命失败")
             }
         }
     }
@@ -1105,7 +1096,7 @@ class ProductionViewModel @Inject constructor(
             try {
                 gameEngine.assignDiscipleToLibrarySlot(slotIndex, discipleId, discipleName)
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "分配失败"
+                showError(e.message ?: "分配失败")
             }
         }
     }
@@ -1115,7 +1106,7 @@ class ProductionViewModel @Inject constructor(
             try {
                 gameEngine.removeDiscipleFromLibrarySlot(slotIndex)
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "卸任失败"
+                showError(e.message ?: "卸任失败")
             }
         }
     }
@@ -1124,12 +1115,12 @@ class ProductionViewModel @Inject constructor(
         viewModelScope.launch {
             val disciple = discipleAggregates.value.find { it.id == discipleId }
             if (disciple == null) {
-                _errorMessage.value = "弟子不存在"
+                showError("弟子不存在")
                 return@launch
             }
 
             if (disciple.realm > REALM_VICE_SECT_MASTER) {
-                _errorMessage.value = "副宗主需要达到炼虚境界"
+                showError("副宗主需要达到炼虚境界")
                 return@launch
             }
 
@@ -1137,7 +1128,7 @@ class ProductionViewModel @Inject constructor(
             val allElderIds = currentSlots.getAllElderIds()
 
             if (!allElderIds.contains(discipleId)) {
-                _errorMessage.value = "副宗主需要由长老担任"
+                showError("副宗主需要由长老担任")
                 return@launch
             }
 
@@ -1209,23 +1200,23 @@ class ProductionViewModel @Inject constructor(
             try {
                 val disciple = disciples.value.find { it.id == discipleId }
                 if (disciple == null) {
-                    _errorMessage.value = "弟子不存在"
+                    showError("弟子不存在")
                     return@launch
                 }
 
                 if (hasDisciplePosition(discipleId)) {
-                    _errorMessage.value = "该弟子已担任其他职务，不可同时担任多个职务"
+                    showError("该弟子已担任其他职务，不可同时担任多个职务")
                     return@launch
                 }
 
                 if (isReserveDisciple(discipleId)) {
-                    _errorMessage.value = "该弟子已是其他部门的储备弟子"
+                    showError("该弟子已是其他部门的储备弟子")
                     return@launch
                 }
 
                 val currentReserveDisciples = gameEngine.gameData.value?.elderSlots?.lawEnforcementReserveDisciples ?: emptyList()
                 if (currentReserveDisciples.any { it.discipleId == discipleId }) {
-                    _errorMessage.value = "该弟子已是储备弟子"
+                    showError("该弟子已是储备弟子")
                     return@launch
                 }
 
@@ -1242,7 +1233,7 @@ class ProductionViewModel @Inject constructor(
                 gameEngine.updateGameData { it.copy(elderSlots = it.elderSlots.copy(lawEnforcementReserveDisciples = updatedReserveDisciples)) }
                 gameEngine.syncAllDiscipleStatuses()
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "添加失败"
+                showError(e.message ?: "添加失败")
             }
         }
     }
@@ -1284,7 +1275,7 @@ class ProductionViewModel @Inject constructor(
                     gameEngine.syncAllDiscipleStatuses()
                 }
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "添加失败"
+                showError(e.message ?: "添加失败")
             }
         }
     }
@@ -1297,7 +1288,7 @@ class ProductionViewModel @Inject constructor(
                 gameEngine.updateGameData { it.copy(elderSlots = it.elderSlots.copy(lawEnforcementReserveDisciples = updatedReserveDisciples)) }
                 gameEngine.syncAllDiscipleStatuses()
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "移除失败"
+                showError(e.message ?: "移除失败")
             }
         }
     }
@@ -1449,7 +1440,7 @@ class ProductionViewModel @Inject constructor(
                     gameEngine.updateGameData { it.copy(elderSlots = it.elderSlots.copy(herbGardenReserveDisciples = currentReserveDisciples)) }
                 }
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "添加失败"
+                showError(e.message ?: "添加失败")
             }
         }
     }
@@ -1461,7 +1452,7 @@ class ProductionViewModel @Inject constructor(
                 val updatedReserveDisciples = currentReserveDisciples.filter { it.discipleId != discipleId }
                 gameEngine.updateGameData { it.copy(elderSlots = it.elderSlots.copy(herbGardenReserveDisciples = updatedReserveDisciples)) }
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "移除失败"
+                showError(e.message ?: "移除失败")
             }
         }
     }

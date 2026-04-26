@@ -3,6 +3,7 @@ package com.xianxia.sect.core.performance
 import android.util.Log
 import com.xianxia.sect.core.util.GCOptimizer
 import com.xianxia.sect.core.util.MemoryMonitor
+import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -19,7 +20,8 @@ import javax.inject.Singleton
 @Singleton
 class UnifiedPerformanceMonitor @Inject constructor(
     private val memoryMonitor: MemoryMonitor,
-    private val gcOptimizer: GCOptimizer
+    private val gcOptimizer: GCOptimizer,
+    private val applicationScopeProvider: ApplicationScopeProvider
 ) {
     companion object {
         private const val TAG = "UnifiedPerformanceMonitor"
@@ -27,8 +29,7 @@ class UnifiedPerformanceMonitor @Inject constructor(
         private const val MAX_COLLECTORS = 100
     }
     
-    private val supervisorJob = SupervisorJob()
-    private val scope = CoroutineScope(supervisorJob + Dispatchers.Default)
+    private val scope get() = applicationScopeProvider.scope
     private val metrics = ConcurrentHashMap<String, MetricCollector>()
     private val metricDefinitions = ConcurrentHashMap<String, MetricDefinition>()
     private val listeners = CopyOnWriteArrayList<MetricsListener>()
@@ -289,7 +290,6 @@ class UnifiedPerformanceMonitor @Inject constructor(
     
     fun cleanup() {
         stopReporting()
-        supervisorJob.cancel()
         listeners.clear()
         metrics.clear()
         metricDefinitions.clear()

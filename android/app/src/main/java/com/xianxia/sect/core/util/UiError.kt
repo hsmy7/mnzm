@@ -61,7 +61,7 @@ data class UiError(
 
         fun fromGameError(error: GameError): UiError = fromAppError(error.toAppError())
 
-        fun fromStorageError(error: StorageError, message: String = ""): UiError =
+        fun fromStorageError(error: com.xianxia.sect.data.result.StorageError, message: String = ""): UiError =
             fromAppError(error.toAppError(message))
 
         fun fromSaveError(error: com.xianxia.sect.data.unified.SaveError, message: String = ""): UiError =

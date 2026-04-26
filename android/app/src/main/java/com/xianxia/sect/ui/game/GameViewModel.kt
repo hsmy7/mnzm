@@ -3,7 +3,6 @@ package com.xianxia.sect.ui.game
 import android.content.ComponentCallbacks2
 import android.content.Context
 import android.util.Log
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.SharingStarted
@@ -29,7 +28,7 @@ class GameViewModel @Inject constructor(
     val dialogStateManager: DialogStateManager,
     @ApplicationContext private val appContext: Context,
     private val systemManager: SystemManager
-) : ViewModel() {
+) : BaseViewModel() {
 
     companion object {
         private const val TAG = "GameViewModel"
@@ -253,16 +252,6 @@ class GameViewModel @Inject constructor(
     val realtimeCultivation: StateFlow<Map<String, Double>> = gameEngine.realtimeCultivation
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
-    private val _errorMessage = MutableStateFlow<String?>(null)
-    val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
-
-    private val _successMessage = MutableStateFlow<String?>(null)
-    val successMessage: StateFlow<String?> = _successMessage.asStateFlow()
-
-    fun clearSuccessMessage() {
-        clearSuccessMessage()
-    }
-
     fun hasDisciplePosition(discipleId: String): Boolean {
         return DisciplePositionHelper.hasDisciplePosition(discipleId, gameEngine.gameData.value)
     }
@@ -284,7 +273,6 @@ class GameViewModel @Inject constructor(
     }
 
     // 防止重复点击标志
-
 
     private val _selectedBuildingId = MutableStateFlow<String?>(null)
     val selectedBuildingId: StateFlow<String?> = _selectedBuildingId.asStateFlow()
@@ -322,7 +310,6 @@ class GameViewModel @Inject constructor(
         emit(ForgeRecipeDatabase.getAllRecipes())
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
-
     private val _gameState = MutableStateFlow("LOADING")
     val gameState: StateFlow<String> = _gameState.asStateFlow()
 
@@ -335,9 +322,6 @@ class GameViewModel @Inject constructor(
 
     private val _notifications = MutableStateFlow<List<String>>(emptyList())
     val notifications: StateFlow<List<String>> = _notifications.asStateFlow()
-
-
-
 
     // 建筑详情对话框 (带参数)
     fun openBuildingDetailDialog(buildingId: String) {
@@ -384,7 +368,6 @@ class GameViewModel @Inject constructor(
             }
         }
     }
-
 
     // 弟子招募相关
     fun recruitDiscipleFromList(discipleId: String) {
@@ -616,10 +599,6 @@ class GameViewModel @Inject constructor(
         }
     }
 
-    fun clearErrorMessage() {
-        clearErrorMessage()
-    }
-
     fun getDiscipleById(id: String): DiscipleAggregate? {
         return discipleAggregates.value.find { it.id == id }
     }
@@ -792,8 +771,6 @@ class GameViewModel @Inject constructor(
         } catch (e: Exception) {
             Log.w(TAG, "stopGameLoop failed: ${e.message}")
         }
-        clearErrorMessage()
-        clearSuccessMessage()
     }
 
     fun openSalaryConfigDialog() {
@@ -870,7 +847,5 @@ class GameViewModel @Inject constructor(
         super.onCleared()
     }
 
-
 }
-
 

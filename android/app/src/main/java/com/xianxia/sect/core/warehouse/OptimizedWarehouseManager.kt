@@ -36,7 +36,7 @@ object OptimizedWarehouseManager {
     }
     
     private fun addToIndexInternal(item: WarehouseItem, index: Int) {
-        val key = generateKey(item)
+        val key = StorageKeyUtil.generateKey(item)
         itemIndex[key] = index
         
         typeIndex.getOrPut(item.itemType) { 
@@ -57,7 +57,7 @@ object OptimizedWarehouseManager {
     }
     
     private fun removeFromIndexInternal(item: WarehouseItem, index: Int) {
-        val key = generateKey(item)
+        val key = StorageKeyUtil.generateKey(item)
         itemIndex.remove(key)
         
         typeIndex[item.itemType]?.apply {
@@ -116,7 +116,7 @@ object OptimizedWarehouseManager {
     fun addItem(warehouse: SectWarehouse, item: WarehouseItem): SectWarehouse {
         WarehouseDiffManager.queueAdd(item)
         
-        val existingKey = generateKey(item)
+        val existingKey = StorageKeyUtil.generateKey(item)
         val existingIndex = itemIndex[existingKey]
         
         val newWarehouse = if (existingIndex != null && existingIndex >= 0 && existingIndex < warehouse.items.size) {

@@ -9,6 +9,7 @@ import com.xianxia.sect.core.performance.MetricsListener
 import com.xianxia.sect.core.performance.MetricStats
 import com.xianxia.sect.core.performance.Trace
 import com.xianxia.sect.core.performance.UnifiedPerformanceMonitor
+import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -31,7 +32,8 @@ class GameMonitorManager @Inject constructor(
     private val memoryMonitor: MemoryMonitor,
     private val performanceMonitor: PerformanceMonitor,
     private val gcOptimizer: GCOptimizer,
-    private val unifiedPerformanceMonitor: UnifiedPerformanceMonitor
+    private val unifiedPerformanceMonitor: UnifiedPerformanceMonitor,
+    private val applicationScopeProvider: ApplicationScopeProvider
 ) {
     
     companion object {
@@ -40,7 +42,7 @@ class GameMonitorManager @Inject constructor(
     }
     
     private var reportJob: Job? = null
-    private val managerScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val managerScope get() = applicationScopeProvider.scope
     private var isInitialized = false
     private var application: XianxiaApplication? = null
     
@@ -252,7 +254,6 @@ class GameMonitorManager @Inject constructor(
     fun cleanup() {
         application?.unregisterMemoryPressureListener(memoryPressureListener)
         stopMonitoring()
-        managerScope.cancel()
         memoryMonitor.cleanup()
         performanceMonitor.cleanup()
         gcOptimizer.cleanup()

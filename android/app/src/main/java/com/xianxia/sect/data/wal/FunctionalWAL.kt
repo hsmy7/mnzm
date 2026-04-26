@@ -5,6 +5,7 @@ import android.util.Log
 import com.xianxia.sect.data.StorageConstants
 import com.xianxia.sect.data.unified.SaveError
 import com.xianxia.sect.data.unified.SaveResult
+import com.xianxia.sect.di.ApplicationScopeProvider
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -43,7 +44,8 @@ import kotlin.concurrent.withLock
  */
 @Singleton
 class FunctionalWAL @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val applicationScopeProvider: ApplicationScopeProvider
 ) : WALProvider {
     companion object {
         private const val TAG = "FunctionalWAL"
@@ -111,7 +113,7 @@ class FunctionalWAL @Inject constructor(
     private var bufferedOutputStream: BufferedOutputStream? = null
 
     // 协程作用域 (flush 定时器)
-    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val scope get() = applicationScopeProvider.ioScope
     private var flushJob: Job? = null
 
     // ==================== 初始化 ====================
@@ -1168,8 +1170,6 @@ class FunctionalWAL @Inject constructor(
             writeLock.withLock {
                 closeStreamsInternal()
             }
-
-            scope.cancel()
 
             Log.i(TAG, "FunctionalWAL shutdown complete")
         } catch (e: Exception) {

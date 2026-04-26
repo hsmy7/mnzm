@@ -5,6 +5,7 @@ import android.content.Context
 import android.os.Debug
 import android.os.Process
 import android.util.Log
+import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -21,7 +22,9 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class MemoryMonitor @Inject constructor() {
+class MemoryMonitor @Inject constructor(
+    private val applicationScopeProvider: ApplicationScopeProvider
+) {
     
     companion object {
         private const val TAG = "MemoryMonitor"
@@ -42,7 +45,7 @@ class MemoryMonitor @Inject constructor() {
     private val warningCooldownMs = 60_000L
     
     private val listeners = CopyOnWriteArrayList<MemoryEventListener>()
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val scope get() = applicationScopeProvider.scope
     
     data class MemorySnapshot(
         val timestamp: Long,
@@ -290,7 +293,6 @@ class MemoryMonitor @Inject constructor() {
     
     fun cleanup() {
         stopMonitoring()
-        scope.cancel()
         listeners.clear()
         synchronized(memoryHistory) {
             memoryHistory.clear()

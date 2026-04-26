@@ -5,6 +5,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.view.Choreographer
+import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -21,7 +22,9 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class PerformanceMonitor @Inject constructor() {
+class PerformanceMonitor @Inject constructor(
+    private val applicationScopeProvider: ApplicationScopeProvider
+) {
     
     companion object {
         private const val TAG = "PerformanceMonitor"
@@ -38,7 +41,7 @@ class PerformanceMonitor @Inject constructor() {
     }
     
     private var monitorJob: Job? = null
-    private val monitorScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val monitorScope get() = applicationScopeProvider.scope
     private var choreographer: Choreographer? = null
     private val handler = Handler(Looper.getMainLooper())
     
@@ -550,7 +553,6 @@ class PerformanceMonitor @Inject constructor() {
     
     fun cleanup() {
         stopMonitoring()
-        monitorScope.cancel()
         listeners.clear()
         frameTimes.clear()
         synchronized(operationMetrics) {
