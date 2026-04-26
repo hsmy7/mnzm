@@ -115,7 +115,10 @@ class ProductionTransactionManager @Inject constructor(
                 outputItemId = outputItemId,
                 outputItemName = outputItemName,
                 outputItemRarity = outputItemRarity
-            ).getOrElse { return@updateSlotAtomic currentSlot }
+            ).getOrElse { e ->
+                Log.w(TAG, "startProduction state transition failed: ${e.message}")
+                return@updateSlotAtomic currentSlot
+            }
         }
         
         return if (result.isSuccess) {
@@ -225,7 +228,10 @@ class ProductionTransactionManager @Inject constructor(
                 outputItemId = outputItemId,
                 outputItemName = outputItemName,
                 outputItemRarity = outputItemRarity
-            ).getOrElse { return@updateSlotByBuildingId currentSlot }
+            ).getOrElse { e ->
+                Log.w(TAG, "startProductionByBuildingId state transition failed: ${e.message}")
+                return@updateSlotByBuildingId currentSlot
+            }
         }
         
         return if (result.isSuccess) {
@@ -293,7 +299,10 @@ class ProductionTransactionManager @Inject constructor(
         val previousState = slot
         
         val result = repository.updateSlotAtomic(buildingType, slotIndex) { currentSlot ->
-            SlotStateMachine.completeProduction(currentSlot).getOrElse { return@updateSlotAtomic currentSlot }
+            SlotStateMachine.completeProduction(currentSlot).getOrElse { e ->
+                Log.w(TAG, "completeProduction state transition failed: ${e.message}")
+                return@updateSlotAtomic currentSlot
+            }
         }
         
         return if (result.isSuccess) {
@@ -360,7 +369,10 @@ class ProductionTransactionManager @Inject constructor(
         val previousState = slot
         
         val result = repository.updateSlotByBuildingId(buildingId, slotIndex) { currentSlot ->
-            SlotStateMachine.completeProduction(currentSlot).getOrElse { return@updateSlotByBuildingId currentSlot }
+            SlotStateMachine.completeProduction(currentSlot).getOrElse { e ->
+                Log.w(TAG, "completeProductionByBuildingId state transition failed: ${e.message}")
+                return@updateSlotByBuildingId currentSlot
+            }
         }
         
         return if (result.isSuccess) {
@@ -404,7 +416,10 @@ class ProductionTransactionManager @Inject constructor(
         val previousState = slot
         
         val result = repository.updateSlotAtomic(buildingType, slotIndex) { currentSlot ->
-            SlotStateMachine.resetSlot(currentSlot).getOrElse { return@updateSlotAtomic currentSlot }
+            SlotStateMachine.resetSlot(currentSlot).getOrElse { e ->
+                Log.w(TAG, "resetSlot state transition failed: ${e.message}")
+                return@updateSlotAtomic currentSlot
+            }
         }
         
         return if (result.isSuccess) {

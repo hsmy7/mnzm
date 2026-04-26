@@ -213,24 +213,20 @@ class GameDataCacheManager @Inject constructor(
     private val memoryCache = object : LinkedHashMap<String, CacheEntry>(
         16, 0.75f, true
     ) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, CacheEntry>): Boolean {
-            return size > currentConfig.maxEntryCount
-        }
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, CacheEntry>): Boolean = false
     }
 
-    @Synchronized
-    fun <T : Any> getSync(key: String): T? {
+    fun <T : Any> getSync(key: String): T? = synchronized(memoryCache) {
         val entry = memoryCache[key] ?: return null
         if (entry.isExpired) {
             memoryCache.remove(key)
             return null
         }
         @Suppress("UNCHECKED_CAST")
-        return entry.data as? T
+        entry.data as? T
     }
 
-    @Synchronized
-    fun putSync(key: String, value: Any, ttl: Long = CacheKey.DEFAULT_TTL) {
+    fun putSync(key: String, value: Any, ttl: Long = CacheKey.DEFAULT_TTL) = synchronized(memoryCache) {
         memoryCache[key] = CacheEntry(value, System.currentTimeMillis(), ttl)
         bloomFilter.put(key)
         while (memoryCache.size > currentConfig.maxEntryCount) {
@@ -240,13 +236,11 @@ class GameDataCacheManager @Inject constructor(
         }
     }
 
-    @Synchronized
-    fun removeSync(key: String) {
+    fun removeSync(key: String) = synchronized(memoryCache) {
         memoryCache.remove(key)
     }
 
-    @Synchronized
-    fun containsSync(key: String): Boolean {
+    fun containsSync(key: String): Boolean = synchronized(memoryCache) {
         val entry = memoryCache[key] ?: return false
         if (entry.isExpired) {
             memoryCache.remove(key)
@@ -255,13 +249,12 @@ class GameDataCacheManager @Inject constructor(
         return true
     }
 
-    @Synchronized
-    fun clearSync() {
+    fun clearSync() = synchronized(memoryCache) {
         memoryCache.clear()
+        bloomFilter.clear()
     }
 
-    @Synchronized
-    fun sizeSync(): Int = memoryCache.size
+    fun sizeSync(): Int = synchronized(memoryCache) { memoryCache.size }
 
     private val bloomFilter: SimpleBloomFilter = SimpleBloomFilter(
         expectedItems = 10000,

@@ -340,7 +340,10 @@ class MainActivity : ComponentActivity() {
                             },
                             onDeleteSlot = { slot ->
                                 lifecycleScope.launch {
-                                    storageFacade.delete(slot)
+                                    val result = storageFacade.delete(slot)
+                                    if (result.isFailure) {
+                                        android.widget.Toast.makeText(this@MainActivity, "删除存档失败", android.widget.Toast.LENGTH_SHORT).show()
+                                    }
                                     showSaveSelectScreen()
                                 }
                             },
