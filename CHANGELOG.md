@@ -1,5 +1,10 @@
 # 模拟宗门 - 更新日志
 
+## [2.5.48] - 2026-04-27
+
+### 重构
+- 提取MaterialChecker接口，消除AlchemyRecipe和ForgeRecipe中hasEnoughMaterials/getMissingMaterials的重复实现
+
 ## [2.5.45] - 2026-04-27
 
 ### 修复
