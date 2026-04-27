@@ -439,8 +439,8 @@ object GameConfig {
         }
 
         object RealmGap {
-            const val DAMAGE_BONUS_PER_REALM: Double = 0.15
-            const val DAMAGE_PENALTY_PER_REALM: Double = 0.12
+            const val DAMAGE_BONUS_PER_REALM: Double = 0.30
+            const val DAMAGE_PENALTY_PER_REALM: Double = 0.24
             const val MAX_REALM_GAP: Int = 5
             const val MIN_DAMAGE_RATIO: Double = 0.1
             const val MAX_DAMAGE_RATIO: Double = 3.0
