@@ -971,8 +971,8 @@ class CultivationService @Inject constructor(
         currentDisciples = currentDisciples.map { disciple ->
             if (!disciple.isAlive || disciple.id in inBattleIds) return@map disciple
 
-            val maxHp = disciple.combat.baseHp
-            val maxMp = disciple.combat.baseMp
+            val maxHp = disciple.maxHp
+            val maxMp = disciple.maxMp
             val currentHp = disciple.combat.currentHp
             val currentMp = disciple.combat.currentMp
 
