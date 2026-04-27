@@ -1,5 +1,7 @@
 package com.xianxia.sect.ui.game
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -52,6 +54,12 @@ fun RealtimeCultivationProgress(
         }
     }
     
+    val animatedProgress by animateFloatAsState(
+        targetValue = progress,
+        animationSpec = tween(durationMillis = 300),
+        label = "cultivationProgress"
+    )
+
     Column(modifier = modifier) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -72,16 +80,21 @@ fun RealtimeCultivationProgress(
         
         Spacer(modifier = Modifier.height(4.dp))
 
-        @Suppress("DEPRECATION")
-        LinearProgressIndicator(
-            progress = { progress },
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(6.dp)
-                .clip(RoundedCornerShape(3.dp)),
-            color = progressColor,
-            trackColor = GameColors.Border
-        )
+                .clip(RoundedCornerShape(3.dp))
+                .background(GameColors.Border),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(fraction = animatedProgress)
+                    .fillMaxHeight()
+                    .background(progressColor)
+            )
+        }
     }
 }
 
@@ -92,20 +105,6 @@ fun RealtimeDiscipleCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val currentCultivation by remember(disciple.id, realtimeCultivation) {
-        derivedStateOf {
-            realtimeCultivation[disciple.id] ?: disciple.cultivation
-        }
-    }
-    
-    val cultivationProgress by remember(currentCultivation, disciple.core.maxCultivation) {
-        derivedStateOf {
-            if (disciple.core.maxCultivation > 0) {
-                (currentCultivation / disciple.core.maxCultivation).coerceIn(0.0, 1.0).toFloat()
-            } else 0f
-        }
-    }
-    
     val realmColor = remember(disciple.realm) {
         when (disciple.realm) {
             0 -> Color(0xFFFFD700)

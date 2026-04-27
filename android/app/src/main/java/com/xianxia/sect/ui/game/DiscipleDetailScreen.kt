@@ -1,5 +1,7 @@
 package com.xianxia.sect.ui.game
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -1196,25 +1198,32 @@ private fun BasicInfoSection(
                         fontWeight = FontWeight.Bold,
                         color = Color.Black
                     )
+                    val animatedCultivationProgress by animateFloatAsState(
+                        targetValue = disciple.cultivationProgress.toFloat().coerceIn(0f, 1f),
+                        animationSpec = tween(durationMillis = 300),
+                        label = "cultivationProgress"
+                    )
                     Box(
                         modifier = Modifier
                             .weight(1f)
                             .height(10.dp)
                             .clip(RoundedCornerShape(5.dp))
                             .background(Color(0xFFE8E8E8)),
-                        contentAlignment = Alignment.Center
+                        contentAlignment = Alignment.CenterStart
                     ) {
                         Box(
                             modifier = Modifier
-                                .fillMaxWidth(fraction = disciple.cultivationProgress.toFloat().coerceIn(0f, 1f))
+                                .fillMaxWidth(fraction = animatedCultivationProgress)
                                 .fillMaxHeight()
                                 .background(Color(0xFF4CAF50))
                         )
                         Text(
                             text = "${disciple.cultivation.toInt()}/${disciple.maxCultivation.toInt()}",
-                            fontSize = 10.sp,
+                            fontSize = 7.sp,
                             color = Color.Black,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Center
                         )
                     }
                     Text(
@@ -1247,12 +1256,23 @@ private fun HpMpBars(disciple: DiscipleAggregate) {
     val rawCurrentMp = disciple.currentMp
     val currentHpDisplay = if (rawCurrentHp < 0) maxHp else rawCurrentHp
     val currentMpDisplay = if (rawCurrentMp < 0) maxMp else rawCurrentMp
-    val hpFraction = (disciple.hpPercent / 100.0).toFloat().coerceIn(0f, 1f)
-    val mpFraction = (disciple.mpPercent / 100.0).toFloat().coerceIn(0f, 1f)
+    val hpFraction = if (maxHp > 0) (currentHpDisplay.toFloat() / maxHp).coerceIn(0f, 1f) else 1f
+    val mpFraction = if (maxMp > 0) (currentMpDisplay.toFloat() / maxMp).coerceIn(0f, 1f) else 1f
+
+    val animatedHpFraction by animateFloatAsState(
+        targetValue = hpFraction,
+        animationSpec = tween(durationMillis = 300),
+        label = "hpProgress"
+    )
+    val animatedMpFraction by animateFloatAsState(
+        targetValue = mpFraction,
+        animationSpec = tween(durationMillis = 300),
+        label = "mpProgress"
+    )
 
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Column(
             modifier = Modifier.weight(1f),
@@ -1260,31 +1280,33 @@ private fun HpMpBars(disciple: DiscipleAggregate) {
         ) {
             Text(
                 text = "气血",
-                fontSize = 10.sp,
+                fontSize = 9.sp,
                 color = Color(0xFF666666),
                 modifier = Modifier.fillMaxWidth(),
                 textAlign = TextAlign.Center
             )
-            Spacer(modifier = Modifier.height(2.dp))
+            Spacer(modifier = Modifier.height(1.dp))
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(10.dp)
-                    .clip(RoundedCornerShape(5.dp))
+                    .height(12.dp)
+                    .clip(RoundedCornerShape(6.dp))
                     .background(Color(0xFFE8E8E8)),
-                contentAlignment = Alignment.Center
+                contentAlignment = Alignment.CenterStart
             ) {
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth(fraction = hpFraction)
+                        .fillMaxWidth(fraction = animatedHpFraction)
                         .fillMaxHeight()
                         .background(Color(0xFFE74C3C))
                 )
                 Text(
                     text = "$currentHpDisplay/$maxHp",
-                    fontSize = 10.sp,
+                    fontSize = 7.sp,
                     color = Color.Black,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center
                 )
             }
         }
@@ -1294,25 +1316,33 @@ private fun HpMpBars(disciple: DiscipleAggregate) {
         ) {
             Text(
                 text = "灵力",
-                fontSize = 10.sp,
+                fontSize = 9.sp,
                 color = Color(0xFF666666),
                 modifier = Modifier.fillMaxWidth(),
                 textAlign = TextAlign.Center
             )
-            Spacer(modifier = Modifier.height(2.dp))
+            Spacer(modifier = Modifier.height(1.dp))
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(10.dp)
-                    .clip(RoundedCornerShape(5.dp))
+                    .height(12.dp)
+                    .clip(RoundedCornerShape(6.dp))
                     .background(Color(0xFFE8E8E8)),
-                contentAlignment = Alignment.Center
+                contentAlignment = Alignment.CenterStart
             ) {
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth(fraction = mpFraction)
+                        .fillMaxWidth(fraction = animatedMpFraction)
                         .fillMaxHeight()
                         .background(Color(0xFF3498DB))
+                )
+                Text(
+                    text = "$currentMpDisplay/$maxMp",
+                    fontSize = 7.sp,
+                    color = Color.Black,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center
                 )
             }
         }
