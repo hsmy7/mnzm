@@ -109,7 +109,6 @@ class BattleSystem @Inject constructor() {
         val realmIndex = beastRealm.coerceIn(0, 9)
 
         val realmConfig = GameConfig.Realm.get(realmIndex)
-        val realmMultiplier = realmConfig.multiplier
 
         val type = if (beastType != null) {
             GameConfig.Beast.TYPES.find { it.name == beastType } ?: GameConfig.Beast.getType(0)
@@ -118,19 +117,13 @@ class BattleSystem @Inject constructor() {
         }
 
         val realmLayer = Random.nextInt(1, 10)
-        val layerBonus = 1.0 + (realmLayer - 1) * 0.1
+        val layerMult = 1.0 + (realmLayer - 1) * 0.1
 
-        val beastBaseHp = 300
-        val beastBaseMp = 150
-        val beastBaseAtk = 35
-        val beastBaseDef = 26
-        val beastBaseSpeed = 24
-
-        val baseHp = (beastBaseHp * realmMultiplier * layerBonus).toInt()
-        val baseMp = (beastBaseMp * realmMultiplier * layerBonus).toInt()
-        val baseAtk = (beastBaseAtk * realmMultiplier * layerBonus).toInt()
-        val baseDef = (beastBaseDef * realmMultiplier * layerBonus).toInt()
-        val baseSpeed = (beastBaseSpeed * realmMultiplier * layerBonus).toInt()
+        val baseHp = (realmConfig.baseHp * 2.5 * layerMult).roundToInt()
+        val baseMp = (realmConfig.baseMp * 2.5 * layerMult).roundToInt()
+        val baseAtk = (realmConfig.basePhysicalAttack * 2.9 * layerMult).roundToInt()
+        val baseDef = (realmConfig.basePhysicalDefense * 2.6 * layerMult).roundToInt()
+        val baseSpeed = (realmConfig.baseSpeed * 1.6 * layerMult).roundToInt()
 
         val beastAdvantage = 0.06
         val hpVariance = -0.2 + Random.nextDouble() * 0.4

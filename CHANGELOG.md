@@ -1,5 +1,14 @@
 # 模拟宗门 - 更新日志
 
+## [2.5.93] - 2026-04-28
+
+### 平衡调整：弟子各境界基础战斗属性 +30%（速度不变）
+- 去掉 RealmConfig 中的 multiplier 倍数算法，改为每个境界直接写 baseHp/baseMp/baseAttack/baseDefense/baseSpeed 具体数值
+- 非速度属性在当前基础上提升 30%，速度保持不变
+- 妖兽、敌人同步改为使用境界基础属性 × 比例系数，不再通过 multiplier 中转
+- 移除废弃的雷劫系统（TribulationSystem）
+- 修改文件：GameConfig.kt, DiscipleStatCalculator.kt, BattleSystem.kt, EnemyGenerator.kt
+
 ## [2.5.92] - 2026-04-28
 
 ### 修复：进度条清零时移除回溯动画

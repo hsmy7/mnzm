@@ -141,16 +141,46 @@ object GameConfig {
     
     object Realm {
         val CONFIGS = mapOf(
-            9 to RealmConfig(9, "炼气", 225, 10, 1.0, 80, 9),
-            8 to RealmConfig(8, "筑基", 450, 30, 2.5, 120, 9),
-            7 to RealmConfig(7, "金丹", 900, 50, 6.5, 200, 9),
-            6 to RealmConfig(6, "元婴", 1800, 80, 17.0, 300, 9),
-            5 to RealmConfig(5, "化神", 3600, 110, 45.0, 500, 9, 60),
-            4 to RealmConfig(4, "炼虚", 16000, 180, 110.0, 800, 9, 100),
-            3 to RealmConfig(3, "合体", 32000, 220, 260.0, 1500, 9, 160),
-            2 to RealmConfig(2, "大乘", 64000, 280, 580.0, 3000, 9, 240),
-            1 to RealmConfig(1, "渡劫", 128000, 360, 1200.0, 5000, 9, 340),
-            0 to RealmConfig(0, "仙人", 256000, 500, 2500.0, 9999, 9, 500)
+            9 to RealmConfig(9, "炼气", 225, 10,
+                maxAge = 80, maxLayers = 9,
+                baseHp = 156, baseMp = 78, basePhysicalAttack = 16, baseMagicAttack = 16,
+                basePhysicalDefense = 13, baseMagicDefense = 10, baseSpeed = 15),
+            8 to RealmConfig(8, "筑基", 450, 30,
+                maxAge = 120, maxLayers = 9,
+                baseHp = 390, baseMp = 195, basePhysicalAttack = 39, baseMagicAttack = 39,
+                basePhysicalDefense = 33, baseMagicDefense = 26, baseSpeed = 38),
+            7 to RealmConfig(7, "金丹", 900, 50,
+                maxAge = 200, maxLayers = 9,
+                baseHp = 1014, baseMp = 507, basePhysicalAttack = 101, baseMagicAttack = 101,
+                basePhysicalDefense = 85, baseMagicDefense = 68, baseSpeed = 98),
+            6 to RealmConfig(6, "元婴", 1800, 80,
+                maxAge = 300, maxLayers = 9,
+                baseHp = 2652, baseMp = 1326, basePhysicalAttack = 265, baseMagicAttack = 265,
+                basePhysicalDefense = 221, baseMagicDefense = 177, baseSpeed = 255),
+            5 to RealmConfig(5, "化神", 3600, 110,
+                maxAge = 500, maxLayers = 9, soulPowerRequirement = 60,
+                baseHp = 7020, baseMp = 3510, basePhysicalAttack = 702, baseMagicAttack = 702,
+                basePhysicalDefense = 585, baseMagicDefense = 468, baseSpeed = 675),
+            4 to RealmConfig(4, "炼虚", 16000, 180,
+                maxAge = 800, maxLayers = 9, soulPowerRequirement = 100,
+                baseHp = 17160, baseMp = 8580, basePhysicalAttack = 1716, baseMagicAttack = 1716,
+                basePhysicalDefense = 1430, baseMagicDefense = 1144, baseSpeed = 1650),
+            3 to RealmConfig(3, "合体", 32000, 220,
+                maxAge = 1500, maxLayers = 9, soulPowerRequirement = 160,
+                baseHp = 40560, baseMp = 20280, basePhysicalAttack = 4056, baseMagicAttack = 4056,
+                basePhysicalDefense = 3380, baseMagicDefense = 2704, baseSpeed = 3900),
+            2 to RealmConfig(2, "大乘", 64000, 280,
+                maxAge = 3000, maxLayers = 9, soulPowerRequirement = 240,
+                baseHp = 90480, baseMp = 45240, basePhysicalAttack = 9048, baseMagicAttack = 9048,
+                basePhysicalDefense = 7540, baseMagicDefense = 6032, baseSpeed = 8700),
+            1 to RealmConfig(1, "渡劫", 128000, 360,
+                maxAge = 5000, maxLayers = 9, soulPowerRequirement = 340,
+                baseHp = 187200, baseMp = 93600, basePhysicalAttack = 18720, baseMagicAttack = 18720,
+                basePhysicalDefense = 15600, baseMagicDefense = 12480, baseSpeed = 18000),
+            0 to RealmConfig(0, "仙人", 256000, 500,
+                maxAge = 9999, maxLayers = 9, soulPowerRequirement = 500,
+                baseHp = 390000, baseMp = 195000, basePhysicalAttack = 39000, baseMagicAttack = 39000,
+                basePhysicalDefense = 32500, baseMagicDefense = 26000, baseSpeed = 37500)
         )
 
         val BREAKTHROUGH_CHANCES: Map<Int, Map<Int, Double>> = mapOf(
@@ -517,10 +547,16 @@ object GameConfig {
         val name: String,
         val cultivationBase: Int,
         val salary: Int,
-        val multiplier: Double = 1.0,
         val maxAge: Int = 100,
         val maxLayers: Int = 9,
-        val soulPowerRequirement: Int = 0
+        val soulPowerRequirement: Int = 0,
+        val baseHp: Int = 156,
+        val baseMp: Int = 78,
+        val basePhysicalAttack: Int = 16,
+        val baseMagicAttack: Int = 16,
+        val basePhysicalDefense: Int = 13,
+        val baseMagicDefense: Int = 10,
+        val baseSpeed: Int = 15
     )
     
     data class SpiritRootConfig(

@@ -121,22 +121,15 @@ object EnemyGenerator {
         skills: List<CombatSkill>
     ): Combatant {
         val realmConfig = GameConfig.Realm.get(realm)
-        val realmMultiplier = realmConfig.multiplier
-        val layerBonus = 1.0 + (realmLayer - 1) * 0.1
+        val layerMult = 1.0 + (realmLayer - 1) * 0.1
 
-        val baseHp = 250
-        val baseMp = 120
-        val baseAtk = 30
-        val baseDef = 22
-        val baseSpeed = 20
-
-        val hp = (baseHp * realmMultiplier * layerBonus).toInt() + equipmentStats.hp
-        val mp = (baseMp * realmMultiplier * layerBonus).toInt() + equipmentStats.mp
-        val physicalAttack = (baseAtk * realmMultiplier * layerBonus).toInt() + equipmentStats.physicalAttack
-        val magicAttack = (baseAtk * realmMultiplier * layerBonus).toInt() + equipmentStats.magicAttack
-        val physicalDefense = (baseDef * realmMultiplier * layerBonus).toInt() + equipmentStats.physicalDefense
-        val magicDefense = (baseDef * realmMultiplier * layerBonus).toInt() + equipmentStats.magicDefense
-        val speed = (baseSpeed * realmMultiplier * layerBonus).toInt() + equipmentStats.speed
+        val hp = (realmConfig.baseHp * 2.1 * layerMult).roundToInt() + equipmentStats.hp
+        val mp = (realmConfig.baseMp * 2.0 * layerMult).roundToInt() + equipmentStats.mp
+        val physicalAttack = (realmConfig.basePhysicalAttack * 2.5 * layerMult).roundToInt() + equipmentStats.physicalAttack
+        val magicAttack = (realmConfig.baseMagicAttack * 2.5 * layerMult).roundToInt() + equipmentStats.magicAttack
+        val physicalDefense = (realmConfig.basePhysicalDefense * 2.2 * layerMult).roundToInt() + equipmentStats.physicalDefense
+        val magicDefense = (realmConfig.baseMagicDefense * 2.2 * layerMult).roundToInt() + equipmentStats.magicDefense
+        val speed = (realmConfig.baseSpeed * 1.33 * layerMult).roundToInt() + equipmentStats.speed
 
         val elements = listOf("metal", "wood", "water", "fire", "earth")
         val element = elements.random()

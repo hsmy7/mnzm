@@ -17,8 +17,8 @@ object DiscipleStatCalculator {
 
     fun getBaseStats(disciple: Disciple): DiscipleStats {
         val realmConfig = GameConfig.Realm.get(disciple.realm)
-        val realmMultiplier = realmConfig.multiplier
-        val layerBonus = 1.0 + (disciple.realmLayer - 1) * 0.1
+        val layerMult = 1.0 + (disciple.realmLayer - 1) * 0.1
+        val c = disciple.combat
 
         val talentEffects = getTalentEffects(disciple)
         val hpBonus = talentEffects["maxHp"] ?: 0.0
@@ -44,24 +44,24 @@ object DiscipleStatCalculator {
         val magicDefenseGrowth = disciple.statusData["winGrowth.magicDefense"]?.toIntOrNull() ?: 0
         val speedGrowth = disciple.statusData["winGrowth.speed"]?.toIntOrNull() ?: 0
 
-        val totalHpBonus = (realmMultiplier - 1.0) + (layerBonus - 1.0) + hpBonus
-        val totalMpBonus = (realmMultiplier - 1.0) + (layerBonus - 1.0) + mpBonus
-        val totalAttackBonus = (realmMultiplier - 1.0) + (layerBonus - 1.0) + attackBonus
-        val totalMagicAttackBonus = (realmMultiplier - 1.0) + (layerBonus - 1.0) + magicAttackBonus
-        val totalDefenseBonus = (realmMultiplier - 1.0) + (layerBonus - 1.0) + defenseBonus
-        val totalMagicDefenseBonus = (realmMultiplier - 1.0) + (layerBonus - 1.0) + magicDefenseBonus
-        val totalSpeedBonus = (realmMultiplier - 1.0) + (layerBonus - 1.0) + speedBonus
+        val hpVar = 1.0 + c.hpVariance / 100.0
+        val mpVar = 1.0 + c.mpVariance / 100.0
+        val paVar = 1.0 + c.physicalAttackVariance / 100.0
+        val maVar = 1.0 + c.magicAttackVariance / 100.0
+        val pdVar = 1.0 + c.physicalDefenseVariance / 100.0
+        val mdVar = 1.0 + c.magicDefenseVariance / 100.0
+        val spdVar = 1.0 + c.speedVariance / 100.0
 
         return DiscipleStats(
-            hp = (disciple.combat.baseHp * (1.0 + totalHpBonus)).roundToInt() + maxHpGrowth,
-            maxHp = (disciple.combat.baseHp * (1.0 + totalHpBonus)).roundToInt() + maxHpGrowth,
-            mp = (disciple.combat.baseMp * (1.0 + totalMpBonus)).roundToInt() + maxMpGrowth,
-            maxMp = (disciple.combat.baseMp * (1.0 + totalMpBonus)).roundToInt() + maxMpGrowth,
-            physicalAttack = (disciple.combat.basePhysicalAttack * (1.0 + totalAttackBonus)).roundToInt() + physicalAttackGrowth,
-            magicAttack = (disciple.combat.baseMagicAttack * (1.0 + totalMagicAttackBonus)).roundToInt() + magicAttackGrowth,
-            physicalDefense = (disciple.combat.basePhysicalDefense * (1.0 + totalDefenseBonus)).roundToInt() + physicalDefenseGrowth,
-            magicDefense = (disciple.combat.baseMagicDefense * (1.0 + totalMagicDefenseBonus)).roundToInt() + magicDefenseGrowth,
-            speed = (disciple.combat.baseSpeed * (1.0 + totalSpeedBonus)).roundToInt() + speedGrowth,
+            hp = (realmConfig.baseHp * hpVar * layerMult * (1.0 + hpBonus)).roundToInt() + maxHpGrowth,
+            maxHp = (realmConfig.baseHp * hpVar * layerMult * (1.0 + hpBonus)).roundToInt() + maxHpGrowth,
+            mp = (realmConfig.baseMp * mpVar * layerMult * (1.0 + mpBonus)).roundToInt() + maxMpGrowth,
+            maxMp = (realmConfig.baseMp * mpVar * layerMult * (1.0 + mpBonus)).roundToInt() + maxMpGrowth,
+            physicalAttack = (realmConfig.basePhysicalAttack * paVar * layerMult * (1.0 + attackBonus)).roundToInt() + physicalAttackGrowth,
+            magicAttack = (realmConfig.baseMagicAttack * maVar * layerMult * (1.0 + magicAttackBonus)).roundToInt() + magicAttackGrowth,
+            physicalDefense = (realmConfig.basePhysicalDefense * pdVar * layerMult * (1.0 + defenseBonus)).roundToInt() + physicalDefenseGrowth,
+            magicDefense = (realmConfig.baseMagicDefense * mdVar * layerMult * (1.0 + magicDefenseBonus)).roundToInt() + magicDefenseGrowth,
+            speed = (realmConfig.baseSpeed * spdVar * layerMult * (1.0 + speedBonus)).roundToInt() + speedGrowth,
             critRate = 0.05 + critBonus,
             intelligence = disciple.skills.intelligence + intelligenceFlat,
             charm = disciple.skills.charm + charmFlat,
@@ -74,8 +74,15 @@ object DiscipleStatCalculator {
 
     fun getBaseStats(aggregate: DiscipleAggregate): DiscipleStats {
         val realmConfig = GameConfig.Realm.get(aggregate.realm)
-        val realmMultiplier = realmConfig.multiplier
-        val layerBonus = 1.0 + (aggregate.realmLayer - 1) * 0.1
+        val layerMult = 1.0 + (aggregate.realmLayer - 1) * 0.1
+        val cs = aggregate.combatStats
+        val hpVar = if (cs != null) 1.0 + cs.hpVariance / 100.0 else 1.0
+        val mpVar = if (cs != null) 1.0 + cs.mpVariance / 100.0 else 1.0
+        val paVar = if (cs != null) 1.0 + cs.physicalAttackVariance / 100.0 else 1.0
+        val maVar = if (cs != null) 1.0 + cs.magicAttackVariance / 100.0 else 1.0
+        val pdVar = if (cs != null) 1.0 + cs.physicalDefenseVariance / 100.0 else 1.0
+        val mdVar = if (cs != null) 1.0 + cs.magicDefenseVariance / 100.0 else 1.0
+        val spdVar = if (cs != null) 1.0 + cs.speedVariance / 100.0 else 1.0
 
         val talentEffects = getTalentEffects(aggregate)
         val hpBonus = talentEffects["maxHp"] ?: 0.0
@@ -102,34 +109,17 @@ object DiscipleStatCalculator {
         val magicDefenseGrowth = statusData["winGrowth.magicDefense"]?.toIntOrNull() ?: 0
         val speedGrowth = statusData["winGrowth.speed"]?.toIntOrNull() ?: 0
 
-        val totalHpBonus = (realmMultiplier - 1.0) + (layerBonus - 1.0) + hpBonus
-        val totalMpBonus = (realmMultiplier - 1.0) + (layerBonus - 1.0) + mpBonus
-        val totalAttackBonus = (realmMultiplier - 1.0) + (layerBonus - 1.0) + attackBonus
-        val totalMagicAttackBonus = (realmMultiplier - 1.0) + (layerBonus - 1.0) + magicAttackBonus
-        val totalDefenseBonus = (realmMultiplier - 1.0) + (layerBonus - 1.0) + defenseBonus
-        val totalMagicDefenseBonus = (realmMultiplier - 1.0) + (layerBonus - 1.0) + magicDefenseBonus
-        val totalSpeedBonus = (realmMultiplier - 1.0) + (layerBonus - 1.0) + speedBonus
-
-        val cs = aggregate.combatStats
-        val baseHp = cs?.baseHp ?: 100
-        val baseMp = cs?.baseMp ?: 50
-        val basePhysicalAttack = cs?.basePhysicalAttack ?: 7
-        val baseMagicAttack = cs?.baseMagicAttack ?: 7
-        val basePhysicalDefense = cs?.basePhysicalDefense ?: 5
-        val baseMagicDefense = cs?.baseMagicDefense ?: 3
-        val baseSpeed = cs?.baseSpeed ?: 10
-
         val attr = aggregate.attributes
         return DiscipleStats(
-            hp = (baseHp * (1.0 + totalHpBonus)).roundToInt() + maxHpGrowth,
-            maxHp = (baseHp * (1.0 + totalHpBonus)).roundToInt() + maxHpGrowth,
-            mp = (baseMp * (1.0 + totalMpBonus)).roundToInt() + maxMpGrowth,
-            maxMp = (baseMp * (1.0 + totalMpBonus)).roundToInt() + maxMpGrowth,
-            physicalAttack = (basePhysicalAttack * (1.0 + totalAttackBonus)).roundToInt() + physicalAttackGrowth,
-            magicAttack = (baseMagicAttack * (1.0 + totalMagicAttackBonus)).roundToInt() + magicAttackGrowth,
-            physicalDefense = (basePhysicalDefense * (1.0 + totalDefenseBonus)).roundToInt() + physicalDefenseGrowth,
-            magicDefense = (baseMagicDefense * (1.0 + totalMagicDefenseBonus)).roundToInt() + magicDefenseGrowth,
-            speed = (baseSpeed * (1.0 + totalSpeedBonus)).roundToInt() + speedGrowth,
+            hp = (realmConfig.baseHp * hpVar * layerMult * (1.0 + hpBonus)).roundToInt() + maxHpGrowth,
+            maxHp = (realmConfig.baseHp * hpVar * layerMult * (1.0 + hpBonus)).roundToInt() + maxHpGrowth,
+            mp = (realmConfig.baseMp * mpVar * layerMult * (1.0 + mpBonus)).roundToInt() + maxMpGrowth,
+            maxMp = (realmConfig.baseMp * mpVar * layerMult * (1.0 + mpBonus)).roundToInt() + maxMpGrowth,
+            physicalAttack = (realmConfig.basePhysicalAttack * paVar * layerMult * (1.0 + attackBonus)).roundToInt() + physicalAttackGrowth,
+            magicAttack = (realmConfig.baseMagicAttack * maVar * layerMult * (1.0 + magicAttackBonus)).roundToInt() + magicAttackGrowth,
+            physicalDefense = (realmConfig.basePhysicalDefense * pdVar * layerMult * (1.0 + defenseBonus)).roundToInt() + physicalDefenseGrowth,
+            magicDefense = (realmConfig.baseMagicDefense * mdVar * layerMult * (1.0 + magicDefenseBonus)).roundToInt() + magicDefenseGrowth,
+            speed = (realmConfig.baseSpeed * spdVar * layerMult * (1.0 + speedBonus)).roundToInt() + speedGrowth,
             critRate = 0.05 + critBonus,
             intelligence = (attr?.intelligence ?: 50) + intelligenceFlat,
             charm = (attr?.charm ?: 50) + charmFlat,
