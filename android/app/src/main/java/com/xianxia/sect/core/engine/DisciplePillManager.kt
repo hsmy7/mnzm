@@ -190,10 +190,6 @@ object DisciplePillManager {
             updated = updated.copyWith(currentMp = newMp)
         }
 
-        if (effect.revive && !disciple.isAlive) {
-            updated = updated.copyWith(isAlive = true, currentHp = -1)
-        }
-
         if (effect.clearAll) {
             updated = updated.copy(pillEffects = PillEffects())
         }

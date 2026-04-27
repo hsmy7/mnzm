@@ -1,5 +1,14 @@
 # 模拟宗门 - 更新日志
 
+## [2.5.84] - 2026-04-27
+
+### Bug修复：锻造装备属性为零 & 旧存档生产系统失效
+- **锻造装备无属性**：completeBuildingTaskFromProductionSlot 手动构造 EquipmentStack 时所有战斗属性默认为0，改为调用 createEquipmentFromRecipe 从 EquipmentTemplate 复制完整属性
+- **装备详情无效果显示**：连锁影响，因属性全为零，ItemDetailDialog 不显示任何效果行
+- **旧存档生产系统失效**：废弃的 alchemySlots/forgeSlots/herbGardenPlantSlots 从未迁移到统一 productionSlots 格式，加载时仓库为空，所有生产子系统静默失效。添加 fallback 初始化
+- **移除复活逻辑**：DisciplePillManager、GameEngine 中 revive 相关代码全部移除
+- **UI调整**：修炼进度条缩短至境界名称同行，当前/最大修为居中显示在进度条内部
+
 ## [2.5.83] - 2026-04-27
 
 ### Bug修复：丹药治疗/灵力恢复无效 & 每日恢复限制移除

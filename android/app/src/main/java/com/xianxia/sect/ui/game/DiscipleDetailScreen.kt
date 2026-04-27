@@ -1184,10 +1184,10 @@ private fun BasicInfoSection(
                     )
                 }
                 
-                // 境界、每秒修炼值、当前修为/最大修为在同一行显示
+                // 境界、修炼进度条、每秒修炼值在同一行显示
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
@@ -1196,37 +1196,31 @@ private fun BasicInfoSection(
                         fontWeight = FontWeight.Bold,
                         color = Color.Black
                     )
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(10.dp)
+                            .clip(RoundedCornerShape(5.dp))
+                            .background(Color(0xFFE8E8E8)),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = "${String.format(Locale.getDefault(), "%.1f", cultivationSpeed)}/秒",
-                            fontSize = 10.sp,
-                            color = Color(0xFF4CAF50)
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(fraction = disciple.cultivationProgress.toFloat().coerceIn(0f, 1f))
+                                .fillMaxHeight()
+                                .background(Color(0xFF4CAF50))
                         )
                         Text(
                             text = "${disciple.cultivation.toInt()}/${disciple.maxCultivation.toInt()}",
                             fontSize = 10.sp,
-                            color = Color(0xFF666666)
+                            color = Color.Black,
+                            fontWeight = FontWeight.Bold
                         )
                     }
-                }
-                
-                Spacer(modifier = Modifier.height(4.dp))
-                
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(10.dp)
-                        .clip(RoundedCornerShape(5.dp))
-                        .background(Color(0xFFE8E8E8))
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth(fraction = disciple.cultivationProgress.toFloat().coerceIn(0f, 1f))
-                            .fillMaxHeight()
-                            .background(Color(0xFF4CAF50))
+                    Text(
+                        text = "${String.format(Locale.getDefault(), "%.1f", cultivationSpeed)}/秒",
+                        fontSize = 10.sp,
+                        color = Color(0xFF4CAF50)
                     )
                 }
             } else {

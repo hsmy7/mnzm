@@ -530,13 +530,7 @@ class BuildingService @Inject constructor(
             "forge" -> {
                 val recipe = ForgeRecipeDatabase.getRecipeById(recipeId)
                 if (recipe != null) {
-                    val equipment = EquipmentStack(
-                        name = recipe.name,
-                        rarity = recipe.rarity,
-                        description = recipe.description,
-                        slot = recipe.type,
-                        minRealm = GameConfig.Realm.getMinRealmForRarity(recipe.rarity)
-                    )
+                    val equipment = inventorySystem.createEquipmentFromRecipe(recipe)
                     inventorySystem.addEquipmentStack(equipment)
                     eventService.addGameEvent("锻造完成！获得${recipe.name}，已放入宗门仓库", EventType.INFO)
                 } else {

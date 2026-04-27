@@ -167,6 +167,8 @@ class GameEngine @Inject constructor(
 
         if (productionSlots.isNotEmpty()) {
             productionCoordinator.repository.restoreSlots(productionSlots, gameData.currentSlot)
+        } else {
+            productionCoordinator.repository.initializeAllSlots(gameData.currentSlot)
         }
         checkAndCollectCompletedSlots()
 
@@ -1331,9 +1333,6 @@ class GameEngine @Inject constructor(
                                 if (effect.healMaxHpPercent > 0) {
                                     updatedDisciple = updatedDisciple.copy(combat = updatedDisciple.combat.copy(hpVariance = 0))
                                 }
-                                if (effect.revive && !disciple.isAlive) {
-                                    updatedDisciple = updatedDisciple.copy(isAlive = true, combat = updatedDisciple.combat.copy(hpVariance = 0))
-                                }
                                 if (effect.clearAll) {
                                     updatedDisciple = updatedDisciple.copy(pillEffects = PillEffects())
                                 }
@@ -2015,10 +2014,6 @@ class GameEngine @Inject constructor(
 
                 if (effect.healMaxHpPercent > 0) {
                     updatedDisciple = updatedDisciple.copy(combat = updatedDisciple.combat.copy(hpVariance = 0))
-                }
-
-                if (effect.revive && !disciple.isAlive) {
-                    updatedDisciple = updatedDisciple.copy(isAlive = true, combat = updatedDisciple.combat.copy(hpVariance = 0))
                 }
 
                 if (effect.clearAll) {
