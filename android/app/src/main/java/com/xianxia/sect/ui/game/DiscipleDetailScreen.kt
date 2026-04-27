@@ -1201,7 +1201,7 @@ private fun BasicInfoSection(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = "修为 ${disciple.cultivation.toInt()}/${disciple.maxCultivation.toInt()}",
+                            text = "修为",
                             fontSize = 10.sp,
                             color = Color(0xFF666666)
                         )
@@ -1211,13 +1211,20 @@ private fun BasicInfoSection(
                                 .fillMaxWidth()
                                 .height(10.dp)
                                 .clip(RoundedCornerShape(5.dp))
-                                .background(Color(0xFFE8E8E8))
+                                .background(Color(0xFFE8E8E8)),
+                            contentAlignment = Alignment.Center
                         ) {
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth(fraction = disciple.cultivationProgress.toFloat().coerceIn(0f, 1f))
                                     .fillMaxHeight()
                                     .background(Color(0xFF4CAF50))
+                            )
+                            Text(
+                                text = "${disciple.cultivation.toInt()}/${disciple.maxCultivation.toInt()}",
+                                fontSize = 10.sp,
+                                color = Color.Black,
+                                fontWeight = FontWeight.Bold
                             )
                         }
                     }
@@ -1263,7 +1270,7 @@ private fun HpMpBars(disciple: DiscipleAggregate) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "气血 $currentHpDisplay/$maxHp",
+                text = "气血",
                 fontSize = 10.sp,
                 color = Color(0xFF666666)
             )
@@ -1273,13 +1280,20 @@ private fun HpMpBars(disciple: DiscipleAggregate) {
                     .fillMaxWidth()
                     .height(10.dp)
                     .clip(RoundedCornerShape(5.dp))
-                    .background(Color(0xFFE8E8E8))
+                    .background(Color(0xFFE8E8E8)),
+                contentAlignment = Alignment.Center
             ) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth(fraction = hpFraction)
                         .fillMaxHeight()
                         .background(Color(0xFFE74C3C))
+                )
+                Text(
+                    text = "$currentHpDisplay/$maxHp",
+                    fontSize = 10.sp,
+                    color = Color.Black,
+                    fontWeight = FontWeight.Bold
                 )
             }
         }
@@ -1288,7 +1302,7 @@ private fun HpMpBars(disciple: DiscipleAggregate) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "灵力 $currentMpDisplay/$maxMp",
+                text = "灵力",
                 fontSize = 10.sp,
                 color = Color(0xFF666666)
             )
@@ -1298,7 +1312,8 @@ private fun HpMpBars(disciple: DiscipleAggregate) {
                     .fillMaxWidth()
                     .height(10.dp)
                     .clip(RoundedCornerShape(5.dp))
-                    .background(Color(0xFFE8E8E8))
+                    .background(Color(0xFFE8E8E8)),
+                contentAlignment = Alignment.Center
             ) {
                 Box(
                     modifier = Modifier
