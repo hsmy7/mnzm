@@ -72,7 +72,8 @@ class CultivationService @Inject constructor(
     private val productionCoordinator: ProductionCoordinator,
     private val productionSlotRepository: ProductionSlotRepository,
     private val eventService: EventService,
-    private val applicationScopeProvider: ApplicationScopeProvider
+    private val applicationScopeProvider: ApplicationScopeProvider,
+    private val discipleService: DiscipleService
 ) : GameSystem {
     private val scope get() = applicationScopeProvider.scope
     companion object {
@@ -812,6 +813,9 @@ class CultivationService @Inject constructor(
 
         // Disciple auto-use items (daily)
         processAutoUseItems(year, month, day)
+
+        // Sync disciple statuses after all team movements/combat are processed
+        discipleService.syncAllDiscipleStatuses()
     }
 
     private fun processPillDurationDecay() {

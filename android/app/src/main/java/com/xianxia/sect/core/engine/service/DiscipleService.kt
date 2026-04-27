@@ -227,7 +227,7 @@ class DiscipleService @Inject constructor(
             battleTeam.slots.mapNotNull { it.discipleId }.forEach { inTeamIds.add(it) }
         }
 
-        currentTeams.filter { it.status == ExplorationStatus.TRAVELING || it.status == ExplorationStatus.EXPLORING }
+        currentTeams.filter { it.status == ExplorationStatus.TRAVELING || it.status == ExplorationStatus.EXPLORING || it.status == ExplorationStatus.SCOUTING || it.status == ExplorationStatus.DANGER }
             .forEach { team -> inTeamIds.addAll(team.memberIds) }
         data.caveExplorationTeams.filter { it.status == CaveExplorationStatus.TRAVELING || it.status == CaveExplorationStatus.EXPLORING }
             .forEach { team -> inTeamIds.addAll(team.memberIds) }
@@ -944,7 +944,7 @@ class DiscipleService @Inject constructor(
     private fun _isInExploration(discipleId: String): Boolean {
         return currentTeams.any { team ->
             team.memberIds.contains(discipleId) &&
-            (team.status == ExplorationStatus.TRAVELING || team.status == ExplorationStatus.EXPLORING)
+            (team.status == ExplorationStatus.TRAVELING || team.status == ExplorationStatus.EXPLORING || team.status == ExplorationStatus.SCOUTING || team.status == ExplorationStatus.DANGER)
         }
     }
 
