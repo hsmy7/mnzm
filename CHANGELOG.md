@@ -1,6 +1,17 @@
 # 模拟宗门 - 更新日志
 
-## [2.5.78] - 2026-04-27
+## [2.5.79] - 2026-04-27
+
+### 存档系统稳健性修复：防止槽位列表全部消失
+- StorageEngine.getSaveSlots()：单个槽位查询失败不再导致全部槽位报错，失败槽位显示为空占位
+- StorageFacade.getSaveSlotsSuspend()：异常不再向上传播，改为返回空列表
+- SaveLoadViewModel：所有 getSaveSlotsSuspend() 调用点添加 try/catch 保护
+  - init 块加载失败后延迟 500ms 重试一次
+  - saveGame() 成功路径刷新失败不影响"保存成功"提示
+  - saveGame() 失败路径自动刷新槽位列表恢复 UI
+  - refreshSaveSlots()、savePipeline、performSynchronousSave、performRestartSave 全部加保护
+- StorageEngine.writeAllDataToDatabase()：production_slots 条件守卫移除 + 空列表诊断日志
+- MainActivity：getSaveSlots 回退逻辑改为返回空列表
 
 ### 数据库 schema 修复：回滚未完成的 GameData 拆分重构
 - **MIGRATION_17_18**：DROP 6 个 MIGRATION_15_16 创建的子表（game_data_core/world_map/buildings/economy/organization/exploration）

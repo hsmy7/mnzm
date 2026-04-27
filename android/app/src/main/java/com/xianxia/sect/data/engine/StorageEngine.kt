@@ -420,16 +420,25 @@ class StorageEngine @Inject internal constructor(
     }
 
     suspend fun getSaveSlots(): List<SaveSlot> {
-        return try {
-            val autoSlot = querySingleSlot(StorageConstants.AUTO_SAVE_SLOT)
-            val manualSlots = (1..lockManager.getMaxSlots()).map { slot ->
-                querySingleSlot(slot)
-            }
-            listOf(autoSlot) + manualSlots
+        val slots = mutableListOf<SaveSlot>()
+
+        try {
+            slots.add(querySingleSlot(StorageConstants.AUTO_SAVE_SLOT))
         } catch (e: Exception) {
-            Log.e(TAG, "getSaveSlots FAILED -- database access error", e)
-            throw e
+            Log.e(TAG, "Failed to query auto-save slot, using empty placeholder", e)
+            slots.add(SaveSlot(StorageConstants.AUTO_SAVE_SLOT, "", 0, 1, 1, "", 0, 0, true, isAutoSave = true))
         }
+
+        for (slot in 1..lockManager.getMaxSlots()) {
+            try {
+                slots.add(querySingleSlot(slot))
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to query slot $slot, using empty placeholder", e)
+                slots.add(SaveSlot(slot, "", 0, 1, 1, "", 0, 0, true))
+            }
+        }
+
+        return slots
     }
 
     fun setCurrentSlot(slot: Int) {
@@ -608,10 +617,13 @@ class StorageEngine @Inject internal constructor(
         val productionSlotsToSave = data.productionSlots.ifEmpty {
             data.gameData.productionSlots ?: emptyList()
         }
-        if (productionSlotsToSave.isNotEmpty()) {
-            productionSlotsToSave.chunked(MAX_BATCH_SIZE).forEach { batch ->
-                database.productionSlotDao().insertAll(batch.map { it.copy(slotId = slot) })
-            }
+        if (productionSlotsToSave.isEmpty()) {
+            Log.w(TAG, "writeAllDataToDatabase: productionSlotsToSave is EMPTY for slot $slot — " +
+                "data.productionSlots.size=${data.productionSlots.size}, " +
+                "data.gameData.productionSlots.size=${data.gameData.productionSlots?.size ?: "null"}")
+        }
+        productionSlotsToSave.chunked(MAX_BATCH_SIZE).forEach { batch ->
+            database.productionSlotDao().insertAll(batch.map { it.copy(slotId = slot) })
         }
 
         data.gameData.unlockedDungeons?.map { Dungeon(it, slotId = slot) }?.let { dungeons ->

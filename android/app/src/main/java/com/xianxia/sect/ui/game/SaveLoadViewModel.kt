@@ -105,7 +105,19 @@ class SaveLoadViewModel @Inject constructor(
     val isTimeRunning: StateFlow<Boolean> = _isTimeRunning.asStateFlow()
 
     init {
-        viewModelScope.launch { _saveSlots.value = storageFacade.getSaveSlotsSuspend() }
+        viewModelScope.launch {
+            try {
+                _saveSlots.value = storageFacade.getSaveSlotsSuspend()
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to load save slots in init, retrying after delay", e)
+                delay(500)
+                try {
+                    _saveSlots.value = storageFacade.getSaveSlotsSuspend()
+                } catch (e2: Exception) {
+                    Log.e(TAG, "Retry loading save slots also failed", e2)
+                }
+            }
+        }
 
         viewModelScope.launch {
             while (isActive) {
@@ -130,7 +142,11 @@ class SaveLoadViewModel @Inject constructor(
         viewModelScope.launch {
             savePipeline.saveResults.collect { result ->
                 if (result.success) {
-                    _saveSlots.value = storageFacade.getSaveSlotsSuspend()
+                    try {
+                        _saveSlots.value = storageFacade.getSaveSlotsSuspend()
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to refresh slots after pipeline save: ${e.message}", e)
+                    }
                     Log.d(TAG, "Save slots refreshed after save completed: slot=${result.slot}, source=${result.source}")
                 }
             }
@@ -484,7 +500,11 @@ class SaveLoadViewModel @Inject constructor(
                 }
                 result.isSuccess -> {
                     gameEngine.updateGameData { updatedGameData }
-                    _saveSlots.value = storageFacade.getSaveSlotsSuspend()
+                    try {
+                        _saveSlots.value = storageFacade.getSaveSlotsSuspend()
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to refresh slots after synchronous save: ${e.message}", e)
+                    }
                     Log.i(TAG, "performSynchronousSave SUCCESS for slot $slot")
                     true
                 }
@@ -782,6 +802,9 @@ class SaveLoadViewModel @Inject constructor(
                     performGarbageCollection()
 
                     val snapshot = gameEngine.getStateSnapshot()
+                    Log.d(TAG, "saveGame snapshot: productionSlots=${snapshot.productionSlots.size}, " +
+                        "gameData.productionSlots=${snapshot.gameData.productionSlots.size}, " +
+                        "disciples=${snapshot.disciples.size}, equipment=${snapshot.equipmentInstances.size}")
                     if (snapshot.gameData.sectName.isBlank()) {
                         Log.e(TAG, "=== saveGame FAILED === gameData not initialized (sectName is blank)")
                         storageFacade.setCurrentSlot(previousSlot)
@@ -796,7 +819,11 @@ class SaveLoadViewModel @Inject constructor(
                     }
 
                     if (saveResult != null && saveResult.isSuccess) {
-                        _saveSlots.value = storageFacade.getSaveSlotsSuspend()
+                        try {
+                            _saveSlots.value = storageFacade.getSaveSlotsSuspend()
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed to refresh slots after successful save: ${e.message}", e)
+                        }
                         showSuccess("游戏保存成功")
 
                         Log.i(TAG, "=== saveGame SUCCESS === " +
@@ -810,15 +837,18 @@ class SaveLoadViewModel @Inject constructor(
                         val errorMsg = if (saveResult == null) "保存超时，请重试" else "保存失败，请重试"
                         showError(errorMsg)
                         Log.e(TAG, "=== saveGame FAILED === ${if (saveResult == null) "timeout" else "save returned failure"}")
+                        try { _saveSlots.value = storageFacade.getSaveSlotsSuspend() } catch (e: Exception) { Log.e(TAG, "Failed to refresh slots after save failure", e) }
                     }
                 } catch (e: OutOfMemoryError) {
                     Log.e(TAG, "=== saveGame FAILED === OutOfMemoryError", e)
                     storageFacade.setCurrentSlot(previousSlot)
                     showError("内存不足，保存失败。请关闭其他应用后重试。")
+                    try { _saveSlots.value = storageFacade.getSaveSlotsSuspend() } catch (e2: Exception) { Log.e(TAG, "Failed to refresh slots after OOM", e2) }
                 } catch (e: Exception) {
                     Log.e(TAG, "=== saveGame FAILED === error=${e.message}", e)
                     storageFacade.setCurrentSlot(previousSlot)
                     showError("保存失败: ${e.message}")
+                    try { _saveSlots.value = storageFacade.getSaveSlotsSuspend() } catch (e2: Exception) { Log.e(TAG, "Failed to refresh slots after save failure", e2) }
                 } finally {
                     saveLock.set(false)
                     saveLockAcquireTime.set(0)
@@ -1001,6 +1031,10 @@ class SaveLoadViewModel @Inject constructor(
                     return@withContext false
                 }
 
+                Log.d(TAG, "performRestartSave snapshot: productionSlots=${snapshot.productionSlots.size}, " +
+                    "gameData.productionSlots=${snapshot.gameData.productionSlots.size}, " +
+                    "disciples=${snapshot.disciples.size}")
+
                 val saveData = SaveData(
                     gameData = snapshot.gameData,
                     disciples = snapshot.disciples,
@@ -1025,7 +1059,11 @@ class SaveLoadViewModel @Inject constructor(
 
                 when (success) {
                     true -> {
-                        _saveSlots.value = storageFacade.getSaveSlotsSuspend()
+                        try {
+                            _saveSlots.value = storageFacade.getSaveSlotsSuspend()
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed to refresh slots after restart save: ${e.message}", e)
+                        }
                         Log.i(TAG, "performRestartSave success for slot $slot")
                         true
                     }
@@ -1067,7 +1105,13 @@ class SaveLoadViewModel @Inject constructor(
     }
 
     fun refreshSaveSlots() {
-        viewModelScope.launch { _saveSlots.value = storageFacade.getSaveSlotsSuspend() }
+        viewModelScope.launch {
+            try {
+                _saveSlots.value = storageFacade.getSaveSlotsSuspend()
+            } catch (e: Exception) {
+                Log.e(TAG, "refreshSaveSlots failed", e)
+            }
+        }
     }
 
     fun setGameLoaded(loaded: Boolean) {

@@ -346,8 +346,8 @@ class StorageFacade @Inject constructor(
         return try {
             engine.getSaveSlots()
         } catch (e: Exception) {
-            Log.e(TAG, "getSaveSlotsSuspend FAILED", e)
-            throw e
+            Log.e(TAG, "getSaveSlotsSuspend FAILED, returning empty list", e)
+            emptyList()
         }
     }
 

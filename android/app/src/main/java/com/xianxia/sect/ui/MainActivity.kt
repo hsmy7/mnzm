@@ -303,8 +303,8 @@ class MainActivity : ComponentActivity() {
                 try {
                     storageFacade.getSaveSlotsSuspend()
                 } catch (e: Exception) {
-                    Log.e(TAG, "getSaveSlots failed, falling back to cache", e)
-                    storageFacade.getSaveSlotsSuspend()
+                    Log.e(TAG, "getSaveSlots failed, returning empty list", e)
+                    emptyList()
                 }
             }
             setContent {
