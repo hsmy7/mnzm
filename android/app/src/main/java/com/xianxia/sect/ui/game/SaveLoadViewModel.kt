@@ -389,13 +389,17 @@ class SaveLoadViewModel @Inject constructor(
                 Log.d(TAG, "Active slot set to $slot")
 
                 _loadingProgress.value = PROGRESS_SAVE_COMPLETE
-                val saveSuccess = performSynchronousSave(slot)
+                var saveSuccess = performSynchronousSave(slot)
+                if (!saveSuccess) {
+                    Log.w(TAG, "startNewGame: First save attempt failed, retrying once for slot $slot")
+                    delay(500)
+                    saveSuccess = performSynchronousSave(slot)
+                }
                 needSlotRefresh = true
                 if (!saveSuccess) {
-                    Log.e(TAG, "=== startNewGame SAVE FAILED === but continuing with game for slot $slot")
-                    showError("保存失败，游戏已启动，请稍后手动保存")
-                } else {
-                    Log.d(TAG, "Game saved to slot $slot, elapsed=${System.currentTimeMillis() - startTime}ms")
+                    Log.e(TAG, "=== startNewGame SAVE FAILED AFTER RETRY === aborting game start for slot $slot")
+                    showError("保存失败，无法启动游戏。请检查存储空间后重试。")
+                    return@launch
                 }
 
                 _loadingProgress.value = PROGRESS_GAME_LOOP_START

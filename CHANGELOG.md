@@ -1,5 +1,25 @@
 # 模拟宗门 - 更新日志
 
+## [2.5.78] - 2026-04-27
+
+### 数据库 schema 修复：回滚未完成的 GameData 拆分重构
+- **MIGRATION_17_18**：DROP 6 个 MIGRATION_15_16 创建的子表（game_data_core/world_map/buildings/economy/organization/exploration）
+  - 根因：MIGRATION_15_16 创建的 game_data_core 遗漏了 FK 约束，与 Room Entity 定义不一致，导致 Room schema 校验失败
+  - 影响：所有旧存档在存档选择界面显示为空，新建游戏后无法运行
+  - 数据安全：子表数据为 game_data 的 INSERT INTO ... SELECT 副本，DROP 不丢失数据
+- 移除子表 Entity 和 DAO 声明（GameDataEntities.kt、Daos.kt、GameDataAggregateWithRelations.kt）
+- 删除未使用的 GameDataEntities.kt 和 GameDataAggregateWithRelations.kt
+
+### 错误处理改进
+- StorageEngine.querySingleSlot()：异常不再静默返回空存档，改为抛出 RuntimeException
+- StorageEngine.getSaveSlots()：同样传播异常给调用方
+- StorageFacade.getSaveSlots()/getSaveSlotsSuspend()：传播错误而非返回全空列表
+- StorageFacade.initialize()：新增数据库完整性校验，提前发现 schema 不一致
+- SaveLoadViewModel.startNewGame()：保存失败后重试一次，仍失败则终止启动
+
+### 项目配置
+- 新增 CLAUDE.md 工作流程规则文件
+
 ## [2.5.77] - 2026-04-27
 
 ### 关键修复：旧存档丢失与新建游戏不运行

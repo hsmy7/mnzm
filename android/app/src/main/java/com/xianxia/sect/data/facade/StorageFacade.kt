@@ -162,6 +162,24 @@ class StorageFacade @Inject constructor(
 
             engine.startMaintenance()
 
+            // Database integrity check: verify the database can be read.
+            // If Room schema validation fails (e.g., FK mismatch on orphaned sub-tables),
+            // this throws immediately, giving a clear error instead of silent failure.
+            _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.VALIDATING, 0.5f, "Verifying database integrity")
+            try {
+                val metadata = runBlocking(Dispatchers.IO) { engine.getSlotMetadata(StorageConstants.AUTO_SAVE_SLOT) }
+                Log.d(TAG, "Database integrity check passed (auto-save slot: ${metadata?.sectName ?: "empty"})")
+            } catch (e: Exception) {
+                Log.e(TAG, "Database integrity check FAILED -- database may have schema mismatch", e)
+                _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.FAILED, 0f,
+                    "Database integrity check failed: ${e.message}")
+                return SaveResult.failure(
+                    SaveError.DATABASE_ERROR,
+                    "Database schema is invalid or corrupted: ${e.message}",
+                    e
+                )
+            }
+
             isInitialized.set(true)
             _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.COMPLETED, 1.0f, "Initialization completed")
 
@@ -319,12 +337,8 @@ class StorageFacade @Inject constructor(
                 engine.getSaveSlots()
             }
         } catch (e: Exception) {
-            Log.e(TAG, "getSaveSlots failed", e)
-            val autoSlot = SaveSlot(StorageConstants.AUTO_SAVE_SLOT, "", 0, 1, 1, "", 0, 0, true, isAutoSave = true)
-            val manualSlots = (1..lockManager.getMaxSlots()).map { slot ->
-                SaveSlot(slot, "", 0, 1, 1, "", 0, 0, true)
-            }
-            listOf(autoSlot) + manualSlots
+            Log.e(TAG, "getSaveSlots FAILED", e)
+            throw RuntimeException("Failed to get save slots: ${e.message}", e)
         }
     }
 
@@ -332,12 +346,8 @@ class StorageFacade @Inject constructor(
         return try {
             engine.getSaveSlots()
         } catch (e: Exception) {
-            Log.e(TAG, "getSaveSlots failed", e)
-            val autoSlot = SaveSlot(StorageConstants.AUTO_SAVE_SLOT, "", 0, 1, 1, "", 0, 0, true, isAutoSave = true)
-            val manualSlots = (1..lockManager.getMaxSlots()).map { slot ->
-                SaveSlot(slot, "", 0, 1, 1, "", 0, 0, true)
-            }
-            listOf(autoSlot) + manualSlots
+            Log.e(TAG, "getSaveSlotsSuspend FAILED", e)
+            throw e
         }
     }
 

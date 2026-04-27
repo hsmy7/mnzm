@@ -427,12 +427,8 @@ class StorageEngine @Inject internal constructor(
             }
             listOf(autoSlot) + manualSlots
         } catch (e: Exception) {
-            Log.e(TAG, "Error in getSaveSlots", e)
-            val autoSlot = SaveSlot(StorageConstants.AUTO_SAVE_SLOT, "", 0, 1, 1, "", 0, 0, true, isAutoSave = true)
-            val manualSlots = (1..lockManager.getMaxSlots()).map { slot ->
-                SaveSlot(slot, "", 0, 1, 1, "", 0, 0, true)
-            }
-            listOf(autoSlot) + manualSlots
+            Log.e(TAG, "getSaveSlots FAILED -- database access error", e)
+            throw e
         }
     }
 
@@ -774,8 +770,8 @@ class StorageEngine @Inject internal constructor(
                 SaveSlot(slot, "", 0, 1, 1, "", 0, 0, true, isAutoSave = isAutoSave)
             }
         } catch (e: Exception) {
-            Log.w(TAG, "querySingleSlot failed for slot $slot", e)
-            SaveSlot(slot, "", 0, 1, 1, "", 0, 0, true, isAutoSave = isAutoSave)
+            Log.e(TAG, "querySingleSlot FAILED for slot $slot -- database may be unreachable or schema is mismatched", e)
+            throw RuntimeException("Failed to query save slot $slot: ${e.message}", e)
         }
     }
 

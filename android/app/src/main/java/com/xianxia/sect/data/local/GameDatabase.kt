@@ -711,15 +711,31 @@ val MIGRATION_16_17 = object : androidx.room.migration.Migration(16, 17) {
     }
 }
 
+val MIGRATION_17_18 = object : androidx.room.migration.Migration(17, 18) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        try {
+            Log.i("GameDatabase", "Migrating database from version 17 to 18: Remove unused GameData sub-tables (rollback of incomplete 15->16 refactoring)")
+
+            // Drop the 6 sub-tables created in MIGRATION_15_16. All data remains
+            // in the original game_data table, which all application code still uses.
+            db.execSQL("DROP TABLE IF EXISTS game_data_exploration")
+            db.execSQL("DROP TABLE IF EXISTS game_data_organization")
+            db.execSQL("DROP TABLE IF EXISTS game_data_economy")
+            db.execSQL("DROP TABLE IF EXISTS game_data_buildings")
+            db.execSQL("DROP TABLE IF EXISTS game_data_world_map")
+            db.execSQL("DROP TABLE IF EXISTS game_data_core")
+
+            Log.i("GameDatabase", "Migration 17->18 completed: All GameData sub-tables dropped")
+        } catch (e: Exception) {
+            Log.e("GameDatabase", "Migration 17->18 failed", e)
+            throw e
+        }
+    }
+}
+
 @Database(
     entities = [
         GameData::class,
-        GameDataCore::class,
-        GameDataWorldMap::class,
-        GameDataBuildings::class,
-        GameDataEconomy::class,
-        GameDataOrganization::class,
-        GameDataExploration::class,
         Disciple::class,
         DiscipleCore::class,
         DiscipleCombatStats::class,
@@ -749,7 +765,7 @@ val MIGRATION_16_17 = object : androidx.room.migration.Migration(16, 17) {
         ArchivedGameEvent::class,
         ArchivedDisciple::class
     ],
-    version = 17,
+    version = 18,
     exportSchema = true
 )
 
@@ -757,12 +773,6 @@ val MIGRATION_16_17 = object : androidx.room.migration.Migration(16, 17) {
 abstract class GameDatabase : RoomDatabase() {
 
     abstract fun gameDataDao(): GameDataDao
-    abstract fun gameDataCoreDao(): GameDataCoreDao
-    abstract fun gameDataWorldMapDao(): GameDataWorldMapDao
-    abstract fun gameDataBuildingsDao(): GameDataBuildingsDao
-    abstract fun gameDataEconomyDao(): GameDataEconomyDao
-    abstract fun gameDataOrganizationDao(): GameDataOrganizationDao
-    abstract fun gameDataExplorationDao(): GameDataExplorationDao
     abstract fun discipleDao(): DiscipleDao
     abstract fun discipleCoreDao(): DiscipleCoreDao
     abstract fun discipleCombatStatsDao(): DiscipleCombatStatsDao
@@ -1038,7 +1048,7 @@ abstract class GameDatabase : RoomDatabase() {
                         optimizeDatabase(db)
                     }
                 })
-                .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17)
+                .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18)
                 .fallbackToDestructiveMigrationFrom(1, 2, 3)
                 .build()
                 .also { db -> applySafetyPragmas(db) }
