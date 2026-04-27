@@ -87,6 +87,7 @@ data class ProductionResult(
     val outcome: ProductionOutcome? = null,
     val error: ProductionError? = null
 ) {
+    @Deprecated("Use AppError.Domain.Production", ReplaceWith("AppError.Domain.Production", "com.xianxia.sect.core.util.AppError"))
     sealed class ProductionError {
         data class SlotNotFound(val buildingType: BuildingType, val slotIndex: Int) : ProductionError()
         data class SlotBusy(val slotIndex: Int, val message: String = "") : ProductionError()

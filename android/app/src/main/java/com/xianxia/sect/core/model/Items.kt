@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.model
 
 import androidx.room.ColumnInfo
+import androidx.room.Embedded
 import androidx.room.Entity
 import androidx.room.Index
 import com.xianxia.sect.core.GameConfig
@@ -564,40 +565,9 @@ data class Pill(
     val category: PillCategory = PillCategory.CULTIVATION,
     val grade: PillGrade = PillGrade.MEDIUM,
     val pillType: String = "",
-    val breakthroughChance: Double = 0.0,
-    val targetRealm: Int = 0,
-    val isAscension: Boolean = false,
-    val cultivationSpeedPercent: Double = 0.0,
-    val skillExpSpeedPercent: Double = 0.0,
-    val nurtureSpeedPercent: Double = 0.0,
-    val cultivationAdd: Int = 0,
-    val skillExpAdd: Int = 0,
-    val nurtureAdd: Int = 0,
-    val duration: Int = 3,
-    val cannotStack: Boolean = true,
-    val physicalAttackAdd: Int = 0,
-    val magicAttackAdd: Int = 0,
-    val physicalDefenseAdd: Int = 0,
-    val magicDefenseAdd: Int = 0,
-    val hpAdd: Int = 0,
-    val mpAdd: Int = 0,
-    val speedAdd: Int = 0,
-    val critRateAdd: Double = 0.0,
-    val critEffectAdd: Double = 0.0,
-    val extendLife: Int = 0,
-    val intelligenceAdd: Int = 0,
-    val charmAdd: Int = 0,
-    val loyaltyAdd: Int = 0,
-    val comprehensionAdd: Int = 0,
-    val artifactRefiningAdd: Int = 0,
-    val pillRefiningAdd: Int = 0,
-    val spiritPlantingAdd: Int = 0,
-    val teachingAdd: Int = 0,
-    val moralityAdd: Int = 0,
-    val healMaxHpPercent: Double = 0.0,
-    val mpRecoverMaxMpPercent: Double = 0.0,
-    val revive: Boolean = false,
-    val clearAll: Boolean = false,
+
+    @Embedded
+    val effects: PillEffect = PillEffect(),
 
     @ColumnInfo(name = "minRealm", defaultValue = "9")
     val minRealm: Int = 9,
@@ -610,42 +580,40 @@ data class Pill(
     
     val basePrice: Int get() = (GameConfig.Rarity.get(rarity).pillBasePrice * grade.priceMultiplier * GameConfig.Rarity.PRICE_MULTIPLIER).roundToInt()
     
-    val effect: PillEffect get() = PillEffect(
-        breakthroughChance = breakthroughChance,
-        targetRealm = targetRealm,
-        isAscension = isAscension,
-        cultivationSpeedPercent = cultivationSpeedPercent,
-        skillExpSpeedPercent = skillExpSpeedPercent,
-        nurtureSpeedPercent = nurtureSpeedPercent,
-        cultivationAdd = cultivationAdd,
-        skillExpAdd = skillExpAdd,
-        nurtureAdd = nurtureAdd,
-        duration = duration,
-        cannotStack = cannotStack,
-        physicalAttackAdd = physicalAttackAdd,
-        magicAttackAdd = magicAttackAdd,
-        physicalDefenseAdd = physicalDefenseAdd,
-        magicDefenseAdd = magicDefenseAdd,
-        hpAdd = hpAdd,
-        mpAdd = mpAdd,
-        speedAdd = speedAdd,
-        critRateAdd = critRateAdd,
-        critEffectAdd = critEffectAdd,
-        extendLife = extendLife,
-        intelligenceAdd = intelligenceAdd,
-        charmAdd = charmAdd,
-        loyaltyAdd = loyaltyAdd,
-        comprehensionAdd = comprehensionAdd,
-        artifactRefiningAdd = artifactRefiningAdd,
-        pillRefiningAdd = pillRefiningAdd,
-        spiritPlantingAdd = spiritPlantingAdd,
-        teachingAdd = teachingAdd,
-        moralityAdd = moralityAdd,
-        healMaxHpPercent = healMaxHpPercent,
-        mpRecoverMaxMpPercent = mpRecoverMaxMpPercent,
-        revive = revive,
-        clearAll = clearAll
-    )
+    val breakthroughChance: Double get() = effects.breakthroughChance
+    val targetRealm: Int get() = effects.targetRealm
+    val isAscension: Boolean get() = effects.isAscension
+    val cultivationSpeedPercent: Double get() = effects.cultivationSpeedPercent
+    val skillExpSpeedPercent: Double get() = effects.skillExpSpeedPercent
+    val nurtureSpeedPercent: Double get() = effects.nurtureSpeedPercent
+    val cultivationAdd: Int get() = effects.cultivationAdd
+    val skillExpAdd: Int get() = effects.skillExpAdd
+    val nurtureAdd: Int get() = effects.nurtureAdd
+    val duration: Int get() = effects.duration
+    val cannotStack: Boolean get() = effects.cannotStack
+    val physicalAttackAdd: Int get() = effects.physicalAttackAdd
+    val magicAttackAdd: Int get() = effects.magicAttackAdd
+    val physicalDefenseAdd: Int get() = effects.physicalDefenseAdd
+    val magicDefenseAdd: Int get() = effects.magicDefenseAdd
+    val hpAdd: Int get() = effects.hpAdd
+    val mpAdd: Int get() = effects.mpAdd
+    val speedAdd: Int get() = effects.speedAdd
+    val critRateAdd: Double get() = effects.critRateAdd
+    val critEffectAdd: Double get() = effects.critEffectAdd
+    val extendLife: Int get() = effects.extendLife
+    val intelligenceAdd: Int get() = effects.intelligenceAdd
+    val charmAdd: Int get() = effects.charmAdd
+    val loyaltyAdd: Int get() = effects.loyaltyAdd
+    val comprehensionAdd: Int get() = effects.comprehensionAdd
+    val artifactRefiningAdd: Int get() = effects.artifactRefiningAdd
+    val pillRefiningAdd: Int get() = effects.pillRefiningAdd
+    val spiritPlantingAdd: Int get() = effects.spiritPlantingAdd
+    val teachingAdd: Int get() = effects.teachingAdd
+    val moralityAdd: Int get() = effects.moralityAdd
+    val healMaxHpPercent: Double get() = effects.healMaxHpPercent
+    val mpRecoverMaxMpPercent: Double get() = effects.mpRecoverMaxMpPercent
+    val revive: Boolean get() = effects.revive
+    val clearAll: Boolean get() = effects.clearAll
 }
 
 @Serializable

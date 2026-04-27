@@ -700,6 +700,17 @@ private fun mergeStacks(
     }
 }
 
+val MIGRATION_16_17 = object : androidx.room.migration.Migration(16, 17) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        try {
+            Log.i("GameDatabase", "Migrating database from version 16 to 17: embed PillEffect fields into Pill entity (no schema change)")
+        } catch (e: Exception) {
+            Log.e("GameDatabase", "Migration 16->17 failed", e)
+            throw e
+        }
+    }
+}
+
 @Database(
     entities = [
         GameData::class,
@@ -738,7 +749,7 @@ private fun mergeStacks(
         ArchivedGameEvent::class,
         ArchivedDisciple::class
     ],
-    version = 16,
+    version = 17,
     exportSchema = true
 )
 
@@ -1027,7 +1038,7 @@ abstract class GameDatabase : RoomDatabase() {
                         optimizeDatabase(db)
                     }
                 })
-                .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16)
+                .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17)
                 .fallbackToDestructiveMigrationFrom(1, 2, 3)
                 .build()
                 .also { db -> applySafetyPragmas(db) }

@@ -1265,7 +1265,7 @@ class GameEngine @Inject constructor(
 
                             if (canUse) {
                                 var updatedDisciple = disciple
-                                val effect = pill.effect
+                                val effect = pill.effectss
                                 if (effect.cultivationAdd > 0) {
                                     updatedDisciple = updatedDisciple.copy(cultivation = (updatedDisciple.cultivation + effect.cultivationAdd).coerceAtLeast(0.0))
                                 }
@@ -1275,7 +1275,7 @@ class GameEngine @Inject constructor(
                                 if (effect.cultivationSpeedPercent > 0) {
                                     updatedDisciple = updatedDisciple.copy(
                                         cultivationSpeedBonus = effect.cultivationSpeedPercent,
-                                        cultivationSpeedDuration = if (pill.duration > 0) pill.duration * 30 else updatedDisciple.cultivationSpeedDuration
+                                        cultivationSpeedDuration = if (effect.duration > 0) effect.duration * 30 else updatedDisciple.cultivationSpeedDuration
                                     )
                                 }
                                 if (effect.extendLife > 0) {
@@ -1324,8 +1324,8 @@ class GameEngine @Inject constructor(
                                         pillCultivationSpeedBonus = effect.cultivationSpeedPercent,
                                         pillSkillExpSpeedBonus = effect.skillExpSpeedPercent,
                                         pillNurtureSpeedBonus = effect.nurtureSpeedPercent,
-                                        pillEffectDuration = if (pill.duration > 0) pill.duration * 30 else updatedDisciple.pillEffects.pillEffectDuration,
-                                        activePillCategory = if (pill.cannotStack) pill.category.name else updatedDisciple.pillEffects.activePillCategory
+                                        pillEffectDuration = if (effect.duration > 0) effect.duration * 30 else updatedDisciple.pillEffects.pillEffectDuration,
+                                        activePillCategory = if (effect.cannotStack) pill.category.name else updatedDisciple.pillEffects.activePillCategory
                                     ))
                                 }
                                 if (effect.healMaxHpPercent > 0) {
@@ -1911,7 +1911,7 @@ class GameEngine @Inject constructor(
                     return@update
                 }
 
-                if (pill.cannotStack && disciple.pillEffects.activePillCategory == pill.category.name) {
+                if (pill.effects.cannotStack && disciple.pillEffects.activePillCategory == pill.category.name) {
                     errorMsg = "弟子${disciple.name}已有同类型丹药生效中，无法使用${pill.name}"
                     return@update
                 }
@@ -1946,7 +1946,7 @@ class GameEngine @Inject constructor(
                 if (effect.cultivationSpeedPercent > 0) {
                     updatedDisciple = updatedDisciple.copy(
                         cultivationSpeedBonus = effect.cultivationSpeedPercent,
-                        cultivationSpeedDuration = if (pill.duration > 0) pill.duration * 30 else updatedDisciple.cultivationSpeedDuration
+                        cultivationSpeedDuration = if (effect.duration > 0) effect.duration * 30 else updatedDisciple.cultivationSpeedDuration
                     )
                 }
 
@@ -2007,8 +2007,8 @@ class GameEngine @Inject constructor(
                         pillCultivationSpeedBonus = effect.cultivationSpeedPercent,
                         pillSkillExpSpeedBonus = effect.skillExpSpeedPercent,
                         pillNurtureSpeedBonus = effect.nurtureSpeedPercent,
-                        pillEffectDuration = if (pill.duration > 0) pill.duration * 30 else updatedDisciple.pillEffects.pillEffectDuration,
-                        activePillCategory = if (pill.cannotStack) pill.category.name else updatedDisciple.pillEffects.activePillCategory
+                        pillEffectDuration = if (effect.duration > 0) effect.duration * 30 else updatedDisciple.pillEffects.pillEffectDuration,
+                        activePillCategory = if (effect.cannotStack) pill.category.name else updatedDisciple.pillEffects.activePillCategory
                     )
                     updatedDisciple = updatedDisciple.copy(pillEffects = newEffects)
                 }

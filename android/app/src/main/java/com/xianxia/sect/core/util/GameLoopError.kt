@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.util
 
+@Deprecated("Use AppError.Domain.GameLoop", ReplaceWith("AppError.Domain.GameLoop", "com.xianxia.sect.core.util.AppError"))
 sealed class GameLoopError {
     data class TickTimeout(val elapsedMs: Long) : GameLoopError()
     data class StateInconsistency(val detail: String) : GameLoopError()

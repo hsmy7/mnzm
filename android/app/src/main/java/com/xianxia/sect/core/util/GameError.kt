@@ -1,52 +1,60 @@
 package com.xianxia.sect.core.util
 
+@Deprecated("Use AppError.Domain", ReplaceWith("AppError.Domain", "com.xianxia.sect.core.util.AppError"))
 sealed class GameError {
     abstract val code: String
     abstract val message: String
     abstract val cause: Throwable?
-    
+
+    @Deprecated("Use AppError.Domain.Validation.InvalidInput", ReplaceWith("AppError.Domain.Validation.InvalidInput(message, cause)", "com.xianxia.sect.core.util.AppError"))
     data class Validation(
         override val message: String,
         override val cause: Throwable? = null
     ) : GameError() {
         override val code = "VALIDATION_ERROR"
     }
-    
+
+    @Deprecated("Use AppError.Domain.GameState.InvalidState", ReplaceWith("AppError.Domain.GameState.InvalidState(message, cause)", "com.xianxia.sect.core.util.AppError"))
     data class GameState(
         override val message: String,
         override val cause: Throwable? = null
     ) : GameError() {
         override val code = "GAME_STATE_ERROR"
     }
-    
+
+    @Deprecated("Use AppError.Domain.Storage.SaveFailed", ReplaceWith("AppError.Domain.Storage.SaveFailed(message, cause)", "com.xianxia.sect.core.util.AppError"))
     data class SaveLoad(
         override val message: String,
         override val cause: Throwable? = null
     ) : GameError() {
         override val code = "SAVE_LOAD_ERROR"
     }
-    
+
+    @Deprecated("Use AppError.Domain.Network.NoConnection", ReplaceWith("AppError.Domain.Network.NoConnection(message, cause)", "com.xianxia.sect.core.util.AppError"))
     data class Network(
         override val message: String,
         override val cause: Throwable? = null
     ) : GameError() {
         override val code = "NETWORK_ERROR"
     }
-    
+
+    @Deprecated("Use AppError.Domain.GameState.PermissionDenied", ReplaceWith("AppError.Domain.GameState.PermissionDenied(message, cause)", "com.xianxia.sect.core.util.AppError"))
     data class Permission(
         override val message: String,
         override val cause: Throwable? = null
     ) : GameError() {
         override val code = "PERMISSION_ERROR"
     }
-    
+
+    @Deprecated("Use AppError.Domain.GameState.NotFound", ReplaceWith("AppError.Domain.GameState.NotFound(message, cause)", "com.xianxia.sect.core.util.AppError"))
     data class NotFound(
         override val message: String,
         override val cause: Throwable? = null
     ) : GameError() {
         override val code = "NOT_FOUND_ERROR"
     }
-    
+
+    @Deprecated("Use AppError.Unknown", ReplaceWith("AppError.Unknown(message, cause)", "com.xianxia.sect.core.util.AppError"))
     data class Unknown(
         override val cause: Throwable? = null
     ) : GameError() {

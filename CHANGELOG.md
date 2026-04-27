@@ -1,5 +1,21 @@
 # 模拟宗门 - 更新日志
 
+## [2.5.72] - 2026-04-27
+
+### 错误类型系统统一 (U-07)
+- 重构 AppError 为三层体系：AppError → Domain → 具体错误类型
+- 新增 AppError.Domain 中间层，包含6个领域分类：Production, Storage, Validation, GameState, Network, GameLoop
+- AppError.Domain.Production 新增子类型：DiscipleNotAvailable, ProductionFailed, DatabaseError
+- AppError.Domain.Storage 新增子类型：IntegrityError, VerificationFailed, Expired, Tampered
+- 新增 AppError.Domain.Validation 密封类：InvalidInput, ConfigError, OutOfRange, EmptyValue
+- 新增 AppError.Domain.GameState 密封类：InvalidState, NotFound, PermissionDenied
+- 旧平铺类型 AppError.Validation/Permission/NotFound 标记为 @Deprecated
+- 8个独立错误类型全部标记为 @Deprecated 并附带 ReplaceWith：GameError, ProductionError, ProductionResult.ProductionError, ProductionTransactionError, VerificationResult, ValidationResult (InputValidator), ConfigValidator.ValidationResult, GameLoopError
+- 新增转换扩展函数：VerificationResult.toAppError(), ValidationResult.toAppError(), ConfigValidator.ValidationResult.toAppError(), ProductionTransactionError.toAppError()
+- 更新 UiError.fromAppError() 覆盖所有新 Domain 子类型
+- 更新 AppError.fromException() 使用新的 Domain 层次
+- 所有旧类型保留，仅标记弃用，不删除，保持向后兼容
+
 ## [2.5.69] - 2026-04-27
 
 ### StorageEngine 拆分重构 (U-02)

@@ -161,7 +161,7 @@ fun DiscipleDetailDialog(
     }
 
     val maxManualSlots = remember(disciple.talentIds) {
-        com.xianxia.sect.core.engine.DiscipleStatCalculator.getMaxManualSlots(disciple.toDisciple())
+        com.xianxia.sect.core.engine.DiscipleStatCalculator.getMaxManualSlots(disciple)
     }
 
     var showRelationsDialog by remember { mutableStateOf(false) }

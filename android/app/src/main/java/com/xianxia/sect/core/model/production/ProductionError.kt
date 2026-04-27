@@ -56,6 +56,7 @@ data class MaterialConsumptionLogEntity(
     }
 }
 
+@Deprecated("Use AppError.Domain.Production", ReplaceWith("AppError.Domain.Production", "com.xianxia.sect.core.util.AppError"))
 sealed class ProductionError {
     abstract val code: String
     abstract val message: String
@@ -129,6 +130,7 @@ sealed class ProductionError {
     }
 }
 
+@Deprecated("Use AppError.Domain.Production via toAppError()", ReplaceWith("ProductionOperationResult", "com.xianxia.sect.core.model.production.ProductionOperationResult"))
 sealed class ProductionOperationResult<out T> {
     data class Success<T>(val data: T) : ProductionOperationResult<T>()
     data class Failure(val error: ProductionError) : ProductionOperationResult<Nothing>()

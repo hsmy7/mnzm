@@ -16,6 +16,7 @@ import com.xianxia.sect.core.model.MaterialCategory
 import com.xianxia.sect.core.model.MerchantItem
 import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.PillCategory
+import com.xianxia.sect.core.model.PillEffect
 import com.xianxia.sect.core.model.PillGrade
 import com.xianxia.sect.core.model.Seed
 import java.util.UUID
@@ -127,32 +128,34 @@ object MerchantItemConverter {
                 description = template.description,
                 category = template.category,
                 grade = grade,
-                breakthroughChance = template.breakthroughChance,
-                targetRealm = template.targetRealm,
-                cultivationSpeedPercent = template.cultivationSpeedPercent,
-                duration = template.duration,
-                cultivationAdd = template.cultivationAdd,
-                skillExpAdd = template.skillExpAdd,
-                nurtureAdd = template.nurtureAdd,
-                extendLife = template.extendLife,
-                physicalAttackAdd = template.physicalAttackAdd,
-                magicAttackAdd = template.magicAttackAdd,
-                physicalDefenseAdd = template.physicalDefenseAdd,
-                magicDefenseAdd = template.magicDefenseAdd,
-                hpAdd = template.hpAdd,
-                mpAdd = template.mpAdd,
-                speedAdd = template.speedAdd,
-                critRateAdd = template.critRateAdd,
-                critEffectAdd = template.critEffectAdd,
-                intelligenceAdd = template.intelligenceAdd,
-                charmAdd = template.charmAdd,
-                loyaltyAdd = template.loyaltyAdd,
-                comprehensionAdd = template.comprehensionAdd,
-                artifactRefiningAdd = template.artifactRefiningAdd,
-                pillRefiningAdd = template.pillRefiningAdd,
-                spiritPlantingAdd = template.spiritPlantingAdd,
-                teachingAdd = template.teachingAdd,
-                moralityAdd = template.moralityAdd,
+                effects = PillEffect(
+                    breakthroughChance = template.breakthroughChance,
+                    targetRealm = template.targetRealm,
+                    cultivationSpeedPercent = template.cultivationSpeedPercent,
+                    duration = template.duration,
+                    cultivationAdd = template.cultivationAdd,
+                    skillExpAdd = template.skillExpAdd,
+                    nurtureAdd = template.nurtureAdd,
+                    extendLife = template.extendLife,
+                    physicalAttackAdd = template.physicalAttackAdd,
+                    magicAttackAdd = template.magicAttackAdd,
+                    physicalDefenseAdd = template.physicalDefenseAdd,
+                    magicDefenseAdd = template.magicDefenseAdd,
+                    hpAdd = template.hpAdd,
+                    mpAdd = template.mpAdd,
+                    speedAdd = template.speedAdd,
+                    critRateAdd = template.critRateAdd,
+                    critEffectAdd = template.critEffectAdd,
+                    intelligenceAdd = template.intelligenceAdd,
+                    charmAdd = template.charmAdd,
+                    loyaltyAdd = template.loyaltyAdd,
+                    comprehensionAdd = template.comprehensionAdd,
+                    artifactRefiningAdd = template.artifactRefiningAdd,
+                    pillRefiningAdd = template.pillRefiningAdd,
+                    spiritPlantingAdd = template.spiritPlantingAdd,
+                    teachingAdd = template.teachingAdd,
+                    moralityAdd = template.moralityAdd
+                ),
                 minRealm = GameConfig.Realm.getMinRealmForRarity(item.rarity)
             )
         }

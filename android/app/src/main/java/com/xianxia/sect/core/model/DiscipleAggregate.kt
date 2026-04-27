@@ -344,6 +344,7 @@ data class DiscipleAggregate(
         )
     }
 
+    // TODO(U-01 Phase3): 移除 toCompactDisciple()，调用方应直接使用 DiscipleAggregate
     fun toCompactDisciple(): Disciple {
         return toDisciple()
     }

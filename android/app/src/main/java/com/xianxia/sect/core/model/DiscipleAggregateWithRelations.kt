@@ -40,6 +40,7 @@ data class DiscipleAggregateWithRelations(
         )
     }
     
+    // TODO(U-01 Phase3): 移除 toDisciple()，调用方应直接使用 toAggregate()
     fun toDisciple(): Disciple {
         return toAggregate().toDisciple()
     }

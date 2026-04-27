@@ -161,6 +161,7 @@ object InputValidator {
     }
 }
 
+@Deprecated("Use AppError.Domain.Validation", ReplaceWith("AppError.Domain.Validation", "com.xianxia.sect.core.util.AppError"))
 sealed class ValidationResult {
     data class Success(val value: String) : ValidationResult()
     data class SuccessLong(val value: Long) : ValidationResult()

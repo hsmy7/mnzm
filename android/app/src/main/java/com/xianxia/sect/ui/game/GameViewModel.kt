@@ -492,6 +492,7 @@ class GameViewModel @Inject constructor(
 
     fun startCaveExploration(cave: CultivatorCave, selectedDisciples: List<DiscipleAggregate>) {
         viewModelScope.launch {
+            // TODO(U-01 Phase3): GameEngine.startCaveExploration 应接受 DiscipleAggregate
             gameEngine.startCaveExploration(cave, selectedDisciples.map { it.toDisciple() })
         }
     }
@@ -736,6 +737,7 @@ class GameViewModel @Inject constructor(
     fun startMission(mission: com.xianxia.sect.core.model.Mission, selectedDisciples: List<DiscipleAggregate>) {
         viewModelScope.launch {
             try {
+                // TODO(U-01 Phase3): GameEngine.startMission 应接受 DiscipleAggregate
                 gameEngine.startMission(mission, selectedDisciples.map { it.toDisciple() })
             } catch (e: Exception) {
                 showError(e.message ?: "开始任务失败")

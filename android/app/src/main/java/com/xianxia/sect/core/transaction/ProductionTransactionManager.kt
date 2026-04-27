@@ -24,6 +24,7 @@ data class ProductionRollbackData(
     val previousSlotState: ProductionSlot? = null
 )
 
+@Deprecated("Use AppError.Domain.Production", ReplaceWith("AppError.Domain.Production", "com.xianxia.sect.core.util.AppError"))
 sealed class ProductionTransactionError {
     data class SlotNotFound(val buildingType: BuildingType, val slotIndex: Int) : ProductionTransactionError()
     data class SlotBusy(val slotIndex: Int, val message: String = "") : ProductionTransactionError()
