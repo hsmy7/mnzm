@@ -1,5 +1,21 @@
 # 模拟宗门 - 更新日志
 
+## [2.5.73] - 2026-04-27
+
+### Disciple双模型迁移 Phase 1-2 (U-01)
+- Phase 1: 消除循环依赖
+  - DiscipleDetailScreen 改用 DiscipleStatCalculator.getMaxManualSlots(aggregate) 重载，不再调用 toDisciple()
+  - WorldMapViewModel/GameViewModel 中仍需 toDisciple() 的调用添加 TODO(U-01 Phase3) 标记
+  - DiscipleAggregateWithRelations.toDisciple() 和 toCompactDisciple() 添加 TODO 标记
+- Phase 2: 收敛写路径
+  - 确认 DiscipleAggregate 无变异方法，所有属性为 val
+  - 确认无代码通过 Aggregate 引用直接修改子模型
+  - 所有写入通过 Disciple Entity 的 copyWith() 或委托属性 setter
+- 修复预存编译错误
+  - Pill 类添加 PillEffect 委托属性（breakthroughChance, targetRealm 等）
+  - GameEngine.kt 修复 pill.effect -> pill.effects
+  - MerchantItemConverter.kt / ItemDatabase.kt 添加 PillEffect import
+
 ## [2.5.72] - 2026-04-27
 
 ### 错误类型系统统一 (U-07)
