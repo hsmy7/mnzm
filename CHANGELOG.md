@@ -1,5 +1,23 @@
 # 模拟宗门 - 更新日志
 
+## [2.5.77] - 2026-04-27
+
+### 关键修复：旧存档丢失与新建游戏不运行
+- **根因1：GameStateStore.update() 并发竞态导致 isPaused 卡在 true**
+  - `_state.update { }` lambda 捕获闭包变量 `mergedIsPaused`/`mergedIsLoading`/`mergedIsSaving`
+  - CAS 重试时使用旧值，覆盖并发 `setPausedDirect()` 设置的新值
+  - 导致游戏循环始终检测到 `isPaused=true` 拒绝推进，表现为"新建游戏后不运行"
+  - 修复：将三个标志位的合并逻辑和 `_isPaused`/`_isLoading`/`_isSaving` 同步写入移入 `_state.update` lambda 内部
+  - 每次 CAS 重试时实时读取最新 `_isPaused.value`，消除闭包旧值问题
+- **根因2：SaveLoadViewModel 加载进度残留**
+  - `startNewGame()` 和 `loadGameFromSlot()` 的 finally 块无条件将 `_loadingProgress` 重置为 0
+  - 游戏成功创建后仍有进度为 0 的残留状态
+  - 修复：使用 `gameStarted`/`gameLoaded` 标志，仅在未成功启动时重置进度
+
+### 数据库版本
+- 未变更，仍为版本 17
+- 无 schema 变更，旧存档兼容
+
 ## [2.5.76] - 2026-04-27
 
 ### 战斗系统境界差距系数修复

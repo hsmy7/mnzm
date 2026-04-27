@@ -374,6 +374,7 @@ class SaveLoadViewModel @Inject constructor(
 
         viewModelScope.launch(Dispatchers.IO) {
             var needSlotRefresh = false
+            var gameStarted = false
             try {
                 setSaveLoadState(isLoading = true, pendingSlot = slot, pendingAction = "newgame")
 
@@ -405,6 +406,7 @@ class SaveLoadViewModel @Inject constructor(
                 Log.d(TAG, "Game loop started, isPaused=${gameEngineCore.state.value.isPaused}")
 
                 _isGameLoaded = true
+                gameStarted = true
                 _loadingProgress.value = PROGRESS_COMPLETE
 
                 val gd = gameEngine.gameData.value
@@ -422,6 +424,7 @@ class SaveLoadViewModel @Inject constructor(
                         setSaveLoadState(isLoading = false, pendingSlot = slot, pendingAction = null)
                         startGameLoop()
                         _isGameLoaded = true
+                        gameStarted = true
                         Log.w(TAG, "startNewGame: Game loop started with partial data")
                     } catch (loopEx: Exception) {
                         Log.e(TAG, "startNewGame: Failed to start game loop with partial data: ${loopEx.message}", loopEx)
@@ -441,7 +444,9 @@ class SaveLoadViewModel @Inject constructor(
                     _pendingSlot.value = null
                     _pendingAction.value = null
                 }
-                _loadingProgress.value = PROGRESS_START
+                if (!gameStarted) {
+                    _loadingProgress.value = PROGRESS_START
+                }
                 if (needSlotRefresh) {
                     try {
                         _saveSlots.value = storageFacade.getSaveSlotsSuspend()
@@ -631,6 +636,7 @@ class SaveLoadViewModel @Inject constructor(
         val startTime = System.currentTimeMillis()
 
         viewModelScope.launch(Dispatchers.IO) {
+            var gameLoaded = false
             try {
                 setSaveLoadState(isLoading = true, pendingSlot = slot, pendingAction = "load")
 
@@ -686,6 +692,7 @@ class SaveLoadViewModel @Inject constructor(
 
                     startGameLoop()
                     _isGameLoaded = true
+                    gameLoaded = true
                     _loadingProgress.value = PROGRESS_COMPLETE
 
                     val gd = gameEngine.gameData.value
@@ -709,6 +716,7 @@ class SaveLoadViewModel @Inject constructor(
                         setSaveLoadState(isLoading = false, pendingSlot = slot, pendingAction = null)
                         startGameLoop()
                         _isGameLoaded = true
+                        gameLoaded = true
                         Log.w(TAG, "loadGameFromSlot: Game loop started with partial data")
                     } catch (loopEx: Exception) {
                         Log.e(TAG, "loadGameFromSlot: Failed to start game loop with partial data: ${loopEx.message}", loopEx)
@@ -725,7 +733,9 @@ class SaveLoadViewModel @Inject constructor(
                     _pendingSlot.value = null
                     _pendingAction.value = null
                 }
-                _loadingProgress.value = PROGRESS_START
+                if (!gameLoaded) {
+                    _loadingProgress.value = PROGRESS_START
+                }
             }
         }
     }

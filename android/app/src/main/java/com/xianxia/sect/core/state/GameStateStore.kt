@@ -193,13 +193,13 @@ class GameStateStore @Inject constructor(
             currentTransactionState = reusableMutableState
             try {
                 reusableMutableState.block()
-                val latestPaused = _isPaused.value
-                val latestLoading = _isLoading.value
-                val latestSaving = _isSaving.value
-                val mergedIsPaused = if (latestPaused != current.isPaused) latestPaused else reusableMutableState.isPaused
-                val mergedIsLoading = if (latestLoading != current.isLoading) latestLoading else reusableMutableState.isLoading
-                val mergedIsSaving = if (latestSaving != current.isSaving) latestSaving else reusableMutableState.isSaving
-                _state.update { latest ->
+                _state.update { _ ->
+                    val finalPaused = if (_isPaused.value != current.isPaused) _isPaused.value else reusableMutableState.isPaused
+                    val finalLoading = if (_isLoading.value != current.isLoading) _isLoading.value else reusableMutableState.isLoading
+                    val finalSaving = if (_isSaving.value != current.isSaving) _isSaving.value else reusableMutableState.isSaving
+                    _isPaused.value = finalPaused
+                    _isLoading.value = finalLoading
+                    _isSaving.value = finalSaving
                     UnifiedGameState(
                         gameData = reusableMutableState.gameData,
                         disciples = reusableMutableState.disciples,
@@ -215,14 +215,11 @@ class GameStateStore @Inject constructor(
                         events = reusableMutableState.events,
                         battleLogs = reusableMutableState.battleLogs,
                         alliances = reusableMutableState.gameData.alliances,
-                        isPaused = mergedIsPaused,
-                        isLoading = mergedIsLoading,
-                        isSaving = mergedIsSaving
+                        isPaused = finalPaused,
+                        isLoading = finalLoading,
+                        isSaving = finalSaving
                     )
                 }
-                _isPaused.value = mergedIsPaused
-                _isLoading.value = mergedIsLoading
-                _isSaving.value = mergedIsSaving
             } finally {
                 currentTransactionState = null
             }
