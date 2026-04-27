@@ -397,23 +397,4 @@ class GameEngineCore @Inject constructor(
             }
         }
     }
-
-    data class GameStateSnapshot(
-        val gameData: GameData,
-        val disciples: List<Disciple>,
-        val equipmentStacks: List<EquipmentStack>,
-        val equipmentInstances: List<EquipmentInstance>,
-        val manualStacks: List<ManualStack>,
-        val manualInstances: List<ManualInstance>,
-        val pills: List<Pill>,
-        val materials: List<Material>,
-        val herbs: List<Herb>,
-        val seeds: List<Seed>,
-        val teams: List<ExplorationTeam>,
-        val events: List<GameEvent>,
-        val battleLogs: List<BattleLog>,
-        val alliances: List<Alliance>,
-        val productionSlots: List<com.xianxia.sect.core.model.production.ProductionSlot> = emptyList()
-    )
-    
 }

@@ -1,5 +1,15 @@
 # 模拟宗门 - 更新日志
 
+## [2.5.75] - 2026-04-27
+
+### 代码复查修复
+- 删除 GameEngineCore 中重复的 GameStateSnapshot 内部类（与 GameEngine.kt 顶层定义完全一致），消除重复定义
+- 修正 MIGRATION_16_17 日志描述，明确说明 Pill.effects @Embedded 列名不变无需 schema 变更
+
+### GameStateStore Boolean 字段重构完善
+- setPausedDirect/setLoadingDirect/setSavingDirect 同步更新 _state 和独立 _isPaused/_isLoading/_isSaving 两个 Flow
+- unifiedState 使用 _state.asStateFlow() 确保同步读取
+
 ## [2.5.73] - 2026-04-27
 
 ### Disciple双模型迁移 Phase 1-2 (U-01)

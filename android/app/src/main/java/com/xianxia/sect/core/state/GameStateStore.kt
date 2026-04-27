@@ -8,7 +8,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -57,13 +56,7 @@ class GameStateStore @Inject constructor(
     private val _isLoading = MutableStateFlow(false)
     private val _isSaving = MutableStateFlow(false)
 
-    val unifiedState: StateFlow<UnifiedGameState> = combine(_state, _isPaused, _isLoading, _isSaving) { state, paused, loading, saving ->
-        if (state.isPaused == paused && state.isLoading == loading && state.isSaving == saving) {
-            state
-        } else {
-            state.copy(isPaused = paused, isLoading = loading, isSaving = saving)
-        }
-    }.stateIn(applicationScopeProvider.scope, SharingStarted.Eagerly, UnifiedGameState())
+    val unifiedState: StateFlow<UnifiedGameState> = _state.asStateFlow()
 
     val gameData: StateFlow<GameData> = _state.map { it.gameData }
         .distinctUntilChanged()
@@ -159,14 +152,17 @@ class GameStateStore @Inject constructor(
 
     fun setPausedDirect(paused: Boolean) {
         _isPaused.value = paused
+        _state.update { it.copy(isPaused = paused) }
     }
 
     fun setLoadingDirect(loading: Boolean) {
         _isLoading.value = loading
+        _state.update { it.copy(isLoading = loading) }
     }
 
     fun setSavingDirect(saving: Boolean) {
         _isSaving.value = saving
+        _state.update { it.copy(isSaving = saving) }
     }
 
     suspend fun update(block: suspend MutableGameState.() -> Unit) {

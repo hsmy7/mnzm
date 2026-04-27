@@ -154,7 +154,7 @@ class SaveDataConverterTest {
             name = "筑基丹",
             category = PillCategory.FUNCTIONAL,
             rarity = 3,
-            breakthroughChance = 30.0,
+            effects = PillEffect(breakthroughChance = 30.0),
             description = "辅助突破的丹药",
             quantity = 5
         )

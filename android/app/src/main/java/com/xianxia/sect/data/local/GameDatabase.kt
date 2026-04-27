@@ -703,7 +703,7 @@ private fun mergeStacks(
 val MIGRATION_16_17 = object : androidx.room.migration.Migration(16, 17) {
     override fun migrate(db: SupportSQLiteDatabase) {
         try {
-            Log.i("GameDatabase", "Migrating database from version 16 to 17: embed PillEffect fields into Pill entity (no schema change)")
+            Log.i("GameDatabase", "Migrating database from version 16 to 17: Pill.effects @Embedded uses identical column names, no schema change required")
         } catch (e: Exception) {
             Log.e("GameDatabase", "Migration 16->17 failed", e)
             throw e
