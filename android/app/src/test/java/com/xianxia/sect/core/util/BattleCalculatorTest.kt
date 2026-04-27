@@ -278,15 +278,29 @@ class BattleCalculatorTest {
     }
 
     @Test
-    fun `calculateRealmGapMultiplier - lower realm attacker gets bonus`() {
-        val multiplier = BattleCalculator.calculateRealmGapMultiplier(7, 5)
+    fun `calculateRealmGapMultiplier - 高境界攻击低境界获得加成`() {
+        val multiplier = BattleCalculator.calculateRealmGapMultiplier(3, 5)
         assertTrue(multiplier > 1.0)
     }
 
     @Test
-    fun `calculateRealmGapMultiplier - higher realm attacker gets penalty`() {
-        val multiplier = BattleCalculator.calculateRealmGapMultiplier(3, 5)
+    fun `calculateRealmGapMultiplier - 低境界攻击高境界受到惩罚`() {
+        val multiplier = BattleCalculator.calculateRealmGapMultiplier(7, 5)
         assertTrue(multiplier < 1.0)
+    }
+
+    @Test
+    fun `calculateRealmGapMultiplier - 最大差距加成被钳制`() {
+        val multiplier = BattleCalculator.calculateRealmGapMultiplier(0, 9)
+        val expected = 1.0 + 5 * 0.15
+        assertEquals(expected, multiplier, 0.001)
+    }
+
+    @Test
+    fun `calculateRealmGapMultiplier - 最大差距惩罚被钳制`() {
+        val multiplier = BattleCalculator.calculateRealmGapMultiplier(9, 0)
+        val expected = 1.0 - 5 * 0.12
+        assertEquals(expected, multiplier, 0.001)
     }
 
     @Test

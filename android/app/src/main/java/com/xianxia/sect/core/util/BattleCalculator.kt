@@ -111,7 +111,7 @@ object BattleCalculator {
         val absGap = kotlin.math.abs(gap).coerceAtMost(GameConfig.Battle.RealmGap.MAX_REALM_GAP)
         if (absGap == 0) return 1.0
 
-        val ratio = if (gap > 0) {
+        val ratio = if (gap < 0) {
             1.0 + absGap * GameConfig.Battle.RealmGap.DAMAGE_BONUS_PER_REALM
         } else {
             1.0 - absGap * GameConfig.Battle.RealmGap.DAMAGE_PENALTY_PER_REALM

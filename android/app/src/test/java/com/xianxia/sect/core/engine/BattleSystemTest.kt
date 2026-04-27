@@ -202,14 +202,14 @@ class BattleSystemTest {
     }
 
     @Test
-    fun `calculateRealmGapMultiplier - lower realm attacker gets bonus`() {
-        val multiplier = battleSystem.calculateRealmGapMultiplier(7, 5)
+    fun `calculateRealmGapMultiplier - 高境界攻击低境界获得加成`() {
+        val multiplier = battleSystem.calculateRealmGapMultiplier(3, 5)
         assertTrue(multiplier > 1.0)
     }
 
     @Test
-    fun `calculateRealmGapMultiplier - higher realm attacker gets penalty`() {
-        val multiplier = battleSystem.calculateRealmGapMultiplier(3, 5)
+    fun `calculateRealmGapMultiplier - 低境界攻击高境界受到惩罚`() {
+        val multiplier = battleSystem.calculateRealmGapMultiplier(7, 5)
         assertTrue(multiplier < 1.0)
     }
 

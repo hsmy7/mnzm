@@ -29,7 +29,7 @@ android {
         minSdk = 24
         targetSdk = 35
         versionCode = 2143
-        versionName = "2.5.75"
+        versionName = "2.5.76"
 
         buildConfigField "String", "API_BASE_URL", '"' + apiProperties.getProperty('API_BASE_URL', 'https://api.xianxia.com/api/') + '"'
         buildConfigField "String", "TAPTAP_CLIENT_ID", '"' + apiProperties.getProperty('TAPTAP_CLIENT_ID', '') + '"'
