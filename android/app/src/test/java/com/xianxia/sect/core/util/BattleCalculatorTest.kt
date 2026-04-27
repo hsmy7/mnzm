@@ -292,14 +292,14 @@ class BattleCalculatorTest {
     @Test
     fun `calculateRealmGapMultiplier - 最大差距加成被钳制`() {
         val multiplier = BattleCalculator.calculateRealmGapMultiplier(0, 9)
-        val expected = 1.0 + 5 * 0.30
+        val expected = 1.0 + 5 * 0.50
         assertEquals(expected, multiplier, 0.001)
     }
 
     @Test
     fun `calculateRealmGapMultiplier - 最大差距惩罚被钳制`() {
         val multiplier = BattleCalculator.calculateRealmGapMultiplier(9, 0)
-        val expected = 1.0 - 5 * 0.24
+        val expected = 1.0 - 5 * 0.50
         assertEquals(expected, multiplier, 0.001)
     }
 
