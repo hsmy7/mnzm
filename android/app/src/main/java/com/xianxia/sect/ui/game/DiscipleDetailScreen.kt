@@ -1254,49 +1254,47 @@ private fun HpMpBars(disciple: DiscipleAggregate) {
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Column(modifier = Modifier.weight(1f)) {
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(10.dp)
+                .clip(RoundedCornerShape(5.dp))
+                .background(Color(0xFFE8E8E8)),
+            contentAlignment = Alignment.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(fraction = hpFraction)
+                    .fillMaxHeight()
+                    .background(Color(0xFFE74C3C))
+            )
             Text(
                 text = "气血 $currentHpDisplay/$maxHp",
                 fontSize = 10.sp,
-                color = Color(0xFF666666)
+                color = Color.Black,
+                fontWeight = FontWeight.Bold
             )
-            Spacer(modifier = Modifier.height(2.dp))
+        }
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(10.dp)
+                .clip(RoundedCornerShape(5.dp))
+                .background(Color(0xFFE8E8E8)),
+            contentAlignment = Alignment.Center
+        ) {
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(10.dp)
-                    .clip(RoundedCornerShape(5.dp))
-                    .background(Color(0xFFE8E8E8))
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(fraction = hpFraction)
-                        .fillMaxHeight()
-                        .background(Color(0xFFE74C3C))
-                )
-            }
-        }
-        Column(modifier = Modifier.weight(1f)) {
+                    .fillMaxWidth(fraction = mpFraction)
+                    .fillMaxHeight()
+                    .background(Color(0xFF3498DB))
+            )
             Text(
                 text = "灵力 $currentMpDisplay/$maxMp",
                 fontSize = 10.sp,
-                color = Color(0xFF666666)
+                color = Color.Black,
+                fontWeight = FontWeight.Bold
             )
-            Spacer(modifier = Modifier.height(2.dp))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(10.dp)
-                    .clip(RoundedCornerShape(5.dp))
-                    .background(Color(0xFFE8E8E8))
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(fraction = mpFraction)
-                        .fillMaxHeight()
-                        .background(Color(0xFF3498DB))
-                )
-            }
         }
     }
 }
