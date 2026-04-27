@@ -1265,7 +1265,7 @@ class GameEngine @Inject constructor(
 
                             if (canUse) {
                                 var updatedDisciple = disciple
-                                val effect = pill.effectss
+                                val effect = pill.effects
                                 if (effect.cultivationAdd > 0) {
                                     updatedDisciple = updatedDisciple.copy(cultivation = (updatedDisciple.cultivation + effect.cultivationAdd).coerceAtLeast(0.0))
                                 }
@@ -1928,7 +1928,7 @@ class GameEngine @Inject constructor(
                 }.filter { it.quantity > 0 }
                 pills = updatedPills
 
-                val effect = pill.effect
+                val effect = pill.effects
                 var updatedDisciple = disciple
 
                 if (effect.cultivationAdd > 0) {
