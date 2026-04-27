@@ -9,6 +9,7 @@ import com.xianxia.sect.core.SkillType
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.util.BattleCalculator
 import com.xianxia.sect.core.util.GameUtils
+import kotlin.math.roundToInt
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.random.Random
