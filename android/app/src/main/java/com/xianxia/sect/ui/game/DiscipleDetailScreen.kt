@@ -1,6 +1,7 @@
 package com.xianxia.sect.ui.game
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -1198,11 +1199,15 @@ private fun BasicInfoSection(
                         fontWeight = FontWeight.Bold,
                         color = Color.Black
                     )
+                    val cultivationTarget = disciple.cultivationProgress.toFloat().coerceIn(0f, 1f)
+                    val prevCultivationTarget = remember { mutableStateOf(cultivationTarget) }
+                    val cultivationShouldSnap = cultivationTarget < prevCultivationTarget.value - 0.5f
                     val animatedCultivationProgress by animateFloatAsState(
-                        targetValue = disciple.cultivationProgress.toFloat().coerceIn(0f, 1f),
-                        animationSpec = tween(durationMillis = 300),
+                        targetValue = cultivationTarget,
+                        animationSpec = if (cultivationShouldSnap) snap() else tween(durationMillis = 300),
                         label = "cultivationProgress"
                     )
+                    SideEffect { prevCultivationTarget.value = cultivationTarget }
                     Box(
                         modifier = Modifier
                             .weight(1f)
@@ -1258,16 +1263,25 @@ private fun HpMpBars(disciple: DiscipleAggregate) {
     val hpFraction = if (maxHp > 0) (currentHpDisplay.toFloat() / maxHp).coerceIn(0f, 1f) else 1f
     val mpFraction = if (maxMp > 0) (currentMpDisplay.toFloat() / maxMp).coerceIn(0f, 1f) else 1f
 
+    val prevHpTarget = remember { mutableStateOf(hpFraction) }
+    val prevMpTarget = remember { mutableStateOf(mpFraction) }
+    val hpShouldSnap = hpFraction < prevHpTarget.value - 0.5f
+    val mpShouldSnap = mpFraction < prevMpTarget.value - 0.5f
+
     val animatedHpFraction by animateFloatAsState(
         targetValue = hpFraction,
-        animationSpec = tween(durationMillis = 300),
+        animationSpec = if (hpShouldSnap) snap() else tween(durationMillis = 300),
         label = "hpProgress"
     )
     val animatedMpFraction by animateFloatAsState(
         targetValue = mpFraction,
-        animationSpec = tween(durationMillis = 300),
+        animationSpec = if (mpShouldSnap) snap() else tween(durationMillis = 300),
         label = "mpProgress"
     )
+    SideEffect {
+        prevHpTarget.value = hpFraction
+        prevMpTarget.value = mpFraction
+    }
 
     Row(
         modifier = Modifier.fillMaxWidth(),

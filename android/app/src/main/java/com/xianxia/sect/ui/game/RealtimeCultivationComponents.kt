@@ -1,6 +1,7 @@
 package com.xianxia.sect.ui.game
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -54,11 +55,14 @@ fun RealtimeCultivationProgress(
         }
     }
     
+    val prevProgressTarget = remember { mutableStateOf(progress) }
+    val shouldSnap = progress < prevProgressTarget.value - 0.5f
     val animatedProgress by animateFloatAsState(
         targetValue = progress,
-        animationSpec = tween(durationMillis = 300),
+        animationSpec = if (shouldSnap) snap() else tween(durationMillis = 300),
         label = "cultivationProgress"
     )
+    SideEffect { prevProgressTarget.value = progress }
 
     Column(modifier = modifier) {
         Row(
