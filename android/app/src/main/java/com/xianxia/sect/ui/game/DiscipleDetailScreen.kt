@@ -1222,8 +1222,7 @@ private fun BasicInfoSection(
                             fontSize = 7.sp,
                             color = Color.Black,
                             fontWeight = FontWeight.Bold,
-                            modifier = Modifier.fillMaxWidth(),
-                            textAlign = TextAlign.Center
+                            modifier = Modifier.align(Alignment.Center)
                         )
                     }
                     Text(
@@ -1305,8 +1304,7 @@ private fun HpMpBars(disciple: DiscipleAggregate) {
                     fontSize = 7.sp,
                     color = Color.Black,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.fillMaxWidth(),
-                    textAlign = TextAlign.Center
+                    modifier = Modifier.align(Alignment.Center)
                 )
             }
         }
@@ -1341,8 +1339,7 @@ private fun HpMpBars(disciple: DiscipleAggregate) {
                     fontSize = 7.sp,
                     color = Color.Black,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.fillMaxWidth(),
-                    textAlign = TextAlign.Center
+                    modifier = Modifier.align(Alignment.Center)
                 )
             }
         }
