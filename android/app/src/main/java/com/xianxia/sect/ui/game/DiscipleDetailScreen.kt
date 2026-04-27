@@ -1203,7 +1203,9 @@ private fun BasicInfoSection(
                         Text(
                             text = "修为",
                             fontSize = 10.sp,
-                            color = Color(0xFF666666)
+                            color = Color(0xFF666666),
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Center
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Box(
@@ -1272,7 +1274,9 @@ private fun HpMpBars(disciple: DiscipleAggregate) {
             Text(
                 text = "气血",
                 fontSize = 10.sp,
-                color = Color(0xFF666666)
+                color = Color(0xFF666666),
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.Center
             )
             Spacer(modifier = Modifier.height(2.dp))
             Box(
@@ -1304,7 +1308,9 @@ private fun HpMpBars(disciple: DiscipleAggregate) {
             Text(
                 text = "灵力",
                 fontSize = 10.sp,
-                color = Color(0xFF666666)
+                color = Color(0xFF666666),
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.Center
             )
             Spacer(modifier = Modifier.height(2.dp))
             Box(
