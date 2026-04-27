@@ -959,17 +959,8 @@ class CultivationService @Inject constructor(
     }
 
     private fun processDailyRecovery() {
-        val inBattleIds = currentTeams
-            .filter { it.status == ExplorationStatus.EXPLORING }
-            .flatMap { it.memberIds }
-            .toSet() +
-            currentGameData.caveExplorationTeams
-                .filter { it.status == CaveExplorationStatus.EXPLORING }
-                .flatMap { it.memberIds }
-                .toSet()
-
         currentDisciples = currentDisciples.map { disciple ->
-            if (!disciple.isAlive || disciple.id in inBattleIds) return@map disciple
+            if (!disciple.isAlive) return@map disciple
 
             val maxHp = disciple.maxHp
             val maxMp = disciple.maxMp

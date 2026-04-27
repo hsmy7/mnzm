@@ -1239,6 +1239,71 @@ private fun BasicInfoSection(
                 )
             }
         }
+
+        Spacer(modifier = Modifier.height(8.dp))
+        HpMpBars(disciple)
+    }
+}
+
+@Composable
+private fun HpMpBars(disciple: DiscipleAggregate) {
+    val maxHp = disciple.maxHpFinal
+    val maxMp = disciple.maxMpFinal
+    val rawCurrentHp = disciple.currentHp
+    val rawCurrentMp = disciple.currentMp
+    val currentHpDisplay = if (rawCurrentHp < 0) maxHp else rawCurrentHp
+    val currentMpDisplay = if (rawCurrentMp < 0) maxMp else rawCurrentMp
+    val hpFraction = (disciple.hpPercent / 100.0).toFloat().coerceIn(0f, 1f)
+    val mpFraction = (disciple.mpPercent / 100.0).toFloat().coerceIn(0f, 1f)
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "气血 $currentHpDisplay/$maxHp",
+                fontSize = 10.sp,
+                color = Color(0xFF666666)
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(10.dp)
+                    .clip(RoundedCornerShape(5.dp))
+                    .background(Color(0xFFE8E8E8))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(fraction = hpFraction)
+                        .fillMaxHeight()
+                        .background(Color(0xFFE74C3C))
+                )
+            }
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "灵力 $currentMpDisplay/$maxMp",
+                fontSize = 10.sp,
+                color = Color(0xFF666666)
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(10.dp)
+                    .clip(RoundedCornerShape(5.dp))
+                    .background(Color(0xFFE8E8E8))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(fraction = mpFraction)
+                        .fillMaxHeight()
+                        .background(Color(0xFF3498DB))
+                )
+            }
+        }
     }
 }
 
@@ -1414,18 +1479,6 @@ private fun CombatStatsSection(
             fontWeight = FontWeight.Bold,
             color = Color.Black
         )
-        
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            val currentHp = disciple.currentHp
-            val currentMp = disciple.currentMp
-            val hpDisplay = if (currentHp < 0) "${finalStats.maxHp}" else "$currentHp/${finalStats.maxHp}"
-            val mpDisplay = if (currentMp < 0) "${finalStats.maxMp}" else "$currentMp/${finalStats.maxMp}"
-            StatItemWithBonus("气血", baseStats.maxHp, finalStats.maxHp, Modifier.weight(1f), currentDisplay = hpDisplay)
-            StatItemWithBonus("灵力", baseStats.maxMp, finalStats.maxMp, Modifier.weight(1f), currentDisplay = mpDisplay)
-        }
         
         Row(
             modifier = Modifier.fillMaxWidth(),

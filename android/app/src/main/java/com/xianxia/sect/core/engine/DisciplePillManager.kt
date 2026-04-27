@@ -173,11 +173,25 @@ object DisciplePillManager {
         }
 
         if (effect.healMaxHpPercent > 0) {
-            updated = updated.copy(combat = updated.combat.copy(hpVariance = 0))
+            val maxHp = updated.maxHp
+            val rawCurrentHp = updated.combat.currentHp
+            val currentHp = if (rawCurrentHp < 0) maxHp else rawCurrentHp
+            val healAmount = (maxHp * effect.healMaxHpPercent).toInt().coerceAtLeast(1)
+            val newHp = (currentHp + healAmount).coerceAtMost(maxHp)
+            updated = updated.copyWith(currentHp = newHp)
+        }
+
+        if (effect.mpRecoverMaxMpPercent > 0) {
+            val maxMp = updated.maxMp
+            val rawCurrentMp = updated.combat.currentMp
+            val currentMp = if (rawCurrentMp < 0) maxMp else rawCurrentMp
+            val recoverAmount = (maxMp * effect.mpRecoverMaxMpPercent).toInt().coerceAtLeast(1)
+            val newMp = (currentMp + recoverAmount).coerceAtMost(maxMp)
+            updated = updated.copyWith(currentMp = newMp)
         }
 
         if (effect.revive && !disciple.isAlive) {
-            updated = updated.copy(isAlive = true, combat = updated.combat.copy(hpVariance = 0))
+            updated = updated.copyWith(isAlive = true, currentHp = -1)
         }
 
         if (effect.clearAll) {
