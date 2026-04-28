@@ -1498,6 +1498,15 @@ private fun AttributesSection(disciple: DiscipleAggregate) {
             DiscipleAttrText("传道", disciple.teaching, Modifier.weight(1f))
             DiscipleAttrText("道德", disciple.morality, Modifier.weight(1f))
         }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            DiscipleAttrText("采矿", disciple.mining, Modifier.weight(1f))
+            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.weight(1f))
+        }
     }
 }
 

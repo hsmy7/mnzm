@@ -304,7 +304,7 @@ internal fun DispatchTeamDialog(
     onDismiss: () -> Unit
 ) {
     val selectedDisciples = remember { mutableStateListOf<String>() }
-    val maxTeamSize = 7
+    val maxTeamSize = 8
     var selectedRealmFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
     var selectedSpiritRootFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
     var selectedAttributeSort by remember { mutableStateOf<String?>(null) }

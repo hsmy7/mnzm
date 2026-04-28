@@ -750,6 +750,7 @@ internal val ATTRIBUTE_FILTER_OPTIONS = listOf(
     AttributeFilterOption("artifactRefining", "炼器"),
     AttributeFilterOption("pillRefining", "炼丹"),
     AttributeFilterOption("spiritPlanting", "灵植"),
+    AttributeFilterOption("mining", "采矿"),
     AttributeFilterOption("teaching", "传道"),
     AttributeFilterOption("morality", "道德")
 )
@@ -763,6 +764,7 @@ internal fun DiscipleAggregate.getAttributeValue(key: String): Int = when (key) 
     "artifactRefining" -> artifactRefining
     "pillRefining" -> pillRefining
     "spiritPlanting" -> spiritPlanting
+    "mining" -> mining
     "teaching" -> teaching
     "morality" -> morality
     else -> 0

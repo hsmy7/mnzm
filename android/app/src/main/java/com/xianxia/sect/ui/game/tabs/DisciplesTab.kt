@@ -727,6 +727,7 @@ internal fun DirectDiscipleSelectionDialog(
                                             "spiritPlanting" -> disciple.spiritPlanting
                                             "pillRefining" -> disciple.pillRefining
                                             "artifactRefining" -> disciple.artifactRefining
+                                            "mining" -> disciple.mining
                                             "teaching" -> disciple.teaching
                                             "morality" -> disciple.morality
                                             "charm" -> disciple.charm
@@ -955,6 +956,7 @@ internal fun ElderDiscipleSelectionDialog(
                                             "spiritPlanting" -> disciple.spiritPlanting
                                             "pillRefining" -> disciple.pillRefining
                                             "artifactRefining" -> disciple.artifactRefining
+                                            "mining" -> disciple.mining
                                             "teaching" -> disciple.teaching
                                             "morality" -> disciple.morality
                                             "charm" -> disciple.charm

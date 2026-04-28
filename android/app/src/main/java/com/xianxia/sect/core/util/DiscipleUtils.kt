@@ -22,6 +22,7 @@ fun List<DiscipleAggregate>.sortedByFollowAttributeAndRealm(attribute: String? =
                     "artifactRefining" -> disciple.artifactRefining
                     "pillRefining" -> disciple.pillRefining
                     "spiritPlanting" -> disciple.spiritPlanting
+                    "mining" -> disciple.mining
                     "teaching" -> disciple.teaching
                     "morality" -> disciple.morality
                     else -> 0

@@ -711,6 +711,34 @@ val MIGRATION_16_17 = object : androidx.room.migration.Migration(16, 17) {
     }
 }
 
+val MIGRATION_19_20 = object : androidx.room.migration.Migration(19, 20) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        try {
+            Log.i("GameDatabase", "Migrating database from version 19 to 20: Ensure miningAdd column exists in pills")
+            // MIGRATION_18_19 may have been missing this column in earlier builds.
+            // Use a safe check to avoid duplicate column errors.
+            val cursor = db.query("PRAGMA table_info(pills)")
+            var hasMiningAdd = false
+            while (cursor.moveToNext()) {
+                if (cursor.getString(cursor.getColumnIndexOrThrow("name")) == "miningAdd") {
+                    hasMiningAdd = true
+                    break
+                }
+            }
+            cursor.close()
+            if (!hasMiningAdd) {
+                db.execSQL("ALTER TABLE pills ADD COLUMN miningAdd INTEGER NOT NULL DEFAULT 0")
+                Log.i("GameDatabase", "Migration 19->20: miningAdd column added to pills")
+            } else {
+                Log.i("GameDatabase", "Migration 19->20: miningAdd column already exists, skipping")
+            }
+        } catch (e: Exception) {
+            Log.e("GameDatabase", "Migration 19->20 failed", e)
+            throw e
+        }
+    }
+}
+
 val MIGRATION_18_19 = object : androidx.room.migration.Migration(18, 19) {
     override fun migrate(db: SupportSQLiteDatabase) {
         try {
@@ -718,7 +746,8 @@ val MIGRATION_18_19 = object : androidx.room.migration.Migration(18, 19) {
             db.execSQL("ALTER TABLE disciples ADD COLUMN mining INTEGER NOT NULL DEFAULT 50")
             db.execSQL("ALTER TABLE disciples_attributes ADD COLUMN mining INTEGER NOT NULL DEFAULT 50")
             db.execSQL("ALTER TABLE game_data ADD COLUMN spiritMineExpansions INTEGER NOT NULL DEFAULT 0")
-            Log.i("GameDatabase", "Migration 18->19 completed: mining + spiritMineExpansions columns added")
+            db.execSQL("ALTER TABLE pills ADD COLUMN miningAdd INTEGER NOT NULL DEFAULT 0")
+            Log.i("GameDatabase", "Migration 18->19 completed: mining + spiritMineExpansions + miningAdd columns added")
         } catch (e: Exception) {
             Log.e("GameDatabase", "Migration 18->19 failed", e)
             throw e
@@ -780,7 +809,7 @@ val MIGRATION_17_18 = object : androidx.room.migration.Migration(17, 18) {
         ArchivedGameEvent::class,
         ArchivedDisciple::class
     ],
-    version = 19,
+    version = 20,
     exportSchema = true
 )
 
@@ -1063,7 +1092,7 @@ abstract class GameDatabase : RoomDatabase() {
                         optimizeDatabase(db)
                     }
                 })
-                .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19)
+                .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20)
                 .fallbackToDestructiveMigrationFrom(1, 2, 3)
                 .build()
                 .also { db -> applySafetyPragmas(db) }
