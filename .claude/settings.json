@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git *)"
+    ],
+    "deny": [
+      "Bash(rm -rf *)",
+      "Bash(rm -r *)",
+      "Bash(rm --recursive *)",
+      "Bash(del /f /s *)",
+      "Bash(rd /s /q *)",
+      "Bash(sudo rm *)",
+      "Bash(chmod 777 *)",
+      "Bash(curl * | sh)",
+      "Bash(wget * | sh)",
+      "Bash(> /dev/sda *)",
+      "Bash(dd if=*)",
+      "Bash(mkfs.*)",
+      "Bash(:(){ :|:& };:)"
+    ]
+  }
+}
