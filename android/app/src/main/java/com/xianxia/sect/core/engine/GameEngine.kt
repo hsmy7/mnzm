@@ -14,8 +14,11 @@ import com.xianxia.sect.core.engine.BattleSystem
 import com.xianxia.sect.core.engine.DisciplePillManager
 import com.xianxia.sect.core.engine.production.ProductionCoordinator
 import com.xianxia.sect.core.model.production.ProductionSlot
+import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.ForgeRecipeDatabase
 import com.xianxia.sect.core.registry.HerbDatabase
+import com.xianxia.sect.core.registry.ItemDatabase
+import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.engine.HerbGardenSystem
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.util.StorageBagUtils
@@ -295,6 +298,138 @@ class GameEngine @Inject constructor(
     fun addSeedToWarehouse(seed: Seed) = inventorySystem.addSeed(seed)
 
     fun sortWarehouse() = inventorySystem.sortWarehouse()
+
+    suspend fun confiscateStorageBagItem(discipleId: String, item: StorageBagItem) {
+        stateStore.update {
+            val disciple = disciples.find { it.id == discipleId } ?: return@update
+            var updatedDisciple = disciple
+
+            // 从储物袋移除1个
+            val updatedItems = StorageBagUtils.decreaseItemQuantity(
+                disciple.equipment.storageBagItems, item.itemId, 1
+            )
+            updatedDisciple = updatedDisciple.copy(
+                equipment = updatedDisciple.equipment.copy(storageBagItems = updatedItems)
+            )
+
+            // 加入宗门仓库
+            when (item.itemType.lowercase(java.util.Locale.getDefault())) {
+                "equipment" -> {
+                    val template = EquipmentDatabase.getTemplateByName(item.name)
+                    if (template != null) {
+                        val stack = com.xianxia.sect.core.model.EquipmentStack(
+                            name = template.name,
+                            slot = template.slot,
+                            rarity = template.rarity,
+                            physicalAttack = template.physicalAttack,
+                            magicAttack = template.magicAttack,
+                            physicalDefense = template.physicalDefense,
+                            magicDefense = template.magicDefense,
+                            speed = template.speed,
+                            hp = template.hp,
+                            mp = template.mp,
+                            description = template.description,
+                            minRealm = GameConfig.Realm.getMinRealmForRarity(template.rarity)
+                        )
+                        equipmentStacks = equipmentStacks.toMutableList().apply {
+                            val existing = find { it.name == stack.name && it.rarity == stack.rarity }
+                            if (existing != null) {
+                                val idx = indexOf(existing)
+                                set(idx, existing.copy(quantity = existing.quantity + 1))
+                            } else {
+                                add(stack.copy(quantity = 1))
+                            }
+                        }
+                    }
+                }
+                "manual" -> {
+                    val template = ManualDatabase.getByName(item.name)
+                    if (template != null) {
+                        manualStacks = manualStacks.toMutableList().apply {
+                            val existing = find { it.name == template.name && it.rarity == template.rarity }
+                            if (existing != null) {
+                                val idx = indexOf(existing)
+                                set(idx, existing.copy(quantity = existing.quantity + 1))
+                            } else {
+                                add(ManualDatabase.createFromTemplate(template).copy(quantity = 1))
+                            }
+                        }
+                    }
+                }
+                "pill" -> {
+                    val template = ItemDatabase.getPillById(item.itemId)
+                        ?: ItemDatabase.getPillByName(item.name)
+                    if (template != null) {
+                        val pill = ItemDatabase.createPillFromTemplate(template, quantity = 1)
+                        pills = pills.toMutableList().apply {
+                            val existing = find { it.name == pill.name && it.rarity == pill.rarity && it.grade == pill.grade }
+                            if (existing != null) {
+                                val idx = indexOf(existing)
+                                set(idx, existing.copy(quantity = existing.quantity + 1))
+                            } else {
+                                add(pill)
+                            }
+                        }
+                    }
+                }
+                "herb" -> {
+                    val herbTemplate = HerbDatabase.getHerbByName(item.name)
+                    herbs = herbs.toMutableList().apply {
+                        val existing = find { it.name == item.name && it.rarity == item.rarity }
+                        if (existing != null) {
+                            val idx = indexOf(existing)
+                            set(idx, existing.copy(quantity = existing.quantity + 1))
+                        } else {
+                            add(Herb(
+                                name = item.name,
+                                rarity = item.rarity,
+                                description = herbTemplate?.description ?: "",
+                                category = herbTemplate?.category ?: "",
+                                quantity = 1
+                            ))
+                        }
+                    }
+                }
+                "seed" -> {
+                    seeds = seeds.toMutableList().apply {
+                        val existing = find { it.name == item.name && it.rarity == item.rarity }
+                        if (existing != null) {
+                            val idx = indexOf(existing)
+                            set(idx, existing.copy(quantity = existing.quantity + 1))
+                        } else {
+                            add(Seed(
+                                name = item.name,
+                                rarity = item.rarity,
+                                description = "",
+                                growTime = 0,
+                                quantity = 1
+                            ))
+                        }
+                    }
+                }
+                "material" -> {
+                    val matTemplate = com.xianxia.sect.core.registry.BeastMaterialDatabase.getMaterialByName(item.name)
+                    materials = materials.toMutableList().apply {
+                        val existing = find { it.name == item.name && it.rarity == item.rarity }
+                        if (existing != null) {
+                            val idx = indexOf(existing)
+                            set(idx, existing.copy(quantity = existing.quantity + 1))
+                        } else {
+                            add(Material(
+                                name = item.name,
+                                rarity = item.rarity,
+                                description = matTemplate?.description ?: "",
+                                quantity = 1
+                            ))
+                        }
+                    }
+                }
+            }
+
+            disciples = disciples.map { if (it.id == discipleId) updatedDisciple else it }
+            eventService.addGameEvent("没收了${updatedDisciple.name}的${item.name}", EventType.INFO)
+        }
+    }
 
     fun createEquipmentStackFromRecipe(recipe: ForgeRecipeDatabase.ForgeRecipe): EquipmentStack =
         inventorySystem.createEquipmentFromRecipe(recipe)

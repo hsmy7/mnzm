@@ -598,6 +598,16 @@ class GameViewModel @Inject constructor(
         }
     }
 
+    fun confiscateStorageBagItem(discipleId: String, item: StorageBagItem) {
+        viewModelScope.launch {
+            try {
+                gameEngine.confiscateStorageBagItem(discipleId, item)
+            } catch (e: Exception) {
+                showError(e.message ?: "没收物品失败")
+            }
+        }
+    }
+
     fun getDiscipleById(id: String): DiscipleAggregate? {
         return discipleAggregates.value.find { it.id == id }
     }

@@ -2001,7 +2001,17 @@ private fun StorageBagDialog(
         selectedItem?.let { item ->
             ItemDetailDialog(
                 item = item,
-                onDismiss = { showDetailDialog = false }
+                onDismiss = { showDetailDialog = false },
+                extraActions = {
+                    GameButton(
+                        text = "没收",
+                        onClick = {
+                            viewModel?.confiscateStorageBagItem(disciple.id, item)
+                            showDetailDialog = false
+                        },
+                        modifier = Modifier.height(32.dp)
+                    )
+                }
             )
         }
     }

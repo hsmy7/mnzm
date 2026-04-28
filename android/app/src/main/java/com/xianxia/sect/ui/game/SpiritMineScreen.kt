@@ -147,41 +147,19 @@ fun SpiritMineDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     // 扩建按钮
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(if (canExpand) Color(0xFF2196F3) else Color(0xFFCCCCCC))
-                            .clickable(enabled = canExpand) {
-                                showExpansionDialog = true
-                            }
-                            .padding(horizontal = 10.dp, vertical = 4.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = if (canExpand) "扩建" else "已满",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                    }
+                    GameButton(
+                        text = if (canExpand) "扩建" else "已满",
+                        onClick = { showExpansionDialog = true },
+                        enabled = canExpand,
+                        backgroundColor = Color(0xFF2196F3)
+                    )
                     // 一键任命按钮
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(if (emptySlotCount > 0) Color(0xFF4CAF50) else Color(0xFFCCCCCC))
-                            .clickable(enabled = emptySlotCount > 0) {
-                                spiritMineViewModel.autoAssignSpiritMineMiners()
-                            }
-                            .padding(horizontal = 10.dp, vertical = 4.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "一键任命",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                    }
+                    GameButton(
+                        text = "一键任命",
+                        onClick = { spiritMineViewModel.autoAssignSpiritMineMiners() },
+                        enabled = emptySlotCount > 0,
+                        backgroundColor = Color(0xFF4CAF50)
+                    )
                 }
             }
 
