@@ -35,6 +35,7 @@ object DiscipleStatCalculator {
         val comprehensionFlat = (talentEffects["comprehensionFlat"] ?: 0.0).toInt()
         val teachingFlat = (talentEffects["teachingFlat"] ?: 0.0).toInt()
         val moralityFlat = (talentEffects["moralityFlat"] ?: 0.0).toInt()
+        val miningFlat = (talentEffects["miningFlat"] ?: 0.0).toInt()
 
         val maxHpGrowth = disciple.statusData["winGrowth.maxHp"]?.toIntOrNull() ?: 0
         val maxMpGrowth = disciple.statusData["winGrowth.maxMp"]?.toIntOrNull() ?: 0
@@ -68,7 +69,8 @@ object DiscipleStatCalculator {
             loyalty = disciple.skills.loyalty + loyaltyFlat,
             comprehension = disciple.skills.comprehension + comprehensionFlat,
             teaching = disciple.skills.teaching + teachingFlat,
-            morality = disciple.skills.morality + moralityFlat
+            morality = disciple.skills.morality + moralityFlat,
+            mining = disciple.skills.mining + miningFlat
         )
     }
 
@@ -99,6 +101,7 @@ object DiscipleStatCalculator {
         val comprehensionFlat = (talentEffects["comprehensionFlat"] ?: 0.0).toInt()
         val teachingFlat = (talentEffects["teachingFlat"] ?: 0.0).toInt()
         val moralityFlat = (talentEffects["moralityFlat"] ?: 0.0).toInt()
+        val miningFlat = (talentEffects["miningFlat"] ?: 0.0).toInt()
 
         val statusData = aggregate.statusData
         val maxHpGrowth = statusData["winGrowth.maxHp"]?.toIntOrNull() ?: 0
@@ -126,7 +129,8 @@ object DiscipleStatCalculator {
             loyalty = (attr?.loyalty ?: 50) + loyaltyFlat,
             comprehension = (attr?.comprehension ?: 50) + comprehensionFlat,
             teaching = (attr?.teaching ?: 50) + teachingFlat,
-            morality = (attr?.morality ?: 50) + moralityFlat
+            morality = (attr?.morality ?: 50) + moralityFlat,
+            mining = (attr?.mining ?: 50) + miningFlat
         )
     }
 

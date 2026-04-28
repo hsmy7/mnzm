@@ -51,6 +51,7 @@ object ItemDatabase {
         val spiritPlantingAdd: Int = 0,
         val teachingAdd: Int = 0,
         val moralityAdd: Int = 0,
+        val miningAdd: Int = 0,
         val healMaxHpPercent: Double = 0.0,
         val mpRecoverMaxMpPercent: Double = 0.0,
         val revive: Boolean = false,
@@ -444,7 +445,8 @@ object ItemDatabase {
             BaseAttrConfig("pillRefining", "炼丹", mapOf(1 to "丹心丹", 2 to "灵丹丹", 3 to "宝丹丹", 4 to "玄丹丹", 5 to "地丹丹", 6 to "天丹丹")),
             BaseAttrConfig("spiritPlanting", "种植", mapOf(1 to "灵植丹", 2 to "灵耘丹", 3 to "宝耘丹", 4 to "玄耘丹", 5 to "地耘丹", 6 to "天耘丹")),
             BaseAttrConfig("teaching", "教学", mapOf(1 to "传道丹", 2 to "灵传丹", 3 to "宝传丹", 4 to "玄传丹", 5 to "地传丹", 6 to "天传丹")),
-            BaseAttrConfig("morality", "道德", mapOf(1 to "善行丹", 2 to "灵善丹", 3 to "宝善丹", 4 to "玄善丹", 5 to "地善丹", 6 to "天善丹"))
+            BaseAttrConfig("morality", "道德", mapOf(1 to "善行丹", 2 to "灵善丹", 3 to "宝善丹", 4 to "玄善丹", 5 to "地善丹", 6 to "天善丹")),
+            BaseAttrConfig("mining", "采矿", mapOf(1 to "探矿丹", 2 to "灵石丹", 3 to "宝矿丹", 4 to "玄矿丹", 5 to "地矿丹", 6 to "天矿丹"))
         )
 
         for (config in baseAttrConfigs) {
@@ -472,6 +474,7 @@ object ItemDatabase {
                         spiritPlantingAdd = if (config.pillType == "spiritPlanting") val_ else 0,
                         teachingAdd = if (config.pillType == "teaching") val_ else 0,
                         moralityAdd = if (config.pillType == "morality") val_ else 0,
+                        miningAdd = if (config.pillType == "mining") val_ else 0,
                         duration = 0,
                         cannotStack = false,
                         minRealm = tierMinRealm(tier)
@@ -632,6 +635,7 @@ object ItemDatabase {
                 spiritPlantingAdd = template.spiritPlantingAdd,
                 teachingAdd = template.teachingAdd,
                 moralityAdd = template.moralityAdd,
+                miningAdd = template.miningAdd,
                 healMaxHpPercent = template.healMaxHpPercent,
                 mpRecoverMaxMpPercent = template.mpRecoverMaxMpPercent,
                 revive = template.revive,

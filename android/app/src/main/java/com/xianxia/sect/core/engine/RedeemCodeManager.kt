@@ -770,6 +770,7 @@ object RedeemCodeManager {
                 artifactRefining = cfg.artifactRefining ?: Random.nextInt(1, 101),
                 pillRefining = cfg.pillRefining ?: Random.nextInt(1, 101),
                 spiritPlanting = cfg.spiritPlanting ?: Random.nextInt(1, 101),
+                mining = cfg.mining ?: Random.nextInt(1, 101),
                 teaching = cfg.teaching ?: Random.nextInt(1, 101),
                 morality = cfg.morality ?: Random.nextInt(1, 101)
             )

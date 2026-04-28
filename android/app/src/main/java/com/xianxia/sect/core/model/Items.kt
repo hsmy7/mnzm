@@ -610,6 +610,7 @@ data class Pill(
     val spiritPlantingAdd: Int get() = effects.spiritPlantingAdd
     val teachingAdd: Int get() = effects.teachingAdd
     val moralityAdd: Int get() = effects.moralityAdd
+    val miningAdd: Int get() = effects.miningAdd
     val healMaxHpPercent: Double get() = effects.healMaxHpPercent
     val mpRecoverMaxMpPercent: Double get() = effects.mpRecoverMaxMpPercent
     val revive: Boolean get() = effects.revive
@@ -693,6 +694,7 @@ data class PillEffect(
     val spiritPlantingAdd: Int = 0,
     val teachingAdd: Int = 0,
     val moralityAdd: Int = 0,
+    val miningAdd: Int = 0,
     val healMaxHpPercent: Double = 0.0,
     val mpRecoverMaxMpPercent: Double = 0.0,
     val revive: Boolean = false,

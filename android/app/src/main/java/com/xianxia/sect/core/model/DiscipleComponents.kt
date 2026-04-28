@@ -139,6 +139,7 @@ data class SkillStats(
     var artifactRefining: Int = 50,
     var pillRefining: Int = 50,
     var spiritPlanting: Int = 50,
+    var mining: Int = 50,
     var teaching: Int = 50,
     var morality: Int = 50,
 

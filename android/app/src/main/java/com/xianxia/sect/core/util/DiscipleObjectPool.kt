@@ -183,6 +183,7 @@ class MutableDisciple {
     var artifactRefining: Int = 50
     var pillRefining: Int = 50
     var spiritPlanting: Int = 50
+    var mining: Int = 50
     var teaching: Int = 50
     var morality: Int = 50
     
@@ -279,6 +280,7 @@ class MutableDisciple {
         artifactRefining = 50
         pillRefining = 50
         spiritPlanting = 50
+        mining = 50
         teaching = 50
         morality = 50
         salaryPaidCount = 0
@@ -373,6 +375,7 @@ class MutableDisciple {
         artifactRefining = disciple.skills.artifactRefining
         pillRefining = disciple.skills.pillRefining
         spiritPlanting = disciple.skills.spiritPlanting
+        mining = disciple.skills.mining
         teaching = disciple.skills.teaching
         morality = disciple.skills.morality
         salaryPaidCount = disciple.skills.salaryPaidCount
@@ -491,6 +494,7 @@ class MutableDisciple {
                 artifactRefining = artifactRefining,
                 pillRefining = pillRefining,
                 spiritPlanting = spiritPlanting,
+                mining = mining,
                 teaching = teaching,
                 morality = morality,
                 salaryPaidCount = salaryPaidCount,

@@ -920,6 +920,28 @@ class GameEngine @Inject constructor(
         updateGameDataSync { it.copy(spiritMineSlots = slots) }
     }
 
+    fun calculateSpiritMineExpansionCost(): Long {
+        val data = stateStore.gameData.value
+        return GameConfig.Production.calculateExpansionCost(data.spiritMineExpansions)
+    }
+
+    fun expandSpiritMine(): Boolean {
+        val data = stateStore.gameData.value
+        val expansions = data.spiritMineExpansions
+        if (expansions >= GameConfig.Production.MAX_SPIRIT_MINE_EXPANSIONS) return false
+
+        val cost = GameConfig.Production.calculateExpansionCost(expansions)
+        if (data.spiritStones < cost) return false
+
+        updateGameDataSync {
+            it.copy(
+                spiritStones = it.spiritStones - cost,
+                spiritMineExpansions = expansions + 1
+            )
+        }
+        return true
+    }
+
     fun assignDiscipleToLibrarySlot(slotIndex: Int, discipleId: String, discipleName: String) {
         val data = stateStore.gameData.value
         val slots = data.librarySlots.toMutableList()
@@ -1288,7 +1310,8 @@ class GameEngine @Inject constructor(
                                 }
                                 if (effect.intelligenceAdd > 0 || effect.charmAdd > 0 || effect.loyaltyAdd > 0 ||
                                     effect.comprehensionAdd > 0 || effect.artifactRefiningAdd > 0 || effect.pillRefiningAdd > 0 ||
-                                    effect.spiritPlantingAdd > 0 || effect.teachingAdd > 0 || effect.moralityAdd > 0
+                                    effect.spiritPlantingAdd > 0 || effect.teachingAdd > 0 || effect.moralityAdd > 0 ||
+                                    effect.miningAdd > 0
                                 ) {
                                     updatedDisciple = updatedDisciple.copy(
                                         skills = updatedDisciple.skills.copy(
@@ -1300,7 +1323,8 @@ class GameEngine @Inject constructor(
                                             pillRefining = (updatedDisciple.skills.pillRefining + effect.pillRefiningAdd).coerceIn(1, 100),
                                             spiritPlanting = (updatedDisciple.skills.spiritPlanting + effect.spiritPlantingAdd).coerceIn(1, 100),
                                             teaching = (updatedDisciple.skills.teaching + effect.teachingAdd).coerceIn(1, 100),
-                                            morality = (updatedDisciple.skills.morality + effect.moralityAdd).coerceIn(1, 100)
+                                            morality = (updatedDisciple.skills.morality + effect.moralityAdd).coerceIn(1, 100),
+                                            mining = (updatedDisciple.skills.mining + effect.miningAdd).coerceIn(1, 100)
                                         )
                                     )
                                 }
@@ -1962,7 +1986,8 @@ class GameEngine @Inject constructor(
 
                 if (effect.intelligenceAdd > 0 || effect.charmAdd > 0 || effect.loyaltyAdd > 0 ||
                     effect.comprehensionAdd > 0 || effect.artifactRefiningAdd > 0 || effect.pillRefiningAdd > 0 ||
-                    effect.spiritPlantingAdd > 0 || effect.teachingAdd > 0 || effect.moralityAdd > 0
+                    effect.spiritPlantingAdd > 0 || effect.teachingAdd > 0 || effect.moralityAdd > 0 ||
+                    effect.miningAdd > 0
                 ) {
                     updatedDisciple = updatedDisciple.copy(
                         skills = updatedDisciple.skills.copy(
@@ -1974,7 +1999,8 @@ class GameEngine @Inject constructor(
                             pillRefining = (updatedDisciple.skills.pillRefining + effect.pillRefiningAdd).coerceIn(1, 100),
                             spiritPlanting = (updatedDisciple.skills.spiritPlanting + effect.spiritPlantingAdd).coerceIn(1, 100),
                             teaching = (updatedDisciple.skills.teaching + effect.teachingAdd).coerceIn(1, 100),
-                            morality = (updatedDisciple.skills.morality + effect.moralityAdd).coerceIn(1, 100)
+                            morality = (updatedDisciple.skills.morality + effect.moralityAdd).coerceIn(1, 100),
+                            mining = (updatedDisciple.skills.mining + effect.miningAdd).coerceIn(1, 100)
                         )
                     )
                 }

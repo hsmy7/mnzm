@@ -44,7 +44,8 @@ object PillRecipeDatabase {
         val pillRefiningAdd: Int = 0,
         val spiritPlantingAdd: Int = 0,
         val teachingAdd: Int = 0,
-        val moralityAdd: Int = 0
+        val moralityAdd: Int = 0,
+        val miningAdd: Int = 0
     )
 
     private val TIER_DURATION = mapOf(1 to 2, 2 to 5, 3 to 9, 4 to 18, 5 to 30, 6 to 48)
@@ -244,7 +245,7 @@ object PillRecipeDatabase {
 
     private fun generateFunctionalRecipes(): List<PillRecipe> {
         val recipes = mutableListOf<PillRecipe>()
-        val singleTypes = listOf("extendLife", "intelligence", "charm", "loyalty", "comprehension", "artifactRefining", "pillRefining", "spiritPlanting", "teaching", "morality")
+        val singleTypes = listOf("extendLife", "intelligence", "charm", "loyalty", "comprehension", "artifactRefining", "pillRefining", "spiritPlanting", "teaching", "morality", "mining")
         val dualTypes = listOf("intelligenceComprehension", "charmLoyalty", "pillRefiningArtifactRefining", "spiritPlantingTeaching", "intelligenceCharm", "comprehensionMorality")
 
         for (tier in 1..6) {
@@ -278,7 +279,8 @@ object PillRecipeDatabase {
                         pillRefiningAdd = template.pillRefiningAdd,
                         spiritPlantingAdd = template.spiritPlantingAdd,
                         teachingAdd = template.teachingAdd,
-                        moralityAdd = template.moralityAdd
+                        moralityAdd = template.moralityAdd,
+                        miningAdd = template.miningAdd
                     ))
                 }
             }

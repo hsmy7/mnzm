@@ -92,7 +92,7 @@ object DisciplePillManager {
         var updated = disciple
 
         if (effect.cultivationAdd > 0) {
-            updated = updated.copy(cultivation = (updated.cultivation + effect.cultivationAdd).coerceAtLeast(0.0))
+            updated = updated.copy(cultivation = (updated.cultivation + effect.cultivationAdd).coerceIn(0.0, updated.maxCultivation))
         }
 
         if (effect.skillExpAdd > 0) {
@@ -122,7 +122,8 @@ object DisciplePillManager {
 
         if (effect.intelligenceAdd > 0 || effect.charmAdd > 0 || effect.loyaltyAdd > 0 ||
             effect.comprehensionAdd > 0 || effect.artifactRefiningAdd > 0 || effect.pillRefiningAdd > 0 ||
-            effect.spiritPlantingAdd > 0 || effect.teachingAdd > 0 || effect.moralityAdd > 0
+            effect.spiritPlantingAdd > 0 || effect.teachingAdd > 0 || effect.moralityAdd > 0 ||
+            effect.miningAdd > 0
         ) {
             updated = updated.copy(
                 skills = updated.skills.copy(
@@ -134,7 +135,8 @@ object DisciplePillManager {
                     pillRefining = (updated.skills.pillRefining + effect.pillRefiningAdd).coerceIn(1, 100),
                     spiritPlanting = (updated.skills.spiritPlanting + effect.spiritPlantingAdd).coerceIn(1, 100),
                     teaching = (updated.skills.teaching + effect.teachingAdd).coerceIn(1, 100),
-                    morality = (updated.skills.morality + effect.moralityAdd).coerceIn(1, 100)
+                    morality = (updated.skills.morality + effect.moralityAdd).coerceIn(1, 100),
+                    mining = (updated.skills.mining + effect.miningAdd).coerceIn(1, 100)
                 )
             )
         }
@@ -228,6 +230,7 @@ object DisciplePillManager {
             spiritPlantingAdd = pill.effects.spiritPlantingAdd,
             teachingAdd = pill.effects.teachingAdd,
             moralityAdd = pill.effects.moralityAdd,
+            miningAdd = pill.effects.miningAdd,
             revive = pill.effects.revive,
             clearAll = pill.effects.clearAll,
             isAscension = pill.effects.isAscension,

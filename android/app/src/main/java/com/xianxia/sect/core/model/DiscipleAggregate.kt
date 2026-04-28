@@ -111,6 +111,7 @@ data class DiscipleAggregate(
     val artifactRefining: Int get() = attributes?.artifactRefining ?: 50
     val pillRefining: Int get() = attributes?.pillRefining ?: 50
     val spiritPlanting: Int get() = attributes?.spiritPlanting ?: 50
+    val mining: Int get() = attributes?.mining ?: 50
     val teaching: Int get() = attributes?.teaching ?: 50
     val morality: Int get() = attributes?.morality ?: 50
     val salaryPaidCount: Int get() = attributes?.salaryPaidCount ?: 0
@@ -336,6 +337,7 @@ data class DiscipleAggregate(
                 artifactRefining = artifactRefining,
                 pillRefining = pillRefining,
                 spiritPlanting = spiritPlanting,
+                mining = mining,
                 teaching = teaching,
                 morality = morality,
                 salaryPaidCount = salaryPaidCount,

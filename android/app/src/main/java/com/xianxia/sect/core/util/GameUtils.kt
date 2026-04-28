@@ -198,7 +198,7 @@ object GameUtils {
         val baseDamage = (attack * multiplier - defense * 0.5).toInt()
         val finalDamage = maxOf(1, baseDamage)
         val damage = if (isCrit) (finalDamage * critMultiplier).toInt() else finalDamage
-        return damage.coerceAtMost(Int.MAX_VALUE / 2)
+        return damage
     }
     
     fun calculateExperienceForLevel(level: Int, baseExp: Int = 100): Int {

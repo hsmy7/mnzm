@@ -172,6 +172,14 @@ class SpiritMineViewModel @Inject constructor(
         }
     }
 
+    fun expandSpiritMine(): Boolean {
+        return gameEngine.expandSpiritMine()
+    }
+
+    fun getExpansionCost(): Long {
+        return gameEngine.calculateSpiritMineExpansionCost()
+    }
+
     fun autoAssignSpiritMineMiners() {
         viewModelScope.launch {
             try {
@@ -187,7 +195,8 @@ class SpiritMineViewModel @Inject constructor(
     private suspend fun assignDisciplesToEmptyMineSlotsInternal(disciples: List<DiscipleAggregate>) {
         val currentGameData = gameEngine.gameData.value
         var currentSlots = currentGameData.spiritMineSlots.toMutableList()
-        while (currentSlots.size < GameConfig.Production.MAX_SPIRIT_MINE_SLOTS) {
+        val totalSlots = 1 + currentGameData.spiritMineExpansions
+        while (currentSlots.size < totalSlots) {
             currentSlots.add(SpiritMineSlot(index = currentSlots.size))
         }
         val disciplesToAssign = disciples.take(currentSlots.count { it.discipleId.isEmpty() })

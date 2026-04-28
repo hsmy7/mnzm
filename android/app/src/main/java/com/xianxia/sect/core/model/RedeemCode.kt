@@ -30,6 +30,7 @@ data class DiscipleRewardConfig(
     val artifactRefining: Int? = null,
     val pillRefining: Int? = null,
     val spiritPlanting: Int? = null,
+    val mining: Int? = null,
     val teaching: Int? = null,
     val morality: Int? = null,
     val minAge: Int = 16,

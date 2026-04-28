@@ -304,7 +304,7 @@ class CultivationService @Inject constructor(
             val equipmentInstanceUpdates = mutableMapOf<String, EquipmentInstance>()
             val updatedDisciples = (state?.disciples ?: currentDisciples).map { disciple ->
                 gainMap[disciple.id]?.let { gain ->
-                    var d = disciple.copy(cultivation = (disciple.cultivation + gain).coerceIn(0.0, Double.MAX_VALUE))
+                    var d = disciple.copy(cultivation = (disciple.cultivation + gain).coerceIn(0.0, disciple.maxCultivation))
 
                     val inLibrary = data.librarySlots.any { it.discipleId == disciple.id }
                     val libraryBonus = if (inLibrary) ManualProficiencySystem.LIBRARY_PROFICIENCY_BONUS_RATE else 0.0
@@ -519,6 +519,7 @@ class CultivationService @Inject constructor(
                 artifactRefining = GameRandom.nextInt(1, 101),
                 pillRefining = GameRandom.nextInt(1, 101),
                 spiritPlanting = GameRandom.nextInt(1, 101),
+                mining = GameRandom.nextInt(1, 101),
                 teaching = GameRandom.nextInt(1, 101)
             )
         ).apply {
@@ -625,7 +626,6 @@ class CultivationService @Inject constructor(
             var newCultivation = disciple.cultivation
             var newRealm = disciple.realm
             var newRealmLayer = disciple.realmLayer
-            var newBreakthroughFailCount = disciple.combat.breakthroughFailCount
             var newLifespan = disciple.lifespan
             var shouldContinue = true
 
@@ -638,6 +638,7 @@ class CultivationService @Inject constructor(
 
                 val isMajorBreakthrough = newRealmLayer >= GameConfig.Realm.get(newRealm).maxLayers
                 if (isMajorBreakthrough && !DiscipleStatCalculator.meetsSoulPowerRequirement(newRealm, newRealmLayer, disciple.equipment.soulPower)) {
+                    newCultivation = 0.0
                     shouldContinue = false
                     continue
                 }
@@ -645,7 +646,6 @@ class CultivationService @Inject constructor(
                 val success = tryBreakthrough(disciple)
                 if (success) {
                     newCultivation = 0.0
-                    newBreakthroughFailCount = 0
                     if (newRealmLayer < GameConfig.Realm.get(newRealm).maxLayers) {
                         newRealmLayer++
                     } else {
@@ -662,7 +662,6 @@ class CultivationService @Inject constructor(
                     }
                 } else {
                     newCultivation = 0.0
-                    newBreakthroughFailCount++
                     shouldContinue = false
                 }
             }
@@ -671,8 +670,7 @@ class CultivationService @Inject constructor(
                 cultivation = newCultivation,
                 realm = newRealm,
                 realmLayer = newRealmLayer,
-                lifespan = newLifespan,
-                breakthroughFailCount = newBreakthroughFailCount
+                lifespan = newLifespan
             )
         }
 
@@ -1310,13 +1308,7 @@ class CultivationService @Inject constructor(
                 if (recipeId != null) {
                     val recipe = ForgeRecipeDatabase.getRecipeById(recipeId)
                     if (recipe != null) {
-                        val equipment = EquipmentStack(
-                            name = recipe.name,
-                            rarity = recipe.rarity,
-                            description = recipe.description,
-                            slot = recipe.type,
-                            minRealm = GameConfig.Realm.getMinRealmForRarity(recipe.rarity)
-                        )
+                        val equipment = inventorySystem.createEquipmentFromRecipe(recipe)
                         inventorySystem.addEquipmentStack(equipment)
                         eventService.addGameEvent("锻造完成！获得${recipe.name}，已放入宗门仓库", EventType.SUCCESS)
                     } else {
@@ -1564,7 +1556,27 @@ class CultivationService @Inject constructor(
     internal fun processSpiritMineProduction() {
         val data = currentGameData
         val minerCount = data.spiritMineSlots.count { it.discipleId.isNotEmpty() }
-        val baseSpiritStones = minerCount * 60
+        val baseOutput = GameConfig.Production.SPIRIT_MINE_BASE_OUTPUT_PER_MINER
+
+        // 采矿属性加成：高于阈值时每点+2%
+        var miningBonus = 0.0
+        data.spiritMineSlots.forEach { slot ->
+            val discipleId = slot.discipleId
+            if (discipleId.isNotEmpty()) {
+                val disciple = currentDisciples.find { it.id == discipleId }
+                if (disciple != null) {
+                    val mining = DiscipleStatCalculator.getBaseStats(disciple).mining
+                    if (mining > GameConfig.Production.SPIRIT_MINE_MINING_THRESHOLD) {
+                        miningBonus += (mining - GameConfig.Production.SPIRIT_MINE_MINING_THRESHOLD) * GameConfig.Production.SPIRIT_MINE_MINING_BONUS_RATE
+                    }
+                }
+            }
+        }
+
+        // 人均采矿加成
+        val avgMiningBonus = if (minerCount > 0) miningBonus / minerCount else 0.0
+
+        val baseSpiritStones = minerCount * baseOutput.toDouble()
 
         val boostMultiplier = if (data.sectPolicies.spiritMineBoost) 1.2 else 1.0
 
@@ -1578,13 +1590,14 @@ class CultivationService @Inject constructor(
             diff * 0.01
         }
 
-        val totalSpiritStones = (baseSpiritStones * (1 + deaconBonus) * boostMultiplier).toInt()
+        val totalSpiritStones = (baseSpiritStones * (1 + avgMiningBonus) * (1 + deaconBonus) * boostMultiplier).toInt()
 
         if (totalSpiritStones > 0) {
             currentGameData = data.copy(
                 spiritStones = data.spiritStones + totalSpiritStones
             )
             val bonusParts = buildList {
+                if (avgMiningBonus > 0) add("采矿加成+${(avgMiningBonus * 100).toInt()}%")
                 if (deaconBonus > 0) add("执事加成+${(deaconBonus * 100).toInt()}%")
                 if (boostMultiplier > 1.0) add("政策加成+${((boostMultiplier - 1.0) * 100).toInt()}%")
             }
@@ -3021,7 +3034,7 @@ class CultivationService @Inject constructor(
             beastLevel = avgRealm,
             beastType = dungeonConfig.beastType,
             manualProficiencies = allProficiencies
-        )
+        ).copy(maxTurns = Int.MAX_VALUE)
 
         val battleResult = battleSystem.executeBattle(battle)
 
@@ -4404,6 +4417,7 @@ class CultivationService @Inject constructor(
                     artifactRefining = Random.nextInt(1, 101),
                     pillRefining = Random.nextInt(1, 101),
                     spiritPlanting = Random.nextInt(1, 101),
+                    mining = Random.nextInt(1, 101),
                     teaching = Random.nextInt(1, 101)
                 )
             ).apply {

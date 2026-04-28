@@ -131,8 +131,9 @@ data class GameData(
     // 长老槽位
     var elderSlots: ElderSlots = ElderSlots(),
 
-    // 灵矿槽位（独立3个）
+    // 灵矿槽位
     var spiritMineSlots: List<SpiritMineSlot> = emptyList(),
+    var spiritMineExpansions: Int = 0,
 
     // 藏经阁弟子槽位（独立3个）
     var librarySlots: List<LibrarySlot> = emptyList(),

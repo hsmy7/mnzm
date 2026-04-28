@@ -84,6 +84,7 @@ object AISectDiscipleManager {
                 artifactRefining = Random.nextInt(1, 101),
                 pillRefining = Random.nextInt(1, 101),
                 spiritPlanting = Random.nextInt(1, 101),
+                mining = Random.nextInt(1, 101),
                 teaching = Random.nextInt(1, 101)
             )
         ).apply {
@@ -269,7 +270,6 @@ object AISectDiscipleManager {
             var newCultivation = disciple.cultivation + monthlyGain
             var newRealm = disciple.realm
             var newRealmLayer = disciple.realmLayer
-            var newBreakthroughFailCount = disciple.combat.breakthroughFailCount
 
             while (newCultivation >= disciple.maxCultivation && newRealm > 0) {
                 val isMajorBreakthrough = newRealmLayer >= GameConfig.Realm.get(newRealm).maxLayers
@@ -281,7 +281,6 @@ object AISectDiscipleManager {
                 val breakthroughChance = GameConfig.Realm.getBreakthroughChance(newRealm, rootCount, newRealmLayer)
                 if (Random.nextDouble() < breakthroughChance) {
                     newCultivation = 0.0
-                    newBreakthroughFailCount = 0
 
                     if (!isMajorBreakthrough) {
                         newRealmLayer++
@@ -291,7 +290,6 @@ object AISectDiscipleManager {
                     }
                 } else {
                     newCultivation = 0.0
-                    newBreakthroughFailCount++
                     break
                 }
             }
@@ -309,8 +307,7 @@ object AISectDiscipleManager {
                 cultivation = newCultivation,
                 realm = newRealm,
                 realmLayer = newRealmLayer,
-                lifespan = newLifespan,
-                breakthroughFailCount = newBreakthroughFailCount
+                lifespan = newLifespan
             )
         }
     }

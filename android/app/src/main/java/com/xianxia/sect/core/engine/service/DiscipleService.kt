@@ -463,6 +463,7 @@ class DiscipleService @Inject constructor(
                 artifactRefining = Random.nextInt(1, 101),
                 pillRefining = Random.nextInt(1, 101),
                 spiritPlanting = Random.nextInt(1, 101),
+                mining = Random.nextInt(1, 101),
                 teaching = Random.nextInt(1, 101)
             )
         ).apply {

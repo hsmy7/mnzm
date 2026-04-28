@@ -217,7 +217,7 @@ class BattleSystem @Inject constructor() {
 
         var timedOut = false
 
-        while (!currentBattle.isFinished && currentBattle.turn < GameConfig.Battle.MAX_TURNS) {
+        while (!currentBattle.isFinished && currentBattle.turn < currentBattle.maxTurns) {
             val elapsed = System.currentTimeMillis() - startTime
 
             if (elapsed > timeoutMs) {
@@ -226,7 +226,7 @@ class BattleSystem @Inject constructor() {
             }
 
             if (elapsed > GameConfig.Battle.BATTLE_TIMEOUT_WARNING_MS && currentBattle.turn % 5 == 0) {
-                android.util.Log.w("BattleSystem", "Battle taking long: ${elapsed}ms, turn ${currentBattle.turn}/${GameConfig.Battle.MAX_TURNS}")
+                android.util.Log.w("BattleSystem", "Battle taking long: ${elapsed}ms, turn ${currentBattle.turn}/${currentBattle.maxTurns}")
             }
 
             val turnResult = executeTurnWithLog(currentBattle)
@@ -658,7 +658,8 @@ data class Battle(
     val beasts: List<Combatant>,
     val turn: Int = 0,
     val isFinished: Boolean = false,
-    val winner: BattleWinner? = null
+    val winner: BattleWinner? = null,
+    val maxTurns: Int = GameConfig.Battle.MAX_TURNS
 )
 
 data class CombatBuff(

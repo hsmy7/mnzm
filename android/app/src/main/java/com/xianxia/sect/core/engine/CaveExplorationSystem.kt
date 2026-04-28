@@ -121,10 +121,11 @@ object CaveExplorationSystem {
             beasts = aiCombatants,
             turn = 0,
             isFinished = false,
-            winner = null
+            winner = null,
+            maxTurns = Int.MAX_VALUE
         )
     }
-    
+
     fun createGuardianBattle(
         playerDisciples: List<Disciple>,
         playerEquipmentMap: Map<String, EquipmentInstance>,
@@ -195,10 +196,11 @@ object CaveExplorationSystem {
             beasts = guardians,
             turn = 0,
             isFinished = false,
-            winner = null
+            winner = null,
+            maxTurns = Int.MAX_VALUE
         )
     }
-    
+
     private fun createGuardian(realm: Int, index: Int, isBoss: Boolean = false): Combatant {
         val realmConfig = GameConfig.Realm.get(realm)
         val beastType = GameConfig.Beast.TYPES.random()

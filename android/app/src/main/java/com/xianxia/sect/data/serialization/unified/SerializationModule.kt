@@ -1111,7 +1111,8 @@ class SaveDataConverter @Inject constructor() {
                     disciples = disciples.map { convertDisciple(it) }
                 )
             } ?: emptyList(),
-            smartBattleEnabled = gameData.smartBattleEnabled ?: false
+            smartBattleEnabled = gameData.smartBattleEnabled ?: false,
+            spiritMineExpansions = gameData.spiritMineExpansions
         )
     }
 
@@ -1171,7 +1172,8 @@ class SaveDataConverter @Inject constructor() {
             aiSectDisciples = data.aiSectDisciples.associate { entry ->
                 entry.sectId to entry.disciples.map { convertBackDisciple(it) }
             },
-            smartBattleEnabled = data.smartBattleEnabled
+            smartBattleEnabled = data.smartBattleEnabled,
+            spiritMineExpansions = data.spiritMineExpansions
         )
     }
 
@@ -1243,6 +1245,7 @@ class SaveDataConverter @Inject constructor() {
             artifactRefining = disciple.skills.artifactRefining ?: 0,
             pillRefining = disciple.skills.pillRefining ?: 0,
             spiritPlanting = disciple.skills.spiritPlanting ?: 0,
+            mining = disciple.skills.mining ?: 0,
             teaching = disciple.skills.teaching ?: 0,
             morality = disciple.skills.morality ?: 0,
             salaryPaidCount = disciple.skills.salaryPaidCount ?: 0,
@@ -1380,6 +1383,7 @@ class SaveDataConverter @Inject constructor() {
                 artifactRefining = data.artifactRefining,
                 pillRefining = data.pillRefining,
                 spiritPlanting = data.spiritPlanting,
+                mining = data.mining,
                 teaching = data.teaching,
                 morality = data.morality,
                 salaryPaidCount = data.salaryPaidCount,
@@ -1480,6 +1484,7 @@ class SaveDataConverter @Inject constructor() {
             spiritPlantingAdd = effect.spiritPlantingAdd ?: 0,
             teachingAdd = effect.teachingAdd ?: 0,
             moralityAdd = effect.moralityAdd ?: 0,
+            miningAdd = effect.miningAdd ?: 0,
             revive = effect.revive ?: false,
             clearAll = effect.clearAll ?: false,
             isAscension = effect.isAscension ?: false,
@@ -1522,6 +1527,7 @@ class SaveDataConverter @Inject constructor() {
             spiritPlantingAdd = data.spiritPlantingAdd,
             teachingAdd = data.teachingAdd,
             moralityAdd = data.moralityAdd,
+            miningAdd = data.miningAdd,
             revive = data.revive,
             clearAll = data.clearAll,
             isAscension = data.isAscension,

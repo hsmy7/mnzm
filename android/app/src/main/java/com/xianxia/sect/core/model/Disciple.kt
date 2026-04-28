@@ -248,6 +248,8 @@ data class Disciple(
     var spiritPlanting: Int get() = skills.spiritPlanting; set(value) { skills.spiritPlanting = value }
     /** @deprecated 请改用 [skills.teaching] */
     var teaching: Int get() = skills.teaching; set(value) { skills.teaching = value }
+    /** @deprecated 请改用 [skills.mining] */
+    var mining: Int get() = skills.mining; set(value) { skills.mining = value }
     /** @deprecated 请改用 [skills.morality] */
     var morality: Int get() = skills.morality; set(value) { skills.morality = value }
 
@@ -415,6 +417,7 @@ data class Disciple(
         artifactRefining: Int = this.artifactRefining,
         pillRefining: Int = this.pillRefining,
         spiritPlanting: Int = this.spiritPlanting,
+        mining: Int = this.mining,
         teaching: Int = this.teaching,
         morality: Int = this.morality,
         salaryPaidCount: Int = this.salaryPaidCount,
@@ -514,6 +517,7 @@ data class Disciple(
                 artifactRefining = artifactRefining,
                 pillRefining = pillRefining,
                 spiritPlanting = spiritPlanting,
+                mining = mining,
                 teaching = teaching,
                 morality = morality,
                 salaryPaidCount = salaryPaidCount,
@@ -752,7 +756,8 @@ data class DiscipleStats(
     val loyalty: Int = 0,
     val comprehension: Int = 0,
     val teaching: Int = 0,
-    val morality: Int = 0
+    val morality: Int = 0,
+    val mining: Int = 0
 ) {
     operator fun plus(other: DiscipleStats): DiscipleStats {
         return DiscipleStats(
@@ -771,7 +776,8 @@ data class DiscipleStats(
             loyalty = loyalty + other.loyalty,
             comprehension = comprehension + other.comprehension,
             teaching = teaching + other.teaching,
-            morality = morality + other.morality
+            morality = morality + other.morality,
+            mining = mining + other.mining
         )
     }
 }
@@ -837,6 +843,7 @@ data class ItemEffect(
     val spiritPlantingAdd: Int = 0,
     val teachingAdd: Int = 0,
     val moralityAdd: Int = 0,
+    val miningAdd: Int = 0,
     val revive: Boolean = false,
     val clearAll: Boolean = false,
     val isAscension: Boolean = false,

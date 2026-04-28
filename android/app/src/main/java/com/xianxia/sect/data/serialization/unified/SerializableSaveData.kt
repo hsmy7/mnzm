@@ -71,7 +71,8 @@ data class SerializableGameData(
     @ProtoNumber(50) val availableMissions: List<SerializableMission> = emptyList(),
     @ProtoNumber(53) val aiSectDisciples: List<SerializableAiSectDiscipleEntry> = emptyList(),
     @ProtoNumber(54) val sectDetails: Map<String, SerializableSectDetail> = emptyMap(),
-    @ProtoNumber(55) val smartBattleEnabled: Boolean = false
+    @ProtoNumber(55) val smartBattleEnabled: Boolean = false,
+    @ProtoNumber(87) val spiritMineExpansions: Int = 0
 )
 
 @Serializable
@@ -142,6 +143,7 @@ data class SerializableDisciple(
     @ProtoNumber(52) val artifactRefining: Int,
     @ProtoNumber(53) val pillRefining: Int,
     @ProtoNumber(54) val spiritPlanting: Int,
+    @ProtoNumber(86) val mining: Int,
     @ProtoNumber(55) val teaching: Int,
     @ProtoNumber(56) val morality: Int,
     @ProtoNumber(57) val salaryPaidCount: Int,
@@ -381,6 +383,7 @@ data class SerializableItemEffect(
     @ProtoNumber(27) val spiritPlantingAdd: Int = 0,
     @ProtoNumber(28) val teachingAdd: Int = 0,
     @ProtoNumber(29) val moralityAdd: Int = 0,
+    @ProtoNumber(88) val miningAdd: Int = 0,
     @ProtoNumber(30) val revive: Boolean = false,
     @ProtoNumber(31) val clearAll: Boolean = false,
     @ProtoNumber(32) val isAscension: Boolean = false,

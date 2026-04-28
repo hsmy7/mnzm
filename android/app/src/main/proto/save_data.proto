@@ -85,6 +85,7 @@ message CoreModuleProto {
     bool player_protection_enabled = 43;
     int32 player_protection_start_year = 44;
     bool player_has_attacked_ai = 45;
+    int32 spirit_mine_expansions = 46;
 }
 
 // --- Nested types for CoreModuleProto ---
@@ -215,6 +216,7 @@ message DiscipleProto {
     int32 artifact_refining = 52;
     int32 pill_refining = 53;
     int32 spirit_planting = 54;
+    int32 mining = 86;
     int32 teaching = 55;
     int32 morality = 56;
     int32 salary_paid_count = 57;

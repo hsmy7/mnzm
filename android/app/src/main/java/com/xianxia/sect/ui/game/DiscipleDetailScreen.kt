@@ -23,6 +23,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -1227,6 +1229,9 @@ private fun BasicInfoSection(
                             fontSize = 7.sp,
                             color = Color.Black,
                             fontWeight = FontWeight.Bold,
+                            style = TextStyle(
+                                platformStyle = PlatformTextStyle(includeFontPadding = false)
+                            ),
                             modifier = Modifier.align(Alignment.Center)
                         )
                     }
@@ -1318,6 +1323,9 @@ private fun HpMpBars(disciple: DiscipleAggregate) {
                     fontSize = 7.sp,
                     color = Color.Black,
                     fontWeight = FontWeight.Bold,
+                    style = TextStyle(
+                        platformStyle = PlatformTextStyle(includeFontPadding = false)
+                    ),
                     modifier = Modifier.align(Alignment.Center)
                 )
             }
@@ -1353,6 +1361,9 @@ private fun HpMpBars(disciple: DiscipleAggregate) {
                     fontSize = 7.sp,
                     color = Color.Black,
                     fontWeight = FontWeight.Bold,
+                    style = TextStyle(
+                        platformStyle = PlatformTextStyle(includeFontPadding = false)
+                    ),
                     modifier = Modifier.align(Alignment.Center)
                 )
             }
