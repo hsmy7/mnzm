@@ -72,8 +72,9 @@ fun SpiritMineDialog(
     val deaconBonus = deaconDisciples.mapNotNull { slot ->
         slot.discipleId?.let { id -> disciples.find { it.id == id } }
     }.sumOf { disciple ->
-        val moralityDiff = disciple.morality - 50
-        (moralityDiff / 5.0) * 0.02
+        val baseline = 80
+        val diff = (disciple.morality - baseline).coerceAtLeast(0)
+        diff * 0.01
     }
 
     // 计算总产出（含采矿属性加成）
@@ -129,12 +130,18 @@ fun SpiritMineDialog(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "矿工槽位 ($emptySlotCount/$totalSlots 空闲)",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF666666)
-                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "矿工槽位 ($emptySlotCount/$totalSlots 空闲)",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF666666)
+                    )
+                    ElderBonusInfoButton(bonusInfo = ElderBonusInfoProvider.getSpiritMineMinerInfo())
+                }
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically

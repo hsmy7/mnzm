@@ -42,6 +42,7 @@ object TalentDatabase {
         BASE_PLANT,
         BASE_TEACH,
         BASE_MORAL,
+        BASE_MINING,
         MANUAL_SLOT,
         WIN_GROWTH
     }
@@ -373,6 +374,18 @@ object TalentDatabase {
                 isNegative = false,
                 type = TalentType.BASE_MORAL,
                 template = "base_moral"
+            ))
+        }
+        baseFlatConfigs.forEach { cfg ->
+            add(TalentData(
+                id = "r${cfg.rarity}_base_mining",
+                name = "地脉感应",
+                description = "采矿+${cfg.value}",
+                rarity = cfg.rarity,
+                effects = mapOf("miningFlat" to cfg.value.toDouble()),
+                isNegative = false,
+                type = TalentType.BASE_MINING,
+                template = "base_mining"
             ))
         }
 

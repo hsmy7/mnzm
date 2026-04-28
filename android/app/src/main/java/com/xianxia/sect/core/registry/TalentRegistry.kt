@@ -61,6 +61,7 @@ class TalentRegistry : BaseTemplateRegistry<com.xianxia.sect.core.model.Talent>(
             effects.containsKey("spiritPlantingFlat") -> TalentDatabase.TalentType.BASE_PLANT
             effects.containsKey("teachingFlat") -> TalentDatabase.TalentType.BASE_TEACH
             effects.containsKey("moralityFlat") -> TalentDatabase.TalentType.BASE_MORAL
+            effects.containsKey("miningFlat") -> TalentDatabase.TalentType.BASE_MINING
             else -> TalentDatabase.TalentType.CULT_SPEED // 默认
         }
     }
