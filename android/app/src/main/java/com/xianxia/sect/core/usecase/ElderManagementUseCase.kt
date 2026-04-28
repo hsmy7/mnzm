@@ -59,7 +59,7 @@ class ElderManagementUseCase @Inject constructor(
             lawEnforcementReserveDisciples,
             qingyunPreachingMasters,
             spiritMineDeaconDisciples
-        ).flatten().mapNotNull { it.discipleId }
+        ).flatten().mapNotNull { it.discipleId.ifEmpty { null } }
     }
 
     // ==================== 长老任命 ====================

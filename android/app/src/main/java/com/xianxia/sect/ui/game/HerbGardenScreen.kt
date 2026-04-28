@@ -5,9 +5,10 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -37,6 +38,7 @@ import com.xianxia.sect.ui.game.ProductionViewModel
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.core.util.sortedByFollowAttributeAndRealm
 import com.xianxia.sect.ui.components.FollowedTag
+import com.xianxia.sect.ui.components.HorizontalDiscipleCard
 import com.xianxia.sect.ui.components.ElderBonusInfoButton
 import com.xianxia.sect.ui.components.ElderBonusInfoProvider
 import com.xianxia.sect.ui.theme.getRarityColor
@@ -605,55 +607,31 @@ private fun HerbGardenElderSelectionDialog(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        realmFilters.take(5).forEach { (realmVal, name) ->
-                            val isSelected = realmVal in selectedRealmFilter
-                            val count = realmCounts[realmVal] ?: 0
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(if (isSelected) GameColors.Gold.copy(alpha = 0.3f) else GameColors.PageBackground)
-                                    .border(1.dp, if (isSelected) GameColors.Gold else GameColors.Border, RoundedCornerShape(4.dp))
-                                    .clickable { selectedRealmFilter = if (isSelected) selectedRealmFilter - realmVal else selectedRealmFilter + realmVal }
-                                    .padding(vertical = 4.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "$name $count",
-                                    fontSize = 9.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (isSelected) GameColors.GoldDark else Color.Black
-                                )
-                            }
-                        }
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        realmFilters.drop(5).forEach { (realmVal, name) ->
-                            val isSelected = realmVal in selectedRealmFilter
-                            val count = realmCounts[realmVal] ?: 0
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(if (isSelected) GameColors.Gold.copy(alpha = 0.3f) else GameColors.PageBackground)
-                                    .border(1.dp, if (isSelected) GameColors.Gold else GameColors.Border, RoundedCornerShape(4.dp))
-                                    .clickable { selectedRealmFilter = if (isSelected) selectedRealmFilter - realmVal else selectedRealmFilter + realmVal }
-                                    .padding(vertical = 4.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "$name $count",
-                                    fontSize = 9.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (isSelected) GameColors.GoldDark else Color.Black
-                                )
+                    realmFilters.chunked(4).forEach { chunk ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            chunk.forEach { (realmVal, name) ->
+                                val isSelected = realmVal in selectedRealmFilter
+                                val count = realmCounts[realmVal] ?: 0
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(if (isSelected) GameColors.Gold.copy(alpha = 0.3f) else GameColors.PageBackground)
+                                        .border(1.dp, if (isSelected) GameColors.Gold else GameColors.Border, RoundedCornerShape(4.dp))
+                                        .clickable { selectedRealmFilter = if (isSelected) selectedRealmFilter - realmVal else selectedRealmFilter + realmVal }
+                                        .padding(vertical = 4.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "$name $count",
+                                        fontSize = 9.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isSelected) GameColors.GoldDark else Color.Black
+                                    )
+                                }
                             }
                         }
                     }
@@ -675,13 +653,11 @@ private fun HerbGardenElderSelectionDialog(
                         )
                     }
                 } else {
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(5),
+                    LazyColumn(
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         items(
                             items = filteredDisciples,
@@ -705,50 +681,11 @@ private fun HerbGardenDiscipleSelectionCard(
     disciple: DiscipleAggregate,
     onClick: () -> Unit
 ) {
-    val spiritRootColor = try {
-        Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))
-    } catch (e: Exception) {
-        Color(0xFF666666)
-    }
-
-    Box(
-        modifier = Modifier
-            .size(60.dp)
-            .clip(RoundedCornerShape(6.dp))
-            .background(GameColors.PageBackground)
-            .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(2.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = disciple.name,
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black,
-                    maxLines = 1
-                )
-                if (disciple.isFollowed) { FollowedTag() }
-            }
-            Text(
-                text = disciple.realmName,
-                fontSize = 8.sp,
-                color = Color(0xFF666666)
-            )
-            Text(
-                text = "灵植:${disciple.spiritPlanting}",
-                fontSize = 7.sp,
-                color = spiritRootColor,
-                maxLines = 1
-            )
-        }
-    }
+    HorizontalDiscipleCard(
+        disciple = disciple,
+        extraAttributes = listOf("灵植" to disciple.spiritPlanting),
+        onClick = onClick
+    )
 }
 
 @Composable
@@ -868,55 +805,31 @@ private fun HerbGardenDirectDiscipleSelectionDialog(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        realmFilters.take(5).forEach { (realmVal, name) ->
-                            val isSelected = realmVal in selectedRealmFilter
-                            val count = realmCounts[realmVal] ?: 0
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(if (isSelected) GameColors.Gold.copy(alpha = 0.3f) else GameColors.PageBackground)
-                                    .border(1.dp, if (isSelected) GameColors.Gold else GameColors.Border, RoundedCornerShape(4.dp))
-                                    .clickable { selectedRealmFilter = if (isSelected) selectedRealmFilter - realmVal else selectedRealmFilter + realmVal }
-                                    .padding(vertical = 4.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "$name $count",
-                                    fontSize = 9.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (isSelected) GameColors.GoldDark else Color.Black
-                                )
-                            }
-                        }
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        realmFilters.drop(5).forEach { (realmVal, name) ->
-                            val isSelected = realmVal in selectedRealmFilter
-                            val count = realmCounts[realmVal] ?: 0
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(if (isSelected) GameColors.Gold.copy(alpha = 0.3f) else GameColors.PageBackground)
-                                    .border(1.dp, if (isSelected) GameColors.Gold else GameColors.Border, RoundedCornerShape(4.dp))
-                                    .clickable { selectedRealmFilter = if (isSelected) selectedRealmFilter - realmVal else selectedRealmFilter + realmVal }
-                                    .padding(vertical = 4.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "$name $count",
-                                    fontSize = 9.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (isSelected) GameColors.GoldDark else Color.Black
-                                )
+                    realmFilters.chunked(4).forEach { chunk ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            chunk.forEach { (realmVal, name) ->
+                                val isSelected = realmVal in selectedRealmFilter
+                                val count = realmCounts[realmVal] ?: 0
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(if (isSelected) GameColors.Gold.copy(alpha = 0.3f) else GameColors.PageBackground)
+                                        .border(1.dp, if (isSelected) GameColors.Gold else GameColors.Border, RoundedCornerShape(4.dp))
+                                        .clickable { selectedRealmFilter = if (isSelected) selectedRealmFilter - realmVal else selectedRealmFilter + realmVal }
+                                        .padding(vertical = 4.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "$name $count",
+                                        fontSize = 9.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isSelected) GameColors.GoldDark else Color.Black
+                                    )
+                                }
                             }
                         }
                     }
@@ -938,13 +851,11 @@ private fun HerbGardenDirectDiscipleSelectionDialog(
                         )
                     }
                 } else {
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(5),
+                    LazyColumn(
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         items(
                             items = filteredDisciples,
@@ -1104,7 +1015,7 @@ private fun SeedPlantingDialog(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(seeds) { seed ->
+                    gridItems(seeds) { seed ->
                         SeedSelectionCard(
                             seed = seed,
                             isSelected = selectedSeed?.id == seed.id,

@@ -2,6 +2,7 @@ package com.xianxia.sect.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,7 +22,9 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.Talent
+import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.theme.GameColors
 import java.util.Locale
 
@@ -89,6 +92,98 @@ fun FollowedTag(
             fontWeight = FontWeight.Bold,
             color = Color.White
         )
+    }
+}
+
+/**
+ * 统一的横向弟子选择卡片，用于所有弟子选择界面。
+ * 标准布局：第一行名称+状态，第二行灵根+境界，第三行悟性/忠诚/道德
+ * extraAttributes: 建筑特定额外属性，如 [("灵植", 72)]，追加在第三行后面
+ */
+@Composable
+fun HorizontalDiscipleCard(
+    disciple: DiscipleAggregate,
+    isSelected: Boolean = false,
+    isCurrent: Boolean = false,
+    extraAttributes: List<Pair<String, Int>> = emptyList(),
+    onClick: () -> Unit
+) {
+    val borderColor = if (isSelected) GameColors.Gold else GameColors.Border
+    val borderWidth = if (isSelected) 2.dp else 1.dp
+    val statusText = disciple.status.displayName
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(6.dp))
+            .background(if (isSelected) GameColors.Gold.copy(alpha = 0.08f) else Color.White)
+            .border(borderWidth, borderColor, RoundedCornerShape(6.dp))
+            .clickable { onClick() }
+            .padding(10.dp)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            // 第一行：弟子名称 + 状态
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = disciple.name,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+                    if (disciple.isFollowed) FollowedTag()
+                    if (isCurrent) {
+                        Text(text = "当前", fontSize = 10.sp, color = Color(0xFFE74C3C))
+                    }
+                }
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = statusText, fontSize = 10.sp, color = Color(0xFF888888))
+                    if (isSelected) {
+                        Text(text = "✓", fontSize = 13.sp, color = GameColors.GoldDark, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+            // 第二行：灵根 + 境界
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val spiritRootColor = try {
+                    Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))
+                } catch (_: Exception) { Color(0xFF666666) }
+                Text(
+                    text = disciple.spiritRootName,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = spiritRootColor
+                )
+                Text(text = disciple.realmName, fontSize = 11.sp, color = Color(0xFF666666))
+            }
+            // 第三行：悟性 + 忠诚 + 道德（+ 额外属性）
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(text = "悟性: ${disciple.comprehension}", fontSize = 11.sp, color = Color(0xFF666666))
+                Text(text = "忠诚: ${disciple.loyalty}", fontSize = 11.sp, color = Color(0xFF666666))
+                Text(text = "道德: ${disciple.morality}", fontSize = 11.sp, color = Color(0xFF666666))
+                extraAttributes.forEach { (name, value) ->
+                    Text(text = "$name: $value", fontSize = 11.sp, color = Color(0xFF555555))
+                }
+            }
+        }
     }
 }
 

@@ -4,9 +4,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -27,6 +29,7 @@ import com.xianxia.sect.ui.components.ElderBonusInfoButton
 import com.xianxia.sect.ui.components.ElderBonusInfoProvider
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.components.FollowedTag
+import com.xianxia.sect.ui.components.HorizontalDiscipleCard
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
 
@@ -446,17 +449,15 @@ fun ProductionElderSelectionDialog(
                         contentAlignment = Alignment.Center
                     ) { Text(text = "暂无可用弟子", fontSize = 12.sp, color = Color(0xFF999999)) }
                 } else {
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(5),
+                    LazyColumn(
                         modifier = Modifier.fillMaxWidth().weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        items(filteredDisciples.size) { index ->
+                        items(filteredDisciples, key = { it.id }) { disciple ->
                             ProductionDiscipleSelectionCard(
                                 theme = theme,
-                                disciple = filteredDisciples[index],
-                                onClick = { onSelect(filteredDisciples[index].id) }
+                                disciple = disciple,
+                                onClick = { onSelect(disciple.id) }
                             )
                         }
                     }
@@ -566,17 +567,15 @@ fun ProductionDirectDiscipleSelectionDialog(
                         contentAlignment = Alignment.Center
                     ) { Text(text = "暂无可用弟子", fontSize = 12.sp, color = Color(0xFF999999)) }
                 } else {
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(5),
+                    LazyColumn(
                         modifier = Modifier.fillMaxWidth().weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        items(filteredDisciples.size) { index ->
+                        items(filteredDisciples, key = { it.id }) { disciple ->
                             ProductionDiscipleSelectionCard(
                                 theme = theme,
-                                disciple = filteredDisciples[index],
-                                onClick = { onSelect(filteredDisciples[index].id) }
+                                disciple = disciple,
+                                onClick = { onSelect(disciple.id) }
                             )
                         }
                     }
@@ -593,35 +592,12 @@ private fun ProductionDiscipleSelectionCard(
     disciple: DiscipleAggregate,
     onClick: () -> Unit
 ) {
-    val spiritRootColor = try {
-        Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))
-    } catch (e: Exception) {
-        Color(0xFF666666)
-    }
-
-    Box(
-        modifier = Modifier
-            .size(60.dp)
-            .clip(RoundedCornerShape(6.dp))
-            .background(GameColors.PageBackground)
-            .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(text = disciple.name, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.Black, maxLines = 1)
-                if (disciple.isFollowed) { FollowedTag() }
-            }
-            Text(text = disciple.realmName, fontSize = 8.sp, color = Color(0xFF666666), maxLines = 1)
-            Text(
-                text = "${theme.coreAttributeName}:${theme.getCoreAttributeValue(disciple)}",
-                fontSize = 7.sp,
-                color = spiritRootColor,
-                maxLines = 1
-            )
-        }
-    }
+    val coreAttrValue = theme.getCoreAttributeValue(disciple)
+    HorizontalDiscipleCard(
+        disciple = disciple,
+        extraAttributes = listOf(theme.coreAttributeName to coreAttrValue),
+        onClick = onClick
+    )
 }
 
 @Composable
@@ -635,7 +611,7 @@ private fun RealmFilterRow(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        realmFilters.chunked(5).forEach { chunk ->
+        realmFilters.chunked(4).forEach { chunk ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -715,13 +691,11 @@ fun ProductionReserveDiscipleDialog(
                         contentAlignment = Alignment.Center
                     ) { Text(text = "暂无储备弟子", fontSize = 12.sp, color = Color(0xFF999999)) }
                 } else {
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(5),
+                    LazyColumn(
                         modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        items(reserveDisciples) { disciple ->
+                        items(reserveDisciples, key = { it.id }) { disciple ->
                             ProductionReserveDiscipleCard(
                                 theme = theme,
                                 disciple = disciple,
@@ -742,36 +716,13 @@ private fun ProductionReserveDiscipleCard(
     disciple: DiscipleAggregate,
     onRemove: () -> Unit
 ) {
-    val spiritRootColor = try {
-        Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))
-    } catch (e: Exception) {
-        Color(0xFF666666)
-    }
-
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(
-            modifier = Modifier
-                .size(60.dp)
-                .clip(RoundedCornerShape(6.dp))
-                .background(GameColors.PageBackground)
-                .border(1.dp, spiritRootColor, RoundedCornerShape(6.dp)),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(text = disciple.name, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.Black, maxLines = 1)
-                    if (disciple.isFollowed) { FollowedTag() }
-                }
-                Text(text = disciple.spiritRootType, fontSize = 7.sp, color = spiritRootColor, maxLines = 1)
-                Text(text = disciple.realmName, fontSize = 8.sp, color = Color(0xFF666666), maxLines = 1)
-                Text(
-                    text = "${theme.coreAttributeName}:${theme.getCoreAttributeValue(disciple)}",
-                    fontSize = 7.sp,
-                    color = theme.coreAttributeColor,
-                    maxLines = 1
-                )
-            }
-        }
+        val coreAttrValue = theme.getCoreAttributeValue(disciple)
+        HorizontalDiscipleCard(
+            disciple = disciple,
+            extraAttributes = listOf(theme.coreAttributeName to coreAttrValue),
+            onClick = {}
+        )
         Spacer(modifier = Modifier.height(2.dp))
         Box(
             modifier = Modifier
@@ -780,7 +731,7 @@ private fun ProductionReserveDiscipleCard(
                 .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
                 .clickable { onRemove() }
                 .padding(horizontal = 6.dp, vertical = 2.dp)
-        ) { Text(text = "移除", fontSize = 8.sp, color = Color.Black) }
+        ) { Text(text = "移除", fontSize = 10.sp, color = Color.Black) }
     }
 }
 
@@ -828,14 +779,11 @@ fun ProductionAddReserveDiscipleDialog(
                         contentAlignment = Alignment.Center
                     ) { Text(text = "暂无可用弟子", fontSize = 12.sp, color = Color(0xFF999999)) }
                 } else {
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(5),
+                    LazyColumn(
                         modifier = Modifier.fillMaxWidth().weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        items(availableDisciples.size) { index ->
-                            val disciple = availableDisciples[index]
+                        items(availableDisciples, key = { it.id }) { disciple ->
                             val isSelected = selectedIds.contains(disciple.id)
                             ProductionAddReserveDiscipleSelectCard(
                                 theme = theme,
@@ -869,38 +817,11 @@ private fun ProductionAddReserveDiscipleSelectCard(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    val spiritRootColor = try {
-        Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))
-    } catch (e: Exception) {
-        Color(0xFF666666)
-    }
-
-    val borderColor = if (isSelected) Color(0xFFFFD700) else spiritRootColor
-    val borderWidth = if (isSelected) (if (theme == ALCHEMY_THEME) 3.dp else 2.dp) else 1.dp
-    val bgColor = if (isSelected) (if (theme == ALCHEMY_THEME) Color(0xFFFFF8E1) else GameColors.PageBackground) else GameColors.PageBackground
-
-    Box(
-        modifier = Modifier
-            .size(60.dp)
-            .clip(RoundedCornerShape(6.dp))
-            .background(bgColor)
-            .border(borderWidth, borderColor, RoundedCornerShape(6.dp))
-            .clickable { onClick() },
-        contentAlignment = Alignment.Center
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(text = disciple.name, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.Black, maxLines = 1)
-                if (disciple.isFollowed) { FollowedTag() }
-            }
-            Text(text = disciple.spiritRootType, fontSize = 7.sp, color = spiritRootColor, maxLines = 1)
-            Text(text = disciple.realmName, fontSize = 8.sp, color = Color(0xFF666666), maxLines = 1)
-            Text(
-                text = "${theme.coreAttributeName}:${theme.getCoreAttributeValue(disciple)}",
-                fontSize = 7.sp,
-                color = theme.coreAttributeColor,
-                maxLines = 1
-            )
-        }
-    }
+    val coreAttrValue = theme.getCoreAttributeValue(disciple)
+    HorizontalDiscipleCard(
+        disciple = disciple,
+        isSelected = isSelected,
+        extraAttributes = listOf(theme.coreAttributeName to coreAttrValue),
+        onClick = onClick
+    )
 }

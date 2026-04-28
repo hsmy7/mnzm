@@ -13,10 +13,6 @@ class WorldMapViewModel @Inject constructor(
     private val gameEngine: GameEngine
 ) : BaseViewModel() {
 
-    companion object {
-        private const val TAG = "WorldMapViewModel"
-    }
-
     val worldMapRenderData: StateFlow<WorldMapRenderData> = gameEngine.worldMapRenderData
         .stateIn(viewModelScope, sharingStarted, WorldMapRenderData())
 
@@ -43,6 +39,72 @@ class WorldMapViewModel @Inject constructor(
 
     private val _battleTeamMoveMode = MutableStateFlow(false)
     val battleTeamMoveMode: StateFlow<Boolean> = _battleTeamMoveMode.asStateFlow()
+
+    private val _selectedTeamId = MutableStateFlow<String?>(null)
+    val selectedTeamId: StateFlow<String?> = _selectedTeamId.asStateFlow()
+
+    enum class TeamInteractionMode { NONE, MOVE, ATTACK }
+
+    private val _teamInteractionMode = MutableStateFlow(TeamInteractionMode.NONE)
+    val teamInteractionMode: StateFlow<TeamInteractionMode> = _teamInteractionMode.asStateFlow()
+
+    fun toggleTeamExpanded(teamId: String) {
+        if (_selectedTeamId.value == teamId) {
+            _selectedTeamId.value = null
+            _teamInteractionMode.value = TeamInteractionMode.NONE
+        } else {
+            _selectedTeamId.value = teamId
+            _teamInteractionMode.value = TeamInteractionMode.NONE
+        }
+    }
+
+    fun clearTeamExpansion() {
+        _selectedTeamId.value = null
+        _teamInteractionMode.value = TeamInteractionMode.NONE
+    }
+
+    fun startTeamMoveMode(teamId: String) {
+        _selectedTeamId.value = teamId
+        _teamInteractionMode.value = TeamInteractionMode.MOVE
+    }
+
+    fun startTeamAttackMode(teamId: String) {
+        _selectedTeamId.value = teamId
+        _teamInteractionMode.value = TeamInteractionMode.ATTACK
+    }
+
+    fun getMoveTargetSectIds(): List<String> {
+        val data = gameEngine.gameData.value
+        val playerSectId = data.worldMapSects.find { it.isPlayerSect }?.id ?: ""
+        return data.worldMapSects.filter { sect ->
+            sect.isPlayerSect || (sect.isPlayerOccupied && sect.occupierSectId == playerSectId)
+        }.map { it.id }
+    }
+
+    fun getAttackTargetSectIds(): List<String> = getMovableTargetSectIds()
+
+    fun getHighlightedSectIds(): Set<String> {
+        return when (_teamInteractionMode.value) {
+            TeamInteractionMode.MOVE -> getMoveTargetSectIds().toSet()
+            TeamInteractionMode.ATTACK -> getAttackTargetSectIds().toSet()
+            TeamInteractionMode.NONE -> if (_battleTeamMoveMode.value) getMovableTargetSectIds().toSet() else emptySet()
+        }
+    }
+
+    fun selectTeamTarget(targetSectId: String) {
+        val teamId = _selectedTeamId.value ?: return
+        when (_teamInteractionMode.value) {
+            TeamInteractionMode.MOVE -> {
+                gameEngine.startBattleTeamMove(teamId, targetSectId)
+                clearTeamExpansion()
+            }
+            TeamInteractionMode.ATTACK -> {
+                gameEngine.startBattleTeamMove(teamId, targetSectId)
+                clearTeamExpansion()
+            }
+            TeamInteractionMode.NONE -> {}
+        }
+    }
 
     fun openScoutDialog(sectId: String) {
         _selectedScoutSectId.value = sectId
@@ -174,7 +236,7 @@ class WorldMapViewModel @Inject constructor(
         _battleTeamMoveMode.value = false
     }
 
-    fun selectBattleTeamTarget(targetSectId: String) {
+    fun selectBattleTeamTarget(teamId: String, targetSectId: String) {
         val data = gameEngine.gameData.value
         val playerSect = data.worldMapSects.find { it.isPlayerSect }
         val targetSect = data.worldMapSects.find { it.id == targetSectId }
@@ -199,7 +261,7 @@ class WorldMapViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            gameEngine.startBattleTeamMove(targetSectId)
+            gameEngine.startBattleTeamMove(teamId, targetSectId)
             _battleTeamMoveMode.value = false
         }
     }

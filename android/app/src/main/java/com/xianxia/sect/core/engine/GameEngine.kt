@@ -118,7 +118,7 @@ class GameEngine @Inject constructor(
                 worldMapSects = data.worldMapSects,
                 cultivatorCaves = data.cultivatorCaves ?: emptyList(),
                 caveExplorationTeams = data.caveExplorationTeams ?: emptyList(),
-                battleTeam = data.battleTeam,
+                battleTeams = data.battleTeams,
                 aiBattleTeams = data.aiBattleTeams ?: emptyList()
             )
         }.distinctUntilChanged()
@@ -187,6 +187,8 @@ class GameEngine @Inject constructor(
                 }
             }
         }
+
+        discipleService.syncAllDiscipleStatuses()
     }
 
     suspend fun createNewGame(sectName: String, currentSlot: Int = 1) {
@@ -2545,9 +2547,9 @@ class GameEngine @Inject constructor(
         createExplorationTeam(name, memberIds, location, dungeonName, duration, data.gameYear, data.gameMonth, data.gameDay)
     }
 
-    fun startBattleTeamMove(targetSectId: String) {
+    fun startBattleTeamMove(teamId: String, targetSectId: String) {
         val data = stateStore.gameData.value
-        val team = data.battleTeam ?: return
+        val team = data.battleTeams.find { it.id == teamId } ?: return
         val targetSect = data.worldMapSects.find { it.id == targetSectId } ?: return
 
         val updatedTeam = team.copy(
@@ -2561,7 +2563,9 @@ class GameEngine @Inject constructor(
             moveProgress = 0f,
             isReturning = false
         )
-        updateGameDataSync { it.copy(battleTeam = updatedTeam) }
+        updateGameDataSync {
+            it.copy(battleTeams = it.battleTeams.map { t -> if (t.id == teamId) updatedTeam else t })
+        }
     }
 
     fun toggleSmartBattle() {

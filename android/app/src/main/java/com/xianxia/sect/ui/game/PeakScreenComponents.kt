@@ -27,6 +27,7 @@ import com.xianxia.sect.ui.components.ElderBonusInfoButton
 import com.xianxia.sect.ui.components.ElderBonusInfo
 import com.xianxia.sect.ui.components.ElderBonusInfoProvider
 import com.xianxia.sect.ui.components.FollowedTag
+import com.xianxia.sect.ui.components.HorizontalDiscipleCard
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
 
@@ -601,35 +602,13 @@ fun PeakDiscipleSelectionDialog(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(filteredDisciples) { disciple ->
+                        items(filteredDisciples, key = { it.id }) { disciple ->
                             val isCurrent = disciple.id == currentDiscipleId
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth().clip(RoundedCornerShape(6.dp))
-                                    .background(if (isCurrent) GameColors.Border else GameColors.PageBackground)
-                                    .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
-                                    .clickable { onSelect(disciple) }.padding(12.dp)
-                            ) {
-                                Row(
-                                    Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(text = disciple.name, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-                                    if (disciple.isFollowed) { FollowedTag() }
-                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                        val spiritRootColor = try {
-                                            Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))
-                                        } catch (e: Exception) { Color(0xFF666666) }
-                                        Text(text = disciple.spiritRootName, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = spiritRootColor)
-                                        Text(
-                                            text = if (isCurrent) "当前" else disciple.realmName,
-                                            fontSize = 12.sp,
-                                            color = if (isCurrent) Color(0xFF4CAF50) else Color(0xFF666666)
-                                        )
-                                    }
-                                }
-                            }
+                            HorizontalDiscipleCard(
+                                disciple = disciple,
+                                isCurrent = isCurrent,
+                                onClick = { onSelect(disciple) }
+                            )
                         }
                     }
                 }

@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.FollowedTag
+import com.xianxia.sect.ui.components.HorizontalDiscipleCard
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.theme.GameColors
 
@@ -194,71 +195,15 @@ fun TianshuHallDialog(
                     modifier = Modifier.height(300.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(eligibleDisciples) { disciple ->
-                        val spiritRootColor = try {
-                            Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))
-                        } catch (e: Exception) {
-                            Color(0xFF666666)
-                        }
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(GameColors.PageBackground)
-                                .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
-                                .clickable {
-                                    productionViewModel.setViceSectMaster(disciple.id)
-                                    showViceSectMasterSelectDialog = false
-                                }
-                                .padding(12.dp)
-                        ) {
-                            Column(
-                                verticalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Row(
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = disciple.name,
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color.Black
-                                        )
-                                        if (disciple.isFollowed) { FollowedTag() }
-                                    }
-                                    Text(
-                                        text = disciple.realmName,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.Black
-                                    )
-                                }
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = disciple.spiritRootName,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = spiritRootColor,
-                                        maxLines = 1
-                                    )
-                                    Text(
-                                        text = "智力:${disciple.intelligence}",
-                                        fontSize = 11.sp,
-                                        color = Color(0xFF666666)
-                                    )
-                                }
+                    items(eligibleDisciples, key = { it.id }) { disciple ->
+                        HorizontalDiscipleCard(
+                            disciple = disciple,
+                            extraAttributes = listOf("智力" to disciple.intelligence),
+                            onClick = {
+                                productionViewModel.setViceSectMaster(disciple.id)
+                                showViceSectMasterSelectDialog = false
                             }
-                        }
+                        )
                     }
                 }
             },

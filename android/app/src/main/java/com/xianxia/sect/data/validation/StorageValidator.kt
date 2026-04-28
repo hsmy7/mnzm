@@ -1,3 +1,4 @@
+@file:Suppress("DEPRECATION")
 package com.xianxia.sect.data.validation
 
 import android.annotation.SuppressLint
@@ -604,6 +605,7 @@ object StorageValidator {
      * 仅验证签名格式（不验证数据匹配）
      * 用于在无法获取原始数据时进行基本的签名有效性检查
      */
+    @Suppress("DEPRECATION")
     private fun verifySignatureFormat(payload: SignedPayload, key: ByteArray): CryptoVerificationResult {
         return try {
             // 检查版本

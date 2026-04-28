@@ -1,6 +1,5 @@
 package com.xianxia.sect.ui.game
 
-import android.util.Log
 import androidx.lifecycle.viewModelScope
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.GameEngine
@@ -19,7 +18,6 @@ class BattleViewModel @Inject constructor(
 ) : BaseViewModel() {
     
     companion object {
-        private const val TAG = "BattleViewModel"
         const val BATTLE_TEAM_FORMATION_COST = 1000L
     }
     
@@ -37,7 +35,11 @@ class BattleViewModel @Inject constructor(
     
     private val _battleTeamMoveMode = MutableStateFlow(false)
     val battleTeamMoveMode: StateFlow<Boolean> = _battleTeamMoveMode.asStateFlow()
-    
+
+    private var moveModeTeamId: String = ""
+
+    val battleTeamMoveModeTeamId: String get() = moveModeTeamId
+
     private val _battleTeamSlots = MutableStateFlow<List<BattleTeamSlot>>(buildList {
         repeat(GameConfig.Battle.ELDER_SLOTS) { index ->
             add(BattleTeamSlot(index, slotType = BattleSlotType.ELDER))
@@ -48,30 +50,47 @@ class BattleViewModel @Inject constructor(
     })
     val battleTeamSlots: StateFlow<List<BattleTeamSlot>> = _battleTeamSlots.asStateFlow()
     
-    fun hasBattleTeam(): Boolean {
-        return gameEngine.gameData.value.battleTeam != null
+    fun getBattleTeamCount(): Int {
+        return gameEngine.gameData.value.battleTeams.size
     }
-    
+
+    fun getBattleTeamsAtSect(): List<BattleTeam> {
+        return gameEngine.gameData.value.battleTeams.filter { it.isAtSect }
+    }
+
     fun hasBattleTeamAtSect(): Boolean {
-        val team = gameEngine.gameData.value.battleTeam
-        return team != null && team.isAtSect
+        return gameEngine.gameData.value.battleTeams.any { it.isAtSect }
     }
-    
-    fun getBattleTeam(): BattleTeam? {
-        return gameEngine.gameData.value.battleTeam
+
+    fun getBattleTeam(teamId: String): BattleTeam? {
+        return gameEngine.gameData.value.battleTeams.find { it.id == teamId }
     }
-    
-    fun getAvailableDisciplesForBattleTeamSlot(slotIndex: Int): List<DiscipleAggregate> {
-        val battleTeam = gameEngine.gameData.value.battleTeam ?: return emptyList()
-        val currentSlotDiscipleIds = battleTeam.slots.mapNotNull { it.discipleId }
-        
+
+    fun getAvailableDisciplesForBattleTeamSlot(teamId: String, slotIndex: Int): List<DiscipleAggregate> {
+        val battleTeam = gameEngine.gameData.value.battleTeams.find { it.id == teamId } ?: return emptyList()
+        val allTeams = gameEngine.gameData.value.battleTeams
+        val allOccupiedIds = allTeams.flatMap { t -> t.slots.mapNotNull { it.discipleId } }.toSet()
+
         return disciples.value.filter { disciple ->
             disciple.isAlive &&
             disciple.realmLayer > 0 &&
             disciple.status == DiscipleStatus.IDLE &&
-            !currentSlotDiscipleIds.contains(disciple.id) &&
+            !allOccupiedIds.contains(disciple.id) &&
             !disciplePositionQuery.isPositionWorkStatus(disciple.id)
         }.sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
+    }
+
+    private fun allocateTeamNumber(): Int {
+        val usedNumbers = gameEngine.gameData.value.usedTeamNumbers.toSet()
+        var n = 1
+        while (n in usedNumbers) n++
+        return n
+    }
+
+    private suspend fun releaseTeamNumber(teamNumber: Int) {
+        gameEngine.updateGameData {
+            it.copy(usedTeamNumbers = it.usedTeamNumbers.filter { num -> num != teamNumber })
+        }
     }
     
     fun formBattleTeam(elderIds: List<String>, discipleIds: List<String>): Boolean {
@@ -124,17 +143,21 @@ class BattleViewModel @Inject constructor(
                     }
                 }
                 
+                val teamNumber = allocateTeamNumber()
                 val battleTeam = BattleTeam(
                     id = java.util.UUID.randomUUID().toString(),
+                    teamNumber = teamNumber,
+                    name = "战斗${teamNumber}队",
                     slots = slots,
                     status = "idle",
                     isAtSect = true
                 )
-                
-                gameEngine.updateGameData { 
+
+                gameEngine.updateGameData {
                     it.copy(
                         spiritStones = it.spiritStones - cost,
-                        battleTeam = battleTeam
+                        battleTeams = it.battleTeams + battleTeam,
+                        usedTeamNumbers = it.usedTeamNumbers + teamNumber
                     )
                 }
                 
@@ -151,28 +174,36 @@ class BattleViewModel @Inject constructor(
         return true
     }
     
-    fun disbandBattleTeam(): Boolean {
-        val team = gameEngine.gameData.value.battleTeam
+    fun disbandBattleTeam(teamId: String): Boolean {
+        val team = gameEngine.gameData.value.battleTeams.find { it.id == teamId }
         if (team == null) {
             showError("没有可解散的战斗队伍")
             return false
         }
-        
+
+        val teamNumber = team.teamNumber
+
+        if (!team.isAtSect) {
+            // 队伍不在宗门，先召回再解散
+            startReturnToSectAndDisband(teamId)
+            return true
+        }
+
         if (!team.isIdle) {
             showError("队伍正在移动或战斗中，无法解散")
             return false
         }
-        
-        if (!team.isAtSect) {
-            showError("队伍不在宗门，无法解散")
-            return false
-        }
-        
+
         viewModelScope.launch {
             try {
-                gameEngine.updateGameData { it.copy(battleTeam = null) }
+                gameEngine.updateGameData {
+                    it.copy(
+                        battleTeams = it.battleTeams.filter { t -> t.id != teamId },
+                        usedTeamNumbers = it.usedTeamNumbers.filter { n -> n != teamNumber }
+                    )
+                }
                 gameEngine.syncAllDiscipleStatuses()
-                
+
                 _battleTeamSlots.value = buildList {
                     repeat(GameConfig.Battle.ELDER_SLOTS) { index ->
                         add(BattleTeamSlot(index, slotType = BattleSlotType.ELDER))
@@ -181,7 +212,7 @@ class BattleViewModel @Inject constructor(
                         add(BattleTeamSlot(index + GameConfig.Battle.ELDER_SLOTS, slotType = BattleSlotType.DISCIPLE))
                     }
                 }
-                
+
                 showSuccess("战斗队伍已解散")
             } catch (e: Exception) {
                 showError(e.message ?: "解散队伍失败")
@@ -189,14 +220,38 @@ class BattleViewModel @Inject constructor(
         }
         return true
     }
+
+    fun startReturnToSectAndDisband(teamId: String) {
+        val team = gameEngine.gameData.value.battleTeams.find { it.id == teamId } ?: return
+        viewModelScope.launch {
+            try {
+                val data = gameEngine.gameData.value
+                val playerSect = data.worldMapSects.find { it.isPlayerSect } ?: return@launch
+                val updatedTeam = team.copy(
+                    status = "returning",
+                    isReturning = true,
+                    isAtSect = false,
+                    moveProgress = 0f,
+                    targetX = playerSect.x,
+                    targetY = playerSect.y
+                )
+                gameEngine.updateGameData {
+                    it.copy(battleTeams = it.battleTeams.map { t -> if (t.id == teamId) updatedTeam else t })
+                }
+                showSuccess("队伍正在返回宗门解散")
+            } catch (e: Exception) {
+                showError(e.message ?: "解散队伍失败")
+            }
+        }
+    }
     
-    fun addDiscipleToBattleTeamSlot(slotIndex: Int, discipleId: String) {
+    fun addDiscipleToBattleTeamSlot(teamId: String, slotIndex: Int, discipleId: String) {
         viewModelScope.launch {
             val disciple = disciples.value.find { it.id == discipleId }
             if (disciple == null) return@launch
 
             gameEngine.updateGameData {
-                val battleTeam = it.battleTeam ?: return@updateGameData it
+                val battleTeam = it.battleTeams.find { t -> t.id == teamId } ?: return@updateGameData it
                 val updatedSlots = battleTeam.slots.map { slot ->
                     if (slot.index == slotIndex) {
                         slot.copy(
@@ -209,18 +264,18 @@ class BattleViewModel @Inject constructor(
                         slot
                     }
                 }
-                it.copy(battleTeam = battleTeam.copy(slots = updatedSlots))
+                it.copy(battleTeams = it.battleTeams.map { t -> if (t.id == teamId) t.copy(slots = updatedSlots) else t })
             }
             gameEngine.updateDiscipleStatus(discipleId, DiscipleStatus.IN_TEAM)
         }
     }
-    
-    fun removeDiscipleFromBattleTeamSlot(slotIndex: Int) {
+
+    fun removeDiscipleFromBattleTeamSlot(teamId: String, slotIndex: Int) {
         viewModelScope.launch {
             var removedDiscipleId: String? = null
 
             gameEngine.updateGameData {
-                val battleTeam = it.battleTeam ?: return@updateGameData it
+                val battleTeam = it.battleTeams.find { t -> t.id == teamId } ?: return@updateGameData it
                 val slot = battleTeam.slots.find { s -> s.index == slotIndex }
                     ?: return@updateGameData it
                 removedDiscipleId = slot.discipleId
@@ -238,7 +293,7 @@ class BattleViewModel @Inject constructor(
                         s
                     }
                 }
-                it.copy(battleTeam = battleTeam.copy(slots = updatedSlots))
+                it.copy(battleTeams = it.battleTeams.map { t -> if (t.id == teamId) t.copy(slots = updatedSlots) else t })
             }
 
             removedDiscipleId?.takeIf { it.isNotEmpty() }?.let { id ->
@@ -247,30 +302,32 @@ class BattleViewModel @Inject constructor(
         }
     }
     
-    fun startBattleTeamMoveMode() {
-        val team = gameEngine.gameData.value.battleTeam
+    fun startBattleTeamMoveMode(teamId: String) {
+        val team = gameEngine.gameData.value.battleTeams.find { it.id == teamId }
         if (team == null || !team.isIdle || !team.isAtSect) {
             showError("战斗队伍无法移动")
             return
         }
+        moveModeTeamId = teamId
         _battleTeamMoveMode.value = true
     }
-    
+
     fun cancelBattleTeamMoveMode() {
         _battleTeamMoveMode.value = false
+        moveModeTeamId = ""
     }
-    
-    fun selectBattleTeamTarget(targetSectId: String) {
+
+    fun selectBattleTeamTarget(teamId: String, targetSectId: String) {
         val data = gameEngine.gameData.value
         val playerSect = data.worldMapSects.find { it.isPlayerSect }
         val targetSect = data.worldMapSects.find { it.id == targetSectId }
-        
+
         if (playerSect == null || targetSect == null) {
             showError("无效的目标宗门")
             _battleTeamMoveMode.value = false
             return
         }
-        
+
         if (targetSect.isPlayerSect) {
             showError("不能攻击自己的宗门")
             _battleTeamMoveMode.value = false
@@ -285,18 +342,37 @@ class BattleViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            gameEngine.startBattleTeamMove(targetSectId)
+            gameEngine.startBattleTeamMove(teamId, targetSectId)
             _battleTeamMoveMode.value = false
         }
     }
-    
-    fun getMovableTargetSectIds(): List<String> {
-        val data = gameEngine.gameData.value
-        val playerSectId = data.worldMapSects.find { it.isPlayerSect }?.id ?: ""
 
-        return data.worldMapSects.filter { sect ->
-            !sect.isPlayerSect && !(sect.isPlayerOccupied && sect.occupierSectId == playerSectId)
-        }.map { it.id }
+    fun startTeamMoveToSect(teamId: String, targetSectId: String) {
+        val data = gameEngine.gameData.value
+        val team = data.battleTeams.find { it.id == teamId } ?: return
+        val targetSect = data.worldMapSects.find { it.id == targetSectId } ?: return
+        val playerSectId = data.worldMapSects.find { it.isPlayerSect }?.id ?: ""
+        val isMoveTarget = targetSect.isPlayerSect || (targetSect.isPlayerOccupied && targetSect.occupierSectId == playerSectId)
+        if (!isMoveTarget) {
+            showError("不能移动到该宗门")
+            return
+        }
+        viewModelScope.launch {
+            val updatedTeam = team.copy(
+                status = "moving",
+                targetSectId = targetSectId,
+                targetX = targetSect.x,
+                targetY = targetSect.y,
+                originSectId = playerSectId,
+                moveProgress = 0f,
+                isReturning = false,
+                isAtSect = false
+            )
+            gameEngine.updateGameData {
+                it.copy(battleTeams = it.battleTeams.map { t -> if (t.id == teamId) updatedTeam else t })
+            }
+            gameEngine.syncAllDiscipleStatuses()
+        }
     }
     
     fun isPositionWorkStatus(discipleId: String): Boolean {
@@ -314,10 +390,12 @@ class BattleViewModel @Inject constructor(
     private val _showBattleTeamDialog = MutableStateFlow(false)
     val showBattleTeamDialog: StateFlow<Boolean> = _showBattleTeamDialog.asStateFlow()
 
-    fun openBattleTeamDialog() {
-        val existingTeam = gameEngine.gameData.value.battleTeam
-        if (existingTeam != null) {
-            _battleTeamSlots.value = existingTeam.slots
+    fun openBattleTeamDialog(teamId: String? = null) {
+        if (teamId != null) {
+            val existingTeam = gameEngine.gameData.value.battleTeams.find { it.id == teamId }
+            if (existingTeam != null) {
+                _battleTeamSlots.value = existingTeam.slots
+            }
         } else {
             _battleTeamSlots.value = buildList {
                 repeat(GameConfig.Battle.ELDER_SLOTS) { index ->
@@ -410,23 +488,24 @@ class BattleViewModel @Inject constructor(
             return false
         }
 
-        val existingTeam = gameEngine.gameData.value.battleTeam
-        if (existingTeam != null && existingTeam.isAtSect) {
-            showError("宗门地址上已存在战斗队伍")
-            return false
-        }
-
         viewModelScope.launch {
             try {
+                val teamNumber = allocateTeamNumber()
                 val battleTeam = BattleTeam(
                     id = java.util.UUID.randomUUID().toString(),
-                    name = "战斗队伍",
+                    teamNumber = teamNumber,
+                    name = "战斗${teamNumber}队",
                     slots = currentSlots,
                     isAtSect = true,
                     status = "idle"
                 )
 
-                gameEngine.updateGameData { it.copy(battleTeam = battleTeam) }
+                gameEngine.updateGameData {
+                    it.copy(
+                        battleTeams = it.battleTeams + battleTeam,
+                        usedTeamNumbers = it.usedTeamNumbers + teamNumber
+                    )
+                }
                 gameEngine.syncAllDiscipleStatuses()
 
                 closeBattleTeamDialog()
@@ -437,8 +516,8 @@ class BattleViewModel @Inject constructor(
         return true
     }
 
-    fun returnStationedBattleTeam() {
-        val team = gameEngine.gameData.value.battleTeam
+    fun returnStationedBattleTeam(teamId: String) {
+        val team = gameEngine.gameData.value.battleTeams.find { it.id == teamId }
         if (team == null) {
             showError("没有可召回的战斗队伍")
             return
@@ -488,13 +567,15 @@ class BattleViewModel @Inject constructor(
                             gameData.isGameOver
                         }
                         gameData.copy(
-                            battleTeam = updatedTeam,
+                            battleTeams = gameData.battleTeams.map { t -> if (t.id == teamId) updatedTeam else t },
                             worldMapSects = updatedSects,
                             isGameOver = isGameOver
                         )
                     }
                 } else {
-                    gameEngine.updateGameData { it.copy(battleTeam = null) }
+                    gameEngine.updateGameData {
+                        it.copy(battleTeams = it.battleTeams.filter { t -> t.id != teamId })
+                    }
                     gameEngine.syncAllDiscipleStatuses()
                 }
 

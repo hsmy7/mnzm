@@ -47,6 +47,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.xianxia.sect.core.ChangelogData
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.RedeemResult
@@ -262,7 +263,8 @@ internal fun SettingsTab(
     var showRestartConfirmDialog by remember { mutableStateOf(false) }
     var showResetDisciplesConfirmDialog by remember { mutableStateOf(false) }
     var showRedeemCodeDialog by remember { mutableStateOf(false) }
-    
+    var showChangelogDialog by remember { mutableStateOf(false) }
+
     val showRedeemCodeDialogState by viewModel.showRedeemCodeDialog.collectAsState()
     val redeemResult by viewModel.redeemResult.collectAsState()
     
@@ -595,6 +597,22 @@ internal fun SettingsTab(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(6.dp))
+                        .background(GameColors.ButtonBackground)
+                        .clickable { showChangelogDialog = true }
+                        .padding(vertical = 12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "更新日志",
+                        fontSize = 12.sp,
+                        color = Color.Black
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(6.dp))
                         .background(Color(0xFFF39C12))
                         .clickable { showResetDisciplesConfirmDialog = true }
                         .padding(vertical = 12.dp),
@@ -740,6 +758,10 @@ internal fun SettingsTab(
             viewModel = viewModel,
             onDismiss = { viewModel.closeRedeemCodeDialog() }
         )
+    }
+
+    if (showChangelogDialog) {
+        ChangelogDialog(onDismiss = { showChangelogDialog = false })
     }
 }
 
@@ -1038,4 +1060,95 @@ internal fun SaveSlotCard(
             }
         }
     }
+}
+
+@Composable
+private fun ChangelogDialog(onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = GameColors.PageBackground,
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "更新日志",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+                Box(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clip(CircleShape)
+                        .clickable { onDismiss() }
+                        .background(GameColors.CardBackground),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(text = "×", fontSize = 16.sp, color = Color(0xFF666666))
+                }
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 450.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                ChangelogData.entries.forEach { entry ->
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(GameColors.CardBackground)
+                            .padding(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "v${entry.version}",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = GameColors.GoldDark
+                            )
+                            Text(
+                                text = entry.date,
+                                fontSize = 10.sp,
+                                color = Color(0xFF999999)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        entry.changes.forEach { change ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 1.dp)
+                            ) {
+                                Text(
+                                    text = "•",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFF666666)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = change,
+                                    fontSize = 11.sp,
+                                    color = Color(0xFF333333),
+                                    lineHeight = 18.sp
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {}
+    )
 }

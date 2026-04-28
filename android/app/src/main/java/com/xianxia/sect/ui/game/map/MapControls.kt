@@ -36,16 +36,13 @@ fun BoxScope.MapControls(
         Box(
             modifier = Modifier
                 .clip(RoundedCornerShape(MapStyle.Dimensions.controlButtonBorderRadius))
-                .background(
-                    if (hasBattleTeam && isBattleTeamAtSect) MapStyle.Colors.controlButtonDisabled
-                    else MapStyle.Colors.controlButtonBg
-                )
+                .background(MapStyle.Colors.controlButtonBg)
                 .border(
                     MapStyle.Dimensions.controlButtonBorderWidth,
                     MapStyle.Colors.controlButtonBorder,
                     RoundedCornerShape(MapStyle.Dimensions.controlButtonBorderRadius)
                 )
-                .clickable { if (!hasBattleTeam || !isBattleTeamAtSect) onCreateTeamClick() }
+                .clickable { onCreateTeamClick() }
                 .padding(
                     horizontal = MapStyle.Dimensions.controlButtonPaddingH,
                     vertical = MapStyle.Dimensions.controlButtonPaddingV
@@ -53,11 +50,10 @@ fun BoxScope.MapControls(
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = if (hasBattleTeam && isBattleTeamAtSect) "已组建" else "组建队伍",
+                text = "组建队伍",
                 fontSize = MapStyle.Typography.controlButton,
                 fontWeight = FontWeight.Bold,
-                color = if (hasBattleTeam && isBattleTeamAtSect) MapStyle.Colors.controlButtonDisabledText
-                else MapStyle.Colors.controlButtonText
+                color = MapStyle.Colors.controlButtonText
             )
         }
 

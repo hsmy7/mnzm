@@ -120,12 +120,10 @@ class DiscipleService @Inject constructor(
         if (disciple.status == DiscipleStatus.REFLECTING) return DiscipleStatus.REFLECTING
         if (disciple.status == DiscipleStatus.ON_MISSION) return DiscipleStatus.ON_MISSION
 
-        val battleTeam = data.battleTeam
-        if (battleTeam != null && battleTeam.status != "idle") {
-            if (battleTeam.slots.any { it.discipleId == discipleId }) {
-                return DiscipleStatus.IN_TEAM
-            }
+        val inTeam = data.battleTeams.any { team ->
+            team.status != "idle" && team.slots.any { it.discipleId == discipleId }
         }
+        if (inTeam) return DiscipleStatus.IN_TEAM
 
         if (_isInExploration(discipleId)) return DiscipleStatus.IN_TEAM
 
@@ -155,7 +153,13 @@ class DiscipleService @Inject constructor(
             elderSlots.innerElder == discipleId ||
             elderSlots.forgeElder == discipleId ||
             elderSlots.alchemyElder == discipleId ||
-            elderSlots.herbGardenElder == discipleId) {
+            elderSlots.herbGardenElder == discipleId ||
+            elderSlots.herbGardenDisciples.any { it.discipleId == discipleId } ||
+            elderSlots.alchemyDisciples.any { it.discipleId == discipleId } ||
+            elderSlots.forgeDisciples.any { it.discipleId == discipleId } ||
+            elderSlots.herbGardenReserveDisciples.any { it.discipleId == discipleId } ||
+            elderSlots.alchemyReserveDisciples.any { it.discipleId == discipleId } ||
+            elderSlots.forgeReserveDisciples.any { it.discipleId == discipleId }) {
             return DiscipleStatus.MANAGING
         }
 
@@ -199,6 +203,12 @@ class DiscipleService @Inject constructor(
         elderSlots.forgeElder?.let { managingIds.add(it) }
         elderSlots.alchemyElder?.let { managingIds.add(it) }
         elderSlots.herbGardenElder?.let { managingIds.add(it) }
+        elderSlots.herbGardenDisciples.forEach { if (it.discipleId.isNotEmpty()) managingIds.add(it.discipleId) }
+        elderSlots.alchemyDisciples.forEach { if (it.discipleId.isNotEmpty()) managingIds.add(it.discipleId) }
+        elderSlots.forgeDisciples.forEach { if (it.discipleId.isNotEmpty()) managingIds.add(it.discipleId) }
+        elderSlots.herbGardenReserveDisciples.forEach { if (it.discipleId.isNotEmpty()) managingIds.add(it.discipleId) }
+        elderSlots.alchemyReserveDisciples.forEach { if (it.discipleId.isNotEmpty()) managingIds.add(it.discipleId) }
+        elderSlots.forgeReserveDisciples.forEach { if (it.discipleId.isNotEmpty()) managingIds.add(it.discipleId) }
 
         val studyingIds = data.librarySlots.mapNotNull { it.discipleId }.toMutableSet()
 
@@ -222,9 +232,8 @@ class DiscipleService @Inject constructor(
         }
 
         val inTeamIds = mutableSetOf<String>()
-        val battleTeam = data.battleTeam
-        if (battleTeam != null && battleTeam.status != "idle") {
-            battleTeam.slots.mapNotNull { it.discipleId }.forEach { inTeamIds.add(it) }
+        data.battleTeams.filter { it.status != "idle" }.forEach { team ->
+            team.slots.mapNotNull { it.discipleId }.forEach { inTeamIds.add(it) }
         }
 
         currentTeams.filter { it.status == ExplorationStatus.TRAVELING || it.status == ExplorationStatus.EXPLORING || it.status == ExplorationStatus.SCOUTING || it.status == ExplorationStatus.DANGER }
@@ -280,7 +289,7 @@ class DiscipleService @Inject constructor(
 
         val clearedElderSlots = clearAllDisciplesFromElderSlots(data.elderSlots, reflectingIds)
 
-        val clearedBattleTeam = data.battleTeam?.let { team ->
+        val clearedBattleTeams = data.battleTeams.map { team ->
             if (team.status != "idle") {
                 team.copy(
                     slots = team.slots.map { slot ->
@@ -319,7 +328,7 @@ class DiscipleService @Inject constructor(
             spiritMineSlots = clearedSpiritMineSlots,
             librarySlots = clearedLibrarySlots,
             elderSlots = clearedElderSlots,
-            battleTeam = clearedBattleTeam,
+            battleTeams = clearedBattleTeams,
             caveExplorationTeams = clearedCaveTeams,
             activeMissions = clearedActiveMissions
         )

@@ -2,6 +2,7 @@ package com.xianxia.sect.core.model
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Ignore
 import androidx.room.Index
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.production.ProductionSlot
@@ -152,8 +153,13 @@ data class GameData(
     // 宗门政策
     var sectPolicies: SectPolicies = SectPolicies(),
 
-    // 战斗队伍（宗门地址上只能存在一支）
-    var battleTeam: BattleTeam? = null,
+    // 战斗队伍（支持多队伍，存储为序列化数据，Room忽略）
+    @Ignore
+    var battleTeams: List<BattleTeam> = emptyList(),
+
+    // 已使用的队伍编号（用于解散后编号复用，Room忽略）
+    @Ignore
+    var usedTeamNumbers: List<Int> = emptyList(),
 
     // AI战斗队伍
     var aiBattleTeams: List<AIBattleTeam> = emptyList(),
@@ -223,7 +229,7 @@ data class GameData(
     val organization: SectOrganizationState get() = SectOrganizationState(
         elderSlots = elderSlots,
         alliances = alliances,
-        battleTeam = battleTeam,
+        battleTeams = battleTeams,
         aiBattleTeams = aiBattleTeams,
         sectPolicies = sectPolicies,
         activeMissions = activeMissions,
@@ -276,7 +282,7 @@ data class GameData(
     fun withOrganization(state: SectOrganizationState): GameData = this.copy(
         elderSlots = state.elderSlots,
         alliances = state.alliances,
-        battleTeam = state.battleTeam,
+        battleTeams = state.battleTeams,
         aiBattleTeams = state.aiBattleTeams,
         sectPolicies = state.sectPolicies,
         activeMissions = state.activeMissions,
@@ -357,8 +363,8 @@ data class ElderSlots(
             preachingMasters, lawEnforcementDisciples, lawEnforcementReserveDisciples,
             qingyunPreachingMasters, spiritMineDeaconDisciples,
             alchemyReserveDisciples, herbGardenReserveDisciples, forgeReserveDisciples
-        ).flatten().mapNotNull { it.discipleId }
-        
+        ).flatten().mapNotNull { it.discipleId.ifEmpty { null } }
+
         return allDirectDiscipleIds.contains(discipleId)
     }
 }
@@ -477,7 +483,7 @@ data class WorldMapRenderData(
     val worldMapSects: List<WorldSect> = emptyList(),
     val cultivatorCaves: List<CultivatorCave> = emptyList(),
     val caveExplorationTeams: List<CaveExplorationTeam> = emptyList(),
-    val battleTeam: BattleTeam? = null,
+    val battleTeams: List<BattleTeam> = emptyList(),
     val aiBattleTeams: List<AIBattleTeam> = emptyList()
 )
 
@@ -623,6 +629,7 @@ data class SectRelation(
 data class BattleTeam(
     val id: String = java.util.UUID.randomUUID().toString(),
     val name: String = "战斗队伍",
+    val teamNumber: Int = 0,
     val slots: List<BattleTeamSlot> = buildList {
         repeat(2) { index ->
             add(BattleTeamSlot(index, slotType = BattleSlotType.ELDER))

@@ -369,20 +369,22 @@ fun MainGameScreen(
         }
         
         if (showBattleTeamDialog) {
-            val hasExistingTeam = battleViewModel.hasBattleTeam()
-            val battleTeam = gameData.battleTeam
+            val teamCount = battleViewModel.getBattleTeamCount()
+            val firstTeam = gameData.battleTeams.firstOrNull()
+            val viewingTeamId = firstTeam?.id ?: ""
             BattleTeamDialog(
                 slots = battleTeamSlots,
-                hasExistingTeam = hasExistingTeam,
-                teamStatus = battleTeam?.status ?: "idle",
-                isAtSect = battleTeam?.isAtSect ?: true,
-                isOccupying = battleTeam?.isOccupying ?: false,
+                hasExistingTeam = teamCount > 0,
+                teamStatus = firstTeam?.status ?: "idle",
+                isAtSect = firstTeam?.isAtSect ?: true,
+                isOccupying = firstTeam?.isOccupying ?: false,
+                teamId = viewingTeamId,
                 onSlotClick = { slotIndex -> selectedBattleTeamSlotIndex = slotIndex },
-                onRemoveClick = { slotIndex -> battleViewModel.removeDiscipleFromBattleTeamSlot(slotIndex) },
+                onRemoveClick = { slotIndex -> battleViewModel.removeDiscipleFromBattleTeamSlot(viewingTeamId, slotIndex) },
                 onCreateTeam = { battleViewModel.createBattleTeam() },
-                onMoveClick = { battleViewModel.startBattleTeamMoveMode() },
-                onDisbandClick = { battleViewModel.disbandBattleTeam() },
-                onReturnClick = { battleViewModel.returnStationedBattleTeam() },
+                onMoveClick = { battleViewModel.startBattleTeamMoveMode(viewingTeamId) },
+                onDisbandClick = { battleViewModel.disbandBattleTeam(viewingTeamId) },
+                onReturnClick = { battleViewModel.returnStationedBattleTeam(viewingTeamId) },
                 onDismiss = { battleViewModel.closeBattleTeamDialog() }
             )
         }

@@ -2004,8 +2004,13 @@ class CultivationService @Inject constructor(
 
     private suspend fun processPlayerBattleTeamMovement() {
         val data = currentGameData
-        val team = data.battleTeam
-        if (team == null) return
+        for (team in data.battleTeams) {
+            processSingleBattleTeamMovement(team)
+        }
+    }
+
+    private suspend fun processSingleBattleTeamMovement(team: BattleTeam) {
+        val data = currentGameData
 
         if (team.status == "moving") {
             val playerSect = data.worldMapSects.find { it.isPlayerSect } ?: return
@@ -2039,10 +2044,28 @@ class CultivationService @Inject constructor(
                 )
             }
 
-            currentGameData = data.copy(battleTeam = updatedTeam)
+            currentGameData = currentGameData.copy(
+                battleTeams = currentGameData.battleTeams.map { t -> if (t.id == team.id) updatedTeam else t }
+            )
 
             if (newProgress >= 1f) {
-                executePlayerBattleTeamBattle(updatedTeam, targetSect)
+                val playerSectId = data.worldMapSects.find { it.isPlayerSect }?.id ?: ""
+                val isFriendlyTarget = targetSect.isPlayerSect ||
+                    (targetSect.isPlayerOccupied && targetSect.occupierSectId == playerSectId)
+                if (isFriendlyTarget) {
+                    // Deploy to friendly sect — no battle
+                    currentGameData = currentGameData.copy(
+                        battleTeams = currentGameData.battleTeams.map { t ->
+                            if (t.id == team.id) t.copy(
+                                status = "stationed",
+                                isAtSect = false,
+                                targetSectId = targetSect.id
+                            ) else t
+                        }
+                    )
+                } else {
+                    executePlayerBattleTeamBattle(updatedTeam, targetSect)
+                }
             }
         } else if (team.isReturning && team.status == "returning") {
             val playerSect = data.worldMapSects.find { it.isPlayerSect } ?: return
@@ -2084,7 +2107,18 @@ class CultivationService @Inject constructor(
                 )
             }
 
-            currentGameData = data.copy(battleTeam = updatedTeam)
+            currentGameData = currentGameData.copy(
+                battleTeams = currentGameData.battleTeams.map { t -> if (t.id == team.id) updatedTeam else t }
+            )
+
+            // 返回宗门后如果是待解散状态，执行解散
+            if (newProgress >= 1f && team.isReturning) {
+                currentGameData = currentGameData.copy(
+                    battleTeams = currentGameData.battleTeams.filter { t -> t.id != team.id },
+                    usedTeamNumbers = currentGameData.usedTeamNumbers.filter { n -> n != team.teamNumber }
+                )
+                eventService.addGameEvent("${team.name}返回宗门后解散", EventType.INFO)
+            }
         }
     }
 
@@ -2097,7 +2131,9 @@ class CultivationService @Inject constructor(
 
         if (teamDisciples.isEmpty()) {
             currentGameData = currentGameData.copy(
-                battleTeam = team.copy(status = "idle", isAtSect = true, targetSectId = "", moveProgress = 0f)
+                battleTeams = currentGameData.battleTeams.map { t ->
+                    if (t.id == team.id) t.copy(status = "idle", isAtSect = true, targetSectId = "", moveProgress = 0f) else t
+                }
             )
             return
         }
@@ -2181,10 +2217,10 @@ class CultivationService @Inject constructor(
                 val hasAiGarrison = currentGameData.aiBattleTeams.any {
                     ((it.isGarrison && it.garrisonSectId == targetSect.id) || it.id == currentTargetSect.garrisonTeamId) && it.status != "completed"
                 }
-                val hasPlayerGarrison = currentGameData.battleTeam?.let { bt ->
+                val hasPlayerGarrison = currentGameData.battleTeams.any { bt ->
                     bt.isOccupying && bt.occupiedSectId == targetSect.id &&
                     (bt.status == "stationed" || bt.status == "idle" || bt.isAtSect)
-                } ?: false
+                }
                 !hasAiGarrison && !hasPlayerGarrison
             } else {
                 val hasDefenderBattleTeams = currentGameData.aiBattleTeams.any {
@@ -2213,14 +2249,16 @@ class CultivationService @Inject constructor(
                         sect
                     }
                 },
-                battleTeam = team.copy(
-                    status = "stationed",
-                    slots = aliveTeamSlots,
-                    isAtSect = false,
-                    targetSectId = targetSect.id,
-                    isOccupying = true,
-                    occupiedSectId = targetSect.id
-                ),
+                battleTeams = currentGameData.battleTeams.map { t ->
+                    if (t.id == team.id) t.copy(
+                        status = "stationed",
+                        slots = aliveTeamSlots,
+                        isAtSect = false,
+                        targetSectId = targetSect.id,
+                        isOccupying = true,
+                        occupiedSectId = targetSect.id
+                    ) else t
+                },
                 aiBattleTeams = currentGameData.aiBattleTeams.map {
                     if (it.id == garrisonTeam?.id) {
                         it.copy(status = "completed")
@@ -2236,26 +2274,30 @@ class CultivationService @Inject constructor(
             applyWarRewards(rewards)
 
             currentGameData = currentGameData.copy(
-                battleTeam = team.copy(
-                    status = "returning",
-                    isAtSect = false,
-                    targetSectId = targetSect.id,
-                    moveProgress = 0f,
-                    slots = aliveTeamSlots,
-                    isReturning = true
-                )
+                battleTeams = currentGameData.battleTeams.map { t ->
+                    if (t.id == team.id) t.copy(
+                        status = "returning",
+                        isAtSect = false,
+                        targetSectId = targetSect.id,
+                        moveProgress = 0f,
+                        slots = aliveTeamSlots,
+                        isReturning = true
+                    ) else t
+                }
             )
             eventService.addGameEvent("我宗进攻${targetSect.name}胜利！获得${rewardCount}种战利品和${rewards.spiritStones}灵石！", EventType.SUCCESS)
         } else {
             currentGameData = currentGameData.copy(
-                battleTeam = team.copy(
-                    status = "returning",
-                    isAtSect = false,
-                    targetSectId = targetSect.id,
-                    moveProgress = 0f,
-                    slots = aliveTeamSlots,
-                    isReturning = true
-                )
+                battleTeams = currentGameData.battleTeams.map { t ->
+                    if (t.id == team.id) t.copy(
+                        status = "returning",
+                        isAtSect = false,
+                        targetSectId = targetSect.id,
+                        moveProgress = 0f,
+                        slots = aliveTeamSlots,
+                        isReturning = true
+                    ) else t
+                }
             )
             if (result.winner == AIBattleWinner.DEFENDER) {
                 eventService.addGameEvent("我宗进攻${targetSect.name}失败！", EventType.DANGER)
@@ -2291,15 +2333,15 @@ class CultivationService @Inject constructor(
             return
         }
 
-        val playerBattleTeam = data.battleTeam
-        val playerTeamStationedThere = playerBattleTeam != null &&
-            playerBattleTeam.isOccupying &&
-            playerBattleTeam.occupiedSectId == team.defenderSectId &&
-            playerBattleTeam.status == "stationed" &&
-            playerBattleTeam.aliveMemberCount > 0
+        val playerBattleTeam = data.battleTeams.firstOrNull { bt ->
+            bt.isOccupying &&
+            bt.occupiedSectId == team.defenderSectId &&
+            bt.status == "stationed" &&
+            bt.aliveMemberCount > 0
+        }
 
-        if (playerTeamStationedThere) {
-            triggerPlayerGarrisonBattle(team, defenderSect, attackerSect, playerBattleTeam!!)
+        if (playerBattleTeam != null) {
+            triggerPlayerGarrisonBattle(team, defenderSect, attackerSect, playerBattleTeam)
             return
         }
 
@@ -2361,10 +2403,10 @@ class CultivationService @Inject constructor(
                 val hasAiGarrison = currentGameData.aiBattleTeams.any {
                     ((it.isGarrison && it.garrisonSectId == team.defenderSectId) || it.id == currentDefenderSect.garrisonTeamId) && it.status != "completed"
                 }
-                val hasPlayerGarrison = currentGameData.battleTeam?.let { bt ->
+                val hasPlayerGarrison = currentGameData.battleTeams.any { bt ->
                     bt.isOccupying && bt.occupiedSectId == team.defenderSectId &&
                     (bt.status == "stationed" || bt.status == "idle" || bt.isAtSect)
-                } ?: false
+                }
                 !hasAiGarrison && !hasPlayerGarrison
             } else {
                 val hasDefenderBattleTeams = currentGameData.aiBattleTeams.any {
@@ -2573,19 +2615,21 @@ class CultivationService @Inject constructor(
                             sect
                         }
                     },
-                    battleTeam = playerBattleTeam.copy(
-                        status = "returning",
-                        isReturning = true,
-                        isAtSect = false,
-                        isOccupying = false,
-                        occupiedSectId = "",
-                        slots = updatedSlots,
-                        moveProgress = 0f,
-                        currentX = defenderSect.x,
-                        currentY = defenderSect.y,
-                        targetX = data.worldMapSects.find { it.isPlayerSect }?.x ?: 0f,
-                        targetY = data.worldMapSects.find { it.isPlayerSect }?.y ?: 0f
-                    ),
+                    battleTeams = currentGameData.battleTeams.map { t ->
+                        if (t.id == playerBattleTeam.id) t.copy(
+                            status = "returning",
+                            isReturning = true,
+                            isAtSect = false,
+                            isOccupying = false,
+                            occupiedSectId = "",
+                            slots = updatedSlots,
+                            moveProgress = 0f,
+                            currentX = defenderSect.x,
+                            currentY = defenderSect.y,
+                            targetX = data.worldMapSects.find { it.isPlayerSect }?.x ?: 0f,
+                            targetY = data.worldMapSects.find { it.isPlayerSect }?.y ?: 0f
+                        ) else t
+                    },
                     aiBattleTeams = currentGameData.aiBattleTeams.map {
                         if (it.id == team.id) {
                             it.copy(
@@ -2615,19 +2659,21 @@ class CultivationService @Inject constructor(
                             sect
                         }
                     },
-                    battleTeam = playerBattleTeam.copy(
-                        status = "returning",
-                        isReturning = true,
-                        isAtSect = false,
-                        isOccupying = false,
-                        occupiedSectId = "",
-                        slots = updatedSlots,
-                        moveProgress = 0f,
-                        currentX = defenderSect.x,
-                        currentY = defenderSect.y,
-                        targetX = data.worldMapSects.find { it.isPlayerSect }?.x ?: 0f,
-                        targetY = data.worldMapSects.find { it.isPlayerSect }?.y ?: 0f
-                    ),
+                    battleTeams = currentGameData.battleTeams.map { t ->
+                        if (t.id == playerBattleTeam.id) t.copy(
+                            status = "returning",
+                            isReturning = true,
+                            isAtSect = false,
+                            isOccupying = false,
+                            occupiedSectId = "",
+                            slots = updatedSlots,
+                            moveProgress = 0f,
+                            currentX = defenderSect.x,
+                            currentY = defenderSect.y,
+                            targetX = data.worldMapSects.find { it.isPlayerSect }?.x ?: 0f,
+                            targetY = data.worldMapSects.find { it.isPlayerSect }?.y ?: 0f
+                        ) else t
+                    },
                     aiBattleTeams = currentGameData.aiBattleTeams.map {
                         if (it.id == team.id) {
                             it.copy(
@@ -2648,7 +2694,9 @@ class CultivationService @Inject constructor(
             }
         } else {
             currentGameData = currentGameData.copy(
-                battleTeam = playerBattleTeam.copy(slots = updatedSlots),
+                battleTeams = currentGameData.battleTeams.map { t ->
+                    if (t.id == playerBattleTeam.id) t.copy(slots = updatedSlots) else t
+                },
                 aiBattleTeams = currentGameData.aiBattleTeams.map {
                     if (it.id == team.id) {
                         it.copy(status = "completed")
@@ -2670,14 +2718,13 @@ class CultivationService @Inject constructor(
      */
     private suspend fun triggerPlayerSectBattle(team: AIBattleTeam, playerSect: WorldSect, attackerSect: WorldSect?) {
         val data = currentGameData
-        val playerBattleTeam = data.battleTeam
-        val battleTeamAtSect = playerBattleTeam != null &&
-            (playerBattleTeam.isIdle || playerBattleTeam.isStationed) &&
-            playerBattleTeam.isAtSect &&
-            playerBattleTeam.aliveMemberCount > 0
+        val playerBattleTeam = data.battleTeams.firstOrNull { bt ->
+            bt.isAtSect && bt.aliveMemberCount > 0 && (bt.isIdle || bt.isStationed)
+        }
+        val battleTeamAtSect = playerBattleTeam != null
 
         val playerDefenseTeam = if (battleTeamAtSect) {
-            val teamDisciples = playerBattleTeam!!.slots
+            val teamDisciples = playerBattleTeam.slots
                 .filter { it.discipleId.isNotEmpty() && it.isAlive }
                 .mapNotNull { slot -> currentDisciples.find { it.id == slot.discipleId } }
                 .filter { it.isAlive }
@@ -2726,7 +2773,9 @@ class CultivationService @Inject constructor(
                 }
             }
             currentGameData = currentGameData.copy(
-                battleTeam = playerBattleTeam.copy(slots = updatedSlots)
+                battleTeams = currentGameData.battleTeams.map { t ->
+                    if (t.id == playerBattleTeam.id) t.copy(slots = updatedSlots) else t
+                }
             )
         }
 

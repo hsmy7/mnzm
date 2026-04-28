@@ -1,3 +1,4 @@
+@file:Suppress("DEPRECATION")
 package com.xianxia.sect.core.engine.service
 
 import android.content.Context

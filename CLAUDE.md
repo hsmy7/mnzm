@@ -78,4 +78,28 @@ Before delivering any implementation, you must systematically:
 7. Check for potential security vulnerabilities
 8. Ensure the code follows the project's coding standards
 
+## Changelog Requirements
+
+After implementing any feature or bug fix, you MUST update the changelog in TWO locations:
+
+### In-Game Changelog
+- File: `android/app/src/main/java/com/xianxia/sect/core/ChangelogData.kt`
+- Add a new `ChangelogEntry` to the top of the `entries` list if the current version doesn't have one yet
+- If the current version already has an entry, append changes to the existing entry's `changes` list
+- Each change should be a one-line description in Chinese, describing what was changed from the player's perspective
+- Use the current date in `YYYY-MM-DD` format
+
+### External Changelog
+- File: `CHANGELOG.md` at the project root
+- Create this file if it doesn't exist
+- Add a new version section at the top following this format:
+  ```
+  ## v{version} ({date})
+  - {change description 1}
+  - {change description 2}
+  ```
+- Keep the same content as the in-game changelog for consistency
+
+Both changelogs must be updated before marking any implementation task as complete.
+
 When working on any task, you always complete the entire workflow from understanding through final checking. Never skip the post-implementation review - thorough checking is as important as the implementation itself. Your goal is to deliver clean, secure, maintainable code that follows modern industry best practices and seamlessly integrates with the existing project.

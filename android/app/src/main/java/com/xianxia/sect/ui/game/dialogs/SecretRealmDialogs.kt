@@ -60,6 +60,7 @@ import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.core.util.sortedByFollowAndRealm
 import com.xianxia.sect.ui.components.DiscipleCardStyles
 import com.xianxia.sect.ui.components.FollowedTag
+import com.xianxia.sect.ui.components.HorizontalDiscipleCard
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.discipleCardBorder
 import com.xianxia.sect.ui.game.ATTRIBUTE_FILTER_OPTIONS
@@ -436,51 +437,32 @@ internal fun DispatchTeamDialog(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        realmFilters.take(5).forEach { (realmVal, name) ->
-                            val isSelected = realmVal in selectedRealmFilter
-                            val count = realmCounts[realmVal] ?: 0
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(if (isSelected) GameColors.Gold.copy(alpha = 0.3f) else GameColors.PageBackground)
-                                    .border(1.dp, if (isSelected) GameColors.Gold else GameColors.Border, RoundedCornerShape(4.dp))
-                                    .clickable { selectedRealmFilter = if (isSelected) selectedRealmFilter - realmVal else selectedRealmFilter + realmVal }
-                                    .padding(vertical = 4.dp),
-                                contentAlignment = Alignment.Center
+                        realmFilters.chunked(4).forEach { chunk ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                Text(
-                                    text = "$name $count",
-                                    fontSize = 9.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (isSelected) GameColors.GoldDark else Color.Black
-                                )
-                            }
-                        }
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        realmFilters.drop(5).forEach { (realmVal, name) ->
-                            val isSelected = realmVal in selectedRealmFilter
-                            val count = realmCounts[realmVal] ?: 0
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(if (isSelected) GameColors.Gold.copy(alpha = 0.3f) else GameColors.PageBackground)
-                                    .border(1.dp, if (isSelected) GameColors.Gold else GameColors.Border, RoundedCornerShape(4.dp))
-                                    .clickable { selectedRealmFilter = if (isSelected) selectedRealmFilter - realmVal else selectedRealmFilter + realmVal }
-                                    .padding(vertical = 4.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "$name $count",
-                                    fontSize = 9.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (isSelected) GameColors.GoldDark else Color.Black
-                                )
+                                chunk.forEach { (realmVal, name) ->
+                                    val isSelected = realmVal in selectedRealmFilter
+                                    val count = realmCounts[realmVal] ?: 0
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(if (isSelected) GameColors.Gold.copy(alpha = 0.3f) else GameColors.PageBackground)
+                                            .border(1.dp, if (isSelected) GameColors.Gold else GameColors.Border, RoundedCornerShape(4.dp))
+                                            .clickable { selectedRealmFilter = if (isSelected) selectedRealmFilter - realmVal else selectedRealmFilter + realmVal }
+                                            .padding(vertical = 4.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = "$name $count",
+                                            fontSize = 9.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (isSelected) GameColors.GoldDark else Color.Black
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -508,73 +490,17 @@ internal fun DispatchTeamDialog(
                             val isSelected = selectedDisciples.contains(disciple.id)
                             val canSelect = isSelected || selectedDisciples.size < maxTeamSize
 
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .discipleCardBorder(
-                                        shape = DiscipleCardStyles.smallShape,
-                                        background = if (isSelected) Color(0xFFE3F2FD) else GameColors.PageBackground
-                                    )
-                                    .clickable(enabled = canSelect) {
-                                        if (isSelected) {
-                                            selectedDisciples.remove(disciple.id)
-                                        } else if (selectedDisciples.size < maxTeamSize) {
-                                            selectedDisciples.add(disciple.id)
-                                        }
-                                    }
-                                    .padding(8.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column {
-                                        Row(
-                                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(
-                                                text = disciple.name,
-                                                fontSize = 12.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color.Black
-                                            )
-                                            if (disciple.isFollowed) {
-                                                FollowedTag()
-                                            }
-                                        }
-                                        Row(
-                                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            val spiritRootColor = try {
-                                                Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))
-                                            } catch (e: Exception) {
-                                                Color(0xFF666666)
-                                            }
-                                            Text(
-                                                text = disciple.spiritRootName,
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = spiritRootColor
-                                            )
-                                            Text(
-                                                text = disciple.realmName,
-                                                fontSize = 11.sp,
-                                                color = Color(0xFF666666)
-                                            )
-                                        }
-                                    }
+                            HorizontalDiscipleCard(
+                                disciple = disciple,
+                                isSelected = isSelected,
+                                onClick = {
                                     if (isSelected) {
-                                        Text(
-                                            text = "✓",
-                                            fontSize = 14.sp,
-                                            color = Color(0xFF2196F3)
-                                        )
+                                        selectedDisciples.remove(disciple.id)
+                                    } else if (selectedDisciples.size < maxTeamSize) {
+                                        selectedDisciples.add(disciple.id)
                                     }
                                 }
-                            }
+                            )
                         }
                     }
                 }

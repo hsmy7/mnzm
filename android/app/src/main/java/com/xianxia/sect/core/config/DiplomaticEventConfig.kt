@@ -14,7 +14,7 @@ object DiplomaticEventConfig {
         val requiresAlliance: Boolean = false
     )
 
-    const val MONTHLY_TRIGGER_CHANCE = 0.03
+    const val MONTHLY_TRIGGER_CHANCE = 0.01
 
     object Events {
         val BORDER_DISPUTE = DiplomaticEventDef(

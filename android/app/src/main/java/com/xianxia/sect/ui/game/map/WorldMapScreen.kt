@@ -25,6 +25,8 @@ import com.xianxia.sect.ui.game.map.markers.CaveExplorationTeamMarker
 import com.xianxia.sect.ui.game.map.markers.CaveMarker
 import com.xianxia.sect.ui.game.map.markers.ScoutTeamMarker
 import com.xianxia.sect.ui.game.map.markers.SectMarker
+import com.xianxia.sect.ui.game.map.markers.TeamBadgeInfo
+import com.xianxia.sect.ui.game.map.markers.TeamAction
 
 @Composable
 fun WorldMapScreen(
@@ -43,7 +45,10 @@ fun WorldMapScreen(
     onCaveClick: (MapItem.Cave) -> Unit = {},
     onBattleTeamClick: (MapItem.BattleTeam) -> Unit = {},
     onCreateTeamClick: () -> Unit = {},
-    onManageTeamClick: () -> Unit = {}
+    onManageTeamClick: () -> Unit = {},
+    teamBadgesBySect: Map<String, List<TeamBadgeInfo>> = emptyMap(),
+    onTeamBadgeClick: (String) -> Unit = {},
+    onTeamAction: (String, TeamAction) -> Unit = { _, _ -> }
 ) {
     val density = LocalDensity.current
 
@@ -117,13 +122,16 @@ fun WorldMapScreen(
                     is MapItem.Sect -> SectMarker(
                         item = item,
                         cameraState = cameraState,
+                        teamBadges = teamBadgesBySect[item.id] ?: emptyList(),
                         onClick = {
                             if (item.isHighlighted) {
                                 onMovableTargetClick(item.id)
                             } else {
                                 onSectClick(item)
                             }
-                        }
+                        },
+                        onTeamBadgeClick = onTeamBadgeClick,
+                        onTeamAction = onTeamAction
                     )
 
                     is MapItem.ScoutTeam -> ScoutTeamMarker(

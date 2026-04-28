@@ -85,7 +85,8 @@ class EventService @Inject constructor(
     // ==================== 商人系统 ====================
 
     /**
-     * Generate random trade items for sect merchant
+     * Generate random trade items for sect merchant.
+     * Rarity probabilities mirror the traveling merchant system (same distribution).
      */
     fun generateSectTradeItems(year: Int, sectId: String? = null): List<MerchantItem> {
         val items = mutableListOf<MerchantItem>()
@@ -99,17 +100,6 @@ class EventService @Inject constructor(
 
         val itemCount = 20
 
-        val centuryCount = year / 100
-        val adjustment = centuryCount * 3
-
-        val baseProbabilities = listOf(75.0, 60.0, 22.6, 7.0, 2.8, 0.6)
-        val adjustedProbabilities = baseProbabilities.mapIndexed { index, prob ->
-            when {
-                index < 3 -> maxOf(1.0, prob - adjustment)
-                else -> minOf(100.0, prob + adjustment)
-            }
-        }
-
         val generatedNames = mutableSetOf<String>()
         var attempts = 0
         val maxAttempts = itemCount * 3
@@ -117,7 +107,7 @@ class EventService @Inject constructor(
         while (items.size < itemCount && attempts < maxAttempts) {
             attempts++
             val type = listOf("equipment", "manual", "pill", "material", "herb", "seed").random(random)
-            val rarity = generateRarityByProbability(adjustedProbabilities, random)
+            val rarity = selectRarityByMerchantProbabilities(random)
 
             fun calcStock(t: String, r: Int): Int {
                 val isConsumable = t in listOf("herb", "seed", "material")
@@ -497,17 +487,23 @@ class EventService @Inject constructor(
     private fun getSectRelation(data: GameData, sectId: String): Int =
         GameUtils.getSectRelation(data.worldMapSects, data.sectRelations, sectId)
 
-    private fun generateRarityByProbability(probabilities: List<Double>, random: Random): Int {
-        val roll = random.nextDouble() * 100
+    // Same rarity distribution as the traveling merchant (CultivationService.RARITY_PROBABILITIES)
+    private val SECT_TRADE_RARITY_PROBABILITIES = mapOf(
+        6 to 0.003,
+        5 to 0.027,
+        4 to 0.05,
+        3 to 0.12,
+        2 to 0.40,
+        1 to 0.40
+    )
+
+    private fun selectRarityByMerchantProbabilities(random: Random): Int {
+        val rand = random.nextDouble()
         var cumulative = 0.0
-
-        probabilities.forEachIndexed { index, probability ->
-            cumulative += probability
-            if (roll <= cumulative) {
-                return index + 1
-            }
+        for ((rarity, prob) in SECT_TRADE_RARITY_PROBABILITIES.entries.sortedByDescending { it.key }) {
+            cumulative += prob
+            if (rand < cumulative) return rarity
         }
-
-        return probabilities.size
+        return 1
     }
 }

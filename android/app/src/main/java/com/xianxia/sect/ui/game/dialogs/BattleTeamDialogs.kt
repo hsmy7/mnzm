@@ -53,6 +53,7 @@ import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.ui.components.HorizontalDiscipleCard
 import com.xianxia.sect.ui.game.ATTRIBUTE_FILTER_OPTIONS
 import com.xianxia.sect.ui.game.AttributeFilterOption
 import com.xianxia.sect.ui.game.SPIRIT_ROOT_FILTER_OPTIONS
@@ -68,6 +69,7 @@ internal fun BattleTeamDialog(
     teamStatus: String = "idle",
     isAtSect: Boolean = true,
     isOccupying: Boolean = false,
+    teamId: String = "",
     onSlotClick: (Int) -> Unit,
     onRemoveClick: (Int) -> Unit,
     onCreateTeam: () -> Unit,
@@ -481,55 +483,31 @@ internal fun BattleTeamDiscipleSelectionDialog(
                                 }
                             }
                         } else {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                realmFilters.take(5).forEach { (realm, name) ->
-                                    val isSelected = realm in selectedRealmFilter
-                                    val count = realmCounts[realm] ?: 0
-                                    Box(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .clip(RoundedCornerShape(4.dp))
-                                            .background(if (isSelected) GameColors.Gold.copy(alpha = 0.3f) else GameColors.PageBackground)
-                                            .border(1.dp, if (isSelected) GameColors.Gold else GameColors.Border, RoundedCornerShape(4.dp))
-                                            .clickable { selectedRealmFilter = if (isSelected) selectedRealmFilter - realm else selectedRealmFilter + realm }
-                                            .padding(vertical = 4.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = "$name $count",
-                                            fontSize = 9.sp,
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                            color = if (isSelected) GameColors.GoldDark else Color.Black
-                                        )
-                                    }
-                                }
-                            }
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                realmFilters.drop(5).forEach { (realm, name) ->
-                                    val isSelected = realm in selectedRealmFilter
-                                    val count = realmCounts[realm] ?: 0
-                                    Box(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .clip(RoundedCornerShape(4.dp))
-                                            .background(if (isSelected) GameColors.Gold.copy(alpha = 0.3f) else GameColors.PageBackground)
-                                            .border(1.dp, if (isSelected) GameColors.Gold else GameColors.Border, RoundedCornerShape(4.dp))
-                                            .clickable { selectedRealmFilter = if (isSelected) selectedRealmFilter - realm else selectedRealmFilter + realm }
-                                            .padding(vertical = 4.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = "$name $count",
-                                            fontSize = 9.sp,
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                            color = if (isSelected) GameColors.GoldDark else Color.Black
-                                        )
+                            realmFilters.chunked(4).forEach { chunk ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    chunk.forEach { (realm, name) ->
+                                        val isSelected = realm in selectedRealmFilter
+                                        val count = realmCounts[realm] ?: 0
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(if (isSelected) GameColors.Gold.copy(alpha = 0.3f) else GameColors.PageBackground)
+                                                .border(1.dp, if (isSelected) GameColors.Gold else GameColors.Border, RoundedCornerShape(4.dp))
+                                                .clickable { selectedRealmFilter = if (isSelected) selectedRealmFilter - realm else selectedRealmFilter + realm }
+                                                .padding(vertical = 4.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = "$name $count",
+                                                fontSize = 9.sp,
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                                color = if (isSelected) GameColors.GoldDark else Color.Black
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -542,63 +520,11 @@ internal fun BattleTeamDiscipleSelectionDialog(
                         modifier = Modifier.weight(1f),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(filteredDisciples) { disciple ->
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(GameColors.PageBackground)
-                                    .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
-                                    .clickable { onSelect(disciple) }
-                                    .padding(12.dp)
-                            ) {
-                                Column(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Row(
-                                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(
-                                                text = disciple.name,
-                                                fontSize = 12.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color.Black
-                                            )
-                                            if (disciple.isFollowed) {
-                                                FollowedTag()
-                                            }
-                                        }
-                                        Row(
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            val spiritRootColor = try {
-                                                Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))
-                                            } catch (e: Exception) {
-                                                Color(0xFF666666)
-                                            }
-                                            Text(
-                                                text = disciple.spiritRootName,
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = spiritRootColor
-                                            )
-                                            Text(
-                                                text = disciple.realmName,
-                                                fontSize = 11.sp,
-                                                color = Color(0xFF666666)
-                                            )
-                                        }
-                                    }
-                                }
-                            }
+                        items(filteredDisciples, key = { it.id }) { disciple ->
+                            HorizontalDiscipleCard(
+                                disciple = disciple,
+                                onClick = { onSelect(disciple) }
+                            )
                         }
                     }
                 }

@@ -108,47 +108,48 @@ object MapItemMapper {
                 )
             }
 
-    fun fromBattleTeam(
-        battleTeam: BattleTeam?,
+    fun fromBattleTeams(
+        battleTeams: List<BattleTeam>,
         playerSect: WorldSect?,
         worldSects: List<WorldSect> = emptyList()
     ): List<MapItem.BattleTeam> {
-        if (battleTeam == null) return emptyList()
         val items = mutableListOf<MapItem.BattleTeam>()
-        if (battleTeam.isAtSect && playerSect != null) {
-            items.add(
-                MapItem.BattleTeam(
-                    id = battleTeam.id,
-                    worldX = playerSect.x,
-                    worldY = playerSect.y,
-                    name = battleTeam.name,
-                    isAtSect = true,
-                    sectWorldX = playerSect.x,
-                    sectWorldY = playerSect.y,
-                    startWorldX = playerSect.x,
-                    startWorldY = playerSect.y,
-                    targetWorldX = 0f,
-                    targetWorldY = 0f
+        for (battleTeam in battleTeams) {
+            if (battleTeam.isAtSect && playerSect != null) {
+                items.add(
+                    MapItem.BattleTeam(
+                        id = battleTeam.id,
+                        worldX = playerSect.x,
+                        worldY = playerSect.y,
+                        name = battleTeam.name,
+                        isAtSect = true,
+                        sectWorldX = playerSect.x,
+                        sectWorldY = playerSect.y,
+                        startWorldX = playerSect.x,
+                        startWorldY = playerSect.y,
+                        targetWorldX = 0f,
+                        targetWorldY = 0f
+                    )
                 )
-            )
-        }
-        if ((battleTeam.status == "moving" || battleTeam.status == "returning") && battleTeam.currentX > 0 && battleTeam.currentY > 0) {
-            val targetSect = worldSects.find { it.id == battleTeam.targetSectId }
-            items.add(
-                MapItem.BattleTeam(
-                    id = battleTeam.id + "_moving",
-                    worldX = battleTeam.currentX,
-                    worldY = battleTeam.currentY,
-                    name = battleTeam.name,
-                    isAtSect = false,
-                    sectWorldX = 0f,
-                    sectWorldY = 0f,
-                    startWorldX = if (battleTeam.status == "moving") playerSect?.x ?: 0f else targetSect?.x ?: 0f,
-                    startWorldY = if (battleTeam.status == "moving") playerSect?.y ?: 0f else targetSect?.y ?: 0f,
-                    targetWorldX = if (battleTeam.status == "moving") targetSect?.x ?: 0f else playerSect?.x ?: 0f,
-                    targetWorldY = if (battleTeam.status == "moving") targetSect?.y ?: 0f else playerSect?.y ?: 0f
+            }
+            if ((battleTeam.status == "moving" || battleTeam.status == "returning") && battleTeam.currentX > 0 && battleTeam.currentY > 0) {
+                val targetSect = worldSects.find { it.id == battleTeam.targetSectId }
+                items.add(
+                    MapItem.BattleTeam(
+                        id = battleTeam.id + "_moving",
+                        worldX = battleTeam.currentX,
+                        worldY = battleTeam.currentY,
+                        name = battleTeam.name,
+                        isAtSect = false,
+                        sectWorldX = 0f,
+                        sectWorldY = 0f,
+                        startWorldX = if (battleTeam.status == "moving") playerSect?.x ?: 0f else targetSect?.x ?: 0f,
+                        startWorldY = if (battleTeam.status == "moving") playerSect?.y ?: 0f else targetSect?.y ?: 0f,
+                        targetWorldX = if (battleTeam.status == "moving") targetSect?.x ?: 0f else playerSect?.x ?: 0f,
+                        targetWorldY = if (battleTeam.status == "moving") targetSect?.y ?: 0f else playerSect?.y ?: 0f
+                    )
                 )
-            )
+            }
         }
         return items
     }

@@ -1097,7 +1097,7 @@ class SaveDataConverter @Inject constructor() {
             playerAllianceSlots = gameData.playerAllianceSlots ?: 3,
             sectPolicies = convertSectPolicies(gameData.sectPolicies),
             // 战斗队伍：使用 NullSafeProtoBuf 的专用方法
-            battleTeam = NullSafeProtoBuf.battleTeamToProto(gameData.battleTeam),
+            battleTeam = NullSafeProtoBuf.battleTeamToProto(gameData.battleTeams.firstOrNull()),
             aiBattleTeams = gameData.aiBattleTeams?.map { convertAIBattleTeam(it) } ?: emptyList(),
             usedRedeemCodes = gameData.usedRedeemCodes ?: emptyList(),
             playerProtectionEnabled = gameData.playerProtectionEnabled ?: true,
@@ -1161,7 +1161,7 @@ class SaveDataConverter @Inject constructor() {
             playerAllianceSlots = data.playerAllianceSlots,
             sectPolicies = convertBackSectPolicies(data.sectPolicies),
             // 战斗队伍：使用 NullSafeProtoBuf 的反向转换方法
-            battleTeam = NullSafeProtoBuf.battleTeamFromProto(data.battleTeam),
+            battleTeams = listOfNotNull(NullSafeProtoBuf.battleTeamFromProto(data.battleTeam)),
             aiBattleTeams = data.aiBattleTeams.map { convertBackAIBattleTeam(it) },
             usedRedeemCodes = data.usedRedeemCodes,
             playerProtectionEnabled = data.playerProtectionEnabled,
