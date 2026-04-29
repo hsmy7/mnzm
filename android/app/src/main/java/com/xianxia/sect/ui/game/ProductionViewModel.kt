@@ -166,9 +166,20 @@ class ProductionViewModel @Inject constructor(
             }
 
             val currentSlots = gameEngine.gameData.value.elderSlots
-            val allElderIds = currentSlots.getAllElderIds()
 
-            if (!allElderIds.contains(discipleId)) {
+            val isElder = listOf(
+                currentSlots.viceSectMaster,
+                currentSlots.herbGardenElder,
+                currentSlots.alchemyElder,
+                currentSlots.forgeElder,
+                currentSlots.outerElder,
+                currentSlots.preachingElder,
+                currentSlots.lawEnforcementElder,
+                currentSlots.innerElder,
+                currentSlots.qingyunPreachingElder
+            ).any { it == discipleId }
+
+            if (!isElder) {
                 showError("副宗主需要由长老担任")
                 return@launch
             }
@@ -348,31 +359,25 @@ class ProductionViewModel @Inject constructor(
 
     fun getAvailableDisciplesForLawEnforcementElder(): List<DiscipleAggregate> {
         val elderSlots = gameEngine.gameData.value.elderSlots
-        val allElderIds = elderSlots.getAllElderIds()
-        val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
 
         return discipleAggregates.value
-            .filter { isSelectableDisciple(it) && it.realm <= ElderManagementUseCase.REALM_LAW_ENFORCEMENT && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
+            .filter { isSelectableDisciple(it) && it.realm <= ElderManagementUseCase.REALM_LAW_ENFORCEMENT && !elderSlots.isDiscipleInAnyPosition(it.id) }
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 
     fun getAvailableDisciplesForLawEnforcementDisciple(): List<DiscipleAggregate> {
         val elderSlots = gameEngine.gameData.value.elderSlots
-        val allElderIds = elderSlots.getAllElderIds()
-        val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
 
         return discipleAggregates.value
-            .filter { isSelectableDisciple(it) && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
+            .filter { isSelectableDisciple(it) && !elderSlots.isDiscipleInAnyPosition(it.id) }
             .sortedByFollowAndRealm()
     }
 
     fun getAvailableDisciplesForLawEnforcementReserve(): List<DiscipleAggregate> {
         val elderSlots = gameEngine.gameData.value.elderSlots
-        val allElderIds = elderSlots.getAllElderIds()
-        val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
 
         return discipleAggregates.value
-            .filter { isSelectableDisciple(it) && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
+            .filter { isSelectableDisciple(it) && !elderSlots.isDiscipleInAnyPosition(it.id) }
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 
