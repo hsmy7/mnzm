@@ -23,12 +23,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.ui.components.ElderBonusInfo
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.FollowedTag
-import com.xianxia.sect.ui.components.HorizontalDiscipleCard
 import com.xianxia.sect.core.util.isFollowed
-import com.xianxia.sect.core.util.sortedByFollowAndRealm
-import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
 import com.xianxia.sect.ui.theme.GameColors
 
 @Composable
@@ -172,191 +170,50 @@ fun TianshuHallDialog(
     )
 
     if (showViceSectMasterSelectDialog) {
-        var selectedRealmFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
-        var selectedSpiritRootFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
-        var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
-        var spiritRootExpanded by remember { mutableStateOf(false) }
-        var attributeExpanded by remember { mutableStateOf(false) }
-
-        val filteredDisciplesBase = remember(disciples, elderSlots) {
-            disciples.filter {
-                it.isAlive &&
-                it.id != viceSectMasterId &&
-                it.status == DiscipleStatus.IDLE &&
-                it.realm <= 4 &&
-                it.discipleType == "inner" &&
-                it.age >= 5 &&
-                it.realmLayer > 0
-            }
+        val tianshuTheme = remember {
+            ProductionTheme(
+                buildingId = "tianshu",
+                displayName = "天枢殿",
+                elderTitle = "副宗主",
+                elderBonusInfo = ElderBonusInfo(
+                    title = "副宗主",
+                    requiredAttribute = "智力",
+                    effectDescription = "副宗主掌管宗门事务",
+                    bonusFormula = "智力越高，效率越高"
+                ),
+                coreAttributeName = "智力",
+                coreAttributeColor = Color(0xFF4A90E2),
+                defaultBorderColor = Color(0xFF4A90E2),
+                workingStatusColor = Color(0xFF2196F3),
+                selectedHighlightColor = Color(0xFFFFD700),
+                reserveButtonBackgroundColor = GameColors.ButtonBackground,
+                reserveButtonTextColor = Color.Black,
+                slotLabelPrefix = "",
+                selectionDialogTitle = "",
+                startProductionText = "",
+                elderSelectionTitle = "选择副宗主",
+                recommendAttributeText = "智力",
+                getCoreAttributeValue = { it.intelligence },
+                getElderId = { it.viceSectMaster },
+                getDirectDisciples = { emptyList() },
+                elderSortComparator = compareByDescending<DiscipleAggregate> { it.intelligence }
+                    .thenBy { it.realm }
+                    .thenByDescending { it.realmLayer },
+                directDiscipleSortComparator = compareBy<DiscipleAggregate> { it.realm }
+                    .thenByDescending { it.realmLayer }
+            )
         }
 
-        val realmFilters = listOf(
-            0 to "仙人",
-            1 to "渡劫",
-            2 to "大乘",
-            3 to "合体",
-            4 to "炼虚",
-            5 to "化神",
-            6 to "元婴",
-            7 to "金丹",
-            8 to "筑基"
-        )
-
-        val realmCounts = remember(filteredDisciplesBase) {
-            filteredDisciplesBase.filter { it.realmLayer > 0 }.groupingBy { it.realm }.eachCount()
-        }
-
-        val spiritRootCounts = remember(filteredDisciplesBase) {
-            filteredDisciplesBase.filter { it.realmLayer > 0 }.groupingBy { it.getSpiritRootCount() }.eachCount()
-        }
-
-        val sortedDisciples = remember(filteredDisciplesBase) {
-            filteredDisciplesBase.filter { it.realmLayer > 0 }.sortedByFollowAndRealm()
-        }
-
-        val filteredDisciples = remember(sortedDisciples, selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort) {
-            sortedDisciples.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort)
-        }
-
-        AlertDialog(
-            onDismissRequest = { showViceSectMasterSelectDialog = false },
-            containerColor = GameColors.PageBackground,
-            title = {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "选择副宗主",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-                    Box(
-                        modifier = Modifier
-                            .size(24.dp)
-                            .clip(CircleShape)
-                            .clickable { showViceSectMasterSelectDialog = false }
-                            .background(GameColors.CardBackground),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "×",
-                            fontSize = 16.sp,
-                            color = Color(0xFF666666)
-                        )
-                    }
-                }
+        ProductionElderSelectionDialog(
+            theme = tianshuTheme,
+            disciples = disciples.filter { it.isAlive },
+            currentElderId = viceSectMasterId,
+            elderSlots = elderSlots ?: ElderSlots(),
+            onDismiss = { showViceSectMasterSelectDialog = false },
+            onSelect = { discipleId ->
+                productionViewModel.setViceSectMaster(discipleId)
+                showViceSectMasterSelectDialog = false
             },
-            text = {
-                if (filteredDisciplesBase.isEmpty()) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = "暂无符合条件的弟子",
-                            fontSize = 12.sp,
-                            color = Color(0xFF999999)
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "需要炼虚及以上境界",
-                            fontSize = 10.sp,
-                            color = Color(0xFF666666)
-                        )
-                    }
-                } else {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 500.dp)
-                    ) {
-                        Text(
-                            text = "需要炼虚及以上境界",
-                            fontSize = 10.sp,
-                            color = Color(0xFFE74C3C),
-                            modifier = Modifier.fillMaxWidth(),
-                            textAlign = TextAlign.Center
-                        )
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        SpiritRootAttributeFilterBar(
-                            selectedSpiritRootFilter = selectedSpiritRootFilter,
-                            selectedAttributeSort = selectedAttributeSort,
-                            spiritRootExpanded = spiritRootExpanded,
-                            attributeExpanded = attributeExpanded,
-                            spiritRootCounts = spiritRootCounts,
-                            onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
-                            onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
-                            onAttributeSortSelected = { selectedAttributeSort = it },
-                            onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
-                            onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
-                            isCompact = true
-                        )
-
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            realmFilters.chunked(4).forEach { chunk ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    chunk.forEach { (realm, name) ->
-                                        val isSelected = realm in selectedRealmFilter
-                                        val count = realmCounts[realm] ?: 0
-                                        Box(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .clip(RoundedCornerShape(4.dp))
-                                                .background(if (isSelected) GameColors.Gold.copy(alpha = 0.3f) else GameColors.PageBackground)
-                                                .border(1.dp, if (isSelected) GameColors.Gold else GameColors.Border, RoundedCornerShape(4.dp))
-                                                .clickable { selectedRealmFilter = if (isSelected) selectedRealmFilter - realm else selectedRealmFilter + realm }
-                                                .padding(vertical = 4.dp),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(
-                                                text = "$name $count",
-                                                fontSize = 8.sp,
-                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                                color = if (isSelected) GameColors.GoldDark else Color.Black
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        LazyColumn(
-                            modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            items(filteredDisciples, key = { it.id }) { disciple ->
-                                HorizontalDiscipleCard(
-                                    disciple = disciple,
-                                    extraAttributes = listOf("智力" to disciple.intelligence),
-                                    onClick = {
-                                        productionViewModel.setViceSectMaster(disciple.id)
-                                        showViceSectMasterSelectDialog = false
-                                    }
-                                )
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                GameButton(
-                    text = "取消",
-                    onClick = { showViceSectMasterSelectDialog = false }
-                )
-            }
         )
     }
 

@@ -186,17 +186,24 @@ fun SpiritMineDialog(
 
     if (showDiscipleSelection) {
         val availableDisciples = spiritMineViewModel.getAvailableDisciplesForSpiritMining()
-        SpiritMineDiscipleSelectionDialog(
+        val miningSelectedIds = remember { mutableStateListOf<String>() }
+        FilteredMultiSelectDialog(
+            title = "选择采矿弟子（外门，最多${emptySlotCount}名）",
             disciples = availableDisciples,
-            maxSelectCount = emptySlotCount,
-            onConfirm = { selectedDisciples ->
-                spiritMineViewModel.assignDisciplesToSpiritMineSlots(selectedDisciples)
+            selectedIds = miningSelectedIds,
+            maxSelection = emptySlotCount,
+            extraCardAttrName = "采矿",
+            extraCardAttrValue = { it.mining },
+            confirmText = "确认采矿",
+            onConfirm = {
+                val selected = availableDisciples.filter { it.id in miningSelectedIds }.take(emptySlotCount)
+                spiritMineViewModel.assignDisciplesToSpiritMineSlots(selected)
                 showDiscipleSelection = false
             },
             onDismiss = { showDiscipleSelection = false }
         )
     }
-    
+
     showDeaconSelection?.let { slotIndex ->
         val currentDeaconId = deaconDisciples.getOrNull(slotIndex)?.discipleId
         SpiritMineDeaconSelectionDialog(

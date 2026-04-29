@@ -25,10 +25,8 @@ import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.components.ElderBonusInfoButton
 import com.xianxia.sect.ui.components.ElderBonusInfoProvider
 import com.xianxia.sect.ui.components.FollowedTag
-import com.xianxia.sect.ui.components.HorizontalDiscipleCard
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.core.util.sortedByFollowAndRealm
-import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
 
 @Composable
 fun LawEnforcementHallDialog(
@@ -125,40 +123,68 @@ fun LawEnforcementHallDialog(
         confirmButton = {}
     )
 
+    val lawTheme = remember {
+        ProductionTheme(
+            buildingId = "lawEnforcement",
+            displayName = "执法堂",
+            elderTitle = "执法长老",
+            elderBonusInfo = ElderBonusInfoProvider.getLawEnforcementElderInfo(),
+            coreAttributeName = "智力",
+            coreAttributeColor = Color(0xFFE74C3C),
+            defaultBorderColor = Color(0xFFE74C3C),
+            workingStatusColor = Color(0xFF2196F3),
+            selectedHighlightColor = Color(0xFFFFD700),
+            reserveButtonBackgroundColor = Color(0xFFE74C3C),
+            reserveButtonTextColor = Color.White,
+            slotLabelPrefix = "执法",
+            selectionDialogTitle = "",
+            startProductionText = "",
+            elderSelectionTitle = "选择执法长老",
+            recommendAttributeText = "智力",
+            getCoreAttributeValue = { it.intelligence },
+            getElderId = { it.lawEnforcementElder },
+            getDirectDisciples = { it.lawEnforcementDisciples },
+            elderSortComparator = compareByDescending<DiscipleAggregate> { it.intelligence }
+                .thenBy { it.realm }
+                .thenByDescending { it.realmLayer },
+            directDiscipleSortComparator = compareBy<DiscipleAggregate> { it.realm }
+                .thenByDescending { it.realmLayer }
+                .thenByDescending { it.intelligence }
+        )
+    }
+
     if (showElderSelection) {
-        val availableDisciples = productionViewModel.getAvailableDisciplesForLawEnforcementElder()
-        DiscipleSelectionDialog(
-            title = "选择执法长老",
-            disciples = availableDisciples,
-            currentDiscipleId = lawElder?.id,
-            requirementText = "需要化神及以上境界",
-            onSelect = { disciple ->
-                productionViewModel.assignElder(ElderSlotType.LAW_ENFORCEMENT, disciple.id)
+        ProductionElderSelectionDialog(
+            theme = lawTheme,
+            disciples = disciples.filter { it.isAlive },
+            currentElderId = lawElder?.id,
+            elderSlots = gameData?.elderSlots ?: ElderSlots(),
+            onDismiss = { showElderSelection = false },
+            onSelect = { discipleId ->
+                productionViewModel.assignElder(ElderSlotType.LAW_ENFORCEMENT, discipleId)
                 showElderSelection = false
             },
-            onDismiss = { showElderSelection = false }
         )
     }
 
     showDiscipleSelection?.let { slotIndex ->
-        val availableDisciples = productionViewModel.getAvailableDisciplesForLawEnforcementDisciple()
-        val currentDisciple = lawDisciples.find { it.index == slotIndex }
-        DiscipleSelectionDialog(
-            title = "选择执法弟子",
-            disciples = availableDisciples,
-            currentDiscipleId = currentDisciple?.discipleId,
-            requirementText = "需要内门弟子及以上",
-            onSelect = { disciple ->
-                productionViewModel.assignDirectDisciple("lawEnforcement", slotIndex, disciple.id)
+        ProductionDirectDiscipleSelectionDialog(
+            theme = lawTheme,
+            disciples = disciples.filter { it.isAlive },
+            elderSlots = gameData?.elderSlots ?: ElderSlots(),
+            onDismiss = { showDiscipleSelection = null },
+            onSelect = { discipleId ->
+                productionViewModel.assignDirectDisciple("lawEnforcement", slotIndex, discipleId)
                 showDiscipleSelection = null
-            },
-            onDismiss = { showDiscipleSelection = null }
+            }
         )
     }
 
     if (showReserveDiscipleList) {
         ReserveDiscipleListDialog(
             reserveDisciples = reserveDisciplesWithInfo,
+            allDisciples = disciples.filter { it.isAlive },
+            elderSlots = gameData?.elderSlots ?: ElderSlots(),
             viewModel = viewModel,
             productionViewModel = productionViewModel,
             onDismiss = { showReserveDiscipleList = false }
@@ -518,188 +544,6 @@ private fun LawDiscipleSlotItem(
 }
 
 @Composable
-private fun DiscipleSelectionDialog(
-    title: String,
-    disciples: List<DiscipleAggregate>,
-    currentDiscipleId: String?,
-    requirementText: String,
-    onSelect: (DiscipleAggregate) -> Unit,
-    onDismiss: () -> Unit
-) {
-    var selectedRealmFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
-    var selectedSpiritRootFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
-    var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
-    var spiritRootExpanded by remember { mutableStateOf(false) }
-    var attributeExpanded by remember { mutableStateOf(false) }
-
-    val realmFilters = listOf(
-        0 to "仙人",
-        1 to "渡劫",
-        2 to "大乘",
-        3 to "合体",
-        4 to "炼虚",
-        5 to "化神",
-        6 to "元婴",
-        7 to "金丹",
-        8 to "筑基"
-    )
-
-    val realmCounts = remember(disciples) {
-        disciples.filter { it.realmLayer > 0 }.groupingBy { it.realm }.eachCount()
-    }
-
-    val spiritRootCounts = remember(disciples) {
-        disciples.filter { it.realmLayer > 0 }.groupingBy { it.getSpiritRootCount() }.eachCount()
-    }
-
-    val sortedDisciples = remember(disciples) {
-        disciples.filter { it.realmLayer > 0 }.sortedByFollowAndRealm()
-    }
-
-    val filteredDisciples = remember(sortedDisciples, selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort) {
-        sortedDisciples.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort)
-    }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
-        title = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = title,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-                Box(
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clip(CircleShape)
-                        .clickable { onDismiss() }
-                        .background(GameColors.CardBackground),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "×",
-                        fontSize = 16.sp,
-                        color = Color(0xFF666666)
-                    )
-                }
-            }
-        },
-        text = {
-            if (disciples.isEmpty()) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "暂无符合条件的弟子",
-                        fontSize = 12.sp,
-                        color = Color(0xFF999999)
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = requirementText,
-                        fontSize = 10.sp,
-                        color = Color(0xFF666666)
-                    )
-                }
-            } else {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 500.dp)
-                ) {
-                    Text(
-                        text = requirementText,
-                        fontSize = 10.sp,
-                        color = Color(0xFFE74C3C),
-                        modifier = Modifier.fillMaxWidth(),
-                        textAlign = TextAlign.Center
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    SpiritRootAttributeFilterBar(
-                        selectedSpiritRootFilter = selectedSpiritRootFilter,
-                        selectedAttributeSort = selectedAttributeSort,
-                        spiritRootExpanded = spiritRootExpanded,
-                        attributeExpanded = attributeExpanded,
-                        spiritRootCounts = spiritRootCounts,
-                        onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
-                        onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
-                        onAttributeSortSelected = { selectedAttributeSort = it },
-                        onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
-                        onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
-                        isCompact = true
-                    )
-
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        realmFilters.chunked(4).forEach { chunk ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                chunk.forEach { (realm, name) ->
-                                    val isSelected = realm in selectedRealmFilter
-                                    val count = realmCounts[realm] ?: 0
-                                    Box(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .clip(RoundedCornerShape(4.dp))
-                                            .background(if (isSelected) GameColors.Gold.copy(alpha = 0.3f) else GameColors.PageBackground)
-                                            .border(1.dp, if (isSelected) GameColors.Gold else GameColors.Border, RoundedCornerShape(4.dp))
-                                            .clickable { selectedRealmFilter = if (isSelected) selectedRealmFilter - realm else selectedRealmFilter + realm }
-                                            .padding(vertical = 4.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = "$name $count",
-                                            fontSize = 8.sp,
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                            color = if (isSelected) GameColors.GoldDark else Color.Black
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    LazyColumn(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(
-                            items = filteredDisciples,
-                            key = { it.id }
-                        ) { disciple ->
-                            val isCurrent = disciple.id == currentDiscipleId
-                            HorizontalDiscipleCard(
-                                disciple = disciple,
-                                isCurrent = isCurrent,
-                                extraAttributes = listOf("智力" to disciple.intelligence),
-                                onClick = { onSelect(disciple) }
-                            )
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {}
-    )
-}
-
-@Composable
 private fun CommonDialog(
     title: String,
     onDismiss: () -> Unit,
@@ -752,6 +596,8 @@ private fun CommonDialog(
 @Composable
 private fun ReserveDiscipleListDialog(
     reserveDisciples: List<DiscipleAggregate>,
+    allDisciples: List<DiscipleAggregate>,
+    elderSlots: ElderSlots,
     viewModel: GameViewModel,
     productionViewModel: ProductionViewModel,
     onDismiss: () -> Unit
@@ -869,68 +715,19 @@ private fun ReserveDiscipleListDialog(
     )
 
     if (showAddDiscipleDialog) {
-        InnerDiscipleSelectionDialog(
-            viewModel = viewModel,
-            productionViewModel = productionViewModel,
-            onDismiss = { showAddDiscipleDialog = false }
-        )
-    }
-}
-
-@Composable
-private fun InnerDiscipleSelectionDialog(
-    viewModel: GameViewModel,
-    productionViewModel: ProductionViewModel,
-    onDismiss: () -> Unit
-) {
-    val availableDisciples = productionViewModel.getAvailableDisciplesForLawEnforcementReserve()
-    val selectedDiscipleIds = remember { mutableStateListOf<String>() }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
-        title = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Text(
-                        text = "内门弟子",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-                    Text(
-                        text = "(${availableDisciples.size})",
-                        fontSize = 10.sp,
-                        color = Color(0xFF999999)
-                    )
-                }
-                Box(
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clip(CircleShape)
-                        .clickable { onDismiss() }
-                        .background(GameColors.CardBackground),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "×",
-                        fontSize = 16.sp,
-                        color = Color(0xFF666666)
-                    )
-                }
+        val rawDisciples = remember(allDisciples, elderSlots) {
+            allDisciples.filter {
+                it.isAlive && it.realmLayer > 0 && it.age >= 5 &&
+                it.status == DiscipleStatus.IDLE && it.discipleType == "inner" &&
+                !elderSlots.isDiscipleInAnyPosition(it.id)
             }
-        },
-        text = {
-            Column(
-                modifier = Modifier.fillMaxWidth()
-            ) {
+        }
+        val reserveSelectedIds = remember { mutableStateListOf<String>() }
+        FilteredMultiSelectDialog(
+            title = "内门弟子",
+            disciples = rawDisciples,
+            selectedIds = reserveSelectedIds,
+            headerContent = {
                 Text(
                     text = "需要内门弟子及以上",
                     fontSize = 9.sp,
@@ -938,163 +735,14 @@ private fun InnerDiscipleSelectionDialog(
                     modifier = Modifier.fillMaxWidth(),
                     textAlign = TextAlign.Center
                 )
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                if (availableDisciples.isEmpty()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(100.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "暂无符合条件的弟子",
-                            fontSize = 12.sp,
-                            color = Color(0xFF999999)
-                        )
-                    }
-                } else {
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 400.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        items(availableDisciples, key = { it.id }) { disciple ->
-                            val isSelected = selectedDiscipleIds.contains(disciple.id)
-                            SelectableDiscipleCard(
-                                disciple = disciple,
-                                isSelected = isSelected,
-                                onClick = {
-                                    if (isSelected) {
-                                        selectedDiscipleIds.remove(disciple.id)
-                                    } else {
-                                        selectedDiscipleIds.add(disciple.id)
-                                    }
-                                }
-                            )
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
-            ) {
-                val hasSelection = selectedDiscipleIds.isNotEmpty()
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(if (hasSelection) Color(0xFFE74C3C) else Color(0xFFCCCCCC))
-                        .clickable(enabled = hasSelection) {
-                            if (hasSelection) {
-                                productionViewModel.addReserveDisciples(selectedDiscipleIds.toList())
-                                onDismiss()
-                            }
-                        }
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                ) {
-                    Text(
-                        text = if (hasSelection) "添加(${selectedDiscipleIds.size})" else "请选择弟子",
-                        fontSize = 12.sp,
-                        color = Color.White
-                    )
-                }
-            }
-        }
-    )
-}
-
-@Composable
-private fun SelectableDiscipleCard(
-    disciple: DiscipleAggregate,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    val spiritRootColor = try {
-        Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))
-    } catch (e: Exception) {
-        Color(0xFF666666)
-    }
-
-    val borderColor = if (isSelected) Color(0xFFFFD700) else GameColors.Border
-    val borderWidth = if (isSelected) 2.dp else 1.dp
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(6.dp))
-            .background(if (isSelected) Color(0xFFFFFBF0) else Color(0xFFF8F8F8))
-            .border(borderWidth, borderColor, RoundedCornerShape(6.dp))
-            .clickable(onClick = onClick)
-            .padding(10.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = disciple.name,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black,
-                        maxLines = 1
-                    )
-                    if (disciple.isFollowed) {
-                        FollowedTag()
-                    }
-                    Text(
-                        text = disciple.spiritRootName,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = spiritRootColor,
-                        maxLines = 1
-                    )
-                }
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "智力: ${disciple.intelligence}",
-                        fontSize = 10.sp,
-                        color = Color(0xFF666666)
-                    )
-                    Text(
-                        text = disciple.realmName,
-                        fontSize = 10.sp,
-                        color = Color(0xFF666666)
-                    )
-                }
-            }
-            
-            if (isSelected) {
-                Box(
-                    modifier = Modifier
-                        .size(20.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFFFFD700)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "✓",
-                        fontSize = 12.sp,
-                        color = Color.White
-                    )
-                }
-            }
-        }
+            },
+            confirmText = if (reserveSelectedIds.isNotEmpty()) "添加(${reserveSelectedIds.size})" else "请选择弟子",
+            confirmEnabled = { reserveSelectedIds.isNotEmpty() },
+            onConfirm = {
+                productionViewModel.addReserveDisciples(reserveSelectedIds.toList())
+                showAddDiscipleDialog = false
+            },
+            onDismiss = { showAddDiscipleDialog = false }
+        )
     }
 }

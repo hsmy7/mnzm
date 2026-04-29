@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -111,6 +112,60 @@ val FORGE_THEME = ProductionTheme(
     directDiscipleSortComparator = compareBy<DiscipleAggregate> { it.realm }
         .thenByDescending { it.realmLayer }
         .thenByDescending { it.artifactRefining }
+)
+
+val HERB_GARDEN_THEME = ProductionTheme(
+    buildingId = "herbGarden",
+    displayName = "灵药宛",
+    elderTitle = "灵植长老",
+    elderBonusInfo = ElderBonusInfoProvider.getHerbGardenElderInfo(),
+    coreAttributeName = "灵植",
+    coreAttributeColor = Color(0xFF27AE60),
+    defaultBorderColor = Color(0xFF27AE60),
+    workingStatusColor = Color(0xFF2196F3),
+    selectedHighlightColor = Color(0xFFFFD700),
+    reserveButtonBackgroundColor = GameColors.ButtonBackground,
+    reserveButtonTextColor = Color.Black,
+    slotLabelPrefix = "种植槽",
+    selectionDialogTitle = "选择种子",
+    startProductionText = "确认种植",
+    elderSelectionTitle = "选择灵植长老",
+    recommendAttributeText = "灵植",
+    getCoreAttributeValue = { it.spiritPlanting },
+    getElderId = { it.herbGardenElder },
+    getDirectDisciples = { it.herbGardenDisciples },
+    elderSortComparator = compareByDescending<DiscipleAggregate> { it.spiritPlanting }
+        .thenBy { it.realm }
+        .thenByDescending { it.realmLayer },
+    directDiscipleSortComparator = compareBy<DiscipleAggregate> { it.realm }
+        .thenByDescending { it.realmLayer }
+        .thenByDescending { it.spiritPlanting }
+)
+
+val SPIRIT_MINE_THEME = ProductionTheme(
+    buildingId = "spiritMine",
+    displayName = "灵矿场",
+    elderTitle = "执事",
+    elderBonusInfo = ElderBonusInfo( title = "执事", requiredAttribute = "道德", effectDescription = "管理灵矿场", bonusFormula = "道德值×效率"),
+    coreAttributeName = "采矿",
+    coreAttributeColor = Color(0xFF795548),
+    defaultBorderColor = Color(0xFF795548),
+    workingStatusColor = Color(0xFF2196F3),
+    selectedHighlightColor = Color(0xFFFFD700),
+    reserveButtonBackgroundColor = GameColors.ButtonBackground,
+    reserveButtonTextColor = Color.Black,
+    slotLabelPrefix = "采矿",
+    selectionDialogTitle = "",
+    startProductionText = "",
+    elderSelectionTitle = "选择执事",
+    recommendAttributeText = "采矿",
+    getCoreAttributeValue = { it.mining },
+    getElderId = { it.spiritMineDeaconDisciples.firstOrNull()?.discipleId ?: "" },
+    getDirectDisciples = { emptyList() },
+    elderSortComparator = compareByDescending<DiscipleAggregate> { it.mining }
+        .thenBy { it.realm }
+        .thenByDescending { it.realmLayer },
+    directDiscipleSortComparator = compareBy<DiscipleAggregate> { it.realm }
 )
 
 private val REALM_FILTERS = listOf(
@@ -364,7 +419,8 @@ fun ProductionElderSelectionDialog(
     currentElderId: String?,
     elderSlots: ElderSlots,
     onDismiss: () -> Unit,
-    onSelect: (String) -> Unit
+    onSelect: (String) -> Unit,
+    maxRealm: Int = 9
 ) {
     var selectedRealmFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
     var selectedSpiritRootFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
@@ -378,7 +434,7 @@ fun ProductionElderSelectionDialog(
             it.age >= 5 &&
             it.status == DiscipleStatus.IDLE &&
             it.discipleType == "inner" &&
-            it.realm <= 6 &&
+            it.realm <= maxRealm &&
             !elderSlots.isDiscipleInAnyPosition(it.id)
         }
     }
@@ -804,6 +860,213 @@ fun ProductionAddReserveDiscipleDialog(
                 com.xianxia.sect.ui.components.GameButton(
                     text = "添加${if (selectedIds.isNotEmpty()) "(${selectedIds.size})" else ""}",
                     onClick = { onConfirm(selectedIds.toList()) }
+                )
+            }
+        }
+    )
+}
+
+@Composable
+fun FilteredMultiSelectDialog(
+    title: String,
+    disciples: List<DiscipleAggregate>,
+    selectedIds: SnapshotStateList<String>,
+    maxSelection: Int? = null,
+    showRealmFilter: Boolean = true,
+    confirmEnabled: (Int) -> Boolean = { it > 0 },
+    confirmText: String = "确认",
+    showDismiss: Boolean = false,
+    dismissText: String = "取消",
+    extraCardAttrName: String? = null,
+    extraCardAttrValue: ((DiscipleAggregate) -> Int)? = null,
+    headerContent: (@Composable () -> Unit)? = null,
+    bottomContent: (@Composable () -> Unit)? = null,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    var selectedRealmFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
+    var selectedSpiritRootFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
+    var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
+    var spiritRootExpanded by remember { mutableStateOf(false) }
+    var attributeExpanded by remember { mutableStateOf(false) }
+
+    val realmFilters = REALM_FILTERS
+
+    val realmCounts = remember(disciples) {
+        disciples.groupingBy { it.realm }.eachCount()
+    }
+
+    val spiritRootCounts = remember(disciples) {
+        disciples.groupingBy { it.getSpiritRootCount() }.eachCount()
+    }
+
+    val sortedDisciples = remember(disciples) {
+        disciples.sortedWith(compareBy<DiscipleAggregate> { it.realm }.thenByDescending { it.realmLayer })
+    }
+
+    val filteredDisciples = remember(sortedDisciples, selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort) {
+        sortedDisciples.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort)
+    }
+
+    val extraAttrs = if (extraCardAttrName != null && extraCardAttrValue != null) {
+        remember { { d: DiscipleAggregate -> listOf(extraCardAttrName to extraCardAttrValue(d)) } }
+    } else null
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = GameColors.PageBackground,
+        title = @Composable {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = title,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+                    val countText = if (maxSelection != null) {
+                        "(${selectedIds.size}/$maxSelection)"
+                    } else {
+                        "(${selectedIds.size})"
+                    }
+                    Text(
+                        text = countText,
+                        fontSize = 10.sp,
+                        color = Color(0xFF999999)
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clip(CircleShape)
+                        .clickable { onDismiss() }
+                        .background(GameColors.CardBackground),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(text = "×", fontSize = 16.sp, color = Color(0xFF666666))
+                }
+            }
+        },
+        text = @Composable {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 500.dp)
+            ) {
+                if (headerContent != null) {
+                    headerContent()
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+
+                SpiritRootAttributeFilterBar(
+                    selectedSpiritRootFilter = selectedSpiritRootFilter,
+                    selectedAttributeSort = selectedAttributeSort,
+                    spiritRootExpanded = spiritRootExpanded,
+                    attributeExpanded = attributeExpanded,
+                    spiritRootCounts = spiritRootCounts,
+                    onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
+                    onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
+                    onAttributeSortSelected = { selectedAttributeSort = it },
+                    onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
+                    onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
+                    isCompact = true
+                )
+
+                if (showRealmFilter) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        realmFilters.chunked(4).forEach { chunk ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                chunk.forEach { (realm, name) ->
+                                    val isSelected = realm in selectedRealmFilter
+                                    val count = realmCounts[realm] ?: 0
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(if (isSelected) GameColors.Gold.copy(alpha = 0.3f) else GameColors.PageBackground)
+                                            .border(1.dp, if (isSelected) GameColors.Gold else GameColors.Border, RoundedCornerShape(4.dp))
+                                            .clickable { selectedRealmFilter = if (isSelected) selectedRealmFilter - realm else selectedRealmFilter + realm }
+                                            .padding(vertical = 4.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = "$name $count",
+                                            fontSize = 8.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (isSelected) GameColors.GoldDark else Color.Black
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                if (filteredDisciples.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "暂无符合条件的弟子",
+                            fontSize = 12.sp,
+                            color = Color(0xFF999999)
+                        )
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        items(filteredDisciples, key = { it.id }) { disciple ->
+                            val isSelected = selectedIds.contains(disciple.id)
+                            val canSelect = maxSelection == null || selectedIds.size < maxSelection || isSelected
+                            HorizontalDiscipleCard(
+                                disciple = disciple,
+                                isSelected = isSelected,
+                                extraAttributes = extraAttrs?.invoke(disciple) ?: emptyList(),
+                                onClick = {
+                                    if (isSelected) {
+                                        selectedIds.remove(disciple.id)
+                                    } else if (canSelect) {
+                                        selectedIds.add(disciple.id)
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = @Composable {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = if (showDismiss) Arrangement.SpaceBetween else Arrangement.End
+            ) {
+                if (showDismiss) {
+                    com.xianxia.sect.ui.components.GameButton(text = dismissText, onClick = onDismiss)
+                }
+                com.xianxia.sect.ui.components.GameButton(
+                    text = confirmText,
+                    onClick = onConfirm,
+                    enabled = confirmEnabled(selectedIds.size)
                 )
             }
         }

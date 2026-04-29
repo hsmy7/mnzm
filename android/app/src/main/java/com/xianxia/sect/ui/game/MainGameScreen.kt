@@ -45,7 +45,6 @@ import com.xianxia.sect.ui.game.tabs.BuildingsTab
 import com.xianxia.sect.ui.game.tabs.WarehouseTab
 import com.xianxia.sect.ui.game.tabs.SettingsTab
 import com.xianxia.sect.ui.game.dialogs.SecretRealmDialog
-import com.xianxia.sect.ui.game.dialogs.DispatchTeamDialog
 import com.xianxia.sect.ui.game.dialogs.ExplorationTeamDialog
 import com.xianxia.sect.ui.game.dialogs.BattleLogItem
 import com.xianxia.sect.ui.game.dialogs.BattleLogDetailDialog

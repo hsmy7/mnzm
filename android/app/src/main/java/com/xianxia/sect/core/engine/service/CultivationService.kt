@@ -418,16 +418,18 @@ class CultivationService @Inject constructor(
             // 道侣必须存活
             if (father == null || !father.isAlive) continue
 
-            // 0.08% 概率诞下子嗣
+            // 0.08% 概率诞下子嗣（子嗣加入招募列表，需玩家手动或自动招募）
             if (GameRandom.nextDouble() < 0.0008) {
                 val child = createChild(mother, father, currentYear)
-                val updatedList = allDisciples + child
-                currentDisciples = updatedList.map {
+                currentGameData = currentGameData.copy(
+                    recruitList = currentGameData.recruitList + child
+                )
+                currentDisciples = currentDisciples.map {
                     if (it.id == mother.id) it.copyWith(lastChildYear = currentYear) else it
                 }
 
                 val genderText = if (child.gender == "male") "子" else "女"
-                eventService.addGameEvent("${mother.name} 诞下一${genderText} ${child.name}", EventType.SUCCESS)
+                eventService.addGameEvent("${mother.name} 诞下一${genderText} ${child.name}，已加入招募列表待招募", EventType.SUCCESS)
 
                 return
             }
@@ -4491,6 +4493,22 @@ class CultivationService @Inject constructor(
             newRecruitDisciples.add(disciple)
             usedNames.add(disciple.name)
         }
+
+        // 自动招募：始终根据玩家的灵根筛选自动接收符合条件的弟子
+        val filter = currentGameData.autoRecruitSpiritRootFilter
+        val (autoRecruits, manualRecruits) = newRecruitDisciples.partition { disciple ->
+            val rootCount = disciple.spiritRootType.split(",").size
+            rootCount in filter
+        }
+        if (autoRecruits.isNotEmpty()) {
+            val currentMonthIndex = year * 12 + 1
+            autoRecruits.forEach { it.recruitedMonth = currentMonthIndex }
+            currentDisciples = currentDisciples + autoRecruits
+            newRecruitDisciples.clear()
+            newRecruitDisciples.addAll(manualRecruits)
+            Log.i(TAG, "autoRecruit: auto-recruited ${autoRecruits.size} disciples, ${manualRecruits.size} left for manual review")
+        }
+
         val previousRecruitCount = currentGameData.recruitList.size
         currentGameData = currentGameData.copy(recruitList = newRecruitDisciples, lastRecruitYear = year)
         Log.d(TAG, "refreshRecruitList: year=$year, generated ${newRecruitDisciples.size} new recruits (previous recruitList had $previousRecruitCount)")

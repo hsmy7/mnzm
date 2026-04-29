@@ -8,6 +8,7 @@ import com.xianxia.sect.data.serialization.NullSafeProtoBuf
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.MapSerializer
+import kotlinx.serialization.builtins.SetSerializer
 import kotlinx.serialization.builtins.nullable
 import kotlinx.serialization.builtins.serializer
 import java.util.Base64
@@ -52,6 +53,8 @@ object ProtobufConverters {
         MapSerializer(String.serializer(), Double.serializer())
     private val intBooleanMapSerializer: KSerializer<Map<Int, Boolean>> =
         MapSerializer(Int.serializer(), Boolean.serializer())
+    private val intSetSerializer: KSerializer<Set<Int>> =
+        SetSerializer(Int.serializer())
 
     // ==================== 工具方法 ====================
 
@@ -179,6 +182,18 @@ object ProtobufConverters {
     @JvmStatic
     fun toIntBooleanMap(value: String): Map<Int, Boolean> =
         decodeFromBase64(intBooleanMapSerializer, value) { emptyMap() }
+
+    // --- Set<Int> ---
+
+    @TypeConverter
+    @JvmStatic
+    fun fromIntSet(value: Set<Int>): String =
+        encodeToBase64(intSetSerializer, value)
+
+    @TypeConverter
+    @JvmStatic
+    fun toIntSet(value: String): Set<Int> =
+        decodeFromBase64(intSetSerializer, value) { emptySet() }
 
     // ==================== 枚举类型转换器 ====================
     // 枚举使用 name.toString() / valueOf() 存储，与原 ModelConverters 保持一致

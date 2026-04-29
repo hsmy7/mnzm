@@ -9,6 +9,21 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "2.6.04",
+            date = "2026-04-30",
+            changes = listOf(
+                "修复序列化bug导致建筑生产槽位数据在存档/读档时丢失的问题"
+            )
+        ),
+        ChangelogEntry(
+            version = "2.6.03",
+            date = "2026-04-29",
+            changes = listOf(
+                "新增自动招募功能，可按灵根种类筛选自动招募弟子",
+                "统一所有建筑弟子选择界面的筛选组件，修复执法堂/灵药宛/灵矿场/任务阁/秘境等筛选缺失或重复问题"
+            )
+        ),
+        ChangelogEntry(
             version = "2.6.02",
             date = "2026-04-29",
             changes = listOf(

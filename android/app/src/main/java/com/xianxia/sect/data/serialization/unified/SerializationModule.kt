@@ -1014,10 +1014,15 @@ class SaveDataConverter @Inject constructor() {
     }
 
     fun toSerializable(saveData: com.xianxia.sect.data.model.SaveData): SerializableSaveData {
+        // Inject productionSlots from snapshot into gameData before conversion,
+        // because GameData.productionSlots (the Room field) is never synced from _slots.
+        val gameDataWithSlots = saveData.gameData.copy(
+            productionSlots = saveData.productionSlots
+        )
         return SerializableSaveData(
             version = saveData.version ?: "1.0",
             timestamp = saveData.timestamp ?: System.currentTimeMillis(),
-            gameData = convertGameData(saveData.gameData),
+            gameData = convertGameData(gameDataWithSlots),
             disciples = saveData.disciples?.map { convertDisciple(it) } ?: emptyList(),
             equipment = saveData.equipmentInstances?.map { convertEquipment(it) } ?: emptyList(),
             manuals = saveData.manualInstances?.map { convertManual(it) } ?: emptyList(),

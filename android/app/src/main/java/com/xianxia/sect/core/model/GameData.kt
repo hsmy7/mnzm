@@ -186,6 +186,9 @@ data class GameData(
     // 秘境智能战斗：开启后遭遇妖兽时根据队伍状态决定是否战斗
     var smartBattleEnabled: Boolean = false,
 
+    // 自动招募灵根筛选（始终运行，1=单灵根, 2=双灵根, 3=三灵根, 4=四灵根, 5=五灵根）
+    var autoRecruitSpiritRootFilter: Set<Int> = emptySet(),
+
     var isGameOver: Boolean = false
 ) {
     val displayTime: String get() = "第${gameYear}年${gameMonth}月"

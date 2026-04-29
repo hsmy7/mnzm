@@ -420,6 +420,14 @@ class GameViewModel @Inject constructor(
         }
     }
 
+    fun setAutoRecruitFilter(filter: Set<Int>) {
+        viewModelScope.launch {
+            gameEngine.updateGameData { gd ->
+                gd.copy(autoRecruitSpiritRootFilter = filter)
+            }
+        }
+    }
+
     fun equipItem(discipleId: String, equipmentId: String) {
         viewModelScope.launch {
             try {

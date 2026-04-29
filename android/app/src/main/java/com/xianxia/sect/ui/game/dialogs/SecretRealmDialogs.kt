@@ -74,6 +74,7 @@ import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
 import com.xianxia.sect.ui.game.dialogs.BattleLogDetailDialog
 import com.xianxia.sect.ui.game.dialogs.BattleLogItem
 import com.xianxia.sect.ui.game.getAttributeValue
+import com.xianxia.sect.ui.game.FilteredMultiSelectDialog
 import com.xianxia.sect.ui.game.getSpiritRootCount
 import com.xianxia.sect.ui.theme.GameColors
 
@@ -217,10 +218,40 @@ fun SecretRealmDialog(
 
     if (showDispatchDialog) {
         selectedRealm?.let { realm ->
-            DispatchTeamDialog(
-                realm = realm,
-                disciples = disciples,
-                viewModel = viewModel,
+            val maxTeamSize = 8
+            val idleDisciples = remember(disciples) {
+                disciples.filter { it.status == DiscipleStatus.IDLE && it.realmLayer > 0 && it.age >= 5 }
+            }
+            val dispatchSelectedIds = remember { mutableStateListOf<String>() }
+            FilteredMultiSelectDialog(
+                title = "派遣队伍 - ${realm.name}",
+                disciples = idleDisciples,
+                selectedIds = dispatchSelectedIds,
+                maxSelection = maxTeamSize,
+                bottomContent = {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        GameButton(text = "一键选择", onClick = {
+                            val available = idleDisciples
+                                .filter { !dispatchSelectedIds.contains(it.id) }
+                                .sortedByFollowAndRealm()
+                            available.take(maxTeamSize - dispatchSelectedIds.size)
+                                .forEach { dispatchSelectedIds.add(it.id) }
+                        })
+                        GameButton(text = "一键取消", onClick = { dispatchSelectedIds.clear() })
+                    }
+                },
+                confirmText = "确认派遣",
+                confirmEnabled = { dispatchSelectedIds.isNotEmpty() },
+                showDismiss = true,
+                dismissText = "取消",
+                onConfirm = {
+                    viewModel.dispatchTeamToDungeon(realm.id, dispatchSelectedIds.toList())
+                    showDispatchDialog = false
+                    selectedRealm = null
+                },
                 onDismiss = {
                     showDispatchDialog = false
                     selectedRealm = null

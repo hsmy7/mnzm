@@ -104,12 +104,45 @@ fun MissionHallDialog(
 
     if (showDiscipleSelection) {
         selectedMission?.let { mission ->
-            DiscipleSelectionDialog(
-                mission = mission,
-                disciples = disciples,
-                busyDiscipleIds = busyDiscipleIds,
-                onConfirm = { selectedDisciples ->
-                    viewModel.startMission(mission, selectedDisciples)
+            val eligibleDisciples = remember(disciples, busyDiscipleIds) {
+                disciples.filter { disciple ->
+                    val disciplePosition = if (disciple.discipleType == "outer") "外门弟子" else "内门弟子"
+                    disciple.isAlive &&
+                    disciple.status == DiscipleStatus.IDLE &&
+                    disciple.id !in busyDiscipleIds &&
+                    disciplePosition in mission.difficulty.allowedPositions &&
+                    disciple.realm <= mission.difficulty.minRealm
+                }
+            }
+            val missionSelectedIds = remember { mutableStateListOf<String>() }
+            FilteredMultiSelectDialog(
+                title = "选择弟子 (${missionSelectedIds.size}/${mission.memberCount})",
+                disciples = eligibleDisciples,
+                selectedIds = missionSelectedIds,
+                maxSelection = mission.memberCount,
+                showRealmFilter = false,
+                confirmEnabled = { missionSelectedIds.size == mission.memberCount },
+                confirmText = "确认派遣",
+                showDismiss = true,
+                dismissText = "取消",
+                headerContent = {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = mission.name,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Black
+                        )
+                        Text(
+                            text = mission.difficulty.displayName,
+                            fontSize = 10.sp,
+                            color = Color(0xFF999999)
+                        )
+                    }
+                },
+                onConfirm = {
+                    val selected = eligibleDisciples.filter { it.id in missionSelectedIds }
+                    viewModel.startMission(mission, selected)
                     showDiscipleSelection = false
                     selectedMission = null
                 },

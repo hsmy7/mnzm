@@ -1,10 +1,12 @@
 package com.xianxia.sect.ui.game
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -13,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -35,6 +38,8 @@ fun RecruitDialog(
     viewModel: GameViewModel,
     onDismiss: () -> Unit
 ) {
+    var showAutoRecruitDialog by remember { mutableStateOf(false) }
+
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             modifier = Modifier
@@ -46,7 +51,8 @@ fun RecruitDialog(
             Column(modifier = Modifier.fillMaxSize()) {
                 RecruitHeader(
                     gameData = gameData,
-                    onDismiss = onDismiss
+                    onDismiss = onDismiss,
+                    onAutoRecruitClick = { showAutoRecruitDialog = true }
                 )
 
                 if (recruitList.isEmpty()) {
@@ -84,12 +90,21 @@ fun RecruitDialog(
             }
         }
     }
+
+    if (showAutoRecruitDialog) {
+        AutoRecruitFilterDialog(
+            gameData = gameData,
+            viewModel = viewModel,
+            onDismiss = { showAutoRecruitDialog = false }
+        )
+    }
 }
 
 @Composable
 private fun RecruitHeader(
     gameData: GameData?,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onAutoRecruitClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -113,10 +128,16 @@ private fun RecruitHeader(
             )
         }
 
-        GameButton(
-            text = "关闭",
-            onClick = onDismiss
-        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            GameButton(
+                text = "自动招募",
+                onClick = onAutoRecruitClick
+            )
+            GameButton(
+                text = "关闭",
+                onClick = onDismiss
+            )
+        }
     }
 }
 
@@ -229,6 +250,124 @@ private fun RecruitDiscipleCard(
                         onDismiss = { selectedTalent = null }
                     )
                 }
+            }
+        }
+    }
+}
+
+private val ROOT_COUNT_OPTIONS = listOf(
+    1 to "单灵根",
+    2 to "双灵根",
+    3 to "三灵根",
+    4 to "四灵根",
+    5 to "五灵根"
+)
+
+@Composable
+private fun AutoRecruitFilterDialog(
+    gameData: GameData?,
+    viewModel: GameViewModel,
+    onDismiss: () -> Unit
+) {
+    val initialFilter = gameData?.autoRecruitSpiritRootFilter ?: emptySet()
+    var selectedFilter by remember { mutableStateOf(initialFilter) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = GameColors.PageBackground,
+        title = {
+            Text(
+                text = "自动招募筛选",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                ROOT_COUNT_OPTIONS.forEach { (count, name) ->
+                    val rootColor = GameColors.getSpiritRootCountColor(count)
+                    AutoRecruitFilterRow(
+                        label = name,
+                        labelColor = rootColor,
+                        checked = count in selectedFilter,
+                        onToggle = {
+                            selectedFilter = if (count in selectedFilter) {
+                                selectedFilter - count
+                            } else {
+                                selectedFilter + count
+                            }
+                        }
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                GameButton(
+                    text = "保存",
+                    onClick = {
+                        viewModel.setAutoRecruitFilter(selectedFilter)
+                        onDismiss()
+                    }
+                )
+            }
+        }
+    )
+}
+
+@Composable
+private fun AutoRecruitFilterRow(
+    label: String,
+    labelColor: Color,
+    checked: Boolean,
+    onToggle: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            color = labelColor
+        )
+
+        Box(
+            modifier = Modifier
+                .size(24.dp)
+                .clip(CircleShape)
+                .border(
+                    width = 1.5.dp,
+                    color = if (checked) GameColors.Success else GameColors.Border,
+                    shape = CircleShape
+                )
+                .background(
+                    color = if (checked) GameColors.Success.copy(alpha = 0.15f) else Color.Transparent,
+                    shape = CircleShape
+                )
+                .clickable { onToggle() },
+            contentAlignment = Alignment.Center
+        ) {
+            if (checked) {
+                Text(
+                    text = "✓",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = GameColors.Success
+                )
             }
         }
     }
