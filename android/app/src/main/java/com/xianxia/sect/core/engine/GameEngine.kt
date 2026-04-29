@@ -188,6 +188,19 @@ class GameEngine @Inject constructor(
             }
         }
 
+        // 迁移旧存档：单队 battleTeam → 多队 battleTeams
+        val loadedData = stateStore.gameData.value
+        if (loadedData.battleTeams.isEmpty() && loadedData.battleTeam != null) {
+            val migratedTeam = loadedData.battleTeam!!.copy(teamNumber = 1, name = "战斗1队")
+            stateStore.update {
+                this.gameData = this.gameData.copy(
+                    battleTeams = listOf(migratedTeam),
+                    usedTeamNumbers = listOf(1),
+                    battleTeam = null
+                )
+            }
+        }
+
         discipleService.syncAllDiscipleStatuses()
     }
 

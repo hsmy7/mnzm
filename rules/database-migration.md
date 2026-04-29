@@ -1,11 +1,46 @@
 # 规则：数据库迁移与旧存档兼容
 
-执行任何涉及数据模型变更的任务时（新增字段、修改 Entity、调整表结构等），**必须在设计阶段就考虑以下问题**：
+## 核心原则
 
-1. **数据库版本升级**：每次 schema 变更必须编写对应的 `MIGRATION_X_Y`，在 `GameDatabase.kt` 中注册并递增 `version`
-2. **旧存档兼容**：新版本必须能正确读取旧版本数据库中的所有数据，不能依赖 `fallbackToDestructiveMigration`
-3. **Schema 校验**：迁移 SQL 必须与 Room `@Entity` 定义完全一致（包括 FK 约束、索引、列类型），否则 Room 会抛出 `IllegalStateException`
-4. **测试路径**：确认从近3个大版本升级时，迁移能成功执行且数据完整
-5. **决策优先**：能用 `ALTER TABLE ADD COLUMN` 只加列解决的不拆表；拆表重构必须完成全链路（Entity → Migration → DAO → DI → StorageEngine 读写 → delete 清理）
+**任何 GameData Entity 字段变更（新增/删除/重命名/修改类型/添加 @Ignore）都会触发 Room schema 变更。如果不编写对应的 Migration，旧数据库将无法打开，表现为：存档列表全部为空、新建游戏后不运行。**
 
-**反例**：MIGRATION_15_16 创建了子表但应用代码从未使用，且 `game_data_core` 遗漏了 FK 约束导致 Room schema 校验失败。
+## 必须遵守的规则
+
+1. **数据库版本升级**：每次 schema 变更必须：
+   - 递增 `@Database(version = N)` 
+   - 编写对应的 `MIGRATION_(N-1)_N`
+   - 在 `build()` 链中注册迁移
+   - **这是强制要求，不可跳过**
+
+2. **列变更的迁移 SQL**：
+   - 添加列：`ALTER TABLE table_name ADD COLUMN col_name TYPE DEFAULT val`
+   - 删除列（SQLite 不支持 DROP COLUMN，需重建表）：
+     ```sql
+     ALTER TABLE table_name RENAME TO table_name_old;
+     CREATE TABLE table_name (... 不含被删列);
+     INSERT INTO table_name SELECT col1, col2, ... FROM table_name_old;
+     DROP TABLE table_name_old;
+     ```
+   - 或更简单：**保留旧列不删除**，在 Entity 中使用 `@Ignore` 标记新字段
+
+3. **@Ignore 的正确用法**：
+   - 添加新字段 + `@Ignore` → 无需 Migration（Room 不创建列）
+   - 将旧字段标记为 `@Ignore` → **需要 Migration 删除列**，或保留旧字段在 Entity 中
+   - **从 Entity 移除字段（不管是否 @Ignore）→ 必须 Migration 处理旧列**
+
+4. **fallbackToDestructiveMigration**：
+   - 当前覆盖：ALL versions (1-19)，当迁移链断裂时 Room 重建数据库
+   - 此机制**仅作安全网**，不应依赖它处理日常变更
+   - 每次 schema 变更仍需编写显式 Migration
+
+5. **测试路径**：确认从近3个大版本升级时，迁移能成功执行且数据完整
+
+## 反面案例（已发生多次）
+
+| 版本 | 问题 | 影响 |
+|------|------|------|
+| v19→v20 (本次) | battleTeam 列从 Entity 移除但 Migration 未处理 | 旧存档全部为空 |
+| v17→v18 (MIGRATION_15_16) | game_data_core 遗漏 FK 约束 | Room schema 校验失败 |
+| v18→v19 (MIGRATION_18_19) | pills 表 miningAdd 列遗漏 | 存档全部为空 |
+
+**每次都是同样的错误：Entity 改了但 Migration 没跟上。**

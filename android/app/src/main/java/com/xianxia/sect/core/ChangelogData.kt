@@ -9,6 +9,14 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "2.6.01",
+            date = "2026-04-29",
+            changes = listOf(
+                "彻底修复执法堂弟子选择不显示空闲内门弟子（替换可疑扩展委托为直接判断）",
+                "天枢殿副宗主选择界面增加灵根/属性/境界筛选（此前完全缺失）"
+            )
+        ),
+        ChangelogEntry(
             version = "2.6.0",
             date = "2026-04-29",
             changes = listOf(
@@ -27,21 +35,403 @@ object ChangelogData {
             )
         ),
         ChangelogEntry(
-            version = "2.5.13",
-            date = "2026-04-15",
+            version = "2.5.96",
+            date = "2026-04-28",
             changes = listOf(
-                "优化世界地图宗门渲染性能",
-                "修复战斗中弟子状态同步异常的问题",
-                "修复存档加载后弟子状态可能不正确的问题"
+                "数据库迁移修复：防止旧存档全部为空",
+                "新增MIGRATION_19_20安全恢复迁移",
+                "属性筛选按钮新增采矿选项"
+            )
+        ),
+        ChangelogEntry(
+            version = "2.5.95",
+            date = "2026-04-28",
+            changes = listOf(
+                "新增储物袋没收功能",
+                "新增矿工说明按钮和采矿天赋地脉感应"
+            )
+        ),
+        ChangelogEntry(
+            version = "2.5.94",
+            date = "2026-04-28",
+            changes = listOf(
+                "新增挖矿系统和灵矿场改造",
+                "修复气血条/修炼进度条数值不居中",
+                "修复锻造装备属性全为0的问题",
+                "全境界弟子基础HP+30%"
+            )
+        ),
+        ChangelogEntry(
+            version = "2.5.93",
+            date = "2026-04-28",
+            changes = listOf(
+                "各境界战斗属性+30%（速度不变）",
+                "移除废弃的雷劫系统"
+            )
+        ),
+        ChangelogEntry(
+            version = "2.5.84",
+            date = "2026-04-27",
+            changes = listOf(
+                "修复锻造装备属性为零",
+                "旧存档生产系统fallback初始化",
+                "移除复活逻辑"
+            )
+        ),
+        ChangelogEntry(
+            version = "2.5.83",
+            date = "2026-04-27",
+            changes = listOf(
+                "修复丹药治疗/灵力恢复无效",
+                "移除每日恢复限制"
+            )
+        ),
+        ChangelogEntry(
+            version = "2.5.79",
+            date = "2026-04-27",
+            changes = listOf(
+                "存档系统稳健性修复：防止槽位全部消失",
+                "数据库schema修复：回滚未完成的GameData拆分",
+                "错误处理改进"
+            )
+        ),
+        ChangelogEntry(
+            version = "2.5.77",
+            date = "2026-04-27",
+            changes = listOf(
+                "修复旧存档丢失与新建游戏不运行（isPaused竞态）",
+                "修复加载进度残留问题"
+            )
+        ),
+        ChangelogEntry(
+            version = "2.5.76",
+            date = "2026-04-27",
+            changes = listOf(
+                "战斗系统境界差距系数修复（gap符号纠正）"
+            )
+        ),
+        ChangelogEntry(
+            version = "2.5.73",
+            date = "2026-04-27",
+            changes = listOf(
+                "Disciple双模型迁移Phase 1-2",
+                "消除循环依赖、收敛写路径"
+            )
+        ),
+        ChangelogEntry(
+            version = "2.5.72",
+            date = "2026-04-27",
+            changes = listOf(
+                "错误类型系统统一（AppError三层体系）",
+                "新增6个Domain分类"
+            )
+        ),
+        ChangelogEntry(
+            version = "2.5.69",
+            date = "2026-04-27",
+            changes = listOf(
+                "StorageEngine拆分重构为5个职责单一类"
+            )
+        ),
+        ChangelogEntry(
+            version = "2.5.68",
+            date = "2026-04-27",
+            changes = listOf(
+                "性能监控统一到UnifiedPerformanceMonitor"
+            )
+        ),
+        ChangelogEntry(
+            version = "2.5.67",
+            date = "2026-04-27",
+            changes = listOf(
+                "测试修复：SaveCryptoTest/InventorySystemTest"
+            )
+        ),
+        ChangelogEntry(
+            version = "2.5.66",
+            date = "2026-04-27",
+            changes = listOf(
+                "代码质量P0/P1修复",
+                "提取ElderManagementUseCase等3个UseCase",
+                "提取魔法数字为GameConfig常量"
+            )
+        ),
+        ChangelogEntry(
+            version = "2.5.65",
+            date = "2026-04-27",
+            changes = listOf(
+                "代码质量P1完整修复",
+                "9个独立CoroutineScope统一到ApplicationScopeProvider",
+                "提取BaseViewModel统一错误处理"
+            )
+        ),
+        ChangelogEntry(
+            version = "2.5.64",
+            date = "2026-04-27",
+            changes = listOf(
+                "代码质量P2完整修复",
+                "提取TimeProgressUtil等工具类",
+                "删除重复代码"
+            )
+        ),
+        ChangelogEntry(
+            version = "2.5.45",
+            date = "2026-04-27",
+            changes = listOf(
+                "P0关键修复：完整性校验三重缺陷",
+                "MainGameScreen拆分（8709行→860行+10模块）",
+                "线程安全修复"
+            )
+        ),
+        ChangelogEntry(
+            version = "2.5.44",
+            date = "2026-04-26",
+            changes = listOf(
+                "修复仓库战利品计算key冲突",
+                "AI洞府探索成功事件通知"
+            )
+        ),
+        ChangelogEntry(
+            version = "2.5.43",
+            date = "2026-04-26",
+            changes = listOf(
+                "修复InventorySystem.clear()空操作",
+                "修复derived StateFlow过期数据问题"
+            )
+        ),
+        ChangelogEntry(
+            version = "2.5.42",
+            date = "2026-04-26",
+            changes = listOf(
+                "区分玩家与AI宗门仓库设计",
+                "战利品改为发放到宗门仓库"
+            )
+        ),
+        ChangelogEntry(
+            version = "2.5.40",
+            date = "2026-04-26",
+            changes = listOf(
+                "月度外交事件修复：条件检查完善",
+                "盟友协作事件触发条件修复"
+            )
+        ),
+        ChangelogEntry(
+            version = "2.5.39",
+            date = "2026-04-26",
+            changes = listOf(
+                "修复AI占领逻辑多个边界条件",
+                "驻守队伍全灭时状态清理"
+            )
+        ),
+        ChangelogEntry(
+            version = "2.5.38",
+            date = "2026-04-26",
+            changes = listOf(
+                "召回驻守队伍状态清理修复",
+                "新增游戏失败机制"
+            )
+        ),
+        ChangelogEntry(
+            version = "2.5.37",
+            date = "2026-04-26",
+            changes = listOf(
+                "月度外交随机事件系统（16种事件）"
+            )
+        ),
+        ChangelogEntry(
+            version = "2.5.36",
+            date = "2026-04-26",
+            changes = listOf(
+                "外交系统扩展：物品送礼/自动结盟/好感度重做",
+                "修复AI_ONLY外交事件不触发"
+            )
+        ),
+        ChangelogEntry(
+            version = "2.5.35",
+            date = "2026-04-26",
+            changes = listOf(
+                "驻守队伍设计重构：驻守即战斗队伍",
+                "补充弟子逻辑统一"
+            )
+        ),
+        ChangelogEntry(
+            version = "2.5.34",
+            date = "2026-04-26",
+            changes = listOf(
+                "游戏失败机制：宗门全失即失败",
+                "初始好感度统一随机40-60"
+            )
+        ),
+        ChangelogEntry(
+            version = "2.5.33",
+            date = "2026-04-26",
+            changes = listOf(
+                "占领条件修复：改为全体弟子全灭"
+            )
+        ),
+        ChangelogEntry(
+            version = "2.5.32",
+            date = "2026-04-26",
+            changes = listOf(
+                "小境界突破概率平滑过渡",
+                "战斗队伍地图标记和移动路径显示",
+                "AI队伍弟子选择和死亡清理修复"
+            )
+        ),
+        ChangelogEntry(
+            version = "2.5.26",
+            date = "2026-04-26",
+            changes = listOf(
+                "宗门战争系统重构：攻击全地图、10v10格式",
+                "占领条件改为化神及以上弟子全灭"
+            )
+        ),
+        ChangelogEntry(
+            version = "2.5.22",
+            date = "2026-04-26",
+            changes = listOf(
+                "AI宗门弟子生成逻辑重构",
+                "AI弟子平时无功法装备、战斗时自动生成"
+            )
+        ),
+        ChangelogEntry(
+            version = "2.5.21",
+            date = "2026-04-26",
+            changes = listOf(
+                "修复存档丢失问题：fallback收紧、竞态修复",
+                "WAL checkpoint防止数据丢失"
+            )
+        ),
+        ChangelogEntry(
+            version = "2.5.20",
+            date = "2026-04-26",
+            changes = listOf(
+                "修复所有功法学习路径缺少同名检查"
+            )
+        ),
+        ChangelogEntry(
+            version = "2.5.19",
+            date = "2026-04-26",
+            changes = listOf(
+                "设置页面新增隐私设置（限制广告追踪）"
+            )
+        ),
+        ChangelogEntry(
+            version = "2.5.17",
+            date = "2026-04-25",
+            changes = listOf(
+                "修复learnManual缺少槽位上限检查"
+            )
+        ),
+        ChangelogEntry(
+            version = "2.5.16",
+            date = "2026-04-25",
+            changes = listOf(
+                "装备/功法系统重构：原子事务消除竞态",
+                "BagUtils提取共用方法"
+            )
+        ),
+        ChangelogEntry(
+            version = "2.5.13",
+            date = "2026-04-25",
+            changes = listOf(
+                "修复仓库多件装备时手动穿戴不显示",
+                "equipEquipment原子事务修复竞态条件"
             )
         ),
         ChangelogEntry(
             version = "2.5.12",
-            date = "2026-04-01",
+            date = "2026-04-25",
             changes = listOf(
-                "新增执法堂系统，支持长老、执法弟子和储备弟子",
-                "新增灵矿场执事和采矿系统",
-                "优化弟子筛选界面，增加灵根和属性过滤"
+                "修复一键出售需两次才能卖干净的bug",
+                "sellXxx方法改为事务中同步执行"
+            )
+        ),
+        ChangelogEntry(
+            version = "2.5.11",
+            date = "2026-04-25",
+            changes = listOf(
+                "弟子命名系统统一：NameService + 复姓支持",
+                "重名检测全面修复"
+            )
+        ),
+        ChangelogEntry(
+            version = "2.5.0",
+            date = "2026-04-25",
+            changes = listOf(
+                "世界地图扩容：6000x5000、80宗门",
+                "宗门聚类分布、路径贝塞尔弯曲"
+            )
+        ),
+        ChangelogEntry(
+            version = "2.4.18",
+            date = "2026-04-25",
+            changes = listOf(
+                "弟子自动使用丹药/装备/功法从每月改为每日",
+                "丹药持续时间从月度改为日度"
+            )
+        ),
+        ChangelogEntry(
+            version = "2.4.0",
+            date = "2026-04-24",
+            changes = listOf(
+                "宗门任务系统全面升级：24个任务模板",
+                "人型敌人系统",
+                "奖励差异化"
+            )
+        ),
+        ChangelogEntry(
+            version = "2.3.20",
+            date = "2026-04-23",
+            changes = listOf(
+                "所有弟子界面增加灵根和属性筛选行",
+                "灵根多选+属性排序+境界筛选联合使用"
+            )
+        ),
+        ChangelogEntry(
+            version = "2.3.17",
+            date = "2026-04-22",
+            changes = listOf(
+                "修复赏赐装备数量翻倍严重Bug",
+                "修复一件装备同时出现在仓库和储物袋"
+            )
+        ),
+        ChangelogEntry(
+            version = "2.3.16",
+            date = "2026-04-22",
+            changes = listOf(
+                "修复停止自动存档后仍在后台继续执行"
+            )
+        ),
+        ChangelogEntry(
+            version = "2.3.15",
+            date = "2026-04-22",
+            changes = listOf(
+                "修复大比对话框重复弹出",
+                "修复游戏后台时间继续流逝"
+            )
+        ),
+        ChangelogEntry(
+            version = "2.3.10",
+            date = "2026-04-22",
+            changes = listOf(
+                "堆叠上限修正与统一",
+                "31处硬编码改为InventoryConfig常量"
+            )
+        ),
+        ChangelogEntry(
+            version = "2.0.10",
+            date = "2026-04-19",
+            changes = listOf(
+                "修复驱逐弟子功能竞态条件",
+                "修复储物袋物品未归还宗门"
+            )
+        ),
+        ChangelogEntry(
+            version = "2.0.07",
+            date = "2026-04-12",
+            changes = listOf(
+                "正式上线版本"
             )
         )
     )

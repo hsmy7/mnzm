@@ -153,11 +153,14 @@ data class GameData(
     // 宗门政策
     var sectPolicies: SectPolicies = SectPolicies(),
 
-    // 战斗队伍（支持多队伍，存储为序列化数据，Room忽略）
+    // 战斗队伍（支持多队伍）
+    // battleTeam 保留用于 Room schema 兼容旧存档，逻辑层使用 battleTeams
+    var battleTeam: BattleTeam? = null,
+
     @Ignore
     var battleTeams: List<BattleTeam> = emptyList(),
 
-    // 已使用的队伍编号（用于解散后编号复用，Room忽略）
+    // 已使用的队伍编号（用于解散后编号复用）
     @Ignore
     var usedTeamNumbers: List<Int> = emptyList(),
 

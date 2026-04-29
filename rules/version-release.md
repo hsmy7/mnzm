@@ -6,15 +6,31 @@
    - `versionCode` 递增 1
    - `versionName` 格式 `x.x.xx`，小版本号递增
 
-2. **更新 CHANGELOG.md**：在文件顶部添加新条目
+2. **同时更新两个更新日志**：
+   
+   **CHANGELOG.md**（项目根目录）— 在文件顶部添加新条目：
    ```markdown
-   ## [2.5.XX] - YYYY-MM-DD
+   ## [2.6.XX] - YYYY-MM-DD
 
    ### 修改简述
    - 修改内容1
    - 修改内容2
    - 修改内容3
    ```
+
+   **ChangelogData.kt**（`core/ChangelogData.kt`）— 在 `entries` 列表最前面添加新条目：
+   ```kotlin
+   ChangelogEntry(
+       version = "2.6.XX",
+       date = "YYYY-MM-DD",
+       changes = listOf(
+           "修改内容1",
+           "修改内容2",
+           "修改内容3"
+       )
+   ),
+   ```
+   两者版本号和内容必须一致。
 
 3. **提交并推送**：
    ```bash
@@ -36,5 +52,6 @@
 | 存档视图模型 | `.../ui/game/SaveLoadViewModel.kt` |
 | 游戏引擎 | `.../core/engine/GameEngine.kt` |
 | 版本配置 | `android/app/build.gradle` (versionName) |
-| 更新日志 | `CHANGELOG.md` (项目根目录) |
+| 更新日志（项目） | `CHANGELOG.md` (项目根目录) |
+| 更新日志（游戏内） | `.../core/ChangelogData.kt` |
 | 构建设置 | `android/settings.gradle` |

@@ -2,11 +2,11 @@
   "formatVersion": 1,
   "database": {
     "version": 20,
-    "identityHash": "50b171bbdc3a7bd6bb897972508d82fa",
+    "identityHash": "22605052ac8516a4715448ecaa726784",
     "entities": [
       {
         "tableName": "game_data",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `sectName` TEXT NOT NULL, `currentSlot` INTEGER NOT NULL, `gameYear` INTEGER NOT NULL, `gameMonth` INTEGER NOT NULL, `gameDay` INTEGER NOT NULL, `isGameStarted` INTEGER NOT NULL, `gameSpeed` INTEGER NOT NULL, `spiritStones` INTEGER NOT NULL, `spiritHerbs` INTEGER NOT NULL, `sectCultivation` REAL NOT NULL, `autoSaveIntervalMonths` INTEGER NOT NULL, `monthlySalary` TEXT NOT NULL, `monthlySalaryEnabled` TEXT NOT NULL, `worldMapSects` TEXT NOT NULL, `sectDetails` TEXT NOT NULL, `exploredSects` TEXT NOT NULL, `scoutInfo` TEXT NOT NULL, `manualProficiencies` TEXT NOT NULL, `travelingMerchantItems` TEXT NOT NULL, `merchantLastRefreshYear` INTEGER NOT NULL, `merchantRefreshCount` INTEGER NOT NULL, `playerListedItems` TEXT NOT NULL, `recruitList` TEXT NOT NULL, `lastRecruitYear` INTEGER NOT NULL, `cultivatorCaves` TEXT NOT NULL, `caveExplorationTeams` TEXT NOT NULL, `aiCaveTeams` TEXT NOT NULL, `unlockedDungeons` TEXT NOT NULL, `unlockedRecipes` TEXT NOT NULL, `unlockedManuals` TEXT NOT NULL, `lastSaveTime` INTEGER NOT NULL, `elderSlots` TEXT NOT NULL, `spiritMineSlots` TEXT NOT NULL, `spiritMineExpansions` INTEGER NOT NULL, `librarySlots` TEXT NOT NULL, `productionSlots` TEXT NOT NULL, `alliances` TEXT NOT NULL, `sectRelations` TEXT NOT NULL, `playerAllianceSlots` INTEGER NOT NULL, `sectPolicies` TEXT NOT NULL, `aiBattleTeams` TEXT NOT NULL, `usedRedeemCodes` TEXT NOT NULL, `playerProtectionEnabled` INTEGER NOT NULL, `playerProtectionStartYear` INTEGER NOT NULL, `playerHasAttackedAI` INTEGER NOT NULL, `activeMissions` TEXT NOT NULL, `availableMissions` TEXT NOT NULL, `pendingCompetitionResults` TEXT NOT NULL, `lastCompetitionYear` INTEGER NOT NULL, `smartBattleEnabled` INTEGER NOT NULL, `isGameOver` INTEGER NOT NULL, PRIMARY KEY(`id`, `slot_id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `sectName` TEXT NOT NULL, `currentSlot` INTEGER NOT NULL, `gameYear` INTEGER NOT NULL, `gameMonth` INTEGER NOT NULL, `gameDay` INTEGER NOT NULL, `isGameStarted` INTEGER NOT NULL, `gameSpeed` INTEGER NOT NULL, `spiritStones` INTEGER NOT NULL, `spiritHerbs` INTEGER NOT NULL, `sectCultivation` REAL NOT NULL, `autoSaveIntervalMonths` INTEGER NOT NULL, `monthlySalary` TEXT NOT NULL, `monthlySalaryEnabled` TEXT NOT NULL, `worldMapSects` TEXT NOT NULL, `sectDetails` TEXT NOT NULL, `exploredSects` TEXT NOT NULL, `scoutInfo` TEXT NOT NULL, `manualProficiencies` TEXT NOT NULL, `travelingMerchantItems` TEXT NOT NULL, `merchantLastRefreshYear` INTEGER NOT NULL, `merchantRefreshCount` INTEGER NOT NULL, `playerListedItems` TEXT NOT NULL, `recruitList` TEXT NOT NULL, `lastRecruitYear` INTEGER NOT NULL, `cultivatorCaves` TEXT NOT NULL, `caveExplorationTeams` TEXT NOT NULL, `aiCaveTeams` TEXT NOT NULL, `unlockedDungeons` TEXT NOT NULL, `unlockedRecipes` TEXT NOT NULL, `unlockedManuals` TEXT NOT NULL, `lastSaveTime` INTEGER NOT NULL, `elderSlots` TEXT NOT NULL, `spiritMineSlots` TEXT NOT NULL, `spiritMineExpansions` INTEGER NOT NULL, `librarySlots` TEXT NOT NULL, `productionSlots` TEXT NOT NULL, `alliances` TEXT NOT NULL, `sectRelations` TEXT NOT NULL, `playerAllianceSlots` INTEGER NOT NULL, `sectPolicies` TEXT NOT NULL, `battleTeam` TEXT, `aiBattleTeams` TEXT NOT NULL, `usedRedeemCodes` TEXT NOT NULL, `playerProtectionEnabled` INTEGER NOT NULL, `playerProtectionStartYear` INTEGER NOT NULL, `playerHasAttackedAI` INTEGER NOT NULL, `activeMissions` TEXT NOT NULL, `availableMissions` TEXT NOT NULL, `pendingCompetitionResults` TEXT NOT NULL, `lastCompetitionYear` INTEGER NOT NULL, `smartBattleEnabled` INTEGER NOT NULL, `isGameOver` INTEGER NOT NULL, PRIMARY KEY(`id`, `slot_id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -259,6 +259,12 @@
             "columnName": "sectPolicies",
             "affinity": "TEXT",
             "notNull": true
+          },
+          {
+            "fieldPath": "battleTeam",
+            "columnName": "battleTeam",
+            "affinity": "TEXT",
+            "notNull": false
           },
           {
             "fieldPath": "aiBattleTeams",
@@ -4664,7 +4670,7 @@
     "views": [],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '50b171bbdc3a7bd6bb897972508d82fa')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '22605052ac8516a4715448ecaa726784')"
     ]
   }
 }

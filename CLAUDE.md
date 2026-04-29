@@ -78,6 +78,10 @@ Before delivering any implementation, you must systematically:
 7. Check for potential security vulnerabilities
 8. Ensure the code follows the project's coding standards
 
+## Database Migration Requirements
+
+Before modifying ANY `@Entity` class (especially `GameData`), read and follow `rules/database-migration.md`. The #1 cause of "all saves empty + new game doesn't run" is changing entity fields without a corresponding Migration. When in doubt, keep the old field AND add the new one with `@Ignore` — never remove a column without a Migration.
+
 ## Changelog Requirements
 
 After implementing any feature or bug fix, you MUST update the changelog in TWO locations:
