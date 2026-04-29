@@ -186,8 +186,7 @@ fun TianshuHallDialog(
                 it.realm <= 4 &&
                 it.discipleType == "inner" &&
                 it.age >= 5 &&
-                it.realmLayer > 0 &&
-                isDiscipleAnElder(it.id, elderSlots ?: ElderSlots())
+                it.realmLayer > 0
             }
         }
 
@@ -196,7 +195,11 @@ fun TianshuHallDialog(
             1 to "渡劫",
             2 to "大乘",
             3 to "合体",
-            4 to "炼虚"
+            4 to "炼虚",
+            5 to "化神",
+            6 to "元婴",
+            7 to "金丹",
+            8 to "筑基"
         )
 
         val realmCounts = remember(filteredDisciplesBase) {
@@ -259,7 +262,7 @@ fun TianshuHallDialog(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "需要炼虚及以上境界的长老",
+                            text = "需要炼虚及以上境界",
                             fontSize = 10.sp,
                             color = Color(0xFF666666)
                         )
@@ -271,7 +274,7 @@ fun TianshuHallDialog(
                             .heightIn(max = 500.dp)
                     ) {
                         Text(
-                            text = "需要炼虚及以上境界的长老",
+                            text = "需要炼虚及以上境界",
                             fontSize = 10.sp,
                             color = Color(0xFFE74C3C),
                             modifier = Modifier.fillMaxWidth(),
@@ -369,21 +372,6 @@ fun TianshuHallDialog(
             onDismiss = { showSectPoliciesDialog = false }
         )
     }
-}
-
-private fun isDiscipleAnElder(discipleId: String, elderSlots: ElderSlots): Boolean {
-    val allElderIds = listOf(
-        elderSlots.herbGardenElder,
-        elderSlots.alchemyElder,
-        elderSlots.forgeElder,
-        elderSlots.outerElder,
-        elderSlots.preachingElder,
-        elderSlots.lawEnforcementElder,
-        elderSlots.innerElder,
-        elderSlots.qingyunPreachingElder
-    ).filterNotNull()
-
-    return allElderIds.contains(discipleId)
 }
 
 @Composable

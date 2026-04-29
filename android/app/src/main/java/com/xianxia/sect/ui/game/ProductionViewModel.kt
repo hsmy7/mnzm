@@ -165,25 +165,6 @@ class ProductionViewModel @Inject constructor(
                 return@launch
             }
 
-            val currentSlots = gameEngine.gameData.value.elderSlots
-
-            val isElder = listOf(
-                currentSlots.viceSectMaster,
-                currentSlots.herbGardenElder,
-                currentSlots.alchemyElder,
-                currentSlots.forgeElder,
-                currentSlots.outerElder,
-                currentSlots.preachingElder,
-                currentSlots.lawEnforcementElder,
-                currentSlots.innerElder,
-                currentSlots.qingyunPreachingElder
-            ).any { it == discipleId }
-
-            if (!isElder) {
-                showError("副宗主需要由长老担任")
-                return@launch
-            }
-
             gameEngine.updateGameData {
                 it.copy(elderSlots = it.elderSlots.copy(viceSectMaster = discipleId))
             }
