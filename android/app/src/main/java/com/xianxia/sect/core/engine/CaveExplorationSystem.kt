@@ -215,13 +215,13 @@ object CaveExplorationSystem {
 
         val bossMultiplier = if (isBoss) 2.5 else 1.0
 
-        val hp = (stats.hp * layerMult * (1.0 + (beastType.hpMod - 1.0) + hpVariance) * bossMultiplier).toInt()
-        val mp = (stats.mp * layerMult * (1.0 + (beastType.hpMod - 1.0) + hpVariance) * bossMultiplier).toInt()
-        val physicalAttack = (stats.attack * layerMult * (1.0 + (beastType.atkMod - 1.0) + atkVariance) * bossMultiplier).toInt()
-        val magicAttack = (stats.attack * layerMult * (1.0 + (beastType.atkMod - 1.0) + atkVariance) * bossMultiplier).toInt()
-        val physicalDefense = (stats.defense * layerMult * (1.0 + (beastType.defMod - 1.0) + defVariance) * bossMultiplier).toInt()
-        val magicDefense = (stats.defense * layerMult * (1.0 + (beastType.defMod - 1.0) + defVariance) * bossMultiplier).toInt()
-        val speed = (stats.speed * layerMult * (1.0 + (beastType.speedMod - 1.0) + speedVariance) * bossMultiplier).toInt()
+        val hp = (stats.hp * layerMult * (beastType.hpMod + hpVariance) * bossMultiplier).toInt()
+        val mp = (stats.mp * layerMult * (beastType.hpMod + hpVariance) * bossMultiplier).toInt()
+        val physicalAttack = (stats.attack * layerMult * (beastType.atkMod + atkVariance) * bossMultiplier).toInt()
+        val magicAttack = (stats.attack * layerMult * (beastType.atkMod + atkVariance) * bossMultiplier).toInt()
+        val physicalDefense = (stats.defense * layerMult * (beastType.defMod + defVariance) * bossMultiplier).toInt()
+        val magicDefense = (stats.defense * layerMult * (beastType.defMod + defVariance) * bossMultiplier).toInt()
+        val speed = (stats.speed * layerMult * (beastType.speedMod + speedVariance) * bossMultiplier).toInt()
 
         val beastSkills = beastType.skills.map { skillConfig ->
             CombatSkill(

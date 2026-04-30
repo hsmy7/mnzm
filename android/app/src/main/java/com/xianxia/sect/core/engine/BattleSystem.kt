@@ -125,13 +125,13 @@ class BattleSystem @Inject constructor() {
         val defVariance = -0.2 + Random.nextDouble() * 0.4
         val speedVariance = -0.2 + Random.nextDouble() * 0.4
 
-        val hp = (stats.hp * layerMult * (1.0 + (type.hpMod - 1.0) + hpVariance)).toInt()
-        val mp = (stats.mp * layerMult * (1.0 + (type.hpMod - 1.0) + hpVariance)).toInt()
-        val physicalAttack = (stats.attack * layerMult * (1.0 + (type.atkMod - 1.0) + atkVariance)).toInt()
-        val magicAttack = (stats.attack * layerMult * (1.0 + (type.atkMod - 1.0) + atkVariance)).toInt()
-        val physicalDefense = (stats.defense * layerMult * (1.0 + (type.defMod - 1.0) + defVariance)).toInt()
-        val magicDefense = (stats.defense * layerMult * (1.0 + (type.defMod - 1.0) + defVariance)).toInt()
-        val speed = (stats.speed * layerMult * (1.0 + (type.speedMod - 1.0) + speedVariance)).toInt()
+        val hp = (stats.hp * layerMult * (type.hpMod + hpVariance)).toInt()
+        val mp = (stats.mp * layerMult * (type.hpMod + hpVariance)).toInt()
+        val physicalAttack = (stats.attack * layerMult * (type.atkMod + atkVariance)).toInt()
+        val magicAttack = (stats.attack * layerMult * (type.atkMod + atkVariance)).toInt()
+        val physicalDefense = (stats.defense * layerMult * (type.defMod + defVariance)).toInt()
+        val magicDefense = (stats.defense * layerMult * (type.defMod + defVariance)).toInt()
+        val speed = (stats.speed * layerMult * (type.speedMod + speedVariance)).toInt()
 
         val beastSkills = type.skills.map { skillConfig ->
             CombatSkill(
