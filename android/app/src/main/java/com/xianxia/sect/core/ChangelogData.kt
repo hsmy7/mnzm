@@ -9,6 +9,15 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "2.6.09",
+            date = "2026-05-01",
+            changes = listOf(
+                "修正妖兽属性预计算表数值，与运行时代码实际倍率保持一致",
+                "简化createBeast()计算逻辑，移除运行时固定倍率和beastAdvantage常量",
+                "妖兽方差计算从6个独立变量减少到4个"
+            )
+        ),
+        ChangelogEntry(
             version = "2.6.08",
             date = "2026-05-01",
             changes = listOf(

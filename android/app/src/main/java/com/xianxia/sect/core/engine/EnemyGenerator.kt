@@ -4,7 +4,6 @@ import com.xianxia.sect.core.CombatantSide
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
-import kotlin.math.roundToInt
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.EquipmentStack
@@ -121,16 +120,16 @@ object EnemyGenerator {
         equipmentStats: EquipmentStatsAccumulator,
         skills: List<CombatSkill>
     ): Combatant {
-        val realmConfig = GameConfig.Realm.get(realm)
+        val stats = GameConfig.Enemy.getRealmStats(realm)
         val layerMult = 1.0 + (realmLayer - 1) * 0.1
 
-        val hp = (realmConfig.baseHp * 2.1 * layerMult).roundToInt() + equipmentStats.hp
-        val mp = (realmConfig.baseMp * 2.0 * layerMult).roundToInt() + equipmentStats.mp
-        val physicalAttack = (realmConfig.basePhysicalAttack * 2.5 * layerMult).roundToInt() + equipmentStats.physicalAttack
-        val magicAttack = (realmConfig.baseMagicAttack * 2.5 * layerMult).roundToInt() + equipmentStats.magicAttack
-        val physicalDefense = (realmConfig.basePhysicalDefense * 2.2 * layerMult).roundToInt() + equipmentStats.physicalDefense
-        val magicDefense = (realmConfig.baseMagicDefense * 2.2 * layerMult).roundToInt() + equipmentStats.magicDefense
-        val speed = (realmConfig.baseSpeed * 1.33 * layerMult).roundToInt() + equipmentStats.speed
+        val hp = (stats.hp * layerMult).toInt() + equipmentStats.hp
+        val mp = (stats.mp * layerMult).toInt() + equipmentStats.mp
+        val physicalAttack = (stats.physicalAttack * layerMult).toInt() + equipmentStats.physicalAttack
+        val magicAttack = (stats.magicAttack * layerMult).toInt() + equipmentStats.magicAttack
+        val physicalDefense = (stats.physicalDefense * layerMult).toInt() + equipmentStats.physicalDefense
+        val magicDefense = (stats.magicDefense * layerMult).toInt() + equipmentStats.magicDefense
+        val speed = (stats.speed * layerMult).toInt() + equipmentStats.speed
 
         val elements = listOf("metal", "wood", "water", "fire", "earth")
         val element = elements.random()

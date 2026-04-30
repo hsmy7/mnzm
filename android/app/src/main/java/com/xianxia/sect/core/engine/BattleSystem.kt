@@ -9,7 +9,7 @@ import com.xianxia.sect.core.SkillType
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.util.BattleCalculator
 import com.xianxia.sect.core.util.GameUtils
-import kotlin.math.roundToInt
+
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.random.Random
@@ -109,8 +109,6 @@ class BattleSystem @Inject constructor() {
     private fun createBeast(beastRealm: Int, index: Int, beastType: String? = null): Combatant {
         val realmIndex = beastRealm.coerceIn(0, 9)
 
-        val realmConfig = GameConfig.Realm.get(realmIndex)
-
         val type = if (beastType != null) {
             GameConfig.Beast.TYPES.find { it.name == beastType } ?: GameConfig.Beast.getType(0)
         } else {
@@ -120,27 +118,20 @@ class BattleSystem @Inject constructor() {
         val realmLayer = Random.nextInt(1, 10)
         val layerMult = 1.0 + (realmLayer - 1) * 0.1
 
-        val baseHp = (realmConfig.baseHp * 2.25 * layerMult).roundToInt()
-        val baseMp = (realmConfig.baseMp * 2.25 * layerMult).roundToInt()
-        val baseAtk = (realmConfig.basePhysicalAttack * 2.61 * layerMult).roundToInt()
-        val baseDef = (realmConfig.basePhysicalDefense * 2.34 * layerMult).roundToInt()
-        val baseSpeed = (realmConfig.baseSpeed * 1.44 * layerMult).roundToInt()
+        val stats = GameConfig.Beast.getRealmStats(realmIndex)
 
-        val beastAdvantage = 0.06
         val hpVariance = -0.2 + Random.nextDouble() * 0.4
-        val physicalAttackVariance = -0.2 + Random.nextDouble() * 0.4
-        val magicAttackVariance = -0.2 + Random.nextDouble() * 0.4
-        val physicalDefenseVariance = -0.2 + Random.nextDouble() * 0.4
-        val magicDefenseVariance = -0.2 + Random.nextDouble() * 0.4
+        val atkVariance = -0.2 + Random.nextDouble() * 0.4
+        val defVariance = -0.2 + Random.nextDouble() * 0.4
         val speedVariance = -0.2 + Random.nextDouble() * 0.4
 
-        val hp = (baseHp * (1.0 + (type.hpMod - 1.0) + hpVariance + beastAdvantage)).toInt()
-        val mp = (baseMp * (1.0 + (type.hpMod - 1.0) + hpVariance + beastAdvantage)).toInt()
-        val physicalAttack = (baseAtk * (1.0 + (type.atkMod - 1.0) + physicalAttackVariance + beastAdvantage)).toInt()
-        val magicAttack = (baseAtk * (1.0 + (type.atkMod - 1.0) + magicAttackVariance + beastAdvantage)).toInt()
-        val physicalDefense = (baseDef * (1.0 + (type.defMod - 1.0) + physicalDefenseVariance + beastAdvantage)).toInt()
-        val magicDefense = (baseDef * (1.0 + (type.defMod - 1.0) + magicDefenseVariance + beastAdvantage)).toInt()
-        val speed = (baseSpeed * (1.0 + (type.speedMod - 1.0) + speedVariance + beastAdvantage)).toInt()
+        val hp = (stats.hp * layerMult * (1.0 + (type.hpMod - 1.0) + hpVariance)).toInt()
+        val mp = (stats.mp * layerMult * (1.0 + (type.hpMod - 1.0) + hpVariance)).toInt()
+        val physicalAttack = (stats.attack * layerMult * (1.0 + (type.atkMod - 1.0) + atkVariance)).toInt()
+        val magicAttack = (stats.attack * layerMult * (1.0 + (type.atkMod - 1.0) + atkVariance)).toInt()
+        val physicalDefense = (stats.defense * layerMult * (1.0 + (type.defMod - 1.0) + defVariance)).toInt()
+        val magicDefense = (stats.defense * layerMult * (1.0 + (type.defMod - 1.0) + defVariance)).toInt()
+        val speed = (stats.speed * layerMult * (1.0 + (type.speedMod - 1.0) + speedVariance)).toInt()
 
         val beastSkills = type.skills.map { skillConfig ->
             CombatSkill(

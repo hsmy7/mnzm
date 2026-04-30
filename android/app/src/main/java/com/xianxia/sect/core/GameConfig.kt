@@ -298,6 +298,29 @@ object GameConfig {
     }
     
     object Beast {
+        data class RealmStats(
+            val hp: Int,
+            val mp: Int,
+            val attack: Int,
+            val defense: Int,
+            val speed: Int
+        )
+
+        val REALM_STATS = mapOf(
+            9  to RealmStats(hp=538,    mp=207,    attack=49,     defense=36,     speed=25),
+            8  to RealmStats(hp=1344,   mp=517,    attack=120,    defense=91,     speed=64),
+            7  to RealmStats(hp=3493,   mp=1344,   attack=310,    defense=234,    speed=166),
+            6  to RealmStats(hp=9137,   mp=3514,   attack=815,    defense=609,    speed=432),
+            5  to RealmStats(hp=24184,  mp=9302,   attack=2158,   defense=1612,   speed=1145),
+            4  to RealmStats(hp=59116,  mp=22737,  attack=5275,   defense=3941,   speed=2798),
+            3  to RealmStats(hp=139729, mp=53742,  attack=12468,  defense=9315,   speed=6614),
+            2  to RealmStats(hp=311704, mp=119886, attack=27814,  defense=20780,  speed=14755),
+            1  to RealmStats(hp=644840, mp=248040, attack=57545,  defense=42994,  speed=30528),
+            0  to RealmStats(hp=1343418,mp=516750, attack=119886, defense=89570,  speed=63600)
+        )
+
+        fun getRealmStats(realm: Int): RealmStats = REALM_STATS[realm] ?: REALM_STATS.getValue(9)
+
         val TYPES = listOf(
             BeastTypeConfig("虎妖", "狂暴", 1.3, 1.4, 0.7, 1.0, 1.1, "metal",
                 listOf(BeastSkillConfig("猛虎下山", 1.8, 3, 0, SkillType.ATTACK, DamageType.PHYSICAL),
@@ -322,6 +345,33 @@ object GameConfig {
         )
 
         fun getType(index: Int): BeastTypeConfig = TYPES.getOrElse(index) { TYPES[0] }
+    }
+
+    object Enemy {
+        data class RealmStats(
+            val hp: Int,
+            val mp: Int,
+            val physicalAttack: Int,
+            val magicAttack: Int,
+            val physicalDefense: Int,
+            val magicDefense: Int,
+            val speed: Int
+        )
+
+        val REALM_STATS = mapOf(
+            9  to RealmStats(hp=426,  mp=156,  physicalAttack=40,  magicAttack=40,  physicalDefense=29,  magicDefense=22,  speed=20),
+            8  to RealmStats(hp=1065, mp=390,  physicalAttack=98,  magicAttack=98,  physicalDefense=73,  magicDefense=57,  speed=51),
+            7  to RealmStats(hp=2768, mp=1014, physicalAttack=253, magicAttack=253, physicalDefense=187, magicDefense=149, speed=130),
+            6  to RealmStats(hp=7241, mp=2652, physicalAttack=663, magicAttack=663, physicalDefense=486, magicDefense=389, speed=339),
+            5  to RealmStats(hp=19165,mp=7020, physicalAttack=1755,magicAttack=1755,physicalDefense=1287,magicDefense=1030,speed=898),
+            4  to RealmStats(hp=46847,mp=17160,physicalAttack=4290,magicAttack=4290,physicalDefense=3146,magicDefense=2517,speed=2195),
+            3  to RealmStats(hp=110729,mp=40560,physicalAttack=10140,magicAttack=10140,physicalDefense=7436,magicDefense=5949,speed=5187),
+            2  to RealmStats(hp=247011,mp=90480,physicalAttack=22620,magicAttack=22620,physicalDefense=16588,magicDefense=13270,speed=11571),
+            1  to RealmStats(hp=511056,mp=187200,physicalAttack=46800,magicAttack=46800,physicalDefense=34320,magicDefense=27456,speed=23940),
+            0  to RealmStats(hp=1064700,mp=390000,physicalAttack=97500,magicAttack=97500,physicalDefense=71500,magicDefense=57200,speed=49875)
+        )
+
+        fun getRealmStats(realm: Int): RealmStats = REALM_STATS[realm] ?: REALM_STATS.getValue(9)
     }
     
     object Dungeons {
