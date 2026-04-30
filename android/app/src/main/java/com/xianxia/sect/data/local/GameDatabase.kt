@@ -715,12 +715,43 @@ val MIGRATION_21_22 = object : androidx.room.migration.Migration(21, 22) {
     override fun migrate(db: SupportSQLiteDatabase) {
         try {
             Log.i("GameDatabase", "Migrating database from version 21 to 22: Add autoEquipFromWarehouse and autoLearnFromWarehouse columns")
+            // disciples 表：autoLearnFromWarehouse（直接字段）+ autoEquipFromWarehouse（@Embedded EquipmentSet 展平）
             db.execSQL("ALTER TABLE disciples ADD COLUMN autoLearnFromWarehouse INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE disciples ADD COLUMN autoEquipFromWarehouse INTEGER NOT NULL DEFAULT 0")
             db.execSQL("ALTER TABLE disciples_equipment ADD COLUMN autoEquipFromWarehouse INTEGER NOT NULL DEFAULT 0")
             db.execSQL("ALTER TABLE disciples_extended ADD COLUMN autoLearnFromWarehouse INTEGER NOT NULL DEFAULT 0")
             Log.i("GameDatabase", "Migration 21->22 completed: autoEquipFromWarehouse and autoLearnFromWarehouse columns added")
         } catch (e: Exception) {
             Log.e("GameDatabase", "Migration 21->22 failed", e)
+            throw e
+        }
+    }
+}
+
+val MIGRATION_22_23 = object : androidx.room.migration.Migration(22, 23) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        try {
+            Log.i("GameDatabase", "Migrating database from version 22 to 23: Ensure autoEquipFromWarehouse column exists in disciples")
+            // MIGRATION_21_22 had a bug: autoEquipFromWarehouse from @Embedded EquipmentSet was
+            // added to disciples_equipment but NOT to the disciples table itself.
+            // This recovery migration safely adds the missing column if it doesn't exist.
+            val cursor = db.query("PRAGMA table_info(disciples)")
+            var hasColumn = false
+            while (cursor.moveToNext()) {
+                if (cursor.getString(cursor.getColumnIndexOrThrow("name")) == "autoEquipFromWarehouse") {
+                    hasColumn = true
+                    break
+                }
+            }
+            cursor.close()
+            if (!hasColumn) {
+                db.execSQL("ALTER TABLE disciples ADD COLUMN autoEquipFromWarehouse INTEGER NOT NULL DEFAULT 0")
+                Log.i("GameDatabase", "Migration 22->23: Added missing autoEquipFromWarehouse column to disciples")
+            } else {
+                Log.i("GameDatabase", "Migration 22->23: autoEquipFromWarehouse column already exists, skipping")
+            }
+        } catch (e: Exception) {
+            Log.e("GameDatabase", "Migration 22->23 failed", e)
             throw e
         }
     }
@@ -837,7 +868,7 @@ val MIGRATION_17_18 = object : androidx.room.migration.Migration(17, 18) {
         ArchivedGameEvent::class,
         ArchivedDisciple::class
     ],
-    version = 22,
+    version = 23,
     exportSchema = true
 )
 
@@ -1120,7 +1151,7 @@ abstract class GameDatabase : RoomDatabase() {
                         optimizeDatabase(db)
                     }
                 })
-                .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22)
+                .addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23)
                 .fallbackToDestructiveMigrationFrom(1, 2, 3)
                 .build()
                 .also { db -> applySafetyPragmas(db) }

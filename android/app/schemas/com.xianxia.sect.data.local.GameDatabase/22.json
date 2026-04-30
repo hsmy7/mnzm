@@ -1,0 +1,4706 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 22,
+    "identityHash": "b8b621ce514c6b990a2a65ebb6bd36ef",
+    "entities": [
+      {
+        "tableName": "game_data",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `sectName` TEXT NOT NULL, `currentSlot` INTEGER NOT NULL, `gameYear` INTEGER NOT NULL, `gameMonth` INTEGER NOT NULL, `gameDay` INTEGER NOT NULL, `isGameStarted` INTEGER NOT NULL, `gameSpeed` INTEGER NOT NULL, `spiritStones` INTEGER NOT NULL, `spiritHerbs` INTEGER NOT NULL, `sectCultivation` REAL NOT NULL, `autoSaveIntervalMonths` INTEGER NOT NULL, `monthlySalary` TEXT NOT NULL, `monthlySalaryEnabled` TEXT NOT NULL, `worldMapSects` TEXT NOT NULL, `sectDetails` TEXT NOT NULL, `exploredSects` TEXT NOT NULL, `scoutInfo` TEXT NOT NULL, `manualProficiencies` TEXT NOT NULL, `travelingMerchantItems` TEXT NOT NULL, `merchantLastRefreshYear` INTEGER NOT NULL, `merchantRefreshCount` INTEGER NOT NULL, `playerListedItems` TEXT NOT NULL, `recruitList` TEXT NOT NULL, `lastRecruitYear` INTEGER NOT NULL, `cultivatorCaves` TEXT NOT NULL, `caveExplorationTeams` TEXT NOT NULL, `aiCaveTeams` TEXT NOT NULL, `unlockedDungeons` TEXT NOT NULL, `unlockedRecipes` TEXT NOT NULL, `unlockedManuals` TEXT NOT NULL, `lastSaveTime` INTEGER NOT NULL, `elderSlots` TEXT NOT NULL, `spiritMineSlots` TEXT NOT NULL, `spiritMineExpansions` INTEGER NOT NULL, `librarySlots` TEXT NOT NULL, `productionSlots` TEXT NOT NULL, `alliances` TEXT NOT NULL, `sectRelations` TEXT NOT NULL, `playerAllianceSlots` INTEGER NOT NULL, `sectPolicies` TEXT NOT NULL, `battleTeam` TEXT, `aiBattleTeams` TEXT NOT NULL, `usedRedeemCodes` TEXT NOT NULL, `playerProtectionEnabled` INTEGER NOT NULL, `playerProtectionStartYear` INTEGER NOT NULL, `playerHasAttackedAI` INTEGER NOT NULL, `activeMissions` TEXT NOT NULL, `availableMissions` TEXT NOT NULL, `pendingCompetitionResults` TEXT NOT NULL, `lastCompetitionYear` INTEGER NOT NULL, `smartBattleEnabled` INTEGER NOT NULL, `autoRecruitSpiritRootFilter` TEXT NOT NULL, `isGameOver` INTEGER NOT NULL, PRIMARY KEY(`id`, `slot_id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "slotId",
+            "columnName": "slot_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sectName",
+            "columnName": "sectName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "currentSlot",
+            "columnName": "currentSlot",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "gameYear",
+            "columnName": "gameYear",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "gameMonth",
+            "columnName": "gameMonth",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "gameDay",
+            "columnName": "gameDay",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isGameStarted",
+            "columnName": "isGameStarted",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "gameSpeed",
+            "columnName": "gameSpeed",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "spiritStones",
+            "columnName": "spiritStones",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "spiritHerbs",
+            "columnName": "spiritHerbs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sectCultivation",
+            "columnName": "sectCultivation",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "autoSaveIntervalMonths",
+            "columnName": "autoSaveIntervalMonths",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "monthlySalary",
+            "columnName": "monthlySalary",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "monthlySalaryEnabled",
+            "columnName": "monthlySalaryEnabled",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "worldMapSects",
+            "columnName": "worldMapSects",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sectDetails",
+            "columnName": "sectDetails",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "exploredSects",
+            "columnName": "exploredSects",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "scoutInfo",
+            "columnName": "scoutInfo",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "manualProficiencies",
+            "columnName": "manualProficiencies",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "travelingMerchantItems",
+            "columnName": "travelingMerchantItems",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "merchantLastRefreshYear",
+            "columnName": "merchantLastRefreshYear",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "merchantRefreshCount",
+            "columnName": "merchantRefreshCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "playerListedItems",
+            "columnName": "playerListedItems",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "recruitList",
+            "columnName": "recruitList",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastRecruitYear",
+            "columnName": "lastRecruitYear",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cultivatorCaves",
+            "columnName": "cultivatorCaves",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "caveExplorationTeams",
+            "columnName": "caveExplorationTeams",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "aiCaveTeams",
+            "columnName": "aiCaveTeams",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "unlockedDungeons",
+            "columnName": "unlockedDungeons",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "unlockedRecipes",
+            "columnName": "unlockedRecipes",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "unlockedManuals",
+            "columnName": "unlockedManuals",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastSaveTime",
+            "columnName": "lastSaveTime",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "elderSlots",
+            "columnName": "elderSlots",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "spiritMineSlots",
+            "columnName": "spiritMineSlots",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "spiritMineExpansions",
+            "columnName": "spiritMineExpansions",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "librarySlots",
+            "columnName": "librarySlots",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "productionSlots",
+            "columnName": "productionSlots",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "alliances",
+            "columnName": "alliances",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sectRelations",
+            "columnName": "sectRelations",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "playerAllianceSlots",
+            "columnName": "playerAllianceSlots",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sectPolicies",
+            "columnName": "sectPolicies",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "battleTeam",
+            "columnName": "battleTeam",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "aiBattleTeams",
+            "columnName": "aiBattleTeams",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "usedRedeemCodes",
+            "columnName": "usedRedeemCodes",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "playerProtectionEnabled",
+            "columnName": "playerProtectionEnabled",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "playerProtectionStartYear",
+            "columnName": "playerProtectionStartYear",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "playerHasAttackedAI",
+            "columnName": "playerHasAttackedAI",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "activeMissions",
+            "columnName": "activeMissions",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "availableMissions",
+            "columnName": "availableMissions",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pendingCompetitionResults",
+            "columnName": "pendingCompetitionResults",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastCompetitionYear",
+            "columnName": "lastCompetitionYear",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "smartBattleEnabled",
+            "columnName": "smartBattleEnabled",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "autoRecruitSpiritRootFilter",
+            "columnName": "autoRecruitSpiritRootFilter",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isGameOver",
+            "columnName": "isGameOver",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id",
+            "slot_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_game_data_slot_id",
+            "unique": true,
+            "columnNames": [
+              "slot_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_game_data_slot_id` ON `${TABLE_NAME}` (`slot_id`)"
+          },
+          {
+            "name": "index_game_data_lastSaveTime",
+            "unique": false,
+            "columnNames": [
+              "lastSaveTime"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_game_data_lastSaveTime` ON `${TABLE_NAME}` (`lastSaveTime`)"
+          },
+          {
+            "name": "index_game_data_gameYear_gameMonth",
+            "unique": false,
+            "columnNames": [
+              "gameYear",
+              "gameMonth"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_game_data_gameYear_gameMonth` ON `${TABLE_NAME}` (`gameYear`, `gameMonth`)"
+          },
+          {
+            "name": "index_game_data_sectName",
+            "unique": false,
+            "columnNames": [
+              "sectName"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_game_data_sectName` ON `${TABLE_NAME}` (`sectName`)"
+          },
+          {
+            "name": "index_game_data_spiritStones",
+            "unique": false,
+            "columnNames": [
+              "spiritStones"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_game_data_spiritStones` ON `${TABLE_NAME}` (`spiritStones`)"
+          },
+          {
+            "name": "index_game_data_isGameStarted",
+            "unique": false,
+            "columnNames": [
+              "isGameStarted"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_game_data_isGameStarted` ON `${TABLE_NAME}` (`isGameStarted`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "disciples",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `name` TEXT NOT NULL, `surname` TEXT NOT NULL, `realm` INTEGER NOT NULL, `realmLayer` INTEGER NOT NULL, `cultivation` REAL NOT NULL, `spiritRootType` TEXT NOT NULL, `age` INTEGER NOT NULL, `lifespan` INTEGER NOT NULL, `isAlive` INTEGER NOT NULL, `gender` TEXT NOT NULL, `manualIds` TEXT NOT NULL, `talentIds` TEXT NOT NULL, `manualMasteries` TEXT NOT NULL, `status` TEXT NOT NULL, `statusData` TEXT NOT NULL, `cultivationSpeedBonus` REAL NOT NULL, `cultivationSpeedDuration` INTEGER NOT NULL, `discipleType` TEXT NOT NULL, `autoLearnFromWarehouse` INTEGER NOT NULL, `baseHp` INTEGER NOT NULL, `baseMp` INTEGER NOT NULL, `basePhysicalAttack` INTEGER NOT NULL, `baseMagicAttack` INTEGER NOT NULL, `basePhysicalDefense` INTEGER NOT NULL, `baseMagicDefense` INTEGER NOT NULL, `baseSpeed` INTEGER NOT NULL, `hpVariance` INTEGER NOT NULL, `mpVariance` INTEGER NOT NULL, `physicalAttackVariance` INTEGER NOT NULL, `magicAttackVariance` INTEGER NOT NULL, `physicalDefenseVariance` INTEGER NOT NULL, `magicDefenseVariance` INTEGER NOT NULL, `speedVariance` INTEGER NOT NULL, `totalCultivation` INTEGER NOT NULL, `breakthroughCount` INTEGER NOT NULL, `breakthroughFailCount` INTEGER NOT NULL, `currentHp` INTEGER NOT NULL, `currentMp` INTEGER NOT NULL, `pillPhysicalAttackBonus` INTEGER NOT NULL, `pillMagicAttackBonus` INTEGER NOT NULL, `pillPhysicalDefenseBonus` INTEGER NOT NULL, `pillMagicDefenseBonus` INTEGER NOT NULL, `pillHpBonus` INTEGER NOT NULL, `pillMpBonus` INTEGER NOT NULL, `pillSpeedBonus` INTEGER NOT NULL, `pillCritRateBonus` REAL NOT NULL, `pillCritEffectBonus` REAL NOT NULL, `pillCultivationSpeedBonus` REAL NOT NULL, `pillSkillExpSpeedBonus` REAL NOT NULL, `pillNurtureSpeedBonus` REAL NOT NULL, `pillEffectDuration` INTEGER NOT NULL, `activePillCategory` TEXT NOT NULL, `weaponId` TEXT NOT NULL, `armorId` TEXT NOT NULL, `bootsId` TEXT NOT NULL, `accessoryId` TEXT NOT NULL, `weaponNurture` TEXT NOT NULL, `armorNurture` TEXT NOT NULL, `bootsNurture` TEXT NOT NULL, `accessoryNurture` TEXT NOT NULL, `autoEquipFromWarehouse` INTEGER NOT NULL, `storageBagItems` TEXT NOT NULL, `storageBagSpiritStones` INTEGER NOT NULL, `spiritStones` INTEGER NOT NULL, `soulPower` INTEGER NOT NULL, `social_partnerId` TEXT, `social_partnerSectId` TEXT, `social_parentId1` TEXT, `social_parentId2` TEXT, `social_lastChildYear` INTEGER NOT NULL, `social_griefEndYear` INTEGER, `intelligence` INTEGER NOT NULL, `charm` INTEGER NOT NULL, `loyalty` INTEGER NOT NULL, `comprehension` INTEGER NOT NULL, `artifactRefining` INTEGER NOT NULL, `pillRefining` INTEGER NOT NULL, `spiritPlanting` INTEGER NOT NULL, `mining` INTEGER NOT NULL, `teaching` INTEGER NOT NULL, `morality` INTEGER NOT NULL, `salaryPaidCount` INTEGER NOT NULL, `salaryMissedCount` INTEGER NOT NULL, `usage_usedFunctionalPillTypes` TEXT NOT NULL, `usage_usedExtendLifePillIds` TEXT NOT NULL, `usage_recruitedMonth` INTEGER NOT NULL, `usage_hasReviveEffect` INTEGER NOT NULL, `usage_hasClearAllEffect` INTEGER NOT NULL, PRIMARY KEY(`id`, `slot_id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "slotId",
+            "columnName": "slot_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "surname",
+            "columnName": "surname",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "realm",
+            "columnName": "realm",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "realmLayer",
+            "columnName": "realmLayer",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cultivation",
+            "columnName": "cultivation",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "spiritRootType",
+            "columnName": "spiritRootType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "age",
+            "columnName": "age",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lifespan",
+            "columnName": "lifespan",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isAlive",
+            "columnName": "isAlive",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "gender",
+            "columnName": "gender",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "manualIds",
+            "columnName": "manualIds",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "talentIds",
+            "columnName": "talentIds",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "manualMasteries",
+            "columnName": "manualMasteries",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "statusData",
+            "columnName": "statusData",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cultivationSpeedBonus",
+            "columnName": "cultivationSpeedBonus",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cultivationSpeedDuration",
+            "columnName": "cultivationSpeedDuration",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "discipleType",
+            "columnName": "discipleType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "autoLearnFromWarehouse",
+            "columnName": "autoLearnFromWarehouse",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "combat.baseHp",
+            "columnName": "baseHp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "combat.baseMp",
+            "columnName": "baseMp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "combat.basePhysicalAttack",
+            "columnName": "basePhysicalAttack",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "combat.baseMagicAttack",
+            "columnName": "baseMagicAttack",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "combat.basePhysicalDefense",
+            "columnName": "basePhysicalDefense",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "combat.baseMagicDefense",
+            "columnName": "baseMagicDefense",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "combat.baseSpeed",
+            "columnName": "baseSpeed",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "combat.hpVariance",
+            "columnName": "hpVariance",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "combat.mpVariance",
+            "columnName": "mpVariance",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "combat.physicalAttackVariance",
+            "columnName": "physicalAttackVariance",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "combat.magicAttackVariance",
+            "columnName": "magicAttackVariance",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "combat.physicalDefenseVariance",
+            "columnName": "physicalDefenseVariance",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "combat.magicDefenseVariance",
+            "columnName": "magicDefenseVariance",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "combat.speedVariance",
+            "columnName": "speedVariance",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "combat.totalCultivation",
+            "columnName": "totalCultivation",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "combat.breakthroughCount",
+            "columnName": "breakthroughCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "combat.breakthroughFailCount",
+            "columnName": "breakthroughFailCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "combat.currentHp",
+            "columnName": "currentHp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "combat.currentMp",
+            "columnName": "currentMp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pillEffects.pillPhysicalAttackBonus",
+            "columnName": "pillPhysicalAttackBonus",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pillEffects.pillMagicAttackBonus",
+            "columnName": "pillMagicAttackBonus",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pillEffects.pillPhysicalDefenseBonus",
+            "columnName": "pillPhysicalDefenseBonus",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pillEffects.pillMagicDefenseBonus",
+            "columnName": "pillMagicDefenseBonus",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pillEffects.pillHpBonus",
+            "columnName": "pillHpBonus",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pillEffects.pillMpBonus",
+            "columnName": "pillMpBonus",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pillEffects.pillSpeedBonus",
+            "columnName": "pillSpeedBonus",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pillEffects.pillCritRateBonus",
+            "columnName": "pillCritRateBonus",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pillEffects.pillCritEffectBonus",
+            "columnName": "pillCritEffectBonus",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pillEffects.pillCultivationSpeedBonus",
+            "columnName": "pillCultivationSpeedBonus",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pillEffects.pillSkillExpSpeedBonus",
+            "columnName": "pillSkillExpSpeedBonus",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pillEffects.pillNurtureSpeedBonus",
+            "columnName": "pillNurtureSpeedBonus",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pillEffects.pillEffectDuration",
+            "columnName": "pillEffectDuration",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pillEffects.activePillCategory",
+            "columnName": "activePillCategory",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "equipment.weaponId",
+            "columnName": "weaponId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "equipment.armorId",
+            "columnName": "armorId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "equipment.bootsId",
+            "columnName": "bootsId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "equipment.accessoryId",
+            "columnName": "accessoryId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "equipment.weaponNurture",
+            "columnName": "weaponNurture",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "equipment.armorNurture",
+            "columnName": "armorNurture",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "equipment.bootsNurture",
+            "columnName": "bootsNurture",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "equipment.accessoryNurture",
+            "columnName": "accessoryNurture",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "equipment.autoEquipFromWarehouse",
+            "columnName": "autoEquipFromWarehouse",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "equipment.storageBagItems",
+            "columnName": "storageBagItems",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "equipment.storageBagSpiritStones",
+            "columnName": "storageBagSpiritStones",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "equipment.spiritStones",
+            "columnName": "spiritStones",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "equipment.soulPower",
+            "columnName": "soulPower",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "social.partnerId",
+            "columnName": "social_partnerId",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "social.partnerSectId",
+            "columnName": "social_partnerSectId",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "social.parentId1",
+            "columnName": "social_parentId1",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "social.parentId2",
+            "columnName": "social_parentId2",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "social.lastChildYear",
+            "columnName": "social_lastChildYear",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "social.griefEndYear",
+            "columnName": "social_griefEndYear",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "skills.intelligence",
+            "columnName": "intelligence",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "skills.charm",
+            "columnName": "charm",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "skills.loyalty",
+            "columnName": "loyalty",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "skills.comprehension",
+            "columnName": "comprehension",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "skills.artifactRefining",
+            "columnName": "artifactRefining",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "skills.pillRefining",
+            "columnName": "pillRefining",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "skills.spiritPlanting",
+            "columnName": "spiritPlanting",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "skills.mining",
+            "columnName": "mining",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "skills.teaching",
+            "columnName": "teaching",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "skills.morality",
+            "columnName": "morality",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "skills.salaryPaidCount",
+            "columnName": "salaryPaidCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "skills.salaryMissedCount",
+            "columnName": "salaryMissedCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "usage.usedFunctionalPillTypes",
+            "columnName": "usage_usedFunctionalPillTypes",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "usage.usedExtendLifePillIds",
+            "columnName": "usage_usedExtendLifePillIds",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "usage.recruitedMonth",
+            "columnName": "usage_recruitedMonth",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "usage.hasReviveEffect",
+            "columnName": "usage_hasReviveEffect",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "usage.hasClearAllEffect",
+            "columnName": "usage_hasClearAllEffect",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id",
+            "slot_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_disciples_name",
+            "unique": false,
+            "columnNames": [
+              "name"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_disciples_name` ON `${TABLE_NAME}` (`name`)"
+          },
+          {
+            "name": "index_disciples_realm_realmLayer",
+            "unique": false,
+            "columnNames": [
+              "realm",
+              "realmLayer"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_disciples_realm_realmLayer` ON `${TABLE_NAME}` (`realm`, `realmLayer`)"
+          },
+          {
+            "name": "index_disciples_isAlive_realm",
+            "unique": false,
+            "columnNames": [
+              "isAlive",
+              "realm"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_disciples_isAlive_realm` ON `${TABLE_NAME}` (`isAlive`, `realm`)"
+          },
+          {
+            "name": "index_disciples_isAlive_status",
+            "unique": false,
+            "columnNames": [
+              "isAlive",
+              "status"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_disciples_isAlive_status` ON `${TABLE_NAME}` (`isAlive`, `status`)"
+          },
+          {
+            "name": "index_disciples_discipleType",
+            "unique": false,
+            "columnNames": [
+              "discipleType"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_disciples_discipleType` ON `${TABLE_NAME}` (`discipleType`)"
+          },
+          {
+            "name": "index_disciples_loyalty",
+            "unique": false,
+            "columnNames": [
+              "loyalty"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_disciples_loyalty` ON `${TABLE_NAME}` (`loyalty`)"
+          },
+          {
+            "name": "index_disciples_age",
+            "unique": false,
+            "columnNames": [
+              "age"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_disciples_age` ON `${TABLE_NAME}` (`age`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "disciples_core",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `name` TEXT NOT NULL, `surname` TEXT NOT NULL, `realm` INTEGER NOT NULL, `realmLayer` INTEGER NOT NULL, `cultivation` REAL NOT NULL, `isAlive` INTEGER NOT NULL, `status` TEXT NOT NULL, `discipleType` TEXT NOT NULL, `age` INTEGER NOT NULL, `lifespan` INTEGER NOT NULL, `gender` TEXT NOT NULL, `spiritRootType` TEXT NOT NULL, `recruitedMonth` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`id`, `slot_id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "slotId",
+            "columnName": "slot_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "surname",
+            "columnName": "surname",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "realm",
+            "columnName": "realm",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "realmLayer",
+            "columnName": "realmLayer",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cultivation",
+            "columnName": "cultivation",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isAlive",
+            "columnName": "isAlive",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "discipleType",
+            "columnName": "discipleType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "age",
+            "columnName": "age",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lifespan",
+            "columnName": "lifespan",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "gender",
+            "columnName": "gender",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "spiritRootType",
+            "columnName": "spiritRootType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "recruitedMonth",
+            "columnName": "recruitedMonth",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updatedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id",
+            "slot_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_disciples_core_name",
+            "unique": false,
+            "columnNames": [
+              "name"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_disciples_core_name` ON `${TABLE_NAME}` (`name`)"
+          },
+          {
+            "name": "index_disciples_core_realm_realmLayer",
+            "unique": false,
+            "columnNames": [
+              "realm",
+              "realmLayer"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_disciples_core_realm_realmLayer` ON `${TABLE_NAME}` (`realm`, `realmLayer`)"
+          },
+          {
+            "name": "index_disciples_core_isAlive_realm",
+            "unique": false,
+            "columnNames": [
+              "isAlive",
+              "realm"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_disciples_core_isAlive_realm` ON `${TABLE_NAME}` (`isAlive`, `realm`)"
+          },
+          {
+            "name": "index_disciples_core_isAlive_status",
+            "unique": false,
+            "columnNames": [
+              "isAlive",
+              "status"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_disciples_core_isAlive_status` ON `${TABLE_NAME}` (`isAlive`, `status`)"
+          },
+          {
+            "name": "index_disciples_core_discipleType",
+            "unique": false,
+            "columnNames": [
+              "discipleType"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_disciples_core_discipleType` ON `${TABLE_NAME}` (`discipleType`)"
+          },
+          {
+            "name": "index_disciples_core_age",
+            "unique": false,
+            "columnNames": [
+              "age"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_disciples_core_age` ON `${TABLE_NAME}` (`age`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "disciples_combat",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`discipleId` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `baseHp` INTEGER NOT NULL, `baseMp` INTEGER NOT NULL, `basePhysicalAttack` INTEGER NOT NULL, `baseMagicAttack` INTEGER NOT NULL, `basePhysicalDefense` INTEGER NOT NULL, `baseMagicDefense` INTEGER NOT NULL, `baseSpeed` INTEGER NOT NULL, `hpVariance` INTEGER NOT NULL, `mpVariance` INTEGER NOT NULL, `physicalAttackVariance` INTEGER NOT NULL, `magicAttackVariance` INTEGER NOT NULL, `physicalDefenseVariance` INTEGER NOT NULL, `magicDefenseVariance` INTEGER NOT NULL, `speedVariance` INTEGER NOT NULL, `pillPhysicalAttackBonus` INTEGER NOT NULL, `pillMagicAttackBonus` INTEGER NOT NULL, `pillPhysicalDefenseBonus` INTEGER NOT NULL, `pillMagicDefenseBonus` INTEGER NOT NULL, `pillHpBonus` INTEGER NOT NULL, `pillMpBonus` INTEGER NOT NULL, `pillSpeedBonus` INTEGER NOT NULL, `pillCritRateBonus` REAL NOT NULL, `pillCritEffectBonus` REAL NOT NULL, `pillCultivationSpeedBonus` REAL NOT NULL, `pillSkillExpSpeedBonus` REAL NOT NULL, `pillNurtureSpeedBonus` REAL NOT NULL, `pillEffectDuration` INTEGER NOT NULL, `activePillCategory` TEXT NOT NULL, `totalCultivation` INTEGER NOT NULL, `breakthroughCount` INTEGER NOT NULL, `breakthroughFailCount` INTEGER NOT NULL, `currentHp` INTEGER NOT NULL, `currentMp` INTEGER NOT NULL, PRIMARY KEY(`discipleId`, `slot_id`))",
+        "fields": [
+          {
+            "fieldPath": "discipleId",
+            "columnName": "discipleId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "slotId",
+            "columnName": "slot_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "baseHp",
+            "columnName": "baseHp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "baseMp",
+            "columnName": "baseMp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "basePhysicalAttack",
+            "columnName": "basePhysicalAttack",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "baseMagicAttack",
+            "columnName": "baseMagicAttack",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "basePhysicalDefense",
+            "columnName": "basePhysicalDefense",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "baseMagicDefense",
+            "columnName": "baseMagicDefense",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "baseSpeed",
+            "columnName": "baseSpeed",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "hpVariance",
+            "columnName": "hpVariance",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mpVariance",
+            "columnName": "mpVariance",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "physicalAttackVariance",
+            "columnName": "physicalAttackVariance",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "magicAttackVariance",
+            "columnName": "magicAttackVariance",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "physicalDefenseVariance",
+            "columnName": "physicalDefenseVariance",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "magicDefenseVariance",
+            "columnName": "magicDefenseVariance",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "speedVariance",
+            "columnName": "speedVariance",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pillPhysicalAttackBonus",
+            "columnName": "pillPhysicalAttackBonus",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pillMagicAttackBonus",
+            "columnName": "pillMagicAttackBonus",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pillPhysicalDefenseBonus",
+            "columnName": "pillPhysicalDefenseBonus",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pillMagicDefenseBonus",
+            "columnName": "pillMagicDefenseBonus",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pillHpBonus",
+            "columnName": "pillHpBonus",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pillMpBonus",
+            "columnName": "pillMpBonus",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pillSpeedBonus",
+            "columnName": "pillSpeedBonus",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pillCritRateBonus",
+            "columnName": "pillCritRateBonus",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pillCritEffectBonus",
+            "columnName": "pillCritEffectBonus",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pillCultivationSpeedBonus",
+            "columnName": "pillCultivationSpeedBonus",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pillSkillExpSpeedBonus",
+            "columnName": "pillSkillExpSpeedBonus",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pillNurtureSpeedBonus",
+            "columnName": "pillNurtureSpeedBonus",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pillEffectDuration",
+            "columnName": "pillEffectDuration",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "activePillCategory",
+            "columnName": "activePillCategory",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "totalCultivation",
+            "columnName": "totalCultivation",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "breakthroughCount",
+            "columnName": "breakthroughCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "breakthroughFailCount",
+            "columnName": "breakthroughFailCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "currentHp",
+            "columnName": "currentHp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "currentMp",
+            "columnName": "currentMp",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "discipleId",
+            "slot_id"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "disciples_equipment",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`discipleId` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `weaponId` TEXT NOT NULL, `armorId` TEXT NOT NULL, `bootsId` TEXT NOT NULL, `accessoryId` TEXT NOT NULL, `weaponNurture` TEXT NOT NULL, `armorNurture` TEXT NOT NULL, `bootsNurture` TEXT NOT NULL, `accessoryNurture` TEXT NOT NULL, `storageBagItems` TEXT NOT NULL, `storageBagSpiritStones` INTEGER NOT NULL, `spiritStones` INTEGER NOT NULL, `soulPower` INTEGER NOT NULL, `autoEquipFromWarehouse` INTEGER NOT NULL, PRIMARY KEY(`discipleId`, `slot_id`))",
+        "fields": [
+          {
+            "fieldPath": "discipleId",
+            "columnName": "discipleId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "slotId",
+            "columnName": "slot_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "weaponId",
+            "columnName": "weaponId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "armorId",
+            "columnName": "armorId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "bootsId",
+            "columnName": "bootsId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "accessoryId",
+            "columnName": "accessoryId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "weaponNurture",
+            "columnName": "weaponNurture",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "armorNurture",
+            "columnName": "armorNurture",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "bootsNurture",
+            "columnName": "bootsNurture",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "accessoryNurture",
+            "columnName": "accessoryNurture",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "storageBagItems",
+            "columnName": "storageBagItems",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "storageBagSpiritStones",
+            "columnName": "storageBagSpiritStones",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "spiritStones",
+            "columnName": "spiritStones",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "soulPower",
+            "columnName": "soulPower",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "autoEquipFromWarehouse",
+            "columnName": "autoEquipFromWarehouse",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "discipleId",
+            "slot_id"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "disciples_extended",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`discipleId` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `manualIds` TEXT NOT NULL, `talentIds` TEXT NOT NULL, `manualMasteries` TEXT NOT NULL, `statusData` TEXT NOT NULL, `cultivationSpeedBonus` REAL NOT NULL, `cultivationSpeedDuration` INTEGER NOT NULL, `partnerId` TEXT, `partnerSectId` TEXT, `parentId1` TEXT, `parentId2` TEXT, `lastChildYear` INTEGER NOT NULL, `griefEndYear` INTEGER, `usedFunctionalPillTypes` TEXT NOT NULL, `usedExtendLifePillIds` TEXT NOT NULL, `hasReviveEffect` INTEGER NOT NULL, `hasClearAllEffect` INTEGER NOT NULL, `autoLearnFromWarehouse` INTEGER NOT NULL, PRIMARY KEY(`discipleId`, `slot_id`))",
+        "fields": [
+          {
+            "fieldPath": "discipleId",
+            "columnName": "discipleId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "slotId",
+            "columnName": "slot_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "manualIds",
+            "columnName": "manualIds",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "talentIds",
+            "columnName": "talentIds",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "manualMasteries",
+            "columnName": "manualMasteries",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "statusData",
+            "columnName": "statusData",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cultivationSpeedBonus",
+            "columnName": "cultivationSpeedBonus",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cultivationSpeedDuration",
+            "columnName": "cultivationSpeedDuration",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "partnerId",
+            "columnName": "partnerId",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "partnerSectId",
+            "columnName": "partnerSectId",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "parentId1",
+            "columnName": "parentId1",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "parentId2",
+            "columnName": "parentId2",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "lastChildYear",
+            "columnName": "lastChildYear",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "griefEndYear",
+            "columnName": "griefEndYear",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "usedFunctionalPillTypes",
+            "columnName": "usedFunctionalPillTypes",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "usedExtendLifePillIds",
+            "columnName": "usedExtendLifePillIds",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "hasReviveEffect",
+            "columnName": "hasReviveEffect",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "hasClearAllEffect",
+            "columnName": "hasClearAllEffect",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "autoLearnFromWarehouse",
+            "columnName": "autoLearnFromWarehouse",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "discipleId",
+            "slot_id"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "disciples_attributes",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`discipleId` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `intelligence` INTEGER NOT NULL, `charm` INTEGER NOT NULL, `loyalty` INTEGER NOT NULL, `comprehension` INTEGER NOT NULL, `artifactRefining` INTEGER NOT NULL, `pillRefining` INTEGER NOT NULL, `spiritPlanting` INTEGER NOT NULL, `mining` INTEGER NOT NULL, `teaching` INTEGER NOT NULL, `morality` INTEGER NOT NULL, `salaryPaidCount` INTEGER NOT NULL, `salaryMissedCount` INTEGER NOT NULL, PRIMARY KEY(`discipleId`, `slot_id`))",
+        "fields": [
+          {
+            "fieldPath": "discipleId",
+            "columnName": "discipleId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "slotId",
+            "columnName": "slot_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "intelligence",
+            "columnName": "intelligence",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "charm",
+            "columnName": "charm",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "loyalty",
+            "columnName": "loyalty",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "comprehension",
+            "columnName": "comprehension",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "artifactRefining",
+            "columnName": "artifactRefining",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pillRefining",
+            "columnName": "pillRefining",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "spiritPlanting",
+            "columnName": "spiritPlanting",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mining",
+            "columnName": "mining",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "teaching",
+            "columnName": "teaching",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "morality",
+            "columnName": "morality",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "salaryPaidCount",
+            "columnName": "salaryPaidCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "salaryMissedCount",
+            "columnName": "salaryMissedCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "discipleId",
+            "slot_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_disciples_attributes_loyalty",
+            "unique": false,
+            "columnNames": [
+              "loyalty"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_disciples_attributes_loyalty` ON `${TABLE_NAME}` (`loyalty`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "equipment_stacks",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `name` TEXT NOT NULL, `rarity` INTEGER NOT NULL, `description` TEXT NOT NULL, `slot` TEXT NOT NULL, `physicalAttack` INTEGER NOT NULL, `magicAttack` INTEGER NOT NULL, `physicalDefense` INTEGER NOT NULL, `magicDefense` INTEGER NOT NULL, `speed` INTEGER NOT NULL, `hp` INTEGER NOT NULL, `mp` INTEGER NOT NULL, `critChance` REAL NOT NULL, `minRealm` INTEGER NOT NULL, `quantity` INTEGER NOT NULL, `isLocked` INTEGER NOT NULL, PRIMARY KEY(`id`, `slot_id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "slotId",
+            "columnName": "slot_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rarity",
+            "columnName": "rarity",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "description",
+            "columnName": "description",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "slot",
+            "columnName": "slot",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "physicalAttack",
+            "columnName": "physicalAttack",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "magicAttack",
+            "columnName": "magicAttack",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "physicalDefense",
+            "columnName": "physicalDefense",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "magicDefense",
+            "columnName": "magicDefense",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "speed",
+            "columnName": "speed",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "hp",
+            "columnName": "hp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mp",
+            "columnName": "mp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "critChance",
+            "columnName": "critChance",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "minRealm",
+            "columnName": "minRealm",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "quantity",
+            "columnName": "quantity",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isLocked",
+            "columnName": "isLocked",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id",
+            "slot_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_equipment_stacks_name",
+            "unique": false,
+            "columnNames": [
+              "name"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_equipment_stacks_name` ON `${TABLE_NAME}` (`name`)"
+          },
+          {
+            "name": "index_equipment_stacks_rarity",
+            "unique": false,
+            "columnNames": [
+              "rarity"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_equipment_stacks_rarity` ON `${TABLE_NAME}` (`rarity`)"
+          },
+          {
+            "name": "index_equipment_stacks_slot",
+            "unique": false,
+            "columnNames": [
+              "slot"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_equipment_stacks_slot` ON `${TABLE_NAME}` (`slot`)"
+          },
+          {
+            "name": "index_equipment_stacks_rarity_slot",
+            "unique": false,
+            "columnNames": [
+              "rarity",
+              "slot"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_equipment_stacks_rarity_slot` ON `${TABLE_NAME}` (`rarity`, `slot`)"
+          },
+          {
+            "name": "index_equipment_stacks_minRealm",
+            "unique": false,
+            "columnNames": [
+              "minRealm"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_equipment_stacks_minRealm` ON `${TABLE_NAME}` (`minRealm`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "equipment_instances",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `name` TEXT NOT NULL, `rarity` INTEGER NOT NULL, `description` TEXT NOT NULL, `slot` TEXT NOT NULL, `physicalAttack` INTEGER NOT NULL, `magicAttack` INTEGER NOT NULL, `physicalDefense` INTEGER NOT NULL, `magicDefense` INTEGER NOT NULL, `speed` INTEGER NOT NULL, `hp` INTEGER NOT NULL, `mp` INTEGER NOT NULL, `critChance` REAL NOT NULL, `nurtureLevel` INTEGER NOT NULL, `nurtureProgress` REAL NOT NULL, `minRealm` INTEGER NOT NULL, `ownerId` TEXT, `isEquipped` INTEGER NOT NULL, PRIMARY KEY(`id`, `slot_id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "slotId",
+            "columnName": "slot_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rarity",
+            "columnName": "rarity",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "description",
+            "columnName": "description",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "slot",
+            "columnName": "slot",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "physicalAttack",
+            "columnName": "physicalAttack",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "magicAttack",
+            "columnName": "magicAttack",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "physicalDefense",
+            "columnName": "physicalDefense",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "magicDefense",
+            "columnName": "magicDefense",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "speed",
+            "columnName": "speed",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "hp",
+            "columnName": "hp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mp",
+            "columnName": "mp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "critChance",
+            "columnName": "critChance",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "nurtureLevel",
+            "columnName": "nurtureLevel",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "nurtureProgress",
+            "columnName": "nurtureProgress",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "minRealm",
+            "columnName": "minRealm",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ownerId",
+            "columnName": "ownerId",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "isEquipped",
+            "columnName": "isEquipped",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id",
+            "slot_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_equipment_instances_name",
+            "unique": false,
+            "columnNames": [
+              "name"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_equipment_instances_name` ON `${TABLE_NAME}` (`name`)"
+          },
+          {
+            "name": "index_equipment_instances_rarity",
+            "unique": false,
+            "columnNames": [
+              "rarity"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_equipment_instances_rarity` ON `${TABLE_NAME}` (`rarity`)"
+          },
+          {
+            "name": "index_equipment_instances_slot",
+            "unique": false,
+            "columnNames": [
+              "slot"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_equipment_instances_slot` ON `${TABLE_NAME}` (`slot`)"
+          },
+          {
+            "name": "index_equipment_instances_ownerId",
+            "unique": false,
+            "columnNames": [
+              "ownerId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_equipment_instances_ownerId` ON `${TABLE_NAME}` (`ownerId`)"
+          },
+          {
+            "name": "index_equipment_instances_rarity_slot",
+            "unique": false,
+            "columnNames": [
+              "rarity",
+              "slot"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_equipment_instances_rarity_slot` ON `${TABLE_NAME}` (`rarity`, `slot`)"
+          },
+          {
+            "name": "index_equipment_instances_minRealm",
+            "unique": false,
+            "columnNames": [
+              "minRealm"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_equipment_instances_minRealm` ON `${TABLE_NAME}` (`minRealm`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "manual_stacks",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `name` TEXT NOT NULL, `rarity` INTEGER NOT NULL, `description` TEXT NOT NULL, `type` TEXT NOT NULL, `stats` TEXT NOT NULL, `skillName` TEXT, `skillDescription` TEXT, `skillType` TEXT NOT NULL, `skillDamageType` TEXT NOT NULL, `skillHits` INTEGER NOT NULL, `skillDamageMultiplier` REAL NOT NULL, `skillCooldown` INTEGER NOT NULL, `skillMpCost` INTEGER NOT NULL, `skillHealPercent` REAL NOT NULL, `skillHealType` TEXT NOT NULL, `skillBuffType` TEXT, `skillBuffValue` REAL NOT NULL, `skillBuffDuration` INTEGER NOT NULL, `skillBuffsJson` TEXT NOT NULL, `skillIsAoe` INTEGER NOT NULL, `skillTargetScope` TEXT NOT NULL, `minRealm` INTEGER NOT NULL, `quantity` INTEGER NOT NULL, `isLocked` INTEGER NOT NULL, PRIMARY KEY(`id`, `slot_id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "slotId",
+            "columnName": "slot_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rarity",
+            "columnName": "rarity",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "description",
+            "columnName": "description",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "type",
+            "columnName": "type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "stats",
+            "columnName": "stats",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "skillName",
+            "columnName": "skillName",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "skillDescription",
+            "columnName": "skillDescription",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "skillType",
+            "columnName": "skillType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "skillDamageType",
+            "columnName": "skillDamageType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "skillHits",
+            "columnName": "skillHits",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "skillDamageMultiplier",
+            "columnName": "skillDamageMultiplier",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "skillCooldown",
+            "columnName": "skillCooldown",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "skillMpCost",
+            "columnName": "skillMpCost",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "skillHealPercent",
+            "columnName": "skillHealPercent",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "skillHealType",
+            "columnName": "skillHealType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "skillBuffType",
+            "columnName": "skillBuffType",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "skillBuffValue",
+            "columnName": "skillBuffValue",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "skillBuffDuration",
+            "columnName": "skillBuffDuration",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "skillBuffsJson",
+            "columnName": "skillBuffsJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "skillIsAoe",
+            "columnName": "skillIsAoe",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "skillTargetScope",
+            "columnName": "skillTargetScope",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "minRealm",
+            "columnName": "minRealm",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "quantity",
+            "columnName": "quantity",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isLocked",
+            "columnName": "isLocked",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id",
+            "slot_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_manual_stacks_name",
+            "unique": false,
+            "columnNames": [
+              "name"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_manual_stacks_name` ON `${TABLE_NAME}` (`name`)"
+          },
+          {
+            "name": "index_manual_stacks_rarity",
+            "unique": false,
+            "columnNames": [
+              "rarity"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_manual_stacks_rarity` ON `${TABLE_NAME}` (`rarity`)"
+          },
+          {
+            "name": "index_manual_stacks_type",
+            "unique": false,
+            "columnNames": [
+              "type"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_manual_stacks_type` ON `${TABLE_NAME}` (`type`)"
+          },
+          {
+            "name": "index_manual_stacks_rarity_type",
+            "unique": false,
+            "columnNames": [
+              "rarity",
+              "type"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_manual_stacks_rarity_type` ON `${TABLE_NAME}` (`rarity`, `type`)"
+          },
+          {
+            "name": "index_manual_stacks_minRealm",
+            "unique": false,
+            "columnNames": [
+              "minRealm"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_manual_stacks_minRealm` ON `${TABLE_NAME}` (`minRealm`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "manual_instances",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `name` TEXT NOT NULL, `rarity` INTEGER NOT NULL, `description` TEXT NOT NULL, `type` TEXT NOT NULL, `stats` TEXT NOT NULL, `skillName` TEXT, `skillDescription` TEXT, `skillType` TEXT NOT NULL, `skillDamageType` TEXT NOT NULL, `skillHits` INTEGER NOT NULL, `skillDamageMultiplier` REAL NOT NULL, `skillCooldown` INTEGER NOT NULL, `skillMpCost` INTEGER NOT NULL, `skillHealPercent` REAL NOT NULL, `skillHealType` TEXT NOT NULL, `skillBuffType` TEXT, `skillBuffValue` REAL NOT NULL, `skillBuffDuration` INTEGER NOT NULL, `skillBuffsJson` TEXT NOT NULL, `skillIsAoe` INTEGER NOT NULL, `skillTargetScope` TEXT NOT NULL, `minRealm` INTEGER NOT NULL, `ownerId` TEXT, `isLearned` INTEGER NOT NULL, PRIMARY KEY(`id`, `slot_id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "slotId",
+            "columnName": "slot_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rarity",
+            "columnName": "rarity",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "description",
+            "columnName": "description",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "type",
+            "columnName": "type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "stats",
+            "columnName": "stats",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "skillName",
+            "columnName": "skillName",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "skillDescription",
+            "columnName": "skillDescription",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "skillType",
+            "columnName": "skillType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "skillDamageType",
+            "columnName": "skillDamageType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "skillHits",
+            "columnName": "skillHits",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "skillDamageMultiplier",
+            "columnName": "skillDamageMultiplier",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "skillCooldown",
+            "columnName": "skillCooldown",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "skillMpCost",
+            "columnName": "skillMpCost",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "skillHealPercent",
+            "columnName": "skillHealPercent",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "skillHealType",
+            "columnName": "skillHealType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "skillBuffType",
+            "columnName": "skillBuffType",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "skillBuffValue",
+            "columnName": "skillBuffValue",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "skillBuffDuration",
+            "columnName": "skillBuffDuration",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "skillBuffsJson",
+            "columnName": "skillBuffsJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "skillIsAoe",
+            "columnName": "skillIsAoe",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "skillTargetScope",
+            "columnName": "skillTargetScope",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "minRealm",
+            "columnName": "minRealm",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ownerId",
+            "columnName": "ownerId",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "isLearned",
+            "columnName": "isLearned",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id",
+            "slot_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_manual_instances_name",
+            "unique": false,
+            "columnNames": [
+              "name"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_manual_instances_name` ON `${TABLE_NAME}` (`name`)"
+          },
+          {
+            "name": "index_manual_instances_rarity",
+            "unique": false,
+            "columnNames": [
+              "rarity"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_manual_instances_rarity` ON `${TABLE_NAME}` (`rarity`)"
+          },
+          {
+            "name": "index_manual_instances_type",
+            "unique": false,
+            "columnNames": [
+              "type"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_manual_instances_type` ON `${TABLE_NAME}` (`type`)"
+          },
+          {
+            "name": "index_manual_instances_ownerId",
+            "unique": false,
+            "columnNames": [
+              "ownerId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_manual_instances_ownerId` ON `${TABLE_NAME}` (`ownerId`)"
+          },
+          {
+            "name": "index_manual_instances_minRealm",
+            "unique": false,
+            "columnNames": [
+              "minRealm"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_manual_instances_minRealm` ON `${TABLE_NAME}` (`minRealm`)"
+          },
+          {
+            "name": "index_manual_instances_rarity_type",
+            "unique": false,
+            "columnNames": [
+              "rarity",
+              "type"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_manual_instances_rarity_type` ON `${TABLE_NAME}` (`rarity`, `type`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "pills",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `name` TEXT NOT NULL, `rarity` INTEGER NOT NULL, `description` TEXT NOT NULL, `category` TEXT NOT NULL, `grade` TEXT NOT NULL, `pillType` TEXT NOT NULL, `minRealm` INTEGER NOT NULL DEFAULT 9, `quantity` INTEGER NOT NULL, `isLocked` INTEGER NOT NULL, `breakthroughChance` REAL NOT NULL, `targetRealm` INTEGER NOT NULL, `isAscension` INTEGER NOT NULL, `cultivationSpeedPercent` REAL NOT NULL, `skillExpSpeedPercent` REAL NOT NULL, `nurtureSpeedPercent` REAL NOT NULL, `cultivationAdd` INTEGER NOT NULL, `skillExpAdd` INTEGER NOT NULL, `nurtureAdd` INTEGER NOT NULL, `duration` INTEGER NOT NULL, `cannotStack` INTEGER NOT NULL, `physicalAttackAdd` INTEGER NOT NULL, `magicAttackAdd` INTEGER NOT NULL, `physicalDefenseAdd` INTEGER NOT NULL, `magicDefenseAdd` INTEGER NOT NULL, `hpAdd` INTEGER NOT NULL, `mpAdd` INTEGER NOT NULL, `speedAdd` INTEGER NOT NULL, `critRateAdd` REAL NOT NULL, `critEffectAdd` REAL NOT NULL, `extendLife` INTEGER NOT NULL, `intelligenceAdd` INTEGER NOT NULL, `charmAdd` INTEGER NOT NULL, `loyaltyAdd` INTEGER NOT NULL, `comprehensionAdd` INTEGER NOT NULL, `artifactRefiningAdd` INTEGER NOT NULL, `pillRefiningAdd` INTEGER NOT NULL, `spiritPlantingAdd` INTEGER NOT NULL, `teachingAdd` INTEGER NOT NULL, `moralityAdd` INTEGER NOT NULL, `miningAdd` INTEGER NOT NULL, `healMaxHpPercent` REAL NOT NULL, `mpRecoverMaxMpPercent` REAL NOT NULL, `revive` INTEGER NOT NULL, `clearAll` INTEGER NOT NULL, PRIMARY KEY(`id`, `slot_id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "slotId",
+            "columnName": "slot_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rarity",
+            "columnName": "rarity",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "description",
+            "columnName": "description",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "category",
+            "columnName": "category",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "grade",
+            "columnName": "grade",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pillType",
+            "columnName": "pillType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "minRealm",
+            "columnName": "minRealm",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "9"
+          },
+          {
+            "fieldPath": "quantity",
+            "columnName": "quantity",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isLocked",
+            "columnName": "isLocked",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effects.breakthroughChance",
+            "columnName": "breakthroughChance",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effects.targetRealm",
+            "columnName": "targetRealm",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effects.isAscension",
+            "columnName": "isAscension",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effects.cultivationSpeedPercent",
+            "columnName": "cultivationSpeedPercent",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effects.skillExpSpeedPercent",
+            "columnName": "skillExpSpeedPercent",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effects.nurtureSpeedPercent",
+            "columnName": "nurtureSpeedPercent",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effects.cultivationAdd",
+            "columnName": "cultivationAdd",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effects.skillExpAdd",
+            "columnName": "skillExpAdd",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effects.nurtureAdd",
+            "columnName": "nurtureAdd",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effects.duration",
+            "columnName": "duration",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effects.cannotStack",
+            "columnName": "cannotStack",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effects.physicalAttackAdd",
+            "columnName": "physicalAttackAdd",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effects.magicAttackAdd",
+            "columnName": "magicAttackAdd",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effects.physicalDefenseAdd",
+            "columnName": "physicalDefenseAdd",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effects.magicDefenseAdd",
+            "columnName": "magicDefenseAdd",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effects.hpAdd",
+            "columnName": "hpAdd",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effects.mpAdd",
+            "columnName": "mpAdd",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effects.speedAdd",
+            "columnName": "speedAdd",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effects.critRateAdd",
+            "columnName": "critRateAdd",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effects.critEffectAdd",
+            "columnName": "critEffectAdd",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effects.extendLife",
+            "columnName": "extendLife",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effects.intelligenceAdd",
+            "columnName": "intelligenceAdd",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effects.charmAdd",
+            "columnName": "charmAdd",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effects.loyaltyAdd",
+            "columnName": "loyaltyAdd",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effects.comprehensionAdd",
+            "columnName": "comprehensionAdd",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effects.artifactRefiningAdd",
+            "columnName": "artifactRefiningAdd",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effects.pillRefiningAdd",
+            "columnName": "pillRefiningAdd",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effects.spiritPlantingAdd",
+            "columnName": "spiritPlantingAdd",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effects.teachingAdd",
+            "columnName": "teachingAdd",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effects.moralityAdd",
+            "columnName": "moralityAdd",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effects.miningAdd",
+            "columnName": "miningAdd",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effects.healMaxHpPercent",
+            "columnName": "healMaxHpPercent",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effects.mpRecoverMaxMpPercent",
+            "columnName": "mpRecoverMaxMpPercent",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effects.revive",
+            "columnName": "revive",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "effects.clearAll",
+            "columnName": "clearAll",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id",
+            "slot_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_pills_name",
+            "unique": false,
+            "columnNames": [
+              "name"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_pills_name` ON `${TABLE_NAME}` (`name`)"
+          },
+          {
+            "name": "index_pills_rarity",
+            "unique": false,
+            "columnNames": [
+              "rarity"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_pills_rarity` ON `${TABLE_NAME}` (`rarity`)"
+          },
+          {
+            "name": "index_pills_category",
+            "unique": false,
+            "columnNames": [
+              "category"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_pills_category` ON `${TABLE_NAME}` (`category`)"
+          },
+          {
+            "name": "index_pills_targetRealm",
+            "unique": false,
+            "columnNames": [
+              "targetRealm"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_pills_targetRealm` ON `${TABLE_NAME}` (`targetRealm`)"
+          },
+          {
+            "name": "index_pills_rarity_category",
+            "unique": false,
+            "columnNames": [
+              "rarity",
+              "category"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_pills_rarity_category` ON `${TABLE_NAME}` (`rarity`, `category`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "materials",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `name` TEXT NOT NULL, `rarity` INTEGER NOT NULL, `description` TEXT NOT NULL, `category` TEXT NOT NULL, `quantity` INTEGER NOT NULL, `isLocked` INTEGER NOT NULL, PRIMARY KEY(`id`, `slot_id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "slotId",
+            "columnName": "slot_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rarity",
+            "columnName": "rarity",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "description",
+            "columnName": "description",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "category",
+            "columnName": "category",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "quantity",
+            "columnName": "quantity",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isLocked",
+            "columnName": "isLocked",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id",
+            "slot_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_materials_name",
+            "unique": false,
+            "columnNames": [
+              "name"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_materials_name` ON `${TABLE_NAME}` (`name`)"
+          },
+          {
+            "name": "index_materials_rarity",
+            "unique": false,
+            "columnNames": [
+              "rarity"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_materials_rarity` ON `${TABLE_NAME}` (`rarity`)"
+          },
+          {
+            "name": "index_materials_category",
+            "unique": false,
+            "columnNames": [
+              "category"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_materials_category` ON `${TABLE_NAME}` (`category`)"
+          },
+          {
+            "name": "index_materials_rarity_category",
+            "unique": false,
+            "columnNames": [
+              "rarity",
+              "category"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_materials_rarity_category` ON `${TABLE_NAME}` (`rarity`, `category`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "seeds",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `name` TEXT NOT NULL, `rarity` INTEGER NOT NULL, `description` TEXT NOT NULL, `growTime` INTEGER NOT NULL, `yield` INTEGER NOT NULL, `quantity` INTEGER NOT NULL, `isLocked` INTEGER NOT NULL, PRIMARY KEY(`id`, `slot_id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "slotId",
+            "columnName": "slot_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rarity",
+            "columnName": "rarity",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "description",
+            "columnName": "description",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "growTime",
+            "columnName": "growTime",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "yield",
+            "columnName": "yield",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "quantity",
+            "columnName": "quantity",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isLocked",
+            "columnName": "isLocked",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id",
+            "slot_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_seeds_name",
+            "unique": false,
+            "columnNames": [
+              "name"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_seeds_name` ON `${TABLE_NAME}` (`name`)"
+          },
+          {
+            "name": "index_seeds_rarity",
+            "unique": false,
+            "columnNames": [
+              "rarity"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_seeds_rarity` ON `${TABLE_NAME}` (`rarity`)"
+          },
+          {
+            "name": "index_seeds_growTime",
+            "unique": false,
+            "columnNames": [
+              "growTime"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_seeds_growTime` ON `${TABLE_NAME}` (`growTime`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "herbs",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `name` TEXT NOT NULL, `rarity` INTEGER NOT NULL, `description` TEXT NOT NULL, `category` TEXT NOT NULL, `quantity` INTEGER NOT NULL, `isLocked` INTEGER NOT NULL, PRIMARY KEY(`id`, `slot_id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "slotId",
+            "columnName": "slot_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rarity",
+            "columnName": "rarity",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "description",
+            "columnName": "description",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "category",
+            "columnName": "category",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "quantity",
+            "columnName": "quantity",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isLocked",
+            "columnName": "isLocked",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id",
+            "slot_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_herbs_name",
+            "unique": false,
+            "columnNames": [
+              "name"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_herbs_name` ON `${TABLE_NAME}` (`name`)"
+          },
+          {
+            "name": "index_herbs_rarity",
+            "unique": false,
+            "columnNames": [
+              "rarity"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_herbs_rarity` ON `${TABLE_NAME}` (`rarity`)"
+          },
+          {
+            "name": "index_herbs_category",
+            "unique": false,
+            "columnNames": [
+              "category"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_herbs_category` ON `${TABLE_NAME}` (`category`)"
+          },
+          {
+            "name": "index_herbs_rarity_category",
+            "unique": false,
+            "columnNames": [
+              "rarity",
+              "category"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_herbs_rarity_category` ON `${TABLE_NAME}` (`rarity`, `category`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "exploration_teams",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `name` TEXT NOT NULL, `caveId` TEXT, `caveName` TEXT NOT NULL, `dungeon` TEXT NOT NULL, `dungeonName` TEXT NOT NULL, `memberIds` TEXT NOT NULL, `memberNames` TEXT NOT NULL, `startYear` INTEGER NOT NULL, `startMonth` INTEGER NOT NULL, `startDay` INTEGER NOT NULL, `duration` INTEGER NOT NULL, `status` TEXT NOT NULL, `progress` INTEGER NOT NULL, `scoutTargetSectId` TEXT, `scoutTargetSectName` TEXT NOT NULL, `currentX` REAL NOT NULL, `currentY` REAL NOT NULL, `targetX` REAL NOT NULL, `targetY` REAL NOT NULL, `moveProgress` REAL NOT NULL, `arrivalYear` INTEGER NOT NULL, `arrivalMonth` INTEGER NOT NULL, `arrivalDay` INTEGER NOT NULL, `route` TEXT NOT NULL, `currentRouteIndex` INTEGER NOT NULL, `currentSegmentProgress` REAL NOT NULL, `pityCounterEquipment` INTEGER NOT NULL, `pityCounterPill` INTEGER NOT NULL, `pityCounterManual` INTEGER NOT NULL, PRIMARY KEY(`id`, `slot_id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "slotId",
+            "columnName": "slot_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "caveId",
+            "columnName": "caveId",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "caveName",
+            "columnName": "caveName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dungeon",
+            "columnName": "dungeon",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dungeonName",
+            "columnName": "dungeonName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "memberIds",
+            "columnName": "memberIds",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "memberNames",
+            "columnName": "memberNames",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startYear",
+            "columnName": "startYear",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startMonth",
+            "columnName": "startMonth",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startDay",
+            "columnName": "startDay",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "duration",
+            "columnName": "duration",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "progress",
+            "columnName": "progress",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "scoutTargetSectId",
+            "columnName": "scoutTargetSectId",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "scoutTargetSectName",
+            "columnName": "scoutTargetSectName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "currentX",
+            "columnName": "currentX",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "currentY",
+            "columnName": "currentY",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "targetX",
+            "columnName": "targetX",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "targetY",
+            "columnName": "targetY",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "moveProgress",
+            "columnName": "moveProgress",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "arrivalYear",
+            "columnName": "arrivalYear",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "arrivalMonth",
+            "columnName": "arrivalMonth",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "arrivalDay",
+            "columnName": "arrivalDay",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "route",
+            "columnName": "route",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "currentRouteIndex",
+            "columnName": "currentRouteIndex",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "currentSegmentProgress",
+            "columnName": "currentSegmentProgress",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pityCounterEquipment",
+            "columnName": "pityCounterEquipment",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pityCounterPill",
+            "columnName": "pityCounterPill",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pityCounterManual",
+            "columnName": "pityCounterManual",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id",
+            "slot_id"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "building_slots",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `buildingId` TEXT NOT NULL, `slotIndex` INTEGER NOT NULL, `type` TEXT NOT NULL, `discipleId` TEXT, `discipleName` TEXT NOT NULL, `startYear` INTEGER NOT NULL, `startMonth` INTEGER NOT NULL, `duration` INTEGER NOT NULL, `recipeId` TEXT, `recipeName` TEXT NOT NULL, `status` TEXT NOT NULL, PRIMARY KEY(`id`, `slot_id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "slotId",
+            "columnName": "slot_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "buildingId",
+            "columnName": "buildingId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "slotIndex",
+            "columnName": "slotIndex",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "type",
+            "columnName": "type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "discipleId",
+            "columnName": "discipleId",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "discipleName",
+            "columnName": "discipleName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startYear",
+            "columnName": "startYear",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startMonth",
+            "columnName": "startMonth",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "duration",
+            "columnName": "duration",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "recipeId",
+            "columnName": "recipeId",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "recipeName",
+            "columnName": "recipeName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id",
+            "slot_id"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "game_events",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `message` TEXT NOT NULL, `type` TEXT NOT NULL, `timestamp` INTEGER NOT NULL, `year` INTEGER NOT NULL, `month` INTEGER NOT NULL, PRIMARY KEY(`id`, `slot_id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "slotId",
+            "columnName": "slot_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "message",
+            "columnName": "message",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "type",
+            "columnName": "type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timestamp",
+            "columnName": "timestamp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "year",
+            "columnName": "year",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "month",
+            "columnName": "month",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id",
+            "slot_id"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "dungeons",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `name` TEXT NOT NULL, `description` TEXT NOT NULL, `realm` INTEGER NOT NULL, `realmName` TEXT NOT NULL, `difficulty` INTEGER NOT NULL, `isUnlocked` INTEGER NOT NULL, `unlockYear` INTEGER NOT NULL, `unlockMonth` INTEGER NOT NULL, `completedCount` INTEGER NOT NULL, `rewards` TEXT NOT NULL, PRIMARY KEY(`id`, `slot_id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "slotId",
+            "columnName": "slot_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "description",
+            "columnName": "description",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "realm",
+            "columnName": "realm",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "realmName",
+            "columnName": "realmName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "difficulty",
+            "columnName": "difficulty",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isUnlocked",
+            "columnName": "isUnlocked",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "unlockYear",
+            "columnName": "unlockYear",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "unlockMonth",
+            "columnName": "unlockMonth",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "completedCount",
+            "columnName": "completedCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rewards",
+            "columnName": "rewards",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id",
+            "slot_id"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "recipes",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `name` TEXT NOT NULL, `description` TEXT NOT NULL, `type` TEXT NOT NULL, `isUnlocked` INTEGER NOT NULL, `unlockYear` INTEGER NOT NULL, `unlockMonth` INTEGER NOT NULL, `requiredMaterials` TEXT NOT NULL, `outputItemId` TEXT NOT NULL, `outputItemName` TEXT NOT NULL, `outputQuantity` INTEGER NOT NULL, `duration` INTEGER NOT NULL, PRIMARY KEY(`id`, `slot_id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "slotId",
+            "columnName": "slot_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "description",
+            "columnName": "description",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "type",
+            "columnName": "type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isUnlocked",
+            "columnName": "isUnlocked",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "unlockYear",
+            "columnName": "unlockYear",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "unlockMonth",
+            "columnName": "unlockMonth",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "requiredMaterials",
+            "columnName": "requiredMaterials",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "outputItemId",
+            "columnName": "outputItemId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "outputItemName",
+            "columnName": "outputItemName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "outputQuantity",
+            "columnName": "outputQuantity",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "duration",
+            "columnName": "duration",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id",
+            "slot_id"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "battle_logs",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `timestamp` INTEGER NOT NULL, `year` INTEGER NOT NULL, `month` INTEGER NOT NULL, `type` TEXT NOT NULL, `attackerName` TEXT NOT NULL, `defenderName` TEXT NOT NULL, `result` TEXT NOT NULL, `details` TEXT NOT NULL, `drops` TEXT NOT NULL, `dungeonName` TEXT NOT NULL, `teamId` TEXT, `teamMembers` TEXT NOT NULL, `enemies` TEXT NOT NULL, `rounds` TEXT NOT NULL, `turns` INTEGER NOT NULL, `teamCasualties` INTEGER NOT NULL, `beastsDefeated` INTEGER NOT NULL, `battleResult` TEXT, PRIMARY KEY(`id`, `slot_id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "slotId",
+            "columnName": "slot_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timestamp",
+            "columnName": "timestamp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "year",
+            "columnName": "year",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "month",
+            "columnName": "month",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "type",
+            "columnName": "type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "attackerName",
+            "columnName": "attackerName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "defenderName",
+            "columnName": "defenderName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "result",
+            "columnName": "result",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "details",
+            "columnName": "details",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "drops",
+            "columnName": "drops",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dungeonName",
+            "columnName": "dungeonName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "teamId",
+            "columnName": "teamId",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "teamMembers",
+            "columnName": "teamMembers",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "enemies",
+            "columnName": "enemies",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rounds",
+            "columnName": "rounds",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "turns",
+            "columnName": "turns",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "teamCasualties",
+            "columnName": "teamCasualties",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "beastsDefeated",
+            "columnName": "beastsDefeated",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "battleResult",
+            "columnName": "battleResult",
+            "affinity": "TEXT",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id",
+            "slot_id"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "forge_slots",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `slotIndex` INTEGER NOT NULL, `recipeId` TEXT, `recipeName` TEXT NOT NULL, `equipmentName` TEXT NOT NULL, `equipmentRarity` INTEGER NOT NULL, `equipmentSlot` TEXT NOT NULL, `startYear` INTEGER NOT NULL, `startMonth` INTEGER NOT NULL, `duration` INTEGER NOT NULL, `status` TEXT NOT NULL, `successRate` REAL NOT NULL, `requiredMaterials` TEXT NOT NULL, PRIMARY KEY(`id`, `slot_id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "slotId",
+            "columnName": "slot_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "slotIndex",
+            "columnName": "slotIndex",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "recipeId",
+            "columnName": "recipeId",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "recipeName",
+            "columnName": "recipeName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "equipmentName",
+            "columnName": "equipmentName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "equipmentRarity",
+            "columnName": "equipmentRarity",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "equipmentSlot",
+            "columnName": "equipmentSlot",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startYear",
+            "columnName": "startYear",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startMonth",
+            "columnName": "startMonth",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "duration",
+            "columnName": "duration",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "successRate",
+            "columnName": "successRate",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "requiredMaterials",
+            "columnName": "requiredMaterials",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id",
+            "slot_id"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "alchemy_slots",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `slotIndex` INTEGER NOT NULL, `recipeId` TEXT, `recipeName` TEXT NOT NULL, `pillName` TEXT NOT NULL, `pillRarity` INTEGER NOT NULL, `startYear` INTEGER NOT NULL, `startMonth` INTEGER NOT NULL, `duration` INTEGER NOT NULL, `status` TEXT NOT NULL, `successRate` REAL NOT NULL, `requiredMaterials` TEXT NOT NULL, PRIMARY KEY(`id`, `slot_id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "slotId",
+            "columnName": "slot_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "slotIndex",
+            "columnName": "slotIndex",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "recipeId",
+            "columnName": "recipeId",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "recipeName",
+            "columnName": "recipeName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pillName",
+            "columnName": "pillName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pillRarity",
+            "columnName": "pillRarity",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startYear",
+            "columnName": "startYear",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startMonth",
+            "columnName": "startMonth",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "duration",
+            "columnName": "duration",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "successRate",
+            "columnName": "successRate",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "requiredMaterials",
+            "columnName": "requiredMaterials",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id",
+            "slot_id"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "production_slots",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `slotIndex` INTEGER NOT NULL, `buildingType` TEXT NOT NULL, `buildingId` TEXT NOT NULL, `status` TEXT NOT NULL, `recipeId` TEXT, `recipeName` TEXT NOT NULL, `startYear` INTEGER NOT NULL, `startMonth` INTEGER NOT NULL, `duration` INTEGER NOT NULL, `assignedDiscipleId` TEXT, `assignedDiscipleName` TEXT NOT NULL, `successRate` REAL NOT NULL, `requiredMaterials` TEXT NOT NULL, `outputItemId` TEXT, `outputItemName` TEXT NOT NULL, `outputItemRarity` INTEGER NOT NULL, `outputItemSlot` TEXT NOT NULL, `expectedYield` INTEGER NOT NULL DEFAULT 0, `harvestAmount` INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(`id`, `slot_id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "slotId",
+            "columnName": "slot_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "slotIndex",
+            "columnName": "slotIndex",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "buildingType",
+            "columnName": "buildingType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "buildingId",
+            "columnName": "buildingId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "recipeId",
+            "columnName": "recipeId",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "recipeName",
+            "columnName": "recipeName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startYear",
+            "columnName": "startYear",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startMonth",
+            "columnName": "startMonth",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "duration",
+            "columnName": "duration",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "assignedDiscipleId",
+            "columnName": "assignedDiscipleId",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "assignedDiscipleName",
+            "columnName": "assignedDiscipleName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "successRate",
+            "columnName": "successRate",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "requiredMaterials",
+            "columnName": "requiredMaterials",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "outputItemId",
+            "columnName": "outputItemId",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "outputItemName",
+            "columnName": "outputItemName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "outputItemRarity",
+            "columnName": "outputItemRarity",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "outputItemSlot",
+            "columnName": "outputItemSlot",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "expectedYield",
+            "columnName": "expectedYield",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "harvestAmount",
+            "columnName": "harvestAmount",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id",
+            "slot_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_production_slots_buildingId_slotIndex",
+            "unique": false,
+            "columnNames": [
+              "buildingId",
+              "slotIndex"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_production_slots_buildingId_slotIndex` ON `${TABLE_NAME}` (`buildingId`, `slotIndex`)"
+          },
+          {
+            "name": "index_production_slots_buildingType",
+            "unique": false,
+            "columnNames": [
+              "buildingType"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_production_slots_buildingType` ON `${TABLE_NAME}` (`buildingType`)"
+          },
+          {
+            "name": "index_production_slots_status",
+            "unique": false,
+            "columnNames": [
+              "status"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_production_slots_status` ON `${TABLE_NAME}` (`status`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "change_log",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `table_name` TEXT NOT NULL, `record_id` TEXT NOT NULL, `operation` TEXT NOT NULL, `old_value` BLOB, `new_value` BLOB, `timestamp` INTEGER NOT NULL, `synced` INTEGER NOT NULL, `sync_version` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tableName",
+            "columnName": "table_name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "recordId",
+            "columnName": "record_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "operation",
+            "columnName": "operation",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "oldValue",
+            "columnName": "old_value",
+            "affinity": "BLOB",
+            "notNull": false
+          },
+          {
+            "fieldPath": "newValue",
+            "columnName": "new_value",
+            "affinity": "BLOB",
+            "notNull": false
+          },
+          {
+            "fieldPath": "timestamp",
+            "columnName": "timestamp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "synced",
+            "columnName": "synced",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "syncVersion",
+            "columnName": "sync_version",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_change_log_table_name_record_id",
+            "unique": false,
+            "columnNames": [
+              "table_name",
+              "record_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_change_log_table_name_record_id` ON `${TABLE_NAME}` (`table_name`, `record_id`)"
+          },
+          {
+            "name": "index_change_log_timestamp",
+            "unique": false,
+            "columnNames": [
+              "timestamp"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_change_log_timestamp` ON `${TABLE_NAME}` (`timestamp`)"
+          },
+          {
+            "name": "index_change_log_synced",
+            "unique": false,
+            "columnNames": [
+              "synced"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_change_log_synced` ON `${TABLE_NAME}` (`synced`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "save_slot_metadata",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `slot_id` INTEGER NOT NULL, `sect_name` TEXT NOT NULL, `game_year` INTEGER NOT NULL, `game_month` INTEGER NOT NULL, `game_day` INTEGER NOT NULL, `spirit_stones` INTEGER NOT NULL, `spirit_herbs` INTEGER NOT NULL, `sect_cultivation` REAL NOT NULL, `is_game_started` INTEGER NOT NULL, `last_save_time` INTEGER NOT NULL, `disciple_count` INTEGER NOT NULL, `data_version` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "slotId",
+            "columnName": "slot_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sectName",
+            "columnName": "sect_name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "gameYear",
+            "columnName": "game_year",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "gameMonth",
+            "columnName": "game_month",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "gameDay",
+            "columnName": "game_day",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "spiritStones",
+            "columnName": "spirit_stones",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "spiritHerbs",
+            "columnName": "spirit_herbs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sectCultivation",
+            "columnName": "sect_cultivation",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isGameStarted",
+            "columnName": "is_game_started",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastSaveTime",
+            "columnName": "last_save_time",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "discipleCount",
+            "columnName": "disciple_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dataVersion",
+            "columnName": "data_version",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_save_slot_metadata_slot_id",
+            "unique": true,
+            "columnNames": [
+              "slot_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_save_slot_metadata_slot_id` ON `${TABLE_NAME}` (`slot_id`)"
+          },
+          {
+            "name": "index_save_slot_metadata_last_save_time",
+            "unique": false,
+            "columnNames": [
+              "last_save_time"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_save_slot_metadata_last_save_time` ON `${TABLE_NAME}` (`last_save_time`)"
+          },
+          {
+            "name": "index_save_slot_metadata_game_year_game_month",
+            "unique": false,
+            "columnNames": [
+              "game_year",
+              "game_month"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_save_slot_metadata_game_year_game_month` ON `${TABLE_NAME}` (`game_year`, `game_month`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "archived_battle_logs",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `slot_id` INTEGER NOT NULL, `original_id` TEXT NOT NULL, `battle_type` TEXT NOT NULL, `result` TEXT NOT NULL, `timestamp` INTEGER NOT NULL, `attacker_name` TEXT NOT NULL, `defender_name` TEXT NOT NULL, `data_blob` TEXT NOT NULL, `archived_at` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "slotId",
+            "columnName": "slot_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "originalId",
+            "columnName": "original_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "battleType",
+            "columnName": "battle_type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "result",
+            "columnName": "result",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timestamp",
+            "columnName": "timestamp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "attackerName",
+            "columnName": "attacker_name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "defenderName",
+            "columnName": "defender_name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dataBlob",
+            "columnName": "data_blob",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "archivedAt",
+            "columnName": "archived_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_archived_battle_logs_slot_id_timestamp",
+            "unique": false,
+            "columnNames": [
+              "slot_id",
+              "timestamp"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_archived_battle_logs_slot_id_timestamp` ON `${TABLE_NAME}` (`slot_id`, `timestamp`)"
+          },
+          {
+            "name": "index_archived_battle_logs_archived_at",
+            "unique": false,
+            "columnNames": [
+              "archived_at"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_archived_battle_logs_archived_at` ON `${TABLE_NAME}` (`archived_at`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "archived_game_events",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `slot_id` INTEGER NOT NULL, `original_id` TEXT NOT NULL, `event_type` TEXT NOT NULL, `timestamp` INTEGER NOT NULL, `message` TEXT NOT NULL, `data_blob` TEXT NOT NULL, `archived_at` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "slotId",
+            "columnName": "slot_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "originalId",
+            "columnName": "original_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "eventType",
+            "columnName": "event_type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timestamp",
+            "columnName": "timestamp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "message",
+            "columnName": "message",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dataBlob",
+            "columnName": "data_blob",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "archivedAt",
+            "columnName": "archived_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_archived_game_events_slot_id_timestamp",
+            "unique": false,
+            "columnNames": [
+              "slot_id",
+              "timestamp"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_archived_game_events_slot_id_timestamp` ON `${TABLE_NAME}` (`slot_id`, `timestamp`)"
+          },
+          {
+            "name": "index_archived_game_events_archived_at",
+            "unique": false,
+            "columnNames": [
+              "archived_at"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_archived_game_events_archived_at` ON `${TABLE_NAME}` (`archived_at`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "archived_disciples",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `slot_id` INTEGER NOT NULL, `original_id` TEXT NOT NULL, `name` TEXT NOT NULL, `realm` INTEGER NOT NULL, `data_blob` TEXT NOT NULL, `archived_at` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "slotId",
+            "columnName": "slot_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "originalId",
+            "columnName": "original_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "realm",
+            "columnName": "realm",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dataBlob",
+            "columnName": "data_blob",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "archivedAt",
+            "columnName": "archived_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_archived_disciples_slot_id_archived_at",
+            "unique": false,
+            "columnNames": [
+              "slot_id",
+              "archived_at"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_archived_disciples_slot_id_archived_at` ON `${TABLE_NAME}` (`slot_id`, `archived_at`)"
+          },
+          {
+            "name": "index_archived_disciples_archived_at",
+            "unique": false,
+            "columnNames": [
+              "archived_at"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_archived_disciples_archived_at` ON `${TABLE_NAME}` (`archived_at`)"
+          }
+        ],
+        "foreignKeys": []
+      }
+    ],
+    "views": [],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'b8b621ce514c6b990a2a65ebb6bd36ef')"
+    ]
+  }
+}
