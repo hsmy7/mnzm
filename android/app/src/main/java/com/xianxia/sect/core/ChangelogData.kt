@@ -9,6 +9,13 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "2.6.06",
+            date = "2026-04-30",
+            changes = listOf(
+                "修复功法和装备的血量加成在弟子详情界面不显示的问题（实际战斗中已生效，仅显示遗漏）"
+            )
+        ),
+        ChangelogEntry(
             version = "2.6.05",
             date = "2026-04-30",
             changes = listOf(

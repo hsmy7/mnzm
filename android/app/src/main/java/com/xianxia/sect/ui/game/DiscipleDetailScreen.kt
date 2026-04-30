@@ -292,6 +292,7 @@ fun DiscipleDetailDialog(
                     ) {
                         BasicInfoSection(
                             disciple = disciple,
+                            allEquipment = allEquipment,
                             allManuals = allManuals,
                             manualProficiencies = manualProficiencies,
                             position = viewModel?.getDisciplePosition(disciple.id),
@@ -1095,6 +1096,7 @@ private fun RelationItem(relation: String, disciple: DiscipleAggregate) {
 @Composable
 private fun BasicInfoSection(
     disciple: DiscipleAggregate,
+    allEquipment: List<EquipmentInstance> = emptyList(),
     allManuals: List<ManualInstance> = emptyList(),
     manualProficiencies: Map<String, List<ManualProficiencyData>> = emptyMap(),
     position: String? = null,
@@ -1253,14 +1255,30 @@ private fun BasicInfoSection(
         }
 
         Spacer(modifier = Modifier.height(8.dp))
-        HpMpBars(disciple)
+
+        val equipmentMap = remember(disciple.weaponId, disciple.armorId, disciple.bootsId, disciple.accessoryId, allEquipment) {
+            mutableMapOf<String, EquipmentInstance>().apply {
+                listOfNotNull(disciple.weaponId, disciple.armorId, disciple.bootsId, disciple.accessoryId)
+                    .filter { it.isNotEmpty() }
+                    .forEach { id -> allEquipment.find { it.id == id }?.let { put(it.id, it) } }
+            }
+        }
+        val manualMap = remember(allManuals) { allManuals.associateBy { it.id } }
+        val discipleProficiencies = remember(disciple.id, manualProficiencies) {
+            manualProficiencies[disciple.id]?.associateBy { it.manualId } ?: emptyMap()
+        }
+        val finalStats = remember(disciple, equipmentMap, manualMap, discipleProficiencies) {
+            disciple.getFinalStats(equipmentMap, manualMap, discipleProficiencies)
+        }
+
+        HpMpBars(disciple, finalStats.maxHp, finalStats.maxMp)
     }
 }
 
 @Composable
-private fun HpMpBars(disciple: DiscipleAggregate) {
-    val maxHp = disciple.maxHpFinal
-    val maxMp = disciple.maxMpFinal
+private fun HpMpBars(disciple: DiscipleAggregate, maxHpOverride: Int? = null, maxMpOverride: Int? = null) {
+    val maxHp = maxHpOverride ?: disciple.maxHpFinal
+    val maxMp = maxMpOverride ?: disciple.maxMpFinal
     val rawCurrentHp = disciple.currentHp
     val rawCurrentMp = disciple.currentMp
     val currentHpDisplay = if (rawCurrentHp < 0) maxHp else rawCurrentHp
