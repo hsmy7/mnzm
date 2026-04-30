@@ -782,40 +782,32 @@ class CultivationService @Inject constructor(
         processMonthlyEvents(newYear, 1)
     }
 
+    private suspend fun safelyRun(name: String, block: suspend () -> Unit) {
+        try {
+            block()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in $name", e)
+        }
+    }
+
     /**
      * Process daily events
      */
     private suspend fun processDailyEvents(day: Int, month: Int, year: Int) {
-        // Update exploration teams movement
-        updateExplorationTeamsMovement(day, month, year)
+        safelyRun("updateExplorationTeamsMovement") { updateExplorationTeamsMovement(day, month, year) }
+        safelyRun("updateCaveExplorationTeamsMovement") { updateCaveExplorationTeamsMovement(day, month, year) }
+        safelyRun("processAIBattleTeamMovement") { processAIBattleTeamMovement() }
+        safelyRun("checkGameOverCondition") { checkGameOverCondition() }
+        safelyRun("processPlayerBattleTeamMovement") { processPlayerBattleTeamMovement() }
+        safelyRun("checkExplorationArrivals") { checkExplorationArrivals() }
+        safelyRun("processChildBirth") { processChildBirth(year) }
 
-        // Update cave exploration teams movement
-        updateCaveExplorationTeamsMovement(day, month, year)
+        // Daily recovery: disciples recover 5% HP and MP (including those in battle)
+        safelyRun("processDailyRecovery") { processDailyRecovery() }
 
-        // Process AI battle team movement
-        processAIBattleTeamMovement()
-
-        checkGameOverCondition()
-
-        processPlayerBattleTeamMovement()
-
-        // Check exploration arrivals
-        checkExplorationArrivals()
-
-        // Process child birth (子嗣产出)
-        processChildBirth(year)
-
-        // Daily recovery: disciples recover 1% HP and MP (except those in battle)
-        processDailyRecovery()
-
-        // Pill effect duration decay (daily)
-        processPillDurationDecay()
-
-        // Disciple auto-use items (daily)
-        processAutoUseItems(year, month, day)
-
-        // Sync disciple statuses after all team movements/combat are processed
-        discipleService.syncAllDiscipleStatuses()
+        safelyRun("processPillDurationDecay") { processPillDurationDecay() }
+        safelyRun("processAutoUseItems") { processAutoUseItems(year, month, day) }
+        safelyRun("syncAllDiscipleStatuses") { discipleService.syncAllDiscipleStatuses() }
     }
 
     private fun processPillDurationDecay() {
@@ -971,8 +963,8 @@ class CultivationService @Inject constructor(
             val currentHp = disciple.combat.currentHp
             val currentMp = disciple.combat.currentMp
 
-            val hpRecovery = (maxHp * 0.01).toInt().coerceAtLeast(1)
-            val mpRecovery = (maxMp * 0.01).toInt().coerceAtLeast(1)
+            val hpRecovery = (maxHp * GameConfig.Cultivation.DAILY_HP_MP_RECOVERY_RATE).toInt().coerceAtLeast(1)
+            val mpRecovery = (maxMp * GameConfig.Cultivation.DAILY_HP_MP_RECOVERY_RATE).toInt().coerceAtLeast(1)
 
             val newHp = if (currentHp < 0) currentHp else (currentHp + hpRecovery).coerceAtMost(maxHp)
             val newMp = if (currentMp < 0) currentMp else (currentMp + mpRecovery).coerceAtMost(maxMp)

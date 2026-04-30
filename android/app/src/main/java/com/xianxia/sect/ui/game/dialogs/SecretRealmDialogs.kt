@@ -813,7 +813,7 @@ internal fun TeamMemberSlot(
 ) {
     val isDead = !disciple.isAlive
     
-    val currentHp = if (isDead) 0 else disciple.statusData["currentHp"]?.toIntOrNull() ?: disciple.maxHp
+    val currentHp = if (isDead) 0 else (if (disciple.currentHp < 0) disciple.maxHp else disciple.currentHp)
     val hpPercent = disciple.maxHp.takeIf { it > 0 }?.let {
         (currentHp.toFloat() / it.toFloat()).coerceIn(0f, 1f)
     } ?: 1f

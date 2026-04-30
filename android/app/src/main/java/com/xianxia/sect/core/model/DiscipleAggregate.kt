@@ -38,8 +38,8 @@ data class DiscipleAggregate(
     
     val baseHp: Int get() = combatStats?.baseHp ?: 100
     val baseMp: Int get() = combatStats?.baseMp ?: 50
-    val maxHp: Int get() = baseHp  // 保持与旧 Disciple 类 API 一致性
-    val maxMp: Int get() = baseMp  // 保持与旧 Disciple 类 API 一致性
+    val maxHp: Int get() = getBaseStats().maxHp
+    val maxMp: Int get() = getBaseStats().maxMp
     val basePhysicalAttack: Int get() = combatStats?.basePhysicalAttack ?: 7
     val baseMagicAttack: Int get() = combatStats?.baseMagicAttack ?: 7
     val basePhysicalDefense: Int get() = combatStats?.basePhysicalDefense ?: 5
@@ -145,21 +145,21 @@ data class DiscipleAggregate(
     /** 速度 */
     val speed: Int get() = getBaseStats().speed
     
-    /** 最大生命值（通过完整计算）*/
-    val maxHpFinal: Int get() = getBaseStats().maxHp
-    
-    /** 最大灵力值（通过完整计算）*/
-    val maxMpFinal: Int get() = getBaseStats().maxMp
+    @Deprecated("Use maxHp instead", ReplaceWith("maxHp"))
+    val maxHpFinal: Int get() = maxHp
+
+    @Deprecated("Use maxMp instead", ReplaceWith("maxMp"))
+    val maxMpFinal: Int get() = maxMp
     
     /** 当前生命百分比 */
     val hpPercent: Double get() {
-        val max = maxHpFinal
+        val max = maxHp
         if (max <= 0) return 100.0
         val current = if (currentHp < 0) max else currentHp
         return current.toDouble() / max * 100.0
     }
     val mpPercent: Double get() {
-        val max = maxMpFinal
+        val max = maxMp
         if (max <= 0) return 100.0
         val current = if (currentMp < 0) max else currentMp
         return current.toDouble() / max * 100.0

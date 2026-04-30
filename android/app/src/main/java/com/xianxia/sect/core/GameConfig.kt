@@ -109,6 +109,7 @@ object GameConfig {
         const val BASE_SPEED = 8.0
         const val REALM_SPEED_BONUS_THRESHOLD = 3
         const val REALM_SPEED_BONUS = 1.5
+        const val DAILY_HP_MP_RECOVERY_RATE = 0.05
     }
 
     object Production {

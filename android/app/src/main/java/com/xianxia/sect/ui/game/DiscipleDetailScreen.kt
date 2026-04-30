@@ -1277,8 +1277,8 @@ private fun BasicInfoSection(
 
 @Composable
 private fun HpMpBars(disciple: DiscipleAggregate, maxHpOverride: Int? = null, maxMpOverride: Int? = null) {
-    val maxHp = maxHpOverride ?: disciple.maxHpFinal
-    val maxMp = maxMpOverride ?: disciple.maxMpFinal
+    val maxHp = maxHpOverride ?: disciple.maxHp
+    val maxMp = maxMpOverride ?: disciple.maxMp
     val rawCurrentHp = disciple.currentHp
     val rawCurrentMp = disciple.currentMp
     val currentHpDisplay = if (rawCurrentHp < 0) maxHp else rawCurrentHp
