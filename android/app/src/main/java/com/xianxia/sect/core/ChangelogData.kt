@@ -9,6 +9,14 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "2.6.10",
+            date = "2026-05-01",
+            changes = listOf(
+                "洞府守护兽统一使用秘境妖兽战斗属性计算公式（三处妖兽属性计算一致）",
+                "洞府守护兽补充技能配置（此前为emptyList）"
+            )
+        ),
+        ChangelogEntry(
             version = "2.6.09",
             date = "2026-05-01",
             changes = listOf(
