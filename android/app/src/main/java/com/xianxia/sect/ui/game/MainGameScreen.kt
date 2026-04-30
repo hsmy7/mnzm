@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.xianxia.sect.core.model.BattleSlotType
 import com.xianxia.sect.core.model.DiscipleAggregate
+import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GameEvent
 import com.xianxia.sect.core.util.isFollowed
@@ -335,7 +336,12 @@ fun MainGameScreen(
         
         if (showEnvoyDiscipleSelectDialog) {
             val selectedSect = gameData?.worldMapSects?.find { it.id == selectedAllianceSectId }
-            val eligibleDisciples = selectedSect?.level?.let { worldMapViewModel.getEligibleEnvoyDisciples(it) } ?: emptyList()
+            val eligibleDisciples = remember(disciples, selectedSect?.level) {
+                val requiredRealm = selectedSect?.level?.let { worldMapViewModel.getEnvoyRealmRequirement(it) } ?: 0
+                disciples.filter {
+                    it.isAlive && it.status == DiscipleStatus.IDLE && it.realm <= requiredRealm
+                }
+            }
             EnvoyDiscipleSelectDialog(
                 sect = selectedSect,
                 disciples = eligibleDisciples,
@@ -347,7 +353,9 @@ fun MainGameScreen(
         
         if (showScoutDialog) {
             val selectedSect = gameData?.worldMapSects?.find { it.id == selectedScoutSectId }
-            val eligibleDisciples = worldMapViewModel.getEligibleScoutDisciples()
+            val eligibleDisciples = remember(disciples) {
+                disciples.filter { it.isAlive && it.status == DiscipleStatus.IDLE }
+            }
             ScoutDiscipleSelectDialog(
                 sect = selectedSect,
                 disciples = eligibleDisciples,

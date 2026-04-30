@@ -19,9 +19,6 @@ class WorldMapViewModel @Inject constructor(
     val gameData: StateFlow<GameData> = gameEngine.gameData
         .stateIn(viewModelScope, sharingStarted, GameData())
 
-    val discipleAggregates: StateFlow<List<DiscipleAggregate>> = gameEngine.discipleAggregates
-        .stateIn(viewModelScope, sharingStarted, emptyList())
-
     private val _showScoutDialog = MutableStateFlow(false)
     val showScoutDialog: StateFlow<Boolean> = _showScoutDialog.asStateFlow()
 
@@ -125,12 +122,6 @@ class WorldMapViewModel @Inject constructor(
         }
     }
 
-    fun getEligibleScoutDisciples(): List<DiscipleAggregate> {
-        return discipleAggregates.value.filter {
-            it.isAlive && it.status == DiscipleStatus.IDLE
-        }
-    }
-
     fun giftSpiritStones(sectId: String, tier: Int) {
         viewModelScope.launch {
             try {
@@ -187,15 +178,6 @@ class WorldMapViewModel @Inject constructor(
             } catch (e: Exception) {
                 showError(e.message ?: "解除结盟失败")
             }
-        }
-    }
-
-    fun getEligibleEnvoyDisciples(sectLevel: Int): List<DiscipleAggregate> {
-        val requiredRealm = gameEngine.getEnvoyRealmRequirement(sectLevel)
-        return discipleAggregates.value.filter {
-            it.isAlive &&
-            it.status == DiscipleStatus.IDLE &&
-            it.realm <= requiredRealm
         }
     }
 
