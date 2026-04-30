@@ -874,7 +874,6 @@ internal fun TeamMemberSlot(
                     color = if (isDead) Color(0xFF999999) else Color.Black,
                     maxLines = 1
                 )
-                if (disciple.isFollowed) { FollowedTag() }
             }
             Text(
                 text = disciple.realmName,

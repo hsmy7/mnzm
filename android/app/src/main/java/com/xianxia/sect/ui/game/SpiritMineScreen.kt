@@ -331,7 +331,6 @@ private fun SpiritMineDeaconSlotItem(
                             color = Color.Black,
                             maxLines = 1
                         )
-                        if (disciple.isFollowed) { FollowedTag() }
                     }
                     Text(
                         text = disciple.realmName,
@@ -425,7 +424,6 @@ private fun SpiritMineSlotItem(
                             fontWeight = FontWeight.Bold,
                             color = Color.Black
                         )
-                        if (disciple.isFollowed) { FollowedTag() }
                     }
                     Text(
                         text = disciple.realmName,

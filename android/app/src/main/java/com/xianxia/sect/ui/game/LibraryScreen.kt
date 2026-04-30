@@ -150,7 +150,6 @@ private fun LibrarySlotItem(
                             maxLines = 1,
                             textAlign = TextAlign.Center
                         )
-                        if (disciple.isFollowed) { FollowedTag() }
                     }
                     Text(
                         text = disciple.realmName,
