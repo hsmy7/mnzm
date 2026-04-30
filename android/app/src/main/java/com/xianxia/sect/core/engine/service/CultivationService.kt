@@ -952,6 +952,104 @@ class CultivationService @Inject constructor(
 
             updatedDisciple
         }
+
+        processAutoFromWarehouse(year, month, day)
+    }
+
+    private fun processAutoFromWarehouse(year: Int, month: Int, day: Int) {
+        val allDisciples = currentDisciples.filter { it.isAlive }
+        val hasAutoEquip = allDisciples.any { it.equipment.autoEquipFromWarehouse }
+        val hasAutoLearn = allDisciples.any { it.autoLearnFromWarehouse }
+
+        if (!hasAutoEquip && !hasAutoLearn) return
+
+        val bagEqIds = currentDisciples.flatMap { it.equipment.storageBagItems }
+            .filter { it.itemType == "equipment_stack" }.map { it.itemId }.toSet()
+        val bagMnIds = currentDisciples.flatMap { it.equipment.storageBagItems }
+            .filter { it.itemType == "manual_stack" }.map { it.itemId }.toSet()
+
+        val sortedDisciples = allDisciples.sortedWith(
+            compareByDescending<Disciple> { it.statusData["followed"] == "true" }
+                .thenBy { it.realm }
+                .thenByDescending { it.realmLayer }
+        )
+
+        var eqStacks = currentEquipmentStacks.filter { it.id !in bagEqIds }
+        var mnStacks = currentManualStacks.filter { it.id !in bagMnIds }
+        val eqInstances = currentEquipmentInstances
+        val mnInstances = currentManualInstances
+        val updatedDisciples = currentDisciples.toMutableList()
+        val allEvents = mutableListOf<String>()
+        val eqInstancesById = eqInstances.associateBy { it.id }
+        val mnInstancesById = mnInstances.associateBy { it.id }
+
+        for (disciple in sortedDisciples) {
+            if (!disciple.isAlive) continue
+            var updatedDisciple = disciple
+
+            if (disciple.equipment.autoEquipFromWarehouse) {
+                val result = DiscipleEquipmentManager.processAutoEquipFromWarehouse(
+                    disciple = updatedDisciple,
+                    warehouseStacks = eqStacks,
+                    equipmentInstances = eqInstancesById,
+                    gameYear = year,
+                    gameMonth = month,
+                    gameDay = day,
+                    maxStack = inventoryConfig.getMaxStackSize("equipment_stack")
+                )
+                if (result.newInstances.isNotEmpty()) {
+                    updatedDisciple = result.disciple
+                    currentEquipmentInstances = currentEquipmentInstances + result.newInstances
+                    result.stackUpdates.forEach { update ->
+                        if (update.isDeletion) {
+                            eqStacks = eqStacks.filter { it.id != update.stackId }
+                        } else {
+                            eqStacks = eqStacks.map {
+                                if (it.id == update.stackId) it.copy(quantity = update.newQuantity) else it
+                            }
+                        }
+                    }
+                    allEvents.addAll(result.events)
+                }
+            }
+
+            if (disciple.autoLearnFromWarehouse) {
+                val result = DiscipleManualManager.processAutoLearnFromWarehouse(
+                    disciple = updatedDisciple,
+                    warehouseStacks = mnStacks,
+                    manualInstances = mnInstancesById,
+                    gameYear = year,
+                    gameMonth = month,
+                    gameDay = day,
+                    maxStack = inventoryConfig.getMaxStackSize("manual_stack")
+                )
+                if (result.newInstance != null) {
+                    updatedDisciple = result.disciple
+                    currentManualInstances = currentManualInstances + result.newInstance
+                    result.stackUpdate?.let { update ->
+                        if (update.isDeletion) {
+                            mnStacks = mnStacks.filter { it.id != update.stackId }
+                        } else {
+                            mnStacks = mnStacks.map {
+                                if (it.id == update.stackId) it.copy(quantity = update.newQuantity) else it
+                            }
+                        }
+                    }
+                    allEvents.addAll(result.events)
+                }
+            }
+
+            val idx = updatedDisciples.indexOfFirst { it.id == disciple.id }
+            if (idx >= 0) {
+                updatedDisciples[idx] = updatedDisciple
+            }
+        }
+
+        currentDisciples = updatedDisciples.toList()
+        currentEquipmentStacks = currentEquipmentStacks.filter { it.id in bagEqIds } + eqStacks
+        currentManualStacks = currentManualStacks.filter { it.id in bagMnIds } + mnStacks
+
+        allEvents.forEach { eventService.addGameEvent(it, EventType.SUCCESS) }
     }
 
     private fun processDailyRecovery() {

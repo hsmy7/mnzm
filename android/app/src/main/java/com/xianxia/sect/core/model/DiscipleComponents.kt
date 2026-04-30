@@ -100,6 +100,7 @@ data class EquipmentSet(
     // 饰品孕育数据
     var accessoryNurture: EquipmentNurtureData = EquipmentNurtureData("", 0),
 
+    var autoEquipFromWarehouse: Boolean = false,
     var storageBagItems: List<StorageBagItem> = emptyList(),
     var storageBagSpiritStones: Long = 0,
     var spiritStones: Int = 0,

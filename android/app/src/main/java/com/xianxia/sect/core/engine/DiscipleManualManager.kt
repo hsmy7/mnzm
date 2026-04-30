@@ -293,6 +293,56 @@ object DiscipleManualManager {
         return true
     }
 
+    fun processAutoLearnFromWarehouse(
+        disciple: Disciple,
+        warehouseStacks: List<ManualStack>,
+        manualInstances: Map<String, ManualInstance>,
+        gameYear: Int,
+        gameMonth: Int,
+        gameDay: Int,
+        maxStack: Int = MAX_MANUAL_STACK
+    ): ManualLearnResult {
+        val maxSlots = DiscipleStatCalculator.getMaxManualSlots(disciple)
+        if (disciple.manualIds.size >= maxSlots) {
+            return ManualLearnResult(disciple, null, null, null, null, emptyList())
+        }
+
+        val learnedNames = disciple.manualIds.mapNotNull { manualInstances[it]?.name }.toSet()
+        val hasMindManual = disciple.manualIds.any { mid -> manualInstances[mid]?.type == ManualType.MIND }
+
+        val candidates = warehouseStacks.filter { stack ->
+            disciple.realm <= stack.minRealm &&
+            !stack.isLocked &&
+            stack.name !in learnedNames &&
+            !(hasMindManual && stack.type == ManualType.MIND)
+        }
+
+        val bestStack = candidates.maxByOrNull { it.rarity } ?: return ManualLearnResult(disciple, null, null, null, null, emptyList())
+
+        val instanceId = java.util.UUID.randomUUID().toString()
+        val newInstance = bestStack.toInstance(id = instanceId, ownerId = disciple.id, isLearned = true)
+
+        val newQty = bestStack.quantity - 1
+        val stackUpdate = if (newQty <= 0) {
+            StackUpdate(stackId = bestStack.id, newQuantity = 0, isDeletion = true)
+        } else {
+            StackUpdate(stackId = bestStack.id, newQuantity = newQty, isDeletion = false)
+        }
+
+        val updatedDisciple = disciple.copyWith(
+            manualIds = disciple.manualIds + instanceId
+        )
+
+        return ManualLearnResult(
+            disciple = updatedDisciple,
+            newInstance = newInstance,
+            replacedInstance = null,
+            stackUpdate = stackUpdate,
+            replacedManualStack = null,
+            events = listOf("${disciple.name} 自动学习了 ${bestStack.name}")
+        )
+    }
+
     fun canLearn(disciple: Disciple, instance: ManualInstance, manualInstances: Map<String, ManualInstance>): Boolean {
         if (disciple.realm > instance.minRealm) return false
         val maxSlots = DiscipleStatCalculator.getMaxManualSlots(disciple)

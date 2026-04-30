@@ -120,11 +120,11 @@ class BattleSystem @Inject constructor() {
         val realmLayer = Random.nextInt(1, 10)
         val layerMult = 1.0 + (realmLayer - 1) * 0.1
 
-        val baseHp = (realmConfig.baseHp * 2.5 * layerMult).roundToInt()
-        val baseMp = (realmConfig.baseMp * 2.5 * layerMult).roundToInt()
-        val baseAtk = (realmConfig.basePhysicalAttack * 2.9 * layerMult).roundToInt()
-        val baseDef = (realmConfig.basePhysicalDefense * 2.6 * layerMult).roundToInt()
-        val baseSpeed = (realmConfig.baseSpeed * 1.6 * layerMult).roundToInt()
+        val baseHp = (realmConfig.baseHp * 2.25 * layerMult).roundToInt()
+        val baseMp = (realmConfig.baseMp * 2.25 * layerMult).roundToInt()
+        val baseAtk = (realmConfig.basePhysicalAttack * 2.61 * layerMult).roundToInt()
+        val baseDef = (realmConfig.basePhysicalDefense * 2.34 * layerMult).roundToInt()
+        val baseSpeed = (realmConfig.baseSpeed * 1.44 * layerMult).roundToInt()
 
         val beastAdvantage = 0.06
         val hpVariance = -0.2 + Random.nextDouble() * 0.4

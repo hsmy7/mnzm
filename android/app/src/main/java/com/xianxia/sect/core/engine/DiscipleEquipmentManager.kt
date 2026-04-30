@@ -214,6 +214,58 @@ object DiscipleEquipmentManager {
         return disciple.realm <= stack.minRealm
     }
 
+    fun processAutoEquipFromWarehouse(
+        disciple: Disciple,
+        warehouseStacks: List<EquipmentStack>,
+        equipmentInstances: Map<String, EquipmentInstance>,
+        gameYear: Int,
+        gameMonth: Int,
+        gameDay: Int,
+        maxStack: Int = MAX_EQUIPMENT_STACK
+    ): EquipmentProcessResult {
+        val events = mutableListOf<String>()
+        var updatedDisciple = disciple
+        val allNewInstances = mutableListOf<EquipmentInstance>()
+        val allStackUpdates = mutableListOf<StackUpdate>()
+
+        slotConfigs.forEach { config ->
+            val currentEquipId = config.currentEquipIdGetter(updatedDisciple)
+            if (!currentEquipId.isNullOrEmpty()) return@forEach
+
+            val candidates = warehouseStacks.filter { stack ->
+                stack.slot == config.slotType &&
+                updatedDisciple.realm <= stack.minRealm &&
+                !stack.isLocked
+            }
+
+            val bestStack = candidates.maxByOrNull { it.rarity } ?: return@forEach
+
+            val instanceId = java.util.UUID.randomUUID().toString()
+            val newInstance = bestStack.toInstance(id = instanceId, ownerId = disciple.id, isEquipped = true)
+
+            val newQty = bestStack.quantity - 1
+            val stackUpdate = if (newQty <= 0) {
+                StackUpdate(stackId = bestStack.id, newQuantity = 0, isDeletion = true)
+            } else {
+                StackUpdate(stackId = bestStack.id, newQuantity = newQty, isDeletion = false)
+            }
+
+            updatedDisciple = config.equipSetter(updatedDisciple, instanceId)
+            allNewInstances.add(newInstance)
+            allStackUpdates.add(stackUpdate)
+            events.add("${disciple.name} 自动装备了 ${bestStack.name}")
+        }
+
+        return EquipmentProcessResult(
+            disciple = updatedDisciple,
+            newInstances = allNewInstances,
+            replacedInstances = emptyList(),
+            stackUpdates = allStackUpdates,
+            replacedEquipmentStacks = emptyList(),
+            events = events
+        )
+    }
+
     fun canEquip(disciple: Disciple, instance: EquipmentInstance): Boolean {
         return disciple.realm <= instance.minRealm
     }

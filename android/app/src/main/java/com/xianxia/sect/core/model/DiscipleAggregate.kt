@@ -86,6 +86,7 @@ data class DiscipleAggregate(
     val storageBagSpiritStones: Long get() = equipment?.storageBagSpiritStones ?: 0
     val spiritStones: Int get() = equipment?.spiritStones ?: 0
     val soulPower: Int get() = equipment?.soulPower ?: 10
+    val autoEquipFromWarehouse: Boolean get() = equipment?.autoEquipFromWarehouse ?: false
     
     val manualIds: List<String> get() = extended?.manualIds ?: emptyList()
     val talentIds: List<String> get() = extended?.talentIds ?: emptyList()
@@ -103,6 +104,7 @@ data class DiscipleAggregate(
     val usedExtendLifePillIds: List<String> get() = extended?.usedExtendLifePillIds ?: emptyList()
     val hasReviveEffect: Boolean get() = extended?.hasReviveEffect ?: false
     val hasClearAllEffect: Boolean get() = extended?.hasClearAllEffect ?: false
+    val autoLearnFromWarehouse: Boolean get() = extended?.autoLearnFromWarehouse ?: false
     
     val intelligence: Int get() = attributes?.intelligence ?: 50
     val charm: Int get() = attributes?.charm ?: 50
@@ -263,6 +265,7 @@ data class DiscipleAggregate(
             cultivationSpeedBonus = cultivationSpeedBonus,
             cultivationSpeedDuration = cultivationSpeedDuration,
             discipleType = discipleType,
+            autoLearnFromWarehouse = autoLearnFromWarehouse,
             combat = CombatAttributes(
                 baseHp = baseHp,
                 baseMp = baseMp,
@@ -316,6 +319,7 @@ data class DiscipleAggregate(
                 armorNurture = armorNurture,
                 bootsNurture = bootsNurture,
                 accessoryNurture = accessoryNurture,
+                autoEquipFromWarehouse = autoEquipFromWarehouse,
                 storageBagItems = storageBagItems,
                 storageBagSpiritStones = storageBagSpiritStones,
                 spiritStones = spiritStones,

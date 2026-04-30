@@ -25,7 +25,8 @@ data class DiscipleEquipment(
     var storageBagItems: List<StorageBagItem> = emptyList(),
     var storageBagSpiritStones: Long = 0,
     var spiritStones: Int = 0,
-    var soulPower: Int = 10
+    var soulPower: Int = 10,
+    var autoEquipFromWarehouse: Boolean = false
 ) {
     val hasEquippedItems: Boolean get() = listOf(weaponId, armorId, bootsId, accessoryId).any { it.isNotEmpty() }
 
@@ -46,7 +47,8 @@ data class DiscipleEquipment(
                 storageBagItems = disciple.equipment.storageBagItems,
                 storageBagSpiritStones = disciple.equipment.storageBagSpiritStones,
                 spiritStones = disciple.equipment.spiritStones,
-                soulPower = disciple.equipment.soulPower
+                soulPower = disciple.equipment.soulPower,
+                autoEquipFromWarehouse = disciple.equipment.autoEquipFromWarehouse
             )
         }
     }

@@ -93,6 +93,8 @@ data class Disciple(
 
     var discipleType: String = "outer",
 
+    var autoLearnFromWarehouse: Boolean = false,
+
     // ========== @Embedded 组件 ==========
     @Embedded
     var combat: CombatAttributes = CombatAttributes(),
@@ -349,6 +351,7 @@ data class Disciple(
         cultivationSpeedBonus: Double = this.cultivationSpeedBonus,
         cultivationSpeedDuration: Int = this.cultivationSpeedDuration,
         discipleType: String = this.discipleType,
+        autoLearnFromWarehouse: Boolean = this.autoLearnFromWarehouse,
 
         // CombatAttributes
         baseHp: Int = this.baseHp,
@@ -400,6 +403,7 @@ data class Disciple(
         storageBagSpiritStones: Long = this.storageBagSpiritStones,
         spiritStones: Int = this.spiritStones,
         soulPower: Int = this.soulPower,
+        autoEquipFromWarehouse: Boolean = this.equipment.autoEquipFromWarehouse,
 
         // SocialData
         partnerId: String? = this.partnerId,
@@ -450,6 +454,7 @@ data class Disciple(
             cultivationSpeedBonus = cultivationSpeedBonus,
             cultivationSpeedDuration = cultivationSpeedDuration,
             discipleType = discipleType,
+            autoLearnFromWarehouse = autoLearnFromWarehouse,
             combat = CombatAttributes(
                 baseHp = baseHp,
                 baseMp = baseMp,
@@ -496,6 +501,7 @@ data class Disciple(
                 armorNurture = armorNurture,
                 bootsNurture = bootsNurture,
                 accessoryNurture = accessoryNurture,
+                autoEquipFromWarehouse = autoEquipFromWarehouse,
                 storageBagItems = storageBagItems,
                 storageBagSpiritStones = storageBagSpiritStones,
                 spiritStones = spiritStones,

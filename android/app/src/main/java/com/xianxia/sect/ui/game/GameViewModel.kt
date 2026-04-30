@@ -401,6 +401,22 @@ class GameViewModel @Inject constructor(
         }
     }
 
+    fun toggleAutoEquipFromWarehouse(discipleId: String, enabled: Boolean) {
+        viewModelScope.launch {
+            gameEngine.updateDisciple(discipleId) { disciple ->
+                disciple.copyWith(autoEquipFromWarehouse = enabled)
+            }
+        }
+    }
+
+    fun toggleAutoLearnFromWarehouse(discipleId: String, enabled: Boolean) {
+        viewModelScope.launch {
+            gameEngine.updateDisciple(discipleId) { disciple ->
+                disciple.copyWith(autoLearnFromWarehouse = enabled)
+            }
+        }
+    }
+
     suspend fun rewardItemsToDisciple(discipleId: String, items: List<RewardSelectedItem>) {
         gameEngine.rewardItemsToDisciple(discipleId, items)
     }

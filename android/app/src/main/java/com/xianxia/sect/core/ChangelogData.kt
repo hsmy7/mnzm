@@ -9,6 +9,17 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "2.6.08",
+            date = "2026-05-01",
+            changes = listOf(
+                "新增弟子自动穿戴宗门仓库装备功能（装备栏标题右侧勾选框）",
+                "新增弟子自动学习宗门仓库功法功能（功法栏标题右侧勾选框）",
+                "自动穿戴/学习受境界限制，优先高品阶，锁定物品不可自动穿戴/学习",
+                "自动穿戴/学习仅填充空闲槽位，不替换已有装备/功法",
+                "多弟子竞争同一仓库物品时，已关注弟子和高境界弟子优先"
+            )
+        ),
+        ChangelogEntry(
             version = "2.6.07",
             date = "2026-05-01",
             changes = listOf(
