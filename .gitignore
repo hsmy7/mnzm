@@ -120,6 +120,6 @@ temp1_check/
 temp_check2/
 temp_check_extracted/
 temp_new_check/
-android/app/release/apk_decompiled/
+android/app/release/
 decompiled_source/
 *.zip
