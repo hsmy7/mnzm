@@ -1053,11 +1053,20 @@ class CultivationService @Inject constructor(
     }
 
     private fun processDailyRecovery() {
+        val equipmentMap = currentEquipmentInstances.associateBy { it.id }
+        val manualMap = currentManualInstances.associateBy { it.id }
+        val allProficiencies = currentGameData.manualProficiencies
+
         currentDisciples = currentDisciples.map { disciple ->
             if (!disciple.isAlive) return@map disciple
 
-            val maxHp = disciple.maxHp
-            val maxMp = disciple.maxMp
+            val discipleProficiencies = allProficiencies.getOrDefault(disciple.id, emptyList())
+                .associateBy { it.manualId }
+            val finalStats = DiscipleStatCalculator.getFinalStats(
+                disciple, equipmentMap, manualMap, discipleProficiencies
+            )
+            val maxHp = finalStats.maxHp
+            val maxMp = finalStats.maxMp
             val currentHp = disciple.combat.currentHp
             val currentMp = disciple.combat.currentMp
 

@@ -190,9 +190,18 @@ object DiscipleManualManager {
             StackUpdate(stackId = stack.id, newQuantity = newQty, isDeletion = false)
         }
 
+        val hpDelta = stack.stats["hp"] ?: stack.stats["maxHp"] ?: 0
+        val mpDelta = stack.stats["mp"] ?: stack.stats["maxMp"] ?: 0
+        val rawCurrentHp = updatedDisciple.combat.currentHp
+        val rawCurrentMp = updatedDisciple.combat.currentMp
+        val newHp = if (rawCurrentHp >= 0 && hpDelta > 0) rawCurrentHp + hpDelta else rawCurrentHp
+        val newMp = if (rawCurrentMp >= 0 && mpDelta > 0) rawCurrentMp + mpDelta else rawCurrentMp
+
         updatedDisciple = updatedDisciple.copyWith(
             manualIds = updatedDisciple.manualIds + instanceId,
-            storageBagItems = StorageBagUtils.decreaseItemQuantity(updatedDisciple.equipment.storageBagItems, stack.id)
+            storageBagItems = StorageBagUtils.decreaseItemQuantity(updatedDisciple.equipment.storageBagItems, stack.id),
+            currentHp = newHp,
+            currentMp = newMp
         )
 
         val messagePrefix = if (instantMessage) "立即" else "自动"
@@ -273,9 +282,22 @@ object DiscipleManualManager {
             StackUpdate(stackId = stack.id, newQuantity = newQty, isDeletion = false)
         }
 
+        val oldHpDelta = existingInstance.stats["hp"] ?: existingInstance.stats["maxHp"] ?: 0
+        val oldMpDelta = existingInstance.stats["mp"] ?: existingInstance.stats["maxMp"] ?: 0
+        val newHpDelta = stack.stats["hp"] ?: stack.stats["maxHp"] ?: 0
+        val newMpDelta = stack.stats["mp"] ?: stack.stats["maxMp"] ?: 0
+        val netHpDelta = newHpDelta - oldHpDelta
+        val netMpDelta = newMpDelta - oldMpDelta
+        val rawCurrentHp = updatedDisciple.combat.currentHp
+        val rawCurrentMp = updatedDisciple.combat.currentMp
+        val newHp = if (rawCurrentHp >= 0 && netHpDelta != 0) (rawCurrentHp + netHpDelta).coerceAtLeast(0) else rawCurrentHp
+        val newMp = if (rawCurrentMp >= 0 && netMpDelta != 0) (rawCurrentMp + netMpDelta).coerceAtLeast(0) else rawCurrentMp
+
         updatedDisciple = updatedDisciple.copyWith(
             manualIds = updatedDisciple.manualIds.map { if (it == existingInstanceId) instanceId else it },
-            storageBagItems = StorageBagUtils.decreaseItemQuantity(updatedDisciple.equipment.storageBagItems, stack.id)
+            storageBagItems = StorageBagUtils.decreaseItemQuantity(updatedDisciple.equipment.storageBagItems, stack.id),
+            currentHp = newHp,
+            currentMp = newMp
         )
 
         val messagePrefix = if (instantMessage) "立即" else "自动"
@@ -329,8 +351,17 @@ object DiscipleManualManager {
             StackUpdate(stackId = bestStack.id, newQuantity = newQty, isDeletion = false)
         }
 
+        val hpDelta = bestStack.stats["hp"] ?: bestStack.stats["maxHp"] ?: 0
+        val mpDelta = bestStack.stats["mp"] ?: bestStack.stats["maxMp"] ?: 0
+        val rawCurrentHp = disciple.combat.currentHp
+        val rawCurrentMp = disciple.combat.currentMp
+        val newHp = if (rawCurrentHp >= 0 && hpDelta > 0) rawCurrentHp + hpDelta else rawCurrentHp
+        val newMp = if (rawCurrentMp >= 0 && mpDelta > 0) rawCurrentMp + mpDelta else rawCurrentMp
+
         val updatedDisciple = disciple.copyWith(
-            manualIds = disciple.manualIds + instanceId
+            manualIds = disciple.manualIds + instanceId,
+            currentHp = newHp,
+            currentMp = newMp
         )
 
         return ManualLearnResult(

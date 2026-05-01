@@ -1806,7 +1806,16 @@ class GameEngine @Inject constructor(
 
             disciples = disciples.map {
                 if (it.id == discipleId && !it.manualIds.contains(instanceId)) {
-                    it.copy(manualIds = it.manualIds + instanceId)
+                    val hpDelta = stack.stats["hp"] ?: stack.stats["maxHp"] ?: 0
+                    val mpDelta = stack.stats["mp"] ?: stack.stats["maxMp"] ?: 0
+                    val rawHp = it.combat.currentHp
+                    val rawMp = it.combat.currentMp
+                    val newHp = if (rawHp >= 0 && hpDelta > 0) rawHp + hpDelta else rawHp
+                    val newMp = if (rawMp >= 0 && mpDelta > 0) rawMp + mpDelta else rawMp
+                    it.copy(
+                        manualIds = it.manualIds + instanceId,
+                        combat = it.combat.copy(currentHp = newHp, currentMp = newMp)
+                    )
                 } else it
             }
         }

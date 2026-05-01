@@ -9,6 +9,15 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "2.6.17",
+            date = "2026-05-01",
+            changes = listOf(
+                "学习增加气血/灵力的功法后，当前气血/灵力同步增加（不再只增加上限）",
+                "替换功法时正确计算新旧功法气血/灵力差值",
+                "日常被动恢复上限改为final maxHp/maxMp，功法装备加成可正常恢复"
+            )
+        ),
+        ChangelogEntry(
             version = "2.6.16",
             date = "2026-05-01",
             changes = listOf(
