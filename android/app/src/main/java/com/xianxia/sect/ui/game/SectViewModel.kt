@@ -49,11 +49,6 @@ class SectViewModel @Inject constructor(
                     showError(("弟子不存在"))
                     return@launch
                 }
-                if (disciple.realm > ElderManagementUseCase.REALM_VICE_SECT_MASTER) {
-                    showError(("副宗主需要达到炼虚境界"))
-                    return@launch
-                }
-
                 val currentGameData = gameEngine.gameData.value
                 val elderSlots = currentGameData.elderSlots
                 val allElderIds = listOf(

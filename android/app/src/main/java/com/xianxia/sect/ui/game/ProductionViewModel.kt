@@ -337,7 +337,7 @@ class ProductionViewModel @Inject constructor(
         val elderSlots = gameEngine.gameData.value.elderSlots
 
         return discipleAggregates.value
-            .filter { isSelectableDisciple(it) && it.realm <= ElderManagementUseCase.REALM_LAW_ENFORCEMENT && !elderSlots.isDiscipleInAnyPosition(it.id) }
+            .filter { isSelectableDisciple(it) && !elderSlots.isDiscipleInAnyPosition(it.id) }
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 
@@ -366,7 +366,6 @@ class ProductionViewModel @Inject constructor(
             .filter {
                 it.isAlive &&
                 it.discipleType == "inner" &&
-                it.realm <= ElderManagementUseCase.REALM_ELDER &&
                 it.age >= GameConfig.Disciple.MIN_AGE &&
                 it.realmLayer > 0 &&
                 it.status == DiscipleStatus.IDLE &&
@@ -382,7 +381,7 @@ class ProductionViewModel @Inject constructor(
         val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
 
         return discipleAggregates.value
-            .filter { isSelectableDisciple(it) && it.realm <= ElderManagementUseCase.REALM_ELDER && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
+            .filter { isSelectableDisciple(it) && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 
@@ -392,7 +391,7 @@ class ProductionViewModel @Inject constructor(
         val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
 
         return discipleAggregates.value
-            .filter { isSelectableDisciple(it) && it.realm <= ElderManagementUseCase.REALM_PREACHING_MASTER && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
+            .filter { isSelectableDisciple(it) && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 
@@ -416,7 +415,7 @@ class ProductionViewModel @Inject constructor(
         val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
 
         return discipleAggregates.value
-            .filter { isSelectableDisciple(it) && it.realm <= ElderManagementUseCase.REALM_ELDER && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
+            .filter { isSelectableDisciple(it) && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 
@@ -426,7 +425,7 @@ class ProductionViewModel @Inject constructor(
         val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
 
         return discipleAggregates.value
-            .filter { isSelectableDisciple(it) && it.realm <= ElderManagementUseCase.REALM_ELDER && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
+            .filter { isSelectableDisciple(it) && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 
@@ -436,7 +435,7 @@ class ProductionViewModel @Inject constructor(
         val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
 
         return discipleAggregates.value
-            .filter { isSelectableDisciple(it) && it.realm <= ElderManagementUseCase.REALM_PREACHING_MASTER && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
+            .filter { isSelectableDisciple(it) && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 

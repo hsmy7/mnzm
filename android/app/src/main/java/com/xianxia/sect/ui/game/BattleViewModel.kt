@@ -424,7 +424,6 @@ class BattleViewModel @Inject constructor(
                 disciple.realmLayer > 0 &&
                 disciple.age >= GameConfig.Disciple.MIN_AGE &&
                 disciple.status == DiscipleStatus.IDLE &&
-                disciple.realm <= ElderManagementUseCase.REALM_LAW_ENFORCEMENT &&
                 !occupiedIds.contains(disciple.id)
             }
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
@@ -454,10 +453,6 @@ class BattleViewModel @Inject constructor(
 
         val slotType = currentSlots[slotIndex].slotType
 
-        if (slotType == BattleSlotType.ELDER && disciple.realm > ElderManagementUseCase.REALM_LAW_ENFORCEMENT) {
-            showError("战斗长老需要达到化神境界")
-            return
-        }
 
         val existingSlot = currentSlots.find { it.discipleId == disciple.id }
         if (existingSlot != null) {

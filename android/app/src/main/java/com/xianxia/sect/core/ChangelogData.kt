@@ -9,6 +9,14 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "2.6.20",
+            date = "2026-05-01",
+            changes = listOf(
+                "彻底移除所有长老/执事/副宗主/战斗长老的境界限制（11个建筑全覆盖）",
+                "问道峰、青云峰选择界面移除境界提示文本"
+            )
+        ),
+        ChangelogEntry(
             version = "2.6.19",
             date = "2026-05-01",
             changes = listOf(

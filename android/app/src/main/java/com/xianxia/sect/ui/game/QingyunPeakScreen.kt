@@ -75,7 +75,7 @@ fun QingyunPeakDialog(
             title = "选择内门长老",
             disciples = productionViewModel.getAvailableDisciplesForInnerElder(),
             currentDiscipleId = innerElder?.id,
-            requirementText = "需要元婴及以上境界",
+            requirementText = "需要: 内门弟子 · 空闲中",
             onSelect = { disciple ->
                 productionViewModel.assignElder(ElderSlotType.INNER_ELDER, disciple.id)
                 showInnerElderSelection = false
@@ -89,7 +89,7 @@ fun QingyunPeakDialog(
             title = "选择青云峰传道长老",
             disciples = productionViewModel.getAvailableDisciplesForQingyunPreachingElder(),
             currentDiscipleId = preachingElder?.id,
-            requirementText = "需要元婴及以上境界",
+            requirementText = "需要: 内门弟子 · 空闲中",
             onSelect = { disciple ->
                 productionViewModel.assignElder(ElderSlotType.CLOUD_PREACHING, disciple.id)
                 showPreachingElderSelection = false
@@ -104,7 +104,7 @@ fun QingyunPeakDialog(
             title = "选择青云峰传道师",
             disciples = productionViewModel.getAvailableDisciplesForQingyunPreachingMaster(),
             currentDiscipleId = currentMaster?.discipleId,
-            requirementText = "需要金丹及以上境界",
+            requirementText = "需要: 内门弟子 · 空闲中",
             onSelect = { disciple ->
                 productionViewModel.assignDirectDisciple("qingyunPreaching", slotIndex, disciple.id)
                 showPreachingMasterSelection = null

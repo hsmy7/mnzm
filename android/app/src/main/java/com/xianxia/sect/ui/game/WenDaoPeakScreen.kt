@@ -73,7 +73,7 @@ fun WenDaoPeakDialog(
             title = "选择外门长老",
             disciples = productionViewModel.getAvailableDisciplesForOuterElder(),
             currentDiscipleId = outerElder?.id,
-            requirementText = "需要元婴及以上境界",
+            requirementText = "需要: 内门弟子 · 空闲中",
             onSelect = { disciple ->
                 productionViewModel.assignElder(ElderSlotType.OUTER_ELDER, disciple.id)
                 showOuterElderSelection = false
@@ -87,7 +87,7 @@ fun WenDaoPeakDialog(
             title = "选择问道峰传道长老",
             disciples = productionViewModel.getAvailableDisciplesForPreachingElder(),
             currentDiscipleId = preachingElder?.id,
-            requirementText = "需要元婴及以上境界",
+            requirementText = "需要: 内门弟子 · 空闲中",
             onSelect = { disciple ->
                 productionViewModel.assignElder(ElderSlotType.PREACHING, disciple.id)
                 showPreachingElderSelection = false
@@ -102,7 +102,7 @@ fun WenDaoPeakDialog(
             title = "选择问道峰传道师",
             disciples = productionViewModel.getAvailableDisciplesForPreachingMaster(),
             currentDiscipleId = currentMaster?.discipleId,
-            requirementText = "需要金丹及以上境界",
+            requirementText = "需要: 内门弟子 · 空闲中",
             onSelect = { disciple ->
                 productionViewModel.assignDirectDisciple("preaching", slotIndex, disciple.id)
                 showPreachingMasterSelection = null
