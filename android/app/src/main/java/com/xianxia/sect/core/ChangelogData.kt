@@ -9,6 +9,14 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "2.6.18",
+            date = "2026-05-01",
+            changes = listOf(
+                "灵药宛长老选择界面增加境界过滤（元婴及以上），防止选择不满足条件的弟子导致任命静默失败",
+                "长老选择界面空状态增加具体条件说明（内门弟子·空闲中·元婴境界及以上）"
+            )
+        ),
+        ChangelogEntry(
             version = "2.6.17",
             date = "2026-05-01",
             changes = listOf(

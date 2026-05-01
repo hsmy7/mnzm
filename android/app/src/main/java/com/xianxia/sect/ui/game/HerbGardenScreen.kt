@@ -160,7 +160,7 @@ fun HerbGardenDialog(
         val currentElderId = elderSlots.herbGardenElder
         ProductionElderSelectionDialog(
             theme = HERB_GARDEN_THEME,
-            disciples = disciples.filter { it.isAlive },
+            disciples = disciples.filter { it.isAlive && it.realm <= 6 },
             currentElderId = currentElderId,
             elderSlots = elderSlots,
             onDismiss = { showElderSelection = false },
