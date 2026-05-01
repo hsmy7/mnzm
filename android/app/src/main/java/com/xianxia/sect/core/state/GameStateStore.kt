@@ -165,6 +165,10 @@ class GameStateStore @Inject constructor(
         _state.update { it.copy(isSaving = saving) }
     }
 
+    fun updateGameDataDirect(update: (GameData) -> GameData) {
+        _state.update { it.copy(gameData = update(it.gameData)) }
+    }
+
     suspend fun update(block: suspend MutableGameState.() -> Unit) {
         transactionMutex.withLock {
             check(currentTransactionState == null) {

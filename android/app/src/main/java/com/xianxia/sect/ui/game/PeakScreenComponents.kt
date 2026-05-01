@@ -545,62 +545,69 @@ fun PeakDiscipleSelectionDialog(
             }
         },
         text = {
-            if (disciples.isEmpty()) {
-                Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(text = "暂无符合条件的弟子", fontSize = 12.sp, color = Color(0xFF999999))
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(text = requirementText, fontSize = 10.sp, color = Color(0xFF666666))
-                }
-            } else {
-                Column(Modifier.fillMaxWidth().heightIn(max = 500.dp)) {
-                    Text(
-                        text = requirementText, fontSize = 10.sp, color = Color(0xFF4CAF50),
-                        modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center
-                    )
+            Column(Modifier.fillMaxWidth().heightIn(max = 500.dp)) {
+                if (disciples.isEmpty()) {
+                    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(text = "暂无符合条件的弟子", fontSize = 12.sp, color = Color(0xFF999999))
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(text = requirementText, fontSize = 10.sp, color = Color(0xFF666666))
+                    }
                     Spacer(modifier = Modifier.height(8.dp))
+                }
 
-                    SpiritRootAttributeFilterBar(
-                        selectedSpiritRootFilter = selectedSpiritRootFilter,
-                        selectedAttributeSort = selectedAttributeSort,
-                        spiritRootExpanded = spiritRootExpanded,
-                        attributeExpanded = attributeExpanded,
-                        spiritRootCounts = spiritRootCounts,
-                        onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
-                        onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
-                        onAttributeSortSelected = { selectedAttributeSort = it },
-                        onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
-                        onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
-                        isCompact = true
-                    )
+                Text(
+                    text = requirementText, fontSize = 10.sp, color = Color(0xFF4CAF50),
+                    modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(8.dp))
 
-                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        realmFilters.chunked(4).forEach { chunk ->
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                chunk.forEach { (realm, name) ->
-                                    val isSelected = realm in selectedRealmFilter
-                                    val count = realmCounts[realm] ?: 0
-                                    Box(
-                                        modifier = Modifier
-                                            .weight(1f).clip(RoundedCornerShape(4.dp))
-                                            .background(if (isSelected) GameColors.Gold.copy(alpha = 0.3f) else GameColors.PageBackground)
-                                            .border(1.dp, if (isSelected) GameColors.Gold else GameColors.Border, RoundedCornerShape(4.dp))
-                                            .clickable { selectedRealmFilter = if (isSelected) selectedRealmFilter - realm else selectedRealmFilter + realm }
-                                            .padding(vertical = 4.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = "$name $count", fontSize = 9.sp,
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                            color = if (isSelected) GameColors.GoldDark else Color.Black
-                                        )
-                                    }
+                SpiritRootAttributeFilterBar(
+                    selectedSpiritRootFilter = selectedSpiritRootFilter,
+                    selectedAttributeSort = selectedAttributeSort,
+                    spiritRootExpanded = spiritRootExpanded,
+                    attributeExpanded = attributeExpanded,
+                    spiritRootCounts = spiritRootCounts,
+                    onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
+                    onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
+                    onAttributeSortSelected = { selectedAttributeSort = it },
+                    onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
+                    onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
+                    isCompact = true
+                )
+
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    realmFilters.chunked(4).forEach { chunk ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            chunk.forEach { (realm, name) ->
+                                val isSelected = realm in selectedRealmFilter
+                                val count = realmCounts[realm] ?: 0
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f).clip(RoundedCornerShape(4.dp))
+                                        .background(if (isSelected) GameColors.Gold.copy(alpha = 0.3f) else GameColors.PageBackground)
+                                        .border(1.dp, if (isSelected) GameColors.Gold else GameColors.Border, RoundedCornerShape(4.dp))
+                                        .clickable { selectedRealmFilter = if (isSelected) selectedRealmFilter - realm else selectedRealmFilter + realm }
+                                        .padding(vertical = 4.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "$name $count", fontSize = 9.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isSelected) GameColors.GoldDark else Color.Black
+                                    )
                                 }
                             }
                         }
                     }
+                }
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
+                if (filteredDisciples.isEmpty()) {
+                    Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                        Text(text = "暂无符合条件的弟子", fontSize = 12.sp, color = Color(0xFF999999))
+                    }
+                } else {
                     LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(filteredDisciples, key = { it.id }) { disciple ->
                             val isCurrent = disciple.id == currentDiscipleId
