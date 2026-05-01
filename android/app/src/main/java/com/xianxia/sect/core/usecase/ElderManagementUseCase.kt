@@ -65,11 +65,11 @@ class ElderManagementUseCase @Inject constructor(
     // ==================== 长老任命 ====================
 
     suspend fun assignElder(slotType: ElderSlotType, discipleId: String): ElderResult {
-        val disciples = gameEngine.discipleAggregates.value
+        val disciples = gameEngine.discipleAggregatesSnapshot
         val disciple = disciples.find { it.id == discipleId }
             ?: return ElderResult.Error("弟子不存在")
 
-        val currentGameData = gameEngine.gameData.value
+        val currentGameData = gameEngine.gameDataSnapshot
         val elderSlots = currentGameData.elderSlots
 
         val allElderIds = elderSlots.getAllElderIds()
@@ -129,7 +129,7 @@ class ElderManagementUseCase @Inject constructor(
     // ==================== 长老卸任 ====================
 
     suspend fun removeElder(slotType: ElderSlotType): ElderResult {
-        val currentGameData = gameEngine.gameData.value
+        val currentGameData = gameEngine.gameDataSnapshot
         val elderSlots = currentGameData.elderSlots
         val newElderSlots = when (slotType) {
             ElderSlotType.HERB_GARDEN -> elderSlots.copy(
@@ -181,11 +181,11 @@ class ElderManagementUseCase @Inject constructor(
         slotIndex: Int,
         discipleId: String
     ): ElderResult {
-        val disciples = gameEngine.discipleAggregates.value
+        val disciples = gameEngine.discipleAggregatesSnapshot
         val disciple = disciples.find { it.id == discipleId }
             ?: return ElderResult.Error("弟子不存在")
 
-        val currentGameData = gameEngine.gameData.value
+        val currentGameData = gameEngine.gameDataSnapshot
         val elderSlots = currentGameData.elderSlots
 
         val allElderIds = elderSlots.getAllElderIds()

@@ -125,9 +125,9 @@ class AlchemyViewModel @Inject constructor(
     }
 
     fun getAlchemyReserveDisciplesWithInfo(): List<DiscipleAggregate> {
-        val reserveSlots = gameEngine.gameData.value?.elderSlots?.alchemyReserveDisciples ?: emptyList()
+        val reserveSlots = gameEngine.gameDataSnapshot?.elderSlots?.alchemyReserveDisciples ?: emptyList()
         val reserveIds = reserveSlots.mapNotNull { it.discipleId }.toSet()
-        return gameEngine.discipleAggregates.value
+        return gameEngine.discipleAggregatesSnapshot
             .filter { it.id in reserveIds && it.status != DiscipleStatus.REFLECTING }
             .sortedByDescending { it.pillRefining }
     }
@@ -135,7 +135,7 @@ class AlchemyViewModel @Inject constructor(
     fun addAlchemyReserveDisciples(discipleIds: List<String>) {
         viewModelScope.launch {
             try {
-                val currentReserveDisciples = gameEngine.gameData.value?.elderSlots?.alchemyReserveDisciples?.toMutableList() ?: mutableListOf()
+                val currentReserveDisciples = gameEngine.gameDataSnapshot?.elderSlots?.alchemyReserveDisciples?.toMutableList() ?: mutableListOf()
                 val existingIds = currentReserveDisciples.mapNotNull { it.discipleId }.toSet()
                 val initialSize = currentReserveDisciples.size
 
@@ -171,7 +171,7 @@ class AlchemyViewModel @Inject constructor(
     fun removeAlchemyReserveDisciple(discipleId: String) {
         viewModelScope.launch {
             try {
-                val currentReserveDisciples = gameEngine.gameData.value?.elderSlots?.alchemyReserveDisciples ?: emptyList()
+                val currentReserveDisciples = gameEngine.gameDataSnapshot?.elderSlots?.alchemyReserveDisciples ?: emptyList()
                 val updatedReserveDisciples = currentReserveDisciples.filter { it.discipleId != discipleId }
                 gameEngine.updateGameData { it.copy(elderSlots = it.elderSlots.copy(alchemyReserveDisciples = updatedReserveDisciples)) }
                 gameEngine.syncAllDiscipleStatuses()
@@ -182,19 +182,19 @@ class AlchemyViewModel @Inject constructor(
     }
 
     fun getAvailableDisciplesForAlchemyReserve(): List<DiscipleAggregate> {
-        val elderSlots = gameEngine.gameData.value.elderSlots
+        val elderSlots = gameEngine.gameDataSnapshot.elderSlots
         val allElderIds = elderSlots.getAllElderIds()
         val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds() +
             elderSlots.alchemyReserveDisciples.mapNotNull { it.discipleId } +
             elderSlots.forgeReserveDisciples.mapNotNull { it.discipleId }
 
-        return gameEngine.discipleAggregates.value
+        return gameEngine.discipleAggregatesSnapshot
             .filter { it.isEligibleForInnerPosition && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
             .sortedByDescending { it.pillRefining }
     }
 
     fun getAlchemyReserveDisciples(): List<DirectDiscipleSlot> {
-        return gameEngine.gameData.value?.elderSlots?.alchemyReserveDisciples ?: emptyList()
+        return gameEngine.gameDataSnapshot?.elderSlots?.alchemyReserveDisciples ?: emptyList()
     }
 
     private fun ElderSlots.getAllElderIds(): List<String> {

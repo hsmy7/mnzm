@@ -94,13 +94,13 @@ class HerbGardenViewModel @Inject constructor(
     }
 
     fun getHerbGardenReserveDisciples(): List<DirectDiscipleSlot> {
-        return gameEngine.gameData.value?.elderSlots?.herbGardenReserveDisciples ?: emptyList()
+        return gameEngine.gameDataSnapshot?.elderSlots?.herbGardenReserveDisciples ?: emptyList()
     }
 
     fun getHerbGardenReserveDisciplesWithInfo(): List<DiscipleAggregate> {
-        val reserveSlots = gameEngine.gameData.value?.elderSlots?.herbGardenReserveDisciples ?: emptyList()
+        val reserveSlots = gameEngine.gameDataSnapshot?.elderSlots?.herbGardenReserveDisciples ?: emptyList()
         val reserveIds = reserveSlots.mapNotNull { it.discipleId }.toSet()
-        return gameEngine.discipleAggregates.value
+        return gameEngine.discipleAggregatesSnapshot
             .filter { it.id in reserveIds && it.status != DiscipleStatus.REFLECTING }
             .sortedByDescending { it.spiritPlanting }
     }
@@ -108,7 +108,7 @@ class HerbGardenViewModel @Inject constructor(
     fun addHerbGardenReserveDisciples(discipleIds: List<String>) {
         viewModelScope.launch {
             try {
-                val currentReserveDisciples = gameEngine.gameData.value?.elderSlots?.herbGardenReserveDisciples?.toMutableList() ?: mutableListOf()
+                val currentReserveDisciples = gameEngine.gameDataSnapshot?.elderSlots?.herbGardenReserveDisciples?.toMutableList() ?: mutableListOf()
                 val existingIds = currentReserveDisciples.mapNotNull { it.discipleId }.toSet()
                 var addedCount = 0
 
@@ -145,7 +145,7 @@ class HerbGardenViewModel @Inject constructor(
     fun removeHerbGardenReserveDisciple(discipleId: String) {
         viewModelScope.launch {
             try {
-                val currentReserveDisciples = gameEngine.gameData.value?.elderSlots?.herbGardenReserveDisciples ?: emptyList()
+                val currentReserveDisciples = gameEngine.gameDataSnapshot?.elderSlots?.herbGardenReserveDisciples ?: emptyList()
                 val updatedReserveDisciples = currentReserveDisciples.filter { it.discipleId != discipleId }
                 gameEngine.updateGameData { it.copy(elderSlots = it.elderSlots.copy(herbGardenReserveDisciples = updatedReserveDisciples)) }
             } catch (e: Exception) {
@@ -155,13 +155,13 @@ class HerbGardenViewModel @Inject constructor(
     }
 
     fun getAvailableDisciplesForHerbGardenReserve(): List<DiscipleAggregate> {
-        val elderSlots = gameEngine.gameData.value?.elderSlots ?: return emptyList()
+        val elderSlots = gameEngine.gameDataSnapshot?.elderSlots ?: return emptyList()
         val allElderIds = elderSlots.getAllElderIds()
         val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds() +
             elderSlots.alchemyReserveDisciples.mapNotNull { it.discipleId } +
             elderSlots.herbGardenReserveDisciples.mapNotNull { it.discipleId }
 
-        return gameEngine.discipleAggregates.value
+        return gameEngine.discipleAggregatesSnapshot
             .filter { it.isEligibleForInnerPosition && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
             .sortedByDescending { it.spiritPlanting }
     }

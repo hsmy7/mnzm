@@ -7,6 +7,7 @@
 - 修复长老/副宗主任命后槽位仍为空的竞态：updateElderSlots 改用 updateGameDataDirect 绕过 transactionMutex 同步更新
 - 修复亲传弟子任命/卸任同样的竞态问题
 - 修复问道峰/青云峰弟子选择对话框空状态不显示筛选列表的问题（始终显示筛选栏）
+- 修复所有建筑任命后槽位仍空白+弟子列表不显示：ViewModel 改用 gameDataSnapshot/discipleAggregatesSnapshot 直接读取 _state.value，绕过 stateIn(Dispatchers.Default) 的跨线程调度延迟
 
 ## [2.6.20] - 2026-05-01
 

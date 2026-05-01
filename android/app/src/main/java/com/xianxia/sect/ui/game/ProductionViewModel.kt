@@ -35,7 +35,7 @@ class ProductionViewModel @Inject constructor(
 
     fun getElderDisciple(elderId: String?): DiscipleAggregate? {
         if (elderId == null) return null
-        return discipleAggregates.value.find { it.id == elderId }
+        return gameEngine.discipleAggregatesSnapshot.find { it.id == elderId }
     }
 
     fun assignElder(slotType: ElderSlotType, discipleId: String) =
@@ -51,7 +51,7 @@ class ProductionViewModel @Inject constructor(
         launchElderAction({ elderManagement.removeDirectDisciple(elderSlotType, slotIndex) }, "卸任失败")
 
     fun toggleSpiritMineBoost(): Boolean {
-        val currentGameData = gameEngine.gameData.value ?: return false
+        val currentGameData = gameEngine.gameDataSnapshot ?: return false
         viewModelScope.launch {
             val result = sectPolicyToggle.toggleSpiritMineBoost()
             if (result is SectPolicyToggleUseCase.ToggleResult.Error) showError(result.message)
@@ -64,7 +64,7 @@ class ProductionViewModel @Inject constructor(
     fun getSpiritMineBoostEffect(): Double = sectPolicyToggle.getSpiritMineBoostEffect()
 
     fun toggleEnhancedSecurity(): Boolean {
-        val currentGameData = gameEngine.gameData.value ?: return false
+        val currentGameData = gameEngine.gameDataSnapshot ?: return false
         viewModelScope.launch {
             val result = sectPolicyToggle.toggleEnhancedSecurity()
             if (result is SectPolicyToggleUseCase.ToggleResult.Error) showError(result.message)
@@ -77,7 +77,7 @@ class ProductionViewModel @Inject constructor(
     fun getEnhancedSecurityBaseBonus(): Double = sectPolicyToggle.getEnhancedSecurityBaseBonus()
 
     fun toggleAlchemyIncentive(): Boolean {
-        val currentGameData = gameEngine.gameData.value ?: return false
+        val currentGameData = gameEngine.gameDataSnapshot ?: return false
         viewModelScope.launch {
             val result = sectPolicyToggle.toggleAlchemyIncentive()
             if (result is SectPolicyToggleUseCase.ToggleResult.Error) showError(result.message)
@@ -88,7 +88,7 @@ class ProductionViewModel @Inject constructor(
     fun isAlchemyIncentiveEnabled(): Boolean = sectPolicyToggle.isAlchemyIncentiveEnabled()
 
     fun toggleForgeIncentive(): Boolean {
-        val currentGameData = gameEngine.gameData.value ?: return false
+        val currentGameData = gameEngine.gameDataSnapshot ?: return false
         viewModelScope.launch {
             val result = sectPolicyToggle.toggleForgeIncentive()
             if (result is SectPolicyToggleUseCase.ToggleResult.Error) showError(result.message)
@@ -99,7 +99,7 @@ class ProductionViewModel @Inject constructor(
     fun isForgeIncentiveEnabled(): Boolean = sectPolicyToggle.isForgeIncentiveEnabled()
 
     fun toggleHerbCultivation(): Boolean {
-        val currentGameData = gameEngine.gameData.value ?: return false
+        val currentGameData = gameEngine.gameDataSnapshot ?: return false
         viewModelScope.launch {
             val result = sectPolicyToggle.toggleHerbCultivation()
             if (result is SectPolicyToggleUseCase.ToggleResult.Error) showError(result.message)
@@ -110,7 +110,7 @@ class ProductionViewModel @Inject constructor(
     fun isHerbCultivationEnabled(): Boolean = sectPolicyToggle.isHerbCultivationEnabled()
 
     fun toggleCultivationSubsidy(): Boolean {
-        val currentGameData = gameEngine.gameData.value ?: return false
+        val currentGameData = gameEngine.gameDataSnapshot ?: return false
         viewModelScope.launch {
             val result = sectPolicyToggle.toggleCultivationSubsidy()
             if (result is SectPolicyToggleUseCase.ToggleResult.Error) showError(result.message)
@@ -121,7 +121,7 @@ class ProductionViewModel @Inject constructor(
     fun isCultivationSubsidyEnabled(): Boolean = sectPolicyToggle.isCultivationSubsidyEnabled()
 
     fun toggleManualResearch(): Boolean {
-        val currentGameData = gameEngine.gameData.value ?: return false
+        val currentGameData = gameEngine.gameDataSnapshot ?: return false
         viewModelScope.launch {
             val result = sectPolicyToggle.toggleManualResearch()
             if (result is SectPolicyToggleUseCase.ToggleResult.Error) showError(result.message)
@@ -158,7 +158,7 @@ class ProductionViewModel @Inject constructor(
         launchElderAction({ elderManagement.removeElder(ElderSlotType.VICE_SECT_MASTER) }, "卸任副宗主失败")
 
     fun getViceSectMaster(): DiscipleAggregate? {
-        val viceSectMasterId = gameEngine.gameData.value?.elderSlots?.viceSectMaster
+        val viceSectMasterId = gameEngine.gameDataSnapshot?.elderSlots?.viceSectMaster
         return getElderDisciple(viceSectMasterId)
     }
 
@@ -168,36 +168,36 @@ class ProductionViewModel @Inject constructor(
     }
 
     fun getOuterElder(): DiscipleAggregate? {
-        val outerElderId = gameEngine.gameData.value?.elderSlots?.outerElder
+        val outerElderId = gameEngine.gameDataSnapshot?.elderSlots?.outerElder
         return getElderDisciple(outerElderId)
     }
 
     fun getPreachingElder(): DiscipleAggregate? {
-        val preachingElderId = gameEngine.gameData.value?.elderSlots?.preachingElder
+        val preachingElderId = gameEngine.gameDataSnapshot?.elderSlots?.preachingElder
         return getElderDisciple(preachingElderId)
     }
 
     fun getPreachingMasters(): List<DirectDiscipleSlot> {
-        return gameEngine.gameData.value?.elderSlots?.preachingMasters ?: emptyList()
+        return gameEngine.gameDataSnapshot?.elderSlots?.preachingMasters ?: emptyList()
     }
 
     fun getLawEnforcementElder(): DiscipleAggregate? {
-        val elderId = gameEngine.gameData.value?.elderSlots?.lawEnforcementElder
+        val elderId = gameEngine.gameDataSnapshot?.elderSlots?.lawEnforcementElder
         return getElderDisciple(elderId)
     }
 
     fun getLawEnforcementDisciples(): List<DirectDiscipleSlot> {
-        return gameEngine.gameData.value?.elderSlots?.lawEnforcementDisciples ?: emptyList()
+        return gameEngine.gameDataSnapshot?.elderSlots?.lawEnforcementDisciples ?: emptyList()
     }
 
     fun getLawEnforcementReserveDisciples(): List<DirectDiscipleSlot> {
-        return gameEngine.gameData.value?.elderSlots?.lawEnforcementReserveDisciples ?: emptyList()
+        return gameEngine.gameDataSnapshot?.elderSlots?.lawEnforcementReserveDisciples ?: emptyList()
     }
 
     fun getLawEnforcementReserveDisciplesWithInfo(): List<DiscipleAggregate> {
-        val reserveSlots = gameEngine.gameData.value?.elderSlots?.lawEnforcementReserveDisciples ?: emptyList()
+        val reserveSlots = gameEngine.gameDataSnapshot?.elderSlots?.lawEnforcementReserveDisciples ?: emptyList()
         val reserveIds = reserveSlots.mapNotNull { it.discipleId }.toSet()
-        return discipleAggregates.value
+        return gameEngine.discipleAggregatesSnapshot
             .filter { it.id in reserveIds }
             .sortedByFollowAndRealm()
     }
@@ -221,7 +221,7 @@ class ProductionViewModel @Inject constructor(
                     return@launch
                 }
 
-                val currentReserveDisciples = gameEngine.gameData.value?.elderSlots?.lawEnforcementReserveDisciples ?: emptyList()
+                val currentReserveDisciples = gameEngine.gameDataSnapshot?.elderSlots?.lawEnforcementReserveDisciples ?: emptyList()
                 if (currentReserveDisciples.any { it.discipleId == discipleId }) {
                     showError("该弟子已是储备弟子")
                     return@launch
@@ -248,7 +248,7 @@ class ProductionViewModel @Inject constructor(
     fun addReserveDisciples(discipleIds: List<String>) {
         viewModelScope.launch {
             try {
-                val currentReserveDisciples = gameEngine.gameData.value?.elderSlots?.lawEnforcementReserveDisciples ?: emptyList()
+                val currentReserveDisciples = gameEngine.gameDataSnapshot?.elderSlots?.lawEnforcementReserveDisciples ?: emptyList()
                 val existingIds = currentReserveDisciples.mapNotNull { it.discipleId }.toSet()
 
                 val newSlots = mutableListOf<DirectDiscipleSlot>()
@@ -290,7 +290,7 @@ class ProductionViewModel @Inject constructor(
     fun removeReserveDisciple(discipleId: String) {
         viewModelScope.launch {
             try {
-                val currentReserveDisciples = gameEngine.gameData.value?.elderSlots?.lawEnforcementReserveDisciples ?: emptyList()
+                val currentReserveDisciples = gameEngine.gameDataSnapshot?.elderSlots?.lawEnforcementReserveDisciples ?: emptyList()
                 val updatedReserveDisciples = currentReserveDisciples.filter { it.discipleId != discipleId }
                 gameEngine.updateGameData { it.copy(elderSlots = it.elderSlots.copy(lawEnforcementReserveDisciples = updatedReserveDisciples)) }
                 gameEngine.syncAllDiscipleStatuses()
@@ -301,99 +301,99 @@ class ProductionViewModel @Inject constructor(
     }
 
     fun getAvailableDisciplesForLawEnforcementElder(): List<DiscipleAggregate> {
-        val elderSlots = gameEngine.gameData.value.elderSlots
+        val elderSlots = gameEngine.gameDataSnapshot.elderSlots
 
-        return discipleAggregates.value
+        return gameEngine.discipleAggregatesSnapshot
             .filter { it.isEligibleForInnerPosition && !elderSlots.isDiscipleInAnyPosition(it.id) }
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 
     fun getAvailableDisciplesForLawEnforcementDisciple(): List<DiscipleAggregate> {
-        val elderSlots = gameEngine.gameData.value.elderSlots
+        val elderSlots = gameEngine.gameDataSnapshot.elderSlots
 
-        return discipleAggregates.value
+        return gameEngine.discipleAggregatesSnapshot
             .filter { it.isEligibleForInnerPosition && !elderSlots.isDiscipleInAnyPosition(it.id) }
             .sortedByFollowAndRealm()
     }
 
     fun getAvailableDisciplesForLawEnforcementReserve(): List<DiscipleAggregate> {
-        val elderSlots = gameEngine.gameData.value.elderSlots
+        val elderSlots = gameEngine.gameDataSnapshot.elderSlots
 
-        return discipleAggregates.value
+        return gameEngine.discipleAggregatesSnapshot
             .filter { it.isEligibleForInnerPosition && !elderSlots.isDiscipleInAnyPosition(it.id) }
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 
     fun getAvailableDisciplesForOuterElder(): List<DiscipleAggregate> {
-        val elderSlots = gameEngine.gameData.value.elderSlots
+        val elderSlots = gameEngine.gameDataSnapshot.elderSlots
         val allElderIds = elderSlots.getAllElderIds()
         val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
 
-        return discipleAggregates.value
+        return gameEngine.discipleAggregatesSnapshot
             .filter { it.isEligibleForInnerPosition && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 
     fun getAvailableDisciplesForPreachingElder(): List<DiscipleAggregate> {
-        val elderSlots = gameEngine.gameData.value.elderSlots
+        val elderSlots = gameEngine.gameDataSnapshot.elderSlots
         val allElderIds = elderSlots.getAllElderIds()
         val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
 
-        return discipleAggregates.value
+        return gameEngine.discipleAggregatesSnapshot
             .filter { it.isEligibleForInnerPosition && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 
     fun getAvailableDisciplesForPreachingMaster(): List<DiscipleAggregate> {
-        val elderSlots = gameEngine.gameData.value?.elderSlots ?: return emptyList()
+        val elderSlots = gameEngine.gameDataSnapshot?.elderSlots ?: return emptyList()
         val allElderIds = elderSlots.getAllElderIds()
         val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
 
-        return discipleAggregates.value
+        return gameEngine.discipleAggregatesSnapshot
             .filter { it.isEligibleForInnerPosition && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 
     fun getInnerElder(): DiscipleAggregate? {
-        val innerElderId = gameEngine.gameData.value?.elderSlots?.innerElder
+        val innerElderId = gameEngine.gameDataSnapshot?.elderSlots?.innerElder
         return getElderDisciple(innerElderId)
     }
 
     fun getQingyunPreachingElder(): DiscipleAggregate? {
-        val preachingElderId = gameEngine.gameData.value?.elderSlots?.qingyunPreachingElder
+        val preachingElderId = gameEngine.gameDataSnapshot?.elderSlots?.qingyunPreachingElder
         return getElderDisciple(preachingElderId)
     }
 
     fun getQingyunPreachingMasters(): List<DirectDiscipleSlot> {
-        return gameEngine.gameData.value?.elderSlots?.qingyunPreachingMasters ?: emptyList()
+        return gameEngine.gameDataSnapshot?.elderSlots?.qingyunPreachingMasters ?: emptyList()
     }
 
     fun getAvailableDisciplesForInnerElder(): List<DiscipleAggregate> {
-        val elderSlots = gameEngine.gameData.value.elderSlots
+        val elderSlots = gameEngine.gameDataSnapshot.elderSlots
         val allElderIds = elderSlots.getAllElderIds()
         val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
 
-        return discipleAggregates.value
+        return gameEngine.discipleAggregatesSnapshot
             .filter { it.isEligibleForInnerPosition && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 
     fun getAvailableDisciplesForQingyunPreachingElder(): List<DiscipleAggregate> {
-        val elderSlots = gameEngine.gameData.value.elderSlots
+        val elderSlots = gameEngine.gameDataSnapshot.elderSlots
         val allElderIds = elderSlots.getAllElderIds()
         val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
 
-        return discipleAggregates.value
+        return gameEngine.discipleAggregatesSnapshot
             .filter { it.isEligibleForInnerPosition && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 
     fun getAvailableDisciplesForQingyunPreachingMaster(): List<DiscipleAggregate> {
-        val elderSlots = gameEngine.gameData.value.elderSlots
+        val elderSlots = gameEngine.gameDataSnapshot.elderSlots
         val allElderIds = elderSlots.getAllElderIds()
         val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
 
-        return discipleAggregates.value
+        return gameEngine.discipleAggregatesSnapshot
             .filter { it.isEligibleForInnerPosition && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }

@@ -80,6 +80,8 @@ class GameEngine @Inject constructor(
     }
 
     val gameData: StateFlow<GameData> get() = stateStore.gameData
+    val gameDataSnapshot: GameData get() = stateStore.gameDataSnapshot
+    val discipleAggregatesSnapshot: List<DiscipleAggregate> get() = stateStore.discipleAggregatesSnapshot
     val disciples: StateFlow<List<Disciple>> get() = stateStore.disciples
     val equipmentStacks: StateFlow<List<EquipmentStack>> get() = stateStore.equipmentStacks
     val equipmentInstances: StateFlow<List<EquipmentInstance>> get() = stateStore.equipmentInstances

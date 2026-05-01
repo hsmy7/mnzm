@@ -135,9 +135,9 @@ class ForgeViewModel @Inject constructor(
     }
 
     fun getForgeReserveDisciplesWithInfo(): List<DiscipleAggregate> {
-        val reserveSlots = gameEngine.gameData.value.elderSlots.forgeReserveDisciples
+        val reserveSlots = gameEngine.gameDataSnapshot.elderSlots.forgeReserveDisciples
         val reserveIds = reserveSlots.mapNotNull { it.discipleId }.toSet()
-        return gameEngine.discipleAggregates.value
+        return gameEngine.discipleAggregatesSnapshot
             .filter { it.id in reserveIds && it.status != DiscipleStatus.REFLECTING }
             .sortedByDescending { it.artifactRefining }
     }
@@ -145,7 +145,7 @@ class ForgeViewModel @Inject constructor(
     fun addForgeReserveDisciples(discipleIds: List<String>) {
         viewModelScope.launch {
             try {
-                val currentReserveDisciples = gameEngine.gameData.value.elderSlots.forgeReserveDisciples.toMutableList()
+                val currentReserveDisciples = gameEngine.gameDataSnapshot.elderSlots.forgeReserveDisciples.toMutableList()
                 val existingIds = currentReserveDisciples.mapNotNull { it.discipleId }.toSet()
                 var addedCount = 0
 
@@ -168,7 +168,7 @@ class ForgeViewModel @Inject constructor(
                 }
 
                 if (addedCount > 0) {
-                    val updatedElderSlots = gameEngine.gameData.value.elderSlots.copy(
+                    val updatedElderSlots = gameEngine.gameDataSnapshot.elderSlots.copy(
                         forgeReserveDisciples = currentReserveDisciples
                     )
                     gameEngine.updateGameData { it.copy(elderSlots = updatedElderSlots) }
@@ -182,9 +182,9 @@ class ForgeViewModel @Inject constructor(
     fun removeForgeReserveDisciple(discipleId: String) {
         viewModelScope.launch {
             try {
-                val currentReserveDisciples = gameEngine.gameData.value.elderSlots.forgeReserveDisciples
+                val currentReserveDisciples = gameEngine.gameDataSnapshot.elderSlots.forgeReserveDisciples
                 val updatedReserveDisciples = currentReserveDisciples.filter { it.discipleId != discipleId }
-                val updatedElderSlots = gameEngine.gameData.value.elderSlots.copy(
+                val updatedElderSlots = gameEngine.gameDataSnapshot.elderSlots.copy(
                     forgeReserveDisciples = updatedReserveDisciples
                 )
                 gameEngine.updateGameData { it.copy(elderSlots = updatedElderSlots) }
@@ -196,19 +196,19 @@ class ForgeViewModel @Inject constructor(
     }
 
     fun getAvailableDisciplesForForgeReserve(): List<DiscipleAggregate> {
-        val elderSlots = gameEngine.gameData.value.elderSlots
+        val elderSlots = gameEngine.gameDataSnapshot.elderSlots
         val allElderIds = elderSlots.getAllElderIds()
         val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds() +
             elderSlots.alchemyReserveDisciples.mapNotNull { it.discipleId } +
             elderSlots.forgeReserveDisciples.mapNotNull { it.discipleId }
 
-        return gameEngine.discipleAggregates.value
+        return gameEngine.discipleAggregatesSnapshot
             .filter { it.isEligibleForInnerPosition && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
             .sortedByDescending { it.artifactRefining }
     }
 
     fun getForgeReserveDisciples(): List<DirectDiscipleSlot> {
-        return gameEngine.gameData.value.elderSlots.forgeReserveDisciples
+        return gameEngine.gameDataSnapshot.elderSlots.forgeReserveDisciples
     }
 
     private fun ElderSlots.getAllElderIds(): List<String> {

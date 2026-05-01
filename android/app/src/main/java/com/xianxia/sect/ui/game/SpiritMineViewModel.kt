@@ -16,15 +16,15 @@ class SpiritMineViewModel @Inject constructor(
 ) : BaseViewModel() {
 
     fun getSpiritMineDeaconDisciples(): List<DirectDiscipleSlot> {
-        return gameEngine.gameData.value.elderSlots.spiritMineDeaconDisciples
+        return gameEngine.gameDataSnapshot.elderSlots.spiritMineDeaconDisciples
     }
 
     fun getAvailableDisciplesForSpiritMineDeacon(): List<DiscipleAggregate> {
-        val elderSlots = gameEngine.gameData.value.elderSlots
+        val elderSlots = gameEngine.gameDataSnapshot.elderSlots
         val allElderIds = elderSlots.getAllElderIds()
         val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
 
-        return gameEngine.discipleAggregates.value
+        return gameEngine.discipleAggregatesSnapshot
             .filter { it.isEligibleForInnerPosition && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
@@ -43,7 +43,7 @@ class SpiritMineViewModel @Inject constructor(
                     return@launch
                 }
 
-                val currentGameData = gameEngine.gameData.value
+                val currentGameData = gameEngine.gameDataSnapshot
                 val elderSlots = currentGameData.elderSlots
 
                 val allElderIds = elderSlots.getAllElderIds()
@@ -89,7 +89,7 @@ class SpiritMineViewModel @Inject constructor(
     fun removeSpiritMineDeacon(slotIndex: Int) {
         viewModelScope.launch {
             try {
-                val currentGameData = gameEngine.gameData.value
+                val currentGameData = gameEngine.gameDataSnapshot
                 val elderSlots = currentGameData.elderSlots
 
                 val removedDeaconId = elderSlots.spiritMineDeaconDisciples.find { it.index == slotIndex }?.discipleId
@@ -110,13 +110,13 @@ class SpiritMineViewModel @Inject constructor(
     }
 
     fun getAvailableDisciplesForSpiritMining(): List<DiscipleAggregate> {
-        val elderSlots = gameEngine.gameData.value.elderSlots
+        val elderSlots = gameEngine.gameDataSnapshot.elderSlots
         val allElderIds = elderSlots.getAllElderIds()
         val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
 
-        val assignedMiningIds = gameEngine.gameData.value.spiritMineSlots.mapNotNull { it.discipleId }.toSet()
+        val assignedMiningIds = gameEngine.gameDataSnapshot.spiritMineSlots.mapNotNull { it.discipleId }.toSet()
 
-        return gameEngine.discipleAggregates.value
+        return gameEngine.discipleAggregatesSnapshot
             .filter { it.isEligibleForOuterPosition && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) && !assignedMiningIds.contains(it.id) }
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
@@ -134,7 +134,7 @@ class SpiritMineViewModel @Inject constructor(
     fun removeDiscipleFromSpiritMineSlot(slotIndex: Int) {
         viewModelScope.launch {
             try {
-                val currentGameData = gameEngine.gameData.value
+                val currentGameData = gameEngine.gameDataSnapshot
                 val currentSlots = currentGameData.spiritMineSlots.toMutableList()
 
                 if (slotIndex < currentSlots.size) {
@@ -176,7 +176,7 @@ class SpiritMineViewModel @Inject constructor(
     }
 
     private suspend fun assignDisciplesToEmptyMineSlotsInternal(disciples: List<DiscipleAggregate>) {
-        val currentGameData = gameEngine.gameData.value
+        val currentGameData = gameEngine.gameDataSnapshot
         var currentSlots = currentGameData.spiritMineSlots.toMutableList()
         val totalSlots = 1 + currentGameData.spiritMineExpansions
         while (currentSlots.size < totalSlots) {

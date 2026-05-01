@@ -169,6 +169,10 @@ class GameStateStore @Inject constructor(
         _state.update { it.copy(gameData = update(it.gameData)) }
     }
 
+    // 直接读取快照（绕过 stateIn 的 Dispatchers.Default 调度延迟）
+    val gameDataSnapshot: GameData get() = _state.value.gameData
+    val discipleAggregatesSnapshot: List<DiscipleAggregate> get() = _state.value.disciples.map { it.toAggregate() }
+
     suspend fun update(block: suspend MutableGameState.() -> Unit) {
         transactionMutex.withLock {
             check(currentTransactionState == null) {
