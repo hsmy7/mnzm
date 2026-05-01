@@ -9,11 +9,26 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "2.6.21",
+            date = "2026-05-01",
+            changes = listOf(
+                "修复处于探索/队伍中的弟子无法修炼的问题（移除CultivationService中对IN_TEAM状态的修炼过滤，弟子在任何状态下都能修炼）"
+            )
+        ),
+        ChangelogEntry(
             version = "2.6.20",
             date = "2026-05-01",
             changes = listOf(
                 "彻底移除所有长老/执事/副宗主/战斗长老的境界限制（11个建筑全覆盖）",
-                "问道峰、青云峰选择界面移除境界提示文本"
+                "问道峰、青云峰选择界面移除境界提示文本",
+                "修复长老/副宗主任命后槽位仍显示为空的竞态条件（GameEngine.updateElderSlots改为suspend同步更新）",
+                "修复亲传弟子任命/卸任存在同样的槽位空白竞态条件",
+                "统一所有职务弟子过滤条件：提取isEligibleForInnerPosition/isEligibleForOuterPosition共享属性，消除20+处重复过滤",
+                "修复炼丹/锻造/灵植储备弟子缺失年龄检查（可将幼童任命为储备弟子）",
+                "修复采矿弟子缺失年龄检查",
+                "修复选择对话框硬编码age>=5，改为GameConfig.Disciple.MIN_AGE常量",
+                "修复ProductionViewModel.setViceSectMaster绕过ElderManagementUseCase验证",
+                "移除ProductionElderSelectionDialog中始终为no-op的maxRealm参数和境界过滤"
             )
         ),
         ChangelogEntry(

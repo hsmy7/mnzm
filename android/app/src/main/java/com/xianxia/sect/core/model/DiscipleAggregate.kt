@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.model
 
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.DiscipleStatCalculator
 
 data class DiscipleAggregate(
@@ -354,6 +355,18 @@ data class DiscipleAggregate(
     fun toCompactDisciple(): Disciple {
         return toDisciple()
     }
+
+    // ==================== 任职资格检查 ====================
+
+    /** 是否可担任内门职务（长老/亲传弟子/执事/传道师/副宗主） */
+    val isEligibleForInnerPosition: Boolean
+        get() = isAlive && discipleType == "inner" && age >= GameConfig.Disciple.MIN_AGE &&
+                realmLayer > 0 && status == DiscipleStatus.IDLE
+
+    /** 是否可担任外门职务（采矿） */
+    val isEligibleForOuterPosition: Boolean
+        get() = isAlive && discipleType == "outer" && age >= GameConfig.Disciple.MIN_AGE &&
+                realmLayer > 0 && status == DiscipleStatus.IDLE
 
     companion object {
         fun fromDisciple(disciple: Disciple): DiscipleAggregate {

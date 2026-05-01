@@ -203,14 +203,7 @@ class ForgeViewModel @Inject constructor(
             elderSlots.forgeReserveDisciples.mapNotNull { it.discipleId }
 
         return gameEngine.discipleAggregates.value
-            .filter {
-                it.isAlive &&
-                it.discipleType == "inner" &&
-                it.realmLayer > 0 &&
-                it.status == DiscipleStatus.IDLE &&
-                !allElderIds.contains(it.id) &&
-                !allDirectDiscipleIds.contains(it.id)
-            }
+            .filter { it.isEligibleForInnerPosition && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
             .sortedByDescending { it.artifactRefining }
     }
 

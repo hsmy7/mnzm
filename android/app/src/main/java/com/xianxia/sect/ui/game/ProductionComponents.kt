@@ -419,8 +419,7 @@ fun ProductionElderSelectionDialog(
     currentElderId: String?,
     elderSlots: ElderSlots,
     onDismiss: () -> Unit,
-    onSelect: (String) -> Unit,
-    maxRealm: Int = 9
+    onSelect: (String) -> Unit
 ) {
     var selectedRealmFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
     var selectedSpiritRootFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
@@ -429,14 +428,7 @@ fun ProductionElderSelectionDialog(
     var attributeExpanded by remember { mutableStateOf(false) }
 
     val filteredDisciplesBase = remember(disciples, elderSlots) {
-        disciples.filter {
-            it.realmLayer > 0 &&
-            it.age >= 5 &&
-            it.status == DiscipleStatus.IDLE &&
-            it.discipleType == "inner" &&
-            it.realm <= maxRealm &&
-            !elderSlots.isDiscipleInAnyPosition(it.id)
-        }
+        disciples.filter { it.isEligibleForInnerPosition && !elderSlots.isDiscipleInAnyPosition(it.id) }
     }
 
     val realmCounts = remember(filteredDisciplesBase) {
@@ -557,14 +549,7 @@ fun ProductionDirectDiscipleSelectionDialog(
     }
 
     val filteredDisciplesBase = remember(disciples, elderSlots, allDirectDiscipleIds) {
-        disciples.filter {
-            it.realmLayer > 0 &&
-            it.age >= 5 &&
-            it.status == DiscipleStatus.IDLE &&
-            it.discipleType == "inner" &&
-            !elderSlots.isDiscipleInAnyPosition(it.id) &&
-            !allDirectDiscipleIds.contains(it.id)
-        }
+        disciples.filter { it.isEligibleForInnerPosition && !elderSlots.isDiscipleInAnyPosition(it.id) && !allDirectDiscipleIds.contains(it.id) }
     }
 
     val realmCounts = remember(filteredDisciplesBase) {

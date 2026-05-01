@@ -276,9 +276,9 @@ class CultivationService @Inject constructor(
         val elapsedSeconds = elapsedMillis / 1000.0
         val gameSpeed = 1.0
 
-        val idleDisciples = (state?.disciples ?: currentDisciples).filter { it.isAlive && it.status != DiscipleStatus.IN_TEAM }
+        val livingDisciples = (state?.disciples ?: currentDisciples).filter { it.isAlive }
 
-        if (idleDisciples.isEmpty()) {
+        if (livingDisciples.isEmpty()) {
             _highFrequencyData.value = currentHfd.copy(lastUpdateTime = currentTimeMillis)
             return
         }
@@ -289,7 +289,7 @@ class CultivationService @Inject constructor(
         val equipmentInstanceMap = (state?.equipmentInstances ?: currentEquipmentInstances).associateBy { it.id }
         val manualInstanceMap = (state?.manualInstances ?: currentManualInstances).associateBy { it.id }
 
-            idleDisciples.forEach { disciple ->
+            livingDisciples.forEach { disciple ->
                 val cultivationPerSecond = calculateDiscipleCultivationPerSecond(disciple, data)
                 val adjustedCultivationPerSecond = cultivationPerSecond * gameSpeed
                 val gainedCultivation = adjustedCultivationPerSecond * elapsedSeconds
@@ -377,19 +377,19 @@ class CultivationService @Inject constructor(
                 if (state != null) state.gameData = updatedData else currentGameData = updatedData
             }
             
-            val totalCultivationPerSecond = idleDisciples.sumOf { disciple ->
+            val totalCultivationPerSecond = livingDisciples.sumOf { disciple ->
                 calculateDiscipleCultivationPerSecond(disciple, data)
             }
 
             _highFrequencyData.value = currentHfd.copy(
                 lastUpdateTime = currentTimeMillis,
                 cultivationPerSecond = totalCultivationPerSecond * gameSpeed,
-                totalDisciples = idleDisciples.size,
+                totalDisciples = livingDisciples.size,
                 cultivationUpdates = cultivationUpdates,
                 realtimeCultivation = cultivationUpdates
             )
 
-            processRealtimeBreakthroughs((state?.disciples ?: currentDisciples).filter { it.isAlive && it.status != DiscipleStatus.IN_TEAM }, data)
+            processRealtimeBreakthroughs((state?.disciples ?: currentDisciples).filter { it.isAlive }, data)
     }
 
     /**
@@ -613,8 +613,8 @@ class CultivationService @Inject constructor(
      * If disciple doesn't meet soul power requirement for major breakthrough,
      * cultivation is NOT reset - disciple waits until soul power is sufficient.
      */
-    private fun processRealtimeBreakthroughs(idleDisciples: List<Disciple>, data: GameData) {
-        val candidates = idleDisciples.filter { disciple ->
+    private fun processRealtimeBreakthroughs(livingDisciples: List<Disciple>, data: GameData) {
+        val candidates = livingDisciples.filter { disciple ->
             disciple.realm > 0 && disciple.cultivation >= disciple.maxCultivation
         }
 

@@ -906,14 +906,12 @@ class GameEngine @Inject constructor(
         return playerAlliance.sectIds.filter { it != "player" }
     }
 
-    fun updateElderSlots(newElderSlots: ElderSlots) {
-        gameEngineCore.launchInScope {
-            stateStore.update { gameData = gameData.copy(elderSlots = newElderSlots) }
-            discipleService.syncAllDiscipleStatuses()
-        }
+    suspend fun updateElderSlots(newElderSlots: ElderSlots) {
+        stateStore.update { gameData = gameData.copy(elderSlots = newElderSlots) }
+        discipleService.syncAllDiscipleStatuses()
     }
 
-    fun assignDirectDisciple(
+    suspend fun assignDirectDisciple(
         elderSlotType: String,
         slotIndex: Int,
         discipleId: String,
@@ -981,16 +979,14 @@ class GameEngine @Inject constructor(
             }
             else -> slots
         }
-        gameEngineCore.launchInScope {
-            stateStore.update { gameData = gameData.copy(elderSlots = updatedSlots) }
-            discipleService.syncAllDiscipleStatuses()
-            if (elderSlotType == "lawEnforcement") {
-                discipleService.autoFillLawEnforcementSlots()
-            }
+        stateStore.update { gameData = gameData.copy(elderSlots = updatedSlots) }
+        discipleService.syncAllDiscipleStatuses()
+        if (elderSlotType == "lawEnforcement") {
+            discipleService.autoFillLawEnforcementSlots()
         }
     }
 
-    fun removeDirectDisciple(elderSlotType: String, slotIndex: Int) {
+    suspend fun removeDirectDisciple(elderSlotType: String, slotIndex: Int) {
         val slots = stateStore.gameData.value.elderSlots
         val updatedSlots = when (elderSlotType) {
             "herbGarden" -> {
@@ -1035,12 +1031,10 @@ class GameEngine @Inject constructor(
             }
             else -> slots
         }
-        gameEngineCore.launchInScope {
-            stateStore.update { gameData = gameData.copy(elderSlots = updatedSlots) }
-            discipleService.syncAllDiscipleStatuses()
-            if (elderSlotType == "lawEnforcement") {
-                discipleService.autoFillLawEnforcementSlots()
-            }
+        stateStore.update { gameData = gameData.copy(elderSlots = updatedSlots) }
+        discipleService.syncAllDiscipleStatuses()
+        if (elderSlotType == "lawEnforcement") {
+            discipleService.autoFillLawEnforcementSlots()
         }
     }
 

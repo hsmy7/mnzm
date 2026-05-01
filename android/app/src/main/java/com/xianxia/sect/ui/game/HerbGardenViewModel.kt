@@ -101,7 +101,7 @@ class HerbGardenViewModel @Inject constructor(
         val reserveSlots = gameEngine.gameData.value?.elderSlots?.herbGardenReserveDisciples ?: emptyList()
         val reserveIds = reserveSlots.mapNotNull { it.discipleId }.toSet()
         return gameEngine.discipleAggregates.value
-            .filter { it.id in reserveIds }
+            .filter { it.id in reserveIds && it.status != DiscipleStatus.REFLECTING }
             .sortedByDescending { it.spiritPlanting }
     }
 
@@ -162,14 +162,7 @@ class HerbGardenViewModel @Inject constructor(
             elderSlots.herbGardenReserveDisciples.mapNotNull { it.discipleId }
 
         return gameEngine.discipleAggregates.value
-            .filter {
-                it.isAlive &&
-                it.discipleType == "inner" &&
-                it.realmLayer > 0 &&
-                it.status == DiscipleStatus.IDLE &&
-                !allElderIds.contains(it.id) &&
-                !allDirectDiscipleIds.contains(it.id)
-            }
+            .filter { it.isEligibleForInnerPosition && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
             .sortedByDescending { it.spiritPlanting }
     }
 

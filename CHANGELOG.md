@@ -1,6 +1,23 @@
 # 模拟宗门 - 更新日志
 
+## [2.6.21] - 2026-05-01
+
+### 修复
+- 修复处于探索/队伍中的弟子无法修炼的问题（移除对 IN_TEAM 状态的修炼过滤，弟子在任何状态下都能修炼）
+
 ## [2.6.20] - 2026-05-01
+
+### 修复
+- 修复长老/副宗主任命后槽位仍显示为空的竞态条件（GameEngine.updateElderSlots 异步 StateFlow 更新晚于 UI 重组）
+- 修复亲传弟子任命/卸任存在同样的槽位空白竞态条件
+- 修复炼丹/锻造/灵植储备弟子缺失年龄检查（可将幼童任命为储备弟子）
+- 修复采矿弟子缺失年龄检查
+- 修复 ProductionViewModel.setViceSectMaster 绕过 ElderManagementUseCase 验证
+
+### 优化
+- 统一所有职务弟子过滤条件：提取 isEligibleForInnerPosition / isEligibleForOuterPosition 共享属性，消除 20+ 处重复过滤
+- 修复选择对话框硬编码 age>=5，改为 GameConfig.Disciple.MIN_AGE 常量
+- 移除 ProductionElderSelectionDialog 中始终为 no-op 的 maxRealm 参数和境界过滤
 
 ### 修改
 - 彻底移除所有长老/执事/副宗主/战斗长老的境界限制（11个建筑全覆盖）

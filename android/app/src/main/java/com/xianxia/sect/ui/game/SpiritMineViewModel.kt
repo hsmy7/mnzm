@@ -1,7 +1,6 @@
 package com.xianxia.sect.ui.game
 
 import androidx.lifecycle.viewModelScope
-import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.usecase.ElderManagementUseCase
@@ -26,15 +25,7 @@ class SpiritMineViewModel @Inject constructor(
         val allDirectDiscipleIds = elderSlots.getAllDirectDiscipleIds()
 
         return gameEngine.discipleAggregates.value
-            .filter {
-                it.isAlive &&
-                it.discipleType == "inner" &&
-                it.age >= GameConfig.Disciple.MIN_AGE &&
-                it.realmLayer > 0 &&
-                it.status == DiscipleStatus.IDLE &&
-                !allElderIds.contains(it.id) &&
-                !allDirectDiscipleIds.contains(it.id)
-            }
+            .filter { it.isEligibleForInnerPosition && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 
@@ -126,15 +117,7 @@ class SpiritMineViewModel @Inject constructor(
         val assignedMiningIds = gameEngine.gameData.value.spiritMineSlots.mapNotNull { it.discipleId }.toSet()
 
         return gameEngine.discipleAggregates.value
-            .filter {
-                it.isAlive &&
-                it.discipleType == "outer" &&
-                it.realmLayer > 0 &&
-                it.status == DiscipleStatus.IDLE &&
-                !allElderIds.contains(it.id) &&
-                !allDirectDiscipleIds.contains(it.id) &&
-                !assignedMiningIds.contains(it.id)
-            }
+            .filter { it.isEligibleForOuterPosition && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) && !assignedMiningIds.contains(it.id) }
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 
