@@ -652,7 +652,12 @@ fun MainScreen(
                                 loginType = "taptap",
                                 unionId = unionId
                             )
-                            
+
+                            com.xianxia.sect.taptap.TapDBManager.setUser(
+                                userId = data.openid ?: "taptap_${System.currentTimeMillis()}",
+                                name = data.name
+                            )
+
                             Toast.makeText(context, "欢迎, ${data.name}!", Toast.LENGTH_SHORT).show()
                             
                             isLoading = false

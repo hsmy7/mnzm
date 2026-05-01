@@ -42,6 +42,8 @@ public class TapTapAuthManager {
 
         options.setScreenOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
         options.setEnableLog(BuildConfig.DEBUG);
+        options.setGameVersion(BuildConfig.VERSION_NAME);
+        options.setChannel(BuildConfig.TAPDB_CHANNEL);
 
         TapTapSdk.init(activity.getApplicationContext(), options);
         isInitialized = true;
@@ -119,6 +121,7 @@ public class TapTapAuthManager {
     public static void logout() {
         try {
             TapTapLogin.logout();
+            TapDBManager.INSTANCE.clearUser();
             Log.d(TAG, "TapTap 登出成功");
         } catch (Exception e) {
             Log.e(TAG, "TapTap 登出失败: " + e.getMessage());

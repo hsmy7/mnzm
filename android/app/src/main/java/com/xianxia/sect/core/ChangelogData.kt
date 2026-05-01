@@ -9,10 +9,18 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "2.6.16",
+            date = "2026-05-01",
+            changes = listOf(
+                "接入TapDB数据分析SDK：自动追踪游戏启动、战斗结束等关键事件",
+                "TapTap登录后将用户信息同步到TapDB，退出登录时清除数据"
+            )
+        ),
+        ChangelogEntry(
             version = "2.6.15",
             date = "2026-05-01",
             changes = listOf(
-                "移除正方形弟子卡片上的"已关注"标签（覆盖面积过大难以辨认），横向卡片保留"
+                "移除正方形弟子卡片上的「已关注」标签（覆盖面积过大难以辨认），横向卡片保留"
             )
         ),
         ChangelogEntry(

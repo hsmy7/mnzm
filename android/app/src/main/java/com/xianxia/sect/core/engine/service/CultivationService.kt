@@ -3260,6 +3260,16 @@ class CultivationService @Inject constructor(
             )
         )
         currentBattleLogs = listOf(battleLog) + currentBattleLogs.take(49)
+
+        com.xianxia.sect.taptap.TapDBManager.trackEvent(
+            "battle_end",
+            mapOf(
+                "outcome" to if (battleResult.victory) "win" else "lose",
+                "enemy_type" to dungeonConfig.name,
+                "turns" to battleResult.turnCount,
+                "team_size" to battleResult.log.teamMembers.size
+            )
+        )
     }
 
     private fun giveBeastMaterialRewards(dungeonConfig: GameConfig.DungeonConfig, avgRealm: Int) {
@@ -3832,6 +3842,16 @@ class CultivationService @Inject constructor(
             )
         )
         currentBattleLogs = listOf(battleLog) + currentBattleLogs.take(49)
+
+        com.xianxia.sect.taptap.TapDBManager.trackEvent(
+            "battle_end",
+            mapOf(
+                "outcome" to if (battleResult.victory) "win" else "lose",
+                "enemy_type" to cave.name,
+                "turns" to battleResult.turnCount,
+                "team_size" to battleResult.log.teamMembers.size
+            )
+        )
 
         // 6. 返回结果：标记洞府为已探索，移除相关AI队伍
         val updatedCaves = currentGameData.cultivatorCaves.map { c ->

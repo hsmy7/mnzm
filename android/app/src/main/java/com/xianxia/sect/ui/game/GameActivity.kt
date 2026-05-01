@@ -107,6 +107,13 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
                     LaunchedEffect(gameData.sectName) {
                         if (gameData.sectName.isNotEmpty()) {
                             isInitialLoading.value = false
+                            com.xianxia.sect.taptap.TapDBManager.trackEvent(
+                                "game_start",
+                                mapOf(
+                                    "sect_name" to gameData.sectName,
+                                    "game_version" to com.xianxia.sect.BuildConfig.VERSION_NAME
+                                )
+                            )
                         }
                     }
 
