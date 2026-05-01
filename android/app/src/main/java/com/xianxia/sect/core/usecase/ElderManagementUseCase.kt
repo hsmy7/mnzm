@@ -69,25 +69,6 @@ class ElderManagementUseCase @Inject constructor(
         val disciple = disciples.find { it.id == discipleId }
             ?: return ElderResult.Error("弟子不存在")
 
-        val minRealm = when (slotType) {
-            ElderSlotType.VICE_SECT_MASTER -> REALM_VICE_SECT_MASTER
-            ElderSlotType.LAW_ENFORCEMENT -> REALM_LAW_ENFORCEMENT
-            else -> REALM_ELDER
-        }
-        if (disciple.realm > minRealm) {
-            val realmName = when (minRealm) {
-                REALM_VICE_SECT_MASTER -> "炼虚"
-                REALM_LAW_ENFORCEMENT -> "化神"
-                REALM_ELDER -> "元婴"
-                else -> "元婴"
-            }
-            val positionName = when (slotType) {
-                ElderSlotType.VICE_SECT_MASTER -> "副宗主"
-                else -> "长老"
-            }
-            return ElderResult.Error("${positionName}需要达到${realmName}境界")
-        }
-
         val currentGameData = gameEngine.gameData.value
         val elderSlots = currentGameData.elderSlots
 

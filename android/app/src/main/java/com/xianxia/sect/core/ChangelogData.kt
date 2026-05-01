@@ -9,6 +9,15 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "2.6.19",
+            date = "2026-05-01",
+            changes = listOf(
+                "所有长老职位移除境界限制，空闲中内门弟子均可任命",
+                "修复建筑界面打开时长老槽位短暂显示空闲的闪烁问题",
+                "灵药宛、天工峰、丹鼎殿长老选择界面统一过滤条件"
+            )
+        ),
+        ChangelogEntry(
             version = "2.6.18",
             date = "2026-05-01",
             changes = listOf(

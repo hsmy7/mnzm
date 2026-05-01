@@ -252,6 +252,7 @@ internal fun BuildingsTab(
             forgeSlots = forgeSlots,
             materials = materials,
             gameData = gameData,
+            disciples = disciples.filter { it.isAlive },
             viewModel = viewModel,
             productionViewModel = productionViewModel,
             forgeViewModel = forgeViewModel,

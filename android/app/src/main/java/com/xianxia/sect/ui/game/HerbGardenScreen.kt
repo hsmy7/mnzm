@@ -60,7 +60,7 @@ fun HerbGardenDialog(
     var showElderRemoveConfirm by remember { mutableStateOf(false) }
 
     val elderSlots = gameData?.elderSlots ?: ElderSlots()
-    val herbGardenElder = productionViewModel.getElderDisciple(elderSlots.herbGardenElder)
+    val herbGardenElder = disciples.find { it.id == elderSlots.herbGardenElder }
     val herbGardenDisciples = elderSlots.herbGardenDisciples
     val hasDirectDisciples = herbGardenDisciples.any { it.isActive }
 
@@ -160,7 +160,7 @@ fun HerbGardenDialog(
         val currentElderId = elderSlots.herbGardenElder
         ProductionElderSelectionDialog(
             theme = HERB_GARDEN_THEME,
-            disciples = disciples.filter { it.isAlive && it.realm <= 6 },
+            disciples = disciples.filter { it.isAlive },
             currentElderId = currentElderId,
             elderSlots = elderSlots,
             onDismiss = { showElderSelection = false },

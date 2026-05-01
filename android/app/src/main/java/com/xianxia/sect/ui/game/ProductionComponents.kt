@@ -508,7 +508,7 @@ fun ProductionElderSelectionDialog(
                             Text(text = "暂无可用弟子", fontSize = 12.sp, color = Color(0xFF999999))
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "需要: 内门弟子 · 空闲中 · 元婴境界及以上",
+                                text = "需要: 内门弟子 · 空闲中 · 未担任其他职务",
                                 fontSize = 10.sp,
                                 color = Color(0xFF888888)
                             )

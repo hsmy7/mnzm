@@ -181,7 +181,7 @@ fun AlchemyDialog(
     if (showElderSelection) {
         ProductionElderSelectionDialog(
             theme = theme,
-            disciples = disciples.filter { it.isAlive && it.realm <= 6 },
+            disciples = disciples.filter { it.isAlive },
             currentElderId = elderSlots.alchemyElder,
             elderSlots = elderSlots,
             onDismiss = { showElderSelection = false },

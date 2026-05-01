@@ -160,11 +160,6 @@ class ProductionViewModel @Inject constructor(
                 return@launch
             }
 
-            if (disciple.realm > ElderManagementUseCase.REALM_VICE_SECT_MASTER) {
-                showError("副宗主需要达到炼虚境界")
-                return@launch
-            }
-
             gameEngine.updateGameData {
                 it.copy(elderSlots = it.elderSlots.copy(viceSectMaster = discipleId))
             }

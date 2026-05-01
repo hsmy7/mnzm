@@ -35,6 +35,7 @@ fun ForgeDialog(
     forgeSlots: List<ForgeSlot>,
     materials: List<Material>,
     gameData: GameData?,
+    disciples: List<DiscipleAggregate>,
     viewModel: GameViewModel,
     productionViewModel: ProductionViewModel,
     forgeViewModel: ForgeViewModel,
@@ -45,12 +46,11 @@ fun ForgeDialog(
     var showEquipmentSelection by remember { mutableStateOf(false) }
     var selectedSlotIndex by remember { mutableStateOf<Int?>(null) }
 
-    val disciples by productionViewModel.discipleAggregates.collectAsState()
     var showElderSelection by remember { mutableStateOf(false) }
     var showDirectDiscipleSelection by remember { mutableStateOf<Int?>(null) }
 
     val elderSlots = gameData?.elderSlots ?: ElderSlots()
-    val forgeElder = elderSlots.forgeElder?.let { productionViewModel.getElderDisciple(it) }
+    val forgeElder = disciples.find { it.id == elderSlots.forgeElder }
     val forgeDisciples = elderSlots.forgeDisciples
 
     var showReserveDiscipleDialog by remember { mutableStateOf(false) }
@@ -183,7 +183,7 @@ fun ForgeDialog(
     if (showElderSelection) {
         ProductionElderSelectionDialog(
             theme = theme,
-            disciples = disciples.filter { it.isAlive && it.realm <= 6 },
+            disciples = disciples.filter { it.isAlive },
             currentElderId = elderSlots?.forgeElder,
             elderSlots = elderSlots ?: ElderSlots(),
             onDismiss = { showElderSelection = false },
