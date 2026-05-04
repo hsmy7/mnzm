@@ -1225,7 +1225,7 @@ class CultivationService @Inject constructor(
         // 9. Process AI alliances
         processAIAlliances(year)
 
-        // 10. Process reflection cliff release (思过崖期满释放)
+        // 10. Process reflection cliff release (监牢期满释放)
         processReflectionRelease(year)
 
         // 11. Process favor decay for high favor relations
@@ -1858,7 +1858,7 @@ class CultivationService @Inject constructor(
             val desertionProb = ((GameConfig.LawEnforcementConfig.LOYALTY_THRESHOLD - effectiveLoyalty) * GameConfig.LawEnforcementConfig.PROB_PER_POINT).coerceIn(0.0, GameConfig.LawEnforcementConfig.MAX_PROB)
             if (Random.nextDouble() < desertionProb) {
                 if (Random.nextDouble() < captureRate) {
-                    eventService.addGameEvent("执法堂成功截获试图逃跑的${disciple.name}，已关入思过崖", EventType.INFO)
+                    eventService.addGameEvent("执法堂成功截获试图逃跑的${disciple.name}，已关入监牢", EventType.INFO)
                     val currentYear = data.gameYear
                     val endYear = currentYear + GameConfig.LawEnforcementConfig.REFLECTION_YEARS
                     currentDisciples = currentDisciples.map {
@@ -1901,7 +1901,7 @@ class CultivationService @Inject constructor(
             val theftProb = ((GameConfig.LawEnforcementConfig.MORALITY_THRESHOLD - effectiveMorality) * GameConfig.LawEnforcementConfig.PROB_PER_POINT).coerceIn(0.0, GameConfig.LawEnforcementConfig.MAX_PROB)
             if (Random.nextDouble() < theftProb) {
                 if (Random.nextDouble() < captureRate) {
-                    eventService.addGameEvent("执法堂成功抓获偷盗中的${disciple.name}，已关入思过崖", EventType.INFO)
+                    eventService.addGameEvent("执法堂成功抓获偷盗中的${disciple.name}，已关入监牢", EventType.INFO)
                     val currentYear = currentGameData.gameYear
                     val endYear = currentYear + GameConfig.LawEnforcementConfig.REFLECTION_YEARS
                     currentDisciples = currentDisciples.map {
@@ -4660,7 +4660,7 @@ class CultivationService @Inject constructor(
 
         val releasedCount = reflectingDisciples.count { it.statusData["reflectionEndYear"]?.toIntOrNull()?.let { year >= it } == true }
         if (releasedCount > 0) {
-            eventService.addGameEvent("思过崖：共$releasedCount 名弟子思过期满，已释放并恢复空闲状态，道德+10", EventType.INFO)
+            eventService.addGameEvent("监牢：共$releasedCount 名弟子思过期满，已释放并恢复空闲状态，道德+10", EventType.INFO)
         }
     }
 

@@ -221,20 +221,20 @@ class GameEngine @Inject constructor(
                 currentSlot = currentSlot,
                 placedBuildings = listOf(
                     GridBuildingData(
-                        buildingId = "青云峰",
-                        displayName = "青云峰",
+                        buildingId = "青云塔",
+                        displayName = "青云塔",
                         gridX = centerX - 2,
                         gridY = centerY - 1,
                         width = 2,
-                        height = 2
+                        height = 3
                     ),
                     GridBuildingData(
-                        buildingId = "问道峰",
-                        displayName = "问道峰",
+                        buildingId = "问道塔",
+                        displayName = "问道塔",
                         gridX = centerX,
                         gridY = centerY - 1,
                         width = 2,
-                        height = 2
+                        height = 3
                     )
                 )
             )
@@ -264,16 +264,16 @@ class GameEngine @Inject constructor(
                     currentSlot = currentSlot,
                     placedBuildings = listOf(
                         GridBuildingData(
-                            buildingId = "青云峰",
-                            displayName = "青云峰",
+                            buildingId = "青云塔",
+                            displayName = "青云塔",
                             gridX = centerX - 2,
                             gridY = centerY - 1,
                             width = 2,
                             height = 2
                         ),
                         GridBuildingData(
-                            buildingId = "问道峰",
-                            displayName = "问道峰",
+                            buildingId = "问道塔",
+                            displayName = "问道塔",
                             gridX = centerX,
                             gridY = centerY - 1,
                             width = 2,

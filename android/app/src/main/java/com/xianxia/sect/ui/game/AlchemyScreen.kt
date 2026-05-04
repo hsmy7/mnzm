@@ -16,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -119,7 +120,7 @@ fun AlchemyDialog(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(4.dp))
-                        .background(if (autoAlchemyEnabled) Color(0xFFFFD700) else Color(0xFF999999))
+                        .background(if (autoAlchemyEnabled) Color(0xFFFFD700) else Color.Black)
                         .clickable { alchemyViewModel.toggleAutoAlchemy() }
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
@@ -358,7 +359,7 @@ private fun PillSelectionDialog(
                                     text = recipe.name,
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (hasEnoughMaterials) Color.Black else Color(0xFF999999),
+                                    color = if (hasEnoughMaterials) Color.Black else Color.Black,
                                     maxLines = 2,
                                     textAlign = TextAlign.Center
                                 )
@@ -366,7 +367,7 @@ private fun PillSelectionDialog(
                                 Text(
                                     text = "${recipe.duration}月",
                                     fontSize = 9.sp,
-                                    color = if (hasEnoughMaterials) Color(0xFF666666) else Color(0xFF999999)
+                                    color = if (hasEnoughMaterials) Color.Black else Color.Black
                                 )
                             }
 
@@ -446,20 +447,28 @@ private fun PillDetailDialog(
     herbs: List<Herb>,
     onDismiss: () -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = Color.Transparent, tonalElevation = 0.dp,
-        title = {
-            Text(text = recipe.name, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-        },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Dialog(onDismissRequest = onDismiss) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.bg_screen),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.FillBounds
+            )
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text(text = recipe.name, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                Spacer(modifier = Modifier.height(12.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(text = "品阶: ${recipe.tier}阶", fontSize = 12.sp, color = Color(0xFF666666))
-                    Text(text = "时间: ${recipe.duration}月", fontSize = 12.sp, color = Color(0xFF666666))
+                    Text(text = "品阶: ${recipe.tier}阶", fontSize = 12.sp, color = Color.Black)
+                    Text(text = "时间: ${recipe.duration}月", fontSize = 12.sp, color = Color.Black)
                 }
 
                 Text(text = "所需材料:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)
@@ -485,89 +494,89 @@ private fun PillDetailDialog(
                 Text(text = "效果:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)
 
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(text = "类型: ${recipe.category.displayName}", fontSize = 11.sp, color = Color(0xFF666666))
+                    Text(text = "类型: ${recipe.category.displayName}", fontSize = 11.sp, color = Color.Black)
 
                     if (recipe.breakthroughChance > 0) {
-                        Text(text = "突破成功率 +${String.format(Locale.getDefault(), "%.1f", recipe.breakthroughChance * 100)}%", fontSize = 11.sp, color = Color(0xFF666666))
+                        Text(text = "突破成功率 +${String.format(Locale.getDefault(), "%.1f", recipe.breakthroughChance * 100)}%", fontSize = 11.sp, color = Color.Black)
                         if (recipe.targetRealm > 0) {
-                            Text(text = "目标境界: ${recipe.targetRealm}阶", fontSize = 11.sp, color = Color(0xFF666666))
+                            Text(text = "目标境界: ${recipe.targetRealm}阶", fontSize = 11.sp, color = Color.Black)
                         }
                     }
                     if (recipe.cultivationSpeedPercent > 0) {
-                        Text(text = "修炼速度 +${String.format(Locale.getDefault(), "%.1f", recipe.cultivationSpeedPercent * 100)}%", fontSize = 11.sp, color = Color(0xFF666666))
+                        Text(text = "修炼速度 +${String.format(Locale.getDefault(), "%.1f", recipe.cultivationSpeedPercent * 100)}%", fontSize = 11.sp, color = Color.Black)
                     }
                     if (recipe.cultivationAdd > 0) {
-                        Text(text = "修为 +${recipe.cultivationAdd}", fontSize = 11.sp, color = Color(0xFF666666))
+                        Text(text = "修为 +${recipe.cultivationAdd}", fontSize = 11.sp, color = Color.Black)
                     }
                     if (recipe.physicalAttackAdd > 0) {
-                        Text(text = "物理攻击 +${recipe.physicalAttackAdd}", fontSize = 11.sp, color = Color(0xFF666666))
+                        Text(text = "物理攻击 +${recipe.physicalAttackAdd}", fontSize = 11.sp, color = Color.Black)
                     }
                     if (recipe.magicAttackAdd > 0) {
-                        Text(text = "法术攻击 +${recipe.magicAttackAdd}", fontSize = 11.sp, color = Color(0xFF666666))
+                        Text(text = "法术攻击 +${recipe.magicAttackAdd}", fontSize = 11.sp, color = Color.Black)
                     }
                     if (recipe.physicalDefenseAdd > 0) {
-                        Text(text = "物理防御 +${recipe.physicalDefenseAdd}", fontSize = 11.sp, color = Color(0xFF666666))
+                        Text(text = "物理防御 +${recipe.physicalDefenseAdd}", fontSize = 11.sp, color = Color.Black)
                     }
                     if (recipe.magicDefenseAdd > 0) {
-                        Text(text = "法术防御 +${recipe.magicDefenseAdd}", fontSize = 11.sp, color = Color(0xFF666666))
+                        Text(text = "法术防御 +${recipe.magicDefenseAdd}", fontSize = 11.sp, color = Color.Black)
                     }
                     if (recipe.hpAdd > 0) {
-                        Text(text = "生命值 +${recipe.hpAdd}", fontSize = 11.sp, color = Color(0xFF666666))
+                        Text(text = "生命值 +${recipe.hpAdd}", fontSize = 11.sp, color = Color.Black)
                     }
                     if (recipe.mpAdd > 0) {
-                        Text(text = "灵力容量 +${recipe.mpAdd}", fontSize = 11.sp, color = Color(0xFF666666))
+                        Text(text = "灵力容量 +${recipe.mpAdd}", fontSize = 11.sp, color = Color.Black)
                     }
                     if (recipe.speedAdd > 0) {
-                        Text(text = "身法 +${recipe.speedAdd}", fontSize = 11.sp, color = Color(0xFF666666))
+                        Text(text = "身法 +${recipe.speedAdd}", fontSize = 11.sp, color = Color.Black)
                     }
                     if (recipe.critRateAdd > 0) {
-                        Text(text = "暴击率 +${String.format(Locale.getDefault(), "%.1f", recipe.critRateAdd * 100)}%", fontSize = 11.sp, color = Color(0xFF666666))
+                        Text(text = "暴击率 +${String.format(Locale.getDefault(), "%.1f", recipe.critRateAdd * 100)}%", fontSize = 11.sp, color = Color.Black)
                     }
                     if (recipe.critEffectAdd > 0) {
-                        Text(text = "暴击效果 +${String.format(Locale.getDefault(), "%.1f", recipe.critEffectAdd * 100)}%", fontSize = 11.sp, color = Color(0xFF666666))
+                        Text(text = "暴击效果 +${String.format(Locale.getDefault(), "%.1f", recipe.critEffectAdd * 100)}%", fontSize = 11.sp, color = Color.Black)
                     }
                     if (recipe.skillExpAdd > 0) {
-                        Text(text = "功法熟练度 +${recipe.skillExpAdd}", fontSize = 11.sp, color = Color(0xFF666666))
+                        Text(text = "功法熟练度 +${recipe.skillExpAdd}", fontSize = 11.sp, color = Color.Black)
                     }
                     if (recipe.nurtureAdd > 0) {
-                        Text(text = "孕育值 +${recipe.nurtureAdd}", fontSize = 11.sp, color = Color(0xFF666666))
+                        Text(text = "孕育值 +${recipe.nurtureAdd}", fontSize = 11.sp, color = Color.Black)
                     }
                     if (recipe.extendLife > 0) {
-                        Text(text = "延长寿命 ${recipe.extendLife}年", fontSize = 11.sp, color = Color(0xFF666666))
+                        Text(text = "延长寿命 ${recipe.extendLife}年", fontSize = 11.sp, color = Color.Black)
                     }
                     if (recipe.intelligenceAdd > 0) {
-                        Text(text = "悟性 +${recipe.intelligenceAdd}", fontSize = 11.sp, color = Color(0xFF666666))
+                        Text(text = "悟性 +${recipe.intelligenceAdd}", fontSize = 11.sp, color = Color.Black)
                     }
                     if (recipe.charmAdd > 0) {
-                        Text(text = "魅力 +${recipe.charmAdd}", fontSize = 11.sp, color = Color(0xFF666666))
+                        Text(text = "魅力 +${recipe.charmAdd}", fontSize = 11.sp, color = Color.Black)
                     }
                     if (recipe.loyaltyAdd > 0) {
-                        Text(text = "忠诚 +${recipe.loyaltyAdd}", fontSize = 11.sp, color = Color(0xFF666666))
+                        Text(text = "忠诚 +${recipe.loyaltyAdd}", fontSize = 11.sp, color = Color.Black)
                     }
                     if (recipe.comprehensionAdd > 0) {
-                        Text(text = "领悟 +${recipe.comprehensionAdd}", fontSize = 11.sp, color = Color(0xFF666666))
+                        Text(text = "领悟 +${recipe.comprehensionAdd}", fontSize = 11.sp, color = Color.Black)
                     }
                     if (recipe.artifactRefiningAdd > 0) {
-                        Text(text = "炼器 +${recipe.artifactRefiningAdd}", fontSize = 11.sp, color = Color(0xFF666666))
+                        Text(text = "炼器 +${recipe.artifactRefiningAdd}", fontSize = 11.sp, color = Color.Black)
                     }
                     if (recipe.pillRefiningAdd > 0) {
-                        Text(text = "炼丹 +${recipe.pillRefiningAdd}", fontSize = 11.sp, color = Color(0xFF666666))
+                        Text(text = "炼丹 +${recipe.pillRefiningAdd}", fontSize = 11.sp, color = Color.Black)
                     }
                     if (recipe.spiritPlantingAdd > 0) {
-                        Text(text = "种植 +${recipe.spiritPlantingAdd}", fontSize = 11.sp, color = Color(0xFF666666))
+                        Text(text = "种植 +${recipe.spiritPlantingAdd}", fontSize = 11.sp, color = Color.Black)
                     }
                     if (recipe.teachingAdd > 0) {
-                        Text(text = "传授 +${recipe.teachingAdd}", fontSize = 11.sp, color = Color(0xFF666666))
+                        Text(text = "传授 +${recipe.teachingAdd}", fontSize = 11.sp, color = Color.Black)
                     }
                     if (recipe.moralityAdd > 0) {
-                        Text(text = "道德 +${recipe.moralityAdd}", fontSize = 11.sp, color = Color(0xFF666666))
+                        Text(text = "道德 +${recipe.moralityAdd}", fontSize = 11.sp, color = Color.Black)
                     }
                 }
 
                 Text(text = "描述:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-                Text(text = recipe.description, fontSize = 11.sp, color = Color(0xFF666666))
+                Text(text = recipe.description, fontSize = 11.sp, color = Color.Black)
+                }
             }
-        },
-        confirmButton = {}
-    )
+        }
+    }
 }

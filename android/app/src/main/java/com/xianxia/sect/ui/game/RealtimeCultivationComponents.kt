@@ -73,12 +73,12 @@ fun RealtimeCultivationProgress(
             Text(
                 text = "修为",
                 fontSize = 11.sp,
-                color = Color(0xFF666666)
+                color = Color.Black
             )
             Text(
                 text = "${String.format(Locale.getDefault(), "%.1f", currentCultivation)} / ${disciple.core.maxCultivation}",
                 fontSize = 10.sp,
-                color = Color(0xFF999999)
+                color = Color.Black
             )
         }
         

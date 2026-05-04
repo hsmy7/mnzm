@@ -26,6 +26,8 @@ data class BuildingConfigModel(
     val maxQueueLength: Int = 1,
     val autoRestartEnabled: Boolean = false,
     val cost: Long = 1000,
+    val gridWidth: Int = 2,
+    val gridHeight: Int = 2,
     val description: String = ""
 )
 
@@ -152,6 +154,18 @@ class BuildingConfigService @Inject constructor(
         return getBuildingConfig(buildingId)?.cost ?: 1000L
     }
 
+    fun getBuildingGridSize(displayName: String): Pair<Int, Int> {
+        val config = getBuildingConfigByDisplayName(displayName)
+        return (config?.gridWidth ?: 2) to (config?.gridHeight ?: 2)
+    }
+
+    fun fixupBuildingSizes(buildings: List<com.xianxia.sect.core.model.GridBuildingData>): List<com.xianxia.sect.core.model.GridBuildingData> {
+        return buildings.map { b ->
+            val (w, h) = getBuildingGridSize(b.displayName)
+            if (b.width != w || b.height != h) b.copy(width = w, height = h) else b
+        }
+    }
+
     fun getBuildingConfigByDisplayName(displayName: String): BuildingConfigModel? {
         return ensureConfigLoaded().buildings.values.find { it.displayName == displayName }
     }
@@ -172,22 +186,26 @@ class BuildingConfigService @Inject constructor(
             buildings = mapOf(
                 "alchemy" to BuildingConfigModel(
                     id = "alchemy",
-                    displayName = "丹鼎殿",
+                    displayName = "炼丹炉",
                     buildingType = "ALCHEMY",
                     slotCount = 3,
                     baseSuccessRate = 0.7,
                     autoRestartEnabled = true,
                     cost = 3000,
+                    gridWidth = 2,
+                    gridHeight = 2,
                     description = "用于炼制各种丹药的场所"
                 ),
                 "forge" to BuildingConfigModel(
                     id = "forge",
-                    displayName = "天工峰",
+                    displayName = "锻造坊",
                     buildingType = "FORGE",
                     slotCount = 3,
                     baseSuccessRate = 0.7,
                     autoRestartEnabled = true,
                     cost = 3000,
+                    gridWidth = 2,
+                    gridHeight = 2,
                     description = "锻造装备的场所"
                 ),
                 "mining" to BuildingConfigModel(
@@ -197,15 +215,19 @@ class BuildingConfigService @Inject constructor(
                     slotCount = 3,
                     baseSuccessRate = 1.0,
                     cost = 500,
+                    gridWidth = 2,
+                    gridHeight = 2,
                     description = "开采灵石和矿石"
                 ),
                 "herb_garden" to BuildingConfigModel(
                     id = "herb_garden",
-                    displayName = "灵药园",
+                    displayName = "灵植阁",
                     buildingType = "HERB_GARDEN",
                     slotCount = 3,
                     baseSuccessRate = 1.0,
                     cost = 2000,
+                    gridWidth = 2,
+                    gridHeight = 2,
                     description = "种植灵草的园地"
                 ),
                 "tianshu_hall" to BuildingConfigModel(
@@ -215,6 +237,8 @@ class BuildingConfigService @Inject constructor(
                     slotCount = 2,
                     baseSuccessRate = 1.0,
                     cost = 5000,
+                    gridWidth = 3,
+                    gridHeight = 2,
                     description = "处理宗门事务的核心建筑"
                 ),
                 "library" to BuildingConfigModel(
@@ -224,24 +248,30 @@ class BuildingConfigService @Inject constructor(
                     slotCount = 3,
                     baseSuccessRate = 1.0,
                     cost = 5000,
+                    gridWidth = 3,
+                    gridHeight = 2,
                     description = "弟子修习功法的场所，提升修炼速度"
                 ),
                 "wen_dao_peak" to BuildingConfigModel(
                     id = "wen_dao_peak",
-                    displayName = "问道峰",
+                    displayName = "问道塔",
                     buildingType = "WEN_DAO_PEAK",
                     slotCount = 5,
                     baseSuccessRate = 1.0,
                     cost = 4000,
+                    gridWidth = 2,
+                    gridHeight = 3,
                     description = "管理外门弟子与传道授业"
                 ),
                 "qingyun_peak" to BuildingConfigModel(
                     id = "qingyun_peak",
-                    displayName = "青云峰",
+                    displayName = "青云塔",
                     buildingType = "QINGYUN_PEAK",
                     slotCount = 5,
                     baseSuccessRate = 1.0,
                     cost = 4000,
+                    gridWidth = 2,
+                    gridHeight = 3,
                     description = "管理内门弟子与精英培养"
                 ),
                 "law_enforcement_hall" to BuildingConfigModel(
@@ -251,6 +281,8 @@ class BuildingConfigService @Inject constructor(
                     slotCount = 3,
                     baseSuccessRate = 1.0,
                     cost = 3000,
+                    gridWidth = 3,
+                    gridHeight = 2,
                     description = "维护宗门纪律，执行奖惩"
                 ),
                 "mission_hall" to BuildingConfigModel(
@@ -260,15 +292,19 @@ class BuildingConfigService @Inject constructor(
                     slotCount = 4,
                     baseSuccessRate = 1.0,
                     cost = 3000,
+                    gridWidth = 2,
+                    gridHeight = 2,
                     description = "派遣弟子执行宗门任务"
                 ),
                 "reflection_cliff" to BuildingConfigModel(
                     id = "reflection_cliff",
-                    displayName = "思过崖",
+                    displayName = "监牢",
                     buildingType = "REFLECTION_CLIFF",
                     slotCount = 6,
                     baseSuccessRate = 1.0,
                     cost = 4000,
+                    gridWidth = 2,
+                    gridHeight = 2,
                     description = "悔过自新之地，关押违规弟子"
                 )
             ),
@@ -277,15 +313,15 @@ class BuildingConfigService @Inject constructor(
                 "mine" to "mining",
                 "mining" to "mining",
 
-                // 丹鼎殿 (alchemy)
+                // 炼丹炉 (alchemy)
                 "alchemyroom" to "alchemy",
                 "alchemy" to "alchemy",
 
-                // 天工峰 (forge)
+                // 锻造坊 (forge)
                 "forging" to "forge",
                 "forge" to "forge",
 
-                // 灵药园 (herb_garden)
+                // 灵植阁 (herb_garden)
                 "herb" to "herb_garden",
                 "herbgarden" to "herb_garden",
                 "herb_garden" to "herb_garden",
@@ -300,19 +336,19 @@ class BuildingConfigService @Inject constructor(
                 "library" to "library",
                 "藏经阁" to "library",
 
-                // 问道峰 (wen_dao_peak)
+                // 问道塔 (wen_dao_peak)
                 "wendaopeak" to "wen_dao_peak",
                 "wendaopeak" to "wen_dao_peak",
                 "wendao" to "wen_dao_peak",
                 "wen_dao_peak" to "wen_dao_peak",
-                "问道峰" to "wen_dao_peak",
+                "问道塔" to "wen_dao_peak",
 
-                // 青云峰 (qingyun_peak)
+                // 青云塔 (qingyun_peak)
                 "qingyunpeak" to "qingyun_peak",
                 "qingyunpeak" to "qingyun_peak",
                 "qingyun" to "qingyun_peak",
                 "qingyun_peak" to "qingyun_peak",
-                "青云峰" to "qingyun_peak",
+                "青云塔" to "qingyun_peak",
 
                 // 执法堂 (law_enforcement_hall)
                 "lawenforcementhall" to "law_enforcement_hall",
@@ -328,12 +364,12 @@ class BuildingConfigService @Inject constructor(
                 "mission_hall" to "mission_hall",
                 "任务阁" to "mission_hall",
 
-                // 思过崖 (reflection_cliff)
+                // 监牢 (reflection_cliff)
                 "reflectioncliff" to "reflection_cliff",
                 "reflectioncliff" to "reflection_cliff",
                 "siguoya" to "reflection_cliff",
                 "reflection_cliff" to "reflection_cliff",
-                "思过崖" to "reflection_cliff"
+                "监牢" to "reflection_cliff"
             )
         )
     }

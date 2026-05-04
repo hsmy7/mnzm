@@ -28,6 +28,7 @@ import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.Talent
 import com.xianxia.sect.ui.theme.GameColors
+import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.theme.getSpiritRootColor
 import com.xianxia.sect.ui.components.discipleCardBorder
 import com.xianxia.sect.ui.components.DiscipleAttrText
@@ -160,6 +161,12 @@ private fun RecruitDiscipleCard(
             .fillMaxWidth()
             .discipleCardBorder()
     ) {
+        Image(
+            painter = painterResource(id = R.drawable.bg_horizontal),
+            contentDescription = null,
+            modifier = Modifier.matchParentSize(),
+            contentScale = ContentScale.FillBounds
+        )
         Column(modifier = Modifier.padding(12.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -204,7 +211,6 @@ private fun RecruitDiscipleCard(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     DiscipleAttrText("悟性", disciple.comprehension)
-                    DiscipleAttrText("忠诚", disciple.loyalty)
                     DiscipleAttrText("道德", disciple.morality)
                 }
                 
@@ -213,11 +219,13 @@ private fun RecruitDiscipleCard(
                 ) {
                     GameButton(
                         text = "拒绝",
-                        onClick = onReject
+                        onClick = onReject,
+                        modifier = Modifier.width(ButtonSizes.StandardWidth)
                     )
                     GameButton(
                         text = "同意",
-                        onClick = onAccept
+                        onClick = onAccept,
+                        modifier = Modifier.width(ButtonSizes.StandardWidth)
                     )
                 }
             }
@@ -280,56 +288,63 @@ private fun AutoRecruitFilterDialog(
     val initialFilter = gameData?.autoRecruitSpiritRootFilter ?: emptySet()
     var selectedFilter by remember { mutableStateOf(initialFilter) }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = Color.Transparent, tonalElevation = 0.dp,
-        title = {
-            Text(
-                text = "自动招募筛选",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
+    Dialog(onDismissRequest = onDismiss) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.bg_screen),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.FillBounds
             )
-        },
-        text = {
             Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier.padding(20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                ROOT_COUNT_OPTIONS.forEach { (count, name) ->
-                    val rootColor = GameColors.getSpiritRootCountColor(count)
-                    AutoRecruitFilterRow(
-                        label = name,
-                        labelColor = rootColor,
-                        checked = count in selectedFilter,
-                        onToggle = {
-                            selectedFilter = if (count in selectedFilter) {
-                                selectedFilter - count
-                            } else {
-                                selectedFilter + count
+                Text(
+                    text = "自动招募筛选",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    ROOT_COUNT_OPTIONS.forEach { (count, name) ->
+                        val rootColor = GameColors.getSpiritRootCountColor(count)
+                        AutoRecruitFilterRow(
+                            label = name,
+                            labelColor = rootColor,
+                            checked = count in selectedFilter,
+                            onToggle = {
+                                selectedFilter = if (count in selectedFilter) {
+                                    selectedFilter - count
+                                } else {
+                                    selectedFilter + count
+                                }
                             }
-                        }
-                    )
+                        )
+                    }
                 }
-            }
-        },
-        confirmButton = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center
-            ) {
+                Spacer(modifier = Modifier.height(16.dp))
                 GameButton(
                     text = "保存",
                     onClick = {
                         viewModel.setAutoRecruitFilter(selectedFilter)
                         onDismiss()
-                    }
+                    },
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
                 )
             }
         }
-    )
+    }
 }
 
 @Composable

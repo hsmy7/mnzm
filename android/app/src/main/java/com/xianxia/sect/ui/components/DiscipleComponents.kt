@@ -53,7 +53,7 @@ fun Modifier.discipleCardBorder(
     )
 
 object DiscipleAttrDefaults {
-    val Color = Color(0xFF666666)
+    val Color = androidx.compose.ui.graphics.Color.Black
     val FontSize = 11.sp
 }
 
@@ -161,14 +161,14 @@ fun HorizontalDiscipleCard(
             ) {
                 val spiritRootColor = try {
                     Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))
-                } catch (_: Exception) { Color(0xFF666666) }
+                } catch (_: Exception) { Color.Black }
                 Text(
                     text = disciple.spiritRootName,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     color = spiritRootColor
                 )
-                Text(text = disciple.realmName, fontSize = 11.sp, color = Color(0xFF666666))
+                Text(text = disciple.realmName, fontSize = 11.sp, color = Color.Black)
             }
             // 第三行：悟性 + 忠诚 + 道德（+ 额外属性）
             Row(
@@ -176,11 +176,11 @@ fun HorizontalDiscipleCard(
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(text = "悟性: ${disciple.comprehension}", fontSize = 11.sp, color = Color(0xFF666666))
-                Text(text = "忠诚: ${disciple.loyalty}", fontSize = 11.sp, color = Color(0xFF666666))
-                Text(text = "道德: ${disciple.morality}", fontSize = 11.sp, color = Color(0xFF666666))
+                Text(text = "悟性: ${disciple.comprehension}", fontSize = 11.sp, color = Color.Black)
+                Text(text = "忠诚: ${disciple.loyalty}", fontSize = 11.sp, color = Color.Black)
+                Text(text = "道德: ${disciple.morality}", fontSize = 11.sp, color = Color.Black)
                 extraAttributes.forEach { (name, value) ->
-                    Text(text = "$name: $value", fontSize = 11.sp, color = Color(0xFF555555))
+                    Text(text = "$name: $value", fontSize = 11.sp, color = Color.Black)
                 }
             }
         }
@@ -225,7 +225,7 @@ fun TalentDetailDialog(talent: Talent, onDismiss: () -> Unit) {
                     Text(
                         text = talent.description,
                         fontSize = 12.sp,
-                        color = Color(0xFF666666)
+                        color = Color.Black
                     )
                 } else {
                     talent.effects.forEach { (key, value) ->
@@ -238,12 +238,12 @@ fun TalentDetailDialog(talent: Talent, onDismiss: () -> Unit) {
                             Text(
                                 text = "•",
                                 fontSize = 12.sp,
-                                color = Color(0xFF999999)
+                                color = Color.Black
                             )
                             Text(
                                 text = effectText,
                                 fontSize = 12.sp,
-                                color = Color(0xFF666666)
+                                color = Color.Black
                             )
                         }
                     }

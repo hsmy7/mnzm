@@ -606,7 +606,7 @@ fun MainScreen(
         
         Text(
             text = "踏入修仙之路，成就无上大道",
-            color = Color(0xFF666666),
+            color = Color.Black,
             fontSize = 16.sp
         )
         
@@ -710,7 +710,7 @@ fun MainScreen(
         
         Text(
             text = "v${com.xianxia.sect.core.GameConfig.Game.VERSION}",
-            color = Color(0xFF999999),
+            color = Color.Black,
             fontSize = 12.sp
         )
         
@@ -742,7 +742,7 @@ fun MainScreen(
             Spacer(modifier = Modifier.width(6.dp))
             Text(
                 text = "已阅读并同意",
-                color = if (privacyChecked) Color(0xFF333333) else Color(0xFF999999),
+                color = if (privacyChecked) Color.Black else Color.Black,
                 fontSize = 12.sp
             )
             Spacer(modifier = Modifier.width(2.dp))
@@ -812,7 +812,7 @@ fun CrashRecoveryDialog(
                     Text(
                         text = "选择\"恢复\"将加载上次的游戏数据；\n选择\"不恢复\"将丢弃这些数据。",
                         fontSize = 12.sp,
-                        color = Color(0xFF666666),
+                        color = Color.Black,
                         textAlign = TextAlign.Center,
                         lineHeight = 18.sp
                     )
@@ -859,7 +859,7 @@ fun ComplianceVerificationScreen(
         
         Text(
             text = "根据国家防沉迷相关规定，\n需要进行实名认证后方可进入游戏。",
-            color = Color(0xFF666666),
+            color = Color.Black,
             fontSize = 16.sp,
             textAlign = TextAlign.Center,
             lineHeight = 24.sp

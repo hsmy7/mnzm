@@ -15,9 +15,9 @@ object GameColors {
     val SurfaceDark = Color(0xFFF8F5F2)
     
     val TextPrimary = Color(0xFF000000)
-    val TextSecondary = Color(0xFF666666)
-    val TextTertiary = Color(0xFF999999)
-    val TextOnPrimary = Color(0xFFFFFFFF)
+    val TextSecondary = Color(0xFF000000)
+    val TextTertiary = Color(0xFF000000)
+    val TextOnPrimary = Color(0xFF000000)
     
     val Border = Color(0xFFDCD6D0)
     val BorderLight = Color(0xFFDCD6D0)
@@ -145,8 +145,8 @@ data class XianxiaColorScheme(
     val cardBackground: Color = Color(0xFFE9E4DF),
     val cardBorder: Color = Color(0xFFDCD6D0),
     val primaryGold: Color = Color(0xFFFFD700),
-    val textLight: Color = Color(0xFF666666),
-    val textDark: Color = Color(0xFF333333),
+    val textLight: Color = Color(0xFF000000),
+    val textDark: Color = Color(0xFF000000),
     val jade: Color = Color(0xFF00A86B),
     val spiritBlue: Color = Color(0xFF4A90E2),
     val bloodRed: Color = Color(0xFFE74C3C),

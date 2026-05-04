@@ -8,21 +8,21 @@ object DisciplePositionHelper {
         val elderSlots = gameData.elderSlots
 
         if (elderSlots.viceSectMaster == discipleId) return "副掌门"
-        if (elderSlots.herbGardenElder == discipleId) return "灵药宛长老"
-        if (elderSlots.alchemyElder == discipleId) return "丹鼎殿长老"
-        if (elderSlots.forgeElder == discipleId) return "天工峰长老"
+        if (elderSlots.herbGardenElder == discipleId) return "灵植阁长老"
+        if (elderSlots.alchemyElder == discipleId) return "炼丹炉长老"
+        if (elderSlots.forgeElder == discipleId) return "锻造坊长老"
         if (elderSlots.outerElder == discipleId) return "外门执事"
-        if (elderSlots.preachingElder == discipleId) return "问道峰传道长老"
+        if (elderSlots.preachingElder == discipleId) return "问道塔传道长老"
         if (elderSlots.lawEnforcementElder == discipleId) return "执法长老"
         if (elderSlots.innerElder == discipleId) return "内门执事"
-        if (elderSlots.qingyunPreachingElder == discipleId) return "青云峰传道长老"
+        if (elderSlots.qingyunPreachingElder == discipleId) return "青云塔传道长老"
 
-        if (elderSlots.preachingMasters.any { it.discipleId == discipleId }) return "问道峰传道师"
-        if (elderSlots.qingyunPreachingMasters.any { it.discipleId == discipleId }) return "青云峰传道师"
+        if (elderSlots.preachingMasters.any { it.discipleId == discipleId }) return "问道塔传道师"
+        if (elderSlots.qingyunPreachingMasters.any { it.discipleId == discipleId }) return "青云塔传道师"
 
-        if (elderSlots.herbGardenDisciples.any { it.discipleId == discipleId }) return "灵药宛亲传弟子"
-        if (elderSlots.alchemyDisciples.any { it.discipleId == discipleId }) return "丹鼎殿亲传弟子"
-        if (elderSlots.forgeDisciples.any { it.discipleId == discipleId }) return "天工峰亲传弟子"
+        if (elderSlots.herbGardenDisciples.any { it.discipleId == discipleId }) return "灵植阁亲传弟子"
+        if (elderSlots.alchemyDisciples.any { it.discipleId == discipleId }) return "炼丹炉亲传弟子"
+        if (elderSlots.forgeDisciples.any { it.discipleId == discipleId }) return "锻造坊亲传弟子"
 
         if (elderSlots.lawEnforcementDisciples.any { it.discipleId == discipleId }) return "执法弟子"
 

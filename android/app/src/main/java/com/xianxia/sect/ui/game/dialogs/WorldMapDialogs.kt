@@ -1,6 +1,7 @@
 package com.xianxia.sect.ui.game.dialogs
 
 import androidx.compose.animation.*
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -24,6 +25,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -45,6 +48,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.xianxia.sect.R
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.CaveExplorationTeam
 import com.xianxia.sect.core.model.CaveStatus
@@ -372,7 +376,7 @@ internal fun WorldMapSectDetailDialog(
                         Text(
                             text = sect.levelName,
                             fontSize = 10.sp,
-                            color = Color(0xFF666666),
+                            color = Color.Black,
                             modifier = Modifier
                                 .background(
                                     GameColors.CardBackground,
@@ -423,7 +427,7 @@ internal fun WorldMapSectDetailDialog(
                         Text(
                             text = "关系:",
                             fontSize = 12.sp,
-                            color = Color(0xFF666666)
+                            color = Color.Black
                         )
                         Text(
                             text = relationLevel.displayName,
@@ -434,7 +438,7 @@ internal fun WorldMapSectDetailDialog(
                         Text(
                             text = "(${relation})",
                             fontSize = 12.sp,
-                            color = Color(0xFF666666)
+                            color = Color.Black
                         )
                     }
                 }
@@ -446,7 +450,7 @@ internal fun WorldMapSectDetailDialog(
                         text = "弟子分布",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF333333)
+                        color = Color.Black
                     )
                     
                     val scoutInfo = gameData?.sectDetails?.get(sect.id)?.scoutInfo ?: SectScoutInfo()
@@ -464,7 +468,7 @@ internal fun WorldMapSectDetailDialog(
                                 "?"
                             }
                             val textColor = if (scoutInfo.sectId.isNotEmpty() && scoutInfo.disciples.containsKey(realmIndex)) {
-                                if (count > 0) Color(0xFF4CAF50) else Color(0xFF999999)
+                                if (count > 0) Color(0xFF4CAF50) else Color.Black
                             } else {
                                 Color(0xFFFF9800)
                             }
@@ -476,7 +480,7 @@ internal fun WorldMapSectDetailDialog(
                                 Text(
                                     text = realmName,
                                     fontSize = 10.sp,
-                                    color = Color(0xFF666666)
+                                    color = Color.Black
                                 )
                                 Text(
                                     text = displayText,
@@ -503,7 +507,7 @@ internal fun WorldMapSectDetailDialog(
                                 "?"
                             }
                             val textColor = if (scoutInfo.sectId.isNotEmpty() && scoutInfo.disciples.containsKey(realmIndex)) {
-                                if (count > 0) Color(0xFF4CAF50) else Color(0xFF999999)
+                                if (count > 0) Color(0xFF4CAF50) else Color.Black
                             } else {
                                 Color(0xFFFF9800)
                             }
@@ -515,7 +519,7 @@ internal fun WorldMapSectDetailDialog(
                                 Text(
                                     text = realmName,
                                     fontSize = 10.sp,
-                                    color = Color(0xFF666666)
+                                    color = Color.Black
                                 )
                                 Text(
                                     text = displayText,
@@ -650,35 +654,49 @@ fun DiplomacyDialog(
     
     var showGiftedMessage by remember { mutableStateOf(false) }
     
-    Box(modifier = Modifier.fillMaxSize()) {
-        AlertDialog(
-            onDismissRequest = onDismiss,
-            containerColor = GameColors.PageBackground,
-            title = {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "宗门外交",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-                    CloseButton(onClick = onDismiss)
-                }
-            },
-            text = {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier.fillMaxWidth().fillMaxHeight(0.85f),
+            shape = RoundedCornerShape(16.dp),
+            color = GameColors.PageBackground
+        ) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                Image(
+                    painter = painterResource(id = R.drawable.bg_screen),
+                    contentDescription = null,
+                    modifier = Modifier.matchParentSize(),
+                    contentScale = ContentScale.Crop
+                )
+                Column(modifier = Modifier.fillMaxSize()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "宗门外交",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Black
+                        )
+                        CloseButton(onClick = onDismiss)
+                    }
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp)
+                    ) {
                 if (worldSects.isEmpty()) {
                     Text(
                         text = "暂无其他宗门",
                         fontSize = 12.sp,
-                        color = Color(0xFF666666)
+                        color = Color.Black
                     )
                 } else {
                     LazyColumn(
-                        modifier = Modifier.heightIn(max = 400.dp),
+                        modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(sortedSects.size) { index ->
@@ -704,17 +722,18 @@ fun DiplomacyDialog(
                             )
                         }
                     }
+                    }
                 }
-            },
-            confirmButton = {}
-        )
-        
-        if (showGiftedMessage) {
-            GiftedMessageToast(
-                message = "今年已送过礼品等明年再来吧",
-                onDismiss = { showGiftedMessage = false }
-            )
+            }
         }
+    }
+    }
+
+    if (showGiftedMessage) {
+        GiftedMessageToast(
+            message = "今年已送过礼品等明年再来吧",
+            onDismiss = { showGiftedMessage = false }
+        )
     }
 }
 
@@ -792,13 +811,13 @@ internal fun CaveDetailDialog(
                         Text(
                             text = "洞府境界",
                             fontSize = 12.sp,
-                            color = Color(0xFF666666)
+                            color = Color.Black
                         )
                         Text(
                             text = cave.ownerRealmName,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF333333)
+                            color = Color.Black
                         )
                     }
                     
@@ -807,13 +826,13 @@ internal fun CaveDetailDialog(
                             Text(
                                 text = "剩余时间",
                                 fontSize = 12.sp,
-                                color = Color(0xFF666666)
+                                color = Color.Black
                             )
                             Text(
                                 text = "${remainingMonths}月",
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = if (remainingMonths <= 3) Color(0xFFF44336) else Color(0xFF333333)
+                                color = if (remainingMonths <= 3) Color(0xFFF44336) else Color.Black
                             )
                         }
                     }
@@ -826,7 +845,7 @@ internal fun CaveDetailDialog(
                         Text(
                             text = "此洞府尚未被探索，派遣弟子前往探索可获得丰厚奖励。",
                             fontSize = 12.sp,
-                            color = Color(0xFF666666)
+                            color = Color.Black
                         )
                         if (selectedDisciples.isNotEmpty()) {
                             Text(
@@ -844,7 +863,7 @@ internal fun CaveDetailDialog(
                                 Text(
                                     text = "探索队伍: ${exploringTeam.memberNames.joinToString("、")}",
                                     fontSize = 12.sp,
-                                    color = Color(0xFF333333)
+                                    color = Color.Black
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Row(
@@ -875,14 +894,14 @@ internal fun CaveDetailDialog(
                         Text(
                             text = "此洞府已被探索完毕。",
                             fontSize = 12.sp,
-                            color = Color(0xFF666666)
+                            color = Color.Black
                         )
                     }
                     CaveStatus.EXPIRED -> {
                         Text(
                             text = "此洞府已经消失，无法再进行探索。",
                             fontSize = 12.sp,
-                            color = Color(0xFF999999)
+                            color = Color.Black
                         )
                     }
                 }
@@ -1013,7 +1032,7 @@ internal fun CaveDiscipleSelectionDialog(
                     Text(
                         text = "暂无空闲弟子",
                         fontSize = 12.sp,
-                        color = Color(0xFF999999)
+                        color = Color.Black
                     )
                 }
             } else {
@@ -1128,12 +1147,15 @@ internal fun DiplomacySectCard(
     
     val hasGiftedThisYear = (gameData?.sectDetails?.get(sect.id)?.lastGiftYear ?: 0) == currentYear
     
-    Card(
+    Box(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = GameColors.PageBackground),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
+        Image(
+            painter = painterResource(id = R.drawable.bg_horizontal),
+            contentDescription = null,
+            modifier = Modifier.matchParentSize(),
+            contentScale = ContentScale.FillBounds
+        )
         Column(
             modifier = Modifier.padding(12.dp)
         ) {
@@ -1170,7 +1192,7 @@ internal fun DiplomacySectCard(
                     Text(
                         text = sect.levelName,
                         fontSize = 11.sp,
-                        color = Color(0xFF666666)
+                        color = Color.Black
                     )
                 }
                 
@@ -1180,7 +1202,7 @@ internal fun DiplomacySectCard(
                     Text(
                         text = relationLevel.displayName,
                         fontSize = 10.sp,
-                        color = Color(0xFF666666)
+                        color = Color.Black
                     )
                     Text(
                         text = "$relation",
@@ -1254,7 +1276,7 @@ internal fun GiftedMessageToast(
             text = message,
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
-            color = Color(0xFF666666).copy(alpha = alpha.coerceIn(0f, 1f)),
+            color = Color.Black.copy(alpha = alpha.coerceIn(0f, 1f)),
             textAlign = TextAlign.Center
         )
     }

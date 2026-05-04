@@ -25,7 +25,7 @@ fun QingyunPeakDialog(
     val innerDisciples = disciples.filter { it.isAlive && it.discipleType == "inner" }
 
     PeakDialog(
-        title = "青云峰",
+        title = "青云塔",
         subtitle = "管理内门弟子与传道修行",
         onDismiss = onDismiss
     ) {
@@ -38,7 +38,7 @@ fun QingyunPeakDialog(
                 onRemove = { productionViewModel.removeElder(ElderSlotType.INNER_ELDER) }
             ),
             slot2 = PeakElderSlotConfig(
-                title = "青云峰传道长老",
+                title = "青云塔传道长老",
                 elder = preachingElder,
                 bonusInfo = ElderBonusInfoProvider.getQingyunPreachingElderInfo(),
                 onClick = { showPreachingElderSelection = true },
@@ -49,9 +49,9 @@ fun QingyunPeakDialog(
         Spacer(modifier = Modifier.height(12.dp))
 
         PeakPreachingMasterSection(
-            sectionTitle = "青云峰传道师",
+            sectionTitle = "青云塔传道师",
             masterConfig = PeakPreachingMasterConfig(
-                label = "青云峰传道师",
+                label = "青云塔传道师",
                 bonusInfo = ElderBonusInfoProvider.getQingyunPreachingMasterInfo()
             ),
             preachingMasters = preachingMasters,
@@ -86,7 +86,7 @@ fun QingyunPeakDialog(
 
     if (showPreachingElderSelection) {
         PeakDiscipleSelectionDialog(
-            title = "选择青云峰传道长老",
+            title = "选择青云塔传道长老",
             disciples = productionViewModel.getAvailableDisciplesForQingyunPreachingElder(),
             currentDiscipleId = preachingElder?.id,
             requirementText = "需要: 内门弟子 · 空闲中",
@@ -101,7 +101,7 @@ fun QingyunPeakDialog(
     showPreachingMasterSelection?.let { slotIndex ->
         val currentMaster = preachingMasters.find { it.index == slotIndex }
         PeakDiscipleSelectionDialog(
-            title = "选择青云峰传道师",
+            title = "选择青云塔传道师",
             disciples = productionViewModel.getAvailableDisciplesForQingyunPreachingMaster(),
             currentDiscipleId = currentMaster?.discipleId,
             requirementText = "需要: 内门弟子 · 空闲中",

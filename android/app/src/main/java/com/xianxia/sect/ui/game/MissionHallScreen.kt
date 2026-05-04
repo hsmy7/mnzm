@@ -3,6 +3,7 @@ package com.xianxia.sect.ui.game
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -20,6 +21,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.window.Dialog
+import com.xianxia.sect.R
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.MissionSystem
 import com.xianxia.sect.core.model.*
@@ -31,6 +36,7 @@ import com.xianxia.sect.ui.components.DiscipleCardStyles
 import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.theme.GameColors
+import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
 
 @Composable
@@ -66,7 +72,7 @@ fun MissionHallDialog(
                 Text(
                     text = "暂无任务，每三月刷新",
                     fontSize = 11.sp,
-                    color = Color(0xFF999999),
+                    color = Color.Black,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 40.dp),
@@ -137,7 +143,7 @@ fun MissionHallDialog(
                         Text(
                             text = mission.difficulty.displayName,
                             fontSize = 10.sp,
-                            color = Color(0xFF999999)
+                            color = Color.Black
                         )
                     }
                 },
@@ -210,7 +216,7 @@ private fun ActiveMissionCard(
                         text = mission.missionName,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF333333)
+                        color = Color.Black
                     )
                     Text(
                         text = "执行中",
@@ -243,7 +249,7 @@ private fun ActiveMissionCard(
                 Text(
                     text = "剩余：$remainingMonths 月",
                     fontSize = 10.sp,
-                    color = Color(0xFF666666)
+                    color = Color.Black
                 )
                 Text(
                     text = "奖励：${formatSpiritStoneReward(mission.rewards)}",
@@ -285,7 +291,7 @@ private fun AvailableMissionCard(
                     text = mission.name,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF333333)
+                    color = Color.Black
                 )
                 Text(
                     text = mission.difficulty.displayName,
@@ -297,7 +303,7 @@ private fun AvailableMissionCard(
             Text(
                 text = mission.description,
                 fontSize = 10.sp,
-                color = Color(0xFF666666)
+                color = Color.Black
             )
 
             Row(
@@ -307,12 +313,12 @@ private fun AvailableMissionCard(
                 Text(
                     text = "耗时：${mission.duration}月",
                     fontSize = 10.sp,
-                    color = Color(0xFF666666)
+                    color = Color.Black
                 )
                 Text(
                     text = "需要：${mission.memberCount}名弟子",
                     fontSize = 10.sp,
-                    color = Color(0xFF666666)
+                    color = Color.Black
                 )
                 Text(
                     text = "奖励：${formatSpiritStoneReward(mission.rewards)}",
@@ -339,142 +345,151 @@ private fun ActiveMissionDetailDialog(
         disciples.associateBy { it.id }
     }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
-        title = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = mission.missionName,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-                Text(
-                    text = mission.difficulty.displayName,
-                    fontSize = 12.sp,
-                    color = getDifficultyColor(mission.difficulty)
-                )
-            }
-        },
-        text = {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
+    Dialog(onDismissRequest = onDismiss) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.bg_screen),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.FillBounds
+            )
+            Column(modifier = Modifier.padding(20.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "难度：${mission.difficulty.displayName}",
-                        fontSize = 11.sp,
+                        text = mission.missionName,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+                    Text(
+                        text = mission.difficulty.displayName,
+                        fontSize = 12.sp,
                         color = getDifficultyColor(mission.difficulty)
                     )
                 }
-
-                HorizontalDivider(
-                    modifier = Modifier.padding(vertical = 4.dp),
-                    color = GameColors.Border,
-                    thickness = 1.dp
-                )
-
-                Text(
-                    text = "执行进度",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF333333)
-                )
-
-                LinearProgressIndicator(
-                    progress = { progress / 100f },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(8.dp)
-                        .clip(RoundedCornerShape(4.dp)),
-                    color = Color(0xFF4CAF50),
-                    trackColor = Color(0xFFE0E0E0)
-                )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                Spacer(modifier = Modifier.height(12.dp))
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text(
-                        text = "进度：$progress%",
-                        fontSize = 11.sp,
-                        color = Color(0xFF666666)
-                    )
-                    Text(
-                        text = "剩余：$remainingMonths 月",
-                        fontSize = 11.sp,
-                        color = Color(0xFF666666)
-                    )
-                }
-
-                HorizontalDivider(
-                    modifier = Modifier.padding(vertical = 4.dp),
-                    color = GameColors.Border,
-                    thickness = 1.dp
-                )
-
-                Text(
-                    text = "任务奖励",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF333333)
-                )
-
-                Text(
-                    text = formatSpiritStoneReward(mission.rewards),
-                    fontSize = 11.sp,
-                    color = Color(0xFFD4A017)
-                )
-
-                HorizontalDivider(
-                    modifier = Modifier.padding(vertical = 4.dp),
-                    color = GameColors.Border,
-                    thickness = 1.dp
-                )
-
-                Text(
-                    text = "执行弟子 (${mission.memberCount}人)",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF333333)
-                )
-
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(3),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.heightIn(max = 240.dp)
-                ) {
-                    items(mission.discipleIds, key = { it }) { discipleId ->
-                        val index = mission.discipleIds.indexOf(discipleId)
-                        val name = if (index < mission.discipleNames.size) mission.discipleNames[index] else "未知"
-                        val realm = if (index < mission.discipleRealms.size) mission.discipleRealms[index] else ""
-                        val disciple = discipleMap[discipleId]
-
-                        MissionDiscipleSlot(
-                            name = name,
-                            realm = realm,
-                            hpRatio = 1f
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "难度：${mission.difficulty.displayName}",
+                            fontSize = 11.sp,
+                            color = getDifficultyColor(mission.difficulty)
                         )
                     }
+
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 4.dp),
+                        color = GameColors.Border,
+                        thickness = 1.dp
+                    )
+
+                    Text(
+                        text = "执行进度",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+
+                    LinearProgressIndicator(
+                        progress = { progress / 100f },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(8.dp)
+                            .clip(RoundedCornerShape(4.dp)),
+                        color = Color(0xFF4CAF50),
+                        trackColor = Color(0xFFE0E0E0)
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "进度：$progress%",
+                            fontSize = 11.sp,
+                            color = Color.Black
+                        )
+                        Text(
+                            text = "剩余：$remainingMonths 月",
+                            fontSize = 11.sp,
+                            color = Color.Black
+                        )
+                    }
+
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 4.dp),
+                        color = GameColors.Border,
+                        thickness = 1.dp
+                    )
+
+                    Text(
+                        text = "任务奖励",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+
+                    Text(
+                        text = formatSpiritStoneReward(mission.rewards),
+                        fontSize = 11.sp,
+                        color = Color(0xFFD4A017)
+                    )
+
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 4.dp),
+                        color = GameColors.Border,
+                        thickness = 1.dp
+                    )
+
+                    Text(
+                        text = "执行弟子 (${mission.memberCount}人)",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(3),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.heightIn(max = 240.dp)
+                    ) {
+                        items(mission.discipleIds, key = { it }) { discipleId ->
+                            val index = mission.discipleIds.indexOf(discipleId)
+                            val name = if (index < mission.discipleNames.size) mission.discipleNames[index] else "未知"
+                            val realm = if (index < mission.discipleRealms.size) mission.discipleRealms[index] else ""
+                            val disciple = discipleMap[discipleId]
+
+                            MissionDiscipleSlot(
+                                name = name,
+                                realm = realm,
+                                hpRatio = 1f
+                            )
+                        }
+                    }
                 }
+                Spacer(modifier = Modifier.height(16.dp))
+                GameButton(
+                    text = "关闭",
+                    onClick = onDismiss,
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                )
             }
-        },
-        confirmButton = {
-            GameButton(
-                text = "关闭",
-                onClick = onDismiss
-            )
         }
-    )
+    }
 }
 
 @Composable
@@ -519,14 +534,14 @@ private fun MissionDiscipleSlot(
             text = name,
             fontSize = 10.sp,
             fontWeight = FontWeight.Bold,
-            color = Color(0xFF333333),
+            color = Color.Black,
             maxLines = 1
         )
 
         Text(
             text = realm,
             fontSize = 9.sp,
-            color = Color(0xFF666666)
+            color = Color.Black
         )
     }
 }
@@ -562,103 +577,113 @@ private fun DiscipleSelectionDialog(
         eligibleDisciples.applyFilters(emptySet(), selectedSpiritRootFilter, selectedAttributeSort)
     }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
-        title = {
-            Text(
-                text = "选择弟子 (${selectedDiscipleIds.size}/${mission.memberCount})",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black
+    Dialog(onDismissRequest = onDismiss) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.bg_screen),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.FillBounds
             )
-        },
-        text = {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
+            Column(modifier = Modifier.padding(20.dp)) {
                 Text(
-                    text = "任务：${mission.name}",
-                    fontSize = 11.sp,
-                    color = Color(0xFF666666)
+                    text = "选择弟子 (${selectedDiscipleIds.size}/${mission.memberCount})",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
                 )
-                Text(
-                    text = "要求：${mission.difficulty.allowedPositions.joinToString("/")}，${com.xianxia.sect.core.GameConfig.Realm.getName(mission.difficulty.minRealm)}及以上，空闲状态",
-                    fontSize = 11.sp,
-                    color = Color(0xFF666666)
-                )
-
-                HorizontalDivider(
-                    modifier = Modifier.padding(vertical = 4.dp),
-                    color = GameColors.Border,
-                    thickness = 1.dp
-                )
-
-                SpiritRootAttributeFilterBar(
-                    selectedSpiritRootFilter = selectedSpiritRootFilter,
-                    selectedAttributeSort = selectedAttributeSort,
-                    spiritRootExpanded = spiritRootExpanded,
-                    attributeExpanded = attributeExpanded,
-                    spiritRootCounts = spiritRootCounts,
-                    onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
-                    onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
-                    onAttributeSortSelected = { selectedAttributeSort = it },
-                    onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
-                    onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
-                    isCompact = true
-                )
-
-                if (filteredDisciples.isEmpty()) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     Text(
-                        text = "没有符合条件的弟子",
+                        text = "任务：${mission.name}",
                         fontSize = 11.sp,
-                        color = Color(0xFF999999),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 20.dp),
-                        textAlign = TextAlign.Center
+                        color = Color.Black
                     )
-                } else {
-                    LazyColumn(
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
-                        modifier = Modifier.heightIn(max = 300.dp)
-                    ) {
-                        items(filteredDisciples, key = { it.id }) { disciple ->
-                            val isSelected = selectedDiscipleIds.contains(disciple.id)
+                    Text(
+                        text = "要求：${mission.difficulty.allowedPositions.joinToString("/")}，${com.xianxia.sect.core.GameConfig.Realm.getName(mission.difficulty.minRealm)}及以上，空闲状态",
+                        fontSize = 11.sp,
+                        color = Color.Black
+                    )
 
-                            SelectionDiscipleCard(
-                                disciple = disciple,
-                                isSelected = isSelected,
-                                onClick = {
-                                    if (isSelected) {
-                                        selectedDiscipleIds.remove(disciple.id)
-                                    } else if (selectedDiscipleIds.size < mission.memberCount) {
-                                        selectedDiscipleIds.add(disciple.id)
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 4.dp),
+                        color = GameColors.Border,
+                        thickness = 1.dp
+                    )
+
+                    SpiritRootAttributeFilterBar(
+                        selectedSpiritRootFilter = selectedSpiritRootFilter,
+                        selectedAttributeSort = selectedAttributeSort,
+                        spiritRootExpanded = spiritRootExpanded,
+                        attributeExpanded = attributeExpanded,
+                        spiritRootCounts = spiritRootCounts,
+                        onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
+                        onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
+                        onAttributeSortSelected = { selectedAttributeSort = it },
+                        onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
+                        onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
+                        isCompact = true
+                    )
+
+                    if (filteredDisciples.isEmpty()) {
+                        Text(
+                            text = "没有符合条件的弟子",
+                            fontSize = 11.sp,
+                            color = Color.Black,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 20.dp),
+                            textAlign = TextAlign.Center
+                        )
+                    } else {
+                        LazyColumn(
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.heightIn(max = 300.dp)
+                        ) {
+                            items(filteredDisciples, key = { it.id }) { disciple ->
+                                val isSelected = selectedDiscipleIds.contains(disciple.id)
+
+                                SelectionDiscipleCard(
+                                    disciple = disciple,
+                                    isSelected = isSelected,
+                                    onClick = {
+                                        if (isSelected) {
+                                            selectedDiscipleIds.remove(disciple.id)
+                                        } else if (selectedDiscipleIds.size < mission.memberCount) {
+                                            selectedDiscipleIds.add(disciple.id)
+                                        }
                                     }
-                                }
-                            )
+                                )
+                            }
                         }
                     }
                 }
-            }
-        },
-        confirmButton = {
-            GameButton(
-                text = "确认派遣",
-                enabled = selectedDiscipleIds.size == mission.memberCount,
-                onClick = {
-                    val selectedDisciples = eligibleDisciples.filter { it.id in selectedDiscipleIds }
-                    onConfirm(selectedDisciples)
+                Spacer(modifier = Modifier.height(16.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    GameButton(
+                        text = "取消",
+                        onClick = onDismiss,
+                        modifier = Modifier.width(ButtonSizes.StandardWidth)
+                    )
+                    GameButton(
+                        text = "确认派遣",
+                        enabled = selectedDiscipleIds.size == mission.memberCount,
+                        onClick = {
+                            val selectedDisciples = eligibleDisciples.filter { it.id in selectedDiscipleIds }
+                            onConfirm(selectedDisciples)
+                        },
+                        modifier = Modifier.width(ButtonSizes.StandardWidth)
+                    )
                 }
-            )
-        },
-        dismissButton = {
-            GameButton(
-                text = "取消",
-                onClick = onDismiss
-            )
+            }
         }
-    )
+    }
 }
 
 @Composable
@@ -673,7 +698,7 @@ private fun SelectionDiscipleCard(
     val spiritRootColor = try {
         Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))
     } catch (e: Exception) {
-        Color(0xFF666666)
+        Color.Black
     }
 
     Box(
@@ -720,7 +745,7 @@ private fun SelectionDiscipleCard(
                     Text(
                         text = if (disciple.discipleType == "outer") "外门弟子" else "内门弟子",
                         fontSize = 11.sp,
-                        color = Color(0xFF666666)
+                        color = Color.Black
                     )
                 }
                 if (isSelected) {
@@ -811,29 +836,37 @@ private fun CommonDialog(
     onDismiss: () -> Unit,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
-        title = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = title,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-                CloseButton(onClick = onDismiss)
+    Dialog(onDismissRequest = onDismiss) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.bg_screen),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.FillBounds
+            )
+            Column(modifier = Modifier.padding(20.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = title,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+                    CloseButton(onClick = onDismiss)
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Column {
+                    content()
+                }
             }
-        },
-        text = {
-            Column {
-                content()
-            }
-        },
-        confirmButton = {}
-    )
+        }
+    }
 }

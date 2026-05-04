@@ -199,28 +199,30 @@ fun MainGameScreen(
     var placingWorldX by remember { mutableFloatStateOf(0f) }
     var placingWorldY by remember { mutableFloatStateOf(0f) }
     var buildingBarExpanded by remember { mutableStateOf(false) }
-    var isMessageBarCollapsed by remember { mutableStateOf(false) }
     val gridSizePx = mapPreloadData.gridSizePx
 
-    // 建筑尺寸映射（默认 2×2 格）
+    // 建筑尺寸映射 — 从配置读取，在宗门地图中所占的格数 (宽 × 高)
     val buildingSizes = remember {
         mapOf(
-            "灵矿场" to GridSnapHelper.BuildingSize(2, 2),
-            "灵药宛" to GridSnapHelper.BuildingSize(2, 2),
-            "丹鼎殿" to GridSnapHelper.BuildingSize(2, 2),
-            "天工峰" to GridSnapHelper.BuildingSize(2, 2),
-            "藏经阁" to GridSnapHelper.BuildingSize(2, 2),
-            "问道峰" to GridSnapHelper.BuildingSize(2, 2),
-            "青云峰" to GridSnapHelper.BuildingSize(2, 2),
-            "天枢殿" to GridSnapHelper.BuildingSize(2, 2),
-            "执法堂" to GridSnapHelper.BuildingSize(2, 2),
-            "任务阁" to GridSnapHelper.BuildingSize(2, 2),
-            "思过崖" to GridSnapHelper.BuildingSize(2, 2)
-        )
+            "灵矿场" to { viewModel.getBuildingGridSize("灵矿场") },
+            "灵植阁" to { viewModel.getBuildingGridSize("灵植阁") },
+            "炼丹炉" to { viewModel.getBuildingGridSize("炼丹炉") },
+            "锻造坊" to { viewModel.getBuildingGridSize("锻造坊") },
+            "任务阁" to { viewModel.getBuildingGridSize("任务阁") },
+            "监牢" to { viewModel.getBuildingGridSize("监牢") },
+            "天枢殿" to { viewModel.getBuildingGridSize("天枢殿") },
+            "执法堂" to { viewModel.getBuildingGridSize("执法堂") },
+            "藏经阁" to { viewModel.getBuildingGridSize("藏经阁") },
+            "青云塔" to { viewModel.getBuildingGridSize("青云塔") },
+            "问道塔" to { viewModel.getBuildingGridSize("问道塔") }
+        ).mapValues { (_, getSize) ->
+            val (w, h) = getSize()
+            GridSnapHelper.BuildingSize(w, h)
+        }
     }
 
     // 当前放置建筑的尺寸
-    var placingBuildingSize by remember { mutableStateOf(GridSnapHelper.BuildingSize(2, 2)) }
+    var placingBuildingSize by remember { mutableStateOf(GridSnapHelper.BuildingSize(2, 3)) }
 
     // 吸附后的网格坐标（拖拽中实时更新）
     var placingSnappedGridX by remember { mutableIntStateOf(0) }
@@ -269,16 +271,16 @@ fun MainGameScreen(
     val buildingList = remember {
         listOf(
             "灵矿场" to { viewModel.openSpiritMineDialog() },
-            "灵药宛" to { viewModel.openHerbGardenDialog() },
-            "丹鼎殿" to { viewModel.openAlchemyDialog() },
-            "天工峰" to { viewModel.openForgeDialog() },
+            "灵植阁" to { viewModel.openHerbGardenDialog() },
+            "炼丹炉" to { viewModel.openAlchemyDialog() },
+            "锻造坊" to { viewModel.openForgeDialog() },
             "藏经阁" to { viewModel.openLibraryDialog() },
-            "问道峰" to { viewModel.openWenDaoPeakDialog() },
-            "青云峰" to { viewModel.openQingyunPeakDialog() },
+            "问道塔" to { viewModel.openWenDaoPeakDialog() },
+            "青云塔" to { viewModel.openQingyunPeakDialog() },
             "天枢殿" to { viewModel.openTianshuHallDialog() },
             "执法堂" to { viewModel.openLawEnforcementHallDialog() },
             "任务阁" to { viewModel.openMissionHallDialog() },
-            "思过崖" to { viewModel.openReflectionCliffDialog() }
+            "监牢" to { viewModel.openReflectionCliffDialog() }
         )
     }
 
@@ -425,20 +427,51 @@ fun MainGameScreen(
                             .align(Alignment.TopStart)
                             .padding(start = 12.dp, top = 12.dp)
                     )
-                    Column(
+                    // 消息栏上方按钮行：左3 右3+设置(在日志上方)
+                    Row(
                         modifier = Modifier
-                            .align(Alignment.TopStart)
-                            .padding(start = 12.dp, top = 68.dp)
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 110.dp, start = 8.dp, end = 8.dp)
+                            .fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.Bottom
                     ) {
                         FloatingActionRow(
                             viewModel = viewModel,
                             buttons = listOf("世界", "招募", "商人")
                         )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        FloatingActionRow(
-                            viewModel = viewModel,
-                            buttons = listOf("外交", "秘境", "日志")
-                        )
+                        Column(
+                            horizontalAlignment = Alignment.End
+                        ) {
+                            val settingsSize = ButtonSizes.StandardHeight + 6.dp
+                            Box(
+                                modifier = Modifier
+                                    .size(settingsSize)
+                                    .clip(CircleShape)
+                                    .clickable { selectedTab = MainTab.SETTINGS },
+                                contentAlignment = Alignment.BottomCenter
+                            ) {
+                                Image(
+                                    painter = painterResource(id = R.drawable.ui_settings_button),
+                                    contentDescription = "设置",
+                                    modifier = Modifier.matchParentSize(),
+                                    contentScale = ContentScale.FillBounds
+                                )
+                                Text(
+                                    text = "设置",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.Black,
+                                    modifier = Modifier
+                                        .padding(horizontal = 3.dp, vertical = 1.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            FloatingActionRow(
+                                viewModel = viewModel,
+                                buttons = listOf("外交", "秘境", "日志")
+                            )
+                        }
                     }
                 }
                 MainTab.BUILDINGS -> { /* 建造栏通过底部开关控制 */ }
@@ -452,7 +485,7 @@ fun MainGameScreen(
                     viewModel = viewModel
                 )
                 MainTab.WAREHOUSE -> WarehouseTab(viewModel = viewModel)
-                MainTab.SETTINGS -> SettingsTab(viewModel = viewModel, saveLoadViewModel = saveLoadViewModel, onLogout = onLogout, limitAdTracking = limitAdTracking, onLimitAdTrackingChanged = onLimitAdTrackingChanged)
+                MainTab.SETTINGS -> { /* 通过半屏弹窗渲染 */ }
             }
 
         }
@@ -468,7 +501,7 @@ fun MainGameScreen(
                 buildingCosts = buildingCosts,
                 spiritStones = gameData.spiritStones,
                 onSelectBuilding = { name ->
-                    val size = buildingSizes[name] ?: GridSnapHelper.BuildingSize(2, 2)
+                    val size = buildingSizes[name] ?: GridSnapHelper.BuildingSize(2, 3)
                     isPlacingBuilding = true
                     placingBuildingName = name
                     placingBuildingSize = size
@@ -489,35 +522,13 @@ fun MainGameScreen(
 
         // 宗门消息栏 — 仅在总览Tab、无弹窗、建造栏未展开时显示
         if (!buildingBarExpanded && selectedTab == MainTab.OVERVIEW && currentDialog == null) {
-            if (isMessageBarCollapsed) {
-                // 收起状态：菜单栏外部上方显示展开按钮
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 48.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(28.dp)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.7f))
-                            .clickable { isMessageBarCollapsed = false },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text("▲", fontSize = 12.sp, color = Color(0xFF666666))
-                    }
-                }
-            } else {
-                EventMessageStrip(
-                    events = events,
-                    gameData = gameData,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 48.dp),
-                    onCollapse = { isMessageBarCollapsed = true }
-                )
-            }
+            EventMessageStrip(
+                events = events,
+                gameData = gameData,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 48.dp)
+            )
         }
 
         // 已建建筑点击层 — 建造模式或总览时显示
@@ -603,6 +614,33 @@ fun MainGameScreen(
             },
             modifier = Modifier.align(Alignment.BottomCenter)
         )
+
+        // 设置半屏弹窗
+        if (selectedTab == MainTab.SETTINGS) {
+            Dialog(onDismissRequest = { selectedTab = MainTab.OVERVIEW }) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth().fillMaxHeight(0.5f),
+                    shape = RoundedCornerShape(16.dp),
+                    color = GameColors.PageBackground
+                ) {
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        Image(
+                            painter = painterResource(id = R.drawable.bg_screen),
+                            contentDescription = null,
+                            modifier = Modifier.matchParentSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                        SettingsTab(
+                            viewModel = viewModel,
+                            saveLoadViewModel = saveLoadViewModel,
+                            onLogout = onLogout,
+                            limitAdTracking = limitAdTracking,
+                            onLimitAdTrackingChanged = onLimitAdTrackingChanged
+                        )
+                    }
+                }
+            }
+        }
 
         if (showRecruitDialog) {
             val recruitList by viewModel.recruitListAggregates.collectAsState()
@@ -1015,7 +1053,16 @@ private fun FloatingActionRow(
                 "日志" -> { { viewModel.openBattleLogDialog() } }
                 else -> { {} }
             }
-            FloatingActionButton(text = text, onClick = onClick)
+            val drawableRes = when (text) {
+                "世界" -> R.drawable.ui_map_button
+                "招募" -> R.drawable.ui_recruit_button
+                "商人" -> R.drawable.ui_merchant_button
+                "外交" -> R.drawable.ui_diplomacy_button
+                "秘境" -> R.drawable.ui_secret_realm_button
+                "日志" -> R.drawable.ui_log_button
+                else -> R.drawable.ui_button
+            }
+            FloatingActionButton(text = text, onClick = onClick, drawableRes = drawableRes)
         }
     }
 }
@@ -1069,16 +1116,13 @@ private fun SectGroundCanvas(
     buildingBarExpanded: Boolean = false,
     previewGridX: Int = 0,
     previewGridY: Int = 0,
-    previewSize: GridSnapHelper.BuildingSize = GridSnapHelper.BuildingSize(2, 2),
+    previewSize: GridSnapHelper.BuildingSize = GridSnapHelper.BuildingSize(2, 3),
     previewValid: GridSnapHelper.PlacementValidity = GridSnapHelper.PlacementValidity.Valid,
     modifier: Modifier = Modifier
 ) {
     var lx by remember { mutableFloatStateOf(cameraX) }
     var ly by remember { mutableFloatStateOf(cameraY) }
     lx = cameraX; ly = cameraY
-
-    // 方案一+三：整数像素坐标 + 1px重叠 → 消灭瓦片接缝
-    val overlap = 1
 
     Canvas(
         modifier = modifier
@@ -1108,31 +1152,6 @@ private fun SectGroundCanvas(
             dstOffset = IntOffset(-cameraXi, -cameraYi),
             dstSize = IntSize(fullMapBmp.width, fullMapBmp.height))
 
-        // 瓦片逐格绘制（视口裁剪）
-        val startCol = (cameraXi / tileSizePxInt).coerceIn(0, worldWidthCells - 1)
-        val startRow = (cameraYi / tileSizePxInt).coerceIn(0, worldHeightCells - 1)
-        val endCol = ((cameraXi + sw.toInt()) / tileSizePxInt + 1).coerceAtMost(worldWidthCells)
-        val endRow = ((cameraYi + sh.toInt()) / tileSizePxInt + 1).coerceAtMost(worldHeightCells)
-
-        val buildingFill = Color(0xFFC8BFA0)
-
-        // 第一遍：建筑底
-        for (row in startRow until endRow) {
-            for (col in startCol until endCol) {
-                val tileType = tileData[row][col]
-                if (tileType == TILE_BUILDING) {
-                    val dstX = col * tileSizePxInt - cameraXi - overlap
-                    val dstY = row * tileSizePxInt - cameraYi - overlap
-                    val dstSize = tileSizePxInt + overlap * 2
-                    drawRect(
-                        buildingFill,
-                        Offset(dstX.toFloat(), dstY.toFloat()),
-                        Size(dstSize.toFloat(), dstSize.toFloat())
-                    )
-                }
-            }
-        }
-
         // 网格线
         if (isPlacing || buildingBarExpanded) {
             val gridColor = Color(0xFFE4DDD0)
@@ -1148,16 +1167,6 @@ private fun SectGroundCanvas(
                 drawLine(gridColor, Offset(0f, gy), Offset(sw, gy), strokeWidth = 1f)
                 gy += tileSizePxInt
             }
-        }
-
-        // 建筑边框
-        val buildingBorder = Color(0xFF9B8B70)
-        placedBuildings.forEach { b ->
-            val bx = GridSnapHelper.gridToScreen(b.gridX, gridSizePx, lx, cameraScale)
-            val by = GridSnapHelper.gridToScreen(b.gridY, gridSizePx, ly, cameraScale)
-            val bw = gridSizePx * b.width * cameraScale
-            val bh = gridSizePx * b.height * cameraScale
-            drawRect(buildingBorder, Offset(bx, by), Size(bw, bh), style = Stroke(2f))
         }
 
         // 放置预览
@@ -1184,33 +1193,51 @@ private fun SectGroundCanvas(
 @Composable
 private fun FloatingActionButton(
     text: String,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    drawableRes: Int = R.drawable.ui_button
 ) {
+    val size = ButtonSizes.StandardHeight + 6.dp
     Box(
         modifier = Modifier
-            .height(ButtonSizes.Large)
-            .clip(RoundedCornerShape(4.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp),
-        contentAlignment = Alignment.Center
+            .size(size)
+            .clip(CircleShape)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.BottomCenter
     ) {
         Image(
-            painter = painterResource(id = R.drawable.ui_button),
+            painter = painterResource(id = drawableRes),
             contentDescription = null,
             modifier = Modifier.matchParentSize(),
             contentScale = ContentScale.FillBounds
         )
         Text(
             text = text,
-            fontSize = 12.sp,
+            fontSize = 9.sp,
             fontWeight = FontWeight.Bold,
-            color = Color.Black
+            color = Color.Black,
+            modifier = Modifier
+                .padding(horizontal = 3.dp, vertical = 1.dp)
         )
     }
 }
 
 // 建筑放置数据类（文件级，供所有 private composable 使用）
 // GridBuildingData replaced by GridBuildingData from core.model (persisted via GameData)
+
+private fun getBuildingDrawable(displayName: String): Int = when (displayName) {
+    "任务阁" -> R.drawable.building_mission_hall
+    "天枢殿" -> R.drawable.building_tianshu_hall
+    "执法堂" -> R.drawable.building_law_enforcement
+    "灵植阁" -> R.drawable.building_herb_garden
+    "灵矿场" -> R.drawable.building_spirit_mine
+    "炼丹炉" -> R.drawable.building_alchemy
+    "监牢" -> R.drawable.building_reflection_cliff
+    "藏经阁" -> R.drawable.building_library
+    "锻造坊" -> R.drawable.building_forge
+    "问道塔" -> R.drawable.building_wen_dao_peak
+    "青云塔" -> R.drawable.building_qingyun_peak
+    else -> R.drawable.building_alchemy
+}
 
 @Composable
 private fun BuildingConstructionBar(
@@ -1224,7 +1251,7 @@ private fun BuildingConstructionBar(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(max = 140.dp)
+            .heightIn(max = 190.dp)
             .verticalScroll(rememberScrollState())
             .clip(RoundedCornerShape(6.dp))
             .background(Color.White.copy(alpha = 0.7f))
@@ -1240,38 +1267,37 @@ private fun BuildingConstructionBar(
                     val built = placedBuildings.any { it.displayName == name }
                     val cost = buildingCosts[name] ?: 1000L
                     val canAfford = spiritStones >= cost
-                    val bgColor = when {
-                        built -> Color(0xFFCCCCCC)
-                        !canAfford -> Color(0xFFCCCCCC)
-                        else -> Color(0xFFE8F5E9)
-                    }
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(88.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .border(1.dp, GameColors.ButtonBorder, RoundedCornerShape(6.dp))
+                            .clickable(enabled = !built && canAfford) { onSelectBuilding(name) }
                     ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(40.dp)
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(bgColor)
-                                .border(1.dp, GameColors.ButtonBorder, RoundedCornerShape(6.dp))
-                                .clickable(enabled = !built && canAfford) { onSelectBuilding(name) }
-                                .padding(2.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Text(text = name, fontSize = 10.sp, color = Color.Black, maxLines = 1)
-                            Text(
-                                text = "$cost",
-                                fontSize = 9.sp,
-                                color = if (canAfford || built) Color(0xFF666666) else Color(0xFFD32F2F)
-                            )
-                        }
+                        Image(
+                            painter = painterResource(id = getBuildingDrawable(name)),
+                            contentDescription = name,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Fit,
+                            alpha = if (built || !canAfford) 0.4f else 1f
+                        )
                         Text(
-                            text = "${if (built) 1 else 0}/1",
+                            text = name,
+                            fontSize = 9.sp,
+                            color = Color.Black,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier
+                                .align(Alignment.TopCenter)
+                                .padding(horizontal = 3.dp, vertical = 1.dp)
+                        )
+                        Text(
+                            text = "${cost}灵石",
                             fontSize = 8.sp,
-                            color = if (built) Color(0xFF999999) else Color(0xFF4CAF50)
+                            color = Color.Black,
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(horizontal = 3.dp, vertical = 1.dp)
                         )
                     }
                 }
@@ -1306,20 +1332,14 @@ private fun BuildingClickLayer(
             modifier = Modifier
                 .offset(x = screenXDp.dp, y = screenYDp.dp)
                 .size(width = bWidthDp.dp, height = bHeightDp.dp)
-                .clip(RoundedCornerShape(4.dp))
-                .background(Color(0xCCC8BFA0))
-                .border(1.5.dp, Color(0xFF9B8B70), RoundedCornerShape(4.dp))
                 .clickable(enabled = enabled) { onBuildingClick(building) },
-            contentAlignment = Alignment.Center
+            contentAlignment = Alignment.BottomCenter
         ) {
-            Text(
-                text = building.displayName,
-                fontSize = 10.sp,
-                color = Color(0xFF4A3520),
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
+            Image(
+                painter = painterResource(id = getBuildingDrawable(building.displayName)),
+                contentDescription = building.displayName,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Fit
             )
         }
     }
@@ -1347,11 +1367,6 @@ private fun PlacingBuildingOverlay(
     val widthDp = (buildingSize.width * gridSizePx * cameraScale) / density
     val heightDp = (buildingSize.height * gridSizePx * cameraScale) / density
 
-    val overlayBgColor = when (validity) {
-        is GridSnapHelper.PlacementValidity.Valid -> Color(0xCC4CAF50)
-        is GridSnapHelper.PlacementValidity.OutOfBounds -> Color(0xCCF44336)
-        is GridSnapHelper.PlacementValidity.Overlap -> Color(0xCCFF5722)
-    }
     val overlayBorderColor = when (validity) {
         is GridSnapHelper.PlacementValidity.Valid -> Color(0xFF388E3C)
         is GridSnapHelper.PlacementValidity.OutOfBounds -> Color(0xFFD32F2F)
@@ -1372,10 +1387,13 @@ private fun PlacingBuildingOverlay(
                     onDragEnd = { onDragEnd() }
                 )
             }
-            .clip(RoundedCornerShape(4.dp))
-            .background(overlayBgColor)
-            .border(2.dp, overlayBorderColor, RoundedCornerShape(4.dp))
     ) {
+        Image(
+            painter = painterResource(id = getBuildingDrawable(buildingName)),
+            contentDescription = buildingName,
+            modifier = Modifier.fillMaxSize().alpha(0.6f),
+            contentScale = ContentScale.Fit
+        )
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1386,10 +1404,10 @@ private fun PlacingBuildingOverlay(
                 modifier = Modifier
                     .size(22.dp)
                     .clip(CircleShape)
-                    .background(if (canConfirm) Color(0xFF4CAF50) else Color(0xFF999999))
+                    .background(if (canConfirm) Color(0xFF4CAF50) else Color.Black)
                     .clickable(enabled = canConfirm) { onConfirm() },
                 contentAlignment = Alignment.Center
-            ) { Text("✓", fontSize = 13.sp, color = Color.White, fontWeight = FontWeight.Bold) }
+            ) { Text("✓", fontSize = 13.sp, color = Color.Black, fontWeight = FontWeight.Bold) }
             Box(
                 modifier = Modifier
                     .size(22.dp)
@@ -1397,7 +1415,7 @@ private fun PlacingBuildingOverlay(
                     .background(Color(0xFFF44336))
                     .clickable { onCancel() },
                 contentAlignment = Alignment.Center
-            ) { Text("✗", fontSize = 13.sp, color = Color.White, fontWeight = FontWeight.Bold) }
+            ) { Text("✗", fontSize = 13.sp, color = Color.Black, fontWeight = FontWeight.Bold) }
         }
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text(
@@ -1415,15 +1433,14 @@ private fun PlacingBuildingOverlay(
 private fun EventMessageStrip(
     events: List<GameEvent>,
     gameData: GameData?,
-    modifier: Modifier = Modifier,
-    onCollapse: (() -> Unit)? = null
+    modifier: Modifier = Modifier
 ) {
     val currentTotalMonths = (gameData?.gameYear ?: 1) * 12 + (gameData?.gameMonth ?: 1)
     val recentEvents = remember(events, currentTotalMonths) {
         events.filter { currentTotalMonths - (it.year * 12 + it.month) <= 12 }
     }
-    Box(modifier = modifier.fillMaxWidth().heightIn(max = 104.dp).padding(horizontal = 12.dp)) {
-        Box(modifier = Modifier.fillMaxWidth().padding(top = 10.dp).clip(RoundedCornerShape(6.dp))) {
+    Box(modifier = modifier.fillMaxWidth().height(110.dp).padding(horizontal = 12.dp)) {
+        Box(modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(6.dp))) {
             Image(
                 painter = painterResource(id = R.drawable.bg_navbar),
                 contentDescription = null,
@@ -1453,19 +1470,6 @@ private fun EventMessageStrip(
                 }
             }
         }
-        }
-        if (onCollapse != null) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .size(20.dp)
-                    .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.7f))
-                    .clickable { onCollapse() },
-                contentAlignment = Alignment.Center
-            ) {
-                Text("▼", fontSize = 9.sp, color = Color(0xFF666666))
-            }
         }
     }
 }
@@ -1535,8 +1539,7 @@ private fun BottomNavigationBar(
     val tabs = listOf(
         Triple("弟子", MainTab.DISCIPLES, selectedTab == MainTab.DISCIPLES),
         Triple("建造", MainTab.BUILDINGS, buildingBarExpanded),
-        Triple("仓库", MainTab.WAREHOUSE, selectedTab == MainTab.WAREHOUSE),
-        Triple("设置", MainTab.SETTINGS, selectedTab == MainTab.SETTINGS)
+        Triple("仓库", MainTab.WAREHOUSE, selectedTab == MainTab.WAREHOUSE)
     )
     Box(modifier = modifier.fillMaxWidth().height(48.dp)) {
         Image(
@@ -1568,7 +1571,7 @@ private fun BottomNavigationBar(
                         text = label,
                         fontSize = 11.sp,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                        color = if (isSelected) Color.Black else Color(0xFF666666)
+                        color = if (isSelected) Color.Black else Color.Black
                     )
                 }
             }

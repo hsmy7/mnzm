@@ -25,7 +25,7 @@ fun WenDaoPeakDialog(
     val outerDisciples = disciples.filter { it.isAlive && it.discipleType == "outer" }
 
     PeakDialog(
-        title = "问道峰",
+        title = "问道塔",
         subtitle = "管理外门弟子与传道修行",
         onDismiss = onDismiss
     ) {
@@ -38,7 +38,7 @@ fun WenDaoPeakDialog(
                 onRemove = { productionViewModel.removeElder(ElderSlotType.OUTER_ELDER) }
             ),
             slot2 = PeakElderSlotConfig(
-                title = "问道峰传道长老",
+                title = "问道塔传道长老",
                 elder = preachingElder,
                 bonusInfo = ElderBonusInfoProvider.getWenDaoPreachingElderInfo(),
                 onClick = { showPreachingElderSelection = true },
@@ -49,9 +49,9 @@ fun WenDaoPeakDialog(
         Spacer(modifier = Modifier.height(16.dp))
 
         PeakPreachingMasterSection(
-            sectionTitle = "问道峰传道师",
+            sectionTitle = "问道塔传道师",
             masterConfig = PeakPreachingMasterConfig(
-                label = "问道峰传道师",
+                label = "问道塔传道师",
                 bonusInfo = ElderBonusInfoProvider.getPreachingMasterInfo()
             ),
             preachingMasters = preachingMasters,
@@ -84,7 +84,7 @@ fun WenDaoPeakDialog(
 
     if (showPreachingElderSelection) {
         PeakDiscipleSelectionDialog(
-            title = "选择问道峰传道长老",
+            title = "选择问道塔传道长老",
             disciples = productionViewModel.getAvailableDisciplesForPreachingElder(),
             currentDiscipleId = preachingElder?.id,
             requirementText = "需要: 内门弟子 · 空闲中",
@@ -99,7 +99,7 @@ fun WenDaoPeakDialog(
     showPreachingMasterSelection?.let { slotIndex ->
         val currentMaster = preachingMasters.find { it.index == slotIndex }
         PeakDiscipleSelectionDialog(
-            title = "选择问道峰传道师",
+            title = "选择问道塔传道师",
             disciples = productionViewModel.getAvailableDisciplesForPreachingMaster(),
             currentDiscipleId = currentMaster?.discipleId,
             requirementText = "需要: 内门弟子 · 空闲中",

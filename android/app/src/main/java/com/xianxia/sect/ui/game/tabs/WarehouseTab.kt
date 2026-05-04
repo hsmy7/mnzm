@@ -642,7 +642,7 @@ internal fun DiscipleSelectForRewardDialog(
                         Text(
                             text = "物品: $itemName (剩余: $currentQuantity)",
                             fontSize = 12.sp,
-                            color = Color(0xFF666666)
+                            color = Color.Black
                         )
                     }
                     GameButton(
@@ -787,7 +787,7 @@ internal fun SellConfirmDialog(
                     text = itemName,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF333333)
+                    color = Color.Black
                 )
 
                 Row(
@@ -798,12 +798,12 @@ internal fun SellConfirmDialog(
                     Text(
                         text = "售卖数量",
                         fontSize = 12.sp,
-                        color = Color(0xFF666666)
+                        color = Color.Black
                     )
                     Text(
                         text = "最大: $maxQuantity",
                         fontSize = 11.sp,
-                        color = Color(0xFF999999)
+                        color = Color.Black
                     )
                 }
 
@@ -940,12 +940,12 @@ internal fun SellConfirmDialog(
                     Text(
                         text = "单价",
                         fontSize = 12.sp,
-                        color = Color(0xFF666666)
+                        color = Color.Black
                     )
                     Text(
                         text = "${GameConfig.Rarity.calculateSellPrice(basePrice, 1)} 灵石",
                         fontSize = 12.sp,
-                        color = Color(0xFF666666)
+                        color = Color.Black
                     )
                 }
 
@@ -1114,7 +1114,7 @@ internal fun BulkSellDialog(
                     Text(
                         text = "选择品阶（可多选）：",
                         fontSize = 12.sp,
-                        color = Color(0xFF666666)
+                        color = Color.Black
                     )
                     // 分4列显示
                     rarityOptions.chunked(4).forEach { rowOptions ->
@@ -1162,7 +1162,7 @@ internal fun BulkSellDialog(
                     Text(
                         text = "选择物品类型（可多选）：",
                         fontSize = 12.sp,
-                        color = Color(0xFF666666)
+                        color = Color.Black
                     )
                     // 分4列显示
                     typeOptions.chunked(4).forEach { rowOptions ->
@@ -1223,7 +1223,7 @@ internal fun BulkSellDialog(
                                 Text(
                                     text = "装备 (${sellableEquipment.size}件)",
                                     fontSize = 11.sp,
-                                    color = Color(0xFF666666),
+                                    color = Color.Black,
                                     modifier = Modifier.padding(top = 4.dp)
                                 )
                             }
@@ -1252,7 +1252,7 @@ internal fun BulkSellDialog(
                                 Text(
                                     text = "功法 (${sellableManuals.size}件)",
                                     fontSize = 11.sp,
-                                    color = Color(0xFF666666),
+                                    color = Color.Black,
                                     modifier = Modifier.padding(top = 4.dp)
                                 )
                             }
@@ -1281,7 +1281,7 @@ internal fun BulkSellDialog(
                                 Text(
                                     text = "丹药 (${sellablePills.size}件)",
                                     fontSize = 11.sp,
-                                    color = Color(0xFF666666),
+                                    color = Color.Black,
                                     modifier = Modifier.padding(top = 4.dp)
                                 )
                             }
@@ -1309,7 +1309,7 @@ internal fun BulkSellDialog(
                                 Text(
                                     text = "材料 (${sellableMaterials.size}件)",
                                     fontSize = 11.sp,
-                                    color = Color(0xFF666666),
+                                    color = Color.Black,
                                     modifier = Modifier.padding(top = 4.dp)
                                 )
                             }
@@ -1337,7 +1337,7 @@ internal fun BulkSellDialog(
                                 Text(
                                     text = "草药 (${sellableHerbs.size}件)",
                                     fontSize = 11.sp,
-                                    color = Color(0xFF666666),
+                                    color = Color.Black,
                                     modifier = Modifier.padding(top = 4.dp)
                                 )
                             }
@@ -1365,7 +1365,7 @@ internal fun BulkSellDialog(
                                 Text(
                                     text = "种子 (${sellableSeeds.size}件)",
                                     fontSize = 11.sp,
-                                    color = Color(0xFF666666),
+                                    color = Color.Black,
                                     modifier = Modifier.padding(top = 4.dp)
                                 )
                             }
@@ -1397,7 +1397,7 @@ internal fun BulkSellDialog(
                         Text(
                             text = "没有符合条件的物品",
                             fontSize = 12.sp,
-                            color = Color(0xFF999999)
+                            color = Color.Black
                         )
                     }
                 }
@@ -1475,7 +1475,7 @@ internal fun BulkSellDialog(
                     Text(
                         text = "物品数量: ${totalItems} 件",
                         fontSize = 12.sp,
-                        color = Color(0xFF666666)
+                        color = Color.Black
                     )
                     Text(
                         text = "获得灵石: $totalValue（原价80%）",
@@ -1596,7 +1596,7 @@ internal fun WarehousePagination(
         Text(
             text = "第 $currentPage/$totalPages 页",
             fontSize = 12.sp,
-            color = Color(0xFF333333),
+            color = Color.Black,
             fontWeight = FontWeight.Medium
         )
         
@@ -1649,7 +1649,7 @@ internal fun EmptyWarehouseMessage() {
         Text(
             text = "暂无物品",
             fontSize = 12.sp,
-            color = Color(0xFF999999)
+            color = Color.Black
         )
     }
 }

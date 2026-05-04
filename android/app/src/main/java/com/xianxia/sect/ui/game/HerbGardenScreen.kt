@@ -9,10 +9,15 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items as gridItems
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.window.Dialog
+import com.xianxia.sect.R
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -34,6 +39,7 @@ import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.theme.GameColors
+import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.game.HerbGardenViewModel
 import com.xianxia.sect.ui.game.ProductionViewModel
 import com.xianxia.sect.core.util.isFollowed
@@ -66,7 +72,7 @@ fun HerbGardenDialog(
     val hasDirectDisciples = herbGardenDisciples.any { it.isActive }
 
     CommonDialog(
-        title = "灵药宛",
+        title = "灵植阁",
         onDismiss = onDismiss
     ) {
         Column(
@@ -106,13 +112,13 @@ fun HerbGardenDialog(
                     text = "种植槽",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF666666)
+                    color = Color.Black
                 )
                 val autoPlantEnabled by herbGardenViewModel.autoPlantEnabled.collectAsState()
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(4.dp))
-                        .background(if (autoPlantEnabled) Color(0xFFFFD700) else Color(0xFF999999))
+                        .background(if (autoPlantEnabled) Color(0xFFFFD700) else Color.Black)
                         .clickable { herbGardenViewModel.toggleAutoPlant() }
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
@@ -205,19 +211,26 @@ private fun ElderRemoveConfirmDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
-        title = {
-            Text(
-                text = "确认卸任",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black
+    Dialog(onDismissRequest = onDismiss) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.bg_screen),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.FillBounds
             )
-        },
-        text = {
-            Column {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text(
+                    text = "确认卸任",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+                Spacer(modifier = Modifier.height(12.dp))
                 Text(
                     text = "确定要让 $elderName 卸任灵植长老吗？",
                     fontSize = 12.sp,
@@ -232,21 +245,22 @@ private fun ElderRemoveConfirmDialog(
                         fontWeight = FontWeight.Bold
                     )
                 }
+                Spacer(modifier = Modifier.height(16.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    GameButton(
+                        text = "取消",
+                        onClick = onDismiss,
+                        modifier = Modifier.width(ButtonSizes.StandardWidth)
+                    )
+                    GameButton(
+                        text = "确认卸任",
+                        onClick = onConfirm,
+                        modifier = Modifier.width(ButtonSizes.StandardWidth)
+                    )
+                }
             }
-        },
-        confirmButton = {
-            GameButton(
-                text = "确认卸任",
-                onClick = onConfirm
-            )
-        },
-        dismissButton = {
-            GameButton(
-                text = "取消",
-                onClick = onDismiss
-            )
         }
-    )
+    }
 }
 
 @Composable
@@ -277,7 +291,7 @@ private fun HerbGardenElderSection(
                 text = "灵植长老",
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFF666666)
+                color = Color.Black
             )
             ElderBonusInfoButton(bonusInfo = ElderBonusInfoProvider.getHerbGardenElderInfo())
         }
@@ -312,7 +326,7 @@ private fun HerbGardenElderSection(
                         Text(
                             text = elder.realmName,
                             fontSize = 9.sp,
-                            color = Color(0xFF666666)
+                            color = Color.Black
                         )
                         Text(
                             text = "灵植: ${elder.spiritPlanting}",
@@ -324,7 +338,7 @@ private fun HerbGardenElderSection(
                     Text(
                         text = "点击任命",
                         fontSize = 10.sp,
-                        color = Color(0xFF999999)
+                        color = Color.Black
                     )
                 }
             }
@@ -363,7 +377,7 @@ private fun HerbGardenDirectDiscipleSection(
             text = "亲传弟子",
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
-            color = Color(0xFF666666)
+            color = Color.Black
         )
 
         Row(
@@ -431,14 +445,14 @@ private fun HerbGardenDirectDiscipleSlotItem(
                     Text(
                         text = disciple.discipleRealm,
                         fontSize = 8.sp,
-                        color = Color(0xFF666666)
+                        color = Color.Black
                     )
                 }
             } else {
                 Text(
                     text = "+",
                     fontSize = 20.sp,
-                    color = Color(0xFF999999)
+                    color = Color.Black
                 )
             }
         }
@@ -468,9 +482,9 @@ private fun PlantSlotItem(
     onClick: () -> Unit
 ) {
     val statusColor = when (slot.status) {
-        "idle", "mature" -> Color(0xFF999999)
+        "idle", "mature" -> Color.Black
         "growing" -> Color(0xFF4CAF50)
-        else -> Color(0xFF999999)
+        else -> Color.Black
     }
 
     Column(
@@ -513,7 +527,7 @@ private fun PlantSlotItem(
                         Text(
                             text = "${remainingMonths}月",
                             fontSize = 10.sp,
-                            color = Color(0xFF666666)
+                            color = Color.Black
                         )
                     }
                 }
@@ -521,7 +535,7 @@ private fun PlantSlotItem(
                     Text(
                         text = "+",
                         fontSize = 24.sp,
-                        color = Color(0xFF999999)
+                        color = Color.Black
                     )
                 }
             }
@@ -548,83 +562,91 @@ private fun SeedPlantingDialog(
         }
     }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
-        title = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "选择种子",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-                CloseButton(onClick = onDismiss)
-            }
-        },
-        text = {
-            if (seeds.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(100.dp),
-                    contentAlignment = Alignment.Center
+    Dialog(onDismissRequest = onDismiss) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.bg_screen),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.FillBounds
+            )
+            Column(modifier = Modifier.padding(20.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "暂无种子",
+                        text = "选择种子",
                         fontSize = 12.sp,
-                        color = Color(0xFF999999)
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
                     )
+                    CloseButton(onClick = onDismiss)
                 }
-            } else {
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(5),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 340.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    gridItems(seeds) { seed ->
-                        SeedSelectionCard(
-                            seed = seed,
-                            isSelected = selectedSeed?.id == seed.id,
-                            isClicked = clickedSeed?.id == seed.id,
-                            onSelect = {
-                                if (selectedSeed?.id == seed.id) {
-                                    selectedSeed = null
-                                    clickedSeed = null
-                                } else {
-                                    selectedSeed = seed
-                                    clickedSeed = seed
-                                }
-                            },
-                            onViewDetail = {
-                                clickedSeed = seed
-                                showDetail = true
-                            }
+                Spacer(modifier = Modifier.height(12.dp))
+                if (seeds.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(100.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "暂无种子",
+                            fontSize = 12.sp,
+                            color = Color.Black
                         )
                     }
-                }
-            }
-        },
-        confirmButton = {
-            GameButton(
-                text = "确认种植",
-                onClick = {
-                    selectedSeed?.let { seed ->
-                        onSelect(seed)
+                } else {
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(5),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 340.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        gridItems(seeds) { seed ->
+                            SeedSelectionCard(
+                                seed = seed,
+                                isSelected = selectedSeed?.id == seed.id,
+                                isClicked = clickedSeed?.id == seed.id,
+                                onSelect = {
+                                    if (selectedSeed?.id == seed.id) {
+                                        selectedSeed = null
+                                        clickedSeed = null
+                                    } else {
+                                        selectedSeed = seed
+                                        clickedSeed = seed
+                                    }
+                                },
+                                onViewDetail = {
+                                    clickedSeed = seed
+                                    showDetail = true
+                                }
+                            )
+                        }
                     }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = selectedSeed != null
-            )
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                GameButton(
+                    text = "确认种植",
+                    onClick = {
+                        selectedSeed?.let { seed ->
+                            onSelect(seed)
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = selectedSeed != null
+                )
+            }
         }
-    )
+    }
 }
 
 @Composable
@@ -710,39 +732,47 @@ private fun CommonDialog(
     titleActions: @Composable RowScope.() -> Unit = {},
     content: @Composable ColumnScope.() -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
-        title = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = title,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
+    Dialog(onDismissRequest = onDismiss) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.bg_screen),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.FillBounds
+            )
+            Column(modifier = Modifier.padding(20.dp)) {
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    titleActions()
-                    CloseButton(onClick = onDismiss)
+                    Text(
+                        text = title,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        titleActions()
+                        CloseButton(onClick = onDismiss)
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Column(
+                    modifier = Modifier
+                        .heightIn(max = 500.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    content()
                 }
             }
-        },
-        text = {
-            Column(
-                modifier = Modifier
-                    .heightIn(max = 500.dp)
-                    .verticalScroll(rememberScrollState())
-            ) {
-                content()
-            }
-        },
-        confirmButton = {}
-    )
+        }
+    }
 }

@@ -3,6 +3,7 @@ package com.xianxia.sect.ui.game.dialogs
 import androidx.compose.animation.*
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -26,6 +27,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -47,6 +50,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.xianxia.sect.R
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.model.DiscipleAggregate
@@ -93,13 +97,18 @@ fun SecretRealmDialog(
     var showTeamDialog by remember { mutableStateOf(false) }
 
     Dialog(onDismissRequest = onDismiss) {
-        Surface(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.85f),
-            shape = RoundedCornerShape(16.dp),
-            color = GameColors.PageBackground
+                .fillMaxHeight(0.85f)
+                .clip(RoundedCornerShape(12.dp))
         ) {
+            Image(
+                painter = painterResource(id = R.drawable.bg_screen),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.FillBounds
+            )
             Column(modifier = Modifier.fillMaxSize()) {
                 Row(
                     modifier = Modifier
@@ -121,7 +130,7 @@ fun SecretRealmDialog(
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(4.dp))
-                                .border(1.dp, Color(0xFF999999), RoundedCornerShape(4.dp))
+                                .border(1.dp, Color.Black, RoundedCornerShape(4.dp))
                                 .background(if (gameData.smartBattleEnabled) Color(0xFFFF9800) else Color(0xFFBDBDBD))
                                 .clickable { viewModel.toggleSmartBattle() }
                                 .padding(horizontal = 8.dp, vertical = 4.dp),
@@ -148,7 +157,7 @@ fun SecretRealmDialog(
                     Text(
                         text = "妖兽境界与材料品阶将根据探索队伍的平均境界动态调整",
                         fontSize = 11.sp,
-                        color = Color(0xFF666666),
+                        color = Color.Black,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -156,7 +165,7 @@ fun SecretRealmDialog(
                     Text(
                         text = "队伍境界越高，遇到的妖兽越强，获得的材料品阶越高",
                         fontSize = 10.sp,
-                        color = Color(0xFF999999),
+                        color = Color.Black,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -293,7 +302,7 @@ internal fun SecretRealmCard(
                     text = realm.name,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF333333)
+                    color = Color.Black
                 )
                 if (hasActiveTeam) {
                     Text(
@@ -308,7 +317,7 @@ internal fun SecretRealmCard(
             Text(
                 text = realm.description,
                 fontSize = 11.sp,
-                color = Color(0xFF666666),
+                color = Color.Black,
                 textAlign = TextAlign.Center,
                 maxLines = 2
             )
@@ -376,43 +385,51 @@ internal fun DispatchTeamDialog(
         selectedDisciples.clear()
     }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
-        title = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "派遣队伍 - ${realm.name}",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
+    Dialog(onDismissRequest = onDismiss) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.bg_screen),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.FillBounds
+            )
+            Column(modifier = Modifier.padding(20.dp)) {
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    GameButton(
-                        text = "一键选择",
-                        onClick = { selectTopDisciples() }
+                    Text(
+                        text = "派遣队伍 - ${realm.name}",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
                     )
-                    GameButton(
-                        text = "一键取消",
-                        onClick = { clearSelection() }
-                    )
-                    CloseButton(onClick = onDismiss)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        GameButton(
+                            text = "一键选择",
+                            onClick = { selectTopDisciples() }
+                        )
+                        GameButton(
+                            text = "一键取消",
+                            onClick = { clearSelection() }
+                        )
+                        CloseButton(onClick = onDismiss)
+                    }
                 }
-            }
-        },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 500.dp)
-            ) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 500.dp)
+                ) {
                 Text(
                     text = "选择弟子 (${selectedDisciples.size}/$maxTeamSize)",
                     fontSize = 12.sp,
@@ -480,7 +497,7 @@ internal fun DispatchTeamDialog(
                     Text(
                         text = "暂无可用弟子",
                         fontSize = 12.sp,
-                        color = Color(0xFF999999)
+                        color = Color.Black
                     )
                 } else {
                     LazyColumn(
@@ -511,37 +528,26 @@ internal fun DispatchTeamDialog(
                     }
                 }
             }
-        },
-        confirmButton = {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                GameButton(
-                    text = "取消",
-                    onClick = onDismiss
-                )
-                Button(
-                    onClick = {
-                        if (selectedDisciples.isNotEmpty()) {
-                            viewModel.dispatchTeamToDungeon(realm.id, selectedDisciples.toList())
-                            onDismiss()
-                        }
-                    },
-                    enabled = selectedDisciples.isNotEmpty(),
-                    shape = RoundedCornerShape(4.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = GameColors.ButtonBackground,
-                        contentColor = Color.Black,
-                        disabledContainerColor = Color(0xFFE0E0E0),
-                        disabledContentColor = Color(0xFF9E9E9E)
-                    ),
-                    border = BorderStroke(1.dp, if (selectedDisciples.isNotEmpty()) GameColors.ButtonBorder else Color(0xFFBDBDBD))
-                ) {
-                    Text("派遣")
+                Spacer(modifier = Modifier.height(16.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    GameButton(
+                        text = "取消",
+                        onClick = onDismiss
+                    )
+                    GameButton(
+                        text = "派遣",
+                        onClick = {
+                            if (selectedDisciples.isNotEmpty()) {
+                                viewModel.dispatchTeamToDungeon(realm.id, selectedDisciples.toList())
+                                onDismiss()
+                            }
+                        },
+                        enabled = selectedDisciples.isNotEmpty()
+                    )
                 }
             }
         }
-    )
+    }
 }
 
 @Composable
@@ -633,12 +639,12 @@ internal fun ExplorationTeamDialog(
                                     text = "队伍成员",
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF333333)
+                                    color = Color.Black
                                 )
                                 Text(
                                     text = "剩余时间: ${remainingYears}年${remainingMonthsPart}个月",
                                     fontSize = 11.sp,
-                                    color = Color(0xFF666666)
+                                    color = Color.Black
                                 )
                             }
                         }
@@ -671,7 +677,7 @@ internal fun ExplorationTeamDialog(
                                 text = "战斗日志",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFF333333),
+                                color = Color.Black,
                                 modifier = Modifier.padding(bottom = 8.dp)
                             )
                         }
@@ -687,7 +693,7 @@ internal fun ExplorationTeamDialog(
                                     Text(
                                         text = "暂无战斗记录",
                                         fontSize = 12.sp,
-                                        color = Color(0xFF999999)
+                                        color = Color.Black
                                     )
                                 }
                             }
@@ -736,7 +742,7 @@ internal fun ExplorationTeamDialog(
                         Text(
                             text = "该秘境没有正在探索的队伍",
                             fontSize = 14.sp,
-                            color = Color(0xFF999999)
+                            color = Color.Black
                         )
                     }
                 }
@@ -833,14 +839,14 @@ internal fun TeamMemberSlot(
                     text = disciple.name,
                     fontSize = 8.sp,
                     fontWeight = FontWeight.Bold,
-                    color = if (isDead) Color(0xFF999999) else Color.Black,
+                    color = if (isDead) Color.Black else Color.Black,
                     maxLines = 1
                 )
             }
             Text(
                 text = disciple.realmName,
                 fontSize = 7.sp,
-                color = if (isDead) Color(0xFFAAAAAA) else Color(0xFF666666),
+                color = if (isDead) Color(0xFFAAAAAA) else Color.Black,
                 maxLines = 1
             )
         }

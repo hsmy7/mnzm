@@ -106,6 +106,18 @@ No `NavHost` is used for the main game. `MainGameScreen` switches content via `M
 - ViewModels read from `GameStateStore.unifiedState` via `collectAsState()` or direct `.value` reads for snapshots.
 - Mutations go through `GameEngine` methods, never directly to `GameStateStore` from the UI layer.
 
+## Style Guide
+
+### Text Colors — Black Only
+
+All in-game text **must** use `Color.Black` exclusively. No gray, white, colored, or tinted text. This applies to:
+
+- All `Text()` composable `color` parameters
+- `GameColors.TextPrimary`, `TextSecondary`, `TextTertiary`, `TextOnPrimary` all resolve to `Color(0xFF000000)`
+- Any literal `Color(0xFF666666)`, `Color(0xFF999999)`, `Color.White` etc. used as text color → use `Color.Black`
+
+**Enforcement**: When adding or modifying any `Text()` composable, use `color = Color.Black`. When reviewing code, flag any non-black text color.
+
 ## Database Migration Requirements
 
 Before modifying ANY `@Entity` class (especially `GameData`), read `rules/database-migration.md`. The #1 cause of "all saves empty + new game doesn't run" is changing entity fields without a corresponding Migration. When in doubt, keep the old field AND add the new one with `@Ignore` — never remove a column without a Migration.

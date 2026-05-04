@@ -33,7 +33,7 @@ import com.xianxia.sect.ui.components.GameButton
 data class RewardItem(
     val name: String,
     val quantity: Int = 1,
-    val rarityColor: Color = Color(0xFF666666)
+    val rarityColor: Color = Color.Black
 )
 
 @Composable

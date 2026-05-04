@@ -3,6 +3,7 @@ package com.xianxia.sect.ui.game
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -21,6 +22,8 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.PlatformTextStyle
@@ -48,6 +51,8 @@ import com.xianxia.sect.ui.components.TalentDetailDialog
 import com.xianxia.sect.ui.components.UnifiedItemCard
 import com.xianxia.sect.ui.components.getRarityColor
 import com.xianxia.sect.ui.components.getTalentRarityColor
+import com.xianxia.sect.R
+import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.theme.GameColors
 import java.util.Locale
 
@@ -242,7 +247,7 @@ fun DiscipleDetailDialog(
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(4.dp))
-                                    .background(if (disciple.isFollowed) Color(0xFFFFD700) else Color(0xFF999999))
+                                    .background(if (disciple.isFollowed) Color(0xFFFFD700) else Color.Black)
                                     .clickable { viewModel?.toggleFollowDisciple(disciple.id) }
                                     .padding(horizontal = 6.dp, vertical = 2.dp),
                                 contentAlignment = Alignment.Center
@@ -394,41 +399,51 @@ fun DiscipleDetailDialog(
     }
 
     if (showExpelConfirmDialog) {
-        AlertDialog(
-            onDismissRequest = { showExpelConfirmDialog = false },
-            containerColor = GameColors.PageBackground,
-            title = {
-                Text(
-                    text = "确认驱逐",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
+        Dialog(onDismissRequest = { showExpelConfirmDialog = false }) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.bg_screen),
+                    contentDescription = null,
+                    modifier = Modifier.matchParentSize(),
+                    contentScale = ContentScale.FillBounds
                 )
-            },
-            text = {
-                Text(
-                    text = "确定要驱逐弟子 ${disciple.name} 吗？此操作不可撤销。",
-                    fontSize = 12.sp,
-                    color = Color(0xFF666666)
-                )
-            },
-            confirmButton = {
-                GameButton(
-                    text = "确认",
-                    onClick = {
-                        viewModel?.expelDisciple(disciple.id)
-                        showExpelConfirmDialog = false
-                        onDismiss()
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Text(
+                        text = "确认驱逐",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "确定要驱逐弟子 ${disciple.name} 吗？此操作不可撤销。",
+                        fontSize = 12.sp,
+                        color = Color.Black
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        GameButton(
+                            text = "取消",
+                            onClick = { showExpelConfirmDialog = false },
+                            modifier = Modifier.width(ButtonSizes.StandardWidth)
+                        )
+                        GameButton(
+                            text = "确认",
+                            onClick = {
+                                viewModel?.expelDisciple(disciple.id)
+                                showExpelConfirmDialog = false
+                                onDismiss()
+                            },
+                            modifier = Modifier.width(ButtonSizes.StandardWidth)
+                        )
                     }
-                )
-            },
-            dismissButton = {
-                GameButton(
-                    text = "取消",
-                    onClick = { showExpelConfirmDialog = false }
-                )
+                }
             }
-        )
+        }
     }
     
     showEquipmentSelection?.let { slotType ->
@@ -550,7 +565,7 @@ fun DiscipleDetailDialog(
                         Text(
                             text = "暂无可更换的功法",
                             fontSize = 12.sp,
-                            color = Color(0xFF999999),
+                            color = Color.Black,
                             modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp)
                         )
                     } else {
@@ -674,74 +689,82 @@ private fun RelationsDialog(
         }
     }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
-        title = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "关系",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-                CloseButton(onClick = onDismiss)
-            }
-        },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 400.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                if (parent1 != null || parent2 != null) {
-                    RelationCategory("父母") {
-                        parent1?.let { RelationItem("父亲", it) }
-                        parent2?.let { RelationItem("母亲", it) }
-                    }
-                }
-
-                if (partner != null) {
-                    RelationCategory("道侣") {
-                        RelationItem("道侣", partner)
-                    }
-                }
-
-                if (children.isNotEmpty()) {
-                    RelationCategory("子嗣") {
-                        children.forEach { child ->
-                            val relation = if (child.gender == "male") "子" else "女"
-                            RelationItem(relation, child)
-                        }
-                    }
-                }
-
-                if (siblings.isNotEmpty()) {
-                    RelationCategory("兄弟姐妹") {
-                        siblings.forEach { sibling ->
-                            val relation = if (sibling.gender == "male") "兄弟" else "姐妹"
-                            RelationItem(relation, sibling)
-                        }
-                    }
-                }
-
-                if (parent1 == null && parent2 == null && partner == null && children.isEmpty() && siblings.isEmpty()) {
+    Dialog(onDismissRequest = onDismiss) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.bg_screen),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.FillBounds
+            )
+            Column(modifier = Modifier.padding(20.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text(
-                        text = "无关系",
-                        fontSize = 12.sp,
-                        color = Color(0xFF999999)
+                        text = "关系",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
                     )
+                    CloseButton(onClick = onDismiss)
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 400.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    if (parent1 != null || parent2 != null) {
+                        RelationCategory("父母") {
+                            parent1?.let { RelationItem("父亲", it) }
+                            parent2?.let { RelationItem("母亲", it) }
+                        }
+                    }
+
+                    if (partner != null) {
+                        RelationCategory("道侣") {
+                            RelationItem("道侣", partner)
+                        }
+                    }
+
+                    if (children.isNotEmpty()) {
+                        RelationCategory("子嗣") {
+                            children.forEach { child ->
+                                val relation = if (child.gender == "male") "子" else "女"
+                                RelationItem(relation, child)
+                            }
+                        }
+                    }
+
+                    if (siblings.isNotEmpty()) {
+                        RelationCategory("兄弟姐妹") {
+                            siblings.forEach { sibling ->
+                                val relation = if (sibling.gender == "male") "兄弟" else "姐妹"
+                                RelationItem(relation, sibling)
+                            }
+                        }
+                    }
+
+                    if (parent1 == null && parent2 == null && partner == null && children.isEmpty() && siblings.isEmpty()) {
+                        Text(
+                            text = "无关系",
+                            fontSize = 12.sp,
+                            color = Color.Black
+                        )
+                    }
                 }
             }
-        },
-        confirmButton = {}
-    )
+        }
+    }
 }
 
 @Composable
@@ -812,7 +835,7 @@ private fun EquipmentSelectionDialog(
                 Text(
                     text = "暂无可用的$slotTypeText",
                     fontSize = 12.sp,
-                    color = Color(0xFF999999),
+                    color = Color.Black,
                     modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp)
                 )
             } else {
@@ -936,7 +959,7 @@ private fun ManualSelectionDialog(
                 Text(
                     text = "暂无可学习的功法",
                     fontSize = 12.sp,
-                    color = Color(0xFF999999),
+                    color = Color.Black,
                     modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp)
                 )
             } else {
@@ -1022,7 +1045,7 @@ private fun RelationItem(relation: String, disciple: DiscipleAggregate) {
         Text(
             text = relation,
             fontSize = 12.sp,
-            color = Color(0xFF666666)
+            color = Color.Black
         )
         Text(
             text = disciple.name,
@@ -1081,7 +1104,7 @@ private fun BasicInfoSection(
             val spiritRootCountColor = try {
                 Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))
             } catch (e: Exception) {
-                Color(0xFF666666)
+                Color.Black
             }
             Text(
                 text = disciple.spiritRootName,
@@ -1257,7 +1280,7 @@ private fun HpMpBars(disciple: DiscipleAggregate, maxHpOverride: Int? = null, ma
             Text(
                 text = "气血",
                 fontSize = 9.sp,
-                color = Color(0xFF666666),
+                color = Color.Black,
                 modifier = Modifier.fillMaxWidth(),
                 textAlign = TextAlign.Center
             )
@@ -1295,7 +1318,7 @@ private fun HpMpBars(disciple: DiscipleAggregate, maxHpOverride: Int? = null, ma
             Text(
                 text = "灵力",
                 fontSize = 9.sp,
-                color = Color(0xFF666666),
+                color = Color.Black,
                 modifier = Modifier.fillMaxWidth(),
                 textAlign = TextAlign.Center
             )
@@ -1366,7 +1389,7 @@ private fun TalentsSection(talents: List<Talent>, statusData: Map<String, String
             Text(
                 text = "无天赋",
                 fontSize = 12.sp,
-                color = Color(0xFF999999)
+                color = Color.Black
             )
         } else {
             talents.chunked(5).forEach { rowTalents ->
@@ -1563,7 +1586,7 @@ private fun EquipmentSection(
             Text(
                 text = "自动穿戴仓库装备",
                 fontSize = 10.sp,
-                color = Color(0xFF999999)
+                color = Color.Black
             )
             Spacer(Modifier.width(4.dp))
             Checkbox(
@@ -1574,7 +1597,7 @@ private fun EquipmentSection(
                     .clip(CircleShape),
                 colors = CheckboxDefaults.colors(
                     checkedColor = Color(0xFF4CAF50),
-                    uncheckedColor = Color(0xFF999999)
+                    uncheckedColor = Color.Black
                 )
             )
         }
@@ -1619,7 +1642,7 @@ private fun EquipmentSlot(
         Text(
             text = slotName,
             fontSize = 10.sp,
-            color = Color(0xFF666666)
+            color = Color.Black
         )
         Spacer(modifier = Modifier.height(4.dp))
         Box(
@@ -1650,7 +1673,7 @@ private fun EquipmentSlot(
                 Text(
                     text = "+",
                     fontSize = 24.sp,
-                    color = Color(0xFF999999)
+                    color = Color.Black
                 )
             }
         }
@@ -1683,7 +1706,7 @@ private fun ManualsSection(
             Text(
                 text = "自动学习仓库功法",
                 fontSize = 10.sp,
-                color = Color(0xFF999999)
+                color = Color.Black
             )
             Spacer(Modifier.width(4.dp))
             Checkbox(
@@ -1694,7 +1717,7 @@ private fun ManualsSection(
                     .clip(CircleShape),
                 colors = CheckboxDefaults.colors(
                     checkedColor = Color(0xFF4CAF50),
-                    uncheckedColor = Color(0xFF999999)
+                    uncheckedColor = Color.Black
                 )
             )
         }
@@ -1799,7 +1822,7 @@ private fun ManualSlot(
                         Text(
                             text = masteryText,
                             fontSize = 8.sp,
-                            color = Color(0xFF666666)
+                            color = Color.Black
                         )
                     }
                 }
@@ -1807,7 +1830,7 @@ private fun ManualSlot(
                 Text(
                     text = "+",
                     fontSize = 20.sp,
-                    color = Color(0xFF999999)
+                    color = Color.Black
                 )
             }
         }
@@ -1824,7 +1847,7 @@ private fun StatItem(name: String, value: Int, modifier: Modifier = Modifier) {
         Text(
             text = name,
             fontSize = 11.sp,
-            color = Color(0xFF666666)
+            color = Color.Black
         )
         Text(
             text = value.toString(),
@@ -1846,7 +1869,7 @@ private fun StatItemWithBonus(name: String, baseValue: Int, finalValue: Int, mod
         Text(
             text = name,
             fontSize = 11.sp,
-            color = Color(0xFF666666)
+            color = Color.Black
         )
         Text(
             text = currentDisplay ?: finalValue.toString(),
@@ -1874,7 +1897,7 @@ private fun InfoRow(label: String, value: String) {
         Text(
             text = label,
             fontSize = 12.sp,
-            color = Color(0xFF666666)
+            color = Color.Black
         )
         Text(
             text = value,
@@ -1898,108 +1921,116 @@ private fun StorageBagDialog(
     var selectedItem by remember { mutableStateOf<StorageBagItem?>(null) }
     var showDetailDialog by remember { mutableStateOf(false) }
     
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
-        title = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+    Dialog(onDismissRequest = onDismiss) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.bg_screen),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.FillBounds
+            )
+            Column(modifier = Modifier.padding(20.dp)) {
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = "储物袋",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(Color(0xFFFF9800))
-                            .clickable { showRewardDialog = true }
-                            .padding(horizontal = 6.dp, vertical = 2.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "赏赐",
-                            fontSize = 10.sp,
-                            color = Color.White
-                        )
-                    }
-                }
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "灵石:$spiritStones",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF2196F3)
-                    )
-                    CloseButton(onClick = onDismiss)
-                }
-            }
-        },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 400.dp)
-            ) {
-                if (items.isEmpty()) {
-                    Text(
-                        text = "储物袋为空",
-                        fontSize = 12.sp,
-                        color = Color(0xFF999999)
-                    )
-                } else {
-                    Text(
-                        text = "共 ${items.size} 种物品",
-                        fontSize = 11.sp,
-                        color = Color(0xFF666666)
-                    )
-                    
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    LazyVerticalGrid(
-                        columns = GridCells.Adaptive(56.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        itemsIndexed(items) { index, item ->
-                            UnifiedItemCard(
-                                data = ItemCardData(
-                                    id = item.itemId,
-                                    name = item.name,
-                                    rarity = item.rarity,
-                                    quantity = item.quantity,
-                                    grade = item.grade
-                                ),
-                                isSelected = selectedItem?.itemId == item.itemId,
-                                showViewButton = true,
-                                onClick = {
-                                    selectedItem = if (selectedItem?.itemId == item.itemId) null else item
-                                },
-                                onViewDetail = {
-                                    showDetailDialog = true
-                                }
+                        Text(
+                            text = "储物袋",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Black
+                        )
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(Color(0xFFFF9800))
+                                .clickable { showRewardDialog = true }
+                                .padding(horizontal = 6.dp, vertical = 2.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "赏赐",
+                                fontSize = 10.sp,
+                                color = Color.White
                             )
+                        }
+                    }
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "灵石:$spiritStones",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF2196F3)
+                        )
+                        CloseButton(onClick = onDismiss)
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 400.dp)
+                ) {
+                    if (items.isEmpty()) {
+                        Text(
+                            text = "储物袋为空",
+                            fontSize = 12.sp,
+                            color = Color.Black
+                        )
+                    } else {
+                        Text(
+                            text = "共 ${items.size} 种物品",
+                            fontSize = 11.sp,
+                            color = Color.Black
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        LazyVerticalGrid(
+                            columns = GridCells.Adaptive(56.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            itemsIndexed(items) { index, item ->
+                                UnifiedItemCard(
+                                    data = ItemCardData(
+                                        id = item.itemId,
+                                        name = item.name,
+                                        rarity = item.rarity,
+                                        quantity = item.quantity,
+                                        grade = item.grade
+                                    ),
+                                    isSelected = selectedItem?.itemId == item.itemId,
+                                    showViewButton = true,
+                                    onClick = {
+                                        selectedItem = if (selectedItem?.itemId == item.itemId) null else item
+                                    },
+                                    onViewDetail = {
+                                        showDetailDialog = true
+                                    }
+                                )
+                            }
                         }
                     }
                 }
             }
-        },
-        confirmButton = {}
-    )
+        }
+    }
 
     if (showDetailDialog) {
         selectedItem?.let { item ->
@@ -2507,7 +2538,7 @@ private fun RewardBottomPanel(
                         Text(
                             text = "-",
                             fontSize = 16.sp,
-                            color = if (rewardQuantity > 1 && !isRewarding) Color.White else Color(0xFF999999)
+                            color = if (rewardQuantity > 1 && !isRewarding) Color.White else Color.Black
                         )
                     }
                     
@@ -2529,7 +2560,7 @@ private fun RewardBottomPanel(
                         Text(
                             text = "+",
                             fontSize = 16.sp,
-                            color = if (rewardQuantity < maxQuantity && !isRewarding) Color.White else Color(0xFF999999)
+                            color = if (rewardQuantity < maxQuantity && !isRewarding) Color.White else Color.Black
                         )
                     }
                     

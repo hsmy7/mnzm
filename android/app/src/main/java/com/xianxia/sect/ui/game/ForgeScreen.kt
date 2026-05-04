@@ -17,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -117,13 +118,13 @@ fun ForgeDialog(
                     text = theme.slotLabelPrefix + "位",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF666666)
+                    color = Color.Black
                 )
                 val autoForgeEnabled by forgeViewModel.autoForgeEnabled.collectAsState()
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(4.dp))
-                        .background(if (autoForgeEnabled) Color(0xFFFFD700) else Color(0xFF999999))
+                        .background(if (autoForgeEnabled) Color(0xFFFFD700) else Color.Black)
                         .clickable { forgeViewModel.toggleAutoForge() }
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
@@ -359,7 +360,7 @@ private fun EquipmentSelectionDialog(
                                     text = recipe.name,
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (hasEnoughMaterials) Color.Black else Color(0xFF999999),
+                                    color = if (hasEnoughMaterials) Color.Black else Color.Black,
                                     maxLines = 2,
                                     textAlign = TextAlign.Center
                                 )
@@ -367,7 +368,7 @@ private fun EquipmentSelectionDialog(
                                 Text(
                                     text = "${recipe.duration}月",
                                     fontSize = 9.sp,
-                                    color = if (hasEnoughMaterials) Color(0xFF666666) else Color(0xFF999999)
+                                    color = if (hasEnoughMaterials) Color.Black else Color.Black
                                 )
                             }
                         }
@@ -424,20 +425,28 @@ private fun EquipmentDetailDialog(
     materials: List<Material>,
     onDismiss: () -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = Color.Transparent, tonalElevation = 0.dp,
-        title = {
-            Text(text = recipe.name, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-        },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Dialog(onDismissRequest = onDismiss) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.bg_screen),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.FillBounds
+            )
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text(text = recipe.name, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                Spacer(modifier = Modifier.height(12.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(text = "品阶: ${recipe.tier}阶", fontSize = 12.sp, color = Color(0xFF666666))
-                    Text(text = "时间: ${recipe.duration}月", fontSize = 12.sp, color = Color(0xFF666666))
+                    Text(text = "品阶: ${recipe.tier}阶", fontSize = 12.sp, color = Color.Black)
+                    Text(text = "时间: ${recipe.duration}月", fontSize = 12.sp, color = Color.Black)
                 }
 
                 Text(text = "所需材料:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)
@@ -462,25 +471,25 @@ private fun EquipmentDetailDialog(
                 Text(text = "属性加成:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)
 
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(text = "部位: ${recipe.type.displayName}", fontSize = 11.sp, color = Color(0xFF666666))
+                    Text(text = "部位: ${recipe.type.displayName}", fontSize = 11.sp, color = Color.Black)
 
                     val template = com.xianxia.sect.core.registry.EquipmentDatabase.getTemplateByName(recipe.name)
                     if (template != null) {
-                        if (template.physicalAttack > 0) Text(text = "物理攻击 +${template.physicalAttack}", fontSize = 11.sp, color = Color(0xFF666666))
-                        if (template.magicAttack > 0) Text(text = "法术攻击 +${template.magicAttack}", fontSize = 11.sp, color = Color(0xFF666666))
-                        if (template.physicalDefense > 0) Text(text = "物理防御 +${template.physicalDefense}", fontSize = 11.sp, color = Color(0xFF666666))
-                        if (template.magicDefense > 0) Text(text = "法术防御 +${template.magicDefense}", fontSize = 11.sp, color = Color(0xFF666666))
-                        if (template.speed > 0) Text(text = "身法 +${template.speed}", fontSize = 11.sp, color = Color(0xFF666666))
-                        if (template.hp > 0) Text(text = "生命 +${template.hp}", fontSize = 11.sp, color = Color(0xFF666666))
-                        if (template.mp > 0) Text(text = "法力 +${template.mp}", fontSize = 11.sp, color = Color(0xFF666666))
-                        if (template.critChance > 0) Text(text = "暴击率 +${String.format(Locale.getDefault(), "%.1f", template.critChance * 100)}%", fontSize = 11.sp, color = Color(0xFF666666))
+                        if (template.physicalAttack > 0) Text(text = "物理攻击 +${template.physicalAttack}", fontSize = 11.sp, color = Color.Black)
+                        if (template.magicAttack > 0) Text(text = "法术攻击 +${template.magicAttack}", fontSize = 11.sp, color = Color.Black)
+                        if (template.physicalDefense > 0) Text(text = "物理防御 +${template.physicalDefense}", fontSize = 11.sp, color = Color.Black)
+                        if (template.magicDefense > 0) Text(text = "法术防御 +${template.magicDefense}", fontSize = 11.sp, color = Color.Black)
+                        if (template.speed > 0) Text(text = "身法 +${template.speed}", fontSize = 11.sp, color = Color.Black)
+                        if (template.hp > 0) Text(text = "生命 +${template.hp}", fontSize = 11.sp, color = Color.Black)
+                        if (template.mp > 0) Text(text = "法力 +${template.mp}", fontSize = 11.sp, color = Color.Black)
+                        if (template.critChance > 0) Text(text = "暴击率 +${String.format(Locale.getDefault(), "%.1f", template.critChance * 100)}%", fontSize = 11.sp, color = Color.Black)
                     }
                 }
 
                 Text(text = "描述:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-                Text(text = recipe.description, fontSize = 11.sp, color = Color(0xFF666666))
+                Text(text = recipe.description, fontSize = 11.sp, color = Color.Black)
+                }
             }
-        },
-        confirmButton = {}
-    )
+        }
+    }
 }

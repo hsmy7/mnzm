@@ -3,24 +3,28 @@
   "buildings": {
     "alchemy": {
       "id": "alchemy",
-      "displayName": "丹鼎殿",
+      "displayName": "炼丹炉",
       "buildingType": "ALCHEMY",
       "slotCount": 3,
       "baseSuccessRate": 0.7,
       "maxQueueLength": 1,
       "autoRestartEnabled": true,
       "cost": 3000,
+      "gridWidth": 2,
+      "gridHeight": 2,
       "description": "用于炼制各种丹药的场所"
     },
     "forge": {
       "id": "forge",
-      "displayName": "天工峰",
+      "displayName": "锻造坊",
       "buildingType": "FORGE",
       "slotCount": 3,
       "baseSuccessRate": 0.7,
       "maxQueueLength": 1,
       "autoRestartEnabled": true,
       "cost": 3000,
+      "gridWidth": 2,
+      "gridHeight": 2,
       "description": "锻造装备的场所"
     },
     "mining": {
@@ -32,17 +36,21 @@
       "maxQueueLength": 1,
       "autoRestartEnabled": false,
       "cost": 500,
+      "gridWidth": 2,
+      "gridHeight": 2,
       "description": "开采灵石和矿石"
     },
     "herb_garden": {
       "id": "herb_garden",
-      "displayName": "灵药园",
+      "displayName": "灵植阁",
       "buildingType": "HERB_GARDEN",
       "slotCount": 3,
       "baseSuccessRate": 1.0,
       "maxQueueLength": 1,
       "autoRestartEnabled": false,
       "cost": 2000,
+      "gridWidth": 2,
+      "gridHeight": 2,
       "description": "种植灵草的园地"
     },
     "tianshu_hall": {
@@ -54,6 +62,8 @@
       "maxQueueLength": 1,
       "autoRestartEnabled": false,
       "cost": 5000,
+      "gridWidth": 3,
+      "gridHeight": 2,
       "description": "处理宗门事务的核心建筑"
     },
     "library": {
@@ -65,28 +75,34 @@
       "maxQueueLength": 1,
       "autoRestartEnabled": false,
       "cost": 5000,
+      "gridWidth": 3,
+      "gridHeight": 2,
       "description": "弟子修习功法的场所，提升修炼速度"
     },
     "wen_dao_peak": {
       "id": "wen_dao_peak",
-      "displayName": "问道峰",
+      "displayName": "问道塔",
       "buildingType": "WEN_DAO_PEAK",
       "slotCount": 5,
       "baseSuccessRate": 1.0,
       "maxQueueLength": 1,
       "autoRestartEnabled": false,
       "cost": 4000,
+      "gridWidth": 2,
+      "gridHeight": 3,
       "description": "管理外门弟子与传道授业"
     },
     "qingyun_peak": {
       "id": "qingyun_peak",
-      "displayName": "青云峰",
+      "displayName": "青云塔",
       "buildingType": "QINGYUN_PEAK",
       "slotCount": 5,
       "baseSuccessRate": 1.0,
       "maxQueueLength": 1,
       "autoRestartEnabled": false,
       "cost": 4000,
+      "gridWidth": 2,
+      "gridHeight": 3,
       "description": "管理内门弟子与精英培养"
     },
     "law_enforcement_hall": {
@@ -98,6 +114,8 @@
       "maxQueueLength": 1,
       "autoRestartEnabled": false,
       "cost": 3000,
+      "gridWidth": 3,
+      "gridHeight": 2,
       "description": "维护宗门纪律，执行奖惩"
     },
     "mission_hall": {
@@ -109,17 +127,21 @@
       "maxQueueLength": 1,
       "autoRestartEnabled": false,
       "cost": 3000,
+      "gridWidth": 2,
+      "gridHeight": 2,
       "description": "派遣弟子执行宗门任务"
     },
     "reflection_cliff": {
       "id": "reflection_cliff",
-      "displayName": "思过崖",
+      "displayName": "监牢",
       "buildingType": "REFLECTION_CLIFF",
       "slotCount": 6,
       "baseSuccessRate": 1.0,
       "maxQueueLength": 1,
       "autoRestartEnabled": false,
       "cost": 4000,
+      "gridWidth": 2,
+      "gridHeight": 2,
       "description": "悔过自新之地，关押违规弟子"
     }
   },

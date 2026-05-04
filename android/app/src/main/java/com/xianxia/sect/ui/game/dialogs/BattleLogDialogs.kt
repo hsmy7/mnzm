@@ -3,6 +3,7 @@ package com.xianxia.sect.ui.game.dialogs
 import androidx.compose.animation.*
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -26,6 +27,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -47,6 +50,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.xianxia.sect.R
 import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.model.BattleLogAction
 import com.xianxia.sect.core.model.BattleLogRound
@@ -90,12 +94,12 @@ internal fun BattleLogItem(
                 Text(
                     text = "第${log.year}年${log.month}月",
                     fontSize = 11.sp,
-                    color = Color(0xFF666666)
+                    color = Color.Black
                 )
                 Text(
                     text = "回合: ${log.turns} | 敌人: ${log.enemies.size}",
                     fontSize = 10.sp,
-                    color = Color(0xFF999999)
+                    color = Color.Black
                 )
             }
             
@@ -176,7 +180,7 @@ internal fun BattleLogDetailDialog(
                             Text(
                                 text = "第${log.year}年${log.month}月",
                                 fontSize = 12.sp,
-                                color = Color(0xFF666666)
+                                color = Color.Black
                             )
                             Box(
                                 modifier = Modifier
@@ -197,7 +201,7 @@ internal fun BattleLogDetailDialog(
                         Text(
                             text = "战斗回合: ${log.turns}",
                             fontSize = 11.sp,
-                            color = Color(0xFF333333)
+                            color = Color.Black
                         )
                         
                         Spacer(modifier = Modifier.height(16.dp))
@@ -205,7 +209,7 @@ internal fun BattleLogDetailDialog(
                             text = "我方弟子",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF333333)
+                            color = Color.Black
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                     }
@@ -238,7 +242,7 @@ internal fun BattleLogDetailDialog(
                             text = "敌方妖兽",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF333333)
+                            color = Color.Black
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                     }
@@ -274,7 +278,7 @@ internal fun BattleLogDetailDialog(
                                 text = "战斗过程",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFF333333)
+                                color = Color.Black
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                         }
@@ -349,7 +353,7 @@ internal fun BattleParticipantSlot(
                     Text(
                         text = realmName,
                         fontSize = 7.sp,
-                        color = Color(0xFF666666),
+                        color = Color.Black,
                         maxLines = 1
                     )
                 }
@@ -379,7 +383,7 @@ internal fun BattleRoundItem(
             text = "第${round.roundNumber}回合",
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
-            color = Color(0xFF333333)
+            color = Color.Black
         )
         
         round.actions.forEach { action ->
@@ -395,7 +399,7 @@ internal fun BattleActionItem(
     val actionColor = when {
         action.isKill -> Color(0xFFF44336)
         action.isCrit -> Color(0xFFFF9800)
-        else -> Color(0xFF666666)
+        else -> Color.Black
     }
     
     val typeIcon = when (action.type) {
@@ -407,7 +411,7 @@ internal fun BattleActionItem(
     val typeColor = when (action.type) {
         "skill" -> Color(0xFF9C27B0)
         "support" -> Color(0xFF4CAF50)
-        else -> Color(0xFF666666)
+        else -> Color.Black
     }
     
     Row(
@@ -452,9 +456,16 @@ internal fun BattleLogListDialog(
             shape = RoundedCornerShape(16.dp),
             color = GameColors.PageBackground
         ) {
-            Column(
-                modifier = Modifier.fillMaxSize()
-            ) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                Image(
+                    painter = painterResource(id = R.drawable.bg_screen),
+                    contentDescription = null,
+                    modifier = Modifier.matchParentSize(),
+                    contentScale = ContentScale.Crop
+                )
+                Column(
+                    modifier = Modifier.fillMaxSize()
+                ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -482,7 +493,7 @@ internal fun BattleLogListDialog(
                         Text(
                             text = "暂无战斗记录",
                             fontSize = 14.sp,
-                            color = Color(0xFF999999)
+                            color = Color.Black
                         )
                     }
                 } else {
@@ -500,6 +511,7 @@ internal fun BattleLogListDialog(
                         }
                     }
                 }
+            }
             }
         }
     }
@@ -555,18 +567,18 @@ internal fun BattleLogListItem(
                         text = typeText,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF333333)
+                        color = Color.Black
                     )
                     Text(
                         text = "第${log.year}年${log.month}月",
                         fontSize = 11.sp,
-                        color = Color(0xFF666666)
+                        color = Color.Black
                     )
                 }
                 Text(
                     text = "回合: ${log.turns} | 敌人: ${log.enemies.size}",
                     fontSize = 10.sp,
-                    color = Color(0xFF999999)
+                    color = Color.Black
                 )
             }
             

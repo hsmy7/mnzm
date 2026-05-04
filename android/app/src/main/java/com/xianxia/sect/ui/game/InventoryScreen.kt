@@ -717,17 +717,15 @@ internal fun BulkSellDialog(
                 // 按钮
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
                 ) {
                     GameButton(
                         text = "取消",
-                        onClick = onDismiss,
-                        modifier = Modifier.weight(1f)
+                        onClick = onDismiss
                     )
                     GameButton(
                         text = "一键出售",
                         onClick = { showConfirmDialog = true },
-                        modifier = Modifier.weight(1f),
                         enabled = sellableItems.isNotEmpty()
                     )
                 }
@@ -737,19 +735,26 @@ internal fun BulkSellDialog(
 
     // 二次确认对话框
     if (showConfirmDialog) {
-        AlertDialog(
-            onDismissRequest = { showConfirmDialog = false },
-            containerColor = Color.Transparent, tonalElevation = 0.dp,
-            title = {
-                Text(
-                    text = "确认出售",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
+        Dialog(onDismissRequest = { showConfirmDialog = false }) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.bg_screen),
+                    contentDescription = null,
+                    modifier = Modifier.matchParentSize(),
+                    contentScale = ContentScale.FillBounds
                 )
-            },
-            text = {
-                Column {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Text(
+                        text = "确认出售",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
                     Text(
                         text = "确定要出售以下物品吗？",
                         fontSize = 12.sp,
@@ -772,28 +777,27 @@ internal fun BulkSellDialog(
                         fontSize = 11.sp,
                         color = GameColors.Error
                     )
-                }
-            },
-            confirmButton = {
-                GameButton(
-                    text = "确认出售",
-                    onClick = {
-                        viewModel.bulkSellItems(
-                            selectedRarities = selectedRarities,
-                            selectedTypes = selectedTypes.map { it.name }.toSet()
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        GameButton(
+                            text = "取消",
+                            onClick = { showConfirmDialog = false }
                         )
-                        showConfirmDialog = false
-                        onDismiss()
+                        GameButton(
+                            text = "确认出售",
+                            onClick = {
+                                viewModel.bulkSellItems(
+                                    selectedRarities = selectedRarities,
+                                    selectedTypes = selectedTypes.map { it.name }.toSet()
+                                )
+                                showConfirmDialog = false
+                                onDismiss()
+                            }
+                        )
                     }
-                )
-            },
-            dismissButton = {
-                GameButton(
-                    text = "取消",
-                    onClick = { showConfirmDialog = false }
-                )
+                }
             }
-        )
+        }
     }
 }
 
@@ -901,7 +905,7 @@ private fun InventoryPagination(
         Text(
             text = "第 $currentPage/$totalPages 页",
             fontSize = 12.sp,
-            color = Color(0xFF333333),
+            color = Color.Black,
             fontWeight = FontWeight.Medium
         )
         Spacer(modifier = Modifier.width(12.dp))

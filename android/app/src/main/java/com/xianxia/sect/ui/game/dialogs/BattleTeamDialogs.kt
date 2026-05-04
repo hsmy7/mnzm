@@ -104,7 +104,7 @@ internal fun BattleTeamDialog(
                 Text(
                     text = "解散后队伍配置将丢失，所有成员将恢复空闲状态。确定要解散战斗队伍吗？",
                     fontSize = 12.sp,
-                    color = Color(0xFF666666)
+                    color = Color.Black
                 )
             },
             confirmButton = {
@@ -155,7 +155,7 @@ internal fun BattleTeamDialog(
                     text = "战斗长老（化神及以上）",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF666666)
+                    color = Color.Black
                 )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -176,7 +176,7 @@ internal fun BattleTeamDialog(
                     text = "战斗弟子",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF666666)
+                    color = Color.Black
                 )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -208,7 +208,7 @@ internal fun BattleTeamDialog(
                 Text(
                     text = "已选择 ${slots.count { it.discipleId.isNotEmpty() }}/10 名弟子",
                     fontSize = 11.sp,
-                    color = Color(0xFF666666)
+                    color = Color.Black
                 )
             }
         },
@@ -299,7 +299,7 @@ internal fun RowScope.BattleTeamSlotItem(
                     Text(
                         text = slot.discipleRealm,
                         fontSize = 10.sp,
-                        color = Color(0xFF666666)
+                        color = Color.Black
                     )
                 }
             } else {
@@ -307,7 +307,7 @@ internal fun RowScope.BattleTeamSlotItem(
                     text = "+",
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF999999)
+                    color = Color.Black
                 )
             }
         }
@@ -403,7 +403,7 @@ internal fun BattleTeamDiscipleSelectionDialog(
                     Text(
                         text = if (isElderSlot) "暂无符合条件的战斗长老（需化神及以上）" else "暂无可用弟子",
                         fontSize = 12.sp,
-                        color = Color(0xFF999999)
+                        color = Color.Black
                     )
                 }
             } else {

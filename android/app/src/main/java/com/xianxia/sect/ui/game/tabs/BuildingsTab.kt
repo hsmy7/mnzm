@@ -3,6 +3,7 @@ package com.xianxia.sect.ui.game.tabs
 import androidx.compose.animation.*
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -38,6 +39,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -47,6 +50,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.xianxia.sect.R
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.registry.BeastMaterialDatabase
 import com.xianxia.sect.core.registry.EquipmentDatabase
@@ -123,16 +127,16 @@ internal fun BuildingsTab(
 
     val buildings: List<Triple<String, String, () -> Unit>> = listOf(
         Triple("灵矿场", "开采灵石资源") { viewModel.openSpiritMineDialog() },
-        Triple("灵药宛", "种植灵药材料") { viewModel.openHerbGardenDialog() },
-        Triple("丹鼎殿", "炼制丹药") { viewModel.openAlchemyDialog() },
-        Triple("天工峰", "锻造装备") { viewModel.openForgeDialog() },
+        Triple("灵植阁", "种植灵药材料") { viewModel.openHerbGardenDialog() },
+        Triple("炼丹炉", "炼制丹药") { viewModel.openAlchemyDialog() },
+        Triple("锻造坊", "锻造装备") { viewModel.openForgeDialog() },
         Triple("藏经阁", "功法管理") { viewModel.openLibraryDialog() },
-        Triple("问道峰", "管理外门弟子") { viewModel.openWenDaoPeakDialog() },
-        Triple("青云峰", "管理内门弟子") { viewModel.openQingyunPeakDialog() },
+        Triple("问道塔", "管理外门弟子") { viewModel.openWenDaoPeakDialog() },
+        Triple("青云塔", "管理内门弟子") { viewModel.openQingyunPeakDialog() },
         Triple("天枢殿", "处理宗门事务") { viewModel.openTianshuHallDialog() },
         Triple("执法堂", "维护宗门纪律") { viewModel.openLawEnforcementHallDialog() },
         Triple("任务阁", "派遣弟子执行任务") { viewModel.openMissionHallDialog() },
-        Triple("思过崖", "悔过自新之地") { viewModel.openReflectionCliffDialog() }
+        Triple("监牢", "悔过自新之地") { viewModel.openReflectionCliffDialog() }
     )
 
     GameBackground {
@@ -165,12 +169,16 @@ internal fun BuildingsTab(
                             modifier = Modifier
                                 .weight(1f)
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(GameColors.PageBackground)
                                 .border(1.dp, GameColors.Border, RoundedCornerShape(8.dp))
                                 .clickable { onClick() }
-                                .padding(12.dp)
                         ) {
-                            Column {
+                            Image(
+                                painter = painterResource(id = R.drawable.bg_horizontal),
+                                contentDescription = null,
+                                modifier = Modifier.matchParentSize(),
+                                contentScale = ContentScale.FillBounds
+                            )
+                            Column(modifier = Modifier.padding(12.dp)) {
                                 Text(
                                     text = name,
                                     fontSize = 12.sp,
@@ -181,7 +189,7 @@ internal fun BuildingsTab(
                                 Text(
                                     text = desc,
                                     fontSize = 12.sp,
-                                    color = Color(0xFF666666)
+                                    color = Color.Black
                                 )
                             }
                         }

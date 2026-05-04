@@ -121,7 +121,7 @@ fun TianshuHallDialog(
                                     Text(
                                         text = viceSectMaster.realmName,
                                         fontSize = 9.sp,
-                                        color = Color(0xFF666666),
+                                        color = Color.Black,
                                         maxLines = 1
                                     )
                                 }
@@ -129,7 +129,7 @@ fun TianshuHallDialog(
                                 Text(
                                     text = "+",
                                     fontSize = 24.sp,
-                                    color = Color(0xFF999999)
+                                    color = Color.Black
                                 )
                             }
                         }
@@ -276,7 +276,7 @@ private fun SectAffairsPlaceholderDialog(onDismiss: () -> Unit) {
                     Text(
                         text = "宗门日常事务管理功能开发中...",
                         fontSize = 12.sp,
-                        color = Color(0xFF666666)
+                        color = Color.Black
                     )
                 }
                 Spacer(modifier = Modifier.height(8.dp))
@@ -422,12 +422,12 @@ private fun PolicyItem(
             Text(
                 text = effect,
                 fontSize = 10.sp,
-                color = Color(0xFF666666)
+                color = Color.Black
             )
             Text(
                 text = cost,
                 fontSize = 10.sp,
-                color = Color(0xFF999999)
+                color = Color.Black
             )
         }
 

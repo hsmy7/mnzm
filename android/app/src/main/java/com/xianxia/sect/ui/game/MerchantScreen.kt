@@ -109,19 +109,12 @@ fun MerchantDialog(
                     }
                 } else {
                     Column(modifier = Modifier.weight(1f)) {
-                        Box(modifier = Modifier.fillMaxWidth()) {
-                            Image(
-                                painter = painterResource(id = R.drawable.bg_horizontal),
-                                contentDescription = null,
-                                modifier = Modifier.matchParentSize(),
-                                contentScale = ContentScale.Crop
-                            )
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 8.dp, vertical = 6.dp),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 8.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
                                 MerchantFilter.entries.forEach { filter ->
                                     ListingFilterButton(
                                         text = filter.displayName,
@@ -135,7 +128,6 @@ fun MerchantDialog(
                                     )
                                 }
                             }
-                        }
 
                         if (filteredItems.isEmpty()) {
                             Box(
@@ -1118,19 +1110,26 @@ private fun ConfirmListingDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = Color.Transparent, tonalElevation = 0.dp,
-        title = {
-            Text(
-                text = "确认上架",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black
+    Dialog(onDismissRequest = onDismiss) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.bg_screen),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.FillBounds
             )
-        },
-        text = {
-            Column {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text(
+                    text = "确认上架",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+                Spacer(modifier = Modifier.height(12.dp))
                 Text(
                     text = "确定要上架 $selectedCount 种道具（共 $totalCount 件）吗？",
                     fontSize = 12.sp,
@@ -1142,19 +1141,20 @@ private fun ConfirmListingDialog(
                     fontSize = 11.sp,
                     color = GameColors.TextSecondary
                 )
+                Spacer(modifier = Modifier.height(16.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    GameButton(
+                        text = "取消",
+                        onClick = onDismiss,
+                        modifier = Modifier.width(ButtonSizes.StandardWidth)
+                    )
+                    GameButton(
+                        text = "确认",
+                        onClick = onConfirm,
+                        modifier = Modifier.width(ButtonSizes.StandardWidth)
+                    )
+                }
             }
-        },
-        confirmButton = {
-            GameButton(
-                text = "确认",
-                onClick = onConfirm
-            )
-        },
-        dismissButton = {
-            GameButton(
-                text = "取消",
-                onClick = onDismiss
-            )
         }
-    )
+    }
 }

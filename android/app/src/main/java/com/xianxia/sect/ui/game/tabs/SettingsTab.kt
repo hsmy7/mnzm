@@ -62,6 +62,7 @@ import com.xianxia.sect.ui.components.GameBackground
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.SaveLoadViewModel
+import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.theme.GameColors
 import java.util.Locale
 
@@ -84,7 +85,7 @@ internal fun RedeemCodeDialog(
                 rewardItems = result.rewards.map { reward ->
                     val rarityColor = try {
                         Color(android.graphics.Color.parseColor(GameConfig.Rarity.getColor(reward.rarity)))
-                    } catch (e: Exception) { Color(0xFF666666) }
+                    } catch (e: Exception) { Color.Black }
                     com.xianxia.sect.ui.game.RewardItem(
                         name = when (reward.type) {
                             "spiritStones" -> "${reward.quantity}灵石"
@@ -107,22 +108,28 @@ internal fun RedeemCodeDialog(
         }
     }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = Color.Transparent, tonalElevation = 0.dp,
-        title = {
-            Text(
-                text = "兑换码",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black
+    Dialog(onDismissRequest = onDismiss) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.bg_screen),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.FillBounds
             )
-        },
-        text = {
             Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                modifier = Modifier.padding(20.dp)
             ) {
+                Text(
+                    text = "兑换码",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+                Spacer(modifier = Modifier.height(12.dp))
                 OutlinedTextField(
                     value = codeInput,
                     onValueChange = { codeInput = it.uppercase(java.util.Locale.getDefault()) },
@@ -131,30 +138,29 @@ internal fun RedeemCodeDialog(
                     singleLine = true,
                     textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp)
                 )
-            }
-        },
-        confirmButton = {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                GameButton(
-                    text = "取消",
-                    onClick = onDismiss,
-                    modifier = Modifier.width(72.dp)
-                )
-                GameButton(
-                    text = "兑换",
-                    onClick = {
-                        if (codeInput.isNotBlank()) {
-                            viewModel.redeemCode(codeInput.trim())
-                        }
-                    },
-                    enabled = codeInput.isNotBlank(),
-                    modifier = Modifier.width(72.dp)
-                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    GameButton(
+                        text = "取消",
+                        onClick = onDismiss,
+                        modifier = Modifier.width(ButtonSizes.StandardWidth)
+                    )
+                    GameButton(
+                        text = "兑换",
+                        onClick = {
+                            if (codeInput.isNotBlank()) {
+                                viewModel.redeemCode(codeInput.trim())
+                            }
+                        },
+                        enabled = codeInput.isNotBlank(),
+                        modifier = Modifier.width(ButtonSizes.StandardWidth)
+                    )
+                }
             }
         }
-    )
+    }
 
     if (showRewardDialog) {
         com.xianxia.sect.ui.game.RewardDialog(
@@ -188,6 +194,7 @@ internal fun SettingsTab(
     var showResetDisciplesConfirmDialog by remember { mutableStateOf(false) }
     var showRedeemCodeDialog by remember { mutableStateOf(false) }
     var showChangelogDialog by remember { mutableStateOf(false) }
+    var showOtherSettingsDialog by remember { mutableStateOf(false) }
 
     val showRedeemCodeDialogState by viewModel.showRedeemCodeDialog.collectAsState()
     val redeemResult by viewModel.redeemResult.collectAsState()
@@ -198,14 +205,6 @@ internal fun SettingsTab(
                 .fillMaxSize()
                 .padding(16.dp)
         ) {
-            Text(
-                text = "设置",
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.Black,
-            modifier = Modifier.padding(bottom = 12.dp)
-        )
-
         LazyColumn(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -226,24 +225,24 @@ internal fun SettingsTab(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     val pauseAlpha = if (isPaused) 1f else 0.5f
+                    val btnSize = ButtonSizes.StandardHeight + 6.dp
                     Box(
                         modifier = Modifier
-                            .width(72.dp)
-                            .height(38.dp)
+                            .size(btnSize)
                             .alpha(pauseAlpha)
-                            .clip(RoundedCornerShape(4.dp))
+                            .clip(CircleShape)
                             .clickable { saveLoadViewModel.togglePause() },
                         contentAlignment = Alignment.Center
                     ) {
                         Image(
-                            painter = painterResource(id = R.drawable.ui_button),
+                            painter = painterResource(id = R.drawable.ui_pause_button),
                             contentDescription = null,
                             modifier = Modifier.matchParentSize(),
                             contentScale = ContentScale.FillBounds
                         )
                         Text(
                             text = "暂停",
-                            fontSize = 12.sp,
+                            fontSize = 10.sp,
                             color = if (isPaused) Color.White else Color.Black
                         )
                     }
@@ -252,8 +251,8 @@ internal fun SettingsTab(
                         val speedAlpha = if (timeSpeed == speed && !isPaused) 1f else 0.5f
                         Box(
                             modifier = Modifier
-                                .weight(1f)
-                                .height(38.dp)
+                                .width(ButtonSizes.StandardWidth)
+                                .height(ButtonSizes.StandardHeight)
                                 .alpha(speedAlpha)
                                 .clip(RoundedCornerShape(4.dp))
                                 .clickable { saveLoadViewModel.setTimeSpeed(speed) },
@@ -268,7 +267,7 @@ internal fun SettingsTab(
                             Text(
                                 text = "${speed}倍速",
                                 fontSize = 12.sp,
-                                color = if (timeSpeed == speed && !isPaused) Color.White else Color.Black
+                                color = Color.Black
                             )
                         }
                     }
@@ -291,24 +290,24 @@ internal fun SettingsTab(
                     val isAutoSaveActive = gameData.autoSaveIntervalMonths > 0
 
                     val stopAlpha = if (!isAutoSaveActive) 1f else 0.5f
+                    val stopBtnSize = ButtonSizes.StandardHeight + 6.dp
                     Box(
                         modifier = Modifier
-                            .weight(1f)
-                            .height(38.dp)
+                            .size(stopBtnSize)
                             .alpha(stopAlpha)
-                            .clip(RoundedCornerShape(4.dp))
+                            .clip(CircleShape)
                             .clickable { saveLoadViewModel.setAutoSaveIntervalMonths(0) },
                         contentAlignment = Alignment.Center
                     ) {
                         Image(
-                            painter = painterResource(id = R.drawable.ui_button),
+                            painter = painterResource(id = R.drawable.ui_pause_button),
                             contentDescription = null,
                             modifier = Modifier.matchParentSize(),
                             contentScale = ContentScale.FillBounds
                         )
                         Text(
                             text = "停止",
-                            fontSize = 12.sp,
+                            fontSize = 10.sp,
                             color = if (!isAutoSaveActive) Color.White else Color.Black
                         )
                     }
@@ -319,8 +318,8 @@ internal fun SettingsTab(
                     val intervalAlpha = if (isAutoSaveActive) 1f else 0.5f
                     Box(
                         modifier = Modifier
-                            .weight(1f)
-                            .height(38.dp)
+                            .width(ButtonSizes.StandardWidth)
+                            .height(ButtonSizes.StandardHeight)
                             .alpha(intervalAlpha)
                             .clip(RoundedCornerShape(4.dp))
                             .clickable {
@@ -342,88 +341,162 @@ internal fun SettingsTab(
                         Text(
                             text = if (isAutoSaveActive) "${gameData.autoSaveIntervalMonths}月" else "3月",
                             fontSize = 12.sp,
-                            color = if (isAutoSaveActive) Color.White else Color.Black
+                            color = Color.Black
                         )
                     }
                     
                     if (showEditIntervalDialog) {
-                        AlertDialog(
-                            onDismissRequest = { showEditIntervalDialog = false },
-                            containerColor = Color.Transparent, tonalElevation = 0.dp,
-                            title = {
-                                Text(
-                                    text = "设置自动存档间隔",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.Black
+                        Dialog(onDismissRequest = { showEditIntervalDialog = false }) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                            ) {
+                                Image(
+                                    painter = painterResource(id = R.drawable.bg_screen),
+                                    contentDescription = null,
+                                    modifier = Modifier.matchParentSize(),
+                                    contentScale = ContentScale.FillBounds
                                 )
-                            },
-                            text = {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                Column(
+                                    modifier = Modifier.padding(20.dp)
                                 ) {
-                                    OutlinedTextField(
-                                        value = editIntervalValue,
-                                        onValueChange = { input ->
-                                            val filtered = input.filter { it.isDigit() }
-                                            editIntervalValue = filtered
-                                        },
-                                        modifier = Modifier.width(80.dp),
-                                        singleLine = true,
-                                        textStyle = androidx.compose.ui.text.TextStyle(
-                                            fontSize = 14.sp,
-                                            textAlign = TextAlign.Center
-                                        ),
-                                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
-                                        )
-                                    )
                                     Text(
-                                        text = "月",
+                                        text = "设置自动存档间隔",
                                         fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
                                         color = Color.Black
                                     )
-                                }
-                            },
-                            confirmButton = {
-                                GameButton(
-                                    text = "确认",
-                                    onClick = {
-                                        val months = editIntervalValue.toIntOrNull()
-                                        if (months != null && months in 1..12) {
-                                            saveLoadViewModel.setAutoSaveIntervalMonths(months)
-                                        }
-                                        showEditIntervalDialog = false
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        OutlinedTextField(
+                                            value = editIntervalValue,
+                                            onValueChange = { input ->
+                                                val filtered = input.filter { it.isDigit() }
+                                                editIntervalValue = filtered
+                                            },
+                                            modifier = Modifier.width(80.dp),
+                                            singleLine = true,
+                                            textStyle = androidx.compose.ui.text.TextStyle(
+                                                fontSize = 14.sp,
+                                                textAlign = TextAlign.Center
+                                            ),
+                                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                                keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                                            )
+                                        )
+                                        Text(
+                                            text = "月",
+                                            fontSize = 14.sp,
+                                            color = Color.Black
+                                        )
                                     }
-                                )
-                            },
-                            dismissButton = {
-                                GameButton(
-                                    text = "取消",
-                                    onClick = { showEditIntervalDialog = false }
-                                )
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        GameButton(
+                                            text = "取消",
+                                            onClick = { showEditIntervalDialog = false },
+                                            modifier = Modifier.width(ButtonSizes.StandardWidth)
+                                        )
+                                        GameButton(
+                                            text = "确认",
+                                            onClick = {
+                                                val months = editIntervalValue.toIntOrNull()
+                                                if (months != null && months in 1..12) {
+                                                    saveLoadViewModel.setAutoSaveIntervalMonths(months)
+                                                }
+                                                showEditIntervalDialog = false
+                                            },
+                                            modifier = Modifier.width(ButtonSizes.StandardWidth)
+                                        )
+                                    }
+                                }
                             }
-                        )
+                        }
                     }
                 }
             }
 
             item {
                 Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "月俸设置",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Column {
+                        Text(
+                            text = "月俸设置",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Black
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Box(
+                            modifier = Modifier
+                                .width(ButtonSizes.StandardWidth)
+                                .height(ButtonSizes.StandardHeight)
+                                .clip(RoundedCornerShape(4.dp))
+                                .clickable { viewModel.openSalaryConfigDialog() },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Image(
+                                painter = painterResource(id = R.drawable.ui_button),
+                                contentDescription = null,
+                                modifier = Modifier.matchParentSize(),
+                                contentScale = ContentScale.FillBounds
+                            )
+                            Text(
+                                text = "配置月俸",
+                                fontSize = 12.sp,
+                                color = Color.Black
+                            )
+                        }
+                    }
+                    Column {
+                        Text(
+                            text = "存档管理",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Black
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Box(
+                            modifier = Modifier
+                                .width(ButtonSizes.StandardWidth)
+                                .height(ButtonSizes.StandardHeight)
+                                .clip(RoundedCornerShape(4.dp))
+                                .clickable { showSaveSlotDialog = true },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Image(
+                                painter = painterResource(id = R.drawable.ui_button),
+                                contentDescription = null,
+                                modifier = Modifier.matchParentSize(),
+                                contentScale = ContentScale.FillBounds
+                            )
+                            Text(
+                                text = "查看存档",
+                                fontSize = 12.sp,
+                                color = Color.Black
+                            )
+                        }
+                    }
+                }
+            }
+
+            item {
+                Spacer(modifier = Modifier.height(4.dp))
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(38.dp)
+                        .width(ButtonSizes.StandardWidth)
+                        .height(ButtonSizes.StandardHeight)
                         .clip(RoundedCornerShape(4.dp))
-                        .clickable { viewModel.openSalaryConfigDialog() },
+                        .clickable { showOtherSettingsDialog = true },
                     contentAlignment = Alignment.Center
                 ) {
                     Image(
@@ -433,7 +506,7 @@ internal fun SettingsTab(
                         contentScale = ContentScale.FillBounds
                     )
                     Text(
-                        text = "配置月俸",
+                        text = "其他设置",
                         fontSize = 12.sp,
                         color = Color.Black
                     )
@@ -442,23 +515,16 @@ internal fun SettingsTab(
 
             item {
                 Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "存档管理",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-                Spacer(modifier = Modifier.height(8.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .height(38.dp)
+                            .width(ButtonSizes.StandardWidth)
+                            .height(ButtonSizes.StandardHeight)
                             .clip(RoundedCornerShape(4.dp))
-                            .clickable { showSaveSlotDialog = true },
+                            .clickable { showResetDisciplesConfirmDialog = true },
                         contentAlignment = Alignment.Center
                     ) {
                         Image(
@@ -468,180 +534,57 @@ internal fun SettingsTab(
                             contentScale = ContentScale.FillBounds
                         )
                         Text(
-                            text = "查看存档",
+                            text = "重置状态",
                             fontSize = 12.sp,
                             color = Color.Black
                         )
                     }
-                }
-            }
-
-            item {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "隐私设置",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(GameColors.PageBackground)
-                        .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
+                    Box(
+                        modifier = Modifier
+                            .width(ButtonSizes.StandardWidth)
+                            .height(ButtonSizes.StandardHeight)
+                            .clip(RoundedCornerShape(4.dp))
+                            .clickable { showRestartConfirmDialog = true },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.ui_button),
+                            contentDescription = null,
+                            modifier = Modifier.matchParentSize(),
+                            contentScale = ContentScale.FillBounds
+                        )
                         Text(
-                            text = "限制广告追踪",
+                            text = "重新开始",
                             fontSize = 12.sp,
                             color = Color.Black
                         )
-                        Text(
-                            text = "阻止TapTap SDK收集OAID广告标识符",
-                            fontSize = 10.sp,
-                            color = Color(0xFF999999)
+                    }
+                    Box(
+                        modifier = Modifier
+                            .width(ButtonSizes.StandardWidth)
+                            .height(ButtonSizes.StandardHeight)
+                            .clip(RoundedCornerShape(4.dp))
+                            .clickable { onLogout() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.ui_button),
+                            contentDescription = null,
+                            modifier = Modifier.matchParentSize(),
+                            contentScale = ContentScale.FillBounds
                         )
                         Text(
-                            text = "更改将在下次启动应用后生效",
-                            fontSize = 9.sp,
-                            color = Color(0xFFCC8800)
+                            text = "退出游戏",
+                            fontSize = 12.sp,
+                            color = Color.Black
                         )
                     }
-                    Switch(
-                        checked = limitAdTracking,
-                        onCheckedChange = onLimitAdTrackingChanged,
-                        colors = SwitchDefaults.colors(
-                            checkedTrackColor = GameColors.SpiritBlue,
-                            checkedThumbColor = Color.White
-                        ),
-                        modifier = Modifier.height(24.dp)
-                    )
-                }
-            }
-
-            item {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "其他",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(38.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .clickable { viewModel.openRedeemCodeDialog() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.ui_button),
-                        contentDescription = null,
-                        modifier = Modifier.matchParentSize(),
-                        contentScale = ContentScale.FillBounds
-                    )
-                    Text(
-                        text = "兑换码",
-                        fontSize = 12.sp,
-                        color = Color.Black
-                    )
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(38.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .clickable { showChangelogDialog = true },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.ui_button),
-                        contentDescription = null,
-                        modifier = Modifier.matchParentSize(),
-                        contentScale = ContentScale.FillBounds
-                    )
-                    Text(
-                        text = "更新日志",
-                        fontSize = 12.sp,
-                        color = Color.Black
-                    )
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(38.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .clickable { showResetDisciplesConfirmDialog = true },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.ui_button),
-                        contentDescription = null,
-                        modifier = Modifier.matchParentSize(),
-                        contentScale = ContentScale.FillBounds
-                    )
-                    Text(
-                        text = "重置弟子状态",
-                        fontSize = 12.sp,
-                        color = Color.Black
-                    )
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(38.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .clickable { showRestartConfirmDialog = true },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.ui_button),
-                        contentDescription = null,
-                        modifier = Modifier.matchParentSize(),
-                        contentScale = ContentScale.FillBounds
-                    )
-                    Text(
-                        text = "重新开始",
-                        fontSize = 12.sp,
-                        color = Color.Black
-                    )
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(38.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .clickable { onLogout() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.ui_button),
-                        contentDescription = null,
-                        modifier = Modifier.matchParentSize(),
-                        contentScale = ContentScale.FillBounds
-                    )
-                    Text(
-                        text = "退出游戏",
-                        fontSize = 12.sp,
-                        color = Color.Black
-                    )
                 }
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
                     text = "版本 ${com.xianxia.sect.core.GameConfig.Game.VERSION} (build ${com.xianxia.sect.BuildConfig.VERSION_CODE})",
                     fontSize = 10.sp,
-                    color = Color(0xFF999999),
+                    color = Color.Black,
                     modifier = Modifier.fillMaxWidth(),
                     textAlign = TextAlign.Center
                 )
@@ -658,79 +601,105 @@ internal fun SettingsTab(
     }
 
     if (showRestartConfirmDialog) {
-        AlertDialog(
-            onDismissRequest = { showRestartConfirmDialog = false },
-            containerColor = Color.Transparent, tonalElevation = 0.dp,
-            title = {
-                Text(
-                    text = "确认重新开始",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
+        Dialog(onDismissRequest = { showRestartConfirmDialog = false }) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.bg_screen),
+                    contentDescription = null,
+                    modifier = Modifier.matchParentSize(),
+                    contentScale = ContentScale.FillBounds
                 )
-            },
-            text = {
-                Text(
-                    text = "确定要重新开始游戏吗？当前游戏进度将会丢失！",
-                    fontSize = 12.sp,
-                    color = Color(0xFF666666)
-                )
-            },
-            confirmButton = {
-                GameButton(
-                    text = "确认",
-                    onClick = {
-                        showRestartConfirmDialog = false
-                        saveLoadViewModel.restartGame()
-                    },
-                    modifier = Modifier.height(32.dp)
-                )
-            },
-            dismissButton = {
-                GameButton(
-                    text = "取消",
-                    onClick = { showRestartConfirmDialog = false }
-                )
+                Column(
+                    modifier = Modifier.padding(20.dp)
+                ) {
+                    Text(
+                        text = "确认重新开始",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "确定要重新开始游戏吗？当前游戏进度将会丢失！",
+                        fontSize = 12.sp,
+                        color = Color.Black
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        GameButton(
+                            text = "取消",
+                            onClick = { showRestartConfirmDialog = false },
+                            modifier = Modifier.width(ButtonSizes.StandardWidth)
+                        )
+                        GameButton(
+                            text = "确认",
+                            onClick = {
+                                showRestartConfirmDialog = false
+                                saveLoadViewModel.restartGame()
+                            },
+                            modifier = Modifier.width(ButtonSizes.StandardWidth)
+                        )
+                    }
+                }
             }
-        )
+        }
     }
 
     if (showResetDisciplesConfirmDialog) {
-        AlertDialog(
-            onDismissRequest = { showResetDisciplesConfirmDialog = false },
-            containerColor = Color.Transparent, tonalElevation = 0.dp,
-            title = {
-                Text(
-                    text = "确认重置弟子状态",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
+        Dialog(onDismissRequest = { showResetDisciplesConfirmDialog = false }) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.bg_screen),
+                    contentDescription = null,
+                    modifier = Modifier.matchParentSize(),
+                    contentScale = ContentScale.FillBounds
                 )
-            },
-            text = {
-                Text(
-                    text = "确定要重置所有弟子状态吗？\n探索/战斗队伍将解散，工作/职务槽位将清空，思过崖弟子不受影响。",
-                    fontSize = 12.sp,
-                    color = Color(0xFF666666)
-                )
-            },
-            confirmButton = {
-                GameButton(
-                    text = "确认",
-                    onClick = {
-                        showResetDisciplesConfirmDialog = false
-                        saveLoadViewModel.resetAllDisciplesStatus()
-                    },
-                    modifier = Modifier.height(32.dp)
-                )
-            },
-            dismissButton = {
-                GameButton(
-                    text = "取消",
-                    onClick = { showResetDisciplesConfirmDialog = false }
-                )
+                Column(
+                    modifier = Modifier.padding(20.dp)
+                ) {
+                    Text(
+                        text = "确认重置弟子状态",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "确定要重置所有弟子状态吗？\n探索/战斗队伍将解散，工作/职务槽位将清空，监牢弟子不受影响。",
+                        fontSize = 12.sp,
+                        color = Color.Black
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        GameButton(
+                            text = "取消",
+                            onClick = { showResetDisciplesConfirmDialog = false },
+                            modifier = Modifier.width(ButtonSizes.StandardWidth)
+                        )
+                        GameButton(
+                            text = "确认",
+                            onClick = {
+                                showResetDisciplesConfirmDialog = false
+                                saveLoadViewModel.resetAllDisciplesStatus()
+                            },
+                            modifier = Modifier.width(ButtonSizes.StandardWidth)
+                        )
+                    }
+                }
             }
-        )
+        }
     }
     }
 
@@ -739,6 +708,134 @@ internal fun SettingsTab(
             viewModel = viewModel,
             onDismiss = { viewModel.closeRedeemCodeDialog() }
         )
+    }
+
+    if (showOtherSettingsDialog) {
+        Dialog(onDismissRequest = { showOtherSettingsDialog = false }) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.bg_screen),
+                    contentDescription = null,
+                    modifier = Modifier.matchParentSize(),
+                    contentScale = ContentScale.FillBounds
+                )
+                Column(
+                    modifier = Modifier.padding(20.dp)
+                ) {
+                    Text(
+                        text = "其他设置",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(GameColors.PageBackground)
+                            .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "限制广告追踪",
+                                fontSize = 12.sp,
+                                color = Color.Black
+                            )
+                            Text(
+                                text = "阻止TapTap SDK收集OAID广告标识符",
+                                fontSize = 10.sp,
+                                color = Color.Black
+                            )
+                            Text(
+                                text = "更改将在下次启动应用后生效",
+                                fontSize = 9.sp,
+                                color = Color(0xFFCC8800)
+                            )
+                        }
+                        Switch(
+                            checked = limitAdTracking,
+                            onCheckedChange = onLimitAdTrackingChanged,
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = GameColors.SpiritBlue,
+                                checkedThumbColor = Color.White
+                            ),
+                            modifier = Modifier.height(24.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .width(ButtonSizes.StandardWidth)
+                                .height(ButtonSizes.StandardHeight)
+                                .clip(RoundedCornerShape(4.dp))
+                                .clickable {
+                                    showOtherSettingsDialog = false
+                                    viewModel.openRedeemCodeDialog()
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Image(
+                                painter = painterResource(id = R.drawable.ui_button),
+                                contentDescription = null,
+                                modifier = Modifier.matchParentSize(),
+                                contentScale = ContentScale.FillBounds
+                            )
+                            Text(
+                                text = "兑换码",
+                                fontSize = 12.sp,
+                                color = Color.Black
+                            )
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .width(ButtonSizes.StandardWidth)
+                                .height(ButtonSizes.StandardHeight)
+                                .clip(RoundedCornerShape(4.dp))
+                                .clickable {
+                                    showOtherSettingsDialog = false
+                                    showChangelogDialog = true
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Image(
+                                painter = painterResource(id = R.drawable.ui_button),
+                                contentDescription = null,
+                                modifier = Modifier.matchParentSize(),
+                                contentScale = ContentScale.FillBounds
+                            )
+                            Text(
+                                text = "更新日志",
+                                fontSize = 12.sp,
+                                color = Color.Black
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    GameButton(
+                        text = "关闭",
+                        onClick = { showOtherSettingsDialog = false },
+                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                    )
+                }
+            }
+        }
     }
 
     if (showChangelogDialog) {
@@ -877,8 +974,8 @@ internal fun SaveSlotDialog(
                     val saveEnabled = selectedSlot != null && !isBusy && !isAutoSaveSlot
                     Box(
                         modifier = Modifier
-                            .weight(1f)
-                            .height(38.dp)
+                            .width(ButtonSizes.StandardWidth)
+                            .height(ButtonSizes.StandardHeight)
                             .alpha(if (saveEnabled) 1f else 0.45f)
                             .clip(RoundedCornerShape(4.dp))
                             .then(
@@ -916,8 +1013,8 @@ internal fun SaveSlotDialog(
                     val loadEnabled = selectedSlot != null && saveSlots.find { it.slot == selectedSlot }?.isEmpty == false && !isBusy
                     Box(
                         modifier = Modifier
-                            .weight(1f)
-                            .height(38.dp)
+                            .width(ButtonSizes.StandardWidth)
+                            .height(ButtonSizes.StandardHeight)
                             .alpha(if (loadEnabled) 1f else 0.45f)
                             .clip(RoundedCornerShape(4.dp))
                             .then(
@@ -1011,7 +1108,7 @@ internal fun SaveSlotCard(
                 Text(
                     text = if (slot.isEmpty) "空" else slot.saveTime,
                     fontSize = 12.sp,
-                    color = Color(0xFF666666)
+                    color = Color.Black
                 )
             }
             
@@ -1028,7 +1125,7 @@ internal fun SaveSlotCard(
                     Text(
                         text = slot.displayTime,
                         fontSize = 12.sp,
-                        color = Color(0xFF666666)
+                        color = Color.Black
                     )
                 }
                 Row(
@@ -1038,12 +1135,12 @@ internal fun SaveSlotCard(
                     Text(
                         text = "弟子: ${slot.discipleCount}",
                         fontSize = 12.sp,
-                        color = Color(0xFF666666)
+                        color = Color.Black
                     )
                     Text(
                         text = "灵石: ${slot.spiritStones}",
                         fontSize = 12.sp,
-                        color = Color(0xFF666666)
+                        color = Color.Black
                     )
                 }
             }
@@ -1087,7 +1184,7 @@ private fun ChangelogDialog(onDismiss: () -> Unit) {
                             .background(GameColors.CardBackground),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(text = "关闭", fontSize = 12.sp, color = Color(0xFF666666))
+                        Text(text = "关闭", fontSize = 12.sp, color = Color.Black)
                     }
                 }
                 Column(
@@ -1120,7 +1217,7 @@ private fun ChangelogDialog(onDismiss: () -> Unit) {
                             Text(
                                 text = entry.date,
                                 fontSize = 10.sp,
-                                color = Color(0xFF999999)
+                                color = Color.Black
                             )
                         }
                         Spacer(modifier = Modifier.height(6.dp))
@@ -1133,13 +1230,13 @@ private fun ChangelogDialog(onDismiss: () -> Unit) {
                                 Text(
                                     text = "•",
                                     fontSize = 11.sp,
-                                    color = Color(0xFF666666)
+                                    color = Color.Black
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     text = change,
                                     fontSize = 11.sp,
-                                    color = Color(0xFF333333),
+                                    color = Color.Black,
                                     lineHeight = 18.sp
                                 )
                             }

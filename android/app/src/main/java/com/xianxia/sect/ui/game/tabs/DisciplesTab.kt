@@ -3,6 +3,7 @@ package com.xianxia.sect.ui.game.tabs
 import androidx.compose.animation.*
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -27,6 +28,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -47,6 +50,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.xianxia.sect.R
 import com.xianxia.sect.core.model.DirectDiscipleSlot
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatus
@@ -58,6 +62,7 @@ import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.core.util.sortedByFollowAttributeAndRealm
+import com.xianxia.sect.ui.components.GameBackground
 import com.xianxia.sect.ui.components.DiscipleAttrText
 import com.xianxia.sect.ui.components.DiscipleCardStyles
 import com.xianxia.sect.ui.components.CloseButton
@@ -118,11 +123,11 @@ internal fun DisciplesTab(
         disciples.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort)
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(GameColors.PageBackground)
-    ) {
+    GameBackground {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+        ) {
         SpiritRootAttributeFilterBar(
             selectedSpiritRootFilter = selectedSpiritRootFilter,
             selectedAttributeSort = selectedAttributeSort,
@@ -154,7 +159,7 @@ internal fun DisciplesTab(
                 Text(
                     text = "暂无弟子",
                     fontSize = 12.sp,
-                    color = Color(0xFF999999)
+                    color = Color.Black
                 )
             }
         } else {
@@ -194,6 +199,7 @@ internal fun DisciplesTab(
             onNavigateToDisciple = { disciple -> selectedDisciple = disciple }
         )
     }
+    }
 }
 
 @Composable
@@ -207,7 +213,6 @@ internal fun RealmFilterBar(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(GameColors.PageBackground)
             .padding(horizontal = 8.dp, vertical = 8.dp)
     ) {
         Row(
@@ -288,10 +293,15 @@ internal fun DiscipleCard(
             .fillMaxWidth()
             .discipleCardBorder()
             .clickable { onClick() }
-            .padding(DiscipleCardStyles.cardPadding)
     ) {
+        Image(
+            painter = painterResource(id = R.drawable.bg_horizontal),
+            contentDescription = null,
+            modifier = Modifier.matchParentSize(),
+            contentScale = ContentScale.FillBounds
+        )
         Column(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().padding(DiscipleCardStyles.cardPadding),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Row(
@@ -315,7 +325,7 @@ internal fun DiscipleCard(
                     Text(
                         text = disciple.status.displayName,
                         fontSize = 12.sp,
-                        color = Color(0xFF666666)
+                        color = Color.Black
                     )
                 }
             }
@@ -327,7 +337,7 @@ internal fun DiscipleCard(
                 val spiritRootColor = try {
                     Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))
                 } catch (e: Exception) {
-                    Color(0xFF666666)
+                    Color.Black
                 }
                 Text(
                     text = disciple.spiritRootName,
@@ -400,7 +410,7 @@ internal fun ElderSlotWithDisciples(
                     Text(
                         text = elder.realmName,
                         fontSize = 8.sp,
-                        color = Color(0xFF666666),
+                        color = Color.Black,
                         maxLines = 1
                     )
                 }
@@ -408,7 +418,7 @@ internal fun ElderSlotWithDisciples(
                 Text(
                     text = "+",
                     fontSize = 20.sp,
-                    color = Color(0xFF999999)
+                    color = Color.Black
                 )
             }
         }
@@ -443,7 +453,7 @@ internal fun ElderSlotWithDisciples(
             text = "亲传弟子",
             fontSize = 9.sp,
             fontWeight = FontWeight.Bold,
-            color = Color(0xFF666666)
+            color = Color.Black
         )
         
         Row(
@@ -493,7 +503,7 @@ internal fun DirectDiscipleSlotItem(
                     Text(
                         text = disciple.discipleRealm,
                         fontSize = 7.sp,
-                        color = Color(0xFF666666),
+                        color = Color.Black,
                         maxLines = 1
                     )
                 }
@@ -501,7 +511,7 @@ internal fun DirectDiscipleSlotItem(
                 Text(
                     text = "+",
                     fontSize = 16.sp,
-                    color = Color(0xFF999999)
+                    color = Color.Black
                 )
             }
         }
@@ -702,7 +712,7 @@ internal fun DirectDiscipleSelectionDialog(
                                     val spiritRootColor = try {
                                         Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))
                                     } catch (e: Exception) {
-                                        Color(0xFF666666)
+                                        Color.Black
                                     }
                                     Text(
                                         text = disciple.spiritRootName,
@@ -731,7 +741,7 @@ internal fun DirectDiscipleSelectionDialog(
                                     Text(
                                         text = disciple.realmName,
                                         fontSize = 12.sp,
-                                        color = Color(0xFF666666)
+                                        color = Color.Black
                                     )
                                 }
                             }
@@ -918,7 +928,7 @@ internal fun ElderDiscipleSelectionDialog(
                                     val spiritRootColor = try {
                                         Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))
                                     } catch (e: Exception) {
-                                        Color(0xFF666666)
+                                        Color.Black
                                     }
                                     Text(
                                         text = disciple.spiritRootName,
@@ -947,7 +957,7 @@ internal fun ElderDiscipleSelectionDialog(
                                     Text(
                                         text = disciple.realmName,
                                         fontSize = 12.sp,
-                                        color = Color(0xFF666666)
+                                        color = Color.Black
                                     )
                                 }
                             }

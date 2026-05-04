@@ -204,14 +204,14 @@ enum class BuildingType {
         ALCHEMY -> "炼丹"
         FORGE -> "锻造"
         MINING -> "灵矿开采"
-        HERB_GARDEN -> "灵药宛"
+        HERB_GARDEN -> "灵植阁"
         ADMINISTRATION -> "天枢殿"
         LIBRARY -> "藏经阁"
-        WEN_DAO_PEAK -> "问道峰"
-        QINGYUN_PEAK -> "青云峰"
+        WEN_DAO_PEAK -> "问道塔"
+        QINGYUN_PEAK -> "青云塔"
         LAW_ENFORCEMENT_HALL -> "执法堂"
         MISSION_HALL -> "任务阁"
-        REFLECTION_CLIFF -> "思过崖"
+        REFLECTION_CLIFF -> "监牢"
     }
 
     fun toSlotType(): SlotType = when (this) {
@@ -249,7 +249,7 @@ enum class SlotType {
         MINING -> "灵矿开采"
         ALCHEMY -> "炼丹"
         FORGING -> "锻造"
-        HERB_GARDEN -> "灵药宛"
+        HERB_GARDEN -> "灵植阁"
     }
 
     fun toBuildingType(): BuildingType? = when (this) {

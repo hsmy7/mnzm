@@ -36,6 +36,7 @@ import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.ElderBonusInfoButton
 import com.xianxia.sect.ui.components.ElderBonusInfoProvider
 import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.ui.components.HorizontalDiscipleCard
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
@@ -146,7 +147,7 @@ fun SpiritMineDialog(
                         text = "矿工槽位 ($emptySlotCount/$totalSlots 空闲)",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF666666)
+                        color = Color.Black
                     )
                     ElderBonusInfoButton(bonusInfo = ElderBonusInfoProvider.getSpiritMineMinerInfo())
                 }
@@ -258,7 +259,7 @@ private fun SpiritMineDeaconSection(
                 text = "灵矿执事",
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFF666666)
+                color = Color.Black
             )
             ElderBonusInfoButton(bonusInfo = ElderBonusInfoProvider.getSpiritMineDeaconInfo())
         }
@@ -306,7 +307,7 @@ private fun SpiritMineDeaconSlotItem(
             text = "执事 ${index + 1}",
             fontSize = 10.sp,
             fontWeight = FontWeight.Bold,
-            color = Color(0xFF666666)
+            color = Color.Black
         )
         Spacer(modifier = Modifier.height(4.dp))
         Box(
@@ -341,7 +342,7 @@ private fun SpiritMineDeaconSlotItem(
                     Text(
                         text = disciple.realmName,
                         fontSize = 9.sp,
-                        color = Color(0xFF666666)
+                        color = Color.Black
                     )
                     Text(
                         text = "道德: ${disciple.morality}",
@@ -353,7 +354,7 @@ private fun SpiritMineDeaconSlotItem(
                 Text(
                     text = "点击任命",
                     fontSize = 10.sp,
-                    color = Color(0xFF999999)
+                    color = Color.Black
                 )
             }
         }
@@ -434,14 +435,14 @@ private fun SpiritMineSlotItem(
                     Text(
                         text = disciple.realmName,
                         fontSize = 10.sp,
-                        color = Color(0xFF666666)
+                        color = Color.Black
                     )
                 }
             } else {
                 Text(
                     text = "+",
                     fontSize = 24.sp,
-                    color = Color(0xFF999999)
+                    color = Color.Black
                 )
             }
         }
@@ -519,7 +520,7 @@ private fun SpiritMineDiscipleSelectionDialog(
                     Text(
                         text = "暂无可用外门弟子",
                         fontSize = 12.sp,
-                        color = Color(0xFF999999)
+                        color = Color.Black
                     )
                 }
             } else {
@@ -662,115 +663,121 @@ private fun SpiritMineDeaconSelectionDialog(
         sortedDisciples.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort)
     }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = Color.Transparent, tonalElevation = 0.dp,
-        title = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "选择执事（内门弟子）",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-                CloseButton(onClick = onDismiss)
-            }
-        },
-        text = {
-            if (disciples.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(100.dp),
-                    contentAlignment = Alignment.Center
+    Dialog(onDismissRequest = onDismiss) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.bg_screen),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.FillBounds
+            )
+            Column(modifier = Modifier.padding(20.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "暂无可用内门弟子",
+                        text = "选择执事（内门弟子）",
                         fontSize = 12.sp,
-                        color = Color(0xFF999999)
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
                     )
+                    CloseButton(onClick = onDismiss)
                 }
-            } else {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 500.dp)
-                ) {
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    SpiritRootAttributeFilterBar(
-                        selectedSpiritRootFilter = selectedSpiritRootFilter,
-                        selectedAttributeSort = selectedAttributeSort,
-                        spiritRootExpanded = spiritRootExpanded,
-                        attributeExpanded = attributeExpanded,
-                        spiritRootCounts = spiritRootCounts,
-                        onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
-                        onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
-                        onAttributeSortSelected = { selectedAttributeSort = it },
-                        onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
-                        onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
-                        isCompact = true
-                    )
-
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                Spacer(modifier = Modifier.height(12.dp))
+                if (disciples.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(100.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        realmFilters.chunked(4).forEach { chunk ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                chunk.forEach { (realm, name) ->
-                                    val isSelected = realm in selectedRealmFilter
-                                    val count = realmCounts[realm] ?: 0
-                                    Box(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .clip(RoundedCornerShape(4.dp))
-                                            .background(if (isSelected) GameColors.Gold.copy(alpha = 0.3f) else GameColors.PageBackground)
-                                            .border(1.dp, if (isSelected) GameColors.Gold else GameColors.Border, RoundedCornerShape(4.dp))
-                                            .clickable { selectedRealmFilter = if (isSelected) selectedRealmFilter - realm else selectedRealmFilter + realm }
-                                            .padding(vertical = 4.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = "$name $count",
-                                            fontSize = 9.sp,
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                            color = if (isSelected) GameColors.GoldDark else Color.Black
-                                        )
+                        Text(
+                            text = "暂无可用内门弟子",
+                            fontSize = 12.sp,
+                            color = Color.Black
+                        )
+                    }
+                } else {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 500.dp)
+                    ) {
+                        SpiritRootAttributeFilterBar(
+                            selectedSpiritRootFilter = selectedSpiritRootFilter,
+                            selectedAttributeSort = selectedAttributeSort,
+                            spiritRootExpanded = spiritRootExpanded,
+                            attributeExpanded = attributeExpanded,
+                            spiritRootCounts = spiritRootCounts,
+                            onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
+                            onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
+                            onAttributeSortSelected = { selectedAttributeSort = it },
+                            onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
+                            onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
+                            isCompact = true
+                        )
+
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            realmFilters.chunked(4).forEach { chunk ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    chunk.forEach { (realm, name) ->
+                                        val isSelected = realm in selectedRealmFilter
+                                        val count = realmCounts[realm] ?: 0
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(if (isSelected) GameColors.Gold.copy(alpha = 0.3f) else GameColors.PageBackground)
+                                                .border(1.dp, if (isSelected) GameColors.Gold else GameColors.Border, RoundedCornerShape(4.dp))
+                                                .clickable { selectedRealmFilter = if (isSelected) selectedRealmFilter - realm else selectedRealmFilter + realm }
+                                                .padding(vertical = 4.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = "$name $count",
+                                                fontSize = 9.sp,
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                                color = if (isSelected) GameColors.GoldDark else Color.Black
+                                            )
+                                        }
                                     }
                                 }
                             }
                         }
-                    }
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
 
-                    LazyColumn(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(filteredDisciples, key = { it.id }) { disciple ->
-                            val isCurrent = disciple.id == currentDeaconId
-                            HorizontalDiscipleCard(
-                                disciple = disciple,
-                                isCurrent = isCurrent,
-                                extraAttributes = listOf("道德" to disciple.morality),
-                                onClick = { onSelect(disciple) }
-                            )
+                        LazyColumn(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(filteredDisciples, key = { it.id }) { disciple ->
+                                val isCurrent = disciple.id == currentDeaconId
+                                HorizontalDiscipleCard(
+                                    disciple = disciple,
+                                    isCurrent = isCurrent,
+                                    extraAttributes = listOf("道德" to disciple.morality),
+                                    onClick = { onSelect(disciple) }
+                                )
+                            }
                         }
                     }
                 }
             }
-        },
-        confirmButton = {}
-    )
+        }
+    }
 }
 
 @Composable
@@ -845,7 +852,7 @@ private fun CommonDialog(
                         Text(
                             text = "关闭",
                             fontSize = 16.sp,
-                            color = Color(0xFF666666)
+                            color = Color.Black
                         )
                     }
                 }
@@ -874,19 +881,26 @@ private fun SpiritMineExpansionDialog(
     onDismiss: () -> Unit
 ) {
     val nextSlots = 1 + currentExpansions + 1
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = Color.Transparent, tonalElevation = 0.dp,
-        title = {
-            Text(
-                text = "扩建灵矿场",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black
+    Dialog(onDismissRequest = onDismiss) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.bg_screen),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.FillBounds
             )
-        },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text(
+                    text = "扩建灵矿场",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+                Spacer(modifier = Modifier.height(12.dp))
                 Text(
                     text = "确认扩建灵矿场吗？",
                     fontSize = 12.sp,
@@ -910,55 +924,24 @@ private fun SpiritMineExpansionDialog(
                         color = Color(0xFFE74C3C)
                     )
                 }
-            }
-        },
-        confirmButton = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(38.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .clickable { onDismiss() },
-                    contentAlignment = Alignment.Center
+                Spacer(modifier = Modifier.height(16.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.ui_button),
-                        contentDescription = null,
-                        modifier = Modifier.matchParentSize(),
-                        contentScale = ContentScale.FillBounds
-                    )
-                    Text(
+                    GameButton(
                         text = "取消",
-                        fontSize = 12.sp,
-                        color = Color.Black
+                        onClick = onDismiss,
+                        modifier = Modifier.width(ButtonSizes.StandardWidth)
                     )
-                }
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(38.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .clickable(enabled = canAfford) { onConfirm() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.ui_button),
-                        contentDescription = null,
-                        modifier = Modifier.matchParentSize(),
-                        contentScale = ContentScale.FillBounds
-                    )
-                    Text(
+                    GameButton(
                         text = "确认扩建",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
+                        onClick = onConfirm,
+                        enabled = canAfford,
+                        modifier = Modifier.width(ButtonSizes.StandardWidth)
                     )
                 }
             }
         }
-    )
+    }
 }

@@ -82,7 +82,7 @@ fun SectMarker(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(4.dp))
                                 .background(Color.White)
-                                .border(1.dp, Color(0xFF333333), RoundedCornerShape(4.dp))
+                                .border(1.dp, Color.Black, RoundedCornerShape(4.dp))
                                 .clickable { onTeamBadgeClick(badge.teamId) }
                                 .padding(horizontal = 6.dp, vertical = 1.dp),
                             contentAlignment = Alignment.Center
@@ -156,7 +156,7 @@ private fun TeamActionButton(text: String, onClick: () -> Unit) {
         modifier = Modifier
             .clip(RoundedCornerShape(4.dp))
             .background(Color(0xFFF0F0F0))
-            .border(0.5.dp, Color(0xFF999999), RoundedCornerShape(4.dp))
+            .border(0.5.dp, Color.Black, RoundedCornerShape(4.dp))
             .clickable { onClick() }
             .padding(horizontal = 6.dp, vertical = 2.dp),
         contentAlignment = Alignment.Center

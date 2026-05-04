@@ -273,7 +273,7 @@ fun LearnedManualDetailDialog(
                 Text(
                     text = "${getRarityName(manual.rarity)} · ${manual.type.displayName}",
                     fontSize = 11.sp,
-                    color = Color(0xFF666666)
+                    color = Color.Black
                 )
 
                 HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
@@ -281,7 +281,7 @@ fun LearnedManualDetailDialog(
                 Text(
                     text = manual.description,
                     fontSize = 12.sp,
-                    color = Color(0xFF333333)
+                    color = Color.Black
                 )
 
                 HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
@@ -307,7 +307,7 @@ fun LearnedManualDetailDialog(
                     Text(
                         text = "${proficiency.toInt()}/${maxProficiency.toInt()}",
                         fontSize = 11.sp,
-                        color = Color(0xFF666666)
+                        color = Color.Black
                     )
                 }
 
@@ -336,7 +336,7 @@ fun LearnedManualDetailDialog(
                     Text(
                         text = "距离${nextLevelName}还需 ${(nextThreshold - proficiency).toInt()} 熟练度",
                         fontSize = 10.sp,
-                        color = Color(0xFF999999)
+                        color = Color.Black
                     )
                 } else {
                     Text(
@@ -355,7 +355,7 @@ fun LearnedManualDetailDialog(
                     Text(
                         text = "需求境界：${GameConfig.Realm.getName(manual.minRealm)}",
                         fontSize = 10.sp,
-                        color = Color(0xFF999999)
+                        color = Color.Black
                     )
                 }
             }
@@ -407,7 +407,7 @@ private fun ManualStatsContent(
                 Text(
                     text = statName,
                     fontSize = 11.sp,
-                    color = Color(0xFF666666)
+                    color = Color.Black
                 )
                 Text(
                     text = if (key.contains("Percent")) "+$finalValue%" else "+$finalValue",
@@ -437,21 +437,21 @@ private fun ManualStatsContent(
             Text(
                 text = skill.description,
                 fontSize = 10.sp,
-                color = Color(0xFF333333)
+                color = Color.Black
             )
         }
         if (skill.skillType == com.xianxia.sect.core.SkillType.SUPPORT) {
             Text(
                 text = "类型：辅助",
                 fontSize = 10.sp,
-                color = Color(0xFF666666)
+                color = Color.Black
             )
         }
         if (skill.targetScope == "team") {
             Text(
                 text = "作用范围: 全队",
                 fontSize = 10.sp,
-                color = Color(0xFF666666)
+                color = Color.Black
             )
         }
         if (skill.healPercent > 0) {
@@ -462,38 +462,38 @@ private fun ManualStatsContent(
             Text(
                 text = "治疗：${(skill.healPercent * 100).toInt()}% $healTypeName",
                 fontSize = 10.sp,
-                color = Color(0xFF666666)
+                color = Color.Black
             )
         }
         if (skill.damageMultiplier > 0 && skill.skillType == com.xianxia.sect.core.SkillType.ATTACK) {
             Text(
                 text = "伤害类型：${if (skill.damageType == com.xianxia.sect.core.DamageType.PHYSICAL) "物理" else "法术"}",
                 fontSize = 10.sp,
-                color = Color(0xFF666666)
+                color = Color.Black
             )
             Text(
                 text = "伤害倍率：${(skill.damageMultiplier * 100).toInt()}%",
                 fontSize = 10.sp,
-                color = Color(0xFF666666)
+                color = Color.Black
             )
         }
         Text(
             text = "连击次数：${skill.hits}",
             fontSize = 10.sp,
-            color = Color(0xFF666666)
+            color = Color.Black
         )
         if (skill.cooldown > 0) {
             Text(
                 text = "冷却回合：${skill.cooldown}",
                 fontSize = 10.sp,
-                color = Color(0xFF666666)
+                color = Color.Black
             )
         }
         if (skill.mpCost > 0) {
             Text(
                 text = "灵力消耗：${skill.mpCost}",
                 fontSize = 10.sp,
-                color = Color(0xFF666666)
+                color = Color.Black
             )
         }
         skill.buffs.forEach { (buffType, value, duration) ->
@@ -501,7 +501,7 @@ private fun ManualStatsContent(
             Text(
                 text = "$buffName：+${(value * 100).toInt()}% (${duration}回合)",
                 fontSize = 10.sp,
-                color = Color(0xFF666666)
+                color = Color.Black
             )
         }
         if (skill.buffs.isEmpty() && skill.buffType != null && skill.buffValue > 0) {
@@ -510,7 +510,7 @@ private fun ManualStatsContent(
             Text(
                 text = "$buffName：+${(skill.buffValue * 100).toInt()}%$durationText",
                 fontSize = 10.sp,
-                color = Color(0xFF666666)
+                color = Color.Black
             )
         }
     }

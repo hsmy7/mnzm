@@ -6,10 +6,15 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.window.Dialog
+import com.xianxia.sect.R
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -45,71 +50,79 @@ fun LawEnforcementHallDialog(
     val lawDisciples = productionViewModel.getLawEnforcementDisciples()
     val reserveDisciplesWithInfo = productionViewModel.getLawEnforcementReserveDisciplesWithInfo()
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
-        title = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "执法堂",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
+    Dialog(onDismissRequest = onDismiss) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.bg_screen),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.FillBounds
+            )
+            Column(modifier = Modifier.padding(20.dp)) {
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(Color(0xFFE74C3C))
-                            .clickable { showReserveDiscipleList = true }
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    Text(
+                        text = "执法堂",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "储备弟子(${reserveDisciplesWithInfo.size})",
-                            fontSize = 10.sp,
-                            color = Color.White
-                        )
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(Color(0xFFE74C3C))
+                                .clickable { showReserveDiscipleList = true }
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = "储备弟子(${reserveDisciplesWithInfo.size})",
+                                fontSize = 10.sp,
+                                color = Color.White
+                            )
+                        }
+                        CloseButton(onClick = onDismiss)
                     }
-                    CloseButton(onClick = onDismiss)
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Column(
+                    modifier = Modifier
+                        .heightIn(max = 500.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "维护宗门纪律，执行门规",
+                        fontSize = 10.sp,
+                        color = Color(0xFFE74C3C)
+                    )
+
+                    LawElderSection(
+                        elder = lawElder,
+                        onElderClick = { showElderSelection = true },
+                        onElderRemove = { productionViewModel.removeElder(ElderSlotType.LAW_ENFORCEMENT) }
+                    )
+
+                    LawDisciplesSection(
+                        lawDisciples = lawDisciples,
+                        onDiscipleClick = { index -> showDiscipleSelection = index },
+                        onDiscipleRemove = { index -> productionViewModel.removeDirectDisciple("lawEnforcement", index) }
+                    )
                 }
             }
-        },
-        text = {
-            Column(
-                modifier = Modifier
-                    .heightIn(max = 500.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = "维护宗门纪律，执行门规",
-                    fontSize = 10.sp,
-                    color = Color(0xFFE74C3C)
-                )
-
-                LawElderSection(
-                    elder = lawElder,
-                    onElderClick = { showElderSelection = true },
-                    onElderRemove = { productionViewModel.removeElder(ElderSlotType.LAW_ENFORCEMENT) }
-                )
-
-                LawDisciplesSection(
-                    lawDisciples = lawDisciples,
-                    onDiscipleClick = { index -> showDiscipleSelection = index },
-                    onDiscipleRemove = { index -> productionViewModel.removeDirectDisciple("lawEnforcement", index) }
-                )
-            }
-        },
-        confirmButton = {}
-    )
+        }
+    }
 
     val lawTheme = remember {
         ProductionTheme(
@@ -278,7 +291,7 @@ private fun ReserveDiscipleCard(
     val spiritRootColor = try {
         Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))
     } catch (e: Exception) {
-        Color(0xFF666666)
+        Color.Black
     }
 
     Box(
@@ -327,12 +340,12 @@ private fun ReserveDiscipleCard(
                     Text(
                         text = "智力: ${disciple.intelligence}",
                         fontSize = 10.sp,
-                        color = Color(0xFF666666)
+                        color = Color.Black
                     )
                     Text(
                         text = disciple.realmName,
                         fontSize = 10.sp,
-                        color = Color(0xFF666666)
+                        color = Color.Black
                     )
                 }
             }
@@ -348,7 +361,7 @@ private fun ReserveDiscipleCard(
                 Text(
                     text = "移除",
                     fontSize = 10.sp,
-                    color = Color(0xFF666666)
+                    color = Color.Black
                 )
             }
         }
@@ -413,7 +426,7 @@ private fun ElderSlotItem(
                     Text(
                         text = elder.realmName,
                         fontSize = 8.sp,
-                        color = Color(0xFF666666),
+                        color = Color.Black,
                         maxLines = 1
                     )
                 }
@@ -421,7 +434,7 @@ private fun ElderSlotItem(
                 Text(
                     text = "+",
                     fontSize = 20.sp,
-                    color = Color(0xFF999999)
+                    color = Color.Black
                 )
             }
         }
@@ -460,7 +473,7 @@ private fun LawDiscipleSlotItem(
             text = "执法弟子",
             fontSize = 8.sp,
             fontWeight = FontWeight.Bold,
-            color = Color(0xFF666666)
+            color = Color.Black
         )
         Spacer(modifier = Modifier.height(2.dp))
 
@@ -497,7 +510,7 @@ private fun LawDiscipleSlotItem(
                     Text(
                         text = disciple.discipleRealm,
                         fontSize = 7.sp,
-                        color = Color(0xFF666666),
+                        color = Color.Black,
                         maxLines = 1
                     )
                 }
@@ -505,7 +518,7 @@ private fun LawDiscipleSlotItem(
                 Text(
                     text = "+",
                     fontSize = 14.sp,
-                    color = Color(0xFF999999)
+                    color = Color.Black
                 )
             }
         }
@@ -537,35 +550,43 @@ private fun CommonDialog(
     onDismiss: () -> Unit,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
-        title = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = title,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-                CloseButton(onClick = onDismiss)
+    Dialog(onDismissRequest = onDismiss) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.bg_screen),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.FillBounds
+            )
+            Column(modifier = Modifier.padding(20.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = title,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+                    CloseButton(onClick = onDismiss)
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Column(
+                    modifier = Modifier
+                        .heightIn(max = 500.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    content()
+                }
             }
-        },
-        text = {
-            Column(
-                modifier = Modifier
-                    .heightIn(max = 500.dp)
-                    .verticalScroll(rememberScrollState())
-            ) {
-                content()
-            }
-        },
-        confirmButton = {}
-    )
+        }
+    }
 }
 
 @Composable
@@ -583,66 +604,69 @@ private fun ReserveDiscipleListDialog(
         reserveDisciples.sortedByFollowAndRealm()
     }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
-        title = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+    Dialog(onDismissRequest = onDismiss) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.bg_screen),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.FillBounds
+            )
+            Column(modifier = Modifier.padding(20.dp)) {
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Text(
-                        text = "储备弟子",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-                    Text(
-                        text = "(${sortedReserveDisciples.size})",
-                        fontSize = 10.sp,
-                        color = Color(0xFF999999)
-                    )
-                }
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(Color(0xFFE74C3C))
-                            .clickable { showAddDiscipleDialog = true }
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Text(
-                            text = "+ 添加",
+                            text = "储备弟子",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Black
+                        )
+                        Text(
+                            text = "(${sortedReserveDisciples.size})",
                             fontSize = 10.sp,
-                            color = Color.White
+                            color = Color.Black
                         )
                     }
-                    CloseButton(onClick = onDismiss)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(Color(0xFFE74C3C))
+                                .clickable { showAddDiscipleDialog = true }
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = "+ 添加",
+                                fontSize = 10.sp,
+                                color = Color.White
+                            )
+                        }
+                        CloseButton(onClick = onDismiss)
+                    }
                 }
-            }
-        },
-        text = {
-            Column(
-                modifier = Modifier.fillMaxWidth()
-            ) {
+                Spacer(modifier = Modifier.height(12.dp))
                 Text(
                     text = "执法弟子空缺时自动补位",
                     fontSize = 9.sp,
-                    color = Color(0xFF999999),
+                    color = Color.Black,
                     modifier = Modifier.fillMaxWidth(),
                     textAlign = TextAlign.Center
                 )
-                
                 Spacer(modifier = Modifier.height(12.dp))
-                
                 if (sortedReserveDisciples.isEmpty()) {
                     Box(
                         modifier = Modifier
@@ -653,7 +677,7 @@ private fun ReserveDiscipleListDialog(
                         Text(
                             text = "暂无储备弟子",
                             fontSize = 12.sp,
-                            color = Color(0xFF999999)
+                            color = Color.Black
                         )
                     }
                 } else {
@@ -672,9 +696,8 @@ private fun ReserveDiscipleListDialog(
                     }
                 }
             }
-        },
-        confirmButton = {}
-    )
+        }
+    }
 
     if (showAddDiscipleDialog) {
         val rawDisciples = remember(allDisciples, elderSlots) {

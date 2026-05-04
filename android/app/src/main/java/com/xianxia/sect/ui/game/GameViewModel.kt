@@ -134,10 +134,11 @@ class GameViewModel @Inject constructor(
         openDialog(DialogType.BattleLog)
     }
 
-    fun placeBuilding(name: String, gridX: Int, gridY: Int, width: Int = 2, height: Int = 2) {
+    fun placeBuilding(name: String, gridX: Int, gridY: Int, width: Int = 2, height: Int = 3) {
         viewModelScope.launch {
             val config = buildingConfigService.getBuildingConfigByDisplayName(name)
             val cost = config?.cost ?: 1000L
+            val (gridW, gridH) = buildingConfigService.getBuildingGridSize(name)
 
             gameEngine.updateGameData { data ->
                 if (data.placedBuildings.any { it.displayName == name }) return@updateGameData data
@@ -149,8 +150,8 @@ class GameViewModel @Inject constructor(
                         displayName = name,
                         gridX = gridX,
                         gridY = gridY,
-                        width = width,
-                        height = height
+                        width = gridW,
+                        height = gridH
                     )
                 )
             }
@@ -159,6 +160,20 @@ class GameViewModel @Inject constructor(
 
     fun getBuildingCost(displayName: String): Long {
         return buildingConfigService.getBuildingConfigByDisplayName(displayName)?.cost ?: 1000L
+    }
+
+    fun getBuildingGridSize(displayName: String): Pair<Int, Int> {
+        return buildingConfigService.getBuildingGridSize(displayName)
+    }
+
+    /** 修正已有存档中的建筑尺寸（存档加载后调用） */
+    fun fixupBuildingSizesIfNeeded() {
+        viewModelScope.launch {
+            gameEngine.updateGameData { data ->
+                val fixed = buildingConfigService.fixupBuildingSizes(data.placedBuildings)
+                if (fixed != data.placedBuildings) data.copy(placedBuildings = fixed) else data
+            }
+        }
     }
 
     val gameData: StateFlow<GameData> = gameEngine.gameData

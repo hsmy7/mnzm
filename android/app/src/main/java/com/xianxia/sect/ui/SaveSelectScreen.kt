@@ -92,8 +92,9 @@ fun SaveSelectScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         GameButton(
-            text = "退出登录",
-            onClick = onLogout
+            text = "退出",
+            onClick = onLogout,
+            modifier = Modifier.align(Alignment.CenterHorizontally)
         )
     }
     }
@@ -232,27 +233,27 @@ fun SaveSlotCard(
                                 text = slot.displayName.ifEmpty { slot.sectName.ifEmpty { "存档 ${slot.slot}" } },
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Medium,
-                                color = Color(0xFF333333)
+                                color = Color.Black
                             )
                         }
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = "第${slot.gameYear}年 ${slot.gameMonth}月",
                             fontSize = 13.sp,
-                            color = Color(0xFF666666)
+                            color = Color.Black
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = "弟子: ${slot.discipleCount}  灵石: ${slot.spiritStones}",
                             fontSize = 12.sp,
-                            color = Color(0xFF999999)
+                            color = Color.Black
                         )
                         if (slot.timestamp > 0) {
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
                                 text = dateFormat.format(Date(slot.timestamp)),
                                 fontSize = 11.sp,
-                                color = Color(0xFF999999)
+                                color = Color.Black
                             )
                         }
                     }
@@ -260,7 +261,7 @@ fun SaveSlotCard(
                     Text(
                         text = if (slot.isAutoSave) "自动存档 - 暂无数据" else "空槽位 - 点击创建新游戏",
                         fontSize = 16.sp,
-                        color = Color(0xFF999999)
+                        color = Color.Black
                     )
                 }
             }

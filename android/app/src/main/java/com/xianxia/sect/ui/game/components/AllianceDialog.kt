@@ -142,17 +142,31 @@ fun AllianceDialog(
     }
     
     if (showAlreadyAllianceDialog) {
-        AlertDialog(
-            onDismissRequest = { showAlreadyAllianceDialog = false },
-            title = { Text("提示") },
-            text = { Text("该宗门已有盟友") },
-            confirmButton = {
-                GameButton(
-                    text = "确定",
-                    onClick = { showAlreadyAllianceDialog = false }
+        Dialog(onDismissRequest = { showAlreadyAllianceDialog = false }) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.bg_screen),
+                    contentDescription = null,
+                    modifier = Modifier.matchParentSize(),
+                    contentScale = ContentScale.FillBounds
                 )
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Text("提示", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text("该宗门已有盟友", fontSize = 12.sp, color = Color.Black)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    GameButton(
+                        text = "确定",
+                        onClick = { showAlreadyAllianceDialog = false },
+                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                    )
+                }
             }
-        )
+        }
     }
 }
 
@@ -857,7 +871,7 @@ private fun ScoutDiscipleCard(
                     Text(
                         text = disciple.status.displayName,
                         fontSize = 12.sp,
-                        color = Color(0xFF666666)
+                        color = Color.Black
                     )
                 }
             }
@@ -869,7 +883,7 @@ private fun ScoutDiscipleCard(
                 val spiritRootColor = try {
                     Color(AndroidColor.parseColor(disciple.spiritRoot.countColor))
                 } catch (e: Exception) {
-                    Color(0xFF666666)
+                    Color.Black
                 }
                 Text(
                     text = disciple.spiritRootName,

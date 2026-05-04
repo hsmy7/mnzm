@@ -35,7 +35,9 @@ import com.xianxia.sect.ui.components.ElderBonusInfoButton
 import com.xianxia.sect.ui.components.ElderBonusInfoProvider
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.components.CloseButton
+import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.FollowedTag
+import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.components.HorizontalDiscipleCard
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
@@ -66,7 +68,7 @@ data class ProductionTheme(
 
 val ALCHEMY_THEME = ProductionTheme(
     buildingId = "alchemy",
-    displayName = "丹鼎殿",
+    displayName = "炼丹炉",
     elderTitle = "炼丹长老",
     elderBonusInfo = ElderBonusInfoProvider.getAlchemyElderInfo(),
     coreAttributeName = "炼丹",
@@ -94,7 +96,7 @@ val ALCHEMY_THEME = ProductionTheme(
 
 val FORGE_THEME = ProductionTheme(
     buildingId = "forge",
-    displayName = "天工峰",
+    displayName = "锻造坊",
     elderTitle = "天工长老",
     elderBonusInfo = ElderBonusInfoProvider.getForgeElderInfo(),
     coreAttributeName = "炼器",
@@ -122,7 +124,7 @@ val FORGE_THEME = ProductionTheme(
 
 val HERB_GARDEN_THEME = ProductionTheme(
     buildingId = "herbGarden",
-    displayName = "灵药宛",
+    displayName = "灵植阁",
     elderTitle = "灵植长老",
     elderBonusInfo = ElderBonusInfoProvider.getHerbGardenElderInfo(),
     coreAttributeName = "灵植",
@@ -227,7 +229,7 @@ fun ProductionCommonDialog(
                                 .background(GameColors.CardBackground),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(text = "关闭", fontSize = 12.sp, color = Color(0xFF666666))
+                            Text(text = "关闭", fontSize = 12.sp, color = Color.Black)
                         }
                     }
                 }
@@ -269,7 +271,7 @@ fun ProductionElderSection(
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(text = theme.elderTitle, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF666666))
+            Text(text = theme.elderTitle, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)
             ElderBonusInfoButton(bonusInfo = theme.elderBonusInfo)
         }
 
@@ -286,7 +288,7 @@ fun ProductionElderSection(
                 if (elder != null) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(text = elder.name, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.Black, maxLines = 1)
-                        Text(text = elder.realmName, fontSize = 9.sp, color = Color(0xFF666666))
+                        Text(text = elder.realmName, fontSize = 9.sp, color = Color.Black)
                         Text(
                             text = "${theme.coreAttributeName}: ${theme.getCoreAttributeValue(elder)}",
                             fontSize = 9.sp,
@@ -294,7 +296,7 @@ fun ProductionElderSection(
                         )
                     }
                 } else {
-                    Text(text = "点击任命", fontSize = 10.sp, color = Color(0xFF999999))
+                    Text(text = "点击任命", fontSize = 10.sp, color = Color.Black)
                 }
             }
             if (elder != null) {
@@ -333,7 +335,7 @@ fun ProductionDirectDiscipleSection(
         verticalArrangement = Arrangement.spacedBy(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(text = "亲传弟子", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF666666))
+        Text(text = "亲传弟子", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -379,10 +381,10 @@ private fun ProductionDirectDiscipleSlotItem(
             if (disciple.isActive) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(text = disciple.discipleName, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.Black, maxLines = 1, textAlign = TextAlign.Center)
-                    Text(text = disciple.discipleRealm, fontSize = 8.sp, color = Color(0xFF666666))
+                    Text(text = disciple.discipleRealm, fontSize = 8.sp, color = Color.Black)
                 }
             } else {
-                Text(text = "+", fontSize = 20.sp, color = Color(0xFF999999))
+                Text(text = "+", fontSize = 20.sp, color = Color.Black)
             }
         }
         if (disciple.isActive) {
@@ -431,10 +433,10 @@ fun ProductionSlotItem(
             if (isWorking && productName != null) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(text = productName, fontSize = 8.sp, fontWeight = FontWeight.Bold, color = Color.Black, maxLines = 1, textAlign = TextAlign.Center)
-                    Text(text = "${remainingMonths}月", fontSize = 10.sp, color = Color(0xFF666666))
+                    Text(text = "${remainingMonths}月", fontSize = 10.sp, color = Color.Black)
                 }
             } else {
-                Text(text = "+", fontSize = 24.sp, color = Color(0xFF999999))
+                Text(text = "+", fontSize = 24.sp, color = Color.Black)
             }
         }
     }
@@ -475,32 +477,32 @@ fun ProductionElderSelectionDialog(
         sortedDisciples.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort, ATTRIBUTE_FILTER_OPTIONS.find { it.name == theme.recommendAttributeText }?.key)
     }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = Color.Transparent, tonalElevation = 0.dp,
-        title = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(text = theme.elderSelectionTitle, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-                Box(
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clip(CircleShape)
-                        .clickable { onDismiss() }
-                        .background(GameColors.CardBackground),
-                    contentAlignment = Alignment.Center
-                ) { Text(text = "关闭", fontSize = 12.sp, color = Color(0xFF666666)) }
-            }
-        },
-        text = {
-            Column(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp)) {
+    Dialog(onDismissRequest = onDismiss) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.bg_screen),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.FillBounds
+            )
+            Column(modifier = Modifier.padding(20.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = theme.elderSelectionTitle, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                    CloseButton(onClick = onDismiss)
+                }
+                Spacer(modifier = Modifier.height(12.dp))
                 Text(
                     text = "推荐属性: ${theme.recommendAttributeText}",
                     fontSize = 10.sp,
-                    color = Color(0xFF999999),
+                    color = Color.Black,
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
                 SpiritRootAttributeFilterBar(
@@ -518,40 +520,40 @@ fun ProductionElderSelectionDialog(
                 )
                 RealmFilterRow(realmFilters = REALM_FILTERS, selectedFilter = selectedRealmFilter, onFilterChange = { selectedRealmFilter = it }, onFilterRemoved = { selectedRealmFilter = selectedRealmFilter - it })
                 Spacer(modifier = Modifier.height(12.dp))
-
-                if (filteredDisciples.isEmpty()) {
-                    Box(
-                        modifier = Modifier.fillMaxWidth().weight(1f),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(text = "暂无可用弟子", fontSize = 12.sp, color = Color(0xFF999999))
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "需要: 内门弟子 · 空闲中 · 未担任其他职务",
-                                fontSize = 10.sp,
-                                color = Color(0xFF888888)
-                            )
+                Column(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp)) {
+                    if (filteredDisciples.isEmpty()) {
+                        Box(
+                            modifier = Modifier.fillMaxWidth().weight(1f),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(text = "暂无可用弟子", fontSize = 12.sp, color = Color.Black)
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "需要: 内门弟子 · 空闲中 · 未担任其他职务",
+                                    fontSize = 10.sp,
+                                    color = Color(0xFF888888)
+                                )
+                            }
                         }
-                    }
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxWidth().weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        items(filteredDisciples, key = { it.id }) { disciple ->
-                            ProductionDiscipleSelectionCard(
-                                theme = theme,
-                                disciple = disciple,
-                                onClick = { onSelect(disciple.id) }
-                            )
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxWidth().weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            items(filteredDisciples, key = { it.id }) { disciple ->
+                                ProductionDiscipleSelectionCard(
+                                    theme = theme,
+                                    disciple = disciple,
+                                    onClick = { onSelect(disciple.id) }
+                                )
+                            }
                         }
                     }
                 }
             }
-        },
-        confirmButton = {}
-    )
+        }
+    }
 }
 
 @Composable
@@ -596,32 +598,32 @@ fun ProductionDirectDiscipleSelectionDialog(
         sortedDisciples.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort, ATTRIBUTE_FILTER_OPTIONS.find { it.name == theme.recommendAttributeText }?.key)
     }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = Color.Transparent, tonalElevation = 0.dp,
-        title = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(text = "选择亲传弟子", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-                Box(
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clip(CircleShape)
-                        .clickable { onDismiss() }
-                        .background(GameColors.CardBackground),
-                    contentAlignment = Alignment.Center
-                ) { Text(text = "关闭", fontSize = 12.sp, color = Color(0xFF666666)) }
-            }
-        },
-        text = {
-            Column(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp)) {
+    Dialog(onDismissRequest = onDismiss) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.bg_screen),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.FillBounds
+            )
+            Column(modifier = Modifier.padding(20.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = "选择亲传弟子", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                    CloseButton(onClick = onDismiss)
+                }
+                Spacer(modifier = Modifier.height(12.dp))
                 Text(
                     text = "推荐属性: ${theme.recommendAttributeText}",
                     fontSize = 10.sp,
-                    color = Color(0xFF999999),
+                    color = Color.Black,
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
                 SpiritRootAttributeFilterBar(
@@ -644,7 +646,7 @@ fun ProductionDirectDiscipleSelectionDialog(
                     Box(
                         modifier = Modifier.fillMaxWidth().weight(1f),
                         contentAlignment = Alignment.Center
-                    ) { Text(text = "暂无可用弟子", fontSize = 12.sp, color = Color(0xFF999999)) }
+                    ) { Text(text = "暂无可用弟子", fontSize = 12.sp, color = Color.Black) }
                 } else {
                     LazyColumn(
                         modifier = Modifier.fillMaxWidth().weight(1f),
@@ -660,9 +662,8 @@ fun ProductionDirectDiscipleSelectionDialog(
                     }
                 }
             }
-        },
-        confirmButton = {}
-    )
+        }
+    }
 }
 
 @Composable
@@ -728,50 +729,50 @@ fun ProductionReserveDiscipleDialog(
     onAddClick: () -> Unit,
     onRemove: (String) -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = Color.Transparent, tonalElevation = 0.dp,
-        title = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(text = "储备弟子", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+    Dialog(onDismissRequest = onDismiss) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.bg_screen),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.FillBounds
+            )
+            Column(modifier = Modifier.padding(20.dp)) {
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(theme.reserveButtonBackgroundColor)
-                            .clickable { onAddClick() }
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    Text(text = "储备弟子", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text(text = "添加", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = theme.reserveButtonTextColor)
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(theme.reserveButtonBackgroundColor)
+                                .clickable { onAddClick() }
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(text = "添加", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = theme.reserveButtonTextColor)
+                        }
+                        CloseButton(onClick = onDismiss)
                     }
-                    Box(
-                        modifier = Modifier
-                            .size(24.dp)
-                            .clip(CircleShape)
-                            .clickable { onDismiss() }
-                            .background(GameColors.CardBackground),
-                        contentAlignment = Alignment.Center
-                    ) { Text(text = "关闭", fontSize = 12.sp, color = Color(0xFF666666)) }
                 }
-            }
-        },
-        text = {
-            Column(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp)) {
+                Spacer(modifier = Modifier.height(12.dp))
                 if (reserveDisciples.isEmpty()) {
                     Box(
                         modifier = Modifier.fillMaxWidth().height(200.dp),
                         contentAlignment = Alignment.Center
-                    ) { Text(text = "暂无储备弟子", fontSize = 12.sp, color = Color(0xFF999999)) }
+                    ) { Text(text = "暂无储备弟子", fontSize = 12.sp, color = Color.Black) }
                 } else {
                     LazyColumn(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         items(reserveDisciples, key = { it.id }) { disciple ->
@@ -784,9 +785,8 @@ fun ProductionReserveDiscipleDialog(
                     }
                 }
             }
-        },
-        confirmButton = {}
-    )
+        }
+    }
 }
 
 @Composable
@@ -823,70 +823,72 @@ fun ProductionAddReserveDiscipleDialog(
 ) {
     var selectedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = Color.Transparent, tonalElevation = 0.dp,
-        title = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(text = "添加储备弟子", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-                Box(
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clip(CircleShape)
-                        .clickable { onDismiss() }
-                        .background(GameColors.CardBackground),
-                    contentAlignment = Alignment.Center
-                ) { Text(text = "关闭", fontSize = 12.sp, color = Color(0xFF666666)) }
-            }
-        },
-        text = {
-            Column(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp)) {
+    Dialog(onDismissRequest = onDismiss) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.bg_screen),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.FillBounds
+            )
+            Column(modifier = Modifier.padding(20.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = "添加储备弟子", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                    CloseButton(onClick = onDismiss)
+                }
+                Spacer(modifier = Modifier.height(12.dp))
                 Text(
                     text = "推荐属性: ${theme.recommendAttributeText}",
                     fontSize = 10.sp,
-                    color = Color(0xFF999999),
+                    color = Color.Black,
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
 
-                if (availableDisciples.isEmpty()) {
-                    Box(
-                        modifier = Modifier.fillMaxWidth().weight(1f),
-                        contentAlignment = Alignment.Center
-                    ) { Text(text = "暂无可用弟子", fontSize = 12.sp, color = Color(0xFF999999)) }
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxWidth().weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        items(availableDisciples, key = { it.id }) { disciple ->
-                            val isSelected = selectedIds.contains(disciple.id)
-                            ProductionAddReserveDiscipleSelectCard(
-                                theme = theme,
-                                disciple = disciple,
-                                isSelected = isSelected,
-                                onClick = {
-                                    selectedIds = if (isSelected) selectedIds - disciple.id
-                                    else selectedIds + disciple.id
-                                }
-                            )
+                Column(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp)) {
+                    if (availableDisciples.isEmpty()) {
+                        Box(
+                            modifier = Modifier.fillMaxWidth().weight(1f),
+                            contentAlignment = Alignment.Center
+                        ) { Text(text = "暂无可用弟子", fontSize = 12.sp, color = Color.Black) }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxWidth().weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            items(availableDisciples, key = { it.id }) { disciple ->
+                                val isSelected = selectedIds.contains(disciple.id)
+                                ProductionAddReserveDiscipleSelectCard(
+                                    theme = theme,
+                                    disciple = disciple,
+                                    isSelected = isSelected,
+                                    onClick = {
+                                        selectedIds = if (isSelected) selectedIds - disciple.id
+                                        else selectedIds + disciple.id
+                                    }
+                                )
+                            }
                         }
                     }
                 }
-            }
-        },
-        confirmButton = {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                com.xianxia.sect.ui.components.GameButton(
-                    text = "添加${if (selectedIds.isNotEmpty()) "(${selectedIds.size})" else ""}",
-                    onClick = { onConfirm(selectedIds.toList()) }
-                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    GameButton(
+                        text = "添加${if (selectedIds.isNotEmpty()) "(${selectedIds.size})" else ""}",
+                        onClick = { onConfirm(selectedIds.toList()) },
+                        modifier = Modifier.width(ButtonSizes.StandardWidth)
+                    )
+                }
             }
         }
-    )
+    }
 }
 
 @Composable
@@ -935,165 +937,165 @@ fun FilteredMultiSelectDialog(
         remember { { d: DiscipleAggregate -> listOf(extraCardAttrName to extraCardAttrValue(d)) } }
     } else null
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = Color.Transparent, tonalElevation = 0.dp,
-        title = @Composable {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+    Dialog(onDismissRequest = onDismiss) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.bg_screen),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.FillBounds
+            )
+            Column(modifier = Modifier.padding(20.dp)) {
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = title,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-                    val countText = if (maxSelection != null) {
-                        "(${selectedIds.size}/$maxSelection)"
-                    } else {
-                        "(${selectedIds.size})"
-                    }
-                    Text(
-                        text = countText,
-                        fontSize = 10.sp,
-                        color = Color(0xFF999999)
-                    )
-                }
-                Box(
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clip(CircleShape)
-                        .clickable { onDismiss() }
-                        .background(GameColors.CardBackground),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(text = "关闭", fontSize = 12.sp, color = Color(0xFF666666))
-                }
-            }
-        },
-        text = @Composable {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 500.dp)
-            ) {
-                if (headerContent != null) {
-                    headerContent()
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
-
-                SpiritRootAttributeFilterBar(
-                    selectedSpiritRootFilter = selectedSpiritRootFilter,
-                    selectedAttributeSort = selectedAttributeSort,
-                    spiritRootExpanded = spiritRootExpanded,
-                    attributeExpanded = attributeExpanded,
-                    spiritRootCounts = spiritRootCounts,
-                    onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
-                    onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
-                    onAttributeSortSelected = { selectedAttributeSort = it },
-                    onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
-                    onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
-                    isCompact = true
-                )
-
-                if (showRealmFilter) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        realmFilters.chunked(4).forEach { chunk ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                chunk.forEach { (realm, name) ->
-                                    val isSelected = realm in selectedRealmFilter
-                                    val count = realmCounts[realm] ?: 0
-                                    Box(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .clip(RoundedCornerShape(4.dp))
-                                            .background(if (isSelected) GameColors.Gold.copy(alpha = 0.3f) else GameColors.PageBackground)
-                                            .border(1.dp, if (isSelected) GameColors.Gold else GameColors.Border, RoundedCornerShape(4.dp))
-                                            .clickable { selectedRealmFilter = if (isSelected) selectedRealmFilter - realm else selectedRealmFilter + realm }
-                                            .padding(vertical = 4.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = "$name $count",
-                                            fontSize = 8.sp,
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                            color = if (isSelected) GameColors.GoldDark else Color.Black
-                                        )
+                        Text(
+                            text = title,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Black
+                        )
+                        val countText = if (maxSelection != null) {
+                            "(${selectedIds.size}/$maxSelection)"
+                        } else {
+                            "(${selectedIds.size})"
+                        }
+                        Text(
+                            text = countText,
+                            fontSize = 10.sp,
+                            color = Color.Black
+                        )
+                    }
+                    CloseButton(onClick = onDismiss)
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 500.dp)
+                ) {
+                    if (headerContent != null) {
+                        headerContent()
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+
+                    SpiritRootAttributeFilterBar(
+                        selectedSpiritRootFilter = selectedSpiritRootFilter,
+                        selectedAttributeSort = selectedAttributeSort,
+                        spiritRootExpanded = spiritRootExpanded,
+                        attributeExpanded = attributeExpanded,
+                        spiritRootCounts = spiritRootCounts,
+                        onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
+                        onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
+                        onAttributeSortSelected = { selectedAttributeSort = it },
+                        onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
+                        onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
+                        isCompact = true
+                    )
+
+                    if (showRealmFilter) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            realmFilters.chunked(4).forEach { chunk ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    chunk.forEach { (realm, name) ->
+                                        val isSelected = realm in selectedRealmFilter
+                                        val count = realmCounts[realm] ?: 0
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(if (isSelected) GameColors.Gold.copy(alpha = 0.3f) else GameColors.PageBackground)
+                                                .border(1.dp, if (isSelected) GameColors.Gold else GameColors.Border, RoundedCornerShape(4.dp))
+                                                .clickable { selectedRealmFilter = if (isSelected) selectedRealmFilter - realm else selectedRealmFilter + realm }
+                                                .padding(vertical = 4.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = "$name $count",
+                                                fontSize = 8.sp,
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                                color = if (isSelected) GameColors.GoldDark else Color.Black
+                                            )
+                                        }
                                     }
                                 }
                             }
                         }
                     }
-                }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
-                if (filteredDisciples.isEmpty()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "暂无符合条件的弟子",
-                            fontSize = 12.sp,
-                            color = Color(0xFF999999)
-                        )
-                    }
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        items(filteredDisciples, key = { it.id }) { disciple ->
-                            val isSelected = selectedIds.contains(disciple.id)
-                            val canSelect = maxSelection == null || selectedIds.size < maxSelection || isSelected
-                            HorizontalDiscipleCard(
-                                disciple = disciple,
-                                isSelected = isSelected,
-                                extraAttributes = extraAttrs?.invoke(disciple) ?: emptyList(),
-                                onClick = {
-                                    if (isSelected) {
-                                        selectedIds.remove(disciple.id)
-                                    } else if (canSelect) {
-                                        selectedIds.add(disciple.id)
-                                    }
-                                }
+                    if (filteredDisciples.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "暂无符合条件的弟子",
+                                fontSize = 12.sp,
+                                color = Color.Black
                             )
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            items(filteredDisciples, key = { it.id }) { disciple ->
+                                val isSelected = selectedIds.contains(disciple.id)
+                                val canSelect = maxSelection == null || selectedIds.size < maxSelection || isSelected
+                                HorizontalDiscipleCard(
+                                    disciple = disciple,
+                                    isSelected = isSelected,
+                                    extraAttributes = extraAttrs?.invoke(disciple) ?: emptyList(),
+                                    onClick = {
+                                        if (isSelected) {
+                                            selectedIds.remove(disciple.id)
+                                        } else if (canSelect) {
+                                            selectedIds.add(disciple.id)
+                                        }
+                                    }
+                                )
+                            }
                         }
                     }
                 }
-            }
-        },
-        confirmButton = @Composable {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = if (showDismiss) Arrangement.SpaceBetween else Arrangement.End
-            ) {
-                if (showDismiss) {
-                    com.xianxia.sect.ui.components.GameButton(text = dismissText, onClick = onDismiss)
+                Spacer(modifier = Modifier.height(16.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = if (showDismiss) Arrangement.SpaceBetween else Arrangement.End
+                ) {
+                    if (showDismiss) {
+                        GameButton(text = dismissText, onClick = onDismiss, modifier = Modifier.width(ButtonSizes.StandardWidth))
+                    }
+                    GameButton(
+                        text = confirmText,
+                        onClick = onConfirm,
+                        enabled = confirmEnabled(selectedIds.size),
+                        modifier = Modifier.width(ButtonSizes.StandardWidth)
+                    )
                 }
-                com.xianxia.sect.ui.components.GameButton(
-                    text = confirmText,
-                    onClick = onConfirm,
-                    enabled = confirmEnabled(selectedIds.size)
-                )
             }
         }
-    )
+    }
 }
 
 @Composable

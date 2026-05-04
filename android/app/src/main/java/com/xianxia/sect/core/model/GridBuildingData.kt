@@ -9,5 +9,5 @@ data class GridBuildingData(
     val gridX: Int = 0,
     val gridY: Int = 0,
     val width: Int = 2,
-    val height: Int = 2
+    val height: Int = 3
 )

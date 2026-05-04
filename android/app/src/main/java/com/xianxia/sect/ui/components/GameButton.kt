@@ -63,7 +63,7 @@ fun GameButton(
             overflow = TextOverflow.Clip,
             textAlign = TextAlign.Center,
             color = Color.Black,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
         )
     }
 }
@@ -82,15 +82,10 @@ fun CloseButton(
         contentAlignment = Alignment.Center
     ) {
         Image(
-            painter = painterResource(id = R.drawable.ui_button),
+            painter = painterResource(id = R.drawable.ui_close_button),
             contentDescription = "关闭",
             modifier = Modifier.matchParentSize(),
             contentScale = ContentScale.FillBounds
-        )
-        Text(
-            text = "关闭",
-            fontSize = 16.sp,
-            color = Color(0xFF666666)
         )
     }
 }

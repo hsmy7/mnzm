@@ -41,7 +41,7 @@ object MapStyle {
         val controlButtonDisabled = Color(0xFFCCCCCC)
         val controlButtonBorder = Color(0xFF6B5344)
         val controlButtonText = Color.White
-        val controlButtonDisabledText = Color(0xFF666666)
+        val controlButtonDisabledText = Color.Black
 
         val closeButtonBg = Color(0xFF8B7355)
         val closeButtonBorder = Color(0xFF6B5344)

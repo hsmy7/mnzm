@@ -182,7 +182,7 @@ internal fun SectInfoPanel(
         Text(
             text = "${gameData?.gameYear ?: 1}年${gameData?.gameMonth ?: 1}月${gameData?.gameDay ?: 1}日",
             fontSize = 12.sp,
-            color = Color(0xFF666666),
+            color = Color.Black,
             fontWeight = FontWeight.Normal
         )
 

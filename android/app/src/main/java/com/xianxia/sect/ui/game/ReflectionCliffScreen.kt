@@ -16,11 +16,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.window.Dialog
+import com.xianxia.sect.R
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.theme.GameColors
@@ -36,7 +42,7 @@ fun ReflectionCliffDialog(
     var showExpelConfirmDialog by remember { mutableStateOf<DiscipleAggregate?>(null) }
 
     CommonDialog(
-        title = "思过崖",
+        title = "监牢",
         onDismiss = onDismiss
     ) {
         Column(
@@ -64,10 +70,10 @@ fun ReflectionCliffDialog(
                         Text(
                             text = "空无一人",
                             fontSize = 14.sp,
-                            color = Color(0xFF999999)
+                            color = Color.Black
                         )
                         Text(
-                            text = "思过崖目前没有弟子在思过",
+                            text = "监牢目前没有弟子在思过",
                             fontSize = 11.sp,
                             color = Color(0xFFCCCCCC)
                         )
@@ -77,7 +83,7 @@ fun ReflectionCliffDialog(
                 Text(
                     text = "当前思过弟子: ${reflectingDisciples.size}人",
                     fontSize = 11.sp,
-                    color = Color(0xFF666666)
+                    color = Color.Black
                 )
 
                 LazyColumn(
@@ -99,40 +105,50 @@ fun ReflectionCliffDialog(
     }
 
     showExpelConfirmDialog?.let { disciple ->
-        AlertDialog(
-            onDismissRequest = { showExpelConfirmDialog = null },
-            containerColor = GameColors.PageBackground,
-            title = {
-                Text(
-                    text = "确认驱逐",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
+        Dialog(onDismissRequest = { showExpelConfirmDialog = null }) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.bg_screen),
+                    contentDescription = null,
+                    modifier = Modifier.matchParentSize(),
+                    contentScale = ContentScale.FillBounds
                 )
-            },
-            text = {
-                Text(
-                    text = "确定要驱逐弟子 ${disciple.name} 吗？此操作不可撤销。",
-                    fontSize = 12.sp,
-                    color = Color(0xFF666666)
-                )
-            },
-            confirmButton = {
-                GameButton(
-                    text = "确认",
-                    onClick = {
-                        onExpelDisciple(disciple.id)
-                        showExpelConfirmDialog = null
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Text(
+                        text = "确认驱逐",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "确定要驱逐弟子 ${disciple.name} 吗？此操作不可撤销。",
+                        fontSize = 12.sp,
+                        color = Color.Black
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        GameButton(
+                            text = "取消",
+                            onClick = { showExpelConfirmDialog = null },
+                            modifier = Modifier.width(ButtonSizes.StandardWidth)
+                        )
+                        GameButton(
+                            text = "确认",
+                            onClick = {
+                                onExpelDisciple(disciple.id)
+                                showExpelConfirmDialog = null
+                            },
+                            modifier = Modifier.width(ButtonSizes.StandardWidth)
+                        )
                     }
-                )
-            },
-            dismissButton = {
-                GameButton(
-                    text = "取消",
-                    onClick = { showExpelConfirmDialog = null }
-                )
+                }
             }
-        )
+        }
     }
 }
 
@@ -187,12 +203,12 @@ private fun ReflectingDiscipleCard(
                     Text(
                         text = disciple.realmName,
                         fontSize = 10.sp,
-                        color = Color(0xFF666666)
+                        color = Color.Black
                     )
                     Text(
                         text = "道德: ${disciple.morality}",
                         fontSize = 10.sp,
-                        color = Color(0xFF666666)
+                        color = Color.Black
                     )
                 }
 
@@ -234,7 +250,7 @@ private fun ReflectingDiscipleCard(
                 Text(
                     text = "第${startYear}年入崖",
                     fontSize = 9.sp,
-                    color = Color(0xFF999999)
+                    color = Color.Black
                 )
             }
         }
@@ -247,33 +263,41 @@ private fun CommonDialog(
     onDismiss: () -> Unit,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
-        title = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = title,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-                CloseButton(onClick = onDismiss)
+    Dialog(onDismissRequest = onDismiss) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.bg_screen),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.FillBounds
+            )
+            Column(modifier = Modifier.padding(20.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = title,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+                    CloseButton(onClick = onDismiss)
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Column(
+                    modifier = Modifier
+                        .heightIn(max = 500.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    content()
+                }
             }
-        },
-        text = {
-            Column(
-                modifier = Modifier
-                    .heightIn(max = 500.dp)
-                    .verticalScroll(rememberScrollState())
-            ) {
-                content()
-            }
-        },
-        confirmButton = {}
-    )
+        }
+    }
 }

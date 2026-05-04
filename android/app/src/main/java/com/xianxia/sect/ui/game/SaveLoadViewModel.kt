@@ -2,9 +2,12 @@ package com.xianxia.sect.ui.game
 
 import android.util.Log
 import androidx.lifecycle.viewModelScope
+import com.xianxia.sect.core.config.BuildingConfigService
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.GameEngineCore
 import com.xianxia.sect.core.engine.coordinator.SavePipeline
+import com.xianxia.sect.core.registry.ForgeRecipeDatabase
+import com.xianxia.sect.core.registry.PillRecipeDatabase
 import com.xianxia.sect.core.state.UnifiedGameStateManager
 import com.xianxia.sect.data.facade.StorageFacade
 import com.xianxia.sect.data.model.SaveData
@@ -28,7 +31,8 @@ class SaveLoadViewModel @Inject constructor(
     private val storageFacade: StorageFacade,
     private val stateManager: UnifiedGameStateManager,
     private val savePipeline: SavePipeline,
-    private val applicationScopeProvider: ApplicationScopeProvider
+    private val applicationScopeProvider: ApplicationScopeProvider,
+    private val buildingConfigService: BuildingConfigService
 ) : BaseViewModel() {
 
     companion object {
@@ -42,9 +46,18 @@ class SaveLoadViewModel @Inject constructor(
         private const val PROGRESS_DATA_LOAD = 0.3f
         private const val PROGRESS_SAVE_COMPLETE = 0.5f
         private const val PROGRESS_RESTART_DATA_LOAD = 0.6f
+        private const val PROGRESS_RESOURCE_PRELOAD = 0.65f
         private const val PROGRESS_GAME_LOOP_START = 0.8f
         const val PROGRESS_MAP_PRELOAD = 0.9f
         private const val PROGRESS_COMPLETE = 1f
+    }
+
+    private suspend fun preloadGameResources() {
+        _loadingProgress.value = PROGRESS_RESOURCE_PRELOAD
+        withContext(Dispatchers.Default) {
+            PillRecipeDatabase.getAllRecipes()
+            ForgeRecipeDatabase.getAllRecipes()
+        }
     }
 
     private val saveLock = AtomicBoolean(false)
@@ -423,6 +436,8 @@ class SaveLoadViewModel @Inject constructor(
                     return@launch
                 }
 
+                preloadGameResources()
+
                 _loadingProgress.value = PROGRESS_GAME_LOOP_START
 
                 setSaveLoadState(isLoading = false, pendingSlot = slot, pendingAction = null)
@@ -612,6 +627,13 @@ class SaveLoadViewModel @Inject constructor(
                 )
 
                 setSaveLoadState(isLoading = false, pendingSlot = saveSlot.slot, pendingAction = null)
+
+                // 修正已有存档中的建筑网格尺寸
+                gameEngine.updateGameData { data ->
+                    val fixed = buildingConfigService.fixupBuildingSizes(data.placedBuildings)
+                    if (fixed != data.placedBuildings) data.copy(placedBuildings = fixed) else data
+                }
+
                 startGameLoop()
                 _isGameLoaded = true
                 showSuccess("读档成功")
@@ -715,6 +737,14 @@ class SaveLoadViewModel @Inject constructor(
                         alliances = saveData.alliances,
                         productionSlots = saveData.productionSlots
                     )
+
+                    // 修正已有存档中的建筑网格尺寸
+                    gameEngine.updateGameData { data ->
+                        val fixed = buildingConfigService.fixupBuildingSizes(data.placedBuildings)
+                        if (fixed != data.placedBuildings) data.copy(placedBuildings = fixed) else data
+                    }
+
+                    preloadGameResources()
                     _loadingProgress.value = PROGRESS_GAME_LOOP_START
 
                     setSaveLoadState(isLoading = false, pendingSlot = slot, pendingAction = null)
