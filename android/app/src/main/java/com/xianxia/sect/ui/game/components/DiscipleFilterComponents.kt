@@ -49,6 +49,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.xianxia.sect.ui.game.ATTRIBUTE_FILTER_OPTIONS
 import com.xianxia.sect.ui.game.SPIRIT_ROOT_FILTER_OPTIONS
+import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.theme.GameColors
 
 @Composable
@@ -58,32 +59,44 @@ internal fun DropdownFilterButton(
     isExpanded: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    isCompact: Boolean = false
+    @Suppress("UNUSED_PARAMETER") isCompact: Boolean = false
 ) {
-    Row(
+    val contentAlpha = if (hasSelection) 1f else 0.7f
+    Box(
         modifier = modifier
+            .height(ButtonSizes.Large)
+            .alpha(contentAlpha)
             .clip(RoundedCornerShape(4.dp))
-            .background(if (hasSelection) GameColors.Gold.copy(alpha = 0.3f) else GameColors.PageBackground)
-            .border(1.dp, if (hasSelection) GameColors.Gold else GameColors.Border, RoundedCornerShape(4.dp))
             .clickable { onClick() }
-            .padding(vertical = if (isCompact) 4.dp else 8.dp, horizontal = 8.dp),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically
+            .padding(horizontal = 8.dp),
+        contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = displayText,
-            fontSize = if (isCompact) 9.sp else 12.sp,
-            fontWeight = if (hasSelection) FontWeight.Bold else FontWeight.Normal,
-            color = if (hasSelection) GameColors.GoldDark else Color.Black,
-            modifier = Modifier.weight(1f),
-            textAlign = TextAlign.Center
-        )
-        Icon(
-            imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+        androidx.compose.foundation.Image(
+            painter = androidx.compose.ui.res.painterResource(id = com.xianxia.sect.R.drawable.ui_button),
             contentDescription = null,
-            modifier = Modifier.size(if (isCompact) 14.dp else 18.dp),
-            tint = if (hasSelection) GameColors.GoldDark else Color.Black
+            modifier = Modifier.matchParentSize(),
+            contentScale = androidx.compose.ui.layout.ContentScale.FillBounds
         )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = displayText,
+                fontSize = if (isCompact) 9.sp else 12.sp,
+                fontWeight = if (hasSelection) FontWeight.Bold else FontWeight.Normal,
+                color = if (hasSelection) GameColors.GoldDark else Color.Black,
+                modifier = Modifier.weight(1f),
+                textAlign = TextAlign.Center
+            )
+            Icon(
+                imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                contentDescription = null,
+                modifier = Modifier.size(if (isCompact) 14.dp else 18.dp),
+                tint = if (hasSelection) GameColors.GoldDark else Color.Black
+            )
+        }
     }
 }
 
@@ -104,7 +117,6 @@ internal fun SpiritRootAttributeFilterBar(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(GameColors.PageBackground)
             .padding(horizontal = 8.dp, vertical = 4.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
@@ -201,17 +213,24 @@ internal fun FilterChip(
     isSelected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    isCompact: Boolean = false
+    @Suppress("UNUSED_PARAMETER") isCompact: Boolean = false
 ) {
+    val contentAlpha = if (isSelected) 1f else 0.6f
     Box(
         modifier = modifier
+            .width(72.dp)
+            .height(38.dp)
+            .alpha(contentAlpha)
             .clip(RoundedCornerShape(4.dp))
-            .background(if (isSelected) GameColors.Gold.copy(alpha = 0.3f) else GameColors.PageBackground)
-            .border(1.dp, if (isSelected) GameColors.Gold else GameColors.Border, RoundedCornerShape(4.dp))
-            .clickable(onClick = onClick)
-            .padding(vertical = if (isCompact) 4.dp else 8.dp),
+            .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
+        androidx.compose.foundation.Image(
+            painter = androidx.compose.ui.res.painterResource(id = com.xianxia.sect.R.drawable.ui_button),
+            contentDescription = null,
+            modifier = Modifier.matchParentSize(),
+            contentScale = androidx.compose.ui.layout.ContentScale.FillBounds
+        )
         Text(
             text = text,
             fontSize = if (isCompact) 9.sp else 12.sp,

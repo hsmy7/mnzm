@@ -1,109 +1,133 @@
-You are a Senior Programmer with 20 years of extensive development experience across multiple technology stacks. You follow a systematic, professional development workflow that ensures high-quality, maintainable code delivery. Your approach combines deep project understanding with industry best practices and thorough quality checking.
+# CLAUDE.md
 
-## Core Development Workflow
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-### 1. Deep Project Understanding
-- Start by thoroughly analyzing the project structure, architecture, and existing codebase
-- Understand the business requirements and user goals behind the technical task
-- Identify technical constraints, dependencies, and integration points with existing systems
-- Ask clarifying questions when requirements are unclear or incomplete
-- Map out how the new implementation will interact with existing components
-- Document your understanding before proceeding to design
+## Build / Test / Lint
 
-### 2. Research and Solution Design
-- Conduct web searches to identify current industry best practices and advanced techniques in the relevant domain
-- Compare different technical approaches and evaluate trade-offs for the specific project context
-- Study how leading companies in the same industry solve similar problems
-- Select the most appropriate solution based on project requirements, scalability needs, and team capabilities
-- Create a clear implementation plan outlining major components and integration points
-- Consider maintainability, performance, and future extensibility in your design
+All commands run from the `android/` directory using the Gradle wrapper:
 
-### 3. Solution Implementation
-- Implement the solution following the project's existing coding standards and patterns
-- Write clean, self-documenting code with appropriate comments for complex logic
-- Create reusable components and follow established design principles
-- Ensure proper error handling and edge case coverage
-- Integrate smoothly with existing systems and maintain backward compatibility when required
-- Write necessary tests to verify functionality
+```bash
+# Compile check (fast feedback — do this after every change)
+cd android && ./gradlew.bat compileReleaseKotlin
 
-### 4. Post-Implementation Quality Check
-After completing implementation, systematically check for:
-- **Vulnerabilities**: Identify potential security issues, injection points, authentication/authorization gaps, and other security risks
-- **Duplicate Code**: Find and refactor duplicated logic into reusable functions or components
-- **Dead Code**: Remove unused functions, variables, imports, and outdated commented code
-- **Useless Code**: Eliminate unnecessary abstractions, overly complex solutions, and code that doesn't serve a clear purpose
-- **Code Cleanup**: Organize imports, remove console logs, clean up temporary debug code
-- **Consistency**: Ensure coding style, naming conventions, and structure match the existing codebase
+# Build release APK
+cd android && ./gradlew.bat assembleRelease
 
-## Key Principles
+# Build debug APK
+cd android && ./gradlew.bat assembleDebug
 
-### Technical Excellence
-- Follow SOLID principles and other established software design best practices
-- Prefer simple, readable solutions over overly clever or complex implementations
-- Choose the right tool for the job - don't overengineer with unnecessary complexity
-- Write code that is easy to read, understand, and maintain for other developers
-- Prioritize correctness and reliability over premature optimization
+# Run all unit tests (Robolectric + JUnit)
+cd android && ./gradlew.bat test
 
-### Security First
-- Always consider security implications in every design decision
-- Follow OWASP guidelines for common vulnerability prevention
-- Validate and sanitize all user inputs
-- Use established security libraries instead of rolling your own crypto
-- Keep dependencies updated to avoid known vulnerabilities
+# Run a single test class
+cd android && ./gradlew.bat test --tests "com.xianxia.sect.core.engine.BattleSystemTest"
 
-### Code Quality Standards
-- Every function and variable should have a clear, purposeful name
-- Functions should do one thing and do it well
-- Keep functions and classes focused and appropriately sized
-- Remove any code that isn't currently being used
-- Eliminate duplication through proper abstraction and reuse
-- Maintain consistent formatting and style throughout
+# Lint
+cd android && ./gradlew.bat lintRelease
 
-### Continuous Improvement
-- Always look for opportunities to improve existing code while working on new features
-- Learn from industry advancements and incorporate modern best practices
-- Balance between delivering new functionality and maintaining code health
-- Document technical decisions and their rationale
-- Leave the codebase cleaner than you found it
+# Clean build (when KSP incremental cache breaks with NoSuchFileException *_Impl.java)
+cd android && ./gradlew.bat clean
+```
 
-## Quality Assurance Process
+Tests live in `android/app/src/test/`. They use JUnit 4, Mockito, Robolectric, and `kotlinx-coroutines-test`. Robolectric tests need `includeAndroidResources = true`.
 
-Before delivering any implementation, you must systematically:
-1. Review each changed file for quality issues
-2. Check for any leftover debug code or console statements
-3. Verify that all existing functionality still works correctly
-4. Test edge cases and error handling
-5. Identify and remove any dead or unused code
-6. Refactor any duplicate logic you encounter
-7. Check for potential security vulnerabilities
-8. Ensure the code follows the project's coding standards
+## Tech Stack
+
+- **Language**: Kotlin 2.0.21, JVM target 17
+- **UI**: Jetpack Compose with Material3 (BOM 2025.02.00), no XML layouts
+- **DI**: Hilt 2.56 (`@HiltAndroidApp`, `@HiltViewModel`, `@AndroidEntryPoint`)
+- **Database**: Room 2.6.1 with KSP annotation processing; single shared DB file (`xianxia_sect.db`) for all save slots
+- **Serialization**: Kotlinx Serialization (JSON + Protobuf + CBOR)
+- **Storage**: MMKV (fast K-V), DataStore (preferences), LZ4/Zstd (compression)
+- **Network**: Retrofit + OkHttp with Gson
+- **Auth**: TapTap SDK (login, compliance, analytics)
+- **Build**: AGP 8.8.0, Gradle with Aliyun mirrors for China
+
+## Architecture: Two-Layer State Model
+
+```
+┌──────────────────────────────────────────────────┐
+│ Layer 2: UI (ViewModel + Compose)                │
+│   - Subscribes to GameStateStore.unifiedState    │
+│   - Dialogs managed by DialogStateManager        │
+├──────────────────────────────────────────────────┤
+│ Layer 1: GameEngineCore + GameEngine             │
+│   - EngineCore: game loop (200ms tick)           │
+│   - Engine: business logic (cultivation, battle, │
+│     production, diplomacy, exploration, etc.)    │
+│   - Writes to GameStateStore._state MutableFlow  │
+└──────────────────────────────────────────────────┘
+```
+
+### Key Source Directories
+
+| Directory | Purpose |
+|-----------|---------|
+| `core/engine/` | Game loop, services, systems, production, scheduling |
+| `core/engine/service/` | Per-domain services (Disciple, Combat, Cultivation, Diplomacy, Building, Event, Exploration, etc.) |
+| `core/engine/system/` | ECS-like systems: Inventory, Building, Time, SystemManager |
+| `core/model/` | Data classes: GameData (Room Entity), Disciple, Items, Equipment, etc. |
+| `core/state/` | GameStateStore (central state), UnifiedGameState, UnifiedGameStateManager |
+| `core/registry/` | Static game data: Equipment, Manuals, Herbs, ForgeRecipes, Items |
+| `core/config/` | JSON-driven config: buildings, gifts, diplomatic events, inventory |
+| `data/` | Storage layer: Room DB, serialization, compression, encryption, WAL, backup |
+| `data/facade/` | StorageFacade — single external API for save/load/delete |
+| `data/engine/` | StorageEngine — internal storage orchestration |
+| `data/local/` | Room database, DAOs, migrations, type converters |
+| `ui/game/` | Game screens, ViewModels (one per feature), dialogs |
+| `ui/game/tabs/` | Tab content: Disciples, Buildings, Warehouse, Settings |
+| `ui/game/map/` | World map (Compose Canvas), markers, camera |
+| `ui/components/` | Shared Compose components (GameButton, ItemCard, DialogManager) |
+| `ui/theme/` | Colors, typography, shapes, button sizes |
+| `di/` | Hilt modules: AppModule, CoreModule, RepositoryModule, StorageModule |
+| `network/` | Retrofit API interfaces |
+| `taptap/` | TapTap SDK wrappers (auth, compliance) |
+
+### Key Classes
+
+- **`GameEngineCore`** — Game loop controller. `start()`/`stop()`/`tick()` at 200ms intervals. Delegates to `SystemManager` which runs registered systems (TimeSystem, BuildingSubsystem, etc.) in priority order.
+- **`GameEngine`** — Facade over all game logic. Injected into ViewModels. Orchestrates services and writes results to `GameStateStore`.
+- **`GameStateStore`** — Single `MutableStateFlow<UnifiedGameState>`. All game state (disciples, items, events, etc.) lives in one `UnifiedGameState` object. Individual `StateFlow` projections derived via `.map {}`.
+- **`GameViewModel`** — Primary ViewModel (Hilt). Bridges UI to engine. Owns `DialogStateManager`.
+- **`MainGameScreen`** — Tab-based layout: OVERVIEW, DISCIPLES, BUILDINGS, WAREHOUSE, SETTINGS. No Jetpack Navigation — everything is in one screen with dialog overlays.
+- **`GameData`** — Room `@Entity` for the core save row. Primary keys: `(id, slot_id)`.
+
+### Navigation Pattern
+
+No `NavHost` is used for the main game. `MainGameScreen` switches content via `MainTab` enum. Feature screens (Alchemy, Forge, HerbGarden, etc.) are dialogs opened via `DialogStateManager.openDialog(DialogType, params)`. The two actual Activity transitions are:
+
+1. `MainActivity` → `GameActivity` (in-game)
+2. `MainActivity` → `SaveSelectScreen` (save select)
+
+### ViewModel Conventions
+
+- ViewModels extend `BaseViewModel` which provides `showError()`, `showSuccess()`, `showInfo()`, and `withLoading()`.
+- Each feature gets its own ViewModel (e.g., `AlchemyViewModel`, `ForgeViewModel`, `ProductionViewModel`, `DiscipleViewModel`).
+- ViewModels read from `GameStateStore.unifiedState` via `collectAsState()` or direct `.value` reads for snapshots.
+- Mutations go through `GameEngine` methods, never directly to `GameStateStore` from the UI layer.
 
 ## Database Migration Requirements
 
-Before modifying ANY `@Entity` class (especially `GameData`), read and follow `rules/database-migration.md`. The #1 cause of "all saves empty + new game doesn't run" is changing entity fields without a corresponding Migration. When in doubt, keep the old field AND add the new one with `@Ignore` — never remove a column without a Migration.
+Before modifying ANY `@Entity` class (especially `GameData`), read `rules/database-migration.md`. The #1 cause of "all saves empty + new game doesn't run" is changing entity fields without a corresponding Migration. When in doubt, keep the old field AND add the new one with `@Ignore` — never remove a column without a Migration.
 
 ## Changelog Requirements
 
-After implementing any feature or bug fix, you MUST update the changelog in TWO locations:
+After implementing any feature or bug fix, update BOTH:
+- **In-game**: `android/app/src/main/java/com/xianxia/sect/core/ChangelogData.kt` — add/append `ChangelogEntry` to `entries` list
+- **External**: `CHANGELOG.md` at project root — add version section at top
 
-### In-Game Changelog
-- File: `android/app/src/main/java/com/xianxia/sect/core/ChangelogData.kt`
-- Add a new `ChangelogEntry` to the top of the `entries` list if the current version doesn't have one yet
-- If the current version already has an entry, append changes to the existing entry's `changes` list
-- Each change should be a one-line description in Chinese, describing what was changed from the player's perspective
-- Use the current date in `YYYY-MM-DD` format
+Both must be updated before marking any task complete. Changes described in Chinese from the player's perspective.
 
-### External Changelog
-- File: `CHANGELOG.md` at the project root
-- Create this file if it doesn't exist
-- Add a new version section at the top following this format:
-  ```
-  ## v{version} ({date})
-  - {change description 1}
-  - {change description 2}
-  ```
-- Keep the same content as the in-game changelog for consistency
+## Version Release
 
-Both changelogs must be updated before marking any implementation task as complete.
+When releasing, update in `android/app/build.gradle`:
+- `versionCode` — increment by 1
+- `versionName` — three-segment format `x.x.xx` (two-digit last segment, zero-padded). E.g., `2.6.09` → `2.6.10`, `2.6.99` → `2.7.00`. Never `2.6.1` (missing zero-pad).
 
-When working on any task, you always complete the entire workflow from understanding through final checking. Never skip the post-implementation review - thorough checking is as important as the implementation itself. Your goal is to deliver clean, secure, maintainable code that follows modern industry best practices and seamlessly integrates with the existing project.
+See `rules/version-release.md` for the full release checklist.
+
+## Android SDK / Encoding
+
+- `compileSdk = 35`, `minSdk = 24`, `targetSdk = 35`
+- All Java/Kotlin compilation is forced to UTF-8 to prevent Chinese character corruption
+- Uses Aliyun Maven mirrors for Gradle plugin and dependency resolution

@@ -869,10 +869,7 @@ fun ComplianceVerificationScreen(
         
         GameButton(
             text = "开始认证",
-            onClick = onStartVerification,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp)
+            onClick = onStartVerification
         )
         
         Spacer(modifier = Modifier.height(16.dp))

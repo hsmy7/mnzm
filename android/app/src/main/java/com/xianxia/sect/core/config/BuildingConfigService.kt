@@ -25,6 +25,7 @@ data class BuildingConfigModel(
     val baseSuccessRate: Double = 1.0,
     val maxQueueLength: Int = 1,
     val autoRestartEnabled: Boolean = false,
+    val cost: Long = 1000,
     val description: String = ""
 )
 
@@ -147,6 +148,14 @@ class BuildingConfigService @Inject constructor(
         } ?: BuildingType.ALCHEMY
     }
     
+    fun getBuildingCost(buildingId: String): Long {
+        return getBuildingConfig(buildingId)?.cost ?: 1000L
+    }
+
+    fun getBuildingConfigByDisplayName(displayName: String): BuildingConfigModel? {
+        return ensureConfigLoaded().buildings.values.find { it.displayName == displayName }
+    }
+
     fun reload() {
         loadConfig()
         Log.d(TAG, "Building config reloaded")
@@ -168,6 +177,7 @@ class BuildingConfigService @Inject constructor(
                     slotCount = 3,
                     baseSuccessRate = 0.7,
                     autoRestartEnabled = true,
+                    cost = 3000,
                     description = "用于炼制各种丹药的场所"
                 ),
                 "forge" to BuildingConfigModel(
@@ -177,14 +187,16 @@ class BuildingConfigService @Inject constructor(
                     slotCount = 3,
                     baseSuccessRate = 0.7,
                     autoRestartEnabled = true,
+                    cost = 3000,
                     description = "锻造装备的场所"
                 ),
                 "mining" to BuildingConfigModel(
                     id = "mining",
-                    displayName = "灵矿",
+                    displayName = "灵矿场",
                     buildingType = "MINING",
                     slotCount = 3,
                     baseSuccessRate = 1.0,
+                    cost = 500,
                     description = "开采灵石和矿石"
                 ),
                 "herb_garden" to BuildingConfigModel(
@@ -193,6 +205,7 @@ class BuildingConfigService @Inject constructor(
                     buildingType = "HERB_GARDEN",
                     slotCount = 3,
                     baseSuccessRate = 1.0,
+                    cost = 2000,
                     description = "种植灵草的园地"
                 ),
                 "tianshu_hall" to BuildingConfigModel(
@@ -201,6 +214,7 @@ class BuildingConfigService @Inject constructor(
                     buildingType = "ADMINISTRATION",
                     slotCount = 2,
                     baseSuccessRate = 1.0,
+                    cost = 5000,
                     description = "处理宗门事务的核心建筑"
                 ),
                 "library" to BuildingConfigModel(
@@ -209,6 +223,7 @@ class BuildingConfigService @Inject constructor(
                     buildingType = "LIBRARY",
                     slotCount = 3,
                     baseSuccessRate = 1.0,
+                    cost = 5000,
                     description = "弟子修习功法的场所，提升修炼速度"
                 ),
                 "wen_dao_peak" to BuildingConfigModel(
@@ -217,6 +232,7 @@ class BuildingConfigService @Inject constructor(
                     buildingType = "WEN_DAO_PEAK",
                     slotCount = 5,
                     baseSuccessRate = 1.0,
+                    cost = 4000,
                     description = "管理外门弟子与传道授业"
                 ),
                 "qingyun_peak" to BuildingConfigModel(
@@ -225,6 +241,7 @@ class BuildingConfigService @Inject constructor(
                     buildingType = "QINGYUN_PEAK",
                     slotCount = 5,
                     baseSuccessRate = 1.0,
+                    cost = 4000,
                     description = "管理内门弟子与精英培养"
                 ),
                 "law_enforcement_hall" to BuildingConfigModel(
@@ -233,6 +250,7 @@ class BuildingConfigService @Inject constructor(
                     buildingType = "LAW_ENFORCEMENT_HALL",
                     slotCount = 3,
                     baseSuccessRate = 1.0,
+                    cost = 3000,
                     description = "维护宗门纪律，执行奖惩"
                 ),
                 "mission_hall" to BuildingConfigModel(
@@ -241,6 +259,7 @@ class BuildingConfigService @Inject constructor(
                     buildingType = "MISSION_HALL",
                     slotCount = 4,
                     baseSuccessRate = 1.0,
+                    cost = 3000,
                     description = "派遣弟子执行宗门任务"
                 ),
                 "reflection_cliff" to BuildingConfigModel(
@@ -249,6 +268,7 @@ class BuildingConfigService @Inject constructor(
                     buildingType = "REFLECTION_CLIFF",
                     slotCount = 6,
                     baseSuccessRate = 1.0,
+                    cost = 4000,
                     description = "悔过自新之地，关押违规弟子"
                 )
             ),

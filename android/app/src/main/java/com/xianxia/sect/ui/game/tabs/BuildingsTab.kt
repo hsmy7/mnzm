@@ -82,6 +82,7 @@ import com.xianxia.sect.ui.game.SpiritMineDialog
 import com.xianxia.sect.ui.game.SpiritMineViewModel
 import com.xianxia.sect.ui.game.TianshuHallDialog
 import com.xianxia.sect.ui.game.WenDaoPeakDialog
+import com.xianxia.sect.ui.components.GameBackground
 import com.xianxia.sect.ui.state.DialogStateManager.DialogType
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.theme.XianxiaColorScheme
@@ -134,14 +135,14 @@ internal fun BuildingsTab(
         Triple("思过崖", "悔过自新之地") { viewModel.openReflectionCliffDialog() }
     )
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(GameColors.PageBackground)
-            .padding(12.dp)
-    ) {
-        Text(
-            text = "建筑管理",
+    GameBackground {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(12.dp)
+        ) {
+            Text(
+                text = "建筑管理",
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
             color = Color.Black,
@@ -329,5 +330,6 @@ internal fun BuildingsTab(
             onDismiss = { viewModel.closeCurrentDialog() },
             onExpelDisciple = { discipleId -> viewModel.expelDisciple(discipleId) }
         )
+    }
     }
 }

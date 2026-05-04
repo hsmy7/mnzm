@@ -3,6 +3,7 @@ package com.xianxia.sect.ui.game.dialogs
 import androidx.compose.animation.*
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -38,6 +39,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -51,6 +54,8 @@ import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GameEvent
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.game.GameViewModel
+import com.xianxia.sect.R
+import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.theme.GameColors
 
 @Composable
@@ -318,13 +323,17 @@ internal fun QuickActionButton(
 ) {
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(6.dp))
-            .background(GameColors.ButtonBackground)
-            .border(1.dp, GameColors.ButtonBorder, RoundedCornerShape(6.dp))
-            .clickable(onClick = onClick)
-            .padding(vertical = 14.dp),
+            .height(ButtonSizes.Large)
+            .clip(RoundedCornerShape(4.dp))
+            .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
+        Image(
+            painter = painterResource(id = R.drawable.ui_button),
+            contentDescription = null,
+            modifier = Modifier.matchParentSize(),
+            contentScale = ContentScale.FillBounds
+        )
         Text(
             text = text,
             fontSize = 12.sp,

@@ -27,6 +27,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.xianxia.sect.ui.components.GameBackground
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.theme.GameColors
 
@@ -59,11 +60,7 @@ fun PrivacyConsentScreen(
         return
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(GameColors.PageBackground)
-    ) {
+    GameBackground {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -139,8 +136,6 @@ fun PrivacyConsentScreen(
             GameButton(
                 text = "同意",
                 onClick = onAgree,
-                modifier = Modifier.fillMaxWidth(),
-                height = 44.dp,
                 fontSize = 14.sp
             )
 
@@ -149,8 +144,6 @@ fun PrivacyConsentScreen(
             GameButton(
                 text = "不同意",
                 onClick = onDisagree,
-                modifier = Modifier.fillMaxWidth(),
-                height = 44.dp,
                 fontSize = 14.sp
             )
 
@@ -397,11 +390,7 @@ fun FullPrivacyPolicyScreen(
     val context = LocalContext.current
     val scrollState = rememberScrollState()
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(GameColors.PageBackground)
-    ) {
+    GameBackground {
         Column(
             modifier = Modifier
                 .fillMaxSize()

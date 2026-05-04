@@ -2,7 +2,9 @@ package com.xianxia.sect.ui.game.map
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import kotlin.math.abs
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
@@ -74,13 +76,64 @@ fun WorldMapScreen(
                 cameraState.updateScreenSize(size.width, size.height)
             }
             .pointerInput(cameraState) {
-                detectTransformGestures { centroid, pan, zoom, _ ->
-                    if (zoom != 1f) {
-                        cameraState.applyZoom(zoom, centroid)
-                    }
-                    if (pan != Offset.Zero) {
-                        cameraState.applyDrag(pan.x, pan.y)
-                    }
+                awaitEachGesture {
+                    // requireUnconsumed = false so parent still sees pointers
+                    // on sect labels even if child clickable consumed them
+                    awaitFirstDown(requireUnconsumed = false)
+                    var previousCentroid = Offset.Zero
+                    var previousPointerDistance = 0f
+                    var pastTouchSlop = false
+                    val touchSlop = viewConfiguration.touchSlop
+
+                    do {
+                        val event = awaitPointerEvent()
+                        val activeChanges = event.changes.filter { it.pressed }
+                        if (activeChanges.isEmpty()) break
+
+                        val centroid = Offset(
+                            x = activeChanges.map { it.position.x }.average().toFloat(),
+                            y = activeChanges.map { it.position.y }.average().toFloat()
+                        )
+
+                        if (previousCentroid != Offset.Zero) {
+                            var zoom = 1f
+                            if (activeChanges.size >= 2) {
+                                val p0 = activeChanges[0].position
+                                val p1 = activeChanges[1].position
+                                val currentDistance = (p1 - p0).getDistance()
+                                if (previousPointerDistance > 0f) {
+                                    val candidateZoom = currentDistance / previousPointerDistance
+                                    if (candidateZoom > 0f && !candidateZoom.isNaN()) {
+                                        zoom = candidateZoom
+                                    }
+                                }
+                                previousPointerDistance = currentDistance
+                            } else {
+                                previousPointerDistance = 0f
+                            }
+
+                            val pan = centroid - previousCentroid
+
+                            if (!pastTouchSlop) {
+                                val zoomMotion = if (activeChanges.size >= 2)
+                                    previousPointerDistance * abs(1f - zoom) else 0f
+                                val totalMotion = pan.getDistance() + zoomMotion
+                                if (totalMotion > touchSlop) {
+                                    pastTouchSlop = true
+                                }
+                            }
+
+                            if (pastTouchSlop) {
+                                if (zoom != 1f) {
+                                    cameraState.applyZoom(zoom, centroid)
+                                }
+                                if (pan != Offset.Zero) {
+                                    cameraState.applyDrag(pan.x, pan.y)
+                                }
+                            }
+                        }
+                        previousCentroid = centroid
+                    } while (true)
                 }
             }
             .pointerInput(cameraState) {

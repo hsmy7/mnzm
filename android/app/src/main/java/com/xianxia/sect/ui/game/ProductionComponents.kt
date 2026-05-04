@@ -1,5 +1,6 @@
 package com.xianxia.sect.ui.game
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -20,15 +21,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import com.xianxia.sect.R
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.ui.components.ElderBonusInfo
 import com.xianxia.sect.ui.components.ElderBonusInfoButton
 import com.xianxia.sect.ui.components.ElderBonusInfoProvider
 import com.xianxia.sect.ui.theme.GameColors
+import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.ui.components.HorizontalDiscipleCard
 import com.xianxia.sect.core.util.isFollowed
@@ -182,50 +188,63 @@ fun ProductionCommonDialog(
     titleActions: @Composable RowScope.() -> Unit = {},
     content: @Composable ColumnScope.() -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
-        title = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = title,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
+    Dialog(onDismissRequest = onDismiss) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.bg_screen),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.Crop
+            )
+            Column(modifier = Modifier.fillMaxWidth()) {
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    titleActions()
-                    Box(
-                        modifier = Modifier
-                            .size(24.dp)
-                            .clip(CircleShape)
-                            .clickable { onDismiss() }
-                            .background(GameColors.CardBackground),
-                        contentAlignment = Alignment.Center
+                    Text(
+                        text = title,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text(text = "×", fontSize = 16.sp, color = Color(0xFF666666))
+                        titleActions()
+                        Box(
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clip(CircleShape)
+                                .clickable { onDismiss() }
+                                .background(GameColors.CardBackground),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(text = "关闭", fontSize = 12.sp, color = Color(0xFF666666))
+                        }
                     }
                 }
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f, fill = false)
+                        .heightIn(max = 400.dp)
+                        .then(if (enableScroll) Modifier.verticalScroll(rememberScrollState()) else Modifier)
+                        .padding(horizontal = 16.dp)
+                ) {
+                    content()
+                }
+                Spacer(modifier = Modifier.height(16.dp))
             }
-        },
-        text = {
-            Column(
-                modifier = Modifier
-                    .heightIn(max = 400.dp)
-                    .then(if (enableScroll) Modifier.verticalScroll(rememberScrollState()) else Modifier)
-            ) {
-                content()
-            }
-        },
-        confirmButton = {}
-    )
+        }
+    }
 }
 
 @Composable
@@ -282,12 +301,21 @@ fun ProductionElderSection(
                 Spacer(modifier = Modifier.height(4.dp))
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(GameColors.PageBackground)
-                        .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
+                        .width(72.dp)
+                        .height(38.dp)
+                        .clip(RoundedCornerShape(4.dp))
                         .clickable { onElderRemove() }
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
-                ) { Text(text = "卸任", fontSize = 12.sp, color = Color.Black) }
+                        .padding(horizontal = 12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Image(
+                        painter = painterResource(id = R.drawable.ui_button),
+                        contentDescription = null,
+                        modifier = Modifier.matchParentSize(),
+                        contentScale = ContentScale.FillBounds
+                    )
+                    Text(text = "卸任", fontSize = 12.sp, color = Color.Black)
+                }
             }
         }
     }
@@ -449,7 +477,7 @@ fun ProductionElderSelectionDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
+        containerColor = Color.Transparent, tonalElevation = 0.dp,
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -464,7 +492,7 @@ fun ProductionElderSelectionDialog(
                         .clickable { onDismiss() }
                         .background(GameColors.CardBackground),
                     contentAlignment = Alignment.Center
-                ) { Text(text = "×", fontSize = 16.sp, color = Color(0xFF666666)) }
+                ) { Text(text = "关闭", fontSize = 12.sp, color = Color(0xFF666666)) }
             }
         },
         text = {
@@ -570,7 +598,7 @@ fun ProductionDirectDiscipleSelectionDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
+        containerColor = Color.Transparent, tonalElevation = 0.dp,
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -585,7 +613,7 @@ fun ProductionDirectDiscipleSelectionDialog(
                         .clickable { onDismiss() }
                         .background(GameColors.CardBackground),
                     contentAlignment = Alignment.Center
-                ) { Text(text = "×", fontSize = 16.sp, color = Color(0xFF666666)) }
+                ) { Text(text = "关闭", fontSize = 12.sp, color = Color(0xFF666666)) }
             }
         },
         text = {
@@ -702,7 +730,7 @@ fun ProductionReserveDiscipleDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
+        containerColor = Color.Transparent, tonalElevation = 0.dp,
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -730,7 +758,7 @@ fun ProductionReserveDiscipleDialog(
                             .clickable { onDismiss() }
                             .background(GameColors.CardBackground),
                         contentAlignment = Alignment.Center
-                    ) { Text(text = "×", fontSize = 16.sp, color = Color(0xFF666666)) }
+                    ) { Text(text = "关闭", fontSize = 12.sp, color = Color(0xFF666666)) }
                 }
             }
         },
@@ -797,7 +825,7 @@ fun ProductionAddReserveDiscipleDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
+        containerColor = Color.Transparent, tonalElevation = 0.dp,
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -812,7 +840,7 @@ fun ProductionAddReserveDiscipleDialog(
                         .clickable { onDismiss() }
                         .background(GameColors.CardBackground),
                     contentAlignment = Alignment.Center
-                ) { Text(text = "×", fontSize = 16.sp, color = Color(0xFF666666)) }
+                ) { Text(text = "关闭", fontSize = 12.sp, color = Color(0xFF666666)) }
             }
         },
         text = {
@@ -909,7 +937,7 @@ fun FilteredMultiSelectDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
+        containerColor = Color.Transparent, tonalElevation = 0.dp,
         title = @Composable {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -945,7 +973,7 @@ fun FilteredMultiSelectDialog(
                         .background(GameColors.CardBackground),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(text = "×", fontSize = 16.sp, color = Color(0xFF666666))
+                    Text(text = "关闭", fontSize = 12.sp, color = Color(0xFF666666))
                 }
             }
         },

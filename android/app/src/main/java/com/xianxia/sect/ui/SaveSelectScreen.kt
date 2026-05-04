@@ -18,6 +18,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.data.model.SaveSlot
+import com.xianxia.sect.ui.components.GameBackground
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.theme.GameColors
 import java.text.SimpleDateFormat
@@ -54,14 +55,14 @@ fun SaveSelectScreen(
     var sectNameInput by remember { mutableStateOf("") }
     val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(GameColors.PageBackground)
-            .padding(16.dp)
-    ) {
-        Text(
-            text = "选择存档",
+    GameBackground {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp)
+        ) {
+            Text(
+                text = "选择存档",
             fontSize = 24.sp,
             fontWeight = FontWeight.Bold,
             color = Color.Black,
@@ -92,9 +93,9 @@ fun SaveSelectScreen(
 
         GameButton(
             text = "退出登录",
-            onClick = onLogout,
-            modifier = Modifier.fillMaxWidth().height(48.dp)
+            onClick = onLogout
         )
+    }
     }
 
     if (showDeleteConfirm != null) {

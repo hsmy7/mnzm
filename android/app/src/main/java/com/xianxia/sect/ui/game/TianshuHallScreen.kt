@@ -1,5 +1,6 @@
 package com.xianxia.sect.ui.game
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -22,8 +23,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.window.Dialog
+import com.xianxia.sect.R
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.ui.components.ElderBonusInfo
+import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.core.util.isFollowed
@@ -45,129 +51,134 @@ fun TianshuHallDialog(
     var showSectAffairsDialog by remember { mutableStateOf(false) }
     var showSectPoliciesDialog by remember { mutableStateOf(false) }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
-        title = {
-            Box(
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    text = "天枢殿",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-                IconButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.align(Alignment.TopEnd)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "关闭",
-                        tint = Color.Black,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-            }
-        },
-        text = {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally
+    Dialog(onDismissRequest = onDismiss) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.bg_screen),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.Crop
+            )
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
                 ) {
                     Text(
-                        text = "副宗主",
-                        fontSize = 12.sp,
+                        text = "天枢殿",
+                        fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.Black
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    Box(
-                        modifier = Modifier
-                            .size(60.dp)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(GameColors.PageBackground)
-                            .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
-                            .clickable { showViceSectMasterSelectDialog = true },
-                        contentAlignment = Alignment.Center
+                    CloseButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.align(Alignment.TopEnd)
+                    )
+                }
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        if (viceSectMaster != null) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
+                        Text(
+                            text = "副宗主",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Black
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Box(
+                            modifier = Modifier
+                                .size(60.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(GameColors.PageBackground)
+                                .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
+                                .clickable { showViceSectMasterSelectDialog = true },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (viceSectMaster != null) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text(
+                                        text = viceSectMaster.name,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.Black,
+                                        maxLines = 1
+                                    )
+                                    Text(
+                                        text = viceSectMaster.realmName,
+                                        fontSize = 9.sp,
+                                        color = Color(0xFF666666),
+                                        maxLines = 1
+                                    )
+                                }
+                            } else {
                                 Text(
-                                    text = viceSectMaster.name,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.Black,
-                                    maxLines = 1
-                                )
-                                Text(
-                                    text = viceSectMaster.realmName,
-                                    fontSize = 9.sp,
-                                    color = Color(0xFF666666),
-                                    maxLines = 1
+                                    text = "+",
+                                    fontSize = 24.sp,
+                                    color = Color(0xFF999999)
                                 )
                             }
-                        } else {
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(GameColors.PageBackground)
+                                .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
+                                .clickable {
+                                    if (viceSectMasterId != null) {
+                                        productionViewModel.removeViceSectMaster()
+                                    }
+                                }
+                                .padding(horizontal = 12.dp, vertical = 4.dp)
+                        ) {
                             Text(
-                                text = "+",
-                                fontSize = 24.sp,
-                                color = Color(0xFF999999)
+                                text = "卸任",
+                                fontSize = 10.sp,
+                                color = Color.Black
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(4.dp))
+                    HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
 
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(GameColors.PageBackground)
-                            .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
-                            .clickable {
-                                if (viceSectMasterId != null) {
-                                    productionViewModel.removeViceSectMaster()
-                                }
-                            }
-                            .padding(horizontal = 12.dp, vertical = 4.dp)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Text(
-                            text = "卸任",
-                            fontSize = 10.sp,
-                            color = Color.Black
+                        GameButton(
+                            text = "宗门事务",
+                            onClick = { showSectAffairsDialog = true },
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        GameButton(
+                            text = "宗门政策",
+                            onClick = { showSectPoliciesDialog = true },
+                            modifier = Modifier.weight(1f)
                         )
                     }
                 }
-
-                HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    GameButton(
-                        text = "宗门事务",
-                        onClick = { showSectAffairsDialog = true },
-                        modifier = Modifier.weight(1f)
-                    )
-
-                    GameButton(
-                        text = "宗门政策",
-                        onClick = { showSectPoliciesDialog = true },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
+                Spacer(modifier = Modifier.height(16.dp))
             }
-        },
-        confirmButton = {}
-    )
+        }
+    }
 
     if (showViceSectMasterSelectDialog) {
         val tianshuTheme = remember {
@@ -233,36 +244,50 @@ fun TianshuHallDialog(
 
 @Composable
 private fun SectAffairsPlaceholderDialog(onDismiss: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
-        title = {
-            Text(
-                text = "宗门事务",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black
+    Dialog(onDismissRequest = onDismiss) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.bg_screen),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.Crop
             )
-        },
-        text = {
             Column(
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "宗门日常事务管理功能开发中...",
-                    fontSize = 12.sp,
-                    color = Color(0xFF666666)
+                    text = "宗门事务",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
                 )
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "宗门日常事务管理功能开发中...",
+                        fontSize = 12.sp,
+                        color = Color(0xFF666666)
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                GameButton(
+                    text = "关闭",
+                    onClick = onDismiss
+                )
+                Spacer(modifier = Modifier.height(16.dp))
             }
-        },
-        confirmButton = {
-            GameButton(
-                text = "关闭",
-                onClick = onDismiss
-            )
         }
-    )
+    }
 }
 
 @Composable
@@ -272,92 +297,106 @@ private fun SectPoliciesDialog(
     productionViewModel: ProductionViewModel,
     onDismiss: () -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
-        title = {
-            Text(
-                text = "宗门政策",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black
+    Dialog(onDismissRequest = onDismiss) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.bg_screen),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.Crop
             )
-        },
-        text = {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                val sectPolicies = gameData?.sectPolicies
-                val viceBonus = productionViewModel.getViceSectMasterIntelligenceBonus()
-                val viceBonusText = if (viceBonus > 0) " (副宗主加成+${(viceBonus * 100).toInt()}%)" else ""
-
-                PolicyItem(
-                    title = "灵矿增产",
-                    effect = "灵石产出+20%$viceBonusText",
-                    cost = "采矿弟子忠诚-1/月",
-                    checked = sectPolicies?.spiritMineBoost ?: false,
-                    onCheckedChange = { productionViewModel.toggleSpiritMineBoost() }
+                Text(
+                    text = "宗门政策",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
                 )
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f, fill = false)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val sectPolicies = gameData?.sectPolicies
+                    val viceBonus = productionViewModel.getViceSectMasterIntelligenceBonus()
+                    val viceBonusText = if (viceBonus > 0) " (副宗主加成+${(viceBonus * 100).toInt()}%)" else ""
 
-                PolicyItem(
-                    title = "丹道激励",
-                    effect = "炼丹成功率+10%$viceBonusText",
-                    cost = "每月消耗3000灵石",
-                    checked = sectPolicies?.alchemyIncentive ?: false,
-                    onCheckedChange = { productionViewModel.toggleAlchemyIncentive() }
-                )
+                    PolicyItem(
+                        title = "灵矿增产",
+                        effect = "灵石产出+20%$viceBonusText",
+                        cost = "采矿弟子忠诚-1/月",
+                        checked = sectPolicies?.spiritMineBoost ?: false,
+                        onCheckedChange = { productionViewModel.toggleSpiritMineBoost() }
+                    )
 
-                PolicyItem(
-                    title = "锻造激励",
-                    effect = "锻造成功率+10%$viceBonusText",
-                    cost = "每月消耗3000灵石",
-                    checked = sectPolicies?.forgeIncentive ?: false,
-                    onCheckedChange = { productionViewModel.toggleForgeIncentive() }
-                )
+                    PolicyItem(
+                        title = "丹道激励",
+                        effect = "炼丹成功率+10%$viceBonusText",
+                        cost = "每月消耗3000灵石",
+                        checked = sectPolicies?.alchemyIncentive ?: false,
+                        onCheckedChange = { productionViewModel.toggleAlchemyIncentive() }
+                    )
 
-                PolicyItem(
-                    title = "灵药培育",
-                    effect = "灵药生长速度+20%$viceBonusText",
-                    cost = "每月消耗3000灵石",
-                    checked = sectPolicies?.herbCultivation ?: false,
-                    onCheckedChange = { productionViewModel.toggleHerbCultivation() }
-                )
+                    PolicyItem(
+                        title = "锻造激励",
+                        effect = "锻造成功率+10%$viceBonusText",
+                        cost = "每月消耗3000灵石",
+                        checked = sectPolicies?.forgeIncentive ?: false,
+                        onCheckedChange = { productionViewModel.toggleForgeIncentive() }
+                    )
 
-                PolicyItem(
-                    title = "修行津贴",
-                    effect = "化神境以下弟子修炼速度+15%$viceBonusText",
-                    cost = "每月消耗4000灵石",
-                    checked = sectPolicies?.cultivationSubsidy ?: false,
-                    onCheckedChange = { productionViewModel.toggleCultivationSubsidy() }
-                )
+                    PolicyItem(
+                        title = "灵药培育",
+                        effect = "灵药生长速度+20%$viceBonusText",
+                        cost = "每月消耗3000灵石",
+                        checked = sectPolicies?.herbCultivation ?: false,
+                        onCheckedChange = { productionViewModel.toggleHerbCultivation() }
+                    )
 
-                PolicyItem(
-                    title = "功法研习",
-                    effect = "功法修炼速度+20%$viceBonusText",
-                    cost = "每月消耗4000灵石",
-                    checked = sectPolicies?.manualResearch ?: false,
-                    onCheckedChange = { productionViewModel.toggleManualResearch() }
-                )
+                    PolicyItem(
+                        title = "修行津贴",
+                        effect = "化神境以下弟子修炼速度+15%$viceBonusText",
+                        cost = "每月消耗4000灵石",
+                        checked = sectPolicies?.cultivationSubsidy ?: false,
+                        onCheckedChange = { productionViewModel.toggleCultivationSubsidy() }
+                    )
 
-                PolicyItem(
-                    title = "增强治安",
-                    effect = "执法堂抓捕率+20%$viceBonusText",
-                    cost = "每月消耗3000灵石",
-                    checked = sectPolicies?.enhancedSecurity ?: false,
-                    onCheckedChange = { productionViewModel.toggleEnhancedSecurity() }
+                    PolicyItem(
+                        title = "功法研习",
+                        effect = "功法修炼速度+20%$viceBonusText",
+                        cost = "每月消耗4000灵石",
+                        checked = sectPolicies?.manualResearch ?: false,
+                        onCheckedChange = { productionViewModel.toggleManualResearch() }
+                    )
+
+                    PolicyItem(
+                        title = "增强治安",
+                        effect = "执法堂抓捕率+20%$viceBonusText",
+                        cost = "每月消耗3000灵石",
+                        checked = sectPolicies?.enhancedSecurity ?: false,
+                        onCheckedChange = { productionViewModel.toggleEnhancedSecurity() }
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                GameButton(
+                    text = "关闭",
+                    onClick = onDismiss
                 )
+                Spacer(modifier = Modifier.height(16.dp))
             }
-        },
-        confirmButton = {
-            GameButton(
-                text = "关闭",
-                onClick = onDismiss
-            )
         }
-    )
+    }
 }
 
 @Composable

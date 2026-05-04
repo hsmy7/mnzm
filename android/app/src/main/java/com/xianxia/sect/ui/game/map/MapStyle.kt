@@ -77,7 +77,7 @@ object MapStyle {
         val controlButtonPaddingH = 12.dp
         val controlButtonPaddingV = 6.dp
         val controlButtonBorderWidth = 1.dp
-        val controlButtonBorderRadius = 6.dp
+        val controlButtonBorderRadius = 4.dp
 
         val closeButtonSize = 32.dp
         val closeButtonBorderWidth = 2.dp

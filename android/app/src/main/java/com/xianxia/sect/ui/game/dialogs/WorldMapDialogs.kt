@@ -62,6 +62,7 @@ import com.xianxia.sect.core.util.SectRelationLevel
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.core.util.sortedByFollowAndRealm
 import com.xianxia.sect.ui.components.FollowedTag
+import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.game.ATTRIBUTE_FILTER_OPTIONS
 import com.xianxia.sect.ui.game.AttributeFilterOption
@@ -406,20 +407,7 @@ internal fun WorldMapSectDetailDialog(
                         )
                     }
                 }
-                Box(
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clip(CircleShape)
-                        .clickable { onDismiss() }
-                        .background(GameColors.CardBackground),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "×",
-                        fontSize = 16.sp,
-                        color = Color(0xFF666666)
-                    )
-                }
+                CloseButton(onClick = onDismiss)
             }
         },
         text = {
@@ -678,20 +666,7 @@ fun DiplomacyDialog(
                         fontWeight = FontWeight.Bold,
                         color = Color.Black
                     )
-                    Box(
-                        modifier = Modifier
-                            .size(24.dp)
-                            .clip(CircleShape)
-                            .clickable { onDismiss() }
-                            .background(GameColors.CardBackground),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "×",
-                            fontSize = 16.sp,
-                            color = Color(0xFF666666)
-                        )
-                    }
+                    CloseButton(onClick = onDismiss)
                 }
             },
             text = {
@@ -801,20 +776,7 @@ internal fun CaveDetailDialog(
                             .padding(horizontal = 4.dp, vertical = 1.dp)
                     )
                 }
-                Box(
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clip(CircleShape)
-                        .clickable { onDismiss() }
-                        .background(GameColors.CardBackground),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "×",
-                        fontSize = 16.sp,
-                        color = Color(0xFF666666)
-                    )
-                }
+                CloseButton(onClick = onDismiss)
             }
         },
         text = {
@@ -1037,20 +999,7 @@ internal fun CaveDiscipleSelectionDialog(
                     fontWeight = FontWeight.Bold,
                     color = Color.Black
                 )
-                Box(
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clip(CircleShape)
-                        .clickable { onDismiss() }
-                        .background(GameColors.CardBackground),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "×",
-                        fontSize = 16.sp,
-                        color = Color(0xFF666666)
-                    )
-                }
+                CloseButton(onClick = onDismiss)
             }
         },
         text = {
@@ -1772,23 +1721,12 @@ fun SectTradeDialog(
                                     }
                                 }
 
-                                Box(
+                                CloseButton(
+                                    onClick = { showRelationWarning = false },
                                     modifier = Modifier
                                         .align(Alignment.TopEnd)
                                         .offset(x = (-4).dp, y = 4.dp)
-                                        .size(24.dp)
-                                        .clip(CircleShape)
-                                        .clickable { showRelationWarning = false }
-                                        .background(GameColors.CardBackground),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = "×",
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = GameColors.TextPrimary
-                                    )
-                                }
+                                )
                             }
                         }
                     }

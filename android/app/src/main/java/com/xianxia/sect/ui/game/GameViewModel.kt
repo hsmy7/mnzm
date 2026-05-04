@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.SharingStarted
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.config.BuildingConfigService
 import com.xianxia.sect.core.registry.ForgeRecipeDatabase
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.GameEngineCore
@@ -29,7 +30,8 @@ class GameViewModel @Inject constructor(
     val dialogStateManager: DialogStateManager,
     @ApplicationContext private val appContext: Context,
     private val systemManager: SystemManager,
-    private val disciplePositionQuery: DisciplePositionQueryUseCase
+    private val disciplePositionQuery: DisciplePositionQueryUseCase,
+    private val buildingConfigService: BuildingConfigService
 ) : BaseViewModel() {
 
     companion object {
@@ -132,8 +134,40 @@ class GameViewModel @Inject constructor(
         openDialog(DialogType.BattleLog)
     }
 
+    fun placeBuilding(name: String, gridX: Int, gridY: Int, width: Int = 2, height: Int = 2) {
+        viewModelScope.launch {
+            val config = buildingConfigService.getBuildingConfigByDisplayName(name)
+            val cost = config?.cost ?: 1000L
+
+            gameEngine.updateGameData { data ->
+                if (data.placedBuildings.any { it.displayName == name }) return@updateGameData data
+                if (data.spiritStones < cost) return@updateGameData data
+                data.copy(
+                    spiritStones = data.spiritStones - cost,
+                    placedBuildings = data.placedBuildings + GridBuildingData(
+                        buildingId = name,
+                        displayName = name,
+                        gridX = gridX,
+                        gridY = gridY,
+                        width = width,
+                        height = height
+                    )
+                )
+            }
+        }
+    }
+
+    fun getBuildingCost(displayName: String): Long {
+        return buildingConfigService.getBuildingConfigByDisplayName(displayName)?.cost ?: 1000L
+    }
+
     val gameData: StateFlow<GameData> = gameEngine.gameData
         .stateIn(viewModelScope, sharingStarted, gameEngine.gameData.value ?: GameData())
+
+    val placedBuildings: StateFlow<List<GridBuildingData>> = gameData
+        .map { it.placedBuildings }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, sharingStarted, emptyList())
 
     /**
      * 弟子聚合数据 - 用于 UI 层显示（推荐使用）

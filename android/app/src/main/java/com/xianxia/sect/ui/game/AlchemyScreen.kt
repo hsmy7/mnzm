@@ -1,5 +1,6 @@
 package com.xianxia.sect.ui.game
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -15,11 +16,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.offset
+import com.xianxia.sect.R
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.registry.PillRecipeDatabase
 import com.xianxia.sect.core.model.*
@@ -130,31 +134,41 @@ fun AlchemyDialog(
 
             val slotCount = alchemySlots.size
             (0 until slotCount).chunked(3).forEach { rowIndexes ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
-                ) {
-                    rowIndexes.forEach { index ->
-                        val slot = alchemySlots.getOrNull(index)
-                        val isIdle = slot?.status == AlchemySlotStatus.IDLE || slot == null
-                        val isWorking = slot?.status == AlchemySlotStatus.WORKING
-                        val remainingMonths = if (isWorking && gameData != null)
-                            slot.getRemainingMonths(gameData.gameYear, gameData.gameMonth) else 0
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    Image(
+                        painter = painterResource(id = R.drawable.bg_horizontal),
+                        contentDescription = null,
+                        modifier = Modifier.matchParentSize(),
+                        contentScale = ContentScale.FillBounds
+                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
+                    ) {
+                        rowIndexes.forEach { index ->
+                            val slot = alchemySlots.getOrNull(index)
+                            val isIdle = slot?.status == AlchemySlotStatus.IDLE || slot == null
+                            val isWorking = slot?.status == AlchemySlotStatus.WORKING
+                            val remainingMonths = if (isWorking && gameData != null)
+                                slot.getRemainingMonths(gameData.gameYear, gameData.gameMonth) else 0
 
-                        ProductionSlotItem(
-                            theme = theme,
-                            productName = slot?.pillName,
-                            isWorking = isWorking,
-                            isIdle = isIdle,
-                            remainingMonths = remainingMonths,
-                            index = index,
-                            onClick = {
-                                if (isIdle) {
-                                    selectedSlotIndex = index
-                                    showPillSelection = true
+                            ProductionSlotItem(
+                                theme = theme,
+                                productName = slot?.pillName,
+                                isWorking = isWorking,
+                                isIdle = isIdle,
+                                remainingMonths = remainingMonths,
+                                index = index,
+                                onClick = {
+                                    if (isIdle) {
+                                        selectedSlotIndex = index
+                                        showPillSelection = true
+                                    }
                                 }
-                            }
-                        )
+                            )
+                        }
                     }
                 }
             }
@@ -434,7 +448,7 @@ private fun PillDetailDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
+        containerColor = Color.Transparent, tonalElevation = 0.dp,
         title = {
             Text(text = recipe.name, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)
         },

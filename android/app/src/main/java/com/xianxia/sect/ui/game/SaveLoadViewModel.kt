@@ -43,6 +43,7 @@ class SaveLoadViewModel @Inject constructor(
         private const val PROGRESS_SAVE_COMPLETE = 0.5f
         private const val PROGRESS_RESTART_DATA_LOAD = 0.6f
         private const val PROGRESS_GAME_LOOP_START = 0.8f
+        const val PROGRESS_MAP_PRELOAD = 0.9f
         private const val PROGRESS_COMPLETE = 1f
     }
 
@@ -372,6 +373,10 @@ class SaveLoadViewModel @Inject constructor(
 
     fun isGameAlreadyLoaded(): Boolean {
         return _isGameLoaded && gameEngine.gameData.value?.sectName?.isNotEmpty() == true
+    }
+
+    fun setLoadingProgress(progress: Float) {
+        _loadingProgress.value = progress
     }
 
     fun startNewGame(sectName: String, slot: Int = 1) {

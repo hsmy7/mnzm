@@ -41,6 +41,7 @@ import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.components.DiscipleAttrText
 import com.xianxia.sect.ui.components.EmptyListMessage
+import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.ItemCardData
 import com.xianxia.sect.ui.components.TalentDetailDialog
@@ -267,20 +268,7 @@ fun DiscipleDetailDialog(
                                 )
                             }
                         }
-                        Box(
-                            modifier = Modifier
-                                .size(24.dp)
-                                .clip(CircleShape)
-                                .clickable { onDismiss() }
-                                .background(GameColors.CardBackground),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "×",
-                                fontSize = 16.sp,
-                                color = Color(0xFF666666)
-                            )
-                        }
+                        CloseButton(onClick = onDismiss)
                     }
                     Spacer(modifier = Modifier.height(16.dp))
                     Column(
@@ -554,20 +542,7 @@ fun DiscipleDetailDialog(
                             fontWeight = FontWeight.Bold,
                             color = Color.Black
                         )
-                        Box(
-                            modifier = Modifier
-                                .size(24.dp)
-                                .clip(CircleShape)
-                                .clickable { showManualReplaceSelection = false }
-                                .background(GameColors.CardBackground),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "×",
-                                fontSize = 16.sp,
-                                color = Color(0xFF666666)
-                            )
-                        }
+                        CloseButton(onClick = { showManualReplaceSelection = false })
                     }
                 },
                 text = {
@@ -714,20 +689,7 @@ private fun RelationsDialog(
                     fontWeight = FontWeight.Bold,
                     color = Color.Black
                 )
-                Box(
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clip(CircleShape)
-                        .clickable { onDismiss() }
-                        .background(GameColors.CardBackground),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "×",
-                        fontSize = 16.sp,
-                        color = Color(0xFF666666)
-                    )
-                }
+                CloseButton(onClick = onDismiss)
             }
         },
         text = {
@@ -842,20 +804,7 @@ private fun EquipmentSelectionDialog(
                     fontWeight = FontWeight.Bold,
                     color = Color.Black
                 )
-                Box(
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clip(CircleShape)
-                        .clickable { onDismiss() }
-                        .background(GameColors.CardBackground),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "×",
-                        fontSize = 16.sp,
-                        color = Color(0xFF666666)
-                    )
-                }
+                CloseButton(onClick = onDismiss)
             }
         },
         text = {
@@ -979,20 +928,7 @@ private fun ManualSelectionDialog(
                     fontWeight = FontWeight.Bold,
                     color = Color.Black
                 )
-                Box(
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clip(CircleShape)
-                        .clickable { onDismiss() }
-                        .background(GameColors.CardBackground),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "×",
-                        fontSize = 16.sp,
-                        color = Color(0xFF666666)
-                    )
-                }
+                CloseButton(onClick = onDismiss)
             }
         },
         text = {
@@ -2006,20 +1942,7 @@ private fun StorageBagDialog(
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF2196F3)
                     )
-                    Box(
-                        modifier = Modifier
-                            .size(24.dp)
-                            .clip(CircleShape)
-                            .clickable { onDismiss() }
-                            .background(GameColors.CardBackground),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "×",
-                            fontSize = 16.sp,
-                            color = Color(0xFF666666)
-                        )
-                    }
+                    CloseButton(onClick = onDismiss)
                 }
             }
         },

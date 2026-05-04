@@ -1,5 +1,6 @@
 package com.xianxia.sect.ui.game
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -16,6 +17,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -24,6 +27,7 @@ import androidx.compose.foundation.layout.offset
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.registry.ForgeRecipeDatabase
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.R
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.game.ForgeViewModel
@@ -133,31 +137,41 @@ fun ForgeDialog(
             }
 
             (0 until forgeSlots.size).chunked(3).forEach { rowIndexes ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
-                ) {
-                    rowIndexes.forEach { index ->
-                        val slot = forgeSlots.getOrNull(index)
-                        val isIdle = slot?.status == ForgeSlotStatus.IDLE || slot == null
-                        val isWorking = slot?.status == ForgeSlotStatus.WORKING
-                        val remainingMonths = if (isWorking && gameData != null)
-                            slot.getRemainingMonths(gameData.gameYear, gameData.gameMonth) else 0
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    Image(
+                        painter = painterResource(id = R.drawable.bg_horizontal),
+                        contentDescription = null,
+                        modifier = Modifier.matchParentSize(),
+                        contentScale = ContentScale.FillBounds
+                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
+                    ) {
+                        rowIndexes.forEach { index ->
+                            val slot = forgeSlots.getOrNull(index)
+                            val isIdle = slot?.status == ForgeSlotStatus.IDLE || slot == null
+                            val isWorking = slot?.status == ForgeSlotStatus.WORKING
+                            val remainingMonths = if (isWorking && gameData != null)
+                                slot.getRemainingMonths(gameData.gameYear, gameData.gameMonth) else 0
 
-                        ProductionSlotItem(
-                            theme = theme,
-                            productName = slot?.equipmentName,
-                            isWorking = isWorking,
-                            isIdle = isIdle,
-                            remainingMonths = remainingMonths,
-                            index = index,
-                            onClick = {
-                                if (isIdle) {
-                                    selectedSlotIndex = index
-                                    showEquipmentSelection = true
+                            ProductionSlotItem(
+                                theme = theme,
+                                productName = slot?.equipmentName,
+                                isWorking = isWorking,
+                                isIdle = isIdle,
+                                remainingMonths = remainingMonths,
+                                index = index,
+                                onClick = {
+                                    if (isIdle) {
+                                        selectedSlotIndex = index
+                                        showEquipmentSelection = true
+                                    }
                                 }
-                            }
-                        )
+                            )
+                        }
                     }
                 }
             }
@@ -412,7 +426,7 @@ private fun EquipmentDetailDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
+        containerColor = Color.Transparent, tonalElevation = 0.dp,
         title = {
             Text(text = recipe.name, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)
         },

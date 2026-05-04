@@ -9,6 +9,7 @@
       "baseSuccessRate": 0.7,
       "maxQueueLength": 1,
       "autoRestartEnabled": true,
+      "cost": 3000,
       "description": "用于炼制各种丹药的场所"
     },
     "forge": {
@@ -19,16 +20,18 @@
       "baseSuccessRate": 0.7,
       "maxQueueLength": 1,
       "autoRestartEnabled": true,
+      "cost": 3000,
       "description": "锻造装备的场所"
     },
     "mining": {
       "id": "mining",
-      "displayName": "灵矿",
+      "displayName": "灵矿场",
       "buildingType": "MINING",
       "slotCount": 3,
       "baseSuccessRate": 1.0,
       "maxQueueLength": 1,
       "autoRestartEnabled": false,
+      "cost": 500,
       "description": "开采灵石和矿石"
     },
     "herb_garden": {
@@ -39,6 +42,7 @@
       "baseSuccessRate": 1.0,
       "maxQueueLength": 1,
       "autoRestartEnabled": false,
+      "cost": 2000,
       "description": "种植灵草的园地"
     },
     "tianshu_hall": {
@@ -49,6 +53,7 @@
       "baseSuccessRate": 1.0,
       "maxQueueLength": 1,
       "autoRestartEnabled": false,
+      "cost": 5000,
       "description": "处理宗门事务的核心建筑"
     },
     "library": {
@@ -59,6 +64,7 @@
       "baseSuccessRate": 1.0,
       "maxQueueLength": 1,
       "autoRestartEnabled": false,
+      "cost": 5000,
       "description": "弟子修习功法的场所，提升修炼速度"
     },
     "wen_dao_peak": {
@@ -69,6 +75,7 @@
       "baseSuccessRate": 1.0,
       "maxQueueLength": 1,
       "autoRestartEnabled": false,
+      "cost": 4000,
       "description": "管理外门弟子与传道授业"
     },
     "qingyun_peak": {
@@ -79,6 +86,7 @@
       "baseSuccessRate": 1.0,
       "maxQueueLength": 1,
       "autoRestartEnabled": false,
+      "cost": 4000,
       "description": "管理内门弟子与精英培养"
     },
     "law_enforcement_hall": {
@@ -89,6 +97,7 @@
       "baseSuccessRate": 1.0,
       "maxQueueLength": 1,
       "autoRestartEnabled": false,
+      "cost": 3000,
       "description": "维护宗门纪律，执行奖惩"
     },
     "mission_hall": {
@@ -99,6 +108,7 @@
       "baseSuccessRate": 1.0,
       "maxQueueLength": 1,
       "autoRestartEnabled": false,
+      "cost": 3000,
       "description": "派遣弟子执行宗门任务"
     },
     "reflection_cliff": {
@@ -109,6 +119,7 @@
       "baseSuccessRate": 1.0,
       "maxQueueLength": 1,
       "autoRestartEnabled": false,
+      "cost": 4000,
       "description": "悔过自新之地，关押违规弟子"
     }
   },

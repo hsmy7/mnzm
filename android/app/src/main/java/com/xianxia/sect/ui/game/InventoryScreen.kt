@@ -1,5 +1,6 @@
 package com.xianxia.sect.ui.game
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -24,7 +25,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.window.Dialog
+import com.xianxia.sect.R
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.ui.components.*
@@ -65,13 +69,18 @@ fun InventoryDialog(
     }
 
     Dialog(onDismissRequest = onDismiss) {
-        Surface(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.9f),
-            shape = RoundedCornerShape(16.dp),
-            color = GameColors.CardBackground
+                .fillMaxHeight(0.9f)
+                .clip(RoundedCornerShape(12.dp))
         ) {
+            Image(
+                painter = painterResource(id = R.drawable.bg_screen),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.Crop
+            )
             Column(modifier = Modifier.fillMaxSize()) {
                 InventoryHeader(
                     onDismiss = onDismiss,
@@ -229,7 +238,6 @@ private fun InventoryHeader(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(GameColors.PageBackground)
             .padding(16.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
@@ -491,13 +499,18 @@ internal fun BulkSellDialog(
     }
 
     Dialog(onDismissRequest = onDismiss) {
-        Surface(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.8f),
-            shape = RoundedCornerShape(16.dp),
-            color = GameColors.PageBackground
+                .fillMaxHeight(0.8f)
+                .clip(RoundedCornerShape(12.dp))
         ) {
+            Image(
+                painter = painterResource(id = R.drawable.bg_screen),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.Crop
+            )
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -726,7 +739,7 @@ internal fun BulkSellDialog(
     if (showConfirmDialog) {
         AlertDialog(
             onDismissRequest = { showConfirmDialog = false },
-            containerColor = GameColors.PageBackground,
+            containerColor = Color.Transparent, tonalElevation = 0.dp,
             title = {
                 Text(
                     text = "确认出售",

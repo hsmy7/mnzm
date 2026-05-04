@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.xianxia.sect.ui.components.CloseButton
 
 @Composable
 fun BoxScope.MapControls(
@@ -82,26 +83,11 @@ fun BoxScope.MapControls(
         }
     }
 
-    Box(
+    CloseButton(
+        onClick = onBack,
         modifier = Modifier
             .align(Alignment.TopEnd)
-            .padding(8.dp)
-            .size(MapStyle.Dimensions.closeButtonSize)
-            .clip(CircleShape)
-            .background(MapStyle.Colors.closeButtonBg)
-            .border(
-                MapStyle.Dimensions.closeButtonBorderWidth,
-                MapStyle.Colors.closeButtonBorder,
-                CircleShape
-            )
-            .clickable { onBack() },
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = "✕",
-            fontSize = MapStyle.Typography.closeButton,
-            color = MapStyle.Colors.closeButtonText,
-            fontWeight = FontWeight.Bold
-        )
-    }
+            .padding(8.dp),
+        size = MapStyle.Dimensions.closeButtonSize
+    )
 }

@@ -1,5 +1,6 @@
 package com.xianxia.sect.ui.game.components
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -11,8 +12,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -20,6 +24,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.material3.AlertDialog
 import android.graphics.Color as AndroidColor
+import com.xianxia.sect.R
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
@@ -63,13 +68,18 @@ fun AllianceDialog(
     var showAlreadyAllianceDialog by remember { mutableStateOf(false) }
 
     Dialog(onDismissRequest = onDismiss) {
-        Surface(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .wrapContentHeight(),
-            shape = RoundedCornerShape(16.dp),
-            color = GameColors.PageBackground
+                .wrapContentHeight()
+                .clip(RoundedCornerShape(12.dp))
         ) {
+            Image(
+                painter = painterResource(id = R.drawable.bg_screen),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.Crop
+            )
             Column(
                 modifier = Modifier.padding(20.dp)
             ) {
@@ -350,7 +360,7 @@ fun EnvoyDiscipleSelectDialog(
                 .fillMaxWidth()
                 .fillMaxHeight(0.7f),
             shape = RoundedCornerShape(16.dp),
-            color = GameColors.PageBackground
+            color = Color.Transparent
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
                 Surface(
@@ -610,7 +620,7 @@ fun ScoutDiscipleSelectDialog(
                 .fillMaxWidth()
                 .fillMaxHeight(0.8f),
             shape = RoundedCornerShape(16.dp),
-            color = GameColors.PageBackground
+            color = Color.Transparent
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
                 Surface(
@@ -732,7 +742,6 @@ private fun ScoutRealmFilterBar(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(GameColors.PageBackground)
             .padding(horizontal = 8.dp, vertical = 8.dp)
     ) {
         Row(
@@ -778,15 +787,22 @@ private fun ScoutFilterChip(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val contentAlpha = if (isSelected) 1f else 0.6f
     Box(
         modifier = modifier
+            .width(72.dp)
+            .height(38.dp)
+            .alpha(contentAlpha)
             .clip(RoundedCornerShape(4.dp))
-            .background(if (isSelected) GameColors.Gold.copy(alpha = 0.3f) else GameColors.PageBackground)
-            .border(1.dp, if (isSelected) GameColors.Gold else GameColors.Border, RoundedCornerShape(4.dp))
-            .clickable(onClick = onClick)
-            .padding(vertical = 8.dp),
+            .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
+        Image(
+            painter = painterResource(id = R.drawable.ui_button),
+            contentDescription = null,
+            modifier = Modifier.matchParentSize(),
+            contentScale = ContentScale.FillBounds
+        )
         Text(
             text = text,
             fontSize = 12.sp,

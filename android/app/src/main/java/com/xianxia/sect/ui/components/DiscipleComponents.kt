@@ -203,7 +203,7 @@ fun TalentDetailDialog(talent: Talent, onDismiss: () -> Unit) {
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
+        containerColor = Color.Transparent, tonalElevation = 0.dp,
         title = {
             Text(
                 text = talent.name,

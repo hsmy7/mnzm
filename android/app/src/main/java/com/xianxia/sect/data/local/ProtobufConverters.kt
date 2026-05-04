@@ -511,6 +511,16 @@ object ProtobufConverters {
 
     @TypeConverter
     @JvmStatic
+    fun fromGridBuildingDataList(value: List<GridBuildingData>): String =
+        encodeToBase64(ListSerializer(GridBuildingData.serializer()), value)
+
+    @TypeConverter
+    @JvmStatic
+    fun toGridBuildingDataList(value: String): List<GridBuildingData> =
+        decodeFromBase64(ListSerializer(GridBuildingData.serializer()), value) { emptyList() }
+
+    @TypeConverter
+    @JvmStatic
     fun fromLibrarySlotList(value: List<LibrarySlot>): String =
         encodeToBase64(ListSerializer(LibrarySlot.serializer()), value)
 

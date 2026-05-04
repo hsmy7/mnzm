@@ -61,6 +61,7 @@ import com.xianxia.sect.core.util.sortedByFollowAndRealm
 import com.xianxia.sect.ui.components.DiscipleCardStyles
 import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.ui.components.HorizontalDiscipleCard
+import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.discipleCardBorder
 import com.xianxia.sect.ui.game.ATTRIBUTE_FILTER_OPTIONS
@@ -133,20 +134,7 @@ fun SecretRealmDialog(
                                 color = Color.Black
                             )
                         }
-                        Box(
-                            modifier = Modifier
-                                .size(24.dp)
-                                .clip(CircleShape)
-                                .clickable { onDismiss() }
-                                .background(Color(0xFFF5F5F5)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "×",
-                                fontSize = 16.sp,
-                                color = Color(0xFF666666)
-                            )
-                        }
+                        CloseButton(onClick = onDismiss)
                     }
                 }
 
@@ -415,20 +403,7 @@ internal fun DispatchTeamDialog(
                         text = "一键取消",
                         onClick = { clearSelection() }
                     )
-                    Box(
-                        modifier = Modifier
-                            .size(24.dp)
-                            .clip(CircleShape)
-                            .clickable { onDismiss() }
-                            .background(Color(0xFFF5F5F5)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "×",
-                            fontSize = 16.sp,
-                            color = Color(0xFF666666)
-                        )
-                    }
+                    CloseButton(onClick = onDismiss)
                 }
             }
         },
@@ -626,20 +601,7 @@ internal fun ExplorationTeamDialog(
                         fontWeight = FontWeight.Bold,
                         color = Color.Black
                     )
-                    Box(
-                        modifier = Modifier
-                            .size(24.dp)
-                            .clip(CircleShape)
-                            .clickable { onDismiss() }
-                            .background(Color(0xFFF5F5F5)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "×",
-                            fontSize = 16.sp,
-                            color = Color(0xFF666666)
-                        )
-                    }
+                    CloseButton(onClick = onDismiss)
                 }
 
                 HorizontalDivider(color = Color(0xFFE0E0E0), thickness = 1.dp)

@@ -214,7 +214,30 @@ class GameEngine @Inject constructor(
         // 保留 initializeWorldAndServices 已设置的 gameData（含商人商品、招募弟子等），
         // 仅更新必要字段，避免用全新 GameData 覆盖导致首月数据丢失
         stateStore.update {
-            gameData = gameData.copy(isGameStarted = true, currentSlot = currentSlot)
+            val centerX = com.xianxia.sect.core.util.GridSystem.DEFAULT_WORLD_WIDTH_CELLS / 2
+            val centerY = com.xianxia.sect.core.util.GridSystem.DEFAULT_WORLD_HEIGHT_CELLS / 2
+            gameData = gameData.copy(
+                isGameStarted = true,
+                currentSlot = currentSlot,
+                placedBuildings = listOf(
+                    GridBuildingData(
+                        buildingId = "青云峰",
+                        displayName = "青云峰",
+                        gridX = centerX - 2,
+                        gridY = centerY - 1,
+                        width = 2,
+                        height = 2
+                    ),
+                    GridBuildingData(
+                        buildingId = "问道峰",
+                        displayName = "问道峰",
+                        gridX = centerX,
+                        gridY = centerY - 1,
+                        width = 2,
+                        height = 2
+                    )
+                )
+            )
             repeat(3) { discipleService.recruitDisciple() }
         }
         addInitialManual()
@@ -234,7 +257,30 @@ class GameEngine @Inject constructor(
             // 保留 initializeWorldAndServices 已设置的 gameData（含商人商品、招募弟子等），
             // 仅更新必要字段，避免用全新 GameData 覆盖导致首月数据丢失
             stateStore.update {
-                gameData = gameData.copy(isGameStarted = true, currentSlot = currentSlot)
+                val centerX = com.xianxia.sect.core.util.GridSystem.DEFAULT_WORLD_WIDTH_CELLS / 2
+                val centerY = com.xianxia.sect.core.util.GridSystem.DEFAULT_WORLD_HEIGHT_CELLS / 2
+                gameData = gameData.copy(
+                    isGameStarted = true,
+                    currentSlot = currentSlot,
+                    placedBuildings = listOf(
+                        GridBuildingData(
+                            buildingId = "青云峰",
+                            displayName = "青云峰",
+                            gridX = centerX - 2,
+                            gridY = centerY - 1,
+                            width = 2,
+                            height = 2
+                        ),
+                        GridBuildingData(
+                            buildingId = "问道峰",
+                            displayName = "问道峰",
+                            gridX = centerX,
+                            gridY = centerY - 1,
+                            width = 2,
+                            height = 2
+                        )
+                    )
+                )
                 repeat(3) { discipleService.recruitDisciple() }
             }
             addInitialManual()
@@ -278,6 +324,12 @@ class GameEngine @Inject constructor(
 
     suspend fun updateGameData(update: (GameData) -> GameData) {
         stateStore.update { gameData = update(gameData) }
+    }
+
+    suspend fun placeBuilding(building: GridBuildingData) {
+        updateGameData { gd ->
+            gd.copy(placedBuildings = gd.placedBuildings + building)
+        }
     }
 
     private fun updateGameDataSync(update: (GameData) -> GameData) {

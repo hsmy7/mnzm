@@ -20,6 +20,7 @@ import com.xianxia.sect.core.config.GiftConfig
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.core.util.SectRelationLevel
+import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.WorldMapViewModel
@@ -116,20 +117,7 @@ fun GiftDialog(
                                         }
                                     }
                                 }
-                                Box(
-                                    modifier = Modifier
-                                        .size(24.dp)
-                                        .clip(CircleShape)
-                                        .clickable { onDismiss() }
-                                        .background(Color.White.copy(alpha = 0.2f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = "×",
-                                        fontSize = 16.sp,
-                                        color = Color.White
-                                    )
-                                }
+                                CloseButton(onClick = onDismiss)
                             }
                         }
                     }

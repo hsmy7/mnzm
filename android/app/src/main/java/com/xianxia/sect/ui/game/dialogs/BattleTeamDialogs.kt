@@ -52,6 +52,7 @@ import com.xianxia.sect.core.model.BattleTeamSlot
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.components.FollowedTag
+import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.HorizontalDiscipleCard
 import com.xianxia.sect.ui.game.ATTRIBUTE_FILTER_OPTIONS
@@ -140,20 +141,7 @@ internal fun BattleTeamDialog(
                     fontWeight = FontWeight.Bold,
                     color = Color.Black
                 )
-                Box(
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clip(CircleShape)
-                        .clickable { onDismiss() }
-                        .background(GameColors.CardBackground),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "×",
-                        fontSize = 16.sp,
-                        color = Color(0xFF666666)
-                    )
-                }
+                CloseButton(onClick = onDismiss)
             }
         },
         text = {
@@ -401,20 +389,7 @@ internal fun BattleTeamDiscipleSelectionDialog(
                     fontWeight = FontWeight.Bold,
                     color = Color.Black
                 )
-                Box(
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clip(CircleShape)
-                        .clickable { onDismiss() }
-                        .background(GameColors.CardBackground),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "×",
-                        fontSize = 16.sp,
-                        color = Color(0xFF666666)
-                    )
-                }
+                CloseButton(onClick = onDismiss)
             }
         },
         text = {

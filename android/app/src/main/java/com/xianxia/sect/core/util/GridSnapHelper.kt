@@ -1,0 +1,75 @@
+package com.xianxia.sect.core.util
+
+import kotlin.math.ceil
+import kotlin.math.roundToInt
+
+object GridSnapHelper {
+
+    enum class SnapMode { ROUND, FLOOR, CEIL }
+
+    data class BuildingSize(val width: Int, val height: Int)
+
+    data class GridRect(
+        val x: Int,
+        val y: Int,
+        val width: Int,
+        val height: Int,
+        val tag: String = ""
+    )
+
+    sealed class PlacementValidity {
+        data object Valid : PlacementValidity()
+        data class Overlap(val names: List<String>) : PlacementValidity()
+        data object OutOfBounds : PlacementValidity()
+    }
+
+    fun screenToWorld(screenCoord: Float, cameraX: Float, scale: Float = 1f): Float =
+        (screenCoord + cameraX) / scale
+
+    fun worldToScreen(worldCoord: Float, cameraX: Float, scale: Float = 1f): Float =
+        worldCoord * scale - cameraX
+
+    fun worldToGrid(worldCoord: Float, gridSizePx: Float, mode: SnapMode = SnapMode.ROUND): Int =
+        when (mode) {
+            SnapMode.ROUND -> (worldCoord / gridSizePx).roundToInt()
+            SnapMode.FLOOR -> (worldCoord / gridSizePx).toInt()
+            SnapMode.CEIL -> ceil(worldCoord / gridSizePx).toInt()
+        }
+
+    fun gridToWorld(gridCoord: Int, gridSizePx: Float): Float =
+        gridCoord * gridSizePx
+
+    fun gridToScreen(
+        gridCoord: Int,
+        gridSizePx: Float,
+        cameraX: Float,
+        scale: Float = 1f
+    ): Float =
+        gridCoord * gridSizePx * scale - cameraX
+
+    fun validatePlacement(
+        gridX: Int,
+        gridY: Int,
+        width: Int,
+        height: Int,
+        maxGridX: Int,
+        maxGridY: Int,
+        occupiedRects: List<GridRect> = emptyList()
+    ): PlacementValidity {
+        if (gridX < 0 || gridY < 0 || gridX + width > maxGridX || gridY + height > maxGridY) {
+            return PlacementValidity.OutOfBounds
+        }
+        val overlapped = occupiedRects.filter { rect ->
+            !(gridX >= rect.x + rect.width ||
+              gridX + width <= rect.x ||
+              gridY >= rect.y + rect.height ||
+              gridY + height <= rect.y)
+        }
+        if (overlapped.isNotEmpty()) {
+            return PlacementValidity.Overlap(
+                overlapped.map { it.tag }.filter { it.isNotEmpty() }
+            )
+        }
+        return PlacementValidity.Valid
+    }
+}

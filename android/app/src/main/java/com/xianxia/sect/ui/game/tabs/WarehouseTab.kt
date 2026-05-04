@@ -3,6 +3,7 @@ package com.xianxia.sect.ui.game.tabs
 import androidx.compose.animation.*
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -33,6 +34,9 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import com.xianxia.sect.R
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -60,7 +64,9 @@ import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.components.DiscipleAttrText
 import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.components.ItemCardData
+import com.xianxia.sect.ui.components.GameBackground
 import com.xianxia.sect.ui.components.UnifiedItemCard
 import com.xianxia.sect.ui.game.ATTRIBUTE_FILTER_OPTIONS
 import com.xianxia.sect.ui.game.AttributeFilterOption
@@ -183,16 +189,16 @@ internal fun WarehouseTab(viewModel: GameViewModel) {
         }
     }
     
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(GameColors.PageBackground)
-            .padding(16.dp)
-    ) {
-        Row(
+    GameBackground {
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 12.dp),
+                .fillMaxSize()
+                .padding(16.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -413,7 +419,8 @@ internal fun WarehouseTab(viewModel: GameViewModel) {
             }
         }
     }
-    
+    }
+
     if (showDetailDialog && selectedItem == null) {
         showDetailDialog = false
         selectedItemId = null
@@ -605,18 +612,22 @@ internal fun DiscipleSelectForRewardDialog(
     }
     
     Dialog(onDismissRequest = onDismiss) {
-        Surface(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.75f),
-            shape = RoundedCornerShape(16.dp),
-            color = GameColors.PageBackground
+                .fillMaxHeight(0.75f)
+                .clip(RoundedCornerShape(12.dp))
         ) {
+            Image(
+                painter = painterResource(id = R.drawable.bg_screen),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.Crop
+            )
             Column(modifier = Modifier.fillMaxSize()) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color.White)
                         .padding(16.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
@@ -758,7 +769,7 @@ internal fun SellConfirmDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
+        containerColor = Color.Transparent, tonalElevation = 0.dp,
         title = {
             Text(
                 text = "售卖物品",
@@ -1070,13 +1081,18 @@ internal fun BulkSellDialog(
             sellableSeeds.sumOf { GameConfig.Rarity.calculateSellPrice(it.basePrice, it.quantity) }
     
     Dialog(onDismissRequest = onDismiss) {
-        Surface(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.85f),
-            shape = RoundedCornerShape(16.dp),
-            color = GameColors.PageBackground
+                .fillMaxHeight(0.85f)
+                .clip(RoundedCornerShape(12.dp))
         ) {
+            Image(
+                painter = painterResource(id = R.drawable.bg_screen),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.Crop
+            )
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1439,7 +1455,7 @@ internal fun BulkSellDialog(
     if (showConfirmDialog) {
         AlertDialog(
             onDismissRequest = { showConfirmDialog = false },
-            containerColor = GameColors.PageBackground,
+            containerColor = Color.Transparent, tonalElevation = 0.dp,
             title = {
                 Text(
                     text = "确认出售",
@@ -1501,15 +1517,21 @@ internal fun WarehouseFilterButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val contentAlpha = if (selected) 1f else 0.6f
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(6.dp))
-            .background(if (selected) Color.Black else GameColors.ButtonBackground)
-            .border(1.dp, if (selected) Color.Black else GameColors.ButtonBorder, RoundedCornerShape(6.dp))
-            .clickable { onClick() }
-            .padding(vertical = 10.dp),
+            .height(ButtonSizes.Large)
+            .alpha(contentAlpha)
+            .clip(RoundedCornerShape(4.dp))
+            .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {
+        Image(
+            painter = painterResource(id = R.drawable.ui_button),
+            contentDescription = null,
+            modifier = Modifier.matchParentSize(),
+            contentScale = ContentScale.FillBounds
+        )
         Text(
             text = text,
             fontSize = 12.sp,

@@ -16,9 +16,12 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
+import androidx.compose.ui.graphics.asImageBitmap
+import com.xianxia.sect.R
 import com.xianxia.sect.XianxiaApplication
 import com.xianxia.sect.core.CrashHandler
 import com.xianxia.sect.core.engine.GameEngineCore
+import com.xianxia.sect.core.model.MapPreloadData
 import com.xianxia.sect.core.util.VivoGCJITOptimizer
 import com.xianxia.sect.data.crypto.SecureKeyManager
 import com.xianxia.sect.data.crypto.UiKeyRecoveryCallback
@@ -30,6 +33,9 @@ import com.xianxia.sect.ui.theme.XianxiaTheme
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlin.math.roundToInt
+import kotlin.random.Random
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -38,6 +44,33 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
     companion object {
         private const val TAG = "GameActivity"
         private const val KEY_CURRENT_SLOT = "current_slot"
+
+        private const val TILE_GROUND = 0
+        private const val TILE_GRASS = 1
+        private const val TILE_TREE = 2
+
+        private fun generateRawTileData(worldWidthCells: Int, worldHeightCells: Int): Array<IntArray> {
+            val rng = Random(42)
+            val data = Array(worldHeightCells) { IntArray(worldWidthCells) { TILE_GROUND } }
+
+            for (tx in 0 until worldWidthCells / 5) {
+                for (ty in 0 until worldHeightCells / 5) {
+                    if (rng.nextFloat() < 0.10f) {
+                        val cx = (tx * 5 + rng.nextInt(3)).coerceIn(0, worldWidthCells - 1)
+                        val cy = (ty * 5 + rng.nextInt(3)).coerceIn(0, worldHeightCells - 1)
+                        data[cy][cx] = TILE_TREE
+                    }
+                }
+            }
+            for (gx in 0 until worldWidthCells) {
+                for (gy in 0 until worldHeightCells) {
+                    if (data[gy][gx] == TILE_GROUND && rng.nextFloat() < 0.06f) {
+                        data[gy][gx] = TILE_GRASS
+                    }
+                }
+            }
+            return data
+        }
     }
 
     private val viewModel: GameViewModel by viewModels()
@@ -95,18 +128,125 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    val isLoading by saveLoadViewModel.isLoading.collectAsState()
                     val loadingProgress by saveLoadViewModel.loadingProgress.collectAsState()
                     var errorMessage by remember { mutableStateOf<String?>(null) }
                     val isRestarting by saveLoadViewModel.isRestarting.collectAsState()
                     
                     val gameData by viewModel.gameData.collectAsState()
-                    val isInitialLoading = remember { mutableStateOf(true) }
                     val limitAdTrackingState = remember { mutableStateOf(sessionManager.limitAdTracking) }
-                    
-                    LaunchedEffect(gameData.sectName) {
-                        if (gameData.sectName.isNotEmpty()) {
-                            isInitialLoading.value = false
+
+                    // 贴图加载在 LaunchedEffect 中完成，但 MainGameScreen 只在加载完成后才进入组合树
+                    // 从根本上杜绝 "LoadingScreen 消失但贴图未就绪" 的中间帧
+                    var mapPreloadData by remember { mutableStateOf<MapPreloadData?>(null) }
+
+                    LaunchedEffect(gameData.isGameStarted) {
+                        if (gameData.isGameStarted && mapPreloadData == null) {
+                            saveLoadViewModel.setLoadingProgress(SaveLoadViewModel.PROGRESS_MAP_PRELOAD)
+
+                            val density = resources.displayMetrics.density
+                            val gridSizePx = 36f * density
+                            val tileSizePxInt = gridSizePx.roundToInt()
+                            val worldWidthCells = (3000f / gridSizePx).roundToInt()
+                            val worldHeightCells = (3000f / gridSizePx).roundToInt()
+
+                            val result = withContext(Dispatchers.IO) {
+                                val worldPx = 3000f
+                                val worldPxInt = worldPx.roundToInt()
+                                val groundBmp = try {
+                                    val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = 2 }
+                                    val src = android.graphics.BitmapFactory.decodeResource(
+                                        resources, R.drawable.sect_ground_map, opts
+                                    ) ?: throw Exception("ground decode failed")
+                                    android.graphics.Bitmap.createScaledBitmap(src, worldPxInt, worldPxInt, true)
+                                } catch (e: Exception) { null }
+
+                                val grassBmp = try {
+                                    val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = 4 }
+                                    android.graphics.BitmapFactory.decodeResource(
+                                        resources, R.drawable.decoration_grass, opts
+                                    )
+                                } catch (e: Exception) { null }
+
+                                val treeBmp = try {
+                                    val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = 4 }
+                                    android.graphics.BitmapFactory.decodeResource(
+                                        resources, R.drawable.decoration_trees, opts
+                                    )
+                                } catch (e: Exception) { null }
+
+                                val rawTileData = generateRawTileData(worldWidthCells, worldHeightCells)
+
+                                if (groundBmp != null && grassBmp != null && treeBmp != null) {
+                                    // 预渲染完整静态地图（地面纹理 + 全部草/树装饰）
+                                    val fullBmp = android.graphics.Bitmap.createBitmap(
+                                        worldPxInt, worldPxInt, android.graphics.Bitmap.Config.ARGB_8888
+                                    )
+                                    val canvas = android.graphics.Canvas(fullBmp)
+                                    canvas.drawBitmap(groundBmp, 0f, 0f, null)
+
+                                    val overlap = 1
+                                    for (row in 0 until worldHeightCells) {
+                                        for (col in 0 until worldWidthCells) {
+                                            val tile = rawTileData[row][col]
+                                            if (tile == TILE_GROUND) continue
+                                            val dstX = col * tileSizePxInt - overlap
+                                            val dstY = row * tileSizePxInt - overlap
+                                            val dstW = tileSizePxInt + overlap * 2
+                                            when (tile) {
+                                                TILE_GRASS -> {
+                                                    canvas.drawBitmap(grassBmp, null,
+                                                        android.graphics.Rect(dstX, dstY, dstX + dstW, dstY + dstW), null)
+                                                }
+                                                TILE_TREE -> {
+                                                    val cx = col * tileSizePxInt + tileSizePxInt / 2
+                                                    val cy = row * tileSizePxInt + tileSizePxInt / 2
+                                                    val decW = tileSizePxInt * 2 + overlap * 2
+                                                    canvas.drawBitmap(treeBmp, null,
+                                                        android.graphics.Rect(
+                                                            cx - tileSizePxInt - overlap, cy - tileSizePxInt - overlap,
+                                                            cx + tileSizePxInt + overlap, cy + tileSizePxInt + overlap
+                                                        ), null)
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    MapPreloadData(
+                                        groundTileBmp = groundBmp.asImageBitmap(),
+                                        grassDecBmp = grassBmp.asImageBitmap(),
+                                        treeDecBmp = treeBmp.asImageBitmap(),
+                                        rawTileData = rawTileData,
+                                        worldWidthCells = worldWidthCells,
+                                        worldHeightCells = worldHeightCells,
+                                        gridSizePx = gridSizePx,
+                                        tileSizePxInt = tileSizePxInt,
+                                        fullMapBmp = fullBmp.asImageBitmap()
+                                    )
+                                } else {
+                                    // 贴图解码失败时生成纯色回退瓦片，确保游戏仍可启动
+                                    val fallbackBmp = android.graphics.Bitmap.createBitmap(
+                                        tileSizePxInt, tileSizePxInt, android.graphics.Bitmap.Config.ARGB_8888
+                                    ).also { it.eraseColor(0xFFF2EDE4.toInt()) }
+                                    val fallbackImg = fallbackBmp.asImageBitmap()
+                                    val fullFallbackBmp = android.graphics.Bitmap.createBitmap(
+                                        worldPxInt, worldPxInt, android.graphics.Bitmap.Config.ARGB_8888
+                                    ).also { it.eraseColor(0xFFF2EDE4.toInt()) }
+                                    MapPreloadData(
+                                        groundTileBmp = fallbackImg,
+                                        grassDecBmp = fallbackImg,
+                                        treeDecBmp = fallbackImg,
+                                        rawTileData = Array(worldHeightCells) { IntArray(worldWidthCells) },
+                                        worldWidthCells = worldWidthCells,
+                                        worldHeightCells = worldHeightCells,
+                                        gridSizePx = gridSizePx,
+                                        tileSizePxInt = tileSizePxInt,
+                                        fullMapBmp = fullFallbackBmp.asImageBitmap()
+                                    )
+                                }
+                            }
+
+                            mapPreloadData = result
+                            saveLoadViewModel.setLoadingProgress(1.0f)
                             com.xianxia.sect.taptap.TapDBManager.trackEvent(
                                 "game_start",
                                 mapOf(
@@ -118,39 +258,45 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
                     }
 
                     Box(modifier = Modifier.fillMaxSize()) {
-                        MainGameScreen(
-                            viewModel = viewModel,
-                            saveLoadViewModel = saveLoadViewModel,
-                            productionViewModel = productionViewModel,
-                            alchemyViewModel = alchemyViewModel,
-                            forgeViewModel = forgeViewModel,
-                            herbGardenViewModel = herbGardenViewModel,
-                            spiritMineViewModel = spiritMineViewModel,
-                            worldMapViewModel = worldMapViewModel,
-                            battleViewModel = battleViewModel,
-                            onLogout = {
-                                sessionManager.clearSession()
-                                val intent = Intent(this@GameActivity, MainActivity::class.java)
-                                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                                startActivity(intent)
-                                finish()
-                            },
-                            onRestartGame = {
-                                saveLoadViewModel.restartGame()
-                            },
-                            limitAdTracking = limitAdTrackingState.value,
-                            onLimitAdTrackingChanged = { enabled ->
-                                sessionManager.limitAdTracking = enabled
-                                limitAdTrackingState.value = enabled
-                                android.widget.Toast.makeText(
-                                    this@GameActivity,
-                                    if (enabled) "已开启限制广告追踪，下次启动后生效" else "已关闭限制广告追踪，下次启动后生效",
-                                    android.widget.Toast.LENGTH_SHORT
-                                ).show()
-                            }
-                        )
+                        // 只在贴图加载完成后才将 MainGameScreen 加入组合树
+                        // 这从根本上消除了 "LoadingScreen 关闭但贴图未就绪" 的帧间隙
+                        val preloadData = mapPreloadData
+                        if (preloadData != null) {
+                            MainGameScreen(
+                                mapPreloadData = preloadData,
+                                viewModel = viewModel,
+                                saveLoadViewModel = saveLoadViewModel,
+                                productionViewModel = productionViewModel,
+                                alchemyViewModel = alchemyViewModel,
+                                forgeViewModel = forgeViewModel,
+                                herbGardenViewModel = herbGardenViewModel,
+                                spiritMineViewModel = spiritMineViewModel,
+                                worldMapViewModel = worldMapViewModel,
+                                battleViewModel = battleViewModel,
+                                onLogout = {
+                                    sessionManager.clearSession()
+                                    val intent = Intent(this@GameActivity, MainActivity::class.java)
+                                    intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                                    startActivity(intent)
+                                    finish()
+                                },
+                                onRestartGame = {
+                                    saveLoadViewModel.restartGame()
+                                },
+                                limitAdTracking = limitAdTrackingState.value,
+                                onLimitAdTrackingChanged = { enabled ->
+                                    sessionManager.limitAdTracking = enabled
+                                    limitAdTrackingState.value = enabled
+                                    android.widget.Toast.makeText(
+                                        this@GameActivity,
+                                        if (enabled) "已开启限制广告追踪，下次启动后生效" else "已关闭限制广告追踪，下次启动后生效",
+                                        android.widget.Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            )
+                        }
 
-                        if (isInitialLoading.value && !isRestarting) {
+                        if (mapPreloadData == null && !isRestarting) {
                             LoadingScreen(
                                 progress = loadingProgress,
                                 showProgress = true

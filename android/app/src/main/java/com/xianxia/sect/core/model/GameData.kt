@@ -141,6 +141,9 @@ data class GameData(
 
     var productionSlots: List<ProductionSlot> = emptyList(),
 
+    // 已放置建筑（网格坐标）
+    var placedBuildings: List<GridBuildingData> = emptyList(),
+
     // 结盟关系
     var alliances: List<Alliance> = emptyList(),
 

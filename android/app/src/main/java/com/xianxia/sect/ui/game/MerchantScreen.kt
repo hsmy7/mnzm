@@ -1,5 +1,6 @@
 package com.xianxia.sect.ui.game
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -24,7 +25,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.window.Dialog
+import com.xianxia.sect.R
 import com.xianxia.sect.core.registry.BeastMaterialDatabase
 import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.ForgeRecipeDatabase
@@ -44,6 +48,7 @@ import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.components.ItemCardData
 import com.xianxia.sect.ui.components.UnifiedItemCard
 import com.xianxia.sect.ui.theme.GameColors
@@ -69,13 +74,18 @@ fun MerchantDialog(
     }
 
     Dialog(onDismissRequest = onDismiss) {
-        Surface(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.85f),
-            shape = RoundedCornerShape(16.dp),
-            color = GameColors.CardBackground
+                .fillMaxHeight(0.85f)
+                .clip(RoundedCornerShape(12.dp))
         ) {
+            Image(
+                painter = painterResource(id = R.drawable.bg_screen),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.Crop
+            )
             Column(modifier = Modifier.fillMaxSize()) {
                 MerchantHeader(
                     gameData = gameData,
@@ -99,24 +109,31 @@ fun MerchantDialog(
                     }
                 } else {
                     Column(modifier = Modifier.weight(1f)) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(GameColors.PageBackground)
-                                .padding(horizontal = 8.dp, vertical = 6.dp),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            MerchantFilter.entries.forEach { filter ->
-                                ListingFilterButton(
-                                    text = filter.displayName,
-                                    selected = selectedFilter == filter,
-                                    onClick = {
-                                        selectedFilter = filter
-                                        selectedItem = null
-                                        buyQuantity = 1
-                                    },
-                                    modifier = Modifier.weight(1f)
-                                )
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            Image(
+                                painter = painterResource(id = R.drawable.bg_horizontal),
+                                contentDescription = null,
+                                modifier = Modifier.matchParentSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                MerchantFilter.entries.forEach { filter ->
+                                    ListingFilterButton(
+                                        text = filter.displayName,
+                                        selected = selectedFilter == filter,
+                                        onClick = {
+                                            selectedFilter = filter
+                                            selectedItem = null
+                                            buyQuantity = 1
+                                        },
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
                             }
                         }
 
@@ -226,7 +243,6 @@ private fun MerchantHeader(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(GameColors.PageBackground)
             .padding(12.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
@@ -371,7 +387,6 @@ private fun PurchasePanel(
                         GameButton(
                             text = "确认购买",
                             onClick = onConfirm,
-                            modifier = Modifier.height(32.dp),
                             enabled = canAfford && quantity > 0
                         )
                     }
@@ -442,18 +457,22 @@ fun ListingManagementDialog(
     }
 
     Dialog(onDismissRequest = onDismiss) {
-        Surface(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.85f),
-            shape = RoundedCornerShape(16.dp),
-            color = GameColors.CardBackground
+                .fillMaxHeight(0.85f)
+                .clip(RoundedCornerShape(12.dp))
         ) {
+            Image(
+                painter = painterResource(id = R.drawable.bg_screen),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.Crop
+            )
             Column(modifier = Modifier.fillMaxSize()) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(GameColors.PageBackground)
                         .padding(12.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
@@ -605,8 +624,7 @@ private fun ListedItemCard(
 
         GameButton(
             text = "下架",
-            onClick = onDelist,
-            modifier = Modifier.width(60.dp).height(32.dp)
+            onClick = onDelist
         )
     }
 }
@@ -684,18 +702,22 @@ fun InventorySelectDialog(
     }
 
     Dialog(onDismissRequest = onDismiss) {
-        Surface(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.9f),
-            shape = RoundedCornerShape(16.dp),
-            color = GameColors.CardBackground
+                .fillMaxHeight(0.9f)
+                .clip(RoundedCornerShape(12.dp))
         ) {
+            Image(
+                painter = painterResource(id = R.drawable.bg_screen),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.Crop
+            )
             Column(modifier = Modifier.fillMaxSize()) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(GameColors.PageBackground)
                         .padding(12.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
@@ -728,65 +750,72 @@ fun InventorySelectDialog(
                     }
                 }
 
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(GameColors.PageBackground)
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    Image(
+                        painter = painterResource(id = R.drawable.bg_horizontal),
+                        contentDescription = null,
+                        modifier = Modifier.matchParentSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        ListingFilterButton(
-                            text = ListingFilter.ALL.displayName,
-                            selected = selectedFilter == ListingFilter.ALL,
-                            onClick = { selectedFilter = ListingFilter.ALL },
-                            modifier = Modifier.weight(1f)
-                        )
-                        ListingFilterButton(
-                            text = ListingFilter.EQUIPMENT.displayName,
-                            selected = selectedFilter == ListingFilter.EQUIPMENT,
-                            onClick = { selectedFilter = ListingFilter.EQUIPMENT },
-                            modifier = Modifier.weight(1f)
-                        )
-                        ListingFilterButton(
-                            text = ListingFilter.PILL.displayName,
-                            selected = selectedFilter == ListingFilter.PILL,
-                            onClick = { selectedFilter = ListingFilter.PILL },
-                            modifier = Modifier.weight(1f)
-                        )
-                        ListingFilterButton(
-                            text = ListingFilter.MANUAL.displayName,
-                            selected = selectedFilter == ListingFilter.MANUAL,
-                            onClick = { selectedFilter = ListingFilter.MANUAL },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        ListingFilterButton(
-                            text = ListingFilter.HERB.displayName,
-                            selected = selectedFilter == ListingFilter.HERB,
-                            onClick = { selectedFilter = ListingFilter.HERB },
-                            modifier = Modifier.weight(1f)
-                        )
-                        ListingFilterButton(
-                            text = ListingFilter.SEED.displayName,
-                            selected = selectedFilter == ListingFilter.SEED,
-                            onClick = { selectedFilter = ListingFilter.SEED },
-                            modifier = Modifier.weight(1f)
-                        )
-                        ListingFilterButton(
-                            text = ListingFilter.MATERIAL.displayName,
-                            selected = selectedFilter == ListingFilter.MATERIAL,
-                            onClick = { selectedFilter = ListingFilter.MATERIAL },
-                            modifier = Modifier.weight(1f)
-                        )
-                        Spacer(modifier = Modifier.weight(1f))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            ListingFilterButton(
+                                text = ListingFilter.ALL.displayName,
+                                selected = selectedFilter == ListingFilter.ALL,
+                                onClick = { selectedFilter = ListingFilter.ALL },
+                                modifier = Modifier.weight(1f)
+                            )
+                            ListingFilterButton(
+                                text = ListingFilter.EQUIPMENT.displayName,
+                                selected = selectedFilter == ListingFilter.EQUIPMENT,
+                                onClick = { selectedFilter = ListingFilter.EQUIPMENT },
+                                modifier = Modifier.weight(1f)
+                            )
+                            ListingFilterButton(
+                                text = ListingFilter.PILL.displayName,
+                                selected = selectedFilter == ListingFilter.PILL,
+                                onClick = { selectedFilter = ListingFilter.PILL },
+                                modifier = Modifier.weight(1f)
+                            )
+                            ListingFilterButton(
+                                text = ListingFilter.MANUAL.displayName,
+                                selected = selectedFilter == ListingFilter.MANUAL,
+                                onClick = { selectedFilter = ListingFilter.MANUAL },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            ListingFilterButton(
+                                text = ListingFilter.HERB.displayName,
+                                selected = selectedFilter == ListingFilter.HERB,
+                                onClick = { selectedFilter = ListingFilter.HERB },
+                                modifier = Modifier.weight(1f)
+                            )
+                            ListingFilterButton(
+                                text = ListingFilter.SEED.displayName,
+                                selected = selectedFilter == ListingFilter.SEED,
+                                onClick = { selectedFilter = ListingFilter.SEED },
+                                modifier = Modifier.weight(1f)
+                            )
+                            ListingFilterButton(
+                                text = ListingFilter.MATERIAL.displayName,
+                                selected = selectedFilter == ListingFilter.MATERIAL,
+                                onClick = { selectedFilter = ListingFilter.MATERIAL },
+                                modifier = Modifier.weight(1f)
+                            )
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
                     }
                 }
 
@@ -947,13 +976,17 @@ private fun ListingFilterButton(
 ) {
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(6.dp))
-            .background(if (selected) Color.Black else GameColors.ButtonBackground)
-            .border(1.dp, if (selected) Color.Black else GameColors.ButtonBorder, RoundedCornerShape(6.dp))
-            .clickable { onClick() }
-            .padding(vertical = 10.dp),
+            .height(ButtonSizes.Large)
+            .clip(RoundedCornerShape(4.dp))
+            .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {
+        Image(
+            painter = painterResource(id = R.drawable.ui_button),
+            contentDescription = null,
+            modifier = Modifier.matchParentSize(),
+            contentScale = ContentScale.FillBounds
+        )
         Text(
             text = text,
             fontSize = 12.sp,
@@ -1087,7 +1120,7 @@ private fun ConfirmListingDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
+        containerColor = Color.Transparent, tonalElevation = 0.dp,
         title = {
             Text(
                 text = "确认上架",

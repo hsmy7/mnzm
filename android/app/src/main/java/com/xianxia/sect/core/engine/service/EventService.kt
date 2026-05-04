@@ -48,7 +48,7 @@ class EventService @Inject constructor(
     }
     companion object {
         private const val TAG = "EventService"
-        private const val MAX_EVENTS = 100
+        private const val MAX_EVENTS = 300
     }
 
     fun getEvents(): StateFlow<List<GameEvent>> = stateStore.events
@@ -386,7 +386,7 @@ class EventService @Inject constructor(
                     month = gameData.gameMonth,
                     message = "从${v.sect.name}购买了${v.item.name} x${v.actualQuantity}",
                     type = EventType.SUCCESS
-                )) + events.take(99)
+                )) + events.take(MAX_EVENTS - 1)
             }
         }
     }
@@ -410,7 +410,7 @@ class EventService @Inject constructor(
                 month = gameData.gameMonth,
                 message = "从${v.sect.name}购买了${v.item.name} x${v.actualQuantity}",
                 type = EventType.SUCCESS
-            )) + events.take(99)
+            )) + events.take(MAX_EVENTS - 1)
         }
     }
 

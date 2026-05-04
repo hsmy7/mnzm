@@ -1,5 +1,6 @@
 package com.xianxia.sect.ui.game
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -16,10 +17,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import com.xianxia.sect.R
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.DiscipleStatCalculator
 import com.xianxia.sect.core.model.DirectDiscipleSlot
@@ -27,6 +32,7 @@ import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.SpiritMineSlot
 import com.xianxia.sect.ui.theme.GameColors
+import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.ElderBonusInfoButton
 import com.xianxia.sect.ui.components.ElderBonusInfoProvider
 import com.xianxia.sect.ui.components.GameButton
@@ -658,7 +664,7 @@ private fun SpiritMineDeaconSelectionDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
+        containerColor = Color.Transparent, tonalElevation = 0.dp,
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -671,20 +677,7 @@ private fun SpiritMineDeaconSelectionDialog(
                     fontWeight = FontWeight.Bold,
                     color = Color.Black
                 )
-                Box(
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clip(CircleShape)
-                        .clickable { onDismiss() }
-                        .background(GameColors.CardBackground),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "x",
-                        fontSize = 16.sp,
-                        color = Color(0xFF666666)
-                    )
-                }
+                CloseButton(onClick = onDismiss)
             }
         },
         text = {
@@ -789,74 +782,87 @@ private fun CommonDialog(
     onDismiss: () -> Unit,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
-        title = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+    Dialog(onDismissRequest = onDismiss) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.bg_screen),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.Crop
+            )
+            Column(modifier = Modifier.fillMaxWidth()) {
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = title,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-                    Column {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
                         Text(
-                            text = "总产量: $totalOutput/月",
-                            fontSize = 10.sp,
-                            color = Color(0xFF4CAF50)
+                            text = title,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Black
                         )
-                        if (miningBonus > 0) {
+                        Column {
                             Text(
-                                text = "采矿加成: +${(miningBonus * 100).toInt()}%",
-                                fontSize = 9.sp,
-                                color = Color(0xFFFF9800)
+                                text = "总产量: $totalOutput/月",
+                                fontSize = 10.sp,
+                                color = Color(0xFF4CAF50)
                             )
-                        }
-                        if (deaconBonus > 0) {
-                            Text(
-                                text = "执事加成: +${(deaconBonus * 100).toInt()}%",
-                                fontSize = 9.sp,
-                                color = Color(0xFF2196F3)
-                            )
+                            if (miningBonus > 0) {
+                                Text(
+                                    text = "采矿加成: +${(miningBonus * 100).toInt()}%",
+                                    fontSize = 9.sp,
+                                    color = Color(0xFFFF9800)
+                                )
+                            }
+                            if (deaconBonus > 0) {
+                                Text(
+                                    text = "执事加成: +${(deaconBonus * 100).toInt()}%",
+                                    fontSize = 9.sp,
+                                    color = Color(0xFF2196F3)
+                                )
+                            }
                         }
                     }
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .clickable { onDismiss() }
+                            .background(GameColors.CardBackground),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "关闭",
+                            fontSize = 16.sp,
+                            color = Color(0xFF666666)
+                        )
+                    }
                 }
-                Box(
+                Column(
                     modifier = Modifier
-                        .size(24.dp)
-                        .clip(CircleShape)
-                        .clickable { onDismiss() }
-                        .background(GameColors.CardBackground),
-                    contentAlignment = Alignment.Center
+                        .fillMaxWidth()
+                        .weight(1f, fill = false)
+                        .heightIn(max = 450.dp)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp)
                 ) {
-                    Text(
-                        text = "x",
-                        fontSize = 16.sp,
-                        color = Color(0xFF666666)
-                    )
+                    content()
                 }
+                Spacer(modifier = Modifier.height(16.dp))
             }
-        },
-        text = {
-            Column(
-                modifier = Modifier
-                    .heightIn(max = 450.dp)
-                    .verticalScroll(rememberScrollState())
-            ) {
-                content()
-            }
-        },
-        confirmButton = {}
-    )
+        }
+    }
 }
 
 @Composable
@@ -870,7 +876,7 @@ private fun SpiritMineExpansionDialog(
     val nextSlots = 1 + currentExpansions + 1
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
+        containerColor = Color.Transparent, tonalElevation = 0.dp,
         title = {
             Text(
                 text = "扩建灵矿场",
@@ -914,13 +920,17 @@ private fun SpiritMineExpansionDialog(
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(GameColors.PageBackground)
-                        .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
-                        .clickable { onDismiss() }
-                        .padding(vertical = 10.dp),
+                        .height(38.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .clickable { onDismiss() },
                     contentAlignment = Alignment.Center
                 ) {
+                    Image(
+                        painter = painterResource(id = R.drawable.ui_button),
+                        contentDescription = null,
+                        modifier = Modifier.matchParentSize(),
+                        contentScale = ContentScale.FillBounds
+                    )
                     Text(
                         text = "取消",
                         fontSize = 12.sp,
@@ -930,17 +940,22 @@ private fun SpiritMineExpansionDialog(
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(if (canAfford) Color(0xFF2196F3) else Color(0xFFCCCCCC))
-                        .clickable(enabled = canAfford) { onConfirm() }
-                        .padding(vertical = 10.dp),
+                        .height(38.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .clickable(enabled = canAfford) { onConfirm() },
                     contentAlignment = Alignment.Center
                 ) {
+                    Image(
+                        painter = painterResource(id = R.drawable.ui_button),
+                        contentDescription = null,
+                        modifier = Modifier.matchParentSize(),
+                        contentScale = ContentScale.FillBounds
+                    )
                     Text(
                         text = "确认扩建",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        color = Color.Black
                     )
                 }
             }
