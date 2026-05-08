@@ -1110,40 +1110,39 @@ class GameEngine @Inject constructor(
         val unified = stateStore.unifiedState.value
         val data = unified.gameData
         val discipleMap = unified.disciples.associateBy { it.id }
-        val fixedSlots = data.spiritMineSlots.map { slot ->
+        val mineCount = data.placedBuildings.count { it.displayName == "灵矿场" }
+        val expectedSlots = mineCount * 3
+
+        val truncatedSlots = data.spiritMineSlots.take(expectedSlots)
+        val fixedSlots = truncatedSlots.map { slot ->
             if (slot.discipleId.isNotEmpty() && (slot.discipleId !in discipleMap || discipleMap[slot.discipleId]?.discipleType != "outer")) {
                 slot.copy(discipleId = "", discipleName = "")
             } else slot
         }
-        if (fixedSlots != data.spiritMineSlots) {
-            updateGameDataSync { it.copy(spiritMineSlots = fixedSlots) }
+
+        val finalSlots = if (fixedSlots.size < expectedSlots) {
+            fixedSlots + (fixedSlots.size until expectedSlots).map { SpiritMineSlot(index = it) }
+        } else fixedSlots
+
+        if (finalSlots != data.spiritMineSlots) {
+            val orphanedIds = data.spiritMineSlots.drop(expectedSlots)
+                .mapNotNull { it.discipleId }.filter { it.isNotEmpty() }
+            orphanedIds.forEach { discipleId ->
+                gameEngineCore.launchInScope {
+                    stateStore.update {
+                        disciples = disciples.map { d ->
+                            if (d.id == discipleId && d.status == DiscipleStatus.MINING)
+                                d.copy(status = DiscipleStatus.IDLE) else d
+                        }
+                    }
+                }
+            }
+            updateGameDataSync { it.copy(spiritMineSlots = finalSlots) }
         }
     }
 
     fun updateSpiritMineSlots(slots: List<SpiritMineSlot>) {
         updateGameDataSync { it.copy(spiritMineSlots = slots) }
-    }
-
-    fun calculateSpiritMineExpansionCost(): Long {
-        val data = stateStore.gameData.value
-        return GameConfig.Production.calculateExpansionCost(data.spiritMineExpansions)
-    }
-
-    fun expandSpiritMine(): Boolean {
-        val data = stateStore.gameData.value
-        val expansions = data.spiritMineExpansions
-        if (expansions >= GameConfig.Production.MAX_SPIRIT_MINE_EXPANSIONS) return false
-
-        val cost = GameConfig.Production.calculateExpansionCost(expansions)
-        if (data.spiritStones < cost) return false
-
-        updateGameDataSync {
-            it.copy(
-                spiritStones = it.spiritStones - cost,
-                spiritMineExpansions = expansions + 1
-            )
-        }
-        return true
     }
 
     fun assignDiscipleToLibrarySlot(slotIndex: Int, discipleId: String, discipleName: String) {

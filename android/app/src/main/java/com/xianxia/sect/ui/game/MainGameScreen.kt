@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -25,16 +26,22 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import kotlin.math.roundToInt
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.R
 import com.xianxia.sect.core.model.BattleSlotType
 import com.xianxia.sect.core.model.DiscipleAggregate
@@ -44,6 +51,8 @@ import com.xianxia.sect.core.model.GameEvent
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.MapPreloadData
 import com.xianxia.sect.core.util.GridSnapHelper
+import com.xianxia.sect.ui.game.map.CameraState
+import com.xianxia.sect.ui.game.map.rememberCameraState
 import com.xianxia.sect.core.util.GridSystem
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.core.util.sortedByFollowAttributeAndRealm
@@ -51,6 +60,7 @@ import com.xianxia.sect.ui.state.DialogStateManager.DialogType
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.components.CloseButton
+import com.xianxia.sect.ui.components.DialogDefaults
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.game.components.GiftDialog
 import com.xianxia.sect.ui.game.components.AllianceDialog
@@ -187,11 +197,6 @@ fun MainGameScreen(
     var screenWidthPx by remember { mutableFloatStateOf(0f) }
     var screenHeightPx by remember { mutableFloatStateOf(0f) }
 
-    // 地图相机 — screenX = worldX - cameraX（正值惯例：正值=视角已右移）
-    var cameraX by remember { mutableFloatStateOf(0f) }
-    var cameraY by remember { mutableFloatStateOf(0f) }
-    var cameraScale by remember { mutableFloatStateOf(1f) }
-
     // 建筑放置状态
     val placedBuildings by viewModel.placedBuildings.collectAsState()
     var isPlacingBuilding by remember { mutableStateOf(false) }
@@ -199,7 +204,15 @@ fun MainGameScreen(
     var placingWorldX by remember { mutableFloatStateOf(0f) }
     var placingWorldY by remember { mutableFloatStateOf(0f) }
     var buildingBarExpanded by remember { mutableStateOf(false) }
-    val gridSizePx = mapPreloadData.gridSizePx
+    val tileSize = mapPreloadData.tileSize
+    val worldPixelWidth = mapPreloadData.worldPixelWidth
+    val worldPixelHeight = mapPreloadData.worldPixelHeight
+
+    // 统一相机 — 相机在世界空间中移动，screenX = worldX - cameraX
+    val cameraState = rememberCameraState(
+        worldWidth = worldPixelWidth.toFloat(),
+        worldHeight = worldPixelHeight.toFloat()
+    )
 
     // 建筑尺寸映射 — 从配置读取，在宗门地图中所占的格数 (宽 × 高)
     val buildingSizes = remember {
@@ -237,7 +250,6 @@ fun MainGameScreen(
     val worldHeightCells = mapPreloadData.worldHeightCells
 
     // 地图瓦片素材 — 由 GameActivity 预加载，此处同步读取
-    val tileSizePxInt = mapPreloadData.tileSizePxInt
 
     val fullMapBmp = remember(mapPreloadData) { mapPreloadData.fullMapBmp }
 
@@ -258,9 +270,36 @@ fun MainGameScreen(
         data
     }
 
+    // 建筑放置后清除下方装饰（修改 rawTileData + 修补 fullMapBmp）
+    val clearedDecorationCells = remember { mutableSetOf<Long>() }
+    SideEffect {
+        val groundBmp = mapPreloadData.groundTileBmp.asAndroidBitmap()
+        val fullBmp = fullMapBmp.asAndroidBitmap()
+        val canvas = android.graphics.Canvas(fullBmp)
+        for (b in placedBuildings) {
+            for (cx in b.gridX until b.gridX + b.width) {
+                for (cy in b.gridY until b.gridY + b.height) {
+                    if (cy in rawTileData.indices && cx in rawTileData[cy].indices) {
+                        val cellKey = (cx.toLong() shl 32) or (cy.toLong() and 0xFFFF_FFFF)
+                        if (cellKey !in clearedDecorationCells) {
+                            clearedDecorationCells.add(cellKey)
+                            rawTileData[cy][cx] = TILE_GROUND
+                            canvas.drawBitmap(
+                                groundBmp,
+                                (cx * tileSize).toFloat(),
+                                (cy * tileSize).toFloat(),
+                                null
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // 网格系统（管理建筑放置与占用格查询）
-    val gridSystem = remember(gridSizePx, worldWidthCells, worldHeightCells) {
-        GridSystem(gridSizePx, worldWidthCells, worldHeightCells)
+    val gridSystem = remember(tileSize, worldWidthCells, worldHeightCells) {
+        GridSystem(tileSize, worldWidthCells, worldHeightCells)
     }
 
     LaunchedEffect(placedBuildings) {
@@ -314,16 +353,19 @@ fun MainGameScreen(
         }
     }
 
-    // 相机居中
-    CameraCenterEffect(
-        screenWidthPx = screenWidthPx,
-        screenHeightPx = screenHeightPx,
-        worldWidthCells = worldWidthCells,
-        worldHeightCells = worldHeightCells,
-        gridSizePx = gridSizePx,
-        currentDialog = currentDialog,
-        onSetCamera = { cx, cy -> cameraX = cx; cameraY = cy }
-    )
+    // 相机视口更新 + 初始居中（只执行一次）
+    LaunchedEffect(screenWidthPx, screenHeightPx) {
+        if (screenWidthPx > 0 && screenHeightPx > 0) {
+            cameraState.updateViewport(screenWidthPx.toInt(), screenHeightPx.toInt())
+            cameraState.tryCenterOn(worldPixelWidth / 2f, worldPixelHeight / 2f)
+        }
+    }
+    // 关闭弹窗后重新居中
+    LaunchedEffect(currentDialog) {
+        if (currentDialog == null && screenWidthPx > 0 && screenHeightPx > 0) {
+            cameraState.centerOn(worldPixelWidth / 2f, worldPixelHeight / 2f)
+        }
+    }
 
     val showRecruitDialog = currentDialog?.type == DialogType.Recruit
     val showDiplomacyDialog = currentDialog?.type == DialogType.Diplomacy
@@ -389,27 +431,51 @@ fun MainGameScreen(
                 screenHeightPx = size.height.toFloat()
             }
     ) {
-        // 底图层：宗门空地 Canvas（瓦片拼接 + 反接缝）
-        // 贴图由 GameActivity 预加载完成后才组合 MainGameScreen，此处始终可用
-        SectGroundCanvas(
-            cameraX = cameraX,
-            cameraY = cameraY,
-            cameraScale = cameraScale,
-            onCameraChange = { cx, cy -> cameraX = cx; cameraY = cy },
+        // 宗门大地图层（Canvas + 建筑 + 网格 + 放置预览 + 确认按钮）
+        SectMapLayer(
+            cameraState = cameraState,
             placedBuildings = placedBuildings,
             fullMapBmp = fullMapBmp,
-            tileData = tileData,
-            gridSizePx = gridSizePx,
-            tileSizePxInt = tileSizePxInt,
+            tileSize = tileSize,
             worldWidthCells = worldWidthCells,
             worldHeightCells = worldHeightCells,
+            worldPixelWidth = worldPixelWidth,
+            worldPixelHeight = worldPixelHeight,
             isPlacing = isPlacingBuilding,
+            placingBuildingName = placingBuildingName,
             buildingBarExpanded = buildingBarExpanded,
             previewGridX = placingSnappedGridX,
             previewGridY = placingSnappedGridY,
             previewSize = placingBuildingSize,
             previewValid = placementValidity,
-            modifier = Modifier.fillMaxSize()
+            buildingList = buildingList,
+            onPlacementDrag = { dx, dy ->
+                placingWorldX += dx * 0.3f
+                placingWorldY += dy * 0.3f
+                placingSnappedGridX = GridSnapHelper.worldToGrid(placingWorldX, tileSize)
+                placingSnappedGridY = GridSnapHelper.worldToGrid(placingWorldY, tileSize)
+                placementValidity = gridSystem.validatePlacement(
+                    placingSnappedGridX, placingSnappedGridY,
+                    placingBuildingSize.width, placingBuildingSize.height
+                )
+            },
+            onPlacementConfirm = {
+                if (placementValidity == GridSnapHelper.PlacementValidity.Valid) {
+                    viewModel.placeBuilding(
+                        name = placingBuildingName,
+                        gridX = placingSnappedGridX,
+                        gridY = placingSnappedGridY,
+                        width = placingBuildingSize.width,
+                        height = placingBuildingSize.height
+                    )
+                }
+                isPlacingBuilding = false
+                placingBuildingName = ""
+            },
+            onPlacementCancel = {
+                isPlacingBuilding = false
+                placingBuildingName = ""
+            }
         )
 
         // UI 层
@@ -431,7 +497,7 @@ fun MainGameScreen(
                     Row(
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
-                            .padding(bottom = 110.dp, start = 8.dp, end = 8.dp)
+                            .padding(bottom = 130.dp, start = 8.dp, end = 8.dp)
                             .fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.Bottom
@@ -505,10 +571,10 @@ fun MainGameScreen(
                     isPlacingBuilding = true
                     placingBuildingName = name
                     placingBuildingSize = size
-                    placingWorldX = cameraX + screenWidthPx / 2f - size.width * gridSizePx / 2f
-                    placingWorldY = cameraY + screenHeightPx / 2f - size.height * gridSizePx / 2f
-                    placingSnappedGridX = GridSnapHelper.worldToGrid(placingWorldX, gridSizePx)
-                    placingSnappedGridY = GridSnapHelper.worldToGrid(placingWorldY, gridSizePx)
+                    placingWorldX = cameraState.cameraX + screenWidthPx / 2f - size.width * tileSize / 2f
+                    placingWorldY = cameraState.cameraY + screenHeightPx / 2f - size.height * tileSize / 2f
+                    placingSnappedGridX = GridSnapHelper.worldToGrid(placingWorldX, tileSize)
+                    placingSnappedGridY = GridSnapHelper.worldToGrid(placingWorldY, tileSize)
                     placementValidity = gridSystem.validatePlacement(
                         placingSnappedGridX, placingSnappedGridY,
                         size.width, size.height
@@ -528,65 +594,6 @@ fun MainGameScreen(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 48.dp)
-            )
-        }
-
-        // 已建建筑点击层 — 建造模式或总览时显示
-        if (buildingBarExpanded || selectedTab == MainTab.OVERVIEW) {
-            BuildingClickLayer(
-                placedBuildings = placedBuildings,
-                cameraX = cameraX,
-                cameraY = cameraY,
-                cameraScale = cameraScale,
-                gridSizePx = gridSizePx,
-                enabled = !isPlacingBuilding,
-                onBuildingClick = { building ->
-                    val b = buildingList.find { it.first == building.displayName }
-                    b?.second?.invoke()
-                }
-            )
-        }
-
-        // 放置中建筑叠加层（在 BuildingClickLayer 之后渲染，确保在最上层）
-        if (isPlacingBuilding) {
-            PlacingBuildingOverlay(
-                buildingName = placingBuildingName,
-                buildingSize = placingBuildingSize,
-                snappedWorldX = GridSnapHelper.gridToWorld(placingSnappedGridX, gridSizePx),
-                snappedWorldY = GridSnapHelper.gridToWorld(placingSnappedGridY, gridSizePx),
-                cameraX = cameraX,
-                cameraY = cameraY,
-                cameraScale = cameraScale,
-                gridSizePx = gridSizePx,
-                validity = placementValidity,
-                onDrag = { dx, dy ->
-                    placingWorldX += dx / cameraScale * 0.25f
-                    placingWorldY += dy / cameraScale * 0.25f
-                    placingSnappedGridX = GridSnapHelper.worldToGrid(placingWorldX, gridSizePx)
-                    placingSnappedGridY = GridSnapHelper.worldToGrid(placingWorldY, gridSizePx)
-                    placementValidity = gridSystem.validatePlacement(
-                        placingSnappedGridX, placingSnappedGridY,
-                        placingBuildingSize.width, placingBuildingSize.height
-                    )
-                },
-                onDragEnd = { /* snap happens during drag */ },
-                onConfirm = {
-                    if (placementValidity == GridSnapHelper.PlacementValidity.Valid) {
-                        viewModel.placeBuilding(
-                            name = placingBuildingName,
-                            gridX = placingSnappedGridX,
-                            gridY = placingSnappedGridY,
-                            width = placingBuildingSize.width,
-                            height = placingBuildingSize.height
-                        )
-                    }
-                    isPlacingBuilding = false
-                    placingBuildingName = ""
-                },
-                onCancel = {
-                    isPlacingBuilding = false
-                    placingBuildingName = ""
-                }
             )
         }
 
@@ -619,7 +626,7 @@ fun MainGameScreen(
         if (selectedTab == MainTab.SETTINGS) {
             Dialog(onDismissRequest = { selectedTab = MainTab.OVERVIEW }) {
                 Surface(
-                    modifier = Modifier.fillMaxWidth().fillMaxHeight(0.5f),
+                    modifier = Modifier.fillMaxWidth(DialogDefaults.HalfScreenWidthFraction).fillMaxHeight(DialogDefaults.HalfScreenHeightFraction),
                     shape = RoundedCornerShape(16.dp),
                     color = GameColors.PageBackground
                 ) {
@@ -634,6 +641,7 @@ fun MainGameScreen(
                             viewModel = viewModel,
                             saveLoadViewModel = saveLoadViewModel,
                             onLogout = onLogout,
+                            onDismiss = { selectedTab = MainTab.OVERVIEW },
                             limitAdTracking = limitAdTracking,
                             onLimitAdTrackingChanged = onLimitAdTrackingChanged
                         )
@@ -1067,122 +1075,208 @@ private fun FloatingActionRow(
     }
 }
 
+/**
+ * 宗门地图层 — 封装 Canvas 地图渲染 + 建筑点击 + 放置预览 + 确认按钮
+ * 提取为独立 Composable 以降低 MainGameScreen 的寄存器数量（避免 VerifyError）
+ */
 @Composable
-private fun CameraCenterEffect(
-    screenWidthPx: Float,
-    screenHeightPx: Float,
+private fun SectMapLayer(
+    cameraState: CameraState,
+    placedBuildings: List<GridBuildingData>,
+    fullMapBmp: androidx.compose.ui.graphics.ImageBitmap,
+    tileSize: Int,
     worldWidthCells: Int,
     worldHeightCells: Int,
-    gridSizePx: Float,
-    currentDialog: Any?,
-    onSetCamera: (Float, Float) -> Unit
+    worldPixelWidth: Int,
+    worldPixelHeight: Int,
+    isPlacing: Boolean,
+    placingBuildingName: String,
+    buildingBarExpanded: Boolean,
+    previewGridX: Int,
+    previewGridY: Int,
+    previewSize: GridSnapHelper.BuildingSize,
+    previewValid: GridSnapHelper.PlacementValidity,
+    buildingList: List<Pair<String, () -> Unit>>,
+    onPlacementDrag: (Float, Float) -> Unit,
+    onPlacementConfirm: () -> Unit,
+    onPlacementCancel: () -> Unit
 ) {
-    LaunchedEffect(screenWidthPx, screenHeightPx) {
-        if (screenWidthPx > 0 && screenHeightPx > 0) {
-            val worldW = worldWidthCells * gridSizePx
-            val worldH = worldHeightCells * gridSizePx
-            onSetCamera(
-                ((worldW - screenWidthPx) / 2f).coerceAtLeast(0f),
-                ((worldH - screenHeightPx) / 2f).coerceAtLeast(0f)
-            )
-        }
-    }
-    LaunchedEffect(currentDialog) {
-        if (currentDialog == null && screenWidthPx > 0 && screenHeightPx > 0) {
-            val worldW = worldWidthCells * gridSizePx
-            val worldH = worldHeightCells * gridSizePx
-            onSetCamera(
-                ((worldW - screenWidthPx) / 2f).coerceAtLeast(0f),
-                ((worldH - screenHeightPx) / 2f).coerceAtLeast(0f)
-            )
-        }
+    val textMeasurer = rememberTextMeasurer()
+    val buildingBitmaps = rememberBuildingBitmaps()
+    SectGroundCanvas(
+        cameraState = cameraState,
+        placedBuildings = placedBuildings,
+        buildingBitmaps = buildingBitmaps,
+        fullMapBmp = fullMapBmp,
+        tileSize = tileSize,
+        worldWidthCells = worldWidthCells,
+        worldHeightCells = worldHeightCells,
+        worldPixelWidth = worldPixelWidth,
+        worldPixelHeight = worldPixelHeight,
+        isPlacing = isPlacing,
+        placingBuildingName = placingBuildingName,
+        buildingBarExpanded = buildingBarExpanded,
+        previewGridX = previewGridX,
+        previewGridY = previewGridY,
+        previewSize = previewSize,
+        previewValid = previewValid,
+        textMeasurer = textMeasurer,
+        onBuildingClick = { building ->
+            val b = buildingList.find { it.first == building.displayName }
+            b?.second?.invoke()
+        },
+        onPlacementDrag = onPlacementDrag,
+        modifier = Modifier.fillMaxSize()
+    )
+
+    if (isPlacing) {
+        PlacementConfirmButtons(
+            snappedGridX = previewGridX,
+            snappedGridY = previewGridY,
+            buildingSize = previewSize,
+            cameraState = cameraState,
+            tileSize = tileSize,
+            validity = previewValid,
+            onConfirm = onPlacementConfirm,
+            onCancel = onPlacementCancel
+        )
     }
 }
 
 @Composable
 private fun SectGroundCanvas(
-    cameraX: Float,
-    cameraY: Float,
-    cameraScale: Float,
-    onCameraChange: (Float, Float) -> Unit,
+    cameraState: CameraState,
     placedBuildings: List<GridBuildingData>,
+    buildingBitmaps: Map<String, androidx.compose.ui.graphics.ImageBitmap>,
     fullMapBmp: androidx.compose.ui.graphics.ImageBitmap,
-    tileData: Array<IntArray>,
-    gridSizePx: Float,
-    tileSizePxInt: Int,
+    tileSize: Int,
     worldWidthCells: Int,
     worldHeightCells: Int,
+    worldPixelWidth: Int,
+    worldPixelHeight: Int,
     isPlacing: Boolean = false,
+    placingBuildingName: String = "",
     buildingBarExpanded: Boolean = false,
     previewGridX: Int = 0,
     previewGridY: Int = 0,
     previewSize: GridSnapHelper.BuildingSize = GridSnapHelper.BuildingSize(2, 3),
     previewValid: GridSnapHelper.PlacementValidity = GridSnapHelper.PlacementValidity.Valid,
+    textMeasurer: androidx.compose.ui.text.TextMeasurer,
+    onBuildingClick: (GridBuildingData) -> Unit = {},
+    onPlacementDrag: (Float, Float) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
-    var lx by remember { mutableFloatStateOf(cameraX) }
-    var ly by remember { mutableFloatStateOf(cameraY) }
-    lx = cameraX; ly = cameraY
-
     Canvas(
         modifier = modifier
-            .pointerInput(Unit) {
+            .pointerInput(isPlacing, cameraState) {
                 detectDragGestures { change, dragAmount ->
                     change.consume()
-                    val sw = size.width; val sh = size.height
-                    val worldPixelW = worldWidthCells * tileSizePxInt
-                    val worldPixelH = worldHeightCells * tileSizePxInt
-                    val scaledWorldW = worldPixelW * cameraScale
-                    val scaledWorldH = worldPixelH * cameraScale
-                    val maxX = (scaledWorldW - sw).coerceAtLeast(0f)
-                    val maxY = (scaledWorldH - sh).coerceAtLeast(0f)
-                    lx = (lx - dragAmount.x).coerceIn(0f, maxX)
-                    ly = (ly - dragAmount.y).coerceIn(0f, maxY)
-                    onCameraChange(lx, ly)
+                    if (isPlacing) {
+                        onPlacementDrag(dragAmount.x, dragAmount.y)
+                    } else {
+                        cameraState.pan(dragAmount.x, dragAmount.y)
+                    }
+                }
+            }
+            .pointerInput(placedBuildings.size, tileSize) {
+                detectTapGestures { offset ->
+                    val wx = cameraState.screenToWorldX(offset.x)
+                    val wy = cameraState.screenToWorldY(offset.y)
+                    for (b in placedBuildings) {
+                        val bx = b.gridX * tileSize
+                        val by = b.gridY * tileSize
+                        if (wx >= bx && wx < bx + b.width * tileSize &&
+                            wy >= by && wy < by + b.height * tileSize
+                        ) {
+                            onBuildingClick(b)
+                            return@detectTapGestures
+                        }
+                    }
                 }
             }
     ) {
         val sw = size.width
         val sh = size.height
-        val cameraXi = lx.roundToInt()
-        val cameraYi = ly.roundToInt()
 
-        // 预渲染全幅静态地图（地面纹理 + 全部草/树装饰）
-        drawImage(fullMapBmp,
-            dstOffset = IntOffset(-cameraXi, -cameraYi),
-            dstSize = IntSize(fullMapBmp.width, fullMapBmp.height))
+        withTransform({
+            translate(-cameraState.cameraX, -cameraState.cameraY)
+        }) {
+            // 1. 静态背景层
+            drawImage(fullMapBmp, topLeft = Offset.Zero)
 
-        // 网格线
-        if (isPlacing || buildingBarExpanded) {
-            val gridColor = Color(0xFFE4DDD0)
-            val startX = -(lx % tileSizePxInt)
-            var gx = startX
-            while (gx < sw) {
-                drawLine(gridColor, Offset(gx, 0f), Offset(gx, sh), strokeWidth = 1f)
-                gx += tileSizePxInt
-            }
-            val startY = -(ly % tileSizePxInt)
-            var gy = startY
-            while (gy < sh) {
-                drawLine(gridColor, Offset(0f, gy), Offset(sw, gy), strokeWidth = 1f)
-                gy += tileSizePxInt
-            }
-        }
+            // 2. 动态建筑层
+            for (building in placedBuildings) {
+                val bx = building.gridX * tileSize
+                val by = building.gridY * tileSize
+                val bw = building.width * tileSize
+                val bh = building.height * tileSize
+                val bxF = bx.toFloat()
+                val byF = by.toFloat()
+                val bwF = bw.toFloat()
+                val bhF = bh.toFloat()
 
-        // 放置预览
-        if (isPlacing) {
-            val previewColor = when (previewValid) {
-                is GridSnapHelper.PlacementValidity.Valid -> Color(0x404CAF50)
-                is GridSnapHelper.PlacementValidity.OutOfBounds -> Color(0x40F44336)
-                is GridSnapHelper.PlacementValidity.Overlap -> Color(0x40FF5722)
+                // 建筑贴图
+                val bmp = buildingBitmaps[building.displayName]
+                if (bmp != null) {
+                    drawImage(
+                        bmp,
+                        dstOffset = IntOffset(bx, by),
+                        dstSize = IntSize(bw, bh)
+                    )
+                } else {
+                    // 贴图缺失时的回退色块
+                    drawRect(Color(0xFFBDBDBD).copy(alpha = 0.8f), Offset(bxF, byF), Size(bwF, bhF))
+                }
             }
-            val cellSize = gridSizePx * cameraScale
-            for (cgx in previewGridX until previewGridX + previewSize.width) {
-                for (cgy in previewGridY until previewGridY + previewSize.height) {
-                    val px = GridSnapHelper.gridToScreen(cgx, gridSizePx, lx, cameraScale)
-                    val py = GridSnapHelper.gridToScreen(cgy, gridSizePx, ly, cameraScale)
-                    if (px + cellSize > 0 && px < sw && py + cellSize > 0 && py < sh) {
-                        drawRect(previewColor, Offset(px, py), Size(cellSize, cellSize))
+
+            // 3. 网格线
+            if (isPlacing || buildingBarExpanded) {
+                val gridColor = Color(0xFFE4DDD0)
+                val visibleStartX = cameraState.cameraX
+                val visibleEndX = cameraState.cameraX + sw
+                val visibleStartY = cameraState.cameraY
+                val visibleEndY = cameraState.cameraY + sh
+
+                val firstCol = (visibleStartX / tileSize).toInt().coerceAtLeast(0)
+                val lastCol = (visibleEndX / tileSize).toInt().coerceAtMost(worldWidthCells)
+                for (col in firstCol..lastCol) {
+                    val x = (col * tileSize).toFloat()
+                    drawLine(gridColor, Offset(x, 0f), Offset(x, worldPixelHeight.toFloat()), strokeWidth = 1f)
+                }
+
+                val firstRow = (visibleStartY / tileSize).toInt().coerceAtLeast(0)
+                val lastRow = (visibleEndY / tileSize).toInt().coerceAtMost(worldHeightCells)
+                for (row in firstRow..lastRow) {
+                    val y = (row * tileSize).toFloat()
+                    drawLine(gridColor, Offset(0f, y), Offset(worldPixelWidth.toFloat(), y), strokeWidth = 1f)
+                }
+            }
+
+            // 4. 放置预览
+            if (isPlacing) {
+                // 建筑素材图
+                if (placingBuildingName.isNotEmpty()) {
+                    val placeBmp = buildingBitmaps[placingBuildingName]
+                    if (placeBmp != null) {
+                        drawImage(
+                            placeBmp,
+                            dstOffset = IntOffset(previewGridX * tileSize, previewGridY * tileSize),
+                            dstSize = IntSize(previewSize.width * tileSize, previewSize.height * tileSize)
+                        )
+                    }
+                }
+                val previewColor = when (previewValid) {
+                    is GridSnapHelper.PlacementValidity.Valid -> Color(0x404CAF50)
+                    is GridSnapHelper.PlacementValidity.OutOfBounds -> Color(0x40F44336)
+                    is GridSnapHelper.PlacementValidity.Overlap -> Color(0x40FF5722)
+                }
+                for (cgx in previewGridX until previewGridX + previewSize.width) {
+                    for (cgy in previewGridY until previewGridY + previewSize.height) {
+                        drawRect(
+                            previewColor,
+                            Offset((cgx * tileSize).toFloat(), (cgy * tileSize).toFloat()),
+                            Size(tileSize.toFloat(), tileSize.toFloat())
+                        )
                     }
                 }
             }
@@ -1240,6 +1334,22 @@ private fun getBuildingDrawable(displayName: String): Int = when (displayName) {
 }
 
 @Composable
+private fun rememberBuildingBitmaps(): Map<String, androidx.compose.ui.graphics.ImageBitmap> {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val names = listOf(
+        "任务阁", "天枢殿", "执法堂", "灵植阁", "灵矿场",
+        "炼丹炉", "监牢", "藏经阁", "锻造坊", "问道塔", "青云塔"
+    )
+    return remember {
+        names.associateWith { name ->
+            val resId = getBuildingDrawable(name)
+            android.graphics.BitmapFactory.decodeResource(context.resources, resId)
+                .asImageBitmap()
+        }
+    }
+}
+
+@Composable
 private fun BuildingConstructionBar(
     buildingList: List<Pair<String, () -> Unit>>,
     placedBuildings: List<GridBuildingData>,
@@ -1251,7 +1361,7 @@ private fun BuildingConstructionBar(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(max = 190.dp)
+            .height(130.dp)
             .verticalScroll(rememberScrollState())
             .clip(RoundedCornerShape(6.dp))
             .background(Color.White.copy(alpha = 0.7f))
@@ -1264,13 +1374,17 @@ private fun BuildingConstructionBar(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 rowItems.forEach { (name, _) ->
-                    val built = placedBuildings.any { it.displayName == name }
+                    val built = if (name == "灵矿场") {
+                        placedBuildings.count { it.displayName == name } >= GameConfig.Production.MAX_SPIRIT_MINE_COUNT
+                    } else {
+                        placedBuildings.any { it.displayName == name }
+                    }
                     val cost = buildingCosts[name] ?: 1000L
                     val canAfford = spiritStones >= cost
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .height(88.dp)
+                            .height(52.dp)
                             .clip(RoundedCornerShape(6.dp))
                             .border(1.dp, GameColors.ButtonBorder, RoundedCornerShape(6.dp))
                             .clickable(enabled = !built && canAfford) { onSelectBuilding(name) }
@@ -1284,7 +1398,7 @@ private fun BuildingConstructionBar(
                         )
                         Text(
                             text = name,
-                            fontSize = 9.sp,
+                            fontSize = 8.sp,
                             color = Color.Black,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier
@@ -1293,7 +1407,7 @@ private fun BuildingConstructionBar(
                         )
                         Text(
                             text = "${cost}灵石",
-                            fontSize = 8.sp,
+                            fontSize = 7.sp,
                             color = Color.Black,
                             modifier = Modifier
                                 .align(Alignment.BottomCenter)
@@ -1307,126 +1421,74 @@ private fun BuildingConstructionBar(
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(4.dp))
         }
     }
 }
 
 @Composable
-private fun BuildingClickLayer(
-    placedBuildings: List<GridBuildingData>,
-    cameraX: Float,
-    cameraY: Float,
-    cameraScale: Float,
-    onBuildingClick: (GridBuildingData) -> Unit,
-    gridSizePx: Float,
-    enabled: Boolean = true
-) {
-    val density = androidx.compose.ui.platform.LocalDensity.current.density
-    placedBuildings.forEach { building ->
-        val screenXDp = GridSnapHelper.gridToScreen(building.gridX, gridSizePx, cameraX, cameraScale) / density
-        val screenYDp = GridSnapHelper.gridToScreen(building.gridY, gridSizePx, cameraY, cameraScale) / density
-        val bWidthDp = (building.width * gridSizePx * cameraScale) / density
-        val bHeightDp = (building.height * gridSizePx * cameraScale) / density
-        Box(
-            modifier = Modifier
-                .offset(x = screenXDp.dp, y = screenYDp.dp)
-                .size(width = bWidthDp.dp, height = bHeightDp.dp)
-                .clickable(enabled = enabled) { onBuildingClick(building) },
-            contentAlignment = Alignment.BottomCenter
-        ) {
-            Image(
-                painter = painterResource(id = getBuildingDrawable(building.displayName)),
-                contentDescription = building.displayName,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Fit
-            )
-        }
-    }
-}
-
-@Composable
-private fun PlacingBuildingOverlay(
-    buildingName: String,
+private fun PlacementConfirmButtons(
+    snappedGridX: Int,
+    snappedGridY: Int,
     buildingSize: GridSnapHelper.BuildingSize,
-    snappedWorldX: Float,
-    snappedWorldY: Float,
-    cameraX: Float,
-    cameraY: Float,
-    cameraScale: Float,
-    gridSizePx: Float,
+    cameraState: CameraState,
+    tileSize: Int,
     validity: GridSnapHelper.PlacementValidity,
-    onDrag: (Float, Float) -> Unit,
-    onDragEnd: () -> Unit,
     onConfirm: () -> Unit,
     onCancel: () -> Unit
 ) {
     val density = androidx.compose.ui.platform.LocalDensity.current.density
-    val screenXDp = GridSnapHelper.worldToScreen(snappedWorldX, cameraX, cameraScale) / density
-    val screenYDp = GridSnapHelper.worldToScreen(snappedWorldY, cameraY, cameraScale) / density
-    val widthDp = (buildingSize.width * gridSizePx * cameraScale) / density
-    val heightDp = (buildingSize.height * gridSizePx * cameraScale) / density
+    val worldX = GridSnapHelper.gridToWorld(snappedGridX, tileSize)
+    val worldY = GridSnapHelper.gridToWorld(snappedGridY, tileSize)
+    val screenXDp = cameraState.worldToScreenX(worldX.toFloat()) / density
+    val screenYDp = cameraState.worldToScreenY(worldY.toFloat()) / density
+    val widthDp = (buildingSize.width * tileSize) / density
 
-    val overlayBorderColor = when (validity) {
-        is GridSnapHelper.PlacementValidity.Valid -> Color(0xFF388E3C)
-        is GridSnapHelper.PlacementValidity.OutOfBounds -> Color(0xFFD32F2F)
-        is GridSnapHelper.PlacementValidity.Overlap -> Color(0xFFE64A19)
-    }
     val canConfirm = validity == GridSnapHelper.PlacementValidity.Valid
+    val cellDp = (tileSize / density).dp
 
     Box(
         modifier = Modifier
-            .offset(x = screenXDp.dp, y = screenYDp.dp)
-            .size(width = widthDp.dp, height = heightDp.dp)
-            .pointerInput(Unit) {
-                detectDragGestures(
-                    onDrag = { change, dragAmount ->
-                        change.consume()
-                        onDrag(dragAmount.x * density, dragAmount.y * density)
-                    },
-                    onDragEnd = { onDragEnd() }
-                )
-            }
+            .offset(x = screenXDp.dp, y = screenYDp.dp - cellDp)
+            .size(width = widthDp.dp, height = cellDp)
     ) {
-        Image(
-            painter = painterResource(id = getBuildingDrawable(buildingName)),
-            contentDescription = buildingName,
-            modifier = Modifier.fillMaxSize().alpha(0.6f),
-            contentScale = ContentScale.Fit
-        )
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 2.dp, start = 2.dp, end = 2.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
-                    .size(22.dp)
-                    .clip(CircleShape)
-                    .background(if (canConfirm) Color(0xFF4CAF50) else Color.Black)
+                    .size(cellDp)
+                    .background(if (canConfirm) Color(0xFF4CAF50) else Color.Black, CircleShape)
                     .clickable(enabled = canConfirm) { onConfirm() },
                 contentAlignment = Alignment.Center
-            ) { Text("✓", fontSize = 13.sp, color = Color.Black, fontWeight = FontWeight.Bold) }
+            ) { Text("✓", fontSize = (cellDp.value * 0.4f).sp, color = Color.Black, fontWeight = FontWeight.Bold) }
+            Spacer(modifier = Modifier.width((cellDp.value * 0.25f).dp))
             Box(
                 modifier = Modifier
-                    .size(22.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFFF44336))
+                    .size(cellDp)
+                    .background(Color(0xFFF44336), CircleShape)
                     .clickable { onCancel() },
                 contentAlignment = Alignment.Center
-            ) { Text("✗", fontSize = 13.sp, color = Color.Black, fontWeight = FontWeight.Bold) }
-        }
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(
-                text = buildingName,
-                fontSize = 11.sp,
-                color = Color(0xFF004D40),
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center
-            )
+            ) { Text("✗", fontSize = (cellDp.value * 0.4f).sp, color = Color.Black, fontWeight = FontWeight.Bold) }
         }
     }
+}
+
+private fun getBuildingColor(displayName: String): Color = when (displayName) {
+    "灵矿场" -> Color(0xFFBCAAA4).copy(alpha = 0.8f)
+    "灵植阁" -> Color(0xFFA5D6A7).copy(alpha = 0.8f)
+    "炼丹炉" -> Color(0xFFEF9A9A).copy(alpha = 0.8f)
+    "锻造坊" -> Color(0xFFB0BEC5).copy(alpha = 0.8f)
+    "任务阁" -> Color(0xFF90CAF9).copy(alpha = 0.8f)
+    "监牢" -> Color(0xFFBDBDBD).copy(alpha = 0.8f)
+    "天枢殿" -> Color(0xFFFFF176).copy(alpha = 0.8f)
+    "执法堂" -> Color(0xFFCE93D8).copy(alpha = 0.8f)
+    "藏经阁" -> Color(0xFF80CBC4).copy(alpha = 0.8f)
+    "青云塔" -> Color(0xFF9FA8DA).copy(alpha = 0.8f)
+    "问道塔" -> Color(0xFFFFAB91).copy(alpha = 0.8f)
+    else -> Color(0xFFEEEEEE).copy(alpha = 0.8f)
 }
 
 @Composable
@@ -1439,7 +1501,7 @@ private fun EventMessageStrip(
     val recentEvents = remember(events, currentTotalMonths) {
         events.filter { currentTotalMonths - (it.year * 12 + it.month) <= 12 }
     }
-    Box(modifier = modifier.fillMaxWidth().height(110.dp).padding(horizontal = 12.dp)) {
+    Box(modifier = modifier.fillMaxWidth().height(130.dp).padding(horizontal = 12.dp)) {
         Box(modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(6.dp))) {
             Image(
                 painter = painterResource(id = R.drawable.bg_navbar),
@@ -1587,8 +1649,8 @@ private fun CommonDialog(
     Dialog(onDismissRequest = onDismiss) {
         Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
+                .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
+                .clip(RoundedCornerShape(DialogDefaults.CornerRadius))
         ) {
             Image(
                 painter = painterResource(id = R.drawable.bg_screen),
@@ -1616,7 +1678,7 @@ private fun CommonDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f, fill = false)
-                        .heightIn(max = 400.dp)
+                        .heightIn(max = DialogDefaults.CommonMaxHeight)
                         .verticalScroll(rememberScrollState())
                         .padding(horizontal = 16.dp)
                 ) {

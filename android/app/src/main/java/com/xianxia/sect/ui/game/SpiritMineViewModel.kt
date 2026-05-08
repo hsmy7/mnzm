@@ -155,13 +155,6 @@ class SpiritMineViewModel @Inject constructor(
         }
     }
 
-    fun expandSpiritMine(): Boolean {
-        return gameEngine.expandSpiritMine()
-    }
-
-    fun getExpansionCost(): Long {
-        return gameEngine.calculateSpiritMineExpansionCost()
-    }
 
     fun autoAssignSpiritMineMiners() {
         viewModelScope.launch {
@@ -178,7 +171,11 @@ class SpiritMineViewModel @Inject constructor(
     private suspend fun assignDisciplesToEmptyMineSlotsInternal(disciples: List<DiscipleAggregate>) {
         val currentGameData = gameEngine.gameDataSnapshot
         var currentSlots = currentGameData.spiritMineSlots.toMutableList()
-        val totalSlots = 1 + currentGameData.spiritMineExpansions
+        val mineCount = currentGameData.placedBuildings.count { it.displayName == "灵矿场" }
+        val totalSlots = mineCount * 3
+        if (currentSlots.size > totalSlots) {
+            currentSlots = currentSlots.take(totalSlots).toMutableList()
+        }
         while (currentSlots.size < totalSlots) {
             currentSlots.add(SpiritMineSlot(index = currentSlots.size))
         }

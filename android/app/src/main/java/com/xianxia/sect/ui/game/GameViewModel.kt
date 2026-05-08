@@ -141,8 +141,19 @@ class GameViewModel @Inject constructor(
             val (gridW, gridH) = buildingConfigService.getBuildingGridSize(name)
 
             gameEngine.updateGameData { data ->
-                if (data.placedBuildings.any { it.displayName == name }) return@updateGameData data
+                if (name == "灵矿场") {
+                    val currentMines = data.placedBuildings.count { it.displayName == "灵矿场" }
+                    if (currentMines >= GameConfig.Production.MAX_SPIRIT_MINE_COUNT) return@updateGameData data
+                } else {
+                    if (data.placedBuildings.any { it.displayName == name }) return@updateGameData data
+                }
                 if (data.spiritStones < cost) return@updateGameData data
+
+                val newSlots = if (name == "灵矿场") {
+                    val nextIndex = data.spiritMineSlots.size
+                    (0 until 3).map { SpiritMineSlot(index = nextIndex + it) }
+                } else emptyList()
+
                 data.copy(
                     spiritStones = data.spiritStones - cost,
                     placedBuildings = data.placedBuildings + GridBuildingData(
@@ -152,7 +163,8 @@ class GameViewModel @Inject constructor(
                         gridY = gridY,
                         width = gridW,
                         height = gridH
-                    )
+                    ),
+                    spiritMineSlots = data.spiritMineSlots + newSlots
                 )
             }
         }

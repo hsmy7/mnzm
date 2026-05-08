@@ -113,25 +113,10 @@ object GameConfig {
     }
 
     object Production {
-        const val MAX_SPIRIT_MINE_SLOTS = 1
-        const val MAX_SPIRIT_MINE_EXPANSIONS = 49
-        const val SPIRIT_MINE_EXPANSION_BASE_COST = 50L
-        const val SPIRIT_MINE_EXPANSION_COST_MULTIPLIER = 1.5
-        const val SPIRIT_MINE_EXPANSION_COST_CAP = 50000L
+        const val MAX_SPIRIT_MINE_COUNT = 8
         const val SPIRIT_MINE_BASE_OUTPUT_PER_MINER = 160
         const val SPIRIT_MINE_MINING_THRESHOLD = 70
         const val SPIRIT_MINE_MINING_BONUS_RATE = 0.02
-
-        fun calculateExpansionCost(currentExpansions: Int): Long {
-            var cost = SPIRIT_MINE_EXPANSION_BASE_COST.toDouble()
-            repeat(currentExpansions) {
-                cost *= SPIRIT_MINE_EXPANSION_COST_MULTIPLIER
-            }
-            val rawCost = cost.toLong()
-            return if (rawCost >= SPIRIT_MINE_EXPANSION_COST_CAP) {
-                SPIRIT_MINE_EXPANSION_COST_CAP
-            } else rawCost
-        }
     }
     
     object Rarity {

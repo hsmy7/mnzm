@@ -33,6 +33,7 @@ import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.SpiritMineSlot
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.components.CloseButton
+import com.xianxia.sect.ui.components.DialogDefaults
 import com.xianxia.sect.ui.components.ElderBonusInfoButton
 import com.xianxia.sect.ui.components.ElderBonusInfoProvider
 import com.xianxia.sect.ui.components.GameButton
@@ -55,20 +56,17 @@ fun SpiritMineDialog(
     
     var showDiscipleSelection by remember { mutableStateOf(false) }
     var showDeaconSelection by remember { mutableStateOf<Int?>(null) }
-    var showExpansionDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         spiritMineViewModel.validateSpiritMineData()
     }
 
-    val expansions = gameData?.spiritMineExpansions ?: 0
-    val totalSlots = 1 + expansions
-    val maxExpansions = GameConfig.Production.MAX_SPIRIT_MINE_EXPANSIONS
-    val canExpand = expansions < maxExpansions
+    val mineCount = gameData?.placedBuildings?.count { it.displayName == "灵矿场" } ?: 0
+    val totalSlots = mineCount * 3
 
     val mineSlots = gameData?.spiritMineSlots ?: emptyList()
     val slots = (0 until totalSlots).map { index ->
-        mineSlots.find { it.index == index } ?: SpiritMineSlot(index = index)
+        mineSlots.getOrNull(index) ?: SpiritMineSlot(index = index)
     }
 
     val emptySlotCount = slots.count { !it.isActive }
@@ -144,47 +142,53 @@ fun SpiritMineDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "矿工槽位 ($emptySlotCount/$totalSlots 空闲)",
+                        text = "矿场: $mineCount/${GameConfig.Production.MAX_SPIRIT_MINE_COUNT} | 矿工 ($emptySlotCount/$totalSlots 空闲)",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.Black
                     )
                     ElderBonusInfoButton(bonusInfo = ElderBonusInfoProvider.getSpiritMineMinerInfo())
                 }
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // 扩建按钮
-                    GameButton(
-                        text = if (canExpand) "扩建" else "已满",
-                        onClick = { showExpansionDialog = true },
-                        enabled = canExpand,
-                        backgroundColor = Color(0xFF2196F3)
-                    )
-                    // 一键任命按钮
-                    GameButton(
-                        text = "一键任命",
-                        onClick = { spiritMineViewModel.autoAssignSpiritMineMiners() },
-                        enabled = emptySlotCount > 0,
-                        backgroundColor = Color(0xFF4CAF50)
-                    )
-                }
+                GameButton(
+                    text = "一键任命",
+                    onClick = { spiritMineViewModel.autoAssignSpiritMineMiners() },
+                    enabled = emptySlotCount > 0,
+                    backgroundColor = Color(0xFF4CAF50)
+                )
             }
 
-            slots.chunked(3).forEach { rowSlots ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
-                ) {
-                    rowSlots.forEach { slot ->
-                        val disciple = slot.discipleId?.let { id -> disciples.find { it.id == id } }
-                        SpiritMineSlotItem(
-                            slot = slot,
-                            disciple = disciple,
-                            onAssign = { if (emptySlotCount > 0) showDiscipleSelection = true },
-                            onRemove = { spiritMineViewModel.removeDiscipleFromSpiritMineSlot(slot.index) }
-                        )
+            if (mineCount == 0) {
+                Text(
+                    text = "尚未建造灵矿场，请在宗门地图上建造",
+                    fontSize = 11.sp,
+                    color = Color.Black
+                )
+            } else {
+                for (mineIndex in 0 until mineCount) {
+                    Text(
+                        text = "灵矿场 ${mineIndex + 1}",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF5D4037),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    val mineSlotsRow = slots.drop(mineIndex * 3).take(3)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
+                    ) {
+                        mineSlotsRow.forEach { slot ->
+                            val disciple = slot.discipleId.let { id -> disciples.find { d -> d.id == id } }
+                            SpiritMineSlotItem(
+                                slot = slot,
+                                disciple = disciple,
+                                onAssign = { if (emptySlotCount > 0) showDiscipleSelection = true },
+                                onRemove = { spiritMineViewModel.removeDiscipleFromSpiritMineSlot(slot.index) }
+                            )
+                        }
+                    }
+                    if (mineIndex < mineCount - 1) {
+                        Spacer(modifier = Modifier.height(8.dp))
                     }
                 }
             }
@@ -224,20 +228,6 @@ fun SpiritMineDialog(
         )
     }
 
-    if (showExpansionDialog) {
-        val cost = spiritMineViewModel.getExpansionCost()
-        val canAfford = (gameData?.spiritStones ?: 0) >= cost
-        SpiritMineExpansionDialog(
-            expansionCost = cost,
-            currentExpansions = expansions,
-            canAfford = canAfford,
-            onConfirm = {
-                spiritMineViewModel.expandSpiritMine()
-                showExpansionDialog = false
-            },
-            onDismiss = { showExpansionDialog = false }
-        )
-    }
 }
 
 @Composable
@@ -841,20 +831,7 @@ private fun CommonDialog(
                             }
                         }
                     }
-                    Box(
-                        modifier = Modifier
-                            .size(24.dp)
-                            .clip(CircleShape)
-                            .clickable { onDismiss() }
-                            .background(GameColors.CardBackground),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "关闭",
-                            fontSize = 16.sp,
-                            color = Color.Black
-                        )
-                    }
+                    CloseButton(onClick = onDismiss)
                 }
                 Column(
                     modifier = Modifier
@@ -872,76 +849,3 @@ private fun CommonDialog(
     }
 }
 
-@Composable
-private fun SpiritMineExpansionDialog(
-    expansionCost: Long,
-    currentExpansions: Int,
-    canAfford: Boolean,
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    val nextSlots = 1 + currentExpansions + 1
-    Dialog(onDismissRequest = onDismiss) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.bg_screen),
-                contentDescription = null,
-                modifier = Modifier.matchParentSize(),
-                contentScale = ContentScale.FillBounds
-            )
-            Column(modifier = Modifier.padding(20.dp)) {
-                Text(
-                    text = "扩建灵矿场",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    text = "确认扩建灵矿场吗？",
-                    fontSize = 12.sp,
-                    color = Color.Black
-                )
-                Text(
-                    text = "矿工槽位: ${1 + currentExpansions} → $nextSlots",
-                    fontSize = 12.sp,
-                    color = Color(0xFF4CAF50)
-                )
-                Text(
-                    text = "扩建费用: $expansionCost 灵石",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = if (canAfford) Color(0xFF2196F3) else Color(0xFFE74C3C)
-                )
-                if (!canAfford) {
-                    Text(
-                        text = "灵石不足！",
-                        fontSize = 11.sp,
-                        color = Color(0xFFE74C3C)
-                    )
-                }
-                Spacer(modifier = Modifier.height(16.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    GameButton(
-                        text = "取消",
-                        onClick = onDismiss,
-                        modifier = Modifier.width(ButtonSizes.StandardWidth)
-                    )
-                    GameButton(
-                        text = "确认扩建",
-                        onClick = onConfirm,
-                        enabled = canAfford,
-                        modifier = Modifier.width(ButtonSizes.StandardWidth)
-                    )
-                }
-            }
-        }
-    }
-}

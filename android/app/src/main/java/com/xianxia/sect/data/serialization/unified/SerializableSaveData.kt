@@ -143,7 +143,7 @@ data class SerializableDisciple(
     @ProtoNumber(52) val artifactRefining: Int,
     @ProtoNumber(53) val pillRefining: Int,
     @ProtoNumber(54) val spiritPlanting: Int,
-    @ProtoNumber(86) val mining: Int,
+    @ProtoNumber(86) val mining: Int = 50,
     @ProtoNumber(55) val teaching: Int,
     @ProtoNumber(56) val morality: Int,
     @ProtoNumber(57) val salaryPaidCount: Int,
