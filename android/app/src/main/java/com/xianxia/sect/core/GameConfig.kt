@@ -481,7 +481,7 @@ object GameConfig {
     
     object Starting {
         val RESOURCES = StartingResources(
-            spiritStones = 1000,
+            spiritStones = 2000,
             reputation = 100,
             spiritHerbs = 50
         )
@@ -700,6 +700,14 @@ object GameConfig {
         }
     }
     
+    object SectMap {
+        const val TILE_SIZE = 64
+        const val WORLD_WIDTH_CELLS = 48
+        const val WORLD_HEIGHT_CELLS = 48
+        val WORLD_PIXEL_WIDTH = WORLD_WIDTH_CELLS * TILE_SIZE
+        val WORLD_PIXEL_HEIGHT = WORLD_HEIGHT_CELLS * TILE_SIZE
+    }
+
     object WorldMap {
         const val MAP_WIDTH = 6000
         const val MAP_HEIGHT = 5000
