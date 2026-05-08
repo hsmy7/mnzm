@@ -1392,37 +1392,45 @@ private fun BuildingConstructionBar(
                     }
                     val cost = buildingCosts[name] ?: 1000L
                     val canAfford = spiritStones >= cost
-                    Box(
+                    Column(
                         modifier = Modifier
                             .weight(1f)
-                            .height(52.dp)
+                            .height(55.dp)
                             .clip(RoundedCornerShape(6.dp))
                             .border(1.dp, GameColors.ButtonBorder, RoundedCornerShape(6.dp))
                             .clickable(enabled = !built && canAfford) { onSelectBuilding(name) }
                     ) {
+                        Text(
+                            text = name,
+                            fontSize = 8.sp,
+                            lineHeight = 8.sp,
+                            color = Color.Black,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color.White.copy(alpha = 0.7f))
+                        )
                         Image(
                             painter = painterResource(id = getBuildingDrawable(name)),
                             contentDescription = name,
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth(),
                             contentScale = ContentScale.Fit,
                             alpha = if (built || !canAfford) 0.4f else 1f
                         )
                         Text(
-                            text = name,
-                            fontSize = 8.sp,
-                            color = Color.Black,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier
-                                .align(Alignment.TopCenter)
-                                .padding(horizontal = 3.dp, vertical = 1.dp)
-                        )
-                        Text(
                             text = "${cost}灵石",
                             fontSize = 7.sp,
+                            lineHeight = 7.sp,
                             color = Color.Black,
+                            maxLines = 1,
+                            textAlign = TextAlign.Center,
                             modifier = Modifier
-                                .align(Alignment.BottomCenter)
-                                .padding(horizontal = 3.dp, vertical = 1.dp)
+                                .fillMaxWidth()
+                                .background(Color.White.copy(alpha = 0.7f))
                         )
                     }
                 }
