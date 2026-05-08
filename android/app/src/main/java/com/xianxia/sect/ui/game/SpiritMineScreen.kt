@@ -111,40 +111,15 @@ fun SpiritMineDialog(
 
     CommonDialog(
         title = "灵矿场",
+        totalOutput = totalOutput,
+        deaconBonus = deaconBonus,
+        miningBonus = avgMiningBonus,
         onDismiss = onDismiss
     ) {
         Column(
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // 产出统计行
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "月产: $totalOutput",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF4CAF50)
-                )
-                if (miningBonus > 0) {
-                    Text(
-                        text = "采矿: +${(miningBonus * 100).toInt()}%",
-                        fontSize = 10.sp,
-                        color = Color(0xFFFF9800)
-                    )
-                }
-                if (deaconBonus > 0) {
-                    Text(
-                        text = "执事: +${(deaconBonus * 100).toInt()}%",
-                        fontSize = 10.sp,
-                        color = Color(0xFF2196F3)
-                    )
-                }
-            }
-
             SpiritMineDeaconSection(
                 deaconSlots = deaconDisciples,
                 disciples = disciples,
@@ -658,6 +633,7 @@ private fun SpiritMineDeaconSelectionDialog(
         Box(
             modifier = Modifier
                 .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
+                .fillMaxHeight(DialogDefaults.HalfScreenHeightFraction)
                 .clip(RoundedCornerShape(DialogDefaults.CornerRadius))
         ) {
             Image(
@@ -774,6 +750,9 @@ private fun SpiritMineDeaconSelectionDialog(
 @Composable
 private fun CommonDialog(
     title: String,
+    totalOutput: Long = 0L,
+    deaconBonus: Double = 0.0,
+    miningBonus: Double = 0.0,
     onDismiss: () -> Unit,
     content: @Composable ColumnScope.() -> Unit
 ) {
@@ -781,6 +760,7 @@ private fun CommonDialog(
         Box(
             modifier = Modifier
                 .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
+                .fillMaxHeight(DialogDefaults.HalfScreenHeightFraction)
                 .clip(RoundedCornerShape(DialogDefaults.CornerRadius))
         ) {
             Image(
@@ -797,12 +777,38 @@ private fun CommonDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = title,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = title,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Black
+                        )
+                        Column {
+                            Text(
+                                text = "总产量: $totalOutput/月",
+                                fontSize = 10.sp,
+                                color = Color(0xFF4CAF50)
+                            )
+                            if (miningBonus > 0) {
+                                Text(
+                                    text = "采矿加成: +${(miningBonus * 100).toInt()}%",
+                                    fontSize = 9.sp,
+                                    color = Color(0xFFFF9800)
+                                )
+                            }
+                            if (deaconBonus > 0) {
+                                Text(
+                                    text = "执事加成: +${(deaconBonus * 100).toInt()}%",
+                                    fontSize = 9.sp,
+                                    color = Color(0xFF2196F3)
+                                )
+                            }
+                        }
+                    }
                     CloseButton(onClick = onDismiss)
                 }
                 Column(
