@@ -9,6 +9,15 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.0.03",
+            date = "2026-05-08",
+            changes = listOf(
+                "灵矿场界面改为单矿场视图：点击某座灵矿场只显示该矿场的3个槽位",
+                "一键任命仅填充当前查看矿场的槽位，不影响其他矿场",
+                "修复灵矿场对话框宽度，与其他半屏弹窗保持一致"
+            )
+        ),
+        ChangelogEntry(
             version = "3.0.02",
             date = "2026-05-08",
             changes = listOf(

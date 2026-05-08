@@ -309,17 +309,17 @@ fun MainGameScreen(
     // 建筑列表及点击回调
     val buildingList = remember {
         listOf(
-            "灵矿场" to { viewModel.openSpiritMineDialog() },
-            "灵植阁" to { viewModel.openHerbGardenDialog() },
-            "炼丹炉" to { viewModel.openAlchemyDialog() },
-            "锻造坊" to { viewModel.openForgeDialog() },
-            "藏经阁" to { viewModel.openLibraryDialog() },
-            "问道塔" to { viewModel.openWenDaoPeakDialog() },
-            "青云塔" to { viewModel.openQingyunPeakDialog() },
-            "天枢殿" to { viewModel.openTianshuHallDialog() },
-            "执法堂" to { viewModel.openLawEnforcementHallDialog() },
-            "任务阁" to { viewModel.openMissionHallDialog() },
-            "监牢" to { viewModel.openReflectionCliffDialog() }
+            "灵矿场" to { _: GridBuildingData? -> viewModel.openSpiritMineDialog() },
+            "灵植阁" to { _: GridBuildingData? -> viewModel.openHerbGardenDialog() },
+            "炼丹炉" to { _: GridBuildingData? -> viewModel.openAlchemyDialog() },
+            "锻造坊" to { _: GridBuildingData? -> viewModel.openForgeDialog() },
+            "藏经阁" to { _: GridBuildingData? -> viewModel.openLibraryDialog() },
+            "问道塔" to { _: GridBuildingData? -> viewModel.openWenDaoPeakDialog() },
+            "青云塔" to { _: GridBuildingData? -> viewModel.openQingyunPeakDialog() },
+            "天枢殿" to { _: GridBuildingData? -> viewModel.openTianshuHallDialog() },
+            "执法堂" to { _: GridBuildingData? -> viewModel.openLawEnforcementHallDialog() },
+            "任务阁" to { _: GridBuildingData? -> viewModel.openMissionHallDialog() },
+            "监牢" to { _: GridBuildingData? -> viewModel.openReflectionCliffDialog() }
         )
     }
 
@@ -449,6 +449,7 @@ fun MainGameScreen(
             previewSize = placingBuildingSize,
             previewValid = placementValidity,
             buildingList = buildingList,
+            onSpiritMineClick = { mineIndex -> viewModel.openSpiritMineDialog(mineIndex) },
             onPlacementDrag = { dx, dy ->
                 placingWorldX += dx * 0.3f
                 placingWorldY += dy * 0.3f
@@ -839,7 +840,9 @@ fun MainGameScreen(
         }
 
         if (showSpiritMineDialog) {
+            val mineIndex = (currentDialog?.params?.get("mineIndex") as? Int) ?: 0
             SpiritMineDialog(
+                mineIndex = mineIndex,
                 viewModel = viewModel,
                 productionViewModel = productionViewModel,
                 spiritMineViewModel = spiritMineViewModel,
@@ -1096,7 +1099,8 @@ private fun SectMapLayer(
     previewGridY: Int,
     previewSize: GridSnapHelper.BuildingSize,
     previewValid: GridSnapHelper.PlacementValidity,
-    buildingList: List<Pair<String, () -> Unit>>,
+    buildingList: List<Pair<String, (GridBuildingData?) -> Unit>>,
+    onSpiritMineClick: (Int) -> Unit = {},
     onPlacementDrag: (Float, Float) -> Unit,
     onPlacementConfirm: () -> Unit,
     onPlacementCancel: () -> Unit
@@ -1122,8 +1126,15 @@ private fun SectMapLayer(
         previewValid = previewValid,
         textMeasurer = textMeasurer,
         onBuildingClick = { building ->
-            val b = buildingList.find { it.first == building.displayName }
-            b?.second?.invoke()
+            if (building.displayName == "灵矿场") {
+                val mineIndex = placedBuildings
+                    .filter { it.displayName == "灵矿场" }
+                    .indexOfFirst { it.gridX == building.gridX && it.gridY == building.gridY }
+                onSpiritMineClick(mineIndex.coerceAtLeast(0))
+            } else {
+                val b = buildingList.find { it.first == building.displayName }
+                b?.second?.invoke(building)
+            }
         },
         onPlacementDrag = onPlacementDrag,
         modifier = Modifier.fillMaxSize()
@@ -1351,7 +1362,7 @@ private fun rememberBuildingBitmaps(): Map<String, androidx.compose.ui.graphics.
 
 @Composable
 private fun BuildingConstructionBar(
-    buildingList: List<Pair<String, () -> Unit>>,
+    buildingList: List<Pair<String, (GridBuildingData?) -> Unit>>,
     placedBuildings: List<GridBuildingData>,
     buildingCosts: Map<String, Long>,
     spiritStones: Long,

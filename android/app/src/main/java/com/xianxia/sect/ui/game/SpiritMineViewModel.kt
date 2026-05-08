@@ -121,10 +121,10 @@ class SpiritMineViewModel @Inject constructor(
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 
-    fun assignDisciplesToSpiritMineSlots(selectedDisciples: List<DiscipleAggregate>) {
+    fun assignDisciplesToSpiritMineSlots(selectedDisciples: List<DiscipleAggregate>, mineIndex: Int = 0) {
         viewModelScope.launch {
             try {
-                assignDisciplesToEmptyMineSlotsInternal(selectedDisciples)
+                assignDisciplesToEmptyMineSlotsInternal(selectedDisciples, mineIndex)
             } catch (e: Exception) {
                 showError(e.message ?: "分配失败")
             }
@@ -156,40 +156,48 @@ class SpiritMineViewModel @Inject constructor(
     }
 
 
-    fun autoAssignSpiritMineMiners() {
+    fun autoAssignSpiritMineMiners(mineIndex: Int = 0) {
         viewModelScope.launch {
             try {
                 val availableDisciples = getAvailableDisciplesForSpiritMining()
                 if (availableDisciples.isEmpty()) return@launch
-                assignDisciplesToEmptyMineSlotsInternal(availableDisciples)
+                assignDisciplesToEmptyMineSlotsInternal(availableDisciples, mineIndex)
             } catch (e: Exception) {
                 showError(e.message ?: "一键任命失败")
             }
         }
     }
 
-    private suspend fun assignDisciplesToEmptyMineSlotsInternal(disciples: List<DiscipleAggregate>) {
+    private suspend fun assignDisciplesToEmptyMineSlotsInternal(disciples: List<DiscipleAggregate>, mineIndex: Int = 0) {
         val currentGameData = gameEngine.gameDataSnapshot
-        var currentSlots = currentGameData.spiritMineSlots.toMutableList()
-        val mineCount = currentGameData.placedBuildings.count { it.displayName == "灵矿场" }
-        val totalSlots = mineCount * 3
-        if (currentSlots.size > totalSlots) {
-            currentSlots = currentSlots.take(totalSlots).toMutableList()
+        val allSlots = currentGameData.spiritMineSlots.toMutableList()
+        val mineStartIndex = mineIndex * 3
+        val mineEndIndex = mineStartIndex + 3
+
+        // Ensure slot list is long enough
+        while (allSlots.size < mineEndIndex) {
+            allSlots.add(SpiritMineSlot(index = allSlots.size))
         }
-        while (currentSlots.size < totalSlots) {
-            currentSlots.add(SpiritMineSlot(index = currentSlots.size))
+
+        val emptyCount = (mineStartIndex until mineEndIndex).count { allSlots[it].discipleId.isEmpty() }
+        val disciplesToAssign = disciples.take(emptyCount)
+
+        var assigned = 0
+        for (offset in 0 until 3) {
+            if (assigned >= disciplesToAssign.size) break
+            val globalIndex = mineStartIndex + offset
+            if (allSlots[globalIndex].discipleId.isEmpty()) {
+                val disciple = disciplesToAssign[assigned]
+                allSlots[globalIndex] = allSlots[globalIndex].copy(
+                    discipleId = disciple.id,
+                    discipleName = disciple.name
+                )
+                gameEngine.updateDiscipleStatus(disciple.id, DiscipleStatus.MINING)
+                assigned++
+            }
         }
-        val disciplesToAssign = disciples.take(currentSlots.count { it.discipleId.isEmpty() })
-        for (disciple in disciplesToAssign) {
-            val targetSlotIndex = currentSlots.indexOfFirst { it.discipleId.isEmpty() }
-            if (targetSlotIndex == -1) break
-            currentSlots[targetSlotIndex] = currentSlots[targetSlotIndex].copy(
-                discipleId = disciple.id,
-                discipleName = disciple.name
-            )
-            gameEngine.updateDiscipleStatus(disciple.id, DiscipleStatus.MINING)
-        }
-        gameEngine.updateSpiritMineSlots(currentSlots)
+
+        gameEngine.updateSpiritMineSlots(allSlots)
     }
 
     private fun ElderSlots.getAllElderIds(): List<String> {

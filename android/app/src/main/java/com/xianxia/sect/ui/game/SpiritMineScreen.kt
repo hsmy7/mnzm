@@ -46,6 +46,7 @@ import com.xianxia.sect.ui.game.SpiritMineViewModel
 
 @Composable
 fun SpiritMineDialog(
+    mineIndex: Int = 0,
     viewModel: GameViewModel,
     productionViewModel: ProductionViewModel,
     spiritMineViewModel: SpiritMineViewModel,
@@ -62,10 +63,10 @@ fun SpiritMineDialog(
     }
 
     val mineCount = gameData?.placedBuildings?.count { it.displayName == "灵矿场" } ?: 0
-    val totalSlots = mineCount * 3
+    val mineStartIndex = mineIndex * 3
 
     val mineSlots = gameData?.spiritMineSlots ?: emptyList()
-    val slots = (0 until totalSlots).map { index ->
+    val slots = (mineStartIndex until mineStartIndex + 3).map { index ->
         mineSlots.getOrNull(index) ?: SpiritMineSlot(index = index)
     }
 
@@ -142,7 +143,7 @@ fun SpiritMineDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "矿场: $mineCount/${GameConfig.Production.MAX_SPIRIT_MINE_COUNT} | 矿工 ($emptySlotCount/$totalSlots 空闲)",
+                        text = "灵矿场 ${mineIndex + 1}/$mineCount | 矿工 ($emptySlotCount/3 空闲)",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.Black
@@ -151,7 +152,7 @@ fun SpiritMineDialog(
                 }
                 GameButton(
                     text = "一键任命",
-                    onClick = { spiritMineViewModel.autoAssignSpiritMineMiners() },
+                    onClick = { spiritMineViewModel.autoAssignSpiritMineMiners(mineIndex) },
                     enabled = emptySlotCount > 0,
                     backgroundColor = Color(0xFF4CAF50)
                 )
@@ -164,31 +165,18 @@ fun SpiritMineDialog(
                     color = Color.Black
                 )
             } else {
-                for (mineIndex in 0 until mineCount) {
-                    Text(
-                        text = "灵矿场 ${mineIndex + 1}",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF5D4037),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    val mineSlotsRow = slots.drop(mineIndex * 3).take(3)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
-                    ) {
-                        mineSlotsRow.forEach { slot ->
-                            val disciple = slot.discipleId.let { id -> disciples.find { d -> d.id == id } }
-                            SpiritMineSlotItem(
-                                slot = slot,
-                                disciple = disciple,
-                                onAssign = { if (emptySlotCount > 0) showDiscipleSelection = true },
-                                onRemove = { spiritMineViewModel.removeDiscipleFromSpiritMineSlot(slot.index) }
-                            )
-                        }
-                    }
-                    if (mineIndex < mineCount - 1) {
-                        Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
+                ) {
+                    slots.forEach { slot ->
+                        val disciple = slot.discipleId.let { id -> disciples.find { d -> d.id == id } }
+                        SpiritMineSlotItem(
+                            slot = slot,
+                            disciple = disciple,
+                            onAssign = { if (emptySlotCount > 0) showDiscipleSelection = true },
+                            onRemove = { spiritMineViewModel.removeDiscipleFromSpiritMineSlot(slot.index) }
+                        )
                     }
                 }
             }
@@ -208,7 +196,7 @@ fun SpiritMineDialog(
             confirmText = "确认采矿",
             onConfirm = {
                 val selected = availableDisciples.filter { it.id in miningSelectedIds }.take(emptySlotCount)
-                spiritMineViewModel.assignDisciplesToSpiritMineSlots(selected)
+                spiritMineViewModel.assignDisciplesToSpiritMineSlots(selected, mineIndex)
                 showDiscipleSelection = false
             },
             onDismiss = { showDiscipleSelection = false }
@@ -379,7 +367,7 @@ private fun SpiritMineSlotItem(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = "灵矿槽 ${slot.index + 1}",
+            text = "矿槽 ${(slot.index % 3) + 1}",
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
             color = Color.Black
@@ -656,8 +644,8 @@ private fun SpiritMineDeaconSelectionDialog(
     Dialog(onDismissRequest = onDismiss) {
         Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
+                .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
+                .clip(RoundedCornerShape(DialogDefaults.CornerRadius))
         ) {
             Image(
                 painter = painterResource(id = R.drawable.bg_screen),
@@ -782,8 +770,8 @@ private fun CommonDialog(
     Dialog(onDismissRequest = onDismiss) {
         Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
+                .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
+                .clip(RoundedCornerShape(DialogDefaults.CornerRadius))
         ) {
             Image(
                 painter = painterResource(id = R.drawable.bg_screen),
@@ -837,7 +825,7 @@ private fun CommonDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f, fill = false)
-                        .heightIn(max = 450.dp)
+                        .heightIn(max = DialogDefaults.CommonMaxHeight)
                         .verticalScroll(rememberScrollState())
                         .padding(horizontal = 16.dp)
                 ) {

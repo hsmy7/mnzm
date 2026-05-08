@@ -70,8 +70,8 @@ class GameViewModel @Inject constructor(
         openDialog(DialogType.Diplomacy)
     }
 
-    fun openSpiritMineDialog() {
-        openDialog(DialogType.SpiritMine)
+    fun openSpiritMineDialog(mineIndex: Int = 0) {
+        openDialog(DialogType.SpiritMine, params = mapOf("mineIndex" to mineIndex))
     }
 
     fun openHerbGardenDialog() {
