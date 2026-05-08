@@ -633,7 +633,6 @@ private fun SpiritMineDeaconSelectionDialog(
         Box(
             modifier = Modifier
                 .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
-                .fillMaxHeight(DialogDefaults.HalfScreenHeightFraction)
                 .clip(RoundedCornerShape(DialogDefaults.CornerRadius))
         ) {
             Image(
@@ -760,7 +759,6 @@ private fun CommonDialog(
         Box(
             modifier = Modifier
                 .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
-                .fillMaxHeight(DialogDefaults.HalfScreenHeightFraction)
                 .clip(RoundedCornerShape(DialogDefaults.CornerRadius))
         ) {
             Image(
