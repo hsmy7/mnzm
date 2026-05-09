@@ -910,8 +910,8 @@ class GameConfigTest {
     // ============================================================
 
     @Test
-    fun `初始资源灵石应为1000`() {
-        assertEquals(1000, GameConfig.Starting.RESOURCES.spiritStones)
+    fun `初始资源灵石应为2000`() {
+        assertEquals(2000, GameConfig.Starting.RESOURCES.spiritStones)
     }
 
     @Test
