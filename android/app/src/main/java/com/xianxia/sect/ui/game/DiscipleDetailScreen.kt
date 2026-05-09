@@ -33,6 +33,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.engine.DiscipleStatCalculator
 import com.xianxia.sect.core.engine.ManualProficiencySystem
@@ -45,6 +46,7 @@ import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.components.DiscipleAttrText
 import com.xianxia.sect.ui.components.EmptyListMessage
 import com.xianxia.sect.ui.components.CloseButton
+import com.xianxia.sect.ui.components.DialogDefaults
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.ItemCardData
 import com.xianxia.sect.ui.components.TalentDetailDialog
@@ -185,194 +187,162 @@ fun DiscipleDetailDialog(
     val hasPrev = currentIndex > 0
     val hasNext = currentIndex >= 0 && currentIndex < allDisciples.size - 1
 
-    Dialog(onDismissRequest = onDismiss) {
+    var selectedTab by remember { mutableIntStateOf(0) }
+    val tabs = listOf("信息", "属性", "装备", "功法")
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
         key(disciple.id) {
-        Box(
-            modifier = Modifier.fillMaxWidth(),
-            contentAlignment = Alignment.Center
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = GameColors.PageBackground
         ) {
-            Surface(
-                shape = RoundedCornerShape(28.dp),
-                color = GameColors.PageBackground,
-                tonalElevation = 6.dp
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(24.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+            Box(modifier = Modifier.fillMaxSize()) {
+                Image(
+                    painter = painterResource(id = R.drawable.bg_horizontal),
+                    contentDescription = null,
+                    modifier = Modifier.matchParentSize(),
+                    contentScale = ContentScale.Crop
+                )
+                Row(modifier = Modifier.fillMaxSize()) {
+                    // Left 40%: Portrait + basic info + action buttons
+                    Column(
+                        modifier = Modifier.fillMaxHeight().fillMaxWidth(0.4f).padding(12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Text(
-                                text = disciple.name,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.Black
-                            )
+                        Image(
+                            painter = painterResource(id = R.drawable.disciple_portrait),
+                            contentDescription = null,
+                            modifier = Modifier.weight(0.6f).fillMaxWidth().padding(8.dp),
+                            contentScale = ContentScale.Fit
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(disciple.name, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                        Text(disciple.realmName, fontSize = 14.sp, color = Color.Black)
+                        Text(disciple.spiritRootName, fontSize = 12.sp, color = Color(0xFF00695C))
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(Color(0xFF4CAF50))
-                                    .clickable { showRelationsDialog = true }
-                                    .padding(horizontal = 6.dp, vertical = 2.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "关系",
-                                    fontSize = 10.sp,
-                                    color = Color.White
-                                )
-                            }
+                                modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Color(0xFF4CAF50))
+                                    .clickable { showRelationsDialog = true }.padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) { Text("关系", fontSize = 10.sp, color = Color.White) }
                             Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(Color(0xFF2196F3))
-                                    .clickable { showStorageBagDialog = true }
-                                    .padding(horizontal = 6.dp, vertical = 2.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "储物袋",
-                                    fontSize = 10.sp,
-                                    color = Color.White
-                                )
-                            }
+                                modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Color(0xFF2196F3))
+                                    .clickable { showStorageBagDialog = true }.padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) { Text("储物袋", fontSize = 10.sp, color = Color.White) }
                             Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(4.dp))
+                                modifier = Modifier.clip(RoundedCornerShape(4.dp))
                                     .background(if (disciple.isFollowed) Color(0xFFFFD700) else Color.Black)
                                     .clickable { viewModel?.toggleFollowDisciple(disciple.id) }
-                                    .padding(horizontal = 6.dp, vertical = 2.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = if (disciple.isFollowed) "已关注" else "关注",
-                                    fontSize = 10.sp,
-                                    color = Color.White
-                                )
-                            }
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) { Text(if (disciple.isFollowed) "已关注" else "关注", fontSize = 10.sp, color = Color.White) }
                             Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(Color(0xFFE74C3C))
-                                    .clickable { showExpelConfirmDialog = true }
-                                    .padding(horizontal = 6.dp, vertical = 2.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "驱逐",
-                                    fontSize = 10.sp,
-                                    color = Color.White
+                                modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Color(0xFFE74C3C))
+                                    .clickable { showExpelConfirmDialog = true }.padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) { Text("驱逐", fontSize = 10.sp, color = Color.White) }
+                        }
+                        Spacer(modifier = Modifier.weight(1f))
+                        CloseButton(onClick = onDismiss)
+                    }
+                    // Vertical divider
+                    Box(modifier = Modifier.fillMaxHeight().width(1.dp).background(Color(0xFFBDBDBD)))
+                    // Right 60%: Content + tab buttons
+                    Row(modifier = Modifier.fillMaxHeight().weight(1f)) {
+                        Column(
+                            modifier = Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()).padding(12.dp)
+                        ) {
+                            when (selectedTab) {
+                                0 -> {
+                                    BasicInfoSection(
+                                        disciple = disciple,
+                                        allEquipment = allEquipment,
+                                        allManuals = allManuals,
+                                        manualProficiencies = manualProficiencies,
+                                        position = viewModel?.getDisciplePosition(disciple.id),
+                                        isWorkStatusPosition = viewModel?.isPositionWorkStatus(disciple.id) ?: false,
+                                        elderSlots = gameData?.elderSlots,
+                                        allDisciples = allDisciples,
+                                        sectPolicies = gameData?.sectPolicies
+                                    )
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    TalentsSection(talents, disciple.statusData)
+                                }
+                                1 -> {
+                                    AttributesSection(disciple)
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    CombatStatsSection(
+                                        disciple = disciple,
+                                        weapon = weapon,
+                                        armor = armor,
+                                        boots = boots,
+                                        accessory = accessory,
+                                        learnedManuals = learnedManuals,
+                                        manualProficiencies = manualProficiencies
+                                    )
+                                }
+                                2 -> EquipmentSection(
+                                    weapon = weapon,
+                                    armor = armor,
+                                    boots = boots,
+                                    accessory = accessory,
+                                    autoEquipFromWarehouse = disciple.autoEquipFromWarehouse,
+                                    onAutoEquipToggle = { viewModel?.toggleAutoEquipFromWarehouse(disciple.id, it) },
+                                    onSlotClick = { slotType -> showEquipmentSelection = slotType },
+                                    onEquipmentClick = { equipment -> showEquipmentDetailDialog = equipment }
+                                )
+                                3 -> ManualsSection(
+                                    manuals = learnedManuals,
+                                    maxSlots = maxManualSlots,
+                                    manualProficiencies = manualProficiencies,
+                                    discipleId = disciple.id,
+                                    autoLearnFromWarehouse = disciple.autoLearnFromWarehouse,
+                                    onAutoLearnToggle = { viewModel?.toggleAutoLearnFromWarehouse(disciple.id, it) },
+                                    onSlotClick = { showManualSelection = true },
+                                    onManualClick = { manual -> showManualDetailDialog = manual }
                                 )
                             }
                         }
-                        CloseButton(onClick = onDismiss)
-                    }
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 500.dp)
-                            .verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        BasicInfoSection(
-                            disciple = disciple,
-                            allEquipment = allEquipment,
-                            allManuals = allManuals,
-                            manualProficiencies = manualProficiencies,
-                            position = viewModel?.getDisciplePosition(disciple.id),
-                            isWorkStatusPosition = viewModel?.isPositionWorkStatus(disciple.id) ?: false,
-                            elderSlots = gameData?.elderSlots,
-                            allDisciples = allDisciples,
-                            sectPolicies = gameData?.sectPolicies
-                        )
-                        HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
-                        TalentsSection(talents, disciple.statusData)
-                        HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
-                        AttributesSection(disciple)
-                        HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
-                        CombatStatsSection(
-                            disciple = disciple,
-                            weapon = weapon,
-                            armor = armor,
-                            boots = boots,
-                            accessory = accessory,
-                            learnedManuals = learnedManuals,
-                            manualProficiencies = manualProficiencies
-                        )
-                        HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
-                        EquipmentSection(
-                            weapon = weapon,
-                            armor = armor,
-                            boots = boots,
-                            accessory = accessory,
-                            autoEquipFromWarehouse = disciple.autoEquipFromWarehouse,
-                            onAutoEquipToggle = { viewModel?.toggleAutoEquipFromWarehouse(disciple.id, it) },
-                            onSlotClick = { slotType -> showEquipmentSelection = slotType },
-                            onEquipmentClick = { equipment -> showEquipmentDetailDialog = equipment }
-                        )
-                        HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
-                        ManualsSection(
-                            manuals = learnedManuals,
-                            maxSlots = maxManualSlots,
-                            manualProficiencies = manualProficiencies,
-                            discipleId = disciple.id,
-                            autoLearnFromWarehouse = disciple.autoLearnFromWarehouse,
-                            onAutoLearnToggle = { viewModel?.toggleAutoLearnFromWarehouse(disciple.id, it) },
-                            onSlotClick = { showManualSelection = true },
-                            onManualClick = { manual ->
-                                showManualDetailDialog = manual
+                        // Tab buttons on right edge
+                        Column(
+                            modifier = Modifier.fillMaxHeight().width(44.dp).background(Color(0xFFE0E0E0)),
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            tabs.forEachIndexed { index, label ->
+                                Box(
+                                    modifier = Modifier.fillMaxWidth().weight(1f)
+                                        .background(if (selectedTab == index) Color(0xFFBDBDBD) else Color.Transparent)
+                                        .clickable { selectedTab = index },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        label, fontSize = 11.sp, color = Color.Black,
+                                        fontWeight = if (selectedTab == index) FontWeight.Bold else FontWeight.Normal
+                                    )
+                                }
                             }
-                        )
+                        }
                     }
                 }
-            }
-
-            if (hasPrev && onNavigateToDisciple != null) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.CenterStart)
-                        .padding(start = 4.dp)
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .background(Color(0x99000000))
-                        .clickable { onNavigateToDisciple(allDisciples[currentIndex - 1]) },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "‹",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
+                // prev/next navigation arrows
+                if (hasPrev && onNavigateToDisciple != null) {
+                    Box(
+                        modifier = Modifier.align(Alignment.CenterStart).padding(start = 4.dp).size(32.dp)
+                            .clip(CircleShape).background(Color(0x99000000))
+                            .clickable { onNavigateToDisciple(allDisciples[currentIndex - 1]) },
+                        contentAlignment = Alignment.Center
+                    ) { Text("‹", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White) }
                 }
-            }
-
-            if (hasNext && onNavigateToDisciple != null) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.CenterEnd)
-                        .padding(end = 4.dp)
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .background(Color(0x99000000))
-                        .clickable { onNavigateToDisciple(allDisciples[currentIndex + 1]) },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "›",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
+                if (hasNext && onNavigateToDisciple != null) {
+                    Box(
+                        modifier = Modifier.align(Alignment.CenterEnd).padding(end = 4.dp).size(32.dp)
+                            .clip(CircleShape).background(Color(0x99000000))
+                            .clickable { onNavigateToDisciple(allDisciples[currentIndex + 1]) },
+                        contentAlignment = Alignment.Center
+                    ) { Text("›", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White) }
                 }
             }
         }
@@ -402,11 +372,11 @@ fun DiscipleDetailDialog(
         Dialog(onDismissRequest = { showExpelConfirmDialog = false }) {
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
+                    .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
+                    .clip(RoundedCornerShape(DialogDefaults.CornerRadius))
             ) {
                 Image(
-                    painter = painterResource(id = R.drawable.bg_screen),
+                    painter = painterResource(id = R.drawable.bg_horizontal),
                     contentDescription = null,
                     modifier = Modifier.matchParentSize(),
                     contentScale = ContentScale.FillBounds
@@ -692,11 +662,11 @@ private fun RelationsDialog(
     Dialog(onDismissRequest = onDismiss) {
         Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
+                .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
+                .clip(RoundedCornerShape(DialogDefaults.CornerRadius))
         ) {
             Image(
-                painter = painterResource(id = R.drawable.bg_screen),
+                painter = painterResource(id = R.drawable.bg_horizontal),
                 contentDescription = null,
                 modifier = Modifier.matchParentSize(),
                 contentScale = ContentScale.FillBounds
@@ -719,7 +689,7 @@ private fun RelationsDialog(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = 400.dp)
+                        .heightIn(max = DialogDefaults.CommonMaxHeight)
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
@@ -1928,7 +1898,7 @@ private fun StorageBagDialog(
                 .clip(RoundedCornerShape(12.dp))
         ) {
             Image(
-                painter = painterResource(id = R.drawable.bg_screen),
+                painter = painterResource(id = R.drawable.bg_horizontal),
                 contentDescription = null,
                 modifier = Modifier.matchParentSize(),
                 contentScale = ContentScale.FillBounds
@@ -2099,8 +2069,8 @@ private fun RewardItemsDialog(
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             modifier = Modifier
-                .fillMaxWidth()
-                .fillMaxHeight(0.85f),
+                .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
+                .fillMaxHeight(DialogDefaults.HalfScreenHeightFraction),
             shape = RoundedCornerShape(16.dp),
             color = GameColors.PageBackground
         ) {
@@ -2334,10 +2304,7 @@ private fun RewardHeader(
             )
         }
 
-        GameButton(
-            text = "关闭",
-            onClick = onDismiss
-        )
+        CloseButton(onClick = onDismiss)
     }
 }
 

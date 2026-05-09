@@ -5,6 +5,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -33,7 +35,10 @@ import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.WorldMapViewModel
 import com.xianxia.sect.ui.components.DiscipleAttrText
+import com.xianxia.sect.ui.components.CloseButton
+import com.xianxia.sect.ui.components.DialogDefaults
 import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.core.util.sortedByFollowAndRealm
@@ -67,31 +72,19 @@ fun AllianceDialog(
     val hasOtherAlliance = sect?.allianceId?.isNotEmpty() == true && !isAlly
     var showAlreadyAllianceDialog by remember { mutableStateOf(false) }
 
-    Dialog(onDismissRequest = onDismiss) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .wrapContentHeight()
-                .clip(RoundedCornerShape(12.dp))
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.bg_screen),
-                contentDescription = null,
-                modifier = Modifier.matchParentSize(),
-                contentScale = ContentScale.Crop
-            )
-            Column(
-                modifier = Modifier.padding(20.dp)
+    HalfScreenDialog(onDismissRequest = onDismiss) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = sect?.name ?: "宗门",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = GameColors.TextPrimary
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
+                Text("联盟", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                CloseButton(onClick = onDismiss)
+            }
+            Column(
+                modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)
+            ) {
                 if (isAlly) {
                     AllyStatusSection(
                         sect = sect,
@@ -101,23 +94,13 @@ fun AllianceDialog(
 
                     Spacer(modifier = Modifier.height(20.dp))
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        GameButton(
-                            text = "关闭",
-                            onClick = onDismiss,
-                            modifier = Modifier.weight(1f)
-                        )
-                        GameButton(
-                            text = "解除结盟",
-                            onClick = {
-                                worldMapViewModel.dissolveAlliance(sect?.id ?: "")
-                            },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
+                    GameButton(
+                        text = "解除结盟",
+                        onClick = {
+                            worldMapViewModel.dissolveAlliance(sect?.id ?: "")
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 } else {
                     NonAllySection(
                         sect = sect,
@@ -145,11 +128,11 @@ fun AllianceDialog(
         Dialog(onDismissRequest = { showAlreadyAllianceDialog = false }) {
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
+                    .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
+                    .clip(RoundedCornerShape(DialogDefaults.CornerRadius))
             ) {
                 Image(
-                    painter = painterResource(id = R.drawable.bg_screen),
+                    painter = painterResource(id = R.drawable.bg_horizontal),
                     contentDescription = null,
                     modifier = Modifier.matchParentSize(),
                     contentScale = ContentScale.FillBounds
@@ -303,22 +286,12 @@ private fun NonAllySection(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            GameButton(
-                text = "关闭",
-                onClick = onCloseClick,
-                modifier = Modifier.weight(1f)
-            )
-            GameButton(
-                text = "结盟",
-                onClick = onAllianceClick,
-                enabled = meetsFavorRequirement && canAfford,
-                modifier = Modifier.weight(1f)
-            )
-        }
+        GameButton(
+            text = "结盟",
+            onClick = onAllianceClick,
+            enabled = meetsFavorRequirement && canAfford,
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
 
@@ -371,8 +344,8 @@ fun EnvoyDiscipleSelectDialog(
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             modifier = Modifier
-                .fillMaxWidth()
-                .fillMaxHeight(0.7f),
+                .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
+                .fillMaxHeight(DialogDefaults.HalfScreenHeightFraction),
             shape = RoundedCornerShape(16.dp),
             color = Color.Transparent
         ) {
@@ -631,8 +604,8 @@ fun ScoutDiscipleSelectDialog(
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             modifier = Modifier
-                .fillMaxWidth()
-                .fillMaxHeight(0.8f),
+                .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
+                .fillMaxHeight(DialogDefaults.HalfScreenHeightFraction),
             shape = RoundedCornerShape(16.dp),
             color = Color.Transparent
         ) {

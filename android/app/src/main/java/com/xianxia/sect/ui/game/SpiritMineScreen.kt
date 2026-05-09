@@ -34,6 +34,7 @@ import com.xianxia.sect.core.model.SpiritMineSlot
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.DialogDefaults
+import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.ui.components.ElderBonusInfoButton
 import com.xianxia.sect.ui.components.ElderBonusInfoProvider
 import com.xianxia.sect.ui.components.GameButton
@@ -636,7 +637,7 @@ private fun SpiritMineDeaconSelectionDialog(
                 .clip(RoundedCornerShape(DialogDefaults.CornerRadius))
         ) {
             Image(
-                painter = painterResource(id = R.drawable.bg_screen),
+                painter = painterResource(id = R.drawable.bg_horizontal),
                 contentDescription = null,
                 modifier = Modifier.matchParentSize(),
                 contentScale = ContentScale.FillBounds
@@ -755,71 +756,34 @@ private fun CommonDialog(
     onDismiss: () -> Unit,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    Dialog(onDismissRequest = onDismiss) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
-                .clip(RoundedCornerShape(DialogDefaults.CornerRadius))
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.bg_screen),
-                contentDescription = null,
-                modifier = Modifier.matchParentSize(),
-                contentScale = ContentScale.Crop
-            )
-            Column(modifier = Modifier.fillMaxWidth()) {
+    HalfScreenDialog(onDismissRequest = onDismiss) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(
-                            text = title,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.Black
-                        )
-                        Column {
-                            Text(
-                                text = "总产量: $totalOutput/月",
-                                fontSize = 10.sp,
-                                color = Color(0xFF4CAF50)
-                            )
-                            if (miningBonus > 0) {
-                                Text(
-                                    text = "采矿加成: +${(miningBonus * 100).toInt()}%",
-                                    fontSize = 9.sp,
-                                    color = Color(0xFFFF9800)
-                                )
-                            }
-                            if (deaconBonus > 0) {
-                                Text(
-                                    text = "执事加成: +${(deaconBonus * 100).toInt()}%",
-                                    fontSize = 9.sp,
-                                    color = Color(0xFF2196F3)
-                                )
-                            }
+                    Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                    Column {
+                        Text(text = "总产量: $totalOutput/月", fontSize = 10.sp, color = Color(0xFF4CAF50))
+                        if (miningBonus > 0) {
+                            Text(text = "采矿加成: +${(miningBonus * 100).toInt()}%", fontSize = 9.sp, color = Color(0xFFFF9800))
+                        }
+                        if (deaconBonus > 0) {
+                            Text(text = "执事加成: +${(deaconBonus * 100).toInt()}%", fontSize = 9.sp, color = Color(0xFF2196F3))
                         }
                     }
-                    CloseButton(onClick = onDismiss)
                 }
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f, fill = false)
-                        .heightIn(max = DialogDefaults.CommonMaxHeight)
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp)
-                ) {
-                    content()
-                }
-                Spacer(modifier = Modifier.height(16.dp))
+                CloseButton(onClick = onDismiss)
+            }
+            Column(
+                modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)
+            ) {
+                content()
             }
         }
     }

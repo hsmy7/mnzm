@@ -35,6 +35,7 @@ import com.xianxia.sect.ui.components.ElderBonusInfoButton
 import com.xianxia.sect.ui.components.ElderBonusInfoProvider
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.components.CloseButton
+import com.xianxia.sect.ui.components.DialogDefaults
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.ui.theme.ButtonSizes
@@ -193,11 +194,11 @@ fun ProductionCommonDialog(
     Dialog(onDismissRequest = onDismiss) {
         Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
+                .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
+                .clip(RoundedCornerShape(DialogDefaults.CornerRadius))
         ) {
             Image(
-                painter = painterResource(id = R.drawable.bg_screen),
+                painter = painterResource(id = R.drawable.bg_horizontal),
                 contentDescription = null,
                 modifier = Modifier.matchParentSize(),
                 contentScale = ContentScale.Crop
@@ -221,23 +222,14 @@ fun ProductionCommonDialog(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         titleActions()
-                        Box(
-                            modifier = Modifier
-                                .size(24.dp)
-                                .clip(CircleShape)
-                                .clickable { onDismiss() }
-                                .background(GameColors.CardBackground),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(text = "关闭", fontSize = 12.sp, color = Color.Black)
-                        }
+                        CloseButton(onClick = onDismiss)
                     }
                 }
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f, fill = false)
-                        .heightIn(max = 400.dp)
+                        .heightIn(max = DialogDefaults.CommonMaxHeight)
                         .then(if (enableScroll) Modifier.verticalScroll(rememberScrollState()) else Modifier)
                         .padding(horizontal = 16.dp)
                 ) {
@@ -480,11 +472,11 @@ fun ProductionElderSelectionDialog(
     Dialog(onDismissRequest = onDismiss) {
         Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
+                .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
+                .clip(RoundedCornerShape(DialogDefaults.CornerRadius))
         ) {
             Image(
-                painter = painterResource(id = R.drawable.bg_screen),
+                painter = painterResource(id = R.drawable.bg_horizontal),
                 contentDescription = null,
                 modifier = Modifier.matchParentSize(),
                 contentScale = ContentScale.FillBounds
@@ -601,11 +593,11 @@ fun ProductionDirectDiscipleSelectionDialog(
     Dialog(onDismissRequest = onDismiss) {
         Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
+                .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
+                .clip(RoundedCornerShape(DialogDefaults.CornerRadius))
         ) {
             Image(
-                painter = painterResource(id = R.drawable.bg_screen),
+                painter = painterResource(id = R.drawable.bg_horizontal),
                 contentDescription = null,
                 modifier = Modifier.matchParentSize(),
                 contentScale = ContentScale.FillBounds
@@ -732,11 +724,11 @@ fun ProductionReserveDiscipleDialog(
     Dialog(onDismissRequest = onDismiss) {
         Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
+                .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
+                .clip(RoundedCornerShape(DialogDefaults.CornerRadius))
         ) {
             Image(
-                painter = painterResource(id = R.drawable.bg_screen),
+                painter = painterResource(id = R.drawable.bg_horizontal),
                 contentDescription = null,
                 modifier = Modifier.matchParentSize(),
                 contentScale = ContentScale.FillBounds
@@ -826,11 +818,11 @@ fun ProductionAddReserveDiscipleDialog(
     Dialog(onDismissRequest = onDismiss) {
         Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
+                .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
+                .clip(RoundedCornerShape(DialogDefaults.CornerRadius))
         ) {
             Image(
-                painter = painterResource(id = R.drawable.bg_screen),
+                painter = painterResource(id = R.drawable.bg_horizontal),
                 contentDescription = null,
                 modifier = Modifier.matchParentSize(),
                 contentScale = ContentScale.FillBounds
@@ -940,11 +932,11 @@ fun FilteredMultiSelectDialog(
     Dialog(onDismissRequest = onDismiss) {
         Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
+                .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
+                .clip(RoundedCornerShape(DialogDefaults.CornerRadius))
         ) {
             Image(
-                painter = painterResource(id = R.drawable.bg_screen),
+                painter = painterResource(id = R.drawable.bg_horizontal),
                 contentDescription = null,
                 modifier = Modifier.matchParentSize(),
                 contentScale = ContentScale.FillBounds
@@ -982,7 +974,7 @@ fun FilteredMultiSelectDialog(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = 500.dp)
+                        .heightIn(max = DialogDefaults.CommonMaxHeight)
                 ) {
                     if (headerContent != null) {
                         headerContent()

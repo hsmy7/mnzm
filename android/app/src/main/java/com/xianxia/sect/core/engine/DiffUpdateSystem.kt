@@ -12,7 +12,6 @@ import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.model.ExplorationTeam
 import com.xianxia.sect.core.model.BuildingSlot
 import com.xianxia.sect.core.model.GameData
-import com.xianxia.sect.core.model.GameEvent
 import com.xianxia.sect.core.model.BattleLog
 
 data class DiffResult<T>(

@@ -30,8 +30,7 @@ class SaveDataConverterTest {
             materials = emptyList(),
             herbs = emptyList(),
             seeds = emptyList(),
-            teams = emptyList(),
-            events = emptyList()
+            teams = emptyList()
         )
     }
 
@@ -195,15 +194,6 @@ class SaveDataConverterTest {
             progress = 0
         )
 
-        val event = GameEvent(
-            id = "event_1",
-            type = EventType.SUCCESS,
-            message = "张三突破成功",
-            timestamp = System.currentTimeMillis(),
-            year = 5,
-            month = 3
-        )
-
         val battleLog = BattleLog(
             id = "battle_1",
             timestamp = System.currentTimeMillis(),
@@ -252,7 +242,6 @@ class SaveDataConverterTest {
                 cultivatorCaves = emptyList(),
                 caveExplorationTeams = emptyList(),
                 aiCaveTeams = emptyList(),
-                unlockedDungeons = listOf("dungeon_1"),
                 unlockedRecipes = listOf("recipe_1"),
                 unlockedManuals = listOf("manual_1"),
                 lastSaveTime = System.currentTimeMillis(),
@@ -274,7 +263,6 @@ class SaveDataConverterTest {
             herbs = listOf(herb),
             seeds = listOf(seed),
             teams = listOf(team),
-            events = listOf(event),
             battleLogs = listOf(battleLog),
             alliances = listOf(alliance)
         )
@@ -302,7 +290,6 @@ class SaveDataConverterTest {
         assertTrue(serializable.herbs.isEmpty())
         assertTrue(serializable.seeds.isEmpty())
         assertTrue(serializable.teams.isEmpty())
-        assertTrue(serializable.events.isEmpty())
         assertTrue(serializable.battleLogs.isEmpty())
         assertTrue(serializable.alliances.isEmpty())
     }
@@ -320,7 +307,6 @@ class SaveDataConverterTest {
         assertEquals(1, serializable.herbs.size)
         assertEquals(1, serializable.seeds.size)
         assertEquals(1, serializable.teams.size)
-        assertEquals(1, serializable.events.size)
         assertEquals(1, serializable.battleLogs.size)
         assertEquals(1, serializable.alliances.size)
     }
@@ -413,7 +399,6 @@ class SaveDataConverterTest {
         assertTrue(restored.herbs.isEmpty())
         assertTrue(restored.seeds.isEmpty())
         assertTrue(restored.teams.isEmpty())
-        assertTrue(restored.events.isEmpty())
     }
 
     @Test
@@ -430,7 +415,6 @@ class SaveDataConverterTest {
         assertEquals(original.herbs.size, restored.herbs.size)
         assertEquals(original.seeds.size, restored.seeds.size)
         assertEquals(original.teams.size, restored.teams.size)
-        assertEquals(original.events.size, restored.events.size)
         assertEquals(original.battleLogs.size, restored.battleLogs.size)
         assertEquals(original.alliances.size, restored.alliances.size)
     }
@@ -581,8 +565,7 @@ class SaveDataConverterTest {
             materials = emptyList(),
             herbs = emptyList(),
             seeds = emptyList(),
-            teams = emptyList(),
-            events = emptyList()
+            teams = emptyList()
         )
         val serializable = converter.toSerializable(saveData)
 

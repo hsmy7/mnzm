@@ -18,7 +18,7 @@ fun GameBackground(
 ) {
     Box(modifier = modifier.fillMaxSize(), contentAlignment = contentAlignment) {
         Image(
-            painter = painterResource(id = R.drawable.bg_screen),
+            painter = painterResource(id = R.drawable.bg_horizontal),
             contentDescription = null,
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.Crop

@@ -1,0 +1,62 @@
+<h2>三种重构方案</h2>
+<p class="subtitle">目标：统一间距/尺寸 + 简化布局结构</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>方案A：设计系统 + 组件基础设施</h3>
+      <p>先建立统一的设计 Token（间距、尺寸、字体层级），再提取共享组件（统一对话框、统一插槽、统一筛选器），最后逐界面迁移。改动最大但最彻底。</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>优点</h4><ul>
+          <li>一套设计 Token 控制所有尺寸和间距，以后调整只需改一处</li>
+          <li>消除 10+ 处筛选器和境界筛选的重复代码</li>
+          <li>所有对话框使用统一的包装器，外观一致</li>
+          <li>未来新增界面也自动符合规范</li>
+        </ul></div>
+        <div class="cons"><h4>缺点</h4><ul>
+          <li>涉及 30+ 个文件的大范围修改</li>
+          <li>需要仔细测试每个对话框不出现布局异常</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>方案B：轻量统一（最小化抽象）</h3>
+      <p>只统一不一致的间距/尺寸值，不新建组件抽象。将到处分散的 8-20dp 间距、48-70dp 插槽统一为固定常量。保持现有架构。</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>优点</h4><ul>
+          <li>改动量小，风险低</li>
+          <li>不需要重构组件结构</li>
+        </ul></div>
+        <div class="cons"><h4>缺点</h4><ul>
+          <li>重复代码仍然存在</li>
+          <li>后续新增界面容易再次偏离规范</li>
+          <li>没有从根本上解决布局结构不一致的问题</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>方案C：分阶段重构</h3>
+      <p>第一阶段：建立设计系统（Token + 字体层级）。第二阶段：提取共享组件。第三阶段：逐界面迁移。每阶段可独立验证。</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>优点</h4><ul>
+          <li>每阶段有明确的验证标准</li>
+          <li>出问题容易定位到具体阶段</li>
+          <li>可以在中途根据效果调整方向</li>
+        </ul></div>
+        <div class="cons"><h4>缺点</h4><ul>
+          <li>总周期较长</li>
+          <li>中间状态可能有些界面已迁移、有些未迁移</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</div>

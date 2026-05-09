@@ -54,6 +54,7 @@ import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.ui.components.HorizontalDiscipleCard
 import com.xianxia.sect.ui.game.ATTRIBUTE_FILTER_OPTIONS
 import com.xianxia.sect.ui.game.AttributeFilterOption
@@ -126,25 +127,19 @@ internal fun BattleTeamDialog(
         )
     }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
-        title = {
+    HalfScreenDialog(onDismissRequest = onDismiss) {
+        Column(modifier = Modifier.fillMaxSize()) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = if (hasExistingTeam) "管理战斗队伍" else "组建战斗队伍",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
+                Text("战斗队伍", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)
                 CloseButton(onClick = onDismiss)
             }
-        },
-        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)
+            ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -211,36 +206,41 @@ internal fun BattleTeamDialog(
                     color = Color.Black
                 )
             }
-        },
-        confirmButton = {
-            if (hasExistingTeam) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (hasExistingTeam) {
                     if (canManageTeam) {
                         GameButton(
                             text = "移动",
-                            onClick = onMoveClick
+                            onClick = onMoveClick,
+                            modifier = Modifier.weight(1f)
                         )
                         GameButton(
                             text = "解散",
                             onClick = { showDisbandConfirm = true },
-                            backgroundColor = Color(0xFFE53935)
+                            backgroundColor = Color(0xFFE53935),
+                            modifier = Modifier.weight(1f)
                         )
                     } else if (isStationed) {
                         GameButton(
                             text = "移动",
-                            onClick = onMoveClick
+                            onClick = onMoveClick,
+                            modifier = Modifier.weight(1f)
                         )
                         GameButton(
                             text = "返回",
                             onClick = onReturnClick,
-                            backgroundColor = Color(0xFF4CAF50)
+                            backgroundColor = Color(0xFF4CAF50),
+                            modifier = Modifier.weight(1f)
                         )
                         GameButton(
                             text = "解散",
                             onClick = { showDisbandConfirm = true },
-                            backgroundColor = Color(0xFFE53935)
+                            backgroundColor = Color(0xFFE53935),
+                            modifier = Modifier.weight(1f)
                         )
                     } else if (isReturning) {
                         Text(
@@ -249,19 +249,16 @@ internal fun BattleTeamDialog(
                             color = Color(0xFF888888)
                         )
                     }
+                } else {
                     GameButton(
-                        text = "关闭",
-                        onClick = onDismiss
+                        text = "组建队伍",
+                        onClick = onCreateTeam,
+                        modifier = Modifier.weight(1f)
                     )
                 }
-            } else {
-                GameButton(
-                    text = "组建队伍",
-                    onClick = onCreateTeam
-                )
             }
         }
-    )
+    }
 }
 
 @Composable

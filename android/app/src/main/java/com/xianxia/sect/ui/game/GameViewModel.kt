@@ -118,16 +118,14 @@ class GameViewModel @Inject constructor(
         openDialog(DialogType.Inventory)
     }
 
-    fun openEventLogDialog() {
-        openDialog(DialogType.EventLog)
-    }
-
     fun openWorldMapDialog() {
         openDialog(DialogType.WorldMap)
     }
 
-    fun openSecretRealmDialog() {
-        openDialog(DialogType.SecretRealm)
+    fun attackWorldLevel(levelId: String, discipleIds: List<String?>) {
+        viewModelScope.launch {
+            gameEngine.attackWorldLevel(levelId, discipleIds)
+        }
     }
 
     fun openBattleLogDialog() {
@@ -268,9 +266,6 @@ class GameViewModel @Inject constructor(
     val teams: StateFlow<List<ExplorationTeam>> = gameEngine.teams
         .stateIn(viewModelScope, sharingStarted, emptyList())
 
-    val events: StateFlow<List<GameEvent>> = gameEngine.events
-        .stateIn(viewModelScope, sharingStarted, emptyList())
-
     val battleLogs: StateFlow<List<BattleLog>> = gameEngine.battleLogs
         .stateIn(viewModelScope, sharingStarted, emptyList())
 
@@ -386,25 +381,6 @@ class GameViewModel @Inject constructor(
     fun openBuildingDetailDialog(buildingId: String) {
         _selectedBuildingId.value = buildingId
         openDialog(DialogType.BuildingDetail, mapOf("buildingId" to buildingId))
-    }
-
-    fun dispatchTeamToDungeon(dungeonId: String, discipleIds: List<String>) {
-        viewModelScope.launch {
-            try {
-                val dungeonConfig = GameConfig.Dungeons.get(dungeonId)
-                if (dungeonConfig == null) {
-                    showError("秘境不存在")
-                    return@launch
-                }
-
-                val teamName = "${dungeonConfig.name}探索队"
-                val duration = 24
-
-                gameEngine.startExploration(teamName, discipleIds, dungeonId, duration)
-            } catch (e: Exception) {
-                showError(e.message ?: "派遣失败")
-            }
-        }
     }
 
     // 招募弟子
@@ -654,14 +630,6 @@ class GameViewModel @Inject constructor(
             gameEngine.updateMonthlySalaryEnabled(realm, enabled)
         }
     }
-
-    fun toggleSmartBattle() {
-        viewModelScope.launch {
-            gameEngine.toggleSmartBattle()
-        }
-    }
-
-    fun isSmartBattleEnabled(): Boolean = gameEngine.isSmartBattleEnabled()
 
     fun usePill(discipleId: String, pillId: String) {
         viewModelScope.launch {

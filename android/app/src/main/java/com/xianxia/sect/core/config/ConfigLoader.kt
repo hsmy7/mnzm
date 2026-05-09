@@ -2,7 +2,6 @@ package com.xianxia.sect.core.config
 
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.GameConfig.BeastTypeConfig
-import com.xianxia.sect.core.GameConfig.DungeonConfig
 import com.xianxia.sect.core.GameConfig.RealmConfig
 import com.xianxia.sect.core.GameConfig.RarityConfig
 import com.xianxia.sect.core.GameConfig.SpiritRootConfig
@@ -64,8 +63,6 @@ object ConfigLoader {
             ),
             // 妖兽类型配置
             beastTypeConfigs = GameConfig.Beast.TYPES,
-            // 地牢配置
-            dungeonConfigs = GameConfig.Dungeons.CONFIGS,
             // 战斗配置
             battleConfig = GameConfigData.BattleConfig(
                 maxTeamSize = GameConfig.Battle.MAX_TEAM_SIZE,
@@ -125,9 +122,8 @@ data class GameConfigData(
     
     val beastTypeConfigs: List<BeastTypeConfig>,
     
-    // 地牢配置映射 (id -> DungeonConfig)
-    val dungeonConfigs: Map<String, DungeonConfig>,
-    
+    // dungeonConfigs removed
+
     // 战斗配置
     val battleConfig: BattleConfig,
     

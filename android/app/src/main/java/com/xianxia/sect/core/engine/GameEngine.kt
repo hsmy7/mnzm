@@ -50,7 +50,6 @@ data class GameStateSnapshot(
     val herbs: List<Herb>,
     val seeds: List<Seed>,
     val teams: List<ExplorationTeam>,
-    val events: List<GameEvent>,
     val battleLogs: List<BattleLog>,
     val alliances: List<Alliance>,
     val productionSlots: List<com.xianxia.sect.core.model.production.ProductionSlot> = emptyList()
@@ -64,7 +63,6 @@ class GameEngine @Inject constructor(
     private val inventoryConfig: InventoryConfig,
     private val battleSystem: BattleSystem,
     private val productionCoordinator: ProductionCoordinator,
-    private val eventService: EventService,
     private val discipleService: DiscipleService,
     private val combatService: CombatService,
     private val explorationService: ExplorationService,
@@ -94,7 +92,6 @@ class GameEngine @Inject constructor(
     fun getCurrentSeeds(): List<Seed> = stateStore.getCurrentSeeds()
     fun getCurrentHerbs(): List<Herb> = stateStore.getCurrentHerbs()
     fun getCurrentMaterials(): List<Material> = stateStore.getCurrentMaterials()
-    val events: StateFlow<List<GameEvent>> get() = stateStore.events
     val battleLogs: StateFlow<List<BattleLog>> get() = stateStore.battleLogs
     val teams: StateFlow<List<ExplorationTeam>> get() = stateStore.teams
 
@@ -121,7 +118,8 @@ class GameEngine @Inject constructor(
                 cultivatorCaves = data.cultivatorCaves ?: emptyList(),
                 caveExplorationTeams = data.caveExplorationTeams ?: emptyList(),
                 battleTeams = data.battleTeams,
-                aiBattleTeams = data.aiBattleTeams ?: emptyList()
+                aiBattleTeams = data.aiBattleTeams ?: emptyList(),
+                worldLevels = data.worldLevels ?: emptyList()
             )
         }.distinctUntilChanged()
             .stateIn(
@@ -147,7 +145,6 @@ class GameEngine @Inject constructor(
         herbs: List<Herb> = emptyList(),
         seeds: List<Seed> = emptyList(),
         teams: List<ExplorationTeam>,
-        events: List<GameEvent>,
         battleLogs: List<BattleLog> = emptyList(),
         alliances: List<Alliance> = emptyList(),
         productionSlots: List<com.xianxia.sect.core.model.production.ProductionSlot> = emptyList()
@@ -164,7 +161,6 @@ class GameEngine @Inject constructor(
             herbs = herbs,
             seeds = seeds,
             teams = teams,
-            events = events,
             battleLogs = battleLogs
         )
 
@@ -496,7 +492,6 @@ class GameEngine @Inject constructor(
             }
 
             disciples = disciples.map { if (it.id == discipleId) updatedDisciple else it }
-            eventService.addGameEvent("没收了${updatedDisciple.name}的${item.name}", EventType.INFO)
         }
     }
 
@@ -615,23 +610,17 @@ class GameEngine @Inject constructor(
 
     fun getActiveCaveExplorationTeamsCount(): Int = explorationService.getActiveCaveExplorationTeamsCount()
 
-    fun addEvent(message: String, type: EventType = EventType.INFO) = eventService.addGameEvent(message, type)
-
-    fun clearEvents() = eventService.clearEvents()
-
-    fun getRecentEvents(count: Int = 20): List<GameEvent> = eventService.getRecentEvents(count)
-
     fun generateSectTradeItems(year: Int): List<MerchantItem> =
-        eventService.generateSectTradeItems(year)
+        diplomacyService.generateSectTradeItems(year)
 
     fun getOrRefreshSectTradeItems(sectId: String): List<MerchantItem> =
-        eventService.getOrRefreshSectTradeItems(sectId)
+        diplomacyService.getOrRefreshSectTradeItems(sectId)
 
     fun buyFromSectTrade(sectId: String, itemId: String, quantity: Int = 1) =
-        eventService.buyFromSectTrade(sectId, itemId, quantity)
+        diplomacyService.buyFromSectTrade(sectId, itemId, quantity)
 
     suspend fun buyFromSectTradeSync(sectId: String, itemId: String, quantity: Int = 1) =
-        eventService.buyFromSectTradeSync(sectId, itemId, quantity)
+        diplomacyService.buyFromSectTradeSync(sectId, itemId, quantity)
 
     suspend fun assignDiscipleToBuilding(buildingId: String, slotIndex: Int, discipleId: String) =
         buildingService.assignDiscipleToBuilding(buildingId, slotIndex, discipleId)
@@ -699,7 +688,6 @@ class GameEngine @Inject constructor(
             quantity = actualYield
         )
         inventorySystem.addHerb(herbItem)
-        eventService.addGameEvent("${herb.name}已成熟，收获${actualYield}个", EventType.SUCCESS)
     }
 
     fun clearPlantSlot(slotIndex: Int) = buildingService.clearPlantSlot(slotIndex)
@@ -719,7 +707,6 @@ class GameEngine @Inject constructor(
             herbs = stateStore.herbs.value,
             seeds = stateStore.seeds.value,
             teams = stateStore.teams.value,
-            events = stateStore.events.value,
             battleLogs = stateStore.battleLogs.value,
             alliances = stateStore.gameData.value.alliances,
             productionSlots = productionCoordinator.repository.getSlots()
@@ -742,7 +729,6 @@ class GameEngine @Inject constructor(
             herbs = stateStore.herbs.value,
             seeds = stateStore.seeds.value,
             teams = stateStore.teams.value,
-            events = stateStore.events.value,
             battleLogs = stateStore.battleLogs.value,
             alliances = gd.alliances,
             productionSlots = productionCoordinator.repository.getSlots()
@@ -760,12 +746,11 @@ class GameEngine @Inject constructor(
         materials: List<Material>,
         herbs: List<Herb>,
         seeds: List<Seed>,
-        events: List<GameEvent>,
         battleLogs: List<BattleLog>,
         teams: List<ExplorationTeam>
     ) = saveService.loadFromSave(
         loadedGameData, disciples, equipmentStacks, equipmentInstances, manualStacks, manualInstances, pills,
-        materials, herbs, seeds, events, battleLogs, teams
+        materials, herbs, seeds, battleLogs, teams
     )
 
     fun validateState(): List<String> = saveService.validateState()
@@ -789,7 +774,6 @@ class GameEngine @Inject constructor(
         sb.appendLine("灵草数量: ${stateStore.herbs.value.size}")
         sb.appendLine("种子数量: ${stateStore.seeds.value.size}")
         sb.appendLine("探索队伍: ${stateStore.teams.value.size}")
-        sb.appendLine("事件记录: ${stateStore.events.value.size}/50")
         sb.appendLine("战斗日志: ${stateStore.battleLogs.value.size}/50")
         return sb.toString()
     }
@@ -809,16 +793,11 @@ class GameEngine @Inject constructor(
             }
         }
 
-        val eventsToKeep = if (normalizedLevel == 1) 20 else 10
         val logsToKeep = if (normalizedLevel == 1) 20 else 10
         val levelName = if (normalizedLevel == 1) "MODERATE" else "CRITICAL"
 
         gameEngineCore.launchInScope {
             stateStore.update {
-                if (events.size > eventsToKeep) {
-                    events = events.take(eventsToKeep)
-                    Log.d(TAG, "内存释放($levelName): 事件列表已清理，保留最近$eventsToKeep 条")
-                }
                 if (battleLogs.size > logsToKeep) {
                     battleLogs = battleLogs.take(logsToKeep)
                     Log.d(TAG, "内存释放($levelName): 战斗日志已清理，保留最近$logsToKeep 条")
@@ -1320,7 +1299,6 @@ class GameEngine @Inject constructor(
 
                             disciples = disciples.map { if (it.id == discipleId) updatedDisciple else it }
 
-                            eventService.addGameEvent("${disciple.name} 装备了 ${stack.name}", EventType.INFO)
                         } else {
                             if (stack.quantity > 1) {
                                 equipmentStacks = equipmentStacks.map { s ->
@@ -1369,7 +1347,6 @@ class GameEngine @Inject constructor(
                                 } else d
                             }
 
-                            eventService.addGameEvent("${disciple.name} 境界不足，${stack.name}已放入储物袋", EventType.WARNING)
                         }
                     }
                 }
@@ -1410,7 +1387,6 @@ class GameEngine @Inject constructor(
                                 } else it
                             }
 
-                            eventService.addGameEvent("${disciple.name} 学习了 ${stack.name}", EventType.SUCCESS)
                         } else {
                             val newQty = stack.quantity - 1
                             if (newQty <= 0) {
@@ -2265,8 +2241,6 @@ class GameEngine @Inject constructor(
                 successMsg = "弟子${disciple.name}使用了${pill.name}"
             }
 
-            errorMsg?.let { addEvent(it, EventType.WARNING) }
-            successMsg?.let { addEvent(it, EventType.SUCCESS) }
         }
     }
 
@@ -2562,7 +2536,6 @@ class GameEngine @Inject constructor(
                 val allDead = aliveDisciples.isEmpty()
 
                 if (allDead) {
-                    addEvent("任务「${activeMission.missionName}」失败，执行弟子全部阵亡", EventType.WARNING)
                 } else {
                     val equipMap = stateStore.equipmentInstances.value.associateBy { it.id }
                     val manualMap = stateStore.manualInstances.value.associateBy { it.id }
@@ -2574,9 +2547,7 @@ class GameEngine @Inject constructor(
                     )
                     applyMissionResult(result)
                     if (result.victory) {
-                        addEvent("任务「${activeMission.missionName}」已完成，获得奖励", EventType.SUCCESS)
                     } else {
-                        addEvent("任务「${activeMission.missionName}」战斗失败，未获得奖励", EventType.WARNING)
                     }
                 }
 
@@ -2616,12 +2587,6 @@ class GameEngine @Inject constructor(
         result.manualStacks.forEach { manual -> inventorySystem.addManualStack(manual) }
     }
 
-    fun startExploration(name: String, memberIds: List<String>, location: String, duration: Int) {
-        val data = stateStore.gameData.value
-        val dungeonName = GameConfig.Dungeons.get(location)?.name ?: location
-        createExplorationTeam(name, memberIds, location, dungeonName, duration, data.gameYear, data.gameMonth, data.gameDay)
-    }
-
     fun startBattleTeamMove(teamId: String, targetSectId: String) {
         val data = stateStore.gameData.value
         val team = data.battleTeams.find { it.id == teamId } ?: return
@@ -2643,9 +2608,169 @@ class GameEngine @Inject constructor(
         }
     }
 
-    fun toggleSmartBattle() {
-        updateGameDataSync { it.copy(smartBattleEnabled = !it.smartBattleEnabled) }
+    suspend fun attackWorldLevel(levelId: String, discipleIds: List<String?>) {
+        val data = stateStore.gameData.value
+        val level = data.worldLevels.find { it.id == levelId } ?: return
+        if (level.defeated) return
+
+        val validIds = discipleIds.filterNotNull()
+        if (validIds.isEmpty()) return
+
+        val allDisciples = stateStore.disciples.value
+        val combatDisciples = validIds.mapNotNull { id -> allDisciples.find { it.id == id && it.isAlive } }
+        if (combatDisciples.isEmpty()) return
+
+        val equipmentMap = stateStore.equipmentInstances.value.associateBy { it.id }
+        val manualMap = stateStore.manualInstances.value.associateBy { it.id }
+
+        val beastTypeName = if (level.isBeast) {
+            GameConfig.Beast.getType(level.beastType ?: 0).name
+        } else null
+
+        val allProficiencies = data.manualProficiencies.mapValues { (_, list) ->
+            list.associateBy { it.manualId }
+        }
+
+        val battle = battleSystem.createBattle(
+            disciples = combatDisciples,
+            equipmentMap = equipmentMap,
+            manualMap = manualMap,
+            beastLevel = level.realm,
+            beastCount = level.count,
+            beastType = beastTypeName,
+            manualProficiencies = allProficiencies
+        )
+
+        val result = battleSystem.executeBattle(battle)
+
+        // Update disciple HP/MP after battle
+        val hpMap = result.battle.team.associate { it.id to (it.hp to it.mp) }
+        val survivorIds = result.battle.team.filter { !it.isDead }.map { it.id }.toSet()
+        val updatedDisciples = stateStore.disciples.value.map { d ->
+            val (hp, mp) = hpMap[d.id] ?: return@map d
+            if (d.id !in survivorIds) {
+                d.copy(isAlive = false)
+            } else {
+                d.copy(combat = d.combat.copy(
+                    currentHp = hp.coerceIn(0, d.maxHp),
+                    currentMp = mp.coerceIn(0, d.maxMp)
+                ))
+            }
+        }
+        stateStore.update { disciples = updatedDisciples }
+
+        // Build battle log
+        val teamMembers = combatDisciples.map { d ->
+            BattleLogMember(name = d.name, realm = d.realm, realmName = d.realmName)
+        }
+        val enemies = result.battle.beasts.map { b ->
+            BattleLogEnemy(name = b.name, realm = b.realm, realmName = b.realmName)
+        }
+        val rounds = result.log.rounds.map { r ->
+            BattleLogRound(
+                roundNumber = r.roundNumber,
+                actions = r.actions.map { a ->
+                    BattleLogAction(
+                        type = a.type,
+                        attacker = a.attacker,
+                        attackerType = a.attackerType,
+                        target = a.target,
+                        damage = a.damage,
+                        damageType = a.damageType,
+                        isCrit = a.isCrit,
+                        isKill = a.isKill,
+                        message = a.message
+                    )
+                }
+            )
+        }
+        val log = BattleLog(
+            year = data.gameYear,
+            month = data.gameMonth,
+            type = BattleType.PVE,
+            attackerName = "玩家队伍",
+            defenderName = if (level.isBeast) level.beastName else level.guardianName,
+            result = if (result.victory) BattleResult.WIN else BattleResult.LOSE,
+            teamMembers = teamMembers,
+            enemies = enemies,
+            rounds = rounds,
+            turns = result.turnCount,
+            teamCasualties = teamMembers.count { !survivorIds.contains(it.name) },
+            beastsDefeated = if (result.victory) level.count else result.battle.beasts.count { it.isDead },
+            details = if (result.victory) "击败了${if (level.isBeast) level.beastName else level.guardianName}" else "被${if (level.isBeast) level.beastName else level.guardianName}击败"
+        )
+
+        val existingLogs = stateStore.battleLogs.value
+        val updatedLogs = (existingLogs + log).takeLast(GameConfig.Logs.MAX_BATTLE_LOGS)
+
+        if (result.victory) {
+            if (level.isBeast) {
+                handleBeastLevelVictory(level)
+            } else {
+                handleCaveLevelVictory(level)
+            }
+
+            updateGameDataSync {
+                it.copy(
+                    worldLevels = it.worldLevels.map { l ->
+                        if (l.id == levelId) l.copy(defeated = true) else l
+                    }
+                )
+            }
+            stateStore.update { battleLogs = updatedLogs }
+        } else {
+            stateStore.update { battleLogs = updatedLogs }
+        }
     }
 
-    fun isSmartBattleEnabled(): Boolean = stateStore.gameData.value.smartBattleEnabled
+    private fun handleBeastLevelVictory(level: WorldLevel) {
+        val beastConfig = GameConfig.Beast.getType(level.beastType ?: 0)
+        val tier = GameConfig.Realm.getMaxRarity(level.realm)
+        for (i in 0 until level.count) {
+            val materialCount = kotlin.random.Random.nextInt(1, 4)
+            repeat(materialCount) {
+                val beastMaterial = com.xianxia.sect.core.registry.BeastMaterialDatabase.getRandomMaterialByBeastType(
+                    beastConfig.name, tier
+                )
+                if (beastMaterial != null) {
+                    val material = Material(
+                        id = java.util.UUID.randomUUID().toString(),
+                        name = beastMaterial.name,
+                        rarity = beastMaterial.rarity,
+                        description = beastMaterial.description,
+                        category = beastMaterial.materialCategory,
+                        quantity = 1
+                    )
+                    inventorySystem.addMaterial(material)
+                }
+            }
+        }
+    }
+
+    private fun handleCaveLevelVictory(level: WorldLevel) {
+        val config = LevelGenerator.getCaveReward(level.realm)
+        val spiritStones = (config.baseSpiritStones * (0.8 + kotlin.random.Random.nextDouble() * 0.4)).toLong()
+        addSpiritStones(spiritStones)
+
+        val itemCount = kotlin.random.Random.nextInt(1, 7)
+        val (minRarity, maxRarity) = config.rarityRange
+        repeat(itemCount) {
+            val rarity = kotlin.random.Random.nextInt(minRarity, maxRarity + 1)
+            val typeRoll = kotlin.random.Random.nextDouble()
+            when {
+                typeRoll < 0.33 -> {
+                    val manual = com.xianxia.sect.core.registry.ManualDatabase.generateRandom(rarity)
+                    if (manual != null) inventorySystem.addManualStack(manual)
+                }
+                typeRoll < 0.66 -> {
+                    val equip = com.xianxia.sect.core.registry.EquipmentDatabase.generateRandom(rarity)
+                    if (equip != null) inventorySystem.addEquipmentStack(equip)
+                }
+                else -> {
+                    val pill = com.xianxia.sect.core.registry.ItemDatabase.generateRandomPill(rarity)
+                    if (pill != null) inventorySystem.addPill(pill)
+                }
+            }
+        }
+    }
 }

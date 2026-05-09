@@ -31,8 +31,7 @@ class BuildingService @Inject constructor(
     private val stateStore: GameStateStore,
     private val productionCoordinator: ProductionCoordinator,
     private val productionSlotRepository: ProductionSlotRepository,
-    private val eventService: EventService,
-    private val inventorySystem: InventorySystem,
+private val inventorySystem: InventorySystem,
     private val applicationScopeProvider: ApplicationScopeProvider
 ) : GameSystem {
     override val systemName: String = "BuildingService"
@@ -104,19 +103,16 @@ class BuildingService @Inject constructor(
 
         val disciple = currentDisciples.find { it.id == discipleId } ?: return
         if (!disciple.isAlive || disciple.status != DiscipleStatus.IDLE) {
-            eventService.addGameEvent("${disciple.name}无法被安排工作", EventType.WARNING)
             return
         }
 
         if (disciple.age < 5) {
-            eventService.addGameEvent("${disciple.name}年龄太小，无法工作", EventType.WARNING)
             return
         }
 
         val existingSlot = productionSlotRepository.getSlotByBuildingId(buildingId, slotIndex)
 
         if (existingSlot != null && existingSlot.isWorking) {
-            eventService.addGameEvent("该槽位正在工作中，无法更换弟子", EventType.WARNING)
             return
         }
 
@@ -148,15 +144,7 @@ class BuildingService @Inject constructor(
         val existingSlot = productionSlotRepository.getSlotByBuildingId(buildingId, slotIndex) ?: return
 
         if (existingSlot.isWorking) {
-            eventService.addGameEvent("该槽位正在工作中，无法移除弟子", EventType.WARNING)
             return
-        }
-
-        existingSlot.assignedDiscipleId?.let { oldDiscipleId ->
-            val disciple = currentDisciples.find { it.id == oldDiscipleId }
-            disciple?.let {
-                eventService.addGameEvent("${it.name}从${getBuildingName(buildingId)}移除", EventType.INFO)
-            }
         }
 
         scope.launch {
@@ -174,7 +162,6 @@ class BuildingService @Inject constructor(
     suspend fun startAlchemy(slotIndex: Int, recipeId: String): Boolean {
         val maxSlotCount = 3
         if (slotIndex < 0 || slotIndex >= maxSlotCount) {
-            eventService.addGameEvent("无效的炼丹槽位索引: $slotIndex (有效范围: 0-$maxSlotCount)", EventType.WARNING)
             return false
         }
 
@@ -182,7 +169,6 @@ class BuildingService @Inject constructor(
 
         val alchemySlot = productionSlotRepository.getSlotByBuildingId("alchemy", slotIndex)
         if (alchemySlot != null && alchemySlot.isWorking) {
-            eventService.addGameEvent("该炼丹槽位正在工作中", EventType.WARNING)
             return false
         }
 
@@ -198,12 +184,6 @@ class BuildingService @Inject constructor(
 
         when {
             !result.success -> {
-                val error = result.error
-                when (error) {
-                    is ProductionError.InsufficientMaterials -> eventService.addGameEvent("草药材料不足，无法开始炼丹", EventType.WARNING)
-                    is ProductionError.RecipeNotFound -> eventService.addGameEvent("配方不存在", EventType.ERROR)
-                    else -> eventService.addGameEvent("无法开始炼丹", EventType.WARNING)
-                }
                 return false
             }
             result.materialUpdate != null -> {
@@ -250,7 +230,6 @@ class BuildingService @Inject constructor(
                     }
                 }
 
-                eventService.addGameEvent("开始在炼丹炉工作", EventType.INFO)
                 return true
             }
         }
@@ -263,7 +242,6 @@ class BuildingService @Inject constructor(
 
         val forgeSlot = productionSlotRepository.getSlotByBuildingId("forge", slotIndex)
         if (forgeSlot != null && forgeSlot.isWorking) {
-            eventService.addGameEvent("该锻造槽位正在工作中", EventType.WARNING)
             return false
         }
 
@@ -279,12 +257,6 @@ class BuildingService @Inject constructor(
 
         when {
             !result.success -> {
-                val error = result.error
-                when (error) {
-                    is ProductionError.InsufficientMaterials -> eventService.addGameEvent("材料不足，无法开始锻造", EventType.WARNING)
-                    is ProductionError.RecipeNotFound -> eventService.addGameEvent("配方不存在", EventType.ERROR)
-                    else -> eventService.addGameEvent("无法开始锻造", EventType.WARNING)
-                }
                 return false
             }
             result.materialUpdate != null -> {
@@ -332,7 +304,6 @@ class BuildingService @Inject constructor(
                     }
                 }
 
-                eventService.addGameEvent("开始在锻造坊工作", EventType.INFO)
                 return true
             }
         }
@@ -384,9 +355,6 @@ class BuildingService @Inject constructor(
                 )
             }
             inventorySystem.addPill(pill)
-            eventService.addGameEvent("炼制成功！获得${grade.displayName}${slot.outputItemName}，已放入宗门仓库", EventType.INFO)
-        } else {
-            eventService.addGameEvent("炼制失败，材料损毁", EventType.ERROR)
         }
 
         scope.launch {
@@ -522,7 +490,6 @@ class BuildingService @Inject constructor(
     private fun completeBuildingTaskFromProductionSlot(slot: ProductionSlot) {
         val recipeId = slot.recipeId
         if (recipeId == null) {
-            eventService.addGameEvent("${BuildingNames.getDisplayName(slot.buildingId)}工作已完成，但无配方信息", EventType.WARNING)
             return
         }
 
@@ -532,9 +499,6 @@ class BuildingService @Inject constructor(
                 if (recipe != null) {
                     val equipment = inventorySystem.createEquipmentFromRecipe(recipe)
                     inventorySystem.addEquipmentStack(equipment)
-                    eventService.addGameEvent("锻造完成！获得${recipe.name}，已放入宗门仓库", EventType.INFO)
-                } else {
-                    eventService.addGameEvent("锻造完成，但配方[$recipeId]不存在", EventType.ERROR)
                 }
             }
             "alchemy" -> {
@@ -556,9 +520,6 @@ class BuildingService @Inject constructor(
                         )
                     }
                     inventorySystem.addPill(pill)
-                    eventService.addGameEvent("炼制完成！获得${grade.displayName}${recipe.name}，已放入宗门仓库", EventType.INFO)
-                } else {
-                    eventService.addGameEvent("炼制完成，但配方[$recipeId]不存在", EventType.ERROR)
                 }
             }
             "herbGarden" -> {
@@ -576,13 +537,9 @@ class BuildingService @Inject constructor(
                         quantity = actualYield
                     )
                     inventorySystem.addHerb(herbItem)
-                    eventService.addGameEvent("${herb.name}已成熟，收获${actualYield}个，已放入宗门仓库", EventType.INFO)
-                } else {
-                    eventService.addGameEvent("${BuildingNames.getDisplayName(slot.buildingId)}工作已完成，但无法识别种子对应的草药", EventType.WARNING)
                 }
             }
             else -> {
-                eventService.addGameEvent("${BuildingNames.getDisplayName(slot.buildingId)}工作已完成，产出类型暂不支持", EventType.INFO)
             }
         }
     }

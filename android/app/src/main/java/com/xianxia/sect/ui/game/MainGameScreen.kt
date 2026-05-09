@@ -41,13 +41,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.R
 import com.xianxia.sect.core.model.BattleSlotType
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.GameData
-import com.xianxia.sect.core.model.GameEvent
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.MapPreloadData
 import com.xianxia.sect.core.util.GridSnapHelper
@@ -68,11 +68,10 @@ import com.xianxia.sect.ui.game.components.EnvoyDiscipleSelectDialog
 import com.xianxia.sect.ui.game.components.ScoutDiscipleSelectDialog
 import com.xianxia.sect.ui.game.OuterTournamentResultDialog
 
+import com.xianxia.sect.ui.game.tabs.BuildingsTab
 import com.xianxia.sect.ui.game.tabs.DisciplesTab
 import com.xianxia.sect.ui.game.tabs.WarehouseTab
 import com.xianxia.sect.ui.game.tabs.SettingsTab
-import com.xianxia.sect.ui.game.dialogs.SecretRealmDialog
-import com.xianxia.sect.ui.game.dialogs.ExplorationTeamDialog
 import com.xianxia.sect.ui.game.dialogs.BattleLogItem
 import com.xianxia.sect.ui.game.dialogs.BattleLogDetailDialog
 import com.xianxia.sect.ui.game.dialogs.BattleLogListDialog
@@ -100,10 +99,6 @@ import com.xianxia.sect.core.model.PlantSlotData
 import com.xianxia.sect.core.model.production.ProductionSlotStatus
 import com.xianxia.sect.ui.theme.XianxiaColorScheme
 
-
-enum class MainTab {
-    OVERVIEW, DISCIPLES, BUILDINGS, WAREHOUSE, SETTINGS
-}
 
 /**
  * ## MainGameScreen - 主游戏界面 (Compose 重组优化版本)
@@ -175,8 +170,7 @@ fun MainGameScreen(
         derivedStateOf { disciples.filter { it.isAlive } }
     }
 
-    // [M7-OPT-3] 低频数据 - 事件/队伍等变化频率较低（用户操作触发）
-    val events by viewModel.events.collectAsState()
+    // [M7-OPT-3] 低频数据 - 队伍等变化频率较低（用户操作触发）
     val teams by viewModel.teams.collectAsState()
 
     val equipment by viewModel.equipment.collectAsState()
@@ -193,7 +187,6 @@ fun MainGameScreen(
     val productionSlots by viewModel.productionSlots.collectAsState()
     val seeds by viewModel.seeds.collectAsState()
 
-    var selectedTab by remember { mutableStateOf(MainTab.OVERVIEW) }
     var screenWidthPx by remember { mutableFloatStateOf(0f) }
     var screenHeightPx by remember { mutableFloatStateOf(0f) }
 
@@ -204,6 +197,10 @@ fun MainGameScreen(
     var placingWorldX by remember { mutableFloatStateOf(0f) }
     var placingWorldY by remember { mutableFloatStateOf(0f) }
     var buildingBarExpanded by remember { mutableStateOf(false) }
+    var showDisciplesDialog by remember { mutableStateOf(false) }
+    var showWarehouseDialog by remember { mutableStateOf(false) }
+    var showSettingsDialog by remember { mutableStateOf(false) }
+    var showBuildingsDialog by remember { mutableStateOf(false) }
     val tileSize = mapPreloadData.tileSize
     val worldPixelWidth = mapPreloadData.worldPixelWidth
     val worldPixelHeight = mapPreloadData.worldPixelHeight
@@ -370,10 +367,8 @@ fun MainGameScreen(
     val showRecruitDialog = currentDialog?.type == DialogType.Recruit
     val showDiplomacyDialog = currentDialog?.type == DialogType.Diplomacy
     val showMerchantDialog = currentDialog?.type == DialogType.Merchant
-    val showEventLogDialog = currentDialog?.type == DialogType.EventLog
     val showSalaryConfigDialog = currentDialog?.type == DialogType.SalaryConfig
     val showWorldMapDialog = currentDialog?.type == DialogType.WorldMap
-    val showSecretRealmDialog = currentDialog?.type == DialogType.SecretRealm
     val showSectTradeDialog by worldMapViewModel.showSectTradeDialog.collectAsState()
     val selectedTradeSectId by worldMapViewModel.selectedTradeSectId.collectAsState()
     val sectTradeItems by worldMapViewModel.sectTradeItems.collectAsState()
@@ -479,82 +474,42 @@ fun MainGameScreen(
             }
         )
 
-        // UI 层
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(bottom = 48.dp)
-        ) {
-            when (selectedTab) {
-                MainTab.OVERVIEW -> {
-                    SectInfoCard(
-                        gameData = gameData,
-                        discipleCount = aliveDisciples.value.size,
-                        modifier = Modifier
-                            .align(Alignment.TopStart)
-                            .padding(start = 12.dp, top = 12.dp)
-                    )
-                    // 消息栏上方按钮行：左3 右3+设置(在日志上方)
-                    Row(
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .padding(bottom = 130.dp, start = 8.dp, end = 8.dp)
-                            .fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.Bottom
-                    ) {
-                        FloatingActionRow(
-                            viewModel = viewModel,
-                            buttons = listOf("世界", "招募", "商人")
-                        )
-                        Column(
-                            horizontalAlignment = Alignment.End
-                        ) {
-                            val settingsSize = ButtonSizes.StandardHeight + 6.dp
-                            Box(
-                                modifier = Modifier
-                                    .size(settingsSize)
-                                    .clip(CircleShape)
-                                    .clickable { selectedTab = MainTab.SETTINGS },
-                                contentAlignment = Alignment.BottomCenter
-                            ) {
-                                Image(
-                                    painter = painterResource(id = R.drawable.ui_settings_button),
-                                    contentDescription = "设置",
-                                    modifier = Modifier.matchParentSize(),
-                                    contentScale = ContentScale.FillBounds
-                                )
-                                Text(
-                                    text = "设置",
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.Black,
-                                    modifier = Modifier
-                                        .padding(horizontal = 3.dp, vertical = 1.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(4.dp))
-                            FloatingActionRow(
-                                viewModel = viewModel,
-                                buttons = listOf("外交", "秘境", "日志")
-                            )
-                        }
-                    }
-                }
-                MainTab.BUILDINGS -> { /* 建造栏通过底部开关控制 */ }
-                MainTab.DISCIPLES -> DisciplesTab(
-                    gameData = gameData,
-                    disciples = aliveDisciples.value,
-                    equipment = equipment,
-                    manuals = manuals,
-                    manualStacks = manualStacks,
-                    equipmentStacks = equipmentStacks,
-                    viewModel = viewModel
-                )
-                MainTab.WAREHOUSE -> WarehouseTab(viewModel = viewModel)
-                MainTab.SETTINGS -> { /* 通过半屏弹窗渲染 */ }
+        // UI overlay — SectInfoCard + two side button columns
+        Box(modifier = Modifier.fillMaxSize()) {
+            SectInfoCard(
+                gameData = gameData,
+                discipleCount = aliveDisciples.value.size,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(start = 12.dp, top = 12.dp)
+            )
+
+            // Left column: 4 buttons — 世界, 招募, 商人, 外交
+            Column(
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .padding(start = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                FloatingActionButton(text = "世界", onClick = { viewModel.openWorldMapDialog() }, drawableRes = R.drawable.ui_map_button)
+                FloatingActionButton(text = "招募", onClick = { viewModel.openRecruitDialog() }, drawableRes = R.drawable.ui_recruit_button)
+                FloatingActionButton(text = "商人", onClick = { viewModel.openMerchantDialog() }, drawableRes = R.drawable.ui_merchant_button)
+                FloatingActionButton(text = "外交", onClick = { viewModel.openDiplomacyDialog() }, drawableRes = R.drawable.ui_diplomacy_button)
             }
 
+            // Right column: 5 buttons — 弟子, 建造, 仓库, 日志, 设置
+            Column(
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                FloatingActionButton(text = "弟子", onClick = { showDisciplesDialog = true }, drawableRes = R.drawable.ui_team_button)
+                FloatingActionButton(text = "建造", onClick = { buildingBarExpanded = !buildingBarExpanded; isPlacingBuilding = false }, drawableRes = R.drawable.ui_start_button)
+                FloatingActionButton(text = "仓库", onClick = { showWarehouseDialog = true }, drawableRes = R.drawable.ui_secret_realm_button)
+                FloatingActionButton(text = "日志", onClick = { viewModel.openBattleLogDialog() }, drawableRes = R.drawable.ui_log_button)
+                FloatingActionButton(text = "设置", onClick = { showSettingsDialog = true }, drawableRes = R.drawable.ui_settings_button)
+            }
         }
 
         // 建造栏 — 开关式，展开时显示
@@ -583,57 +538,111 @@ fun MainGameScreen(
                 },
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 48.dp, start = 8.dp, end = 8.dp)
+                    .padding(bottom = 8.dp, start = 8.dp, end = 8.dp)
             )
         }
 
-        // 宗门消息栏 — 仅在总览Tab、无弹窗、建造栏未展开时显示
-        if (!buildingBarExpanded && selectedTab == MainTab.OVERVIEW && currentDialog == null) {
-            EventMessageStrip(
-                events = events,
-                gameData = gameData,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 48.dp)
-            )
-        }
-
-        BottomNavigationBar(
-            selectedTab = selectedTab,
-            buildingBarExpanded = buildingBarExpanded,
-            onTabSelected = { tab ->
-                if (tab == MainTab.BUILDINGS) {
-                    if (selectedTab != MainTab.OVERVIEW) {
-                        selectedTab = MainTab.OVERVIEW
-                        buildingBarExpanded = true
-                    } else {
-                        buildingBarExpanded = !buildingBarExpanded
-                    }
-                    isPlacingBuilding = false
-                } else if (selectedTab == tab) {
-                    selectedTab = MainTab.OVERVIEW
-                    buildingBarExpanded = false
-                    isPlacingBuilding = false
-                } else {
-                    selectedTab = tab
-                    buildingBarExpanded = false
-                    isPlacingBuilding = false
-                }
-            },
-            modifier = Modifier.align(Alignment.BottomCenter)
-        )
-
-        // 设置半屏弹窗
-        if (selectedTab == MainTab.SETTINGS) {
-            Dialog(onDismissRequest = { selectedTab = MainTab.OVERVIEW }) {
+        // Full-screen disciples dialog
+        if (showDisciplesDialog) {
+            Dialog(
+                onDismissRequest = { showDisciplesDialog = false },
+                properties = DialogProperties(usePlatformDefaultWidth = false)
+            ) {
                 Surface(
-                    modifier = Modifier.fillMaxWidth(DialogDefaults.HalfScreenWidthFraction).fillMaxHeight(DialogDefaults.HalfScreenHeightFraction),
-                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.fillMaxSize(),
                     color = GameColors.PageBackground
                 ) {
                     Box(modifier = Modifier.fillMaxSize()) {
                         Image(
-                            painter = painterResource(id = R.drawable.bg_screen),
+                            painter = painterResource(id = R.drawable.bg_horizontal),
+                            contentDescription = null,
+                            modifier = Modifier.matchParentSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                        Column(modifier = Modifier.fillMaxSize()) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "弟子",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.Black
+                                )
+                                CloseButton(onClick = { showDisciplesDialog = false })
+                            }
+                            DisciplesTab(
+                                gameData = gameData,
+                                disciples = aliveDisciples.value,
+                                equipment = equipment,
+                                manuals = manuals,
+                                manualStacks = manualStacks,
+                                equipmentStacks = equipmentStacks,
+                                viewModel = viewModel
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // Full-screen warehouse dialog
+        if (showWarehouseDialog) {
+            Dialog(
+                onDismissRequest = { showWarehouseDialog = false },
+                properties = DialogProperties(usePlatformDefaultWidth = false)
+            ) {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = GameColors.PageBackground
+                ) {
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        Image(
+                            painter = painterResource(id = R.drawable.bg_horizontal),
+                            contentDescription = null,
+                            modifier = Modifier.matchParentSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                        Column(modifier = Modifier.fillMaxSize()) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "仓库",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.Black
+                                )
+                                CloseButton(onClick = { showWarehouseDialog = false })
+                            }
+                            WarehouseTab(viewModel = viewModel)
+                        }
+                    }
+                }
+            }
+        }
+
+        // Full-screen settings dialog
+        if (showSettingsDialog) {
+            Dialog(
+                onDismissRequest = { showSettingsDialog = false },
+                properties = DialogProperties(usePlatformDefaultWidth = false)
+            ) {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = GameColors.PageBackground
+                ) {
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        Image(
+                            painter = painterResource(id = R.drawable.bg_horizontal),
                             contentDescription = null,
                             modifier = Modifier.matchParentSize(),
                             contentScale = ContentScale.Crop
@@ -642,13 +651,25 @@ fun MainGameScreen(
                             viewModel = viewModel,
                             saveLoadViewModel = saveLoadViewModel,
                             onLogout = onLogout,
-                            onDismiss = { selectedTab = MainTab.OVERVIEW },
+                            onDismiss = { showSettingsDialog = false },
                             limitAdTracking = limitAdTracking,
                             onLimitAdTrackingChanged = onLimitAdTrackingChanged
                         )
                     }
                 }
             }
+        }
+
+        if (showBuildingsDialog) {
+            BuildingsTab(
+                viewModel = viewModel,
+                productionViewModel = productionViewModel,
+                alchemyViewModel = alchemyViewModel,
+                forgeViewModel = forgeViewModel,
+                herbGardenViewModel = herbGardenViewModel,
+                spiritMineViewModel = spiritMineViewModel,
+                onDismiss = { showBuildingsDialog = false }
+            )
         }
 
         if (showRecruitDialog) {
@@ -678,13 +699,6 @@ fun MainGameScreen(
             )
         }
 
-        if (showEventLogDialog) {
-            EventLogDialog(
-                events = events,
-                onDismiss = { viewModel.closeCurrentDialog() }
-            )
-        }
-
         if (showSalaryConfigDialog) {
             SalaryConfigDialog(
                 gameData = gameData,
@@ -704,14 +718,6 @@ fun MainGameScreen(
                 worldMapViewModel = worldMapViewModel,
                 battleViewModel = battleViewModel,
                 battleTeamMoveMode = battleTeamMoveMode,
-                onDismiss = { viewModel.closeCurrentDialog() }
-            )
-        }
-
-        if (showSecretRealmDialog) {
-            SecretRealmDialog(
-                disciples = disciples.filter { it.isAlive },
-                viewModel = viewModel,
                 onDismiss = { viewModel.closeCurrentDialog() }
             )
         }
@@ -926,7 +932,6 @@ fun MainGameScreen(
                 gameData = gameData,
                 viewModel = viewModel,
                 productionViewModel = productionViewModel,
-                onDismiss = { viewModel.closeCurrentDialog() }
             )
         }
 
@@ -936,7 +941,6 @@ fun MainGameScreen(
                 gameData = gameData,
                 viewModel = viewModel,
                 productionViewModel = productionViewModel,
-                onDismiss = { viewModel.closeCurrentDialog() }
             )
         }
 
@@ -1040,40 +1044,6 @@ private fun SectInfoCard(
                 fontSize = 12.sp,
                 color = Color(0xFF004D40)
             )
-        }
-    }
-}
-
-@Composable
-private fun FloatingActionRow(
-    viewModel: GameViewModel,
-    modifier: Modifier = Modifier,
-    buttons: List<String>
-) {
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        buttons.forEach { text ->
-            val onClick: () -> Unit = when (text) {
-                "世界" -> { { viewModel.openWorldMapDialog() } }
-                "招募" -> { { viewModel.openRecruitDialog() } }
-                "商人" -> { { viewModel.openMerchantDialog() } }
-                "外交" -> { { viewModel.openDiplomacyDialog() } }
-                "秘境" -> { { viewModel.openSecretRealmDialog() } }
-                "日志" -> { { viewModel.openBattleLogDialog() } }
-                else -> { {} }
-            }
-            val drawableRes = when (text) {
-                "世界" -> R.drawable.ui_map_button
-                "招募" -> R.drawable.ui_recruit_button
-                "商人" -> R.drawable.ui_merchant_button
-                "外交" -> R.drawable.ui_diplomacy_button
-                "秘境" -> R.drawable.ui_secret_realm_button
-                "日志" -> R.drawable.ui_log_button
-                else -> R.drawable.ui_button
-            }
-            FloatingActionButton(text = text, onClick = onClick, drawableRes = drawableRes)
         }
     }
 }
@@ -1511,50 +1481,6 @@ private fun getBuildingColor(displayName: String): Color = when (displayName) {
 }
 
 @Composable
-private fun EventMessageStrip(
-    events: List<GameEvent>,
-    gameData: GameData?,
-    modifier: Modifier = Modifier
-) {
-    val currentTotalMonths = (gameData?.gameYear ?: 1) * 12 + (gameData?.gameMonth ?: 1)
-    val recentEvents = remember(events, currentTotalMonths) {
-        events.filter { currentTotalMonths - (it.year * 12 + it.month) <= 12 }
-    }
-    Box(modifier = modifier.fillMaxWidth().height(130.dp).padding(horizontal = 12.dp)) {
-        Box(modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(6.dp))) {
-            Image(
-                painter = painterResource(id = R.drawable.bg_navbar),
-                contentDescription = null,
-                modifier = Modifier.matchParentSize(),
-                contentScale = ContentScale.Crop
-            )
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 10.dp, vertical = 6.dp)
-        ) {
-            if (recentEvents.isEmpty()) {
-                Text(
-                    text = "暂无新消息",
-                    fontSize = 11.sp,
-                    color = Color.Black,
-                    maxLines = 1
-                )
-            } else {
-                recentEvents.forEach { event ->
-                    Text(
-                        text = "第${event.year}年${event.month}月 ${event.message}",
-                        fontSize = 11.sp,
-                        color = Color.Black
-                    )
-                }
-            }
-        }
-        }
-    }
-}
-@Composable
 private fun GameOverDialog(
     onRestartGame: () -> Unit,
     onReturnToMain: () -> Unit
@@ -1609,56 +1535,6 @@ private fun GameOverDialog(
         }
     }
 }
-
-@Composable
-private fun BottomNavigationBar(
-    selectedTab: MainTab,
-    buildingBarExpanded: Boolean,
-    onTabSelected: (MainTab) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val tabs = listOf(
-        Triple("弟子", MainTab.DISCIPLES, selectedTab == MainTab.DISCIPLES),
-        Triple("建造", MainTab.BUILDINGS, buildingBarExpanded),
-        Triple("仓库", MainTab.WAREHOUSE, selectedTab == MainTab.WAREHOUSE)
-    )
-    Box(modifier = modifier.fillMaxWidth().height(48.dp)) {
-        Image(
-            painter = painterResource(id = R.drawable.bg_navbar),
-            contentDescription = null,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop
-        )
-        Row(modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp)) {
-            tabs.forEach { (label, tab, isSelected) ->
-                val alpha = if (isSelected) 1f else 0.55f
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .padding(vertical = 6.dp, horizontal = 2.dp)
-                        .alpha(alpha)
-                        .clip(RoundedCornerShape(4.dp))
-                        .clickable { onTabSelected(tab) },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.ui_button),
-                        contentDescription = null,
-                        modifier = Modifier.matchParentSize(),
-                        contentScale = ContentScale.FillBounds
-                    )
-                    Text(
-                        text = label,
-                        fontSize = 11.sp,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                        color = if (isSelected) Color.Black else Color.Black
-                    )
-                }
-            }
-        }
-    }
-}
 @Composable
 private fun CommonDialog(
     title: String,
@@ -1672,7 +1548,7 @@ private fun CommonDialog(
                 .clip(RoundedCornerShape(DialogDefaults.CornerRadius))
         ) {
             Image(
-                painter = painterResource(id = R.drawable.bg_screen),
+                painter = painterResource(id = R.drawable.bg_horizontal),
                 contentDescription = null,
                 modifier = Modifier.matchParentSize(),
                 contentScale = ContentScale.Crop

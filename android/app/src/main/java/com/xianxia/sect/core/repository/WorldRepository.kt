@@ -2,16 +2,12 @@ package com.xianxia.sect.core.repository
 
 import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.model.BuildingSlot
-import com.xianxia.sect.core.model.Dungeon
 import com.xianxia.sect.core.model.ExplorationTeam
-import com.xianxia.sect.core.model.GameEvent
 import com.xianxia.sect.core.model.Recipe
 import com.xianxia.sect.core.model.RecipeType
 import com.xianxia.sect.data.local.BattleLogDao
 import com.xianxia.sect.data.local.BuildingSlotDao
-import com.xianxia.sect.data.local.DungeonDao
 import com.xianxia.sect.data.local.ExplorationTeamDao
-import com.xianxia.sect.data.local.GameEventDao
 import com.xianxia.sect.data.local.RecipeDao
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
@@ -21,9 +17,7 @@ import javax.inject.Singleton
 class WorldRepository @Inject constructor(
     private val explorationTeamDao: ExplorationTeamDao,
     private val buildingSlotDao: BuildingSlotDao,
-    private val dungeonDao: DungeonDao,
     private val recipeDao: RecipeDao,
-    private val gameEventDao: GameEventDao,
     private val battleLogDao: BattleLogDao
 ) {
     companion object {
@@ -55,16 +49,7 @@ class WorldRepository @Inject constructor(
     suspend fun getBuildingSlotsSync(buildingId: String, slotId: Int = DEFAULT_SLOT_ID): List<BuildingSlot> =
         buildingSlotDao.getByBuildingSync(slotId, buildingId)
 
-    // ==================== Dungeon ====================
-
-    fun getUnlockedDungeons(slotId: Int = DEFAULT_SLOT_ID): Flow<List<Dungeon>> =
-        dungeonDao.getUnlocked(slotId)
-
-    fun getAllDungeons(slotId: Int = DEFAULT_SLOT_ID): Flow<List<Dungeon>> =
-        dungeonDao.getAll(slotId)
-
-    suspend fun getDungeonById(id: String, slotId: Int = DEFAULT_SLOT_ID): Dungeon? =
-        dungeonDao.getById(slotId, id)
+    // Dungeon methods removed
 
     // ==================== Recipe ====================
 
@@ -79,14 +64,6 @@ class WorldRepository @Inject constructor(
 
     suspend fun getRecipeById(id: String, slotId: Int = DEFAULT_SLOT_ID): Recipe? =
         recipeDao.getById(slotId, id)
-
-    // ==================== GameEvent ====================
-
-    fun getRecentEvents(limit: Int = 50, slotId: Int = DEFAULT_SLOT_ID): Flow<List<GameEvent>> =
-        gameEventDao.getRecent(slotId, limit)
-
-    fun getAllEvents(slotId: Int = DEFAULT_SLOT_ID): Flow<List<GameEvent>> =
-        gameEventDao.getAll(slotId)
 
     // ==================== BattleLog ====================
 

@@ -1,11 +1,21 @@
 package com.xianxia.sect.ui.game
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.material3.*
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.ElderBonusInfoProvider
+import com.xianxia.sect.ui.components.HalfScreenDialog
+import com.xianxia.sect.ui.theme.GameColors
 
 @Composable
 fun QingyunPeakDialog(
@@ -13,7 +23,6 @@ fun QingyunPeakDialog(
     gameData: GameData?,
     viewModel: GameViewModel,
     productionViewModel: ProductionViewModel,
-    onDismiss: () -> Unit
 ) {
     var showInnerElderSelection by remember { mutableStateOf(false) }
     var showPreachingElderSelection by remember { mutableStateOf(false) }
@@ -24,11 +33,22 @@ fun QingyunPeakDialog(
     val preachingMasters = productionViewModel.getQingyunPreachingMasters()
     val innerDisciples = disciples.filter { it.isAlive && it.discipleType == "inner" }
 
-    PeakDialog(
-        title = "青云塔",
-        subtitle = "管理内门弟子与传道修行",
-        onDismiss = onDismiss
-    ) {
+    HalfScreenDialog(onDismissRequest = { viewModel.closeCurrentDialog() }) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text("青云塔", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                    Text("管理内门弟子与传道修行", fontSize = 11.sp, color = GameColors.TextSecondary)
+                }
+                CloseButton(onClick = { viewModel.closeCurrentDialog() })
+            }
+            Column(
+                modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)
+            ) {
         PeakElderSection(
             slot1 = PeakElderSlotConfig(
                 title = "内门长老",
@@ -68,6 +88,8 @@ fun QingyunPeakDialog(
             maxHeightDp = 150.dp,
             truncateAt = null
         )
+            }
+        }
     }
 
     if (showInnerElderSelection) {

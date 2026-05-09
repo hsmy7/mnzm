@@ -7,143 +7,107 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.geometry.Offset
-import com.xianxia.sect.core.model.MapCoordinateSystem
-import kotlin.math.abs
 
+/**
+ * 统一相机状态 — 相机在世界空间中移动（而非移动地图画布）
+ *
+ * cameraX/cameraY = 视口左上角在世界空间中的坐标
+ * screenX = worldX - cameraX
+ * worldX = screenX + cameraX
+ */
 @Stable
-class MapCameraState(
-    val scaleRange: ClosedFloatingPointRange<Float> = 0.2f..3f
+class CameraState(
+    val worldWidth: Float,
+    val worldHeight: Float
 ) {
-    var offsetX by mutableFloatStateOf(0f)
+    var cameraX by mutableFloatStateOf(0f)
         private set
-    var offsetY by mutableFloatStateOf(0f)
+    var cameraY by mutableFloatStateOf(0f)
         private set
-    var scale by mutableFloatStateOf(1f)
+    var viewportWidth by mutableIntStateOf(0)
         private set
-    var screenWidth by mutableIntStateOf(0)
-        private set
-    var screenHeight by mutableIntStateOf(0)
+    var viewportHeight by mutableIntStateOf(0)
         private set
 
     private var hasInitialized = false
 
-    val canvasWidth: Float get() = baseMapWidthPx * scale
-    val canvasHeight: Float get() = baseMapHeightPx * scale
+    // -- 坐标转换 --
 
-    private var baseMapWidthPx: Int = 0
-    private var baseMapHeightPx: Int = 0
+    fun worldToScreenX(worldX: Float): Float = worldX - cameraX
+    fun worldToScreenY(worldY: Float): Float = worldY - cameraY
 
-    private val offsetRangeX: ClosedFloatingPointRange<Float>
-        get() {
-            val diff = canvasWidth - screenWidth
-            return if (diff >= 0) -diff..0f
-            else {
-                val center = -diff / 2f
-                center..center
-            }
-        }
+    fun screenToWorldX(screenX: Float): Float = screenX + cameraX
+    fun screenToWorldY(screenY: Float): Float = screenY + cameraY
 
-    private val offsetRangeY: ClosedFloatingPointRange<Float>
-        get() {
-            val diff = canvasHeight - screenHeight
-            return if (diff >= 0) -diff..0f
-            else {
-                val center = -diff / 2f
-                center..center
-            }
-        }
+    // -- 视口 --
 
-    val effectiveMinScale: Float
-        get() {
-            if (baseMapWidthPx <= 0 || baseMapHeightPx <= 0) return scaleRange.start
-            if (screenWidth <= 0 || screenHeight <= 0) return scaleRange.start
-            val fitScale = minOf(
-                screenWidth.toFloat() / baseMapWidthPx,
-                screenHeight.toFloat() / baseMapHeightPx
-            )
-            return (fitScale * 0.85f).coerceIn(scaleRange.start, scaleRange.endInclusive)
-        }
+    fun updateViewport(width: Int, height: Int) {
+        viewportWidth = width
+        viewportHeight = height
+    }
 
-    fun initialize(density: Float, baseWidthDp: Float, baseHeightDp: Float) {
-        if (baseMapWidthPx == 0) {
-            baseMapWidthPx = (baseWidthDp * density).toInt()
-            baseMapHeightPx = (baseHeightDp * density).toInt()
+    // -- 平移（接收屏幕空间增量） --
+
+    fun pan(deltaScreenX: Float, deltaScreenY: Float) {
+        if (viewportWidth <= 0 || viewportHeight <= 0) return
+        cameraX -= deltaScreenX
+        cameraY -= deltaScreenY
+        clamp()
+    }
+
+    // -- 居中 --
+
+    fun centerOn(worldX: Float, worldY: Float) {
+        if (viewportWidth <= 0 || viewportHeight <= 0) return
+        cameraX = worldX - viewportWidth / 2f
+        cameraY = worldY - viewportHeight / 2f
+        clamp()
+    }
+
+    fun tryCenterOn(worldX: Float, worldY: Float) {
+        if (!hasInitialized && viewportWidth > 0 && viewportHeight > 0) {
+            centerOn(worldX, worldY)
+            hasInitialized = true
         }
     }
 
-    fun updateScreenSize(width: Int, height: Int) {
-        screenWidth = width
-        screenHeight = height
+    // -- 可见性 --
+
+    fun isVisible(worldX: Float, worldY: Float, margin: Float = 0f): Boolean {
+        if (viewportWidth <= 0 || viewportHeight <= 0) return true
+        val sx = worldToScreenX(worldX)
+        val sy = worldToScreenY(worldY)
+        return sx >= -margin && sx <= viewportWidth + margin &&
+               sy >= -margin && sy <= viewportHeight + margin
     }
 
-    fun focusOnWorld(worldX: Float, worldY: Float) {
-        if (baseMapWidthPx <= 0 || baseMapHeightPx <= 0) return
-        val canvasX = (worldX / MapCoordinateSystem.WORLD_WIDTH) * canvasWidth
-        val canvasY = (worldY / MapCoordinateSystem.WORLD_HEIGHT) * canvasHeight
-        offsetX = (screenWidth / 2f - canvasX).coerceIn(offsetRangeX)
-        offsetY = (screenHeight / 2f - canvasY).coerceIn(offsetRangeY)
-        hasInitialized = true
-    }
-
-    fun tryInitialFocus(worldX: Float, worldY: Float) {
-        if (!hasInitialized && screenWidth > 0 && screenHeight > 0) {
-            focusOnWorld(worldX, worldY)
-        }
-    }
-
-    fun applyDrag(dx: Float, dy: Float) {
-        val rangeX = offsetRangeX
-        val rangeY = offsetRangeY
-        val canPanX = rangeX.start != rangeX.endInclusive
-        val canPanY = rangeY.start != rangeY.endInclusive
-        if (canPanX || canPanY) {
-            offsetX = (offsetX + dx).coerceIn(rangeX)
-            offsetY = (offsetY + dy).coerceIn(rangeY)
-        }
-    }
-
-    fun applyZoom(zoomFactor: Float, centroid: Offset) {
-        val minScale = effectiveMinScale
-        val newScale = (scale * zoomFactor).coerceIn(minScale, scaleRange.endInclusive)
-        if (abs(newScale - scale) < 0.001f) return
-
-        val scaleFactor = newScale / scale
-        val centroidX = centroid.x - offsetX
-        val centroidY = centroid.y - offsetY
-
-        offsetX -= (centroidX * (scaleFactor - 1))
-        offsetY -= (centroidY * (scaleFactor - 1))
-        scale = newScale
-
-        offsetX = offsetX.coerceIn(offsetRangeX)
-        offsetY = offsetY.coerceIn(offsetRangeY)
-    }
-
-    fun isWorldPositionVisible(
-        worldX: Float,
-        worldY: Float,
-        margin: Float = 200f
-    ): Boolean {
-        if (screenWidth <= 0 || screenHeight <= 0) return true
-        return MapCoordinateSystem.isWorldPositionVisible(
-            worldX, worldY,
-            canvasWidth, canvasHeight,
-            offsetX, offsetY,
-            screenWidth, screenHeight,
-            margin
-        )
-    }
+    // -- 重置 --
 
     fun reset() {
         hasInitialized = false
-        offsetX = 0f
-        offsetY = 0f
-        scale = 1f
+        cameraX = 0f
+        cameraY = 0f
+    }
+
+    // -- 内部钳制 --
+
+    private fun clamp() {
+        if (viewportWidth >= worldWidth) {
+            cameraX = -(viewportWidth - worldWidth) / 2f
+        } else {
+            cameraX = cameraX.coerceIn(0f, worldWidth - viewportWidth)
+        }
+
+        if (viewportHeight >= worldHeight) {
+            cameraY = -(viewportHeight - worldHeight) / 2f
+        } else {
+            cameraY = cameraY.coerceIn(0f, worldHeight - viewportHeight)
+        }
     }
 }
 
 @Composable
-fun rememberMapCameraState(
-    scaleRange: ClosedFloatingPointRange<Float> = 0.2f..3f
-): MapCameraState = remember { MapCameraState(scaleRange) }
+fun rememberCameraState(
+    worldWidth: Float,
+    worldHeight: Float
+): CameraState = remember { CameraState(worldWidth, worldHeight) }

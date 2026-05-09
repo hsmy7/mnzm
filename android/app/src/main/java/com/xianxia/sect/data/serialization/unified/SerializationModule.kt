@@ -747,8 +747,8 @@ class UnifiedSerializationEngine @Inject constructor(
             violations.add(QuotaViolation("missions", missionEstimate, quota.missionMaxBytes.toLong()))
         }
 
-        // --- 探索队 / 事件 ---
-        val miscEstimate = (data.teams.size * 400L) + (data.events.size * 300L)
+        // --- 探索队 ---
+        val miscEstimate = (data.teams.size * 400L)
         estimatedTotal += miscEstimate
 
         // --- 总计硬上限 ---
@@ -797,7 +797,7 @@ class UnifiedSerializationEngine @Inject constructor(
         size += gameData.aiCaveTeams.size * 180L
 
         // unlocked lists
-        size += (gameData.unlockedDungeons.size + gameData.unlockedRecipes.size +
+        size += (gameData.unlockedRecipes.size +
             gameData.unlockedManuals.size) * 20L
 
         // building slots
@@ -1031,7 +1031,6 @@ class SaveDataConverter @Inject constructor() {
             herbs = saveData.herbs?.map { convertHerb(it) } ?: emptyList(),
             seeds = saveData.seeds?.map { convertSeed(it) } ?: emptyList(),
             teams = saveData.teams?.map { convertTeam(it) } ?: emptyList(),
-            events = saveData.events?.map { convertEvent(it) } ?: emptyList(),
             battleLogs = saveData.battleLogs?.map { convertBattleLog(it) } ?: emptyList(),
             alliances = saveData.alliances?.map { convertAlliance(it) } ?: emptyList()
         )
@@ -1052,7 +1051,6 @@ class SaveDataConverter @Inject constructor() {
             herbs = data.herbs.map { convertBackHerb(it) },
             seeds = data.seeds.map { convertBackSeed(it) },
             teams = data.teams.map { convertBackTeam(it) },
-            events = data.events.map { convertBackEvent(it) },
             battleLogs = data.battleLogs.map { convertBackBattleLog(it) },
             alliances = data.alliances.map { convertBackAlliance(it) },
             productionSlots = data.gameData?.productionSlots?.map { convertBackProductionSlot(it) } ?: emptyList()
@@ -1089,7 +1087,7 @@ class SaveDataConverter @Inject constructor() {
             cultivatorCaves = gameData.cultivatorCaves?.map { convertCultivatorCave(it) } ?: emptyList(),
             caveExplorationTeams = gameData.caveExplorationTeams?.map { convertCaveExplorationTeam(it) } ?: emptyList(),
             aiCaveTeams = gameData.aiCaveTeams?.map { convertAICaveTeam(it) } ?: emptyList(),
-            unlockedDungeons = gameData.unlockedDungeons ?: emptyList(),
+            // unlockedDungeons removed
             unlockedRecipes = gameData.unlockedRecipes ?: emptyList(),
             unlockedManuals = gameData.unlockedManuals ?: emptyList(),
             lastSaveTime = gameData.lastSaveTime ?: 0L,
@@ -1116,7 +1114,7 @@ class SaveDataConverter @Inject constructor() {
                     disciples = disciples.map { convertDisciple(it) }
                 )
             } ?: emptyList(),
-            smartBattleEnabled = gameData.smartBattleEnabled ?: false,
+            // smartBattleEnabled removed
             spiritMineExpansions = gameData.spiritMineExpansions
         )
     }
@@ -1153,7 +1151,7 @@ class SaveDataConverter @Inject constructor() {
             cultivatorCaves = data.cultivatorCaves.map { convertBackCultivatorCave(it) },
             caveExplorationTeams = data.caveExplorationTeams.map { convertBackCaveExplorationTeam(it) },
             aiCaveTeams = data.aiCaveTeams.map { convertBackAICaveTeam(it) },
-            unlockedDungeons = data.unlockedDungeons,
+            // unlockedDungeons removed
             unlockedRecipes = data.unlockedRecipes,
             unlockedManuals = data.unlockedManuals,
             lastSaveTime = data.lastSaveTime,
@@ -1177,7 +1175,7 @@ class SaveDataConverter @Inject constructor() {
             aiSectDisciples = data.aiSectDisciples.associate { entry ->
                 entry.sectId to entry.disciples.map { convertBackDisciple(it) }
             },
-            smartBattleEnabled = data.smartBattleEnabled,
+            // smartBattleEnabled removed
             spiritMineExpansions = data.spiritMineExpansions
         )
     }
@@ -1812,30 +1810,6 @@ class SaveDataConverter @Inject constructor() {
             status = safeEnumValueOfIgnoreCase(data.status, com.xianxia.sect.core.model.ExplorationStatus.TRAVELING, "status", "ExplorationTeam"),
             progress = data.currentProgress,
             scoutTargetSectId = data.targetSectId
-        )
-    }
-
-    private fun convertEvent(event: com.xianxia.sect.core.model.GameEvent): SerializableGameEvent {
-        return SerializableGameEvent(
-            id = event.id,
-            type = event.type.name,
-            title = "",
-            description = event.message,
-            timestamp = event.timestamp,
-            gameYear = event.year,
-            gameMonth = event.month,
-            data = emptyMap()
-        )
-    }
-
-    private fun convertBackEvent(data: SerializableGameEvent): com.xianxia.sect.core.model.GameEvent {
-        return com.xianxia.sect.core.model.GameEvent(
-            id = data.id,
-            message = data.description,
-            type = safeEnumValueOfIgnoreCase(data.type, com.xianxia.sect.core.model.EventType.INFO, "type", "GameEvent"),
-            timestamp = data.timestamp,
-            year = data.gameYear,
-            month = data.gameMonth
         )
     }
 

@@ -32,9 +32,11 @@ import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.theme.getSpiritRootColor
 import com.xianxia.sect.ui.components.discipleCardBorder
 import com.xianxia.sect.ui.components.DiscipleAttrText
+import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.TalentDetailDialog
 import com.xianxia.sect.ui.components.getTalentRarityColor
+import com.xianxia.sect.ui.components.HalfScreenDialog
 
 @Composable
 fun RecruitDialog(
@@ -45,20 +47,8 @@ fun RecruitDialog(
 ) {
     var showAutoRecruitDialog by remember { mutableStateOf(false) }
 
-    Dialog(onDismissRequest = onDismiss) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .fillMaxHeight(0.9f)
-                .clip(RoundedCornerShape(12.dp))
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.bg_screen),
-                contentDescription = null,
-                modifier = Modifier.matchParentSize(),
-                contentScale = ContentScale.Crop
-            )
-            Column(modifier = Modifier.fillMaxSize()) {
+    HalfScreenDialog(onDismissRequest = onDismiss) {
+        Column(modifier = Modifier.fillMaxSize()) {
                 RecruitHeader(
                     gameData = gameData,
                     onDismiss = onDismiss,
@@ -99,8 +89,6 @@ fun RecruitDialog(
                 }
             }
         }
-    }
-
     if (showAutoRecruitDialog) {
         AutoRecruitFilterDialog(
             gameData = gameData,
@@ -142,10 +130,7 @@ private fun RecruitHeader(
                 text = "自动招募",
                 onClick = onAutoRecruitClick
             )
-            GameButton(
-                text = "关闭",
-                onClick = onDismiss
-            )
+            CloseButton(onClick = onDismiss)
         }
     }
 }
@@ -295,7 +280,7 @@ private fun AutoRecruitFilterDialog(
                 .clip(RoundedCornerShape(12.dp))
         ) {
             Image(
-                painter = painterResource(id = R.drawable.bg_screen),
+                painter = painterResource(id = R.drawable.bg_horizontal),
                 contentDescription = null,
                 modifier = Modifier.matchParentSize(),
                 contentScale = ContentScale.FillBounds

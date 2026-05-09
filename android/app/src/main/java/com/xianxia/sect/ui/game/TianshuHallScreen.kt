@@ -28,10 +28,12 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.window.Dialog
 import com.xianxia.sect.R
 import com.xianxia.sect.core.model.*
-import com.xianxia.sect.ui.components.ElderBonusInfo
 import com.xianxia.sect.ui.components.CloseButton
+import com.xianxia.sect.ui.components.DialogDefaults
+import com.xianxia.sect.ui.components.ElderBonusInfo
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.FollowedTag
+import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.theme.GameColors
 
@@ -51,45 +53,24 @@ fun TianshuHallDialog(
     var showSectAffairsDialog by remember { mutableStateOf(false) }
     var showSectPoliciesDialog by remember { mutableStateOf(false) }
 
-    Dialog(onDismissRequest = onDismiss) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.bg_screen),
-                contentDescription = null,
-                modifier = Modifier.matchParentSize(),
-                contentScale = ContentScale.Crop
-            )
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp)
-                ) {
-                    Text(
-                        text = "天枢殿",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-                    CloseButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.align(Alignment.TopEnd)
-                    )
-                }
+    HalfScreenDialog(onDismissRequest = onDismiss) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("天枢殿", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                CloseButton(onClick = onDismiss)
+            }
+            Column(
+                modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
                         Text(
                             text = "副宗主",
                             fontSize = 12.sp,
@@ -175,10 +156,8 @@ fun TianshuHallDialog(
                         )
                     }
                 }
-                Spacer(modifier = Modifier.height(16.dp))
             }
         }
-    }
 
     if (showViceSectMasterSelectDialog) {
         val tianshuTheme = remember {
@@ -251,7 +230,7 @@ private fun SectAffairsPlaceholderDialog(onDismiss: () -> Unit) {
                 .clip(RoundedCornerShape(12.dp))
         ) {
             Image(
-                painter = painterResource(id = R.drawable.bg_screen),
+                painter = painterResource(id = R.drawable.bg_horizontal),
                 contentDescription = null,
                 modifier = Modifier.matchParentSize(),
                 contentScale = ContentScale.Crop
@@ -260,13 +239,21 @@ private fun SectAffairsPlaceholderDialog(onDismiss: () -> Unit) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(
-                    text = "宗门事务",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "宗门事务",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+                    CloseButton(onClick = onDismiss)
+                }
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -279,11 +266,6 @@ private fun SectAffairsPlaceholderDialog(onDismiss: () -> Unit) {
                         color = Color.Black
                     )
                 }
-                Spacer(modifier = Modifier.height(8.dp))
-                GameButton(
-                    text = "关闭",
-                    onClick = onDismiss
-                )
                 Spacer(modifier = Modifier.height(16.dp))
             }
         }
@@ -304,7 +286,7 @@ private fun SectPoliciesDialog(
                 .clip(RoundedCornerShape(12.dp))
         ) {
             Image(
-                painter = painterResource(id = R.drawable.bg_screen),
+                painter = painterResource(id = R.drawable.bg_horizontal),
                 contentDescription = null,
                 modifier = Modifier.matchParentSize(),
                 contentScale = ContentScale.Crop
@@ -313,13 +295,21 @@ private fun SectPoliciesDialog(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(
-                    text = "宗门政策",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "宗门政策",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+                    CloseButton(onClick = onDismiss)
+                }
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -388,11 +378,6 @@ private fun SectPoliciesDialog(
                         onCheckedChange = { productionViewModel.toggleEnhancedSecurity() }
                     )
                 }
-                Spacer(modifier = Modifier.height(8.dp))
-                GameButton(
-                    text = "关闭",
-                    onClick = onDismiss
-                )
                 Spacer(modifier = Modifier.height(16.dp))
             }
         }

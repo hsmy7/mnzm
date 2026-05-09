@@ -28,9 +28,8 @@ data class MutableGameState(
     var materials: List<Material>,
     var herbs: List<Herb>,
     var seeds: List<Seed>,
-    var events: List<GameEvent>,
-    var battleLogs: List<BattleLog>,
     var teams: List<ExplorationTeam>,
+    var battleLogs: List<BattleLog>,
     var isPaused: Boolean,
     var isLoading: Boolean,
     var isSaving: Boolean
@@ -98,10 +97,6 @@ class GameStateStore @Inject constructor(
         .distinctUntilChanged()
         .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000, replayExpirationMillis = 30_000), emptyList())
 
-    val events: StateFlow<List<GameEvent>> = _state.map { it.events }
-        .distinctUntilChanged()
-        .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000, replayExpirationMillis = 30_000), emptyList())
-
     val battleLogs: StateFlow<List<BattleLog>> = _state.map { it.battleLogs }
         .distinctUntilChanged()
         .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000, replayExpirationMillis = 30_000), emptyList())
@@ -142,7 +137,6 @@ class GameStateStore @Inject constructor(
         materials = emptyList(),
         herbs = emptyList(),
         seeds = emptyList(),
-        events = emptyList(),
         battleLogs = emptyList(),
         teams = emptyList(),
         isPaused = true,
@@ -191,7 +185,6 @@ class GameStateStore @Inject constructor(
                 materials = current.materials
                 herbs = current.herbs
                 seeds = current.seeds
-                events = current.events
                 battleLogs = current.battleLogs
                 teams = current.teams
                 isPaused = current.isPaused
@@ -220,7 +213,6 @@ class GameStateStore @Inject constructor(
                         herbs = reusableMutableState.herbs,
                         seeds = reusableMutableState.seeds,
                         teams = reusableMutableState.teams,
-                        events = reusableMutableState.events,
                         battleLogs = reusableMutableState.battleLogs,
                         alliances = reusableMutableState.gameData.alliances,
                         isPaused = finalPaused,
@@ -246,7 +238,6 @@ class GameStateStore @Inject constructor(
         herbs: List<Herb>,
         seeds: List<Seed>,
         teams: List<ExplorationTeam>,
-        events: List<GameEvent>,
         battleLogs: List<BattleLog>,
         isPaused: Boolean = true,
         isLoading: Boolean = false,
@@ -266,7 +257,6 @@ class GameStateStore @Inject constructor(
                     herbs = herbs,
                     seeds = seeds,
                     teams = teams,
-                    events = events,
                     battleLogs = battleLogs,
                     alliances = gameData.alliances,
                     isPaused = isPaused,

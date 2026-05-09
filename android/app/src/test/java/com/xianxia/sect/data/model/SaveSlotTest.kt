@@ -93,8 +93,7 @@ class SaveDataTest {
             materials = emptyList(),
             herbs = emptyList(),
             seeds = emptyList(),
-            teams = emptyList(),
-            events = emptyList()
+            teams = emptyList()
         )
         assertEquals(com.xianxia.sect.core.GameConfig.Game.VERSION, data.version)
     }
@@ -109,8 +108,7 @@ class SaveDataTest {
             materials = emptyList(),
             herbs = emptyList(),
             seeds = emptyList(),
-            teams = emptyList(),
-            events = emptyList()
+            teams = emptyList()
         )
         val after = System.currentTimeMillis()
         assertTrue(data.timestamp in before..after)
@@ -125,8 +123,7 @@ class SaveDataTest {
             materials = emptyList(),
             herbs = emptyList(),
             seeds = emptyList(),
-            teams = emptyList(),
-            events = emptyList()
+            teams = emptyList()
         )
         assertTrue(data.battleLogs.isEmpty())
     }
@@ -140,8 +137,7 @@ class SaveDataTest {
             materials = emptyList(),
             herbs = emptyList(),
             seeds = emptyList(),
-            teams = emptyList(),
-            events = emptyList()
+            teams = emptyList()
         )
         assertTrue(data.alliances.isEmpty())
     }
@@ -155,8 +151,7 @@ class SaveDataTest {
             materials = emptyList(),
             herbs = emptyList(),
             seeds = emptyList(),
-            teams = emptyList(),
-            events = emptyList()
+            teams = emptyList()
         )
         assertTrue(data.productionSlots.isEmpty())
     }
@@ -173,7 +168,6 @@ class SaveDataTest {
             herbs = emptyList(),
             seeds = emptyList(),
             teams = emptyList(),
-            events = emptyList(),
             battleLogs = listOf(com.xianxia.sect.core.model.BattleLog()),
             alliances = emptyList(),
             productionSlots = emptyList()

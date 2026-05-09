@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.xianxia.sect.R
+import com.xianxia.sect.ui.components.DialogDefaults
 import com.xianxia.sect.ui.components.GameButton
 
 @Composable

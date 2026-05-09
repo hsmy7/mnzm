@@ -73,7 +73,6 @@ class StorageValidatorTest {
             herbs = emptyList(),
             seeds = emptyList(),
             teams = emptyList(),
-            events = emptyList()
         )
     }
 

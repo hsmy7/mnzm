@@ -4,6 +4,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.engine.CaveExplorationSystem
+import com.xianxia.sect.core.engine.LevelGenerator
 import com.xianxia.sect.core.event.DeathEvent
 import com.xianxia.sect.core.event.EventBus
 import com.xianxia.sect.core.state.GameStateStore
@@ -21,7 +22,6 @@ import javax.inject.Singleton
 @Singleton
 class ExplorationService @Inject constructor(
     private val stateStore: GameStateStore,
-    private val eventService: EventService,
     private val eventBus: EventBus,
     private val applicationScopeProvider: ApplicationScopeProvider
 ) : GameSystem {
@@ -37,6 +37,30 @@ class ExplorationService @Inject constructor(
     }
 
     override suspend fun clearForSlot(slotId: Int) {}
+
+    override suspend fun onMonthTick(state: MutableGameState) {
+        val data = state.gameData
+        val year = data.gameYear
+        val month = data.gameMonth
+
+        val remainingLevels = data.worldLevels.filter { !it.checkExpired(year, month) }
+        val playerSect = data.worldMapSects.find { it.isPlayerSect } ?: return
+
+        val edges = LevelGenerator.buildConnectionEdges(data.worldMapSects)
+        val newLevels = LevelGenerator.generateWorldLevels(
+            existingSects = data.worldMapSects,
+            connectionEdges = edges,
+            currentYear = year,
+            currentMonth = month,
+            existingLevels = remainingLevels
+        )
+
+        if (newLevels.isNotEmpty()) {
+            state.gameData = data.copy(worldLevels = remainingLevels + newLevels)
+        } else if (remainingLevels.size != data.worldLevels.size) {
+            state.gameData = data.copy(worldLevels = remainingLevels)
+        }
+    }
     private val state = StateAccessorFactory(stateStore, scope, null)
 
     private var currentGameData: GameData
@@ -101,8 +125,6 @@ class ExplorationService @Inject constructor(
             updateDiscipleStatus(memberId, DiscipleStatus.IN_TEAM)
         }
 
-        eventService.addGameEvent("探索队伍【$name】出发前往 $dungeonName，预计 ${duration} 天后到达", EventType.INFO)
-
         return team
     }
 
@@ -121,7 +143,6 @@ class ExplorationService @Inject constructor(
             updateDiscipleStatus(memberId, DiscipleStatus.IDLE)
         }
 
-        eventService.addGameEvent("探索队伍【${team.name}】已召回", EventType.INFO)
         return true
     }
 
@@ -143,14 +164,12 @@ class ExplorationService @Inject constructor(
 
         if (remainingMemberIds.isEmpty()) {
             currentTeams = currentTeams.filter { it.id != teamId }
-            eventService.addGameEvent("探索队伍【${team.name}】已召回（无剩余成员）", EventType.INFO)
         } else {
             val updatedTeam = team.copy(
                 memberIds = remainingMemberIds,
                 memberNames = remainingMemberNames
             )
             currentTeams = currentTeams.toMutableList().also { it[teamIndex] = updatedTeam }
-            eventService.addGameEvent("${discipleName}已从探索队伍【${team.name}】召回", EventType.INFO)
         }
 
         updateDiscipleStatus(discipleId, DiscipleStatus.IDLE)
@@ -193,22 +212,16 @@ class ExplorationService @Inject constructor(
 
         val underageDisciples = selectedDisciples.filter { it.age < 5 }
         if (underageDisciples.isNotEmpty()) {
-            val names = underageDisciples.joinToString(", ") { it.name }
-            eventService.addGameEvent("以下弟子年龄太小，无法参加洞府探索：$names", EventType.WARNING)
             return false
         }
 
         val lowHpDisciples = selectedDisciples.filter { it.hpPercent < 30 }
         if (lowHpDisciples.isNotEmpty()) {
-            val names = lowHpDisciples.joinToString(", ") { it.name }
-            eventService.addGameEvent("以下弟子生命值过低，无法参加洞府探索：$names", EventType.WARNING)
             return false
         }
 
         val busyDisciples = selectedDisciples.filter { it.status != DiscipleStatus.IDLE }
         if (busyDisciples.isNotEmpty()) {
-            val names = busyDisciples.joinToString(", ") { it.name }
-            eventService.addGameEvent("以下弟子正在忙碌中，无法参加洞府探索：$names", EventType.WARNING)
             return false
         }
 
@@ -218,8 +231,6 @@ class ExplorationService @Inject constructor(
             .toSet()
         val alreadyCaveExploring = selectedDisciples.filter { it.id in caveExploringIds }
         if (alreadyCaveExploring.isNotEmpty()) {
-            val names = alreadyCaveExploring.joinToString(", ") { it.name }
-            eventService.addGameEvent("以下弟子已在洞府探索中，无法重复派遣：$names", EventType.WARNING)
                 return false
             }
 
@@ -262,7 +273,6 @@ class ExplorationService @Inject constructor(
                 caveExplorationTeams = (data.caveExplorationTeams + team) as List<CaveExplorationTeam>
             )
 
-            eventService.addGameEvent("派遣队伍前往${cave.name}探索，预计${travelDuration}天后到达", EventType.INFO)
             return true
     }
 
@@ -294,7 +304,6 @@ class ExplorationService @Inject constructor(
             cultivatorCaves = updatedCaves
         )
 
-        eventService.addGameEvent("${team.caveName}的探索队伍已召回", EventType.INFO)
         return true
     }
 
@@ -313,7 +322,6 @@ class ExplorationService @Inject constructor(
         val playerSect = currentGameData.worldMapSects.find { it.isPlayerSect }
 
         if (playerSect == null) {
-            eventService.addGameEvent("无法找到玩家宗门，探查失败", EventType.WARNING)
             return
         }
 
@@ -370,8 +378,6 @@ class ExplorationService @Inject constructor(
         memberIds.forEach { memberId ->
             updateDiscipleStatus(memberId, DiscipleStatus.IN_TEAM)
         }
-
-        eventService.addGameEvent("探查队伍出发前往${targetSect.name}进行探查，预计${travelDays}天后到达", EventType.INFO)
     }
 
     // ==================== 辅助方法 ====================

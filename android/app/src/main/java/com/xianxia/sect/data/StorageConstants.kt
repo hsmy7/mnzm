@@ -161,9 +161,6 @@ object StorageConstants {
     /** BattleLog 默认保留数量 */
     const val DEFAULT_MAX_BATTLE_LOGS = 500
     
-    /** GameEvent 默认保留数量 */
-    const val DEFAULT_MAX_GAME_EVENTS = 1000
-
     // ==================== 存档大小估算常量（用于 estimateSaveSize）====================
     
     /** 基础框架开销 (bytes) */
@@ -182,7 +179,6 @@ object StorageConstants {
         const val HERB = 160L
         const val SEED = 140L
         const val BATTLE_LOG = 600L
-        const val GAME_EVENT = 250L
         const val TEAM = 450L
         const val ALLIANCE = 300L
         const val PRODUCTION_SLOT = 200L

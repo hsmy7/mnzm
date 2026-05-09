@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.xianxia.sect.R
+import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.theme.GameColors
 
 data class ElderBonusInfo(
@@ -71,7 +72,7 @@ fun ElderBonusInfoDialog(
                 .clip(RoundedCornerShape(12.dp))
         ) {
             Image(
-                painter = painterResource(id = R.drawable.bg_screen),
+                painter = painterResource(id = R.drawable.bg_horizontal),
                 contentDescription = null,
                 modifier = Modifier.matchParentSize(),
                 contentScale = ContentScale.Crop
@@ -156,16 +157,11 @@ fun ElderBonusInfoDialog(
                     }
                 }
                 
-                TextButton(
+
+                CloseButton(
                     onClick = onDismiss,
                     modifier = Modifier.align(Alignment.End)
-                ) {
-                    Text(
-                        text = "关闭",
-                        fontSize = 14.sp,
-                        color = GameColors.Primary
-                    )
-                }
+                )
             }
         }
         }

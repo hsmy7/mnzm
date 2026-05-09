@@ -3,7 +3,6 @@ package com.xianxia.sect.data.archive
 import android.content.Context
 import android.util.Log
 import com.xianxia.sect.core.model.BattleLog
-import com.xianxia.sect.core.model.GameEvent
 import com.xianxia.sect.data.compression.CompressionAlgorithm
 import com.xianxia.sect.data.compression.DataCompressor
 import com.xianxia.sect.data.serialization.NullSafeProtoBuf
@@ -62,7 +61,6 @@ data class ArchiveStats(
     val totalArchiveFiles: Int = 0,
     val totalArchivedEntries: Long = 0L,
     val totalBattleLogsArchived: Long = 0L,
-    val totalGameEventsArchived: Long = 0L,
     val totalDiskUsageBytes: Long = 0L,
     val compressionRatio: Double = 0.0,
     val oldestArchiveTimestamp: Long = 0L,
@@ -86,12 +84,10 @@ data class QueryResult<T>(
 )
 
 enum class ArchivedDataType {
-    BATTLE_LOG,
-    GAME_EVENT;
+    BATTLE_LOG;
 
     val filePrefix: String get() = when (this) {
         BATTLE_LOG -> "battle_log"
-        GAME_EVENT -> "game_event"
     }
 
     companion object {
@@ -143,7 +139,6 @@ class DataArchiver @Inject constructor(
 
         // 默认配置（可被 StorageConfig 覆盖）
         const val DEFAULT_MAX_BATTLE_LOGS_IN_MEMORY = 500
-        const val DEFAULT_MAX_GAME_EVENTS_IN_MEMORY = 1000
         const val DEFAULT_RETENTION_MONTHS = 12
         const val DEFAULT_ARCHIVE_DIR_NAME = "archives"
 
@@ -222,51 +217,6 @@ class DataArchiver @Inject constructor(
     }
 
     /**
-     * 检查并归档超限的 GameEvent。
-     */
-    suspend fun archiveGameEventsIfNeeded(
-        events: List<GameEvent>,
-        maxInMemory: Int = DEFAULT_MAX_GAME_EVENTS_IN_MEMORY
-    ): ArchiveResult {
-        if (events.size <= maxInMemory) {
-            return ArchiveResult(success = true, archivedCount = 0, remainingCount = events.size)
-        }
-
-        val sorted = events.sortedBy { it.timestamp }
-        val toArchive = sorted.take(events.size - maxInMemory)
-        val toKeep = sorted.drop(toArchive.size)
-
-        return try {
-            val batchId = generateBatchId(ArchivedDataType.GAME_EVENT)
-            val archivedFile = writeArchiveFile(
-                dataType = ArchivedDataType.GAME_EVENT,
-                batchId = batchId,
-                items = toArchive.map { event ->
-                    ArchivedItem(
-                        originalData = serializeGameEvent(event),
-                        timestamp = event.timestamp
-                    )
-                },
-                timestamps = toArchive.map { it.timestamp }
-            )
-
-            updateIndex(archivedFile, ArchivedDataType.GAME_EVENT, toArchive)
-
-            Log.i(TAG, "Archived ${toArchive.size} game events to $archivedFile")
-
-            ArchiveResult(
-                success = true,
-                archivedCount = toArchive.size,
-                remainingCount = toKeep.size,
-                archiveFilePath = archivedFile.absolutePath
-            )
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to archive game events", e)
-            ArchiveResult(success = false, error = e.message)
-        }
-    }
-
-    /**
      * 获取应保留在主存档中的 BattleLog 列表（最近 N 条）。
      */
     fun getRetainedBattleLogs(battleLogs: List<BattleLog>, maxInMemory: Int = DEFAULT_MAX_BATTLE_LOGS_IN_MEMORY): List<BattleLog> {
@@ -274,17 +224,6 @@ class DataArchiver @Inject constructor(
             battleLogs
         } else {
             battleLogs.sortedByDescending { it.timestamp }.take(maxInMemory)
-        }
-    }
-
-    /**
-     * 获取应保留在主存档中的 GameEvent 列表（最近 N 条）。
-     */
-    fun getRetainedGameEvents(events: List<GameEvent>, maxInMemory: Int = DEFAULT_MAX_GAME_EVENTS_IN_MEMORY): List<GameEvent> {
-        return if (events.size <= maxInMemory) {
-            events
-        } else {
-            events.sortedByDescending { it.timestamp }.take(maxInMemory)
         }
     }
 
@@ -303,15 +242,6 @@ class DataArchiver @Inject constructor(
     }
 
     /**
-     * 按时间范围查询已归档的 GameEvent。
-     */
-    suspend fun queryGameEvents(startMs: Long? = null, endMs: Long? = null): QueryResult<GameEvent> {
-        return queryArchived(ArchivedDataType.GAME_EVENT, startMs, endMs) { bytes ->
-            deserializeGameEvent(bytes)
-        }
-    }
-
-    /**
      * 将指定时间范围的归档数据恢复到主存档中。
      * 返回合并后的完整列表（去重，按时间排序）。
      */
@@ -322,16 +252,6 @@ class DataArchiver @Inject constructor(
     ): List<BattleLog> {
         val archived = queryBattleLogs(startMs, endMs).entries
         val merged = (currentLogs + archived).distinctBy { it.id }
-        return merged.sortedBy { it.timestamp }
-    }
-
-    suspend fun restoreGameEvents(
-        currentEvents: List<GameEvent>,
-        startMs: Long? = null,
-        endMs: Long? = null
-    ): List<GameEvent> {
-        val archived = queryGameEvents(startMs, endMs).entries
-        val merged = (currentEvents + archived).distinctBy { it.id }
         return merged.sortedBy { it.timestamp }
     }
 
@@ -376,7 +296,6 @@ class DataArchiver @Inject constructor(
 
         var totalEntries = 0L
         var totalBattleLogs = 0L
-        var totalGameEvents = 0L
         var totalSize = 0L
         var totalOriginalSize = 0L
         var oldestTs = now
@@ -395,7 +314,6 @@ class DataArchiver @Inject constructor(
 
             when (entry.dataType) {
                 ArchivedDataType.BATTLE_LOG -> totalBattleLogs += entry.entryCount.toLong()
-                ArchivedDataType.GAME_EVENT -> totalGameEvents += entry.entryCount.toLong()
             }
         }
 
@@ -403,7 +321,6 @@ class DataArchiver @Inject constructor(
             totalArchiveFiles = index.entries.size,
             totalArchivedEntries = totalEntries,
             totalBattleLogsArchived = totalBattleLogs,
-            totalGameEventsArchived = totalGameEvents,
             totalDiskUsageBytes = totalSize,
             compressionRatio = if (totalOriginalSize > 0) totalOriginalSize.toDouble() / totalSize.coerceAtLeast(1) else 0.0,
             oldestArchiveTimestamp = if (index.entries.isEmpty()) 0 else oldestTs,
@@ -463,11 +380,7 @@ class DataArchiver @Inject constructor(
         indexMutex.withLock {
             val index = loadIndexInternal()
 
-            val timestamps = when (archivedItems.firstOrNull()) {
-                is BattleLog -> archivedItems.map { (it as BattleLog).timestamp }
-                is GameEvent -> archivedItems.map { (it as GameEvent).timestamp }
-                else -> emptyList()
-            }
+            val timestamps = archivedItems.map { (it as BattleLog).timestamp }
 
             val calendar = Calendar.getInstance()
             val yearMonth = DATE_FORMAT.get()!!.format(calendar.time)
@@ -634,16 +547,6 @@ class DataArchiver @Inject constructor(
     @OptIn(ExperimentalSerializationApi::class)
     private fun deserializeBattleLog(bytes: ByteArray): BattleLog {
         return protoBuf.decodeFromByteArray(BattleLog.serializer(), bytes)
-    }
-
-    @OptIn(ExperimentalSerializationApi::class)
-    private fun serializeGameEvent(event: GameEvent): ByteArray {
-        return protoBuf.encodeToByteArray(GameEvent.serializer(), event)
-    }
-
-    @OptIn(ExperimentalSerializationApi::class)
-    private fun deserializeGameEvent(bytes: ByteArray): GameEvent {
-        return protoBuf.decodeFromByteArray(GameEvent.serializer(), bytes)
     }
 
     private fun computeChecksum(data: ByteArray): String {

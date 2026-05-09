@@ -57,6 +57,7 @@ import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.RedeemResult
 import com.xianxia.sect.data.model.SaveSlot
 import com.xianxia.sect.ui.components.CloseButton
+import com.xianxia.sect.ui.components.DialogDefaults
 import com.xianxia.sect.ui.components.DiscipleAttrText
 import com.xianxia.sect.ui.components.GameBackground
 import com.xianxia.sect.ui.components.GameButton
@@ -111,11 +112,11 @@ internal fun RedeemCodeDialog(
     Dialog(onDismissRequest = onDismiss) {
         Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
+                .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
+                .clip(RoundedCornerShape(DialogDefaults.CornerRadius))
         ) {
             Image(
-                painter = painterResource(id = R.drawable.bg_screen),
+                painter = painterResource(id = R.drawable.bg_horizontal),
                 contentDescription = null,
                 modifier = Modifier.matchParentSize(),
                 contentScale = ContentScale.FillBounds
@@ -183,6 +184,7 @@ internal fun SettingsTab(
     viewModel: GameViewModel,
     saveLoadViewModel: SaveLoadViewModel,
     onLogout: () -> Unit,
+    onDismiss: () -> Unit,
     limitAdTracking: Boolean = true,
     onLimitAdTrackingChanged: (Boolean) -> Unit = {}
 ) {
@@ -205,6 +207,13 @@ internal fun SettingsTab(
                 .fillMaxSize()
                 .padding(16.dp)
         ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End
+        ) {
+            CloseButton(onClick = onDismiss)
+        }
+        Spacer(modifier = Modifier.height(8.dp))
         LazyColumn(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -239,11 +248,6 @@ internal fun SettingsTab(
                             contentDescription = null,
                             modifier = Modifier.matchParentSize(),
                             contentScale = ContentScale.FillBounds
-                        )
-                        Text(
-                            text = "暂停",
-                            fontSize = 10.sp,
-                            color = if (isPaused) Color.White else Color.Black
                         )
                     }
 
@@ -305,11 +309,6 @@ internal fun SettingsTab(
                             modifier = Modifier.matchParentSize(),
                             contentScale = ContentScale.FillBounds
                         )
-                        Text(
-                            text = "停止",
-                            fontSize = 10.sp,
-                            color = if (!isAutoSaveActive) Color.White else Color.Black
-                        )
                     }
 
                     var showEditIntervalDialog by remember { mutableStateOf(false) }
@@ -349,11 +348,11 @@ internal fun SettingsTab(
                         Dialog(onDismissRequest = { showEditIntervalDialog = false }) {
                             Box(
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(12.dp))
+                                    .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
+                                    .clip(RoundedCornerShape(DialogDefaults.CornerRadius))
                             ) {
                                 Image(
-                                    painter = painterResource(id = R.drawable.bg_screen),
+                                    painter = painterResource(id = R.drawable.bg_horizontal),
                                     contentDescription = null,
                                     modifier = Modifier.matchParentSize(),
                                     contentScale = ContentScale.FillBounds
@@ -604,11 +603,11 @@ internal fun SettingsTab(
         Dialog(onDismissRequest = { showRestartConfirmDialog = false }) {
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
+                    .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
+                    .clip(RoundedCornerShape(DialogDefaults.CornerRadius))
             ) {
                 Image(
-                    painter = painterResource(id = R.drawable.bg_screen),
+                    painter = painterResource(id = R.drawable.bg_horizontal),
                     contentDescription = null,
                     modifier = Modifier.matchParentSize(),
                     contentScale = ContentScale.FillBounds
@@ -655,11 +654,11 @@ internal fun SettingsTab(
         Dialog(onDismissRequest = { showResetDisciplesConfirmDialog = false }) {
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
+                    .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
+                    .clip(RoundedCornerShape(DialogDefaults.CornerRadius))
             ) {
                 Image(
-                    painter = painterResource(id = R.drawable.bg_screen),
+                    painter = painterResource(id = R.drawable.bg_horizontal),
                     contentDescription = null,
                     modifier = Modifier.matchParentSize(),
                     contentScale = ContentScale.FillBounds
@@ -714,11 +713,11 @@ internal fun SettingsTab(
         Dialog(onDismissRequest = { showOtherSettingsDialog = false }) {
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
+                    .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
+                    .clip(RoundedCornerShape(DialogDefaults.CornerRadius))
             ) {
                 Image(
-                    painter = painterResource(id = R.drawable.bg_screen),
+                    painter = painterResource(id = R.drawable.bg_horizontal),
                     contentDescription = null,
                     modifier = Modifier.matchParentSize(),
                     contentScale = ContentScale.FillBounds
@@ -726,12 +725,19 @@ internal fun SettingsTab(
                 Column(
                     modifier = Modifier.padding(20.dp)
                 ) {
-                    Text(
-                        text = "其他设置",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "其他设置",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Black
+                        )
+                        CloseButton(onClick = { showOtherSettingsDialog = false })
+                    }
                     Spacer(modifier = Modifier.height(16.dp))
 
                     Row(
@@ -827,12 +833,6 @@ internal fun SettingsTab(
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
-
-                    GameButton(
-                        text = "关闭",
-                        onClick = { showOtherSettingsDialog = false },
-                        modifier = Modifier.align(Alignment.CenterHorizontally)
-                    )
                 }
             }
         }
@@ -870,24 +870,29 @@ internal fun SaveSlotDialog(
         }
     }
     
-    Dialog(onDismissRequest = { 
+    Dialog(onDismissRequest = {
         if (isBusy) {
             saveLoadViewModel.cancelSaveLoad()
         }
         onDismiss()
     }) {
-        Surface(
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .fillMaxHeight(0.85f),
-            shape = RoundedCornerShape(16.dp),
-            color = GameColors.PageBackground
+                .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
+                .fillMaxHeight(DialogDefaults.HalfScreenHeightFraction)
+                .clip(RoundedCornerShape(16.dp))
         ) {
+            Image(
+                painter = painterResource(id = R.drawable.bg_horizontal),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.Crop
+            )
             Column(modifier = Modifier.fillMaxSize()) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(GameColors.PageBackground)
+                        .background(Color.Transparent)
                         .padding(16.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
@@ -909,15 +914,12 @@ internal fun SaveSlotDialog(
                                 }
                             )
                         }
-                        GameButton(
-                            text = "关闭",
-                            onClick = {
-                                if (isBusy) {
-                                    saveLoadViewModel.cancelSaveLoad()
-                                }
-                                onDismiss()
+                        CloseButton(onClick = {
+                            if (isBusy) {
+                                saveLoadViewModel.cancelSaveLoad()
                             }
-                        )
+                            onDismiss()
+                        })
                     }
                 }
                 
@@ -1153,11 +1155,11 @@ private fun ChangelogDialog(onDismiss: () -> Unit) {
     Dialog(onDismissRequest = onDismiss) {
         Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
+                .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
+                .clip(RoundedCornerShape(DialogDefaults.CornerRadius))
         ) {
             Image(
-                painter = painterResource(id = R.drawable.bg_screen),
+                painter = painterResource(id = R.drawable.bg_horizontal),
                 contentDescription = null,
                 modifier = Modifier.matchParentSize(),
                 contentScale = ContentScale.Crop
@@ -1176,16 +1178,7 @@ private fun ChangelogDialog(onDismiss: () -> Unit) {
                         fontWeight = FontWeight.Bold,
                         color = Color.Black
                     )
-                    Box(
-                        modifier = Modifier
-                            .size(24.dp)
-                            .clip(CircleShape)
-                            .clickable { onDismiss() }
-                            .background(GameColors.CardBackground),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(text = "关闭", fontSize = 12.sp, color = Color.Black)
-                    }
+                    CloseButton(onClick = onDismiss)
                 }
                 Column(
                     modifier = Modifier

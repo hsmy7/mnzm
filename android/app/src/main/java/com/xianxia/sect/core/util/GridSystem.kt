@@ -3,7 +3,7 @@ package com.xianxia.sect.core.util
 import com.xianxia.sect.core.model.GridBuildingData
 
 class GridSystem(
-    val gridSizePx: Float,
+    val tileSize: Int,
     val gridWidthCells: Int,
     val gridHeightCells: Int
 ) {
@@ -60,12 +60,12 @@ class GridSystem(
     }
 
     fun snapWorldToGrid(worldX: Float, worldY: Float): Pair<Int, Int> =
-        GridSnapHelper.worldToGrid(worldX, gridSizePx) to
-        GridSnapHelper.worldToGrid(worldY, gridSizePx)
+        GridSnapHelper.worldToGrid(worldX, tileSize) to
+        GridSnapHelper.worldToGrid(worldY, tileSize)
 
-    fun gridToWorld(gridX: Int, gridY: Int): Pair<Float, Float> =
-        GridSnapHelper.gridToWorld(gridX, gridSizePx) to
-        GridSnapHelper.gridToWorld(gridY, gridSizePx)
+    fun gridToWorld(gridX: Int, gridY: Int): Pair<Int, Int> =
+        GridSnapHelper.gridToWorld(gridX, tileSize) to
+        GridSnapHelper.gridToWorld(gridY, tileSize)
 
     companion object {
         const val DEFAULT_WORLD_WIDTH_CELLS = 28

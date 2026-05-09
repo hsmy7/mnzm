@@ -23,9 +23,6 @@ class StorageConfig @Inject constructor(
     val maxBattleLogs: Int
         get() = prefs.getInt("max_battle_logs", DEFAULT_MAX_BATTLE_LOGS)
     
-    val maxGameEvents: Int
-        get() = prefs.getInt("max_game_events", DEFAULT_MAX_GAME_EVENTS)
-    
     val maxSaveSize: Long
         get() = prefs.getLong("max_save_size", DEFAULT_MAX_SAVE_SIZE)
     
@@ -122,7 +119,6 @@ class StorageConfig @Inject constructor(
     companion object {
         const val DEFAULT_MAX_SLOTS = 6
         const val DEFAULT_MAX_BATTLE_LOGS = 500
-        const val DEFAULT_MAX_GAME_EVENTS = 1000
         const val DEFAULT_MAX_SAVE_SIZE = 50L * 1024 * 1024L
         const val DEFAULT_MIN_MEMORY_RATIO = 0.15f
         const val DEFAULT_GZIP_BUFFER_SIZE = 64 * 1024

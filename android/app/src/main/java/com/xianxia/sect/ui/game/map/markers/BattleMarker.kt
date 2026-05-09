@@ -14,21 +14,19 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.text.font.FontWeight
-import com.xianxia.sect.core.model.MapCoordinateSystem
 import kotlin.math.roundToInt
-import com.xianxia.sect.ui.game.map.MapCameraState
+import com.xianxia.sect.ui.game.map.CameraState
 import com.xianxia.sect.ui.game.map.MapItem
 import com.xianxia.sect.ui.game.map.MapStyle
 
 @Composable
 fun BattleTeamMarker(
     item: MapItem.BattleTeam,
-    cameraState: MapCameraState,
+    cameraState: CameraState,
     onClick: () -> Unit
 ) {
-    val (nx, ny) = MapCoordinateSystem.worldToNormalized(item.worldX, item.worldY)
-    val x = nx * cameraState.canvasWidth
-    val y = ny * cameraState.canvasHeight
+    val x = cameraState.worldToScreenX(item.worldX)
+    val y = cameraState.worldToScreenY(item.worldY)
 
     val yOffset = if (item.isAtSect) -MapStyle.Dimensions.battleTeamYOffset.toFloat() else 0f
 
@@ -74,11 +72,10 @@ fun BattleTeamMarker(
 @Composable
 fun AIBattleTeamMarker(
     item: MapItem.AIBattleTeam,
-    cameraState: MapCameraState
+    cameraState: CameraState
 ) {
-    val (nx, ny) = MapCoordinateSystem.worldToNormalized(item.worldX, item.worldY)
-    val x = nx * cameraState.canvasWidth
-    val y = ny * cameraState.canvasHeight
+    val x = cameraState.worldToScreenX(item.worldX)
+    val y = cameraState.worldToScreenY(item.worldY)
 
     val teamColor = if (item.attackerIsRighteous) MapStyle.Colors.righteousTeam else MapStyle.Colors.evilTeam
 
@@ -126,11 +123,10 @@ fun AIBattleTeamMarker(
 @Composable
 fun BattleIndicatorMarker(
     item: MapItem.BattleIndicator,
-    cameraState: MapCameraState
+    cameraState: CameraState
 ) {
-    val (nx, ny) = MapCoordinateSystem.worldToNormalized(item.worldX, item.worldY)
-    val x = nx * cameraState.canvasWidth
-    val y = ny * cameraState.canvasHeight
+    val x = cameraState.worldToScreenX(item.worldX)
+    val y = cameraState.worldToScreenY(item.worldY)
 
     Box(
         modifier = Modifier.layout { measurable, constraints ->

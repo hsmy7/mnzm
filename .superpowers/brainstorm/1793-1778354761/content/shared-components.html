@@ -1,0 +1,65 @@
+<h2>共享组件架构</h2>
+<p class="subtitle">消除重复，所有界面使用同一套组件</p>
+
+<div class="mockup" style="margin-bottom: 20px;">
+  <div class="mockup-header">1. 统一对话框 (UnifiedGameDialog)</div>
+  <div class="mockup-body">
+    <p style="font-size:12px; margin-bottom:12px">替代现有的 HalfScreenDialog + 私有 CommonDialog + Dialog(usePlatformDefaultWidth=false) 三种模式，统一为一个。</p>
+    <table style="width:100%; border-collapse: collapse; font-size:11px;">
+      <tr style="background:#f0f0f0"><th style="padding:8px;text-align:left">模式</th><th>宽度</th><th>高度</th><th>使用场景</th></tr>
+      <tr><td style="padding:6px">Half</td><td style="padding:6px">fillMaxWidth(0.85f)</td><td style="padding:6px">fillMaxHeight(0.78f)</td><td style="padding:6px">建筑/生产界面 (默认)</td></tr>
+      <tr style="background:#fafafa"><td style="padding:6px">Full</td><td style="padding:6px">fillMaxSize</td><td style="padding:6px">fillMaxSize</td><td style="padding:6px">弟子/仓库/设置</td></tr>
+      <tr><td style="padding:6px">Auto</td><td style="padding:6px">fillMaxWidth(0.85f)</td><td style="padding:6px">wrapContentHeight</td><td style="padding:6px">简短确认/信息弹窗</td></tr>
+    </table>
+    <p style="font-size:11px; margin-top:8px; color:#666;">三种模式共享：bg_horizontal 背景、12dp 圆角、头部结构、关闭按钮位置</p>
+  </div>
+</div>
+
+<div class="mockup" style="margin-bottom: 20px;">
+  <div class="mockup-header">2. 统一插槽组件 (UnifiedSlot + SlotGrid)</div>
+  <div class="mockup-body">
+    <p style="font-size:12px; margin-bottom:8px">替代各文件中独立定义的 ElderSlotItem、DirectDiscipleSlot、ProductionSlotItem、MinerSlot 等。</p>
+    <table style="width:100%; border-collapse: collapse; font-size:11px;">
+      <tr style="background:#f0f0f0"><th style="padding:8px;text-align:left">变体</th><th>尺寸 Token</th><th>用法</th></tr>
+      <tr><td style="padding:6px">UnifiedSlot.Large</td><td style="padding:6px">70dp</td><td style="padding:6px">生产建筑长老位</td></tr>
+      <tr style="background:#fafafa"><td style="padding:6px">UnifiedSlot.Medium</td><td style="padding:6px">60dp</td><td style="padding:6px">峰长老 / 生产槽 / 矿工位 / 监牢</td></tr>
+      <tr><td style="padding:6px">UnifiedSlot.Small</td><td style="padding:6px">52dp</td><td style="padding:6px">亲传弟子 / 传道师 / 执法弟子</td></tr>
+    </table>
+    <p style="font-size:11px; margin-top:8px;">此外提供 <b>SlotRow</b> 和 <b>SlotGrid</b> 布局容器，统一每行排列方式和间距 (8dp)。</p>
+  </div>
+</div>
+
+<div class="mockup" style="margin-bottom: 20px;">
+  <div class="mockup-header">3. 统一筛选器 (DiscipleFilterBar)</div>
+  <div class="mockup-body">
+    <p style="font-size:12px; margin-bottom:8px">将 SpiritRootAttributeFilterBar + RealmFilterRow 及其 applyFilters 逻辑合并为一个组件。消除 10+ 处重复。</p>
+    <p style="font-size:11px;">
+      <b>参数化</b>：realmSet (包含哪些境界)、showSpiritRootFilter、showAttributeSort、showRealmFilter 均为可选开关。
+    </p>
+    <p style="font-size:11px; color:#666; margin-top:4px;">影响文件: ProductionComponents, PeakScreenComponents, LibraryScreen, SpiritMineScreen, AllianceScreen, MerchantScreen, RecruitScreen</p>
+  </div>
+</div>
+
+<div class="mockup" style="margin-bottom: 20px;">
+  <div class="mockup-header">4. 统一空状态 (EmptyState)</div>
+  <div class="mockup-body">
+    <p style="font-size:12px; margin-bottom:8px">替代各处内联的 "暂无XXX" Box 写法，统一为居中文字 + 可选图标。</p>
+    <p style="font-size:11px; color:#666;">使用 Body(11sp) 字体，高度 120dp，居中。</p>
+  </div>
+</div>
+
+<div class="mockup">
+  <div class="mockup-header">组件文件规划</div>
+  <div class="mockup-body">
+    <table style="width:100%; border-collapse: collapse; font-size:11px;">
+      <tr style="background:#f0f0f0"><th style="padding:8px;text-align:left">新文件 / 修改</th><th>内容</th></tr>
+      <tr><td style="padding:6px"><b>新建</b> theme/DesignTokens.kt</td><td style="padding:6px">Spacing / SlotSize / FontSize / CornerRadius 常量</td></tr>
+      <tr style="background:#fafafa"><td style="padding:6px"><b>重写</b> components/GameDialog.kt</td><td style="padding:6px">UnifiedGameDialog(Half/Full/Auto) 替代现有三种模式</td></tr>
+      <tr><td style="padding:6px"><b>新建</b> components/UnifiedSlot.kt</td><td style="padding:6px">UnifiedSlot + SlotRow + SlotGrid</td></tr>
+      <tr style="background:#fafafa"><td style="padding:6px"><b>新建</b> components/DiscipleFilterBar.kt</td><td style="padding:6px">统一筛选器 (合并灵根+境界+属性排序)</td></tr>
+      <tr><td style="padding:6px"><b>新建</b> components/EmptyState.kt</td><td style="padding:6px">统一空状态组件</td></tr>
+      <tr style="background:#fafafa"><td style="padding:6px"><b>重写</b> theme/Typography.kt</td><td style="padding:6px">Material3 字体层级填充实际不同值</td></tr>
+      <tr><td style="padding:6px"><b>迁移</b> 所有 Screen.kt 文件</td><td style="padding:6px">替换旧组件调用为新组件</td></tr>
+    </table>
+  </div>
+</div>

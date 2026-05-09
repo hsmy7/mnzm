@@ -86,7 +86,8 @@ import com.xianxia.sect.ui.game.SpiritMineDialog
 import com.xianxia.sect.ui.game.SpiritMineViewModel
 import com.xianxia.sect.ui.game.TianshuHallDialog
 import com.xianxia.sect.ui.game.WenDaoPeakDialog
-import com.xianxia.sect.ui.components.GameBackground
+import com.xianxia.sect.ui.components.CloseButton
+import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.ui.state.DialogStateManager.DialogType
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.theme.XianxiaColorScheme
@@ -98,7 +99,8 @@ internal fun BuildingsTab(
     alchemyViewModel: AlchemyViewModel,
     forgeViewModel: ForgeViewModel,
     herbGardenViewModel: HerbGardenViewModel,
-    spiritMineViewModel: SpiritMineViewModel
+    spiritMineViewModel: SpiritMineViewModel,
+    onDismiss: () -> Unit
 ) {
     val gameData by viewModel.gameData.collectAsState()
     val alchemySlots by viewModel.alchemySlots.collectAsState()
@@ -111,7 +113,7 @@ internal fun BuildingsTab(
     val equipment by viewModel.equipment.collectAsState()
     val pills by viewModel.pills.collectAsState()
     val productionSlots by viewModel.productionSlots.collectAsState()
-    
+
     val currentDialog by viewModel.dialogStateManager.currentDialog.collectAsState()
 
     val showAlchemyDialog = currentDialog?.type == DialogType.Alchemy
@@ -139,63 +141,70 @@ internal fun BuildingsTab(
         Triple("监牢", "悔过自新之地") { viewModel.openReflectionCliffDialog() }
     )
 
-    GameBackground {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(12.dp)
-        ) {
-            Text(
-                text = "建筑管理",
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.Black,
-            modifier = Modifier.padding(bottom = 12.dp)
-        )
-
-        Column(
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            buildings.chunked(2).forEach { rowBuildings ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+    HalfScreenDialog(onDismissRequest = onDismiss) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("建筑", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                CloseButton(onClick = onDismiss)
+            }
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 12.dp)
+            ) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    rowBuildings.forEach { building ->
-                        val name = building.first
-                        val desc = building.second
-                        val onClick = building.third
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(8.dp))
-                                .border(1.dp, GameColors.Border, RoundedCornerShape(8.dp))
-                                .clickable { onClick() }
+                    buildings.chunked(2).forEach { rowBuildings ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Image(
-                                painter = painterResource(id = R.drawable.bg_horizontal),
-                                contentDescription = null,
-                                modifier = Modifier.matchParentSize(),
-                                contentScale = ContentScale.FillBounds
-                            )
-                            Column(modifier = Modifier.padding(12.dp)) {
-                                Text(
-                                    text = name,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.Black
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = desc,
-                                    fontSize = 12.sp,
-                                    color = Color.Black
-                                )
+                            rowBuildings.forEach { building ->
+                                val name = building.first
+                                val desc = building.second
+                                val onClick = building.third
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .border(1.dp, GameColors.Border, RoundedCornerShape(8.dp))
+                                        .clickable { onClick() }
+                                ) {
+                                    Image(
+                                        painter = painterResource(id = R.drawable.bg_horizontal),
+                                        contentDescription = null,
+                                        modifier = Modifier.matchParentSize(),
+                                        contentScale = ContentScale.FillBounds
+                                    )
+                                    Column(modifier = Modifier.padding(12.dp)) {
+                                        Text(
+                                            text = name,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.Black
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = desc,
+                                            fontSize = 12.sp,
+                                            color = Color.Black
+                                        )
+                                    }
+                                }
+                            }
+                            if (rowBuildings.size == 1) {
+                                Spacer(modifier = Modifier.weight(1f))
                             }
                         }
-                    }
-                    if (rowBuildings.size == 1) {
-                        Spacer(modifier = Modifier.weight(1f))
                     }
                 }
             }
@@ -286,8 +295,7 @@ internal fun BuildingsTab(
             disciples = disciples.filter { it.isAlive },
             gameData = gameData,
             viewModel = viewModel,
-            productionViewModel = productionViewModel,
-            onDismiss = { viewModel.closeCurrentDialog() }
+            productionViewModel = productionViewModel
         )
     }
 
@@ -296,8 +304,7 @@ internal fun BuildingsTab(
             disciples = disciples.filter { it.isAlive },
             gameData = gameData,
             viewModel = viewModel,
-            productionViewModel = productionViewModel,
-            onDismiss = { viewModel.closeCurrentDialog() }
+            productionViewModel = productionViewModel
         )
     }
 
@@ -339,5 +346,4 @@ internal fun BuildingsTab(
             onExpelDisciple = { discipleId -> viewModel.expelDisciple(discipleId) }
         )
     }
-    }
-}
+}

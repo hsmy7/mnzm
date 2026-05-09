@@ -27,8 +27,7 @@ import kotlin.random.Random
 class DiscipleService @Inject constructor(
     private val stateStore: GameStateStore,
     private val productionSlotRepository: ProductionSlotRepository,
-    private val eventService: EventService,
-    private val applicationScopeProvider: ApplicationScopeProvider,
+private val applicationScopeProvider: ApplicationScopeProvider,
     private val inventoryConfig: InventoryConfig
 ) : GameSystem {
     override val systemName: String = "DiscipleService"
@@ -415,6 +414,7 @@ class DiscipleService @Inject constructor(
         val existingNames = (currentDisciples + currentGameData.recruitList).map { it.name }.toSet()
         val nameResult = NameService.generateName(gender, NameService.NameStyle.FULL, existingNames)
 
+
         val allSpiritRootTypes = listOf("metal", "wood", "water", "fire", "earth")
         val rootCount = when (Random.nextInt(100)) {
             in 0..4 -> 1
@@ -501,7 +501,6 @@ class DiscipleService @Inject constructor(
         disciple.usage.recruitedMonth = currentMonthValue
 
         addDisciple(disciple)
-        eventService.addGameEvent("新弟子 ${disciple.name} 加入宗门", EventType.SUCCESS)
 
         return disciple
     }
@@ -519,7 +518,6 @@ class DiscipleService @Inject constructor(
             }
 
             if (!disciple.isAlive) {
-                eventService.addGameEvent("${disciple.name} 已死亡，无法逐出", EventType.WARNING)
                 result = false
                 return@update
             }
@@ -605,7 +603,6 @@ class DiscipleService @Inject constructor(
 
             disciples = disciples.filter { it.id != discipleId }
 
-            eventService.addGameEvent("已将 ${disciple.name} 逐出宗门", EventType.INFO)
             result = true
         }
         return result
@@ -633,16 +630,13 @@ class DiscipleService @Inject constructor(
             if (equipmentInstance != null) {
                 if (equipmentInstance.isEquipped) {
                     if (equipmentInstance.ownerId == discipleId) { result = false; return@update }
-                    eventService.addGameEvent("${equipmentInstance.name} 已被其他弟子装备，无法重复穿戴", EventType.WARNING)
                     result = false; return@update
                 }
                 if (!GameConfig.Realm.meetsRealmRequirement(disciple.realm, equipmentInstance.minRealm)) {
-                    eventService.addGameEvent("${disciple.name} 境界不足，无法装备 ${equipmentInstance.name}", EventType.WARNING)
                     result = false; return@update
                 }
             } else if (equipmentStack != null) {
                 if (!GameConfig.Realm.meetsRealmRequirement(disciple.realm, equipmentStack.minRealm)) {
-                    eventService.addGameEvent("${disciple.name} 境界不足，无法装备 ${equipmentStack.name}", EventType.WARNING)
                     result = false; return@update
                 }
             }
@@ -702,7 +696,6 @@ class DiscipleService @Inject constructor(
                 }
             }
 
-            eventService.addGameEvent("${disciple.name} 装备了 $equipName", EventType.INFO)
             result = true
         }
         return result
@@ -930,7 +923,6 @@ class DiscipleService @Inject constructor(
                 if (slot.discipleId == discipleId) null else slot
             }.toMutableList()
 
-            eventService.addGameEvent("执法堂自动补位：$discipleName 接任第${slotIndex + 1}号执法弟子", EventType.INFO)
             fillCount++
         }
 

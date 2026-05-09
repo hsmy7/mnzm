@@ -28,28 +28,6 @@ interface ArchivedBattleLogDao {
 }
 
 @Dao
-interface ArchivedGameEventDao {
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertAll(events: List<ArchivedGameEvent>)
-
-    @Query("SELECT * FROM archived_game_events WHERE slot_id = :slotId ORDER BY timestamp DESC")
-    suspend fun getBySlot(slotId: Int): List<ArchivedGameEvent>
-
-    @Query("SELECT * FROM archived_game_events WHERE slot_id = :slotId AND timestamp BETWEEN :startMs AND :endMs ORDER BY timestamp DESC")
-    suspend fun getByTimeRange(slotId: Int, startMs: Long, endMs: Long): List<ArchivedGameEvent>
-
-    @Query("SELECT COUNT(*) FROM archived_game_events WHERE slot_id = :slotId")
-    suspend fun getCountBySlot(slotId: Int): Int
-
-    @Query("DELETE FROM archived_game_events WHERE archived_at < :threshold")
-    suspend fun deleteArchivedBefore(threshold: Long): Int
-
-    @Query("DELETE FROM archived_game_events WHERE slot_id = :slotId")
-    suspend fun deleteBySlot(slotId: Int)
-}
-
-@Dao
 interface ArchivedDiscipleDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)

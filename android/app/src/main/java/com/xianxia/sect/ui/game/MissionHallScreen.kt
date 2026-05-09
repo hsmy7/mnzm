@@ -5,6 +5,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -29,6 +31,8 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.MissionSystem
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.ui.components.CloseButton
+import com.xianxia.sect.ui.components.DialogDefaults
+import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.discipleCardBorder
 import com.xianxia.sect.ui.components.DiscipleAttrText
@@ -348,11 +352,11 @@ private fun ActiveMissionDetailDialog(
     Dialog(onDismissRequest = onDismiss) {
         Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
+                .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
+                .clip(RoundedCornerShape(DialogDefaults.CornerRadius))
         ) {
             Image(
-                painter = painterResource(id = R.drawable.bg_screen),
+                painter = painterResource(id = R.drawable.bg_horizontal),
                 contentDescription = null,
                 modifier = Modifier.matchParentSize(),
                 contentScale = ContentScale.FillBounds
@@ -374,6 +378,7 @@ private fun ActiveMissionDetailDialog(
                         fontSize = 12.sp,
                         color = getDifficultyColor(mission.difficulty)
                     )
+                    CloseButton(onClick = onDismiss)
                 }
                 Spacer(modifier = Modifier.height(12.dp))
                 Column(
@@ -481,12 +486,6 @@ private fun ActiveMissionDetailDialog(
                         }
                     }
                 }
-                Spacer(modifier = Modifier.height(16.dp))
-                GameButton(
-                    text = "关闭",
-                    onClick = onDismiss,
-                    modifier = Modifier.align(Alignment.CenterHorizontally)
-                )
             }
         }
     }
@@ -580,11 +579,11 @@ private fun DiscipleSelectionDialog(
     Dialog(onDismissRequest = onDismiss) {
         Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
+                .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
+                .clip(RoundedCornerShape(DialogDefaults.CornerRadius))
         ) {
             Image(
-                painter = painterResource(id = R.drawable.bg_screen),
+                painter = painterResource(id = R.drawable.bg_horizontal),
                 contentDescription = null,
                 modifier = Modifier.matchParentSize(),
                 contentScale = ContentScale.FillBounds
@@ -836,36 +835,20 @@ private fun CommonDialog(
     onDismiss: () -> Unit,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    Dialog(onDismissRequest = onDismiss) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.bg_screen),
-                contentDescription = null,
-                modifier = Modifier.matchParentSize(),
-                contentScale = ContentScale.FillBounds
-            )
-            Column(modifier = Modifier.padding(20.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = title,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-                    CloseButton(onClick = onDismiss)
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-                Column {
-                    content()
-                }
+    HalfScreenDialog(onDismissRequest = onDismiss) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                CloseButton(onClick = onDismiss)
+            }
+            Column(
+                modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)
+            ) {
+                content()
             }
         }
     }

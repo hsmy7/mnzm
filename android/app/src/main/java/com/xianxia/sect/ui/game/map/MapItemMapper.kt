@@ -5,10 +5,12 @@ import com.xianxia.sect.core.model.BattleTeam
 import com.xianxia.sect.core.model.CaveExplorationTeam
 import com.xianxia.sect.core.model.CaveExplorationStatus
 import com.xianxia.sect.core.model.CaveStatus
+import com.xianxia.sect.core.model.LevelType
 import com.xianxia.sect.core.model.CultivatorCave
 import com.xianxia.sect.core.model.ExplorationStatus
 import com.xianxia.sect.core.model.ExplorationTeam
 import com.xianxia.sect.core.engine.WorldMapGenerator
+import com.xianxia.sect.core.model.WorldLevel
 import com.xianxia.sect.core.model.WorldSect
 
 object MapItemMapper {
@@ -195,4 +197,23 @@ object MapItemMapper {
 
         return teamItems to battleIndicators
     }
+
+    fun fromLevels(levels: List<WorldLevel>): List<MapItem.Level> =
+        levels.filter { !it.defeated }
+            .map { level ->
+                MapItem.Level(
+                    id = level.id,
+                    worldX = level.x,
+                    worldY = level.y,
+                    levelType = level.type,
+                    beastType = level.beastType,
+                    realm = level.realm,
+                    realmLayer = level.realmLayer,
+                    name = if (level.type == LevelType.BEAST) level.beastName else level.guardianName,
+                    count = level.count,
+                    caveImageIndex = level.caveImageIndex,
+                    caveName = level.caveName,
+                    defeated = level.defeated
+                )
+            }
 }

@@ -15,11 +15,10 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.xianxia.sect.core.model.MapCoordinateSystem
 import kotlin.math.roundToInt
 import com.xianxia.sect.ui.game.map.MapItem
 import com.xianxia.sect.ui.game.map.MapStyle
-import com.xianxia.sect.ui.game.map.MapCameraState
+import com.xianxia.sect.ui.game.map.CameraState
 
 enum class TeamAction { VIEW, MOVE, ATTACK, DISBAND }
 
@@ -32,7 +31,7 @@ data class TeamBadgeInfo(
 @Composable
 fun SectMarker(
     item: MapItem.Sect,
-    cameraState: MapCameraState,
+    cameraState: CameraState,
     teamBadges: List<TeamBadgeInfo> = emptyList(),
     onClick: () -> Unit,
     onTeamBadgeClick: (String) -> Unit = {},
@@ -44,9 +43,8 @@ fun SectMarker(
     val fontSize = if (item.isPlayerSect) MapStyle.Typography.sectNamePlayer else MapStyle.Typography.sectNameNormal
     val borderWidth = if (item.isHighlighted) MapStyle.Dimensions.sectHighlightedBorderWidth else MapStyle.Dimensions.sectBorderWidth
 
-    val (nx, ny) = MapCoordinateSystem.worldToNormalized(item.worldX, item.worldY)
-    val x = nx * cameraState.canvasWidth
-    val y = ny * cameraState.canvasHeight
+    val x = cameraState.worldToScreenX(item.worldX)
+    val y = cameraState.worldToScreenY(item.worldY)
 
     val hasActionButtons = teamBadges.any { it.isExpanded }
     val expandedTeam = teamBadges.find { it.isExpanded }

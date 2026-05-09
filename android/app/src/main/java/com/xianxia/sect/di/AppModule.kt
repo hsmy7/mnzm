@@ -85,12 +85,6 @@ object AppModule {
         database.buildingSlotDao()
     
     @Provides
-    fun provideGameEventDao(database: GameDatabase): GameEventDao = database.gameEventDao()
-    
-    @Provides
-    fun provideDungeonDao(database: GameDatabase): DungeonDao = database.dungeonDao()
-    
-    @Provides
     fun provideRecipeDao(database: GameDatabase): RecipeDao = database.recipeDao()
     
     @Provides

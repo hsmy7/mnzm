@@ -35,7 +35,6 @@ data class GameStateSnapshot(
     val alchemySlotCount: Int = 0,
     val worldMapSectCount: Int = 0,
     val allianceCount: Int = 0,
-    val eventCount: Int = 0,
     val battleLogCount: Int = 0,
     val caveCount: Int = 0,
     val activeCaveExplorationCount: Int = 0,
@@ -91,7 +90,6 @@ class SaveService @Inject constructor(
             alchemySlotCount = productionSlotRepository.getSlotsByType(com.xianxia.sect.core.model.production.BuildingType.ALCHEMY).count { it.isWorking },
             worldMapSectCount = data.worldMapSects.size,
             allianceCount = data.alliances.size,
-            eventCount = stateStore.events.value.size,
             battleLogCount = stateStore.battleLogs.value.size,
             caveCount = data.cultivatorCaves.count { it.status == CaveStatus.AVAILABLE },
             activeCaveExplorationCount = data.caveExplorationTeams.count {
@@ -129,7 +127,6 @@ class SaveService @Inject constructor(
         materials: List<Material>,
         herbs: List<Herb>,
         seeds: List<Seed>,
-        events: List<GameEvent>,
         battleLogs: List<BattleLog>,
         teams: List<ExplorationTeam>
     ) {
@@ -145,7 +142,6 @@ class SaveService @Inject constructor(
             herbs = herbs,
             seeds = seeds,
             teams = teams,
-            events = events,
             battleLogs = battleLogs
         )
         Log.d(TAG, "Atomically restored from save: year=${loadedGameData.gameYear}, ${disciples.size} disciples, ${equipmentInstances.size} equipment instances, recruitList=${loadedGameData.recruitList.size} unrecruited disciples")
@@ -202,7 +198,6 @@ class SaveService @Inject constructor(
             "materialCount" to stateStore.materials.value.size,
             "herbCount" to stateStore.herbs.value.size,
             "seedCount" to stateStore.seeds.value.size,
-            "eventCount" to stateStore.events.value.size,
             "battleLogCount" to stateStore.battleLogs.value.size,
             "explorationTeams" to stateStore.teams.value.size,
             "caveExplorations" to data.caveExplorationTeams.size,

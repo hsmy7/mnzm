@@ -1,6 +1,5 @@
 package com.xianxia.sect.ui.game
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,10 +17,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.window.Dialog
-import com.xianxia.sect.R
+import com.xianxia.sect.ui.components.CloseButton
+import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.core.model.CompetitionRankResult
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.GameData
@@ -29,6 +26,7 @@ import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.theme.getSpiritRootColor
 import com.xianxia.sect.ui.components.DiscipleAttrText
 import com.xianxia.sect.ui.components.discipleCardBorder
+import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.core.util.isFollowed
@@ -43,26 +41,24 @@ fun OuterTournamentResultDialog(
 ) {
     val selectedIds = remember { mutableStateListOf<String>() }
 
-    Dialog(onDismissRequest = onDismiss) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .fillMaxHeight(0.9f)
-                .clip(RoundedCornerShape(12.dp))
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.bg_screen),
-                contentDescription = null,
-                modifier = Modifier.matchParentSize(),
-                contentScale = ContentScale.Crop
-            )
-            Column(modifier = Modifier.fillMaxSize()) {
-                TournamentHeader(
-                    onDismiss = onDismiss,
-                    onConfirm = {
-                        worldMapViewModel.promoteSelectedDisciplesToInner(selectedIds.toSet())
-                    }
-                )
+    HalfScreenDialog(onDismissRequest = onDismiss) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("外门大比结果", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    CloseButton(onClick = onDismiss)
+                    GameButton(
+                        text = "准入内门",
+                        onClick = {
+                            worldMapViewModel.promoteSelectedDisciplesToInner(selectedIds.toSet())
+                        }
+                    )
+                }
+            }
 
                 val topDisciples = remember(competitionResults, allDisciples) {
                     competitionResults.mapNotNull { result ->
@@ -107,7 +103,6 @@ fun OuterTournamentResultDialog(
                 }
             }
         }
-    }
 }
 
 private data class RankedDisciple(
@@ -137,10 +132,7 @@ private fun TournamentHeader(
         )
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            GameButton(
-                text = "关闭",
-                onClick = onDismiss
-            )
+            CloseButton(onClick = onDismiss)
             GameButton(
                 text = "准入内门",
                 onClick = onConfirm

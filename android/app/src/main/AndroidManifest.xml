@@ -33,7 +33,7 @@
 
     <!-- 设备特性声明 - 非必需 -->
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
-    <uses-feature android:name="android.hardware.screen.portrait" android:required="false" />
+    <uses-feature android:name="android.hardware.screen.landscape" android:required="true" />
 
     <application
         android:name=".XianxiaApplication"
@@ -53,7 +53,7 @@
             android:exported="true"
             android:theme="@style/Theme.XianxiaSect.Splash"
             android:configChanges="orientation|screenSize|smallestScreenSize|keyboardHidden"
-            android:screenOrientation="portrait"
+            android:screenOrientation="landscape"
             android:windowSoftInputMode="adjustResize"
             tools:ignore="LockedOrientationActivity,DiscouragedApi">
             <intent-filter>
@@ -66,7 +66,7 @@
             android:name=".ui.game.GameActivity"
             android:exported="false"
             android:configChanges="orientation|screenSize|smallestScreenSize|keyboardHidden"
-            android:screenOrientation="portrait"
+            android:screenOrientation="landscape"
             android:windowSoftInputMode="adjustResize"
             tools:ignore="LockedOrientationActivity,DiscouragedApi" />
 

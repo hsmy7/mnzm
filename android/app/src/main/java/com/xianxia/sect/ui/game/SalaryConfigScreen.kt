@@ -1,7 +1,5 @@
 package com.xianxia.sect.ui.game
 
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -10,17 +8,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.window.Dialog
-import com.xianxia.sect.R
+import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.core.model.GameData
-import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.theme.GameColors
 
 @Composable
@@ -45,20 +39,8 @@ fun SalaryConfigDialog(
         9 to "练气"
     )
 
-    Dialog(onDismissRequest = onDismiss) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .fillMaxHeight(0.9f)
-                .clip(RoundedCornerShape(12.dp))
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.bg_screen),
-                contentDescription = null,
-                modifier = Modifier.matchParentSize(),
-                contentScale = ContentScale.Crop
-            )
-            Column(modifier = Modifier.fillMaxSize()) {
+    HalfScreenDialog(onDismissRequest = onDismiss) {
+        Column(modifier = Modifier.fillMaxSize()) {
                 SalaryConfigHeader(onDismiss = onDismiss)
 
                 LazyColumn(
@@ -81,7 +63,6 @@ fun SalaryConfigDialog(
                 }
             }
         }
-    }
 }
 
 @Composable
@@ -89,21 +70,18 @@ private fun SalaryConfigHeader(onDismiss: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(16.dp),
+            .padding(horizontal = 12.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             text = "月俸配置",
-            fontSize = 12.sp,
+            fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
             color = Color.Black
         )
 
-        GameButton(
-            text = "关闭",
-            onClick = onDismiss
-        )
+        CloseButton(onClick = onDismiss)
     }
 }
 

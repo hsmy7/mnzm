@@ -67,7 +67,9 @@ import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.core.util.sortedByFollowAndRealm
 import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.ui.components.CloseButton
+import com.xianxia.sect.ui.components.DialogDefaults
 import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.ui.game.ATTRIBUTE_FILTER_OPTIONS
 import com.xianxia.sect.ui.game.AttributeFilterOption
 import com.xianxia.sect.ui.game.BattleViewModel
@@ -108,6 +110,8 @@ internal fun WorldMapDialog(
     var showSectDetail by remember { mutableStateOf(false) }
     var selectedCave by remember { mutableStateOf<CultivatorCave?>(null) }
     var showCaveDetail by remember { mutableStateOf(false) }
+    var selectedLevel by remember { mutableStateOf<MapItem.Level?>(null) }
+    var showLevelDetail by remember { mutableStateOf(false) }
 
     val caves: List<CultivatorCave> = mapRenderData.cultivatorCaves.filter { it.status != CaveStatus.EXPIRED && it.status != CaveStatus.EXPLORED }
     val playerSect = mapRenderData.worldMapSects.find { it.isPlayerSect }
@@ -134,10 +138,9 @@ internal fun WorldMapDialog(
         MapItemMapper.fromWorldSects(worldSects, movableTargetIds)
     }
 
-    val dynamicItems = remember(scoutTeams, caves, caveExplorationTeams, mapRenderData.battleTeams, mapRenderData.aiBattleTeams, playerSect) {
+    val dynamicItems = remember(scoutTeams, caves, caveExplorationTeams, mapRenderData.battleTeams, mapRenderData.aiBattleTeams, mapRenderData.worldLevels, playerSect) {
         val items = mutableListOf<MapItem>()
         items.addAll(MapItemMapper.fromScoutTeams(scoutTeams))
-        items.addAll(MapItemMapper.fromCaves(caves))
         items.addAll(MapItemMapper.fromCaveExplorationTeams(caveExplorationTeams))
         items.addAll(MapItemMapper.fromBattleTeams(mapRenderData.battleTeams, playerSect, worldSects))
         val (aiTeams, battleIndicators) = MapItemMapper.fromAIBattleTeams(
@@ -145,6 +148,7 @@ internal fun WorldMapDialog(
         )
         items.addAll(aiTeams)
         items.addAll(battleIndicators)
+        items.addAll(MapItemMapper.fromLevels(mapRenderData.worldLevels))
         items
     }
 
@@ -270,6 +274,10 @@ internal fun WorldMapDialog(
                 showCaveDetail = true
             }
         },
+        onLevelClick = { levelItem ->
+            selectedLevel = levelItem
+            showLevelDetail = true
+        },
         onBattleTeamClick = {
             battleViewModel.openBattleTeamDialog()
         },
@@ -327,6 +335,25 @@ internal fun WorldMapDialog(
             )
         }
     }
+
+    if (showLevelDetail) {
+        selectedLevel?.let { level ->
+            LevelDetailDialog(
+                level = level,
+                disciples = disciples,
+                viewModel = viewModel,
+                onAttack = { slotIds ->
+                    viewModel.attackWorldLevel(level.id, slotIds)
+                    showLevelDetail = false
+                    selectedLevel = null
+                },
+                onDismiss = {
+                    showLevelDetail = false
+                    selectedLevel = null
+                }
+            )
+        }
+    }
 }
 
 @Composable
@@ -353,12 +380,10 @@ internal fun WorldMapSectDetailDialog(
     val relationLevel = GameUtils.getSectRelationLevel(relation)
     val relationColor = Color(relationLevel.colorHex)
     
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
-        title = {
+    HalfScreenDialog(onDismissRequest = onDismiss) {
+        Column(modifier = Modifier.fillMaxSize()) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -413,10 +438,8 @@ internal fun WorldMapSectDetailDialog(
                 }
                 CloseButton(onClick = onDismiss)
             }
-        },
-        text = {
             Column(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 if (!sect.isPlayerSect) {
@@ -612,9 +635,8 @@ internal fun WorldMapSectDetailDialog(
                     }
                 }
             }
-        },
-        confirmButton = {}
-    )
+        }
+    }
     
     if (showGiftedMessage) {
         GiftedMessageToast(
@@ -654,40 +676,26 @@ fun DiplomacyDialog(
     
     var showGiftedMessage by remember { mutableStateOf(false) }
     
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            modifier = Modifier.fillMaxWidth().fillMaxHeight(0.85f),
-            shape = RoundedCornerShape(16.dp),
-            color = GameColors.PageBackground
-        ) {
-            Box(modifier = Modifier.fillMaxSize()) {
-                Image(
-                    painter = painterResource(id = R.drawable.bg_screen),
-                    contentDescription = null,
-                    modifier = Modifier.matchParentSize(),
-                    contentScale = ContentScale.Crop
+    HalfScreenDialog(onDismissRequest = onDismiss) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "外交",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
                 )
-                Column(modifier = Modifier.fillMaxSize()) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "宗门外交",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.Black
-                        )
-                        CloseButton(onClick = onDismiss)
-                    }
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 16.dp)
-                    ) {
+                CloseButton(onClick = onDismiss)
+            }
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 12.dp)
+            ) {
                 if (worldSects.isEmpty()) {
                     Text(
                         text = "暂无其他宗门",
@@ -721,8 +729,6 @@ fun DiplomacyDialog(
                                 }
                             )
                         }
-                    }
-                    }
                 }
             }
         }
@@ -926,14 +932,9 @@ internal fun CaveDetailDialog(
                 }
             }
         },
-        dismissButton = {
-            GameButton(
-                text = "关闭",
-                onClick = onDismiss
-            )
-        }
+        dismissButton = null
     )
-    
+
     if (showDiscipleSelection) {
         CaveDiscipleSelectionDialog(
             disciples = disciples,
@@ -1328,89 +1329,77 @@ fun SectTradeDialog(
         else -> "80（至交关系）"
     }
 
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .fillMaxHeight(0.85f),
-            shape = RoundedCornerShape(16.dp),
-            color = GameColors.CardBackground
-        ) {
-            Box(modifier = Modifier.fillMaxSize()) {
+    HalfScreenDialog(onDismissRequest = onDismiss) {
+        Box(modifier = Modifier.fillMaxSize()) {
                 Column(modifier = Modifier.fillMaxSize()) {
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(GameColors.PageBackground)
-                            .padding(12.dp),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
+                        Text(
+                            text = "宗门交易",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Black
+                        )
+                        CloseButton(onClick = onDismiss)
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = "关系:",
+                            fontSize = 11.sp,
+                            color = GameColors.TextSecondary
+                        )
+                        Text(
+                            text = relationLevel.displayName,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = relationColor
+                        )
+                        Text(
+                            text = "(${relation})",
+                            fontSize = 11.sp,
+                            color = GameColors.TextSecondary
+                        )
+                        if (isAlly) {
                             Text(
-                                text = "${sect?.name ?: "宗门"}交易",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.Black
+                                text = "(盟友)",
+                                fontSize = 10.sp,
+                                color = Color(0xFF4CAF50),
+                                fontWeight = FontWeight.Bold
                             )
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Text(
-                                    text = "关系:",
-                                    fontSize = 11.sp,
-                                    color = GameColors.TextSecondary
-                                )
-                                Text(
-                                    text = relationLevel.displayName,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = relationColor
-                                )
-                                Text(
-                                    text = "(${relation})",
-                                    fontSize = 11.sp,
-                                    color = GameColors.TextSecondary
-                                )
-                                if (isAlly) {
-                                    Text(
-                                        text = "(盟友)",
-                                        fontSize = 10.sp,
-                                        color = Color(0xFF4CAF50),
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Text(
-                                        text = "(${String.format(Locale.getDefault(), "%.1f%%", (1 - priceMultiplier) * 100)}折扣)",
-                                        fontSize = 10.sp,
-                                        color = Color(0xFF4CAF50)
-                                    )
-                                } else if (relation >= 70) {
-                                    Text(
-                                        text = "(${String.format(Locale.getDefault(), "%.1f%%", (1 - priceMultiplier) * 100)}折扣)",
-                                        fontSize = 10.sp,
-                                        color = Color(0xFF4CAF50)
-                                    )
-                                } else if (!canTrade) {
-                                    Text(
-                                        text = "(关系不足，无法交易)",
-                                        fontSize = 10.sp,
-                                        color = Color(0xFFF44336)
-                                    )
-                                }
-                            }
                             Text(
-                                text = "灵石: ${GameUtils.formatNumber(gameData?.spiritStones ?: 0)}",
-                                fontSize = 11.sp,
-                                color = GameColors.TextSecondary
+                                text = "(${String.format(Locale.getDefault(), "%.1f%%", (1 - priceMultiplier) * 100)}折扣)",
+                                fontSize = 10.sp,
+                                color = Color(0xFF4CAF50)
+                            )
+                        } else if (relation >= 70) {
+                            Text(
+                                text = "(${String.format(Locale.getDefault(), "%.1f%%", (1 - priceMultiplier) * 100)}折扣)",
+                                fontSize = 10.sp,
+                                color = Color(0xFF4CAF50)
+                            )
+                        } else if (!canTrade) {
+                            Text(
+                                text = "(关系不足，无法交易)",
+                                fontSize = 10.sp,
+                                color = Color(0xFFF44336)
                             )
                         }
-
-                        GameButton(
-                            text = "关闭",
-                            onClick = onDismiss
-                        )
                     }
+
+                    Text(
+                        text = "灵石: ${GameUtils.formatNumber(gameData?.spiritStones ?: 0)}",
+                        fontSize = 11.sp,
+                        color = GameColors.TextSecondary,
+                        modifier = Modifier.padding(horizontal = 12.dp)
+                    )
 
                     if (tradeItems.isEmpty()) {
                         Box(
@@ -1753,7 +1742,6 @@ fun SectTradeDialog(
                         }
                     }
                 }
-            }
         }
     }
 
@@ -1765,4 +1753,4 @@ fun SectTradeDialog(
             )
         }
     }
-}
+}

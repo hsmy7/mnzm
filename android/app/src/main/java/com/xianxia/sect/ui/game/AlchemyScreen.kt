@@ -24,11 +24,16 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import com.xianxia.sect.R
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.registry.PillRecipeDatabase
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.ui.components.DialogDefaults
+import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.ui.components.getQualityColor
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.game.AlchemyViewModel
@@ -59,116 +64,123 @@ fun AlchemyDialog(
     val alchemyElder = disciples.find { it.id == elderSlots.alchemyElder }
     val alchemyDisciples = elderSlots.alchemyDisciples
 
-    ProductionCommonDialog(
-        title = theme.displayName,
-        theme = theme,
-        onDismiss = onDismiss,
-        titleActions = {
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(theme.reserveButtonBackgroundColor)
-                    .clickable { showReserveDiscipleDialog = true }
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-            ) {
-                Text(
-                    text = "储备弟子",
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = theme.reserveButtonTextColor
-                )
-            }
-        }
-    ) {
-        Column(
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            ProductionElderSection(
-                theme = theme,
-                elder = alchemyElder,
-                onElderClick = { showElderSelection = true },
-                onElderRemove = { productionViewModel.removeElder(ElderSlotType.ALCHEMY) }
-            )
-
-            ProductionDirectDiscipleSection(
-                theme = theme,
-                directDisciples = alchemyDisciples,
-                slotCount = alchemySlots.size,
-                onDirectDiscipleClick = { index -> showDirectDiscipleSelection = index },
-                onDirectDiscipleRemove = { index -> productionViewModel.removeDirectDisciple("alchemy", index) }
-            )
-
-            HorizontalDivider(
-                modifier = Modifier.padding(vertical = 4.dp),
-                color = GameColors.Border,
-                thickness = 1.dp
-            )
-
+    HalfScreenDialog(onDismissRequest = { viewModel.closeCurrentDialog() }) {
+        Column(modifier = Modifier.fillMaxSize()) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = theme.slotLabelPrefix,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-                val autoAlchemyEnabled by alchemyViewModel.autoAlchemyEnabled.collectAsState()
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(if (autoAlchemyEnabled) Color(0xFFFFD700) else Color.Black)
-                        .clickable { alchemyViewModel.toggleAutoAlchemy() }
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        text = if (autoAlchemyEnabled) "自动炼丹:开" else "自动炼丹:关",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (autoAlchemyEnabled) Color.Black else Color.White
-                    )
+                Text("炼丹炉", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(theme.reserveButtonBackgroundColor)
+                            .clickable { showReserveDiscipleDialog = true }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "储备弟子",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = theme.reserveButtonTextColor
+                        )
+                    }
+                    CloseButton(onClick = { viewModel.closeCurrentDialog() })
                 }
             }
+            Column(
+                modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                ProductionElderSection(
+                    theme = theme,
+                    elder = alchemyElder,
+                    onElderClick = { showElderSelection = true },
+                    onElderRemove = { productionViewModel.removeElder(ElderSlotType.ALCHEMY) }
+                )
 
-            val slotCount = alchemySlots.size
-            (0 until slotCount).chunked(3).forEach { rowIndexes ->
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    Image(
-                        painter = painterResource(id = R.drawable.bg_horizontal),
-                        contentDescription = null,
-                        modifier = Modifier.matchParentSize(),
-                        contentScale = ContentScale.FillBounds
+                ProductionDirectDiscipleSection(
+                    theme = theme,
+                    directDisciples = alchemyDisciples,
+                    slotCount = alchemySlots.size,
+                    onDirectDiscipleClick = { index -> showDirectDiscipleSelection = index },
+                    onDirectDiscipleRemove = { index -> productionViewModel.removeDirectDisciple("alchemy", index) }
+                )
+
+                HorizontalDivider(
+                    modifier = Modifier.padding(vertical = 4.dp),
+                    color = GameColors.Border,
+                    thickness = 1.dp
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = theme.slotLabelPrefix,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
                     )
-                    Row(
+                    val autoAlchemyEnabled by alchemyViewModel.autoAlchemyEnabled.collectAsState()
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(if (autoAlchemyEnabled) Color(0xFFFFD700) else Color.Black)
+                            .clickable { alchemyViewModel.toggleAutoAlchemy() }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
-                        rowIndexes.forEach { index ->
-                            val slot = alchemySlots.getOrNull(index)
-                            val isIdle = slot?.status == AlchemySlotStatus.IDLE || slot == null
-                            val isWorking = slot?.status == AlchemySlotStatus.WORKING
-                            val remainingMonths = if (isWorking && gameData != null)
-                                slot.getRemainingMonths(gameData.gameYear, gameData.gameMonth) else 0
+                        Text(
+                            text = if (autoAlchemyEnabled) "自动炼丹:开" else "自动炼丹:关",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (autoAlchemyEnabled) Color.Black else Color.White
+                        )
+                    }
+                }
 
-                            ProductionSlotItem(
-                                theme = theme,
-                                productName = slot?.pillName,
-                                isWorking = isWorking,
-                                isIdle = isIdle,
-                                remainingMonths = remainingMonths,
-                                index = index,
-                                onClick = {
-                                    if (isIdle) {
-                                        selectedSlotIndex = index
-                                        showPillSelection = true
+                val slotCount = alchemySlots.size
+                (0 until slotCount).chunked(3).forEach { rowIndexes ->
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        Image(
+                            painter = painterResource(id = R.drawable.bg_horizontal),
+                            contentDescription = null,
+                            modifier = Modifier.matchParentSize(),
+                            contentScale = ContentScale.FillBounds
+                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
+                        ) {
+                            rowIndexes.forEach { index ->
+                                val slot = alchemySlots.getOrNull(index)
+                                val isIdle = slot?.status == AlchemySlotStatus.IDLE || slot == null
+                                val isWorking = slot?.status == AlchemySlotStatus.WORKING
+                                val remainingMonths = if (isWorking && gameData != null)
+                                    slot.getRemainingMonths(gameData.gameYear, gameData.gameMonth) else 0
+
+                                ProductionSlotItem(
+                                    theme = theme,
+                                    productName = slot?.pillName,
+                                    isWorking = isWorking,
+                                    isIdle = isIdle,
+                                    remainingMonths = remainingMonths,
+                                    index = index,
+                                    onClick = {
+                                        if (isIdle) {
+                                            selectedSlotIndex = index
+                                            showPillSelection = true
+                                        }
                                     }
-                                }
-                            )
+                                )
+                            }
                         }
                     }
                 }
@@ -454,7 +466,7 @@ private fun PillDetailDialog(
                 .clip(RoundedCornerShape(12.dp))
         ) {
             Image(
-                painter = painterResource(id = R.drawable.bg_screen),
+                painter = painterResource(id = R.drawable.bg_horizontal),
                 contentDescription = null,
                 modifier = Modifier.matchParentSize(),
                 contentScale = ContentScale.FillBounds

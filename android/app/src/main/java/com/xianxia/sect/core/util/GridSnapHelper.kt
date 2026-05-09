@@ -1,6 +1,5 @@
 package com.xianxia.sect.core.util
 
-import kotlin.math.ceil
 import kotlin.math.roundToInt
 
 object GridSnapHelper {
@@ -24,28 +23,24 @@ object GridSnapHelper {
     }
 
     fun screenToWorld(screenCoord: Float, cameraX: Float, scale: Float = 1f): Float =
-        (screenCoord + cameraX) / scale
+        screenCoord / scale + cameraX
 
-    fun worldToScreen(worldCoord: Float, cameraX: Float, scale: Float = 1f): Float =
-        worldCoord * scale - cameraX
+    fun worldToScreen(worldCoord: Int, cameraX: Float, scale: Float = 1f): Float =
+        (worldCoord - cameraX) * scale
 
-    fun worldToGrid(worldCoord: Float, gridSizePx: Float, mode: SnapMode = SnapMode.ROUND): Int =
-        when (mode) {
-            SnapMode.ROUND -> (worldCoord / gridSizePx).roundToInt()
-            SnapMode.FLOOR -> (worldCoord / gridSizePx).toInt()
-            SnapMode.CEIL -> ceil(worldCoord / gridSizePx).toInt()
-        }
+    fun worldToGrid(worldCoord: Float, tileSize: Int): Int =
+        (worldCoord / tileSize).roundToInt()
 
-    fun gridToWorld(gridCoord: Int, gridSizePx: Float): Float =
-        gridCoord * gridSizePx
+    fun gridToWorld(gridCoord: Int, tileSize: Int): Int =
+        gridCoord * tileSize
 
     fun gridToScreen(
         gridCoord: Int,
-        gridSizePx: Float,
+        tileSize: Int,
         cameraX: Float,
         scale: Float = 1f
     ): Float =
-        gridCoord * gridSizePx * scale - cameraX
+        (gridCoord * tileSize - cameraX) * scale
 
     fun validatePlacement(
         gridX: Int,

@@ -205,12 +205,19 @@ fun TalentDetailDialog(talent: Talent, onDismiss: () -> Unit) {
         onDismissRequest = onDismiss,
         containerColor = Color.Transparent, tonalElevation = 0.dp,
         title = {
-            Text(
-                text = talent.name,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                color = rarityColor
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = talent.name,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = rarityColor
+                )
+                CloseButton(onClick = onDismiss)
+            }
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -250,12 +257,7 @@ fun TalentDetailDialog(talent: Talent, onDismiss: () -> Unit) {
                 }
             }
         },
-        confirmButton = {
-            GameButton(
-                text = "关闭",
-                onClick = onDismiss
-            )
-        }
+        confirmButton = {}
     )
 }
 

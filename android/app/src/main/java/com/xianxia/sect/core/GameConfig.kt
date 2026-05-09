@@ -358,112 +358,6 @@ object GameConfig {
 
         fun getRealmStats(realm: Int): RealmStats = REALM_STATS[realm] ?: REALM_STATS.getValue(9)
     }
-    
-    object Dungeons {
-        val CONFIGS = mapOf(
-            "tigerForest" to DungeonConfig(
-                id = "tigerForest",
-                name = "虎啸岭",
-                description = "虎妖聚集之地，危机四伏",
-                beastType = "虎妖",
-                rewards = DungeonConfigRewards(
-                    spiritStones = listOf(100, 300),
-                    materials = listOf("虎皮", "虎骨"),
-                    equipmentChance = 0.07,
-                    manualChance = 0.07
-                )
-            ),
-            "wolfValley" to DungeonConfig(
-                id = "wolfValley",
-                name = "狼牙谷",
-                description = "狼妖出没的山谷，迅捷异常",
-                beastType = "狼妖",
-                rewards = DungeonConfigRewards(
-                    spiritStones = listOf(100, 300),
-                    materials = listOf("狼皮", "狼骨"),
-                    equipmentChance = 0.07,
-                    manualChance = 0.07
-                )
-            ),
-            "snakeCave" to DungeonConfig(
-                id = "snakeCave",
-                name = "幽冥蛇窟",
-                description = "剧毒蛇妖的巢穴，阴森恐怖",
-                beastType = "蛇妖",
-                rewards = DungeonConfigRewards(
-                    spiritStones = listOf(100, 300),
-                    materials = listOf("蛇皮", "蛇骨"),
-                    equipmentChance = 0.07,
-                    manualChance = 0.07
-                )
-            ),
-            "bearMountain" to DungeonConfig(
-                id = "bearMountain",
-                name = "铁甲熊岭",
-                description = "熊妖盘踞的山岭，防御惊人",
-                beastType = "熊妖",
-                rewards = DungeonConfigRewards(
-                    spiritStones = listOf(100, 300),
-                    materials = listOf("熊皮", "熊骨"),
-                    equipmentChance = 0.07,
-                    manualChance = 0.07
-                )
-            ),
-            "eaglePeak" to DungeonConfig(
-                id = "eaglePeak",
-                name = "神风鹰巢",
-                description = "鹰妖栖息的高峰，速度极快",
-                beastType = "鹰妖",
-                rewards = DungeonConfigRewards(
-                    spiritStones = listOf(100, 300),
-                    materials = listOf("鹰羽", "鹰骨"),
-                    equipmentChance = 0.07,
-                    manualChance = 0.07
-                )
-            ),
-            "foxHollow" to DungeonConfig(
-                id = "foxHollow",
-                name = "幻魅狐谷",
-                description = "狐妖出没的山谷，幻术迷人",
-                beastType = "狐妖",
-                rewards = DungeonConfigRewards(
-                    spiritStones = listOf(100, 300),
-                    materials = listOf("狐皮", "狐骨"),
-                    equipmentChance = 0.07,
-                    manualChance = 0.07
-                )
-            ),
-            "dragonAbyss" to DungeonConfig(
-                id = "dragonAbyss",
-                name = "远古龙渊",
-                description = "龙妖沉睡的深渊，力量惊人",
-                beastType = "龙妖",
-                rewards = DungeonConfigRewards(
-                    spiritStones = listOf(100, 300),
-                    materials = listOf("龙鳞", "龙骨"),
-                    equipmentChance = 0.07,
-                    manualChance = 0.07
-                )
-            ),
-            "turtleIsland" to DungeonConfig(
-                id = "turtleIsland",
-                name = "玄甲龟岛",
-                description = "龟妖栖息的岛屿，防御无双",
-                beastType = "龟妖",
-                rewards = DungeonConfigRewards(
-                    spiritStones = listOf(100, 300),
-                    materials = listOf("龟甲", "龟骨"),
-                    equipmentChance = 0.07,
-                    manualChance = 0.07
-                )
-            )
-        )
-        
-        fun get(id: String): DungeonConfig? = CONFIGS[id]
-        
-        fun getAll(): List<DungeonConfig> = CONFIGS.values.toList()
-    }
-    
     object Starting {
         val RESOURCES = StartingResources(
             spiritStones = 2000,
@@ -625,22 +519,6 @@ object GameConfig {
         val reputation: Int,
         val spiritHerbs: Int
     )
-    
-    data class DungeonConfig(
-        val id: String,
-        val name: String,
-        val description: String,
-        val beastType: String,
-        val rewards: DungeonConfigRewards
-    )
-    
-    data class DungeonConfigRewards(
-        val spiritStones: List<Int>,
-        val materials: List<String>,
-        val equipmentChance: Double,
-        val manualChance: Double
-    )
-    
     data class BeastTypeConfig(
         val name: String,
         val prefix: String,
@@ -724,6 +602,7 @@ object GameConfig {
         const val CAVE_MIN_SECT_DISTANCE = 100.0
         const val CAVE_MIN_PATH_DISTANCE = 70.0
         const val CAVE_MIN_CAVE_DISTANCE = 70.0
+        const val LEVEL_MIN_DISTANCE = 70.0
     }
     
     object Diplomacy {

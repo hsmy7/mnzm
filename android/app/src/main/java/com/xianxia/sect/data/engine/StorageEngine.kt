@@ -104,7 +104,6 @@ class StorageEngine @Inject internal constructor(
             size += data.herbs.size * es.HERB
             size += data.seeds.size * es.SEED
             size += data.battleLogs.size * es.BATTLE_LOG
-            size += data.events.size * es.GAME_EVENT
             size += data.teams.size * es.TEAM
             size += data.alliances.size * es.ALLIANCE
 
@@ -251,13 +250,11 @@ class StorageEngine @Inject internal constructor(
                     database.herbDao().deleteAll(slot)
                     database.explorationTeamDao().deleteAll(slot)
                     database.buildingSlotDao().deleteAll(slot)
-                    database.dungeonDao().deleteAll(slot)
                     database.recipeDao().deleteAll(slot)
                     database.forgeSlotDao().deleteAll(slot)
                     database.alchemySlotDao().deleteAll(slot)
                     database.productionSlotDao().deleteBySlot(slot)
                     database.battleLogDao().deleteAll(slot)
-                    database.gameEventDao().deleteAll(slot)
                     database.saveSlotMetadataDao().deleteBySlotId(slot)
                 }
 
@@ -512,7 +509,6 @@ class StorageEngine @Inject internal constructor(
 
     private suspend fun cleanSaveDataWithArchive(data: SaveData): SaveData {
         val maxBattleLogs = saveLimitsConfig.maxBattleLogs
-        val maxGameEvents = saveLimitsConfig.maxGameEvents
 
         val cleanedBattleLogs = if (data.battleLogs.size > maxBattleLogs) {
             val archiveResult = dataArchiver.archiveBattleLogsIfNeeded(data.battleLogs, maxBattleLogs)
@@ -524,17 +520,7 @@ class StorageEngine @Inject internal constructor(
             data.battleLogs
         }
 
-        val cleanedEvents = if (data.events.size > maxGameEvents) {
-            val archiveResult = dataArchiver.archiveGameEventsIfNeeded(data.events, maxGameEvents)
-            if (archiveResult.success && archiveResult.archivedCount > 0) {
-                Log.i(TAG, "Archived ${archiveResult.archivedCount} game events")
-            }
-            dataArchiver.getRetainedGameEvents(data.events, maxGameEvents)
-        } else {
-            data.events
-        }
-
-        return data.copy(battleLogs = cleanedBattleLogs, events = cleanedEvents)
+        return data.copy(battleLogs = cleanedBattleLogs)
     }
 
     private suspend fun performFullTransactionSave(slot: Int, data: SaveData): StorageResult<SaveOperationStats> {
@@ -599,16 +585,13 @@ class StorageEngine @Inject internal constructor(
 
         database.explorationTeamDao().deleteAll(slot)
         database.buildingSlotDao().deleteAll(slot)
-        database.dungeonDao().deleteAll(slot)
         database.recipeDao().deleteAll(slot)
 
         data.teams.chunked(MAX_BATCH_SIZE).forEach { database.explorationTeamDao().insertAll(it.map { t -> t.copy(slotId = slot) }) }
 
         database.battleLogDao().deleteAll(slot)
-        database.gameEventDao().deleteAll(slot)
 
         data.battleLogs.chunked(MAX_BATCH_SIZE).forEach { database.battleLogDao().insertAll(it.map { b -> b.copy(slotId = slot) }) }
-        data.events.chunked(MAX_BATCH_SIZE).forEach { database.gameEventDao().insertAll(it.map { e -> e.copy(slotId = slot) }) }
 
         database.forgeSlotDao().deleteAll(slot)
         database.alchemySlotDao().deleteAll(slot)
@@ -626,9 +609,6 @@ class StorageEngine @Inject internal constructor(
             database.productionSlotDao().insertAll(batch.map { it.copy(slotId = slot) })
         }
 
-        data.gameData.unlockedDungeons?.map { Dungeon(it, slotId = slot) }?.let { dungeons ->
-            database.dungeonDao().insertAll(dungeons)
-        }
         data.gameData.unlockedRecipes?.map { Recipe(it, slotId = slot) }?.let { recipes ->
             database.recipeDao().insertAll(recipes)
         }
@@ -702,7 +682,6 @@ class StorageEngine @Inject internal constructor(
         val teams = database.explorationTeamDao().getAllSync(slot)
         val alliances = gameData.alliances ?: emptyList()
         val battleLogs = database.battleLogDao().getAllSync(slot)
-        val events = database.gameEventDao().getAllSync(slot)
         var productionSlots = database.productionSlotDao().getBySlotSync(slot)
 
         if (productionSlots.isEmpty()) {
@@ -733,7 +712,6 @@ class StorageEngine @Inject internal constructor(
             herbs = herbs,
             seeds = seeds,
             teams = teams,
-            events = events,
             battleLogs = battleLogs,
             alliances = alliances,
             productionSlots = productionSlots

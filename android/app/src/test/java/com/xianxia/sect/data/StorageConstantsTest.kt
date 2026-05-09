@@ -162,11 +162,6 @@ class StorageConstantsTest {
         assertEquals(500, StorageConstants.DEFAULT_MAX_BATTLE_LOGS)
     }
 
-    @Test
-    fun `DEFAULT_MAX_GAME_EVENTS is 1000`() {
-        assertEquals(1000, StorageConstants.DEFAULT_MAX_GAME_EVENTS)
-    }
-
     // ==================== EntitySize constants ====================
 
     @Test
@@ -179,7 +174,6 @@ class StorageConstantsTest {
         assertTrue(StorageConstants.EntitySize.HERB > 0)
         assertTrue(StorageConstants.EntitySize.SEED > 0)
         assertTrue(StorageConstants.EntitySize.BATTLE_LOG > 0)
-        assertTrue(StorageConstants.EntitySize.GAME_EVENT > 0)
         assertTrue(StorageConstants.EntitySize.TEAM > 0)
         assertTrue(StorageConstants.EntitySize.ALLIANCE > 0)
         assertTrue(StorageConstants.EntitySize.PRODUCTION_SLOT > 0)
@@ -234,8 +228,7 @@ class StorageConstantsTest {
             materials = emptyList(),
             herbs = emptyList(),
             seeds = emptyList(),
-            teams = emptyList(),
-            events = emptyList()
+            teams = emptyList()
         )
         val size = StorageEngine.estimateSaveSize(data)
         val expectedMin = StorageConstants.ESTIMATE_BASE_OVERHEAD
@@ -253,8 +246,7 @@ class StorageConstantsTest {
             materials = emptyList(),
             herbs = emptyList(),
             seeds = emptyList(),
-            teams = emptyList(),
-            events = emptyList()
+            teams = emptyList()
         )
         val withDisciples = base.copy(disciples = List(10) { Disciple() })
         val baseSize = StorageEngine.estimateSaveSize(base)
@@ -273,8 +265,7 @@ class StorageConstantsTest {
             materials = emptyList(),
             herbs = emptyList(),
             seeds = emptyList(),
-            teams = emptyList(),
-            events = emptyList()
+            teams = emptyList()
         )
         val data100 = data10.copy(disciples = List(100) { Disciple() })
         val size10 = StorageEngine.estimateSaveSize(data10)
@@ -295,8 +286,7 @@ class StorageConstantsTest {
             materials = List(5) { Material() },
             herbs = List(5) { Herb() },
             seeds = List(5) { Seed() },
-            teams = emptyList(),
-            events = emptyList()
+            teams = emptyList()
         )
         val size = StorageEngine.estimateSaveSize(data)
         val baseOverhead = StorageConstants.ESTIMATE_BASE_OVERHEAD

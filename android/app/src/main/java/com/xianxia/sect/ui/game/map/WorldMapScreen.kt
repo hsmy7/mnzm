@@ -1,30 +1,21 @@
 package com.xianxia.sect.ui.game.map
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
-import kotlin.math.abs
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.IntOffset
 import com.xianxia.sect.core.model.MapCoordinateSystem
 import com.xianxia.sect.ui.game.map.markers.AIBattleTeamMarker
 import com.xianxia.sect.ui.game.map.markers.BattleIndicatorMarker
 import com.xianxia.sect.ui.game.map.markers.BattleTeamMarker
 import com.xianxia.sect.ui.game.map.markers.CaveExplorationTeamMarker
 import com.xianxia.sect.ui.game.map.markers.CaveMarker
+import com.xianxia.sect.ui.game.map.markers.LevelMarker
 import com.xianxia.sect.ui.game.map.markers.ScoutTeamMarker
 import com.xianxia.sect.ui.game.map.markers.SectMarker
 import com.xianxia.sect.ui.game.map.markers.TeamBadgeInfo
@@ -36,7 +27,10 @@ fun WorldMapScreen(
     paths: List<MapPathData>,
     caveExplorationPaths: List<CaveExplorationPathData>,
     battleTeamPaths: List<BattleTeamPathData> = emptyList(),
-    cameraState: MapCameraState = rememberMapCameraState(),
+    cameraState: CameraState = rememberCameraState(
+        worldWidth = MapCoordinateSystem.WORLD_WIDTH,
+        worldHeight = MapCoordinateSystem.WORLD_HEIGHT
+    ),
     hasBattleTeam: Boolean = false,
     isBattleTeamAtSect: Boolean = false,
     focusWorldX: Float? = null,
@@ -45,6 +39,7 @@ fun WorldMapScreen(
     onSectClick: (MapItem.Sect) -> Unit = {},
     onMovableTargetClick: (String) -> Unit = {},
     onCaveClick: (MapItem.Cave) -> Unit = {},
+    onLevelClick: (MapItem.Level) -> Unit = {},
     onBattleTeamClick: (MapItem.BattleTeam) -> Unit = {},
     onCreateTeamClick: () -> Unit = {},
     onManageTeamClick: () -> Unit = {},
@@ -52,19 +47,9 @@ fun WorldMapScreen(
     onTeamBadgeClick: (String) -> Unit = {},
     onTeamAction: (String, TeamAction) -> Unit = { _, _ -> }
 ) {
-    val density = LocalDensity.current
-
-    LaunchedEffect(Unit) {
-        cameraState.initialize(
-            density = density.density,
-            baseWidthDp = MapCoordinateSystem.WORLD_WIDTH / density.density,
-            baseHeightDp = MapCoordinateSystem.WORLD_HEIGHT / density.density
-        )
-    }
-
     LaunchedEffect(focusWorldX, focusWorldY) {
         if (focusWorldX != null && focusWorldY != null) {
-            cameraState.tryInitialFocus(focusWorldX, focusWorldY)
+            cameraState.tryCenterOn(focusWorldX, focusWorldY)
         }
     }
 
@@ -73,152 +58,79 @@ fun WorldMapScreen(
             .fillMaxSize()
             .background(MapStyle.Colors.background)
             .onSizeChanged { size ->
-                cameraState.updateScreenSize(size.width, size.height)
+                cameraState.updateViewport(size.width, size.height)
             }
             .pointerInput(cameraState) {
-                awaitEachGesture {
-                    // requireUnconsumed = false so parent still sees pointers
-                    // on sect labels even if child clickable consumed them
-                    awaitFirstDown(requireUnconsumed = false)
-                    var previousCentroid = Offset.Zero
-                    var previousPointerDistance = 0f
-                    var pastTouchSlop = false
-                    val touchSlop = viewConfiguration.touchSlop
-
-                    do {
-                        val event = awaitPointerEvent()
-                        val activeChanges = event.changes.filter { it.pressed }
-                        if (activeChanges.isEmpty()) break
-
-                        val centroid = Offset(
-                            x = activeChanges.map { it.position.x }.average().toFloat(),
-                            y = activeChanges.map { it.position.y }.average().toFloat()
-                        )
-
-                        if (previousCentroid != Offset.Zero) {
-                            var zoom = 1f
-                            if (activeChanges.size >= 2) {
-                                val p0 = activeChanges[0].position
-                                val p1 = activeChanges[1].position
-                                val currentDistance = (p1 - p0).getDistance()
-                                if (previousPointerDistance > 0f) {
-                                    val candidateZoom = currentDistance / previousPointerDistance
-                                    if (candidateZoom > 0f && !candidateZoom.isNaN()) {
-                                        zoom = candidateZoom
-                                    }
-                                }
-                                previousPointerDistance = currentDistance
-                            } else {
-                                previousPointerDistance = 0f
-                            }
-
-                            val pan = centroid - previousCentroid
-
-                            if (!pastTouchSlop) {
-                                val zoomMotion = if (activeChanges.size >= 2)
-                                    previousPointerDistance * abs(1f - zoom) else 0f
-                                val totalMotion = pan.getDistance() + zoomMotion
-                                if (totalMotion > touchSlop) {
-                                    pastTouchSlop = true
-                                }
-                            }
-
-                            if (pastTouchSlop) {
-                                if (zoom != 1f) {
-                                    cameraState.applyZoom(zoom, centroid)
-                                }
-                                if (pan != Offset.Zero) {
-                                    cameraState.applyDrag(pan.x, pan.y)
-                                }
-                            }
-                        }
-                        previousCentroid = centroid
-                    } while (true)
+                detectDragGestures { change, dragAmount ->
+                    change.consume()
+                    cameraState.pan(dragAmount.x, dragAmount.y)
                 }
-            }
-            .pointerInput(cameraState) {
-                detectTapGestures(
-                    onDoubleTap = { offset ->
-                        val newScale = if (cameraState.scale >= 2.5f) 1f
-                        else (cameraState.scale * 1.5f).coerceIn(
-                            cameraState.effectiveMinScale,
-                            cameraState.scaleRange.endInclusive
-                        )
-                        cameraState.applyZoom(newScale / cameraState.scale, offset)
-                    }
-                )
             }
     ) {
-        Box(
-            modifier = Modifier
-                .offset {
-                    IntOffset(
-                        x = cameraState.offsetX.toInt(),
-                        y = cameraState.offsetY.toInt()
-                    )
-                }
-                .width((MapCoordinateSystem.WORLD_WIDTH / density.density * cameraState.scale).dp)
-                .height((MapCoordinateSystem.WORLD_HEIGHT / density.density * cameraState.scale).dp)
-        ) {
-            MapCanvas(
-                paths = paths,
-                caveExplorationPaths = caveExplorationPaths,
-                battleTeamPaths = battleTeamPaths,
-                cameraState = cameraState,
-                modifier = Modifier.fillMaxSize()
-            )
+        MapCanvas(
+            paths = paths,
+            caveExplorationPaths = caveExplorationPaths,
+            battleTeamPaths = battleTeamPaths,
+            cameraState = cameraState,
+            modifier = Modifier.fillMaxSize()
+        )
 
-            items.forEach { item ->
-                if (!cameraState.isWorldPositionVisible(item.worldX, item.worldY)) return@forEach
+        items.forEach { item ->
+            if (!cameraState.isVisible(item.worldX, item.worldY)) return@forEach
 
-                when (item) {
-                    is MapItem.Sect -> SectMarker(
-                        item = item,
-                        cameraState = cameraState,
-                        teamBadges = teamBadgesBySect[item.id] ?: emptyList(),
-                        onClick = {
-                            if (item.isHighlighted) {
-                                onMovableTargetClick(item.id)
-                            } else {
-                                onSectClick(item)
-                            }
-                        },
-                        onTeamBadgeClick = onTeamBadgeClick,
-                        onTeamAction = onTeamAction
-                    )
+            when (item) {
+                is MapItem.Sect -> SectMarker(
+                    item = item,
+                    cameraState = cameraState,
+                    teamBadges = teamBadgesBySect[item.id] ?: emptyList(),
+                    onClick = {
+                        if (item.isHighlighted) {
+                            onMovableTargetClick(item.id)
+                        } else {
+                            onSectClick(item)
+                        }
+                    },
+                    onTeamBadgeClick = onTeamBadgeClick,
+                    onTeamAction = onTeamAction
+                )
 
-                    is MapItem.ScoutTeam -> ScoutTeamMarker(
-                        item = item,
-                        cameraState = cameraState
-                    )
+                is MapItem.ScoutTeam -> ScoutTeamMarker(
+                    item = item,
+                    cameraState = cameraState
+                )
 
-                    is MapItem.Cave -> CaveMarker(
-                        item = item,
-                        cameraState = cameraState,
-                        onClick = { onCaveClick(item) }
-                    )
+                is MapItem.Cave -> CaveMarker(
+                    item = item,
+                    cameraState = cameraState,
+                    onClick = { onCaveClick(item) }
+                )
 
-                    is MapItem.CaveExplorationTeam -> CaveExplorationTeamMarker(
-                        item = item,
-                        cameraState = cameraState
-                    )
+                is MapItem.CaveExplorationTeam -> CaveExplorationTeamMarker(
+                    item = item,
+                    cameraState = cameraState
+                )
 
-                    is MapItem.BattleTeam -> BattleTeamMarker(
-                        item = item,
-                        cameraState = cameraState,
-                        onClick = { onBattleTeamClick(item) }
-                    )
+                is MapItem.BattleTeam -> BattleTeamMarker(
+                    item = item,
+                    cameraState = cameraState,
+                    onClick = { onBattleTeamClick(item) }
+                )
 
-                    is MapItem.AIBattleTeam -> AIBattleTeamMarker(
-                        item = item,
-                        cameraState = cameraState
-                    )
+                is MapItem.AIBattleTeam -> AIBattleTeamMarker(
+                    item = item,
+                    cameraState = cameraState
+                )
 
-                    is MapItem.BattleIndicator -> BattleIndicatorMarker(
-                        item = item,
-                        cameraState = cameraState
-                    )
-                }
+                is MapItem.BattleIndicator -> BattleIndicatorMarker(
+                    item = item,
+                    cameraState = cameraState
+                )
+
+                is MapItem.Level -> LevelMarker(
+                    item = item,
+                    cameraState = cameraState,
+                    onClick = { onLevelClick(item) }
+                )
             }
         }
 

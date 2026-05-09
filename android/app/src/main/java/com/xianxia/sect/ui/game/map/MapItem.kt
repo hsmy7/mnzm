@@ -79,6 +79,21 @@ sealed interface MapItem {
         override val worldY: Float,
         val isBattling: Boolean
     ) : MapItem
+
+    data class Level(
+        override val id: String,
+        override val worldX: Float,
+        override val worldY: Float,
+        val levelType: com.xianxia.sect.core.model.LevelType,
+        val beastType: Int?,
+        val realm: Int,
+        val realmLayer: Int,
+        val name: String,
+        val count: Int,
+        val caveImageIndex: Int,
+        val caveName: String,
+        val defeated: Boolean
+    ) : MapItem
 }
 
 data class MapPathData(

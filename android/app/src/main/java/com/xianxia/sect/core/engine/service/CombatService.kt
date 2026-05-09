@@ -25,8 +25,7 @@ class CombatService @Inject constructor(
     private val stateStore: GameStateStore,
     private val battleSystem: BattleSystem,
     private val productionSlotRepository: ProductionSlotRepository,
-    private val eventService: EventService,
-    private val eventBus: EventBus,
+private val eventBus: EventBus,
     private val applicationScopeProvider: ApplicationScopeProvider
 ) : GameSystem {
     override val systemName: String = "CombatService"
@@ -146,8 +145,6 @@ class CombatService @Inject constructor(
             val disciple = currentDisciples[discipleIndex]
             val updatedDisciple = disciple.copy(isAlive = false, status = DiscipleStatus.IDLE)
             currentDisciples = currentDisciples.toMutableList().also { it[discipleIndex] = updatedDisciple }
-
-            eventService.addGameEvent("${disciple.name} 在战斗中阵亡", EventType.DANGER)
 
             if (isOutsideSect) {
                 eventBus.emitSync(DeathEvent(disciple.id, disciple.name, "战斗阵亡"))

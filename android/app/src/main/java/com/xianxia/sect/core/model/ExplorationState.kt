@@ -16,10 +16,11 @@ data class ExplorationState(
     val cultivatorCaves: List<CultivatorCave> = emptyList(),
     val caveExplorationTeams: List<CaveExplorationTeam> = emptyList(),
     val aiCaveTeams: List<AICaveTeam> = emptyList(),
-    val unlockedDungeons: List<String> = emptyList(),
+    // unlockedDungeons removed
     val unlockedRecipes: List<String> = emptyList(),
     val unlockedManuals: List<String> = emptyList(),
     val manualProficiencies: Map<String, List<ManualProficiencyData>> = emptyMap(),
     val pendingCompetitionResults: List<CompetitionRankResult> = emptyList(),
-    val lastCompetitionYear: Int = 0
+    val lastCompetitionYear: Int = 0,
+    val worldLevels: List<WorldLevel> = emptyList()
 )

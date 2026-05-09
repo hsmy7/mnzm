@@ -63,6 +63,8 @@ import com.xianxia.sect.core.model.RewardSelectedItem
 import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.components.DiscipleAttrText
+import com.xianxia.sect.ui.components.CloseButton
+import com.xianxia.sect.ui.components.DialogDefaults
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.components.ItemCardData
@@ -614,12 +616,12 @@ internal fun DiscipleSelectForRewardDialog(
     Dialog(onDismissRequest = onDismiss) {
         Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .fillMaxHeight(0.75f)
-                .clip(RoundedCornerShape(12.dp))
+                .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
+                .fillMaxHeight(DialogDefaults.HalfScreenHeightFraction)
+                .clip(RoundedCornerShape(DialogDefaults.CornerRadius))
         ) {
             Image(
-                painter = painterResource(id = R.drawable.bg_screen),
+                painter = painterResource(id = R.drawable.bg_horizontal),
                 contentDescription = null,
                 modifier = Modifier.matchParentSize(),
                 contentScale = ContentScale.Crop
@@ -645,10 +647,7 @@ internal fun DiscipleSelectForRewardDialog(
                             color = Color.Black
                         )
                     }
-                    GameButton(
-                        text = "关闭",
-                        onClick = onDismiss
-                    )
+                    CloseButton(onClick = onDismiss)
                 }
                 
                 SpiritRootAttributeFilterBar(
@@ -1083,12 +1082,12 @@ internal fun BulkSellDialog(
     Dialog(onDismissRequest = onDismiss) {
         Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .fillMaxHeight(0.85f)
-                .clip(RoundedCornerShape(12.dp))
+                .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
+                .fillMaxHeight(DialogDefaults.HalfScreenHeightFraction)
+                .clip(RoundedCornerShape(DialogDefaults.CornerRadius))
         ) {
             Image(
-                painter = painterResource(id = R.drawable.bg_screen),
+                painter = painterResource(id = R.drawable.bg_horizontal),
                 contentDescription = null,
                 modifier = Modifier.matchParentSize(),
                 contentScale = ContentScale.Crop

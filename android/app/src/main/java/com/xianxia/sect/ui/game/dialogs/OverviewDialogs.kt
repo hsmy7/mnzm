@@ -51,109 +51,12 @@ import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.xianxia.sect.core.model.GameData
-import com.xianxia.sect.core.model.GameEvent
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.R
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.theme.GameColors
 
-@Composable
-internal fun EventLogCard(
-    events: List<GameEvent>,
-    onViewAll: () -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = GameColors.PageBackground),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "事件记录",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-                GameButton(
-                    text = "查看全部",
-                    onClick = onViewAll
-                )
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            if (events.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 24.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "暂无事件",
-                        fontSize = 12.sp,
-                        color = Color.Black
-                    )
-                }
-            } else {
-                events.forEach { event ->
-                    EventItem(event = event)
-                    if (event != events.last()) {
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-internal fun EventItem(event: GameEvent) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        val icon = when (event.type.name) {
-            "SUCCESS" -> "✓"
-            "WARNING" -> "⚠"
-            "ERROR" -> "✕"
-            "BATTLE" -> "⚔"
-            else -> "•"
-        }
-
-        Box(
-            modifier = Modifier
-                .size(24.dp)
-                .clip(CircleShape)
-                .background(GameColors.PageBackground),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(text = icon, fontSize = 12.sp, color = Color.Black)
-        }
-
-        Spacer(modifier = Modifier.width(12.dp))
-
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = event.message,
-                fontSize = 12.sp,
-                color = Color.Black
-            )
-            Text(
-                text = event.displayTime,
-                fontSize = 12.sp,
-                color = Color.Black
-            )
-        }
-    }
-}
 // ==================== 游戏主界面三个板块组件 ====================
 
 /**
@@ -297,11 +200,6 @@ internal fun QuickActionPanel(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     QuickActionButton(
-                        text = "秘境探索",
-                        modifier = Modifier.weight(1f),
-                        onClick = { viewModel.openSecretRealmDialog() }
-                    )
-                    QuickActionButton(
                         text = "战斗日志",
                         modifier = Modifier.weight(1f),
                         onClick = { viewModel.openBattleLogDialog() }
@@ -344,92 +242,3 @@ internal fun QuickActionButton(
     }
 }
 
-/**
- * 第三板块：宗门消息板块
- * 显示宗门发生的事件
- */
-@Composable
-internal fun SectMessagePanel(
-    events: List<GameEvent>
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .fillMaxHeight()
-            .padding(12.dp),
-        shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFFFF)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp)
-        ) {
-            Text(
-                text = "宗门消息",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            if (events.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "暂无消息",
-                        fontSize = 12.sp,
-                        color = Color.Black
-                    )
-                }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(events.take(20)) { event ->
-                        EventMessageItem(event = event)
-                        if (event != events.take(20).last()) {
-                            HorizontalDivider(
-                                modifier = Modifier.padding(top = 8.dp),
-                                color = Color(0xFFEEEEEE),
-                                thickness = 0.5.dp
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-/**
- * 事件消息项 - 纯文字显示
- */
-@Composable
-internal fun EventMessageItem(event: GameEvent) {
-    Column(
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Text(
-                text = event.message,
-                fontSize = 12.sp,
-                color = Color.Black,
-                lineHeight = 16.sp
-            )
-
-            Spacer(modifier = Modifier.height(2.dp))
-
-            Text(
-                text = event.displayTime,
-                fontSize = 12.sp,
-                color = Color.Black
-            )
-        }
-    }
-}

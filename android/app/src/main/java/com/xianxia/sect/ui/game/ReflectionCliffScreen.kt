@@ -25,6 +25,8 @@ import androidx.compose.ui.window.Dialog
 import com.xianxia.sect.R
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.ui.components.CloseButton
+import com.xianxia.sect.ui.components.DialogDefaults
+import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.components.FollowedTag
@@ -108,11 +110,11 @@ fun ReflectionCliffDialog(
         Dialog(onDismissRequest = { showExpelConfirmDialog = null }) {
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
+                    .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
+                    .clip(RoundedCornerShape(DialogDefaults.CornerRadius))
             ) {
                 Image(
-                    painter = painterResource(id = R.drawable.bg_screen),
+                    painter = painterResource(id = R.drawable.bg_horizontal),
                     contentDescription = null,
                     modifier = Modifier.matchParentSize(),
                     contentScale = ContentScale.FillBounds
@@ -263,40 +265,20 @@ private fun CommonDialog(
     onDismiss: () -> Unit,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    Dialog(onDismissRequest = onDismiss) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.bg_screen),
-                contentDescription = null,
-                modifier = Modifier.matchParentSize(),
-                contentScale = ContentScale.FillBounds
-            )
-            Column(modifier = Modifier.padding(20.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = title,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-                    CloseButton(onClick = onDismiss)
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-                Column(
-                    modifier = Modifier
-                        .heightIn(max = 500.dp)
-                        .verticalScroll(rememberScrollState())
-                ) {
-                    content()
-                }
+    HalfScreenDialog(onDismissRequest = onDismiss) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                CloseButton(onClick = onDismiss)
+            }
+            Column(
+                modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)
+            ) {
+                content()
             }
         }
     }

@@ -359,7 +359,6 @@ class GameEngineCore @Inject constructor(
             herbs = stateStore.herbs.value,
             seeds = stateStore.seeds.value,
             teams = stateStore.teams.value,
-            events = stateStore.events.value,
             battleLogs = stateStore.battleLogs.value,
             alliances = currentData.alliances
         )
@@ -378,7 +377,6 @@ class GameEngineCore @Inject constructor(
             herbs = snapshot.herbs,
             seeds = snapshot.seeds,
             teams = snapshot.teams,
-            events = snapshot.events,
             battleLogs = snapshot.battleLogs
         )
     }
@@ -388,11 +386,7 @@ class GameEngineCore @Inject constructor(
         deathEventJob = engineScope.launch {
             eventBus.events.collect { event ->
                 if (event is DeathEvent) {
-                    val disciple = stateStore.disciples.value.find { it.id == event.entityId }
-                    if (disciple != null) {
-                        val eventService = systemManager.getSystem(com.xianxia.sect.core.engine.service.EventService::class)
-                        eventService?.addGameEvent("弟子${disciple.name}已陨落", EventType.WARNING)
-                    }
+                    // 弟子陨落事件（消息系统已移除）
                 }
             }
         }

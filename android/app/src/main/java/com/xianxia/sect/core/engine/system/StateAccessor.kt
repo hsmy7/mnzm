@@ -172,13 +172,6 @@ class StateAccessorFactory(
         fallbackGetter = { stateStore.unifiedState.value.teams }
     )
 
-    fun events(): StateAccessor<List<GameEvent>> = StateAccessor(
-        stateStore, scope, dispatcher,
-        stateGetter = { it?.events },
-        stateSetter = { s, v -> s.events = v },
-        fallbackGetter = { stateStore.events.value }
-    )
-
     fun battleLogs(): StateAccessor<List<BattleLog>> = StateAccessor(
         stateStore, scope, dispatcher,
         stateGetter = { it?.battleLogs },

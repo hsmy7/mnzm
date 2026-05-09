@@ -29,7 +29,10 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.registry.ForgeRecipeDatabase
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.R
+import com.xianxia.sect.ui.components.CloseButton
+import com.xianxia.sect.ui.components.DialogDefaults
 import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.game.ForgeViewModel
 import com.xianxia.sect.ui.game.ProductionViewModel
@@ -61,117 +64,122 @@ fun ForgeDialog(
     var showReserveDiscipleDialog by remember { mutableStateOf(false) }
     var showAddReserveDialog by remember { mutableStateOf(false) }
 
-    ProductionCommonDialog(
-        title = theme.displayName,
-        theme = theme,
-        onDismiss = onDismiss,
-        enableScroll = false,
-        titleActions = {
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(theme.reserveButtonBackgroundColor)
-                    .clickable { showReserveDiscipleDialog = true }
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-            ) {
-                Text(
-                    text = "储备弟子",
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = theme.reserveButtonTextColor
-                )
-            }
-        }
-    ) {
-        Column(
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.verticalScroll(rememberScrollState())
-        ) {
-            ProductionElderSection(
-                theme = theme,
-                elder = forgeElder,
-                onElderClick = { showElderSelection = true },
-                onElderRemove = { productionViewModel.removeElder(ElderSlotType.FORGE) }
-            )
-
-            ProductionDirectDiscipleSection(
-                theme = theme,
-                directDisciples = forgeDisciples,
-                slotCount = forgeSlots.size,
-                onDirectDiscipleClick = { index -> showDirectDiscipleSelection = index },
-                onDirectDiscipleRemove = { index -> productionViewModel.removeDirectDisciple("forge", index) }
-            )
-
-            HorizontalDivider(
-                modifier = Modifier.padding(vertical = 4.dp),
-                color = GameColors.Border,
-                thickness = 1.dp
-            )
-
+    HalfScreenDialog(onDismissRequest = { viewModel.closeCurrentDialog() }) {
+        Column(modifier = Modifier.fillMaxSize()) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = theme.slotLabelPrefix + "位",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-                val autoForgeEnabled by forgeViewModel.autoForgeEnabled.collectAsState()
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(if (autoForgeEnabled) Color(0xFFFFD700) else Color.Black)
-                        .clickable { forgeViewModel.toggleAutoForge() }
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        text = if (autoForgeEnabled) "自动炼器:开" else "自动炼器:关",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (autoForgeEnabled) Color.Black else Color.White
-                    )
+                Text("锻造坊", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(theme.reserveButtonBackgroundColor)
+                            .clickable { showReserveDiscipleDialog = true }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "储备弟子",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = theme.reserveButtonTextColor
+                        )
+                    }
+                    CloseButton(onClick = { viewModel.closeCurrentDialog() })
                 }
             }
+            Column(
+                modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                ProductionElderSection(
+                    theme = theme,
+                    elder = forgeElder,
+                    onElderClick = { showElderSelection = true },
+                    onElderRemove = { productionViewModel.removeElder(ElderSlotType.FORGE) }
+                )
 
-            (0 until forgeSlots.size).chunked(3).forEach { rowIndexes ->
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    Image(
-                        painter = painterResource(id = R.drawable.bg_horizontal),
-                        contentDescription = null,
-                        modifier = Modifier.matchParentSize(),
-                        contentScale = ContentScale.FillBounds
+                ProductionDirectDiscipleSection(
+                    theme = theme,
+                    directDisciples = forgeDisciples,
+                    slotCount = forgeSlots.size,
+                    onDirectDiscipleClick = { index -> showDirectDiscipleSelection = index },
+                    onDirectDiscipleRemove = { index -> productionViewModel.removeDirectDisciple("forge", index) }
+                )
+
+                HorizontalDivider(
+                    modifier = Modifier.padding(vertical = 4.dp),
+                    color = GameColors.Border,
+                    thickness = 1.dp
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = theme.slotLabelPrefix + "位",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
                     )
-                    Row(
+                    val autoForgeEnabled by forgeViewModel.autoForgeEnabled.collectAsState()
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(if (autoForgeEnabled) Color(0xFFFFD700) else Color.Black)
+                            .clickable { forgeViewModel.toggleAutoForge() }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
-                        rowIndexes.forEach { index ->
-                            val slot = forgeSlots.getOrNull(index)
-                            val isIdle = slot?.status == ForgeSlotStatus.IDLE || slot == null
-                            val isWorking = slot?.status == ForgeSlotStatus.WORKING
-                            val remainingMonths = if (isWorking && gameData != null)
-                                slot.getRemainingMonths(gameData.gameYear, gameData.gameMonth) else 0
+                        Text(
+                            text = if (autoForgeEnabled) "自动炼器:开" else "自动炼器:关",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (autoForgeEnabled) Color.Black else Color.White
+                        )
+                    }
+                }
 
-                            ProductionSlotItem(
-                                theme = theme,
-                                productName = slot?.equipmentName,
-                                isWorking = isWorking,
-                                isIdle = isIdle,
-                                remainingMonths = remainingMonths,
-                                index = index,
-                                onClick = {
-                                    if (isIdle) {
-                                        selectedSlotIndex = index
-                                        showEquipmentSelection = true
+                (0 until forgeSlots.size).chunked(3).forEach { rowIndexes ->
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        Image(
+                            painter = painterResource(id = R.drawable.bg_horizontal),
+                            contentDescription = null,
+                            modifier = Modifier.matchParentSize(),
+                            contentScale = ContentScale.FillBounds
+                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
+                        ) {
+                            rowIndexes.forEach { index ->
+                                val slot = forgeSlots.getOrNull(index)
+                                val isIdle = slot?.status == ForgeSlotStatus.IDLE || slot == null
+                                val isWorking = slot?.status == ForgeSlotStatus.WORKING
+                                val remainingMonths = if (isWorking && gameData != null)
+                                    slot.getRemainingMonths(gameData.gameYear, gameData.gameMonth) else 0
+
+                                ProductionSlotItem(
+                                    theme = theme,
+                                    productName = slot?.equipmentName,
+                                    isWorking = isWorking,
+                                    isIdle = isIdle,
+                                    remainingMonths = remainingMonths,
+                                    index = index,
+                                    onClick = {
+                                        if (isIdle) {
+                                            selectedSlotIndex = index
+                                            showEquipmentSelection = true
+                                        }
                                     }
-                                }
-                            )
+                                )
+                            }
                         }
                     }
                 }
@@ -432,7 +440,7 @@ private fun EquipmentDetailDialog(
                 .clip(RoundedCornerShape(12.dp))
         ) {
             Image(
-                painter = painterResource(id = R.drawable.bg_screen),
+                painter = painterResource(id = R.drawable.bg_horizontal),
                 contentDescription = null,
                 modifier = Modifier.matchParentSize(),
                 contentScale = ContentScale.FillBounds

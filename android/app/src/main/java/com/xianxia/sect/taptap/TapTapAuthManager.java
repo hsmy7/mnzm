@@ -40,7 +40,7 @@ public class TapTapAuthManager {
             isCN ? TapTapRegion.CN : TapTapRegion.GLOBAL
         );
 
-        options.setScreenOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+        options.setScreenOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
         options.setEnableLog(BuildConfig.DEBUG);
         options.setGameVersion(BuildConfig.VERSION_NAME);
         options.setChannel(BuildConfig.TAPDB_CHANNEL);

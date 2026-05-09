@@ -32,6 +32,7 @@ import com.xianxia.sect.ui.components.ElderBonusInfoButton
 import com.xianxia.sect.ui.components.ElderBonusInfo
 import com.xianxia.sect.ui.components.ElderBonusInfoProvider
 import com.xianxia.sect.ui.components.CloseButton
+import com.xianxia.sect.ui.components.DialogDefaults
 import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.ui.components.HorizontalDiscipleCard
 import com.xianxia.sect.core.util.isFollowed
@@ -60,11 +61,11 @@ fun PeakDialog(
     Dialog(onDismissRequest = onDismiss) {
         Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
+                .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
+                .clip(RoundedCornerShape(DialogDefaults.CornerRadius))
         ) {
             Image(
-                painter = painterResource(id = R.drawable.bg_screen),
+                painter = painterResource(id = R.drawable.bg_horizontal),
                 contentDescription = null,
                 modifier = Modifier.matchParentSize(),
                 contentScale = ContentScale.FillBounds
@@ -95,7 +96,7 @@ fun PeakDialog(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = 500.dp)
+                        .heightIn(max = DialogDefaults.CommonMaxHeight)
                         .verticalScroll(rememberScrollState())
                 ) {
                     content()
@@ -527,11 +528,11 @@ fun PeakDiscipleSelectionDialog(
     Dialog(onDismissRequest = onDismiss) {
         Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
+                .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
+                .clip(RoundedCornerShape(DialogDefaults.CornerRadius))
         ) {
             Image(
-                painter = painterResource(id = R.drawable.bg_screen),
+                painter = painterResource(id = R.drawable.bg_horizontal),
                 contentDescription = null,
                 modifier = Modifier.matchParentSize(),
                 contentScale = ContentScale.FillBounds
@@ -546,7 +547,7 @@ fun PeakDiscipleSelectionDialog(
                     CloseButton(onClick = onDismiss)
                 }
                 Spacer(modifier = Modifier.height(12.dp))
-                Column(Modifier.fillMaxWidth().heightIn(max = 500.dp)) {
+                Column(Modifier.fillMaxWidth().heightIn(max = DialogDefaults.CommonMaxHeight)) {
                     if (disciples.isEmpty()) {
                         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(text = "暂无符合条件的弟子", fontSize = 12.sp, color = Color.Black)

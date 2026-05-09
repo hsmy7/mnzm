@@ -133,12 +133,19 @@ fun ItemDetailDialog(
         onDismissRequest = onDismiss,
         containerColor = GameColors.PageBackground,
         title = {
-            Text(
-                text = name,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = getRarityColor(rarity)
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = name,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = getRarityColor(rarity)
+                )
+                CloseButton(onClick = onDismiss)
+            }
         },
         text = {
             Column(
@@ -184,20 +191,7 @@ fun ItemDetailDialog(
         },
         confirmButton = {
             if (extraActions != null) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    extraActions()
-                    GameButton(
-                        text = "关闭",
-                        onClick = onDismiss
-                    )
-                }
-            } else {
-                GameButton(
-                    text = "关闭",
-                    onClick = onDismiss
-                )
+                extraActions()
             }
         }
     )

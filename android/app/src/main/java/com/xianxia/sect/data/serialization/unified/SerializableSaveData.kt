@@ -47,7 +47,7 @@ data class SerializableGameData(
     @ProtoNumber(26) val cultivatorCaves: List<SerializableCultivatorCave> = emptyList(),
     @ProtoNumber(27) val caveExplorationTeams: List<SerializableCaveExplorationTeam> = emptyList(),
     @ProtoNumber(28) val aiCaveTeams: List<SerializableAICaveTeam> = emptyList(),
-    @ProtoNumber(29) val unlockedDungeons: List<String> = emptyList(),
+    // @ProtoNumber(29) val unlockedDungeons — removed
     @ProtoNumber(30) val unlockedRecipes: List<String> = emptyList(),
     @ProtoNumber(31) val unlockedManuals: List<String> = emptyList(),
     @ProtoNumber(32) val lastSaveTime: Long = 0L,
@@ -71,7 +71,7 @@ data class SerializableGameData(
     @ProtoNumber(50) val availableMissions: List<SerializableMission> = emptyList(),
     @ProtoNumber(53) val aiSectDisciples: List<SerializableAiSectDiscipleEntry> = emptyList(),
     @ProtoNumber(54) val sectDetails: Map<String, SerializableSectDetail> = emptyMap(),
-    @ProtoNumber(55) val smartBattleEnabled: Boolean = false,
+    // @ProtoNumber(55) val smartBattleEnabled — removed
     @ProtoNumber(87) val spiritMineExpansions: Int = 0
 )
 
@@ -269,18 +269,6 @@ data class SerializableExplorationTeam(
 )
 
 @Serializable
-data class SerializableGameEvent(
-    @ProtoNumber(1) val id: String,
-    @ProtoNumber(2) val type: String,
-    @ProtoNumber(3) val title: String,
-    @ProtoNumber(4) val description: String,
-    @ProtoNumber(5) val timestamp: Long,
-    @ProtoNumber(6) val gameYear: Int,
-    @ProtoNumber(7) val gameMonth: Int,
-    @ProtoNumber(8) val data: Map<String, String> = emptyMap()
-)
-
-@Serializable
 data class SerializableBattleLog(
     @ProtoNumber(1) val id: String,
     @ProtoNumber(2) val timestamp: Long,
@@ -323,7 +311,6 @@ data class SerializableSaveData(
     @ProtoNumber(9) val herbs: List<SerializableHerb> = emptyList(),
     @ProtoNumber(10) val seeds: List<SerializableSeed> = emptyList(),
     @ProtoNumber(11) val teams: List<SerializableExplorationTeam> = emptyList(),
-    @ProtoNumber(12) val events: List<SerializableGameEvent> = emptyList(),
     @ProtoNumber(13) val battleLogs: List<SerializableBattleLog> = emptyList(),
     @ProtoNumber(14) val alliances: List<SerializableAlliance> = emptyList()
 )

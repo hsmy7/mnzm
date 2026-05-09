@@ -193,7 +193,6 @@ class SavePipeline @Inject constructor(
             herbs = request.snapshot.herbs,
             seeds = request.snapshot.seeds,
             teams = request.snapshot.teams,
-            events = request.snapshot.events,
             battleLogs = request.snapshot.battleLogs,
             alliances = request.snapshot.alliances,
             productionSlots = request.snapshot.productionSlots

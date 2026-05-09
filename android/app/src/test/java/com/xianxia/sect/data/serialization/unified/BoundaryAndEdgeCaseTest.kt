@@ -104,7 +104,6 @@ class BoundaryAndEdgeCaseTest {
             herbs = emptyList(),
             seeds = emptyList(),
             teams = emptyList(),
-            events = emptyList()
         )
     }
 
@@ -201,7 +200,6 @@ class BoundaryAndEdgeCaseTest {
             herbs = emptyList(),
             seeds = emptyList(),
             teams = emptyList(),
-            events = emptyList()
         )
 
         val serializable = converter.toSerializable(original)
@@ -312,7 +310,6 @@ class BoundaryAndEdgeCaseTest {
             herbs = emptyList(),
             seeds = emptyList(),
             teams = emptyList(),
-            events = emptyList()
         )
 
         val serializable = converter.toSerializable(original)
@@ -392,7 +389,6 @@ class BoundaryAndEdgeCaseTest {
             herbs = emptyList(),
             seeds = emptyList(),
             teams = emptyList(),
-            events = emptyList()
         )
 
         val serializable = converter.toSerializable(original)
@@ -456,7 +452,6 @@ class BoundaryAndEdgeCaseTest {
             herbs = emptyList(),
             seeds = emptyList(),
             teams = emptyList(),
-            events = emptyList()
         )
 
         val serializable = converter.toSerializable(original)
@@ -517,7 +512,6 @@ class BoundaryAndEdgeCaseTest {
             herbs = emptyList(),
             seeds = emptyList(),
             teams = emptyList(),
-            events = emptyList()
         )
 
         val serializable = converter.toSerializable(original)
@@ -545,7 +539,6 @@ class BoundaryAndEdgeCaseTest {
             herbs = emptyList(),
             seeds = emptyList(),
             teams = emptyList(),
-            events = emptyList()
         )
 
         val serializable = converter.toSerializable(original)
@@ -729,7 +722,6 @@ class BoundaryAndEdgeCaseTest {
             herbs = emptyList(),
             seeds = emptyList(),
             teams = emptyList(),
-            events = emptyList()
         )
 
         val serializable = converter.toSerializable(original)

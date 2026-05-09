@@ -29,7 +29,6 @@ class SaveLimitsConfig @Inject constructor(
 
         const val KEY_MAX_SAVE_SIZE = "max_save_size"
         const val KEY_MAX_BATTLE_LOGS = "max_battle_logs"
-        const val KEY_MAX_GAME_EVENTS = "max_game_events"
         const val KEY_TOTAL_STORAGE_QUOTA = "total_storage_quota"
         const val KEY_SHARDING_THRESHOLD = "sharding_threshold"
         const val KEY_SHARD_MAX_SIZE = "shard_max_size"
@@ -50,14 +49,6 @@ class SaveLimitsConfig @Inject constructor(
 
         /** BattleLog 绝对上限 */
         const val ABSOLUTE_MAX_BATTLE_LOGS = 5000
-
-        // ==================== GameEvent 限制 ====================
-
-        /** 默认主存档中保留的 GameEvent 最大条数 */
-        const val DEFAULT_MAX_GAME_EVENTS = 2000
-
-        /** GameEvent 绝对上限 */
-        const val ABSOLUTE_MAX_GAME_EVENTS = 10_000
 
         // ==================== 总存储配额 ====================
 
@@ -120,14 +111,6 @@ class SaveLimitsConfig @Inject constructor(
     val maxBattleLogs: Int
         get() = prefs.getInt(KEY_MAX_BATTLE_LOGS, DEFAULT_MAX_BATTLE_LOGS)
             .coerceIn(100, ABSOLUTE_MAX_BATTLE_LOGS)
-
-    /**
-     * 主存档中保留的 GameEvent 最大条数。
-     * 超出部分通过 DataArchiver 归档到磁盘。
-     */
-    val maxGameEvents: Int
-        get() = prefs.getInt(KEY_MAX_GAME_EVENTS, DEFAULT_MAX_GAME_EVENTS)
-            .coerceIn(200, ABSOLUTE_MAX_GAME_EVENTS)
 
     // ==================== 公开属性：总存储配额 ====================
 
@@ -209,12 +192,6 @@ class SaveLimitsConfig @Inject constructor(
         Log.i(TAG, "maxBattleLogs updated: $clamped")
     }
 
-    fun setMaxGameEvents(count: Int) {
-        val clamped = count.coerceIn(200, ABSOLUTE_MAX_GAME_EVENTS)
-        prefs.edit().putInt(KEY_MAX_GAME_EVENTS, clamped).apply()
-        Log.i(TAG, "maxGameEvents updated: $clamped")
-    }
-
     fun setTotalStorageQuotaMb(quotaMb: Long) {
         val clamped = quotaMb.coerceIn(100, ABSOLUTE_MAX_TOTAL_STORAGE_MB)
         prefs.edit().putLong(KEY_TOTAL_STORAGE_QUOTA, clamped * 1024 * 1024).apply()
@@ -250,7 +227,6 @@ class SaveLimitsConfig @Inject constructor(
             appendLine("=== SaveLimitsConfig ===")
             appendLine("maxSaveSize:       ${maxSaveSizeBytes / 1024 / 1024} MB")
             appendLine("maxBattleLogs:     $maxBattleLogs")
-            appendLine("maxGameEvents:     $maxGameEvents")
             appendLine("totalStorageQuota: ${totalStorageQuotaBytes / 1024 / 1024} MB")
             appendLine("shardingThreshold: ${shardingThresholdBytes / 1024 / 1024} MB")
             appendLine("shardMaxSize:      ${shardMaxSizeBytes / 1024 / 1024} MB")

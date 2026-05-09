@@ -4,6 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -21,6 +23,8 @@ import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.core.util.SectRelationLevel
 import com.xianxia.sect.ui.components.CloseButton
+import com.xianxia.sect.ui.components.DialogDefaults
+import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.WorldMapViewModel
@@ -43,93 +47,67 @@ fun GiftDialog(
         }?.favor ?: 0
     } else 0
 
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .fillMaxHeight(0.85f),
-            shape = RoundedCornerShape(16.dp),
-            color = GameColors.PageBackground
-        ) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = GameColors.Primary,
-                    shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
+    HalfScreenDialog(onDismissRequest = onDismiss) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("赠礼", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                CloseButton(onClick = onDismiss)
+            }
+            Column(
+                modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                    Text(
+                        text = "向 ${sect?.name ?: "宗门"} 送礼",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    FavorProgressBar(currentFavor = relation, maxFavor = 100)
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "灵石: ${GameUtils.formatNumber(gameData?.spiritStones ?: 0)}",
+                        fontSize = 12.sp,
+                        color = Color.Black
+                    )
+                    if (hasGiftedThisYear) {
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = Color(0xFFE74C3C).copy(alpha = 0.9f)
                         ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Text(
-                                        text = "向 ${sect?.name ?: "宗门"} 送礼",
-                                        fontSize = 18.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(6.dp))
-                                FavorProgressBar(currentFavor = relation, maxFavor = 100)
-                            }
-                            
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Column(horizontalAlignment = Alignment.End) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                    ) {
-                                        Text(
-                                            text = "灵石",
-                                            fontSize = 12.sp,
-                                            color = Color.White.copy(alpha = 0.8f)
-                                        )
-                                        Text(
-                                            text = GameUtils.formatNumber(gameData?.spiritStones ?: 0),
-                                            fontSize = 14.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFFFFD700)
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    if (hasGiftedThisYear) {
-                                        Surface(
-                                            shape = RoundedCornerShape(4.dp),
-                                            color = Color(0xFFE74C3C).copy(alpha = 0.9f)
-                                        ) {
-                                            Text(
-                                                text = "本年已送礼",
-                                                fontSize = 11.sp,
-                                                color = Color.White,
-                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                                            )
-                                        }
-                                    }
-                                }
-                                CloseButton(onClick = onDismiss)
-                            }
+                            Text(
+                                text = "本年已送礼",
+                                fontSize = 11.sp,
+                                color = Color.White,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            )
                         }
                     }
                 }
-                
+
                 if (!hasGiftedThisYear) {
+                    Spacer(modifier = Modifier.height(8.dp))
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
                         color = GameColors.JadeGreen.copy(alpha = 0.1f)
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
@@ -140,7 +118,9 @@ fun GiftDialog(
                         }
                     }
                 }
-                
+
+                Spacer(modifier = Modifier.height(8.dp))
+
                 SpiritStoneGiftTab(
                     sect = sect,
                     gameData = gameData,

@@ -56,6 +56,7 @@ import com.xianxia.sect.core.model.BattleLogAction
 import com.xianxia.sect.core.model.BattleLogRound
 import com.xianxia.sect.core.model.BattleResult
 import com.xianxia.sect.ui.components.CloseButton
+import com.xianxia.sect.ui.components.DialogDefaults
 import com.xianxia.sect.ui.theme.GameColors
 
 @Composable
@@ -140,7 +141,7 @@ internal fun BattleLogDetailDialog(
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             modifier = Modifier
-                .fillMaxWidth()
+                .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
                 .fillMaxHeight(0.9f),
             shape = RoundedCornerShape(16.dp),
             color = GameColors.PageBackground
@@ -451,14 +452,14 @@ internal fun BattleLogListDialog(
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             modifier = Modifier
-                .fillMaxWidth()
-                .fillMaxHeight(0.85f),
+                .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
+                .fillMaxHeight(DialogDefaults.HalfScreenHeightFraction),
             shape = RoundedCornerShape(16.dp),
             color = GameColors.PageBackground
         ) {
             Box(modifier = Modifier.fillMaxSize()) {
                 Image(
-                    painter = painterResource(id = R.drawable.bg_screen),
+                    painter = painterResource(id = R.drawable.bg_horizontal),
                     contentDescription = null,
                     modifier = Modifier.matchParentSize(),
                     contentScale = ContentScale.Crop

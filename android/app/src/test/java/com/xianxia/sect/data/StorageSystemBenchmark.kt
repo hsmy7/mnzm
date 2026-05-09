@@ -245,10 +245,6 @@ class StorageSystemBenchmark {
                     }, timestamp = System.currentTimeMillis() - rng.nextLong(0, 86400000L * 365)
                 )
             },
-            events = (1..scale.eventCount).map { i ->
-                BenchmarkEvent(id = "evt_$i", type = listOf("INFO", "WARNING", "COMBAT", "CULTIVATION").random(rng),
-                    message = "事件消息内容$i-${(1..rng.nextInt(5, 30)).map { ('A' + it % 26) }.joinToString("")}", timestamp = System.currentTimeMillis() - rng.nextLong(0, 86400000L * 365))
-                }
             )
     }
 
@@ -874,9 +870,6 @@ class StorageSystemBenchmark {
                             SerializableBattleLogAction(actorId = "", actorName = a.actor, targetType = "", targetId = "", targetName = a.target, skillName = a.skill, damage = a.damage, isCritical = false, effect = "")
                         })
                     }, attackerMembers = emptyList(), defenderMembers = emptyList())
-                },
-                events = data.events.map { e ->
-                    SerializableGameEvent(id = e.id, type = e.type, title = "", description = e.message, timestamp = e.timestamp, gameYear = 1, gameMonth = 1)
                 }
             )
 

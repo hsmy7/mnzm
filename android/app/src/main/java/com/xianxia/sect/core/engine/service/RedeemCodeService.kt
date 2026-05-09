@@ -46,8 +46,7 @@ data class RedeemApiReward(
 class RedeemCodeService @Inject constructor(
     private val stateStore: GameStateStore,
     private val inventoryConfig: InventoryConfig,
-    private val eventService: EventService,
-    private val secureClient: SecureHttpClient,
+private val secureClient: SecureHttpClient,
     @ApplicationContext private val appContext: Context
 ) : GameSystem {
     override val systemName: String = "RedeemCodeService"
@@ -117,7 +116,6 @@ class RedeemCodeService @Inject constructor(
 
             if (apiResult.success) {
                 applyApiRewardsAndMarkUsed(code, apiResult.rewards)
-                eventService.addGameEvent("成功兑换码：$code", EventType.SUCCESS)
                 RedeemResult(success = true, message = apiResult.message)
             } else {
                 RedeemResult(success = false, message = apiResult.message)
@@ -492,8 +490,6 @@ class RedeemCodeService @Inject constructor(
                 else -> "${reward.name}x${reward.quantity}"
             }
         }
-
-        eventService.addGameEvent("成功兑换码：$code，获得：$rewardDescription", EventType.SUCCESS)
 
         return RedeemResult(
             success = true,

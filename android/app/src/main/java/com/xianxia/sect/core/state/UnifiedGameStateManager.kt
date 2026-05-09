@@ -23,7 +23,6 @@ data class UnifiedGameState(
     val herbs: List<Herb> = emptyList(),
     val seeds: List<Seed> = emptyList(),
     val teams: List<ExplorationTeam> = emptyList(),
-    val events: List<GameEvent> = emptyList(),
     val battleLogs: List<BattleLog> = emptyList(),
     val alliances: List<Alliance> = emptyList(),
 
@@ -124,7 +123,6 @@ class UnifiedGameStateManager @Inject constructor(
             herbs = newState.herbs,
             seeds = newState.seeds,
             teams = newState.teams,
-            events = newState.events,
             battleLogs = newState.battleLogs,
             isPaused = newState.isPaused,
             isLoading = newState.isLoading,

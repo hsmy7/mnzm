@@ -47,7 +47,9 @@ import com.xianxia.sect.core.model.MerchantItem
 import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.util.GameUtils
+import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.components.ItemCardData
 import com.xianxia.sect.ui.components.UnifiedItemCard
@@ -73,21 +75,9 @@ fun MerchantDialog(
         items.sortedWith(compareByDescending<MerchantItem> { it.rarity }.thenBy { it.name })
     }
 
-    Dialog(onDismissRequest = onDismiss) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .fillMaxHeight(0.85f)
-                .clip(RoundedCornerShape(12.dp))
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.bg_screen),
-                contentDescription = null,
-                modifier = Modifier.matchParentSize(),
-                contentScale = ContentScale.Crop
-            )
-            Column(modifier = Modifier.fillMaxSize()) {
-                MerchantHeader(
+    HalfScreenDialog(onDismissRequest = onDismiss) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            MerchantHeader(
                     gameData = gameData,
                     onDismiss = onDismiss,
                     onListClick = { showListingDialog = true }
@@ -206,7 +196,6 @@ fun MerchantDialog(
                 )
             }
         }
-    }
 
     if (showDetailDialog) {
         selectedItem?.let { item ->
@@ -261,10 +250,7 @@ private fun MerchantHeader(
                 text = "上架",
                 onClick = onListClick
             )
-            GameButton(
-                text = "关闭",
-                onClick = onDismiss
-            )
+            CloseButton(onClick = onDismiss)
         }
     }
 }
@@ -448,23 +434,11 @@ fun ListingManagementDialog(
         }
     }
 
-    Dialog(onDismissRequest = onDismiss) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .fillMaxHeight(0.85f)
-                .clip(RoundedCornerShape(12.dp))
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.bg_screen),
-                contentDescription = null,
-                modifier = Modifier.matchParentSize(),
-                contentScale = ContentScale.Crop
-            )
-            Column(modifier = Modifier.fillMaxSize()) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
+    HalfScreenDialog(onDismissRequest = onDismiss) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
                         .padding(12.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
@@ -484,10 +458,7 @@ fun ListingManagementDialog(
                             text = "上架",
                             onClick = { showInventorySelectDialog = true }
                         )
-                        GameButton(
-                            text = "关闭",
-                            onClick = onDismiss
-                        )
+                        CloseButton(onClick = onDismiss)
                     }
                 }
 
@@ -562,7 +533,6 @@ fun ListingManagementDialog(
                 }
             }
         }
-    }
 
     if (showInventorySelectDialog) {
         InventorySelectDialog(
@@ -693,23 +663,11 @@ fun InventorySelectDialog(
         filterAndSortItems(seeds, listedItemIds)
     }
 
-    Dialog(onDismissRequest = onDismiss) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .fillMaxHeight(0.9f)
-                .clip(RoundedCornerShape(12.dp))
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.bg_screen),
-                contentDescription = null,
-                modifier = Modifier.matchParentSize(),
-                contentScale = ContentScale.Crop
-            )
-            Column(modifier = Modifier.fillMaxSize()) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
+    HalfScreenDialog(onDismissRequest = onDismiss) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
                         .padding(12.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
@@ -856,7 +814,6 @@ fun InventorySelectDialog(
                 }
             }
         }
-    }
 
     if (showConfirmDialog && selectedItems.isNotEmpty()) {
         ConfirmListingDialog(
@@ -1117,7 +1074,7 @@ private fun ConfirmListingDialog(
                 .clip(RoundedCornerShape(12.dp))
         ) {
             Image(
-                painter = painterResource(id = R.drawable.bg_screen),
+                painter = painterResource(id = R.drawable.bg_horizontal),
                 contentDescription = null,
                 modifier = Modifier.matchParentSize(),
                 contentScale = ContentScale.FillBounds

@@ -258,18 +258,11 @@ class SaveLoadViewModel @Inject constructor(
 
     private fun trimSaveData(snapshot: com.xianxia.sect.core.engine.GameStateSnapshot): SaveData {
         val maxBattleLogs = 1000
-        val maxEvents = 2000
         val trimmedBattleLogs = if (snapshot.battleLogs.size > maxBattleLogs) {
             Log.w(TAG, "Trimming battleLogs: ${snapshot.battleLogs.size} -> $maxBattleLogs")
             snapshot.battleLogs.takeLast(maxBattleLogs)
         } else {
             snapshot.battleLogs
-        }
-        val trimmedEvents = if (snapshot.events.size > maxEvents) {
-            Log.w(TAG, "Trimming events: ${snapshot.events.size} -> $maxEvents")
-            snapshot.events.takeLast(maxEvents)
-        } else {
-            snapshot.events
         }
         return SaveData(
             gameData = snapshot.gameData,
@@ -283,7 +276,6 @@ class SaveLoadViewModel @Inject constructor(
             herbs = snapshot.herbs,
             seeds = snapshot.seeds,
             teams = snapshot.teams,
-            events = trimmedEvents,
             battleLogs = trimmedBattleLogs,
             alliances = snapshot.alliances,
             productionSlots = snapshot.productionSlots
@@ -620,7 +612,6 @@ class SaveLoadViewModel @Inject constructor(
                     herbs = saveData.herbs,
                     seeds = saveData.seeds,
                     teams = saveData.teams,
-                    events = saveData.events,
                     battleLogs = saveData.battleLogs,
                     alliances = saveData.alliances,
                     productionSlots = saveData.productionSlots
@@ -732,8 +723,7 @@ class SaveLoadViewModel @Inject constructor(
                         herbs = saveData.herbs,
                         seeds = saveData.seeds,
                         teams = saveData.teams,
-                        events = saveData.events,
-                        battleLogs = saveData.battleLogs,
+                            battleLogs = saveData.battleLogs,
                         alliances = saveData.alliances,
                         productionSlots = saveData.productionSlots
                     )
@@ -952,7 +942,6 @@ class SaveLoadViewModel @Inject constructor(
                 herbs = snapshot.herbs,
                 seeds = snapshot.seeds,
                 teams = snapshot.teams,
-                events = snapshot.events,
                 battleLogs = snapshot.battleLogs,
                 alliances = snapshot.alliances,
                 productionSlots = snapshot.productionSlots
@@ -1082,8 +1071,7 @@ class SaveLoadViewModel @Inject constructor(
                     herbs = snapshot.herbs,
                     seeds = snapshot.seeds,
                     teams = snapshot.teams,
-                    events = snapshot.events,
-                    battleLogs = snapshot.battleLogs,
+                        battleLogs = snapshot.battleLogs,
                     alliances = snapshot.alliances,
                     productionSlots = snapshot.productionSlots
                 )
@@ -1212,7 +1200,6 @@ class SaveLoadViewModel @Inject constructor(
                     herbs = snapshotToSave.herbs,
                     seeds = snapshotToSave.seeds,
                     teams = snapshotToSave.teams,
-                    events = snapshotToSave.events,
                     battleLogs = snapshotToSave.battleLogs,
                     alliances = snapshotToSave.alliances,
                     productionSlots = snapshotToSave.productionSlots

@@ -34,7 +34,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlin.math.roundToInt
+import com.xianxia.sect.core.GameConfig
 import kotlin.random.Random
 import javax.inject.Inject
 
@@ -143,21 +143,19 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
                         if (gameData.isGameStarted && mapPreloadData == null) {
                             saveLoadViewModel.setLoadingProgress(SaveLoadViewModel.PROGRESS_MAP_PRELOAD)
 
-                            val density = resources.displayMetrics.density
-                            val gridSizePx = 36f * density
-                            val tileSizePxInt = gridSizePx.roundToInt()
-                            val worldWidthCells = (3000f / gridSizePx).roundToInt()
-                            val worldHeightCells = (3000f / gridSizePx).roundToInt()
+                            val tileSize = GameConfig.SectMap.TILE_SIZE
+                            val worldWidthCells = GameConfig.SectMap.WORLD_WIDTH_CELLS
+                            val worldHeightCells = GameConfig.SectMap.WORLD_HEIGHT_CELLS
+                            val worldPixelWidth = GameConfig.SectMap.WORLD_PIXEL_WIDTH
+                            val worldPixelHeight = GameConfig.SectMap.WORLD_PIXEL_HEIGHT
 
                             val result = withContext(Dispatchers.IO) {
-                                val worldPx = 3000f
-                                val worldPxInt = worldPx.roundToInt()
                                 val groundBmp = try {
                                     val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = 2 }
                                     val src = android.graphics.BitmapFactory.decodeResource(
                                         resources, R.drawable.sect_ground_map, opts
                                     ) ?: throw Exception("ground decode failed")
-                                    android.graphics.Bitmap.createScaledBitmap(src, worldPxInt, worldPxInt, true)
+                                    android.graphics.Bitmap.createScaledBitmap(src, worldPixelWidth, worldPixelHeight, false)
                                 } catch (e: Exception) { null }
 
                                 val grassBmp = try {
@@ -179,7 +177,7 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
                                 if (groundBmp != null && grassBmp != null && treeBmp != null) {
                                     // 预渲染完整静态地图（地面纹理 + 全部草/树装饰）
                                     val fullBmp = android.graphics.Bitmap.createBitmap(
-                                        worldPxInt, worldPxInt, android.graphics.Bitmap.Config.ARGB_8888
+                                        worldPixelWidth, worldPixelHeight, android.graphics.Bitmap.Config.ARGB_8888
                                     )
                                     val canvas = android.graphics.Canvas(fullBmp)
                                     canvas.drawBitmap(groundBmp, 0f, 0f, null)
@@ -189,22 +187,22 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
                                         for (col in 0 until worldWidthCells) {
                                             val tile = rawTileData[row][col]
                                             if (tile == TILE_GROUND) continue
-                                            val dstX = col * tileSizePxInt - overlap
-                                            val dstY = row * tileSizePxInt - overlap
-                                            val dstW = tileSizePxInt + overlap * 2
+                                            val dstX = col * tileSize - overlap
+                                            val dstY = row * tileSize - overlap
+                                            val dstW = tileSize + overlap * 2
                                             when (tile) {
                                                 TILE_GRASS -> {
                                                     canvas.drawBitmap(grassBmp, null,
                                                         android.graphics.Rect(dstX, dstY, dstX + dstW, dstY + dstW), null)
                                                 }
                                                 TILE_TREE -> {
-                                                    val cx = col * tileSizePxInt + tileSizePxInt / 2
-                                                    val cy = row * tileSizePxInt + tileSizePxInt / 2
-                                                    val decW = tileSizePxInt * 2 + overlap * 2
+                                                    val cx = col * tileSize + tileSize / 2
+                                                    val cy = row * tileSize + tileSize / 2
+                                                    val decW = tileSize * 2 + overlap * 2
                                                     canvas.drawBitmap(treeBmp, null,
                                                         android.graphics.Rect(
-                                                            cx - tileSizePxInt - overlap, cy - tileSizePxInt - overlap,
-                                                            cx + tileSizePxInt + overlap, cy + tileSizePxInt + overlap
+                                                            cx - tileSize - overlap, cy - tileSize - overlap,
+                                                            cx + tileSize + overlap, cy + tileSize + overlap
                                                         ), null)
                                                 }
                                             }
@@ -218,18 +216,19 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
                                         rawTileData = rawTileData,
                                         worldWidthCells = worldWidthCells,
                                         worldHeightCells = worldHeightCells,
-                                        gridSizePx = gridSizePx,
-                                        tileSizePxInt = tileSizePxInt,
+                                        tileSize = tileSize,
+                                        worldPixelWidth = worldPixelWidth,
+                                        worldPixelHeight = worldPixelHeight,
                                         fullMapBmp = fullBmp.asImageBitmap()
                                     )
                                 } else {
                                     // 贴图解码失败时生成纯色回退瓦片，确保游戏仍可启动
                                     val fallbackBmp = android.graphics.Bitmap.createBitmap(
-                                        tileSizePxInt, tileSizePxInt, android.graphics.Bitmap.Config.ARGB_8888
+                                        tileSize, tileSize, android.graphics.Bitmap.Config.ARGB_8888
                                     ).also { it.eraseColor(0xFFF2EDE4.toInt()) }
                                     val fallbackImg = fallbackBmp.asImageBitmap()
                                     val fullFallbackBmp = android.graphics.Bitmap.createBitmap(
-                                        worldPxInt, worldPxInt, android.graphics.Bitmap.Config.ARGB_8888
+                                        worldPixelWidth, worldPixelHeight, android.graphics.Bitmap.Config.ARGB_8888
                                     ).also { it.eraseColor(0xFFF2EDE4.toInt()) }
                                     MapPreloadData(
                                         groundTileBmp = fallbackImg,
@@ -238,8 +237,9 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
                                         rawTileData = Array(worldHeightCells) { IntArray(worldWidthCells) },
                                         worldWidthCells = worldWidthCells,
                                         worldHeightCells = worldHeightCells,
-                                        gridSizePx = gridSizePx,
-                                        tileSizePxInt = tileSizePxInt,
+                                        tileSize = tileSize,
+                                        worldPixelWidth = worldPixelWidth,
+                                        worldPixelHeight = worldPixelHeight,
                                         fullMapBmp = fullFallbackBmp.asImageBitmap()
                                     )
                                 }

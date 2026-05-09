@@ -68,20 +68,8 @@ fun InventoryDialog(
         seeds.sortedWith(compareByDescending<Seed> { it.rarity }.thenBy { it.name })
     }
 
-    Dialog(onDismissRequest = onDismiss) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .fillMaxHeight(0.9f)
-                .clip(RoundedCornerShape(12.dp))
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.bg_screen),
-                contentDescription = null,
-                modifier = Modifier.matchParentSize(),
-                contentScale = ContentScale.Crop
-            )
-            Column(modifier = Modifier.fillMaxSize()) {
+    HalfScreenDialog(onDismissRequest = onDismiss) {
+        Column(modifier = Modifier.fillMaxSize()) {
                 InventoryHeader(
                     onDismiss = onDismiss,
                     onBulkSellClick = { showBulkSellDialog = true }
@@ -227,7 +215,6 @@ fun InventoryDialog(
                 }
             }
         }
-    }
 }
 
 @Composable
@@ -238,13 +225,13 @@ private fun InventoryHeader(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(16.dp),
+            .padding(horizontal = 12.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             text = "背包",
-            fontSize = 12.sp,
+            fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
             color = Color.Black
         )
@@ -257,10 +244,7 @@ private fun InventoryHeader(
                 text = "一键出售",
                 onClick = onBulkSellClick
             )
-            GameButton(
-                text = "关闭",
-                onClick = onDismiss
-            )
+            CloseButton(onClick = onDismiss)
         }
     }
 }
@@ -498,24 +482,10 @@ internal fun BulkSellDialog(
         )
     }
 
-    Dialog(onDismissRequest = onDismiss) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .fillMaxHeight(0.8f)
-                .clip(RoundedCornerShape(12.dp))
+    HalfScreenDialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(16.dp)
         ) {
-            Image(
-                painter = painterResource(id = R.drawable.bg_screen),
-                contentDescription = null,
-                modifier = Modifier.matchParentSize(),
-                contentScale = ContentScale.Crop
-            )
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp)
-            ) {
                 // 标题
                 Text(
                     text = "一键出售",
@@ -731,9 +701,8 @@ internal fun BulkSellDialog(
                 }
             }
         }
-    }
 
-    // 二次确认对话框
+    //二次确认对话框
     if (showConfirmDialog) {
         Dialog(onDismissRequest = { showConfirmDialog = false }) {
             Box(
@@ -742,7 +711,7 @@ internal fun BulkSellDialog(
                     .clip(RoundedCornerShape(12.dp))
             ) {
                 Image(
-                    painter = painterResource(id = R.drawable.bg_screen),
+                    painter = painterResource(id = R.drawable.bg_horizontal),
                     contentDescription = null,
                     modifier = Modifier.matchParentSize(),
                     contentScale = ContentScale.FillBounds

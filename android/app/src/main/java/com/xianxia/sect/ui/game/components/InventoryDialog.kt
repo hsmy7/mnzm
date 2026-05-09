@@ -8,6 +8,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.GameButton
 
 @Suppress("UNUSED_PARAMETER")
@@ -81,10 +82,7 @@ fun InventoryDialog(
             }
         },
         confirmButton = {
-            GameButton(
-                text = "关闭",
-                onClick = onDismiss
-            )
+            CloseButton(onClick = onDismiss)
         }
     )
 }

@@ -1,0 +1,34 @@
+<h2>迁移顺序 (共4步)</h2>
+<p class="subtitle">每步完成后编译验证，确保不引入回归</p>
+
+<div class="mockup" style="margin-bottom: 16px;">
+  <div class="mockup-header">Step 1: 基础设施 (不改变任何界面)</div>
+  <div class="mockup-body">
+    <p style="font-size:11px; margin:0">新建 DesignTokens.kt + 重写 Typography.kt + 重写 GameDialog.kt + 新建 UnifiedSlot.kt + DiscipleFilterBar.kt + EmptyState.kt</p>
+    <p style="font-size:10px; color:#666; margin:4px 0 0">验证: <code>./gradlew.bat compileReleaseKotlin</code> 通过</p>
+  </div>
+</div>
+
+<div class="mockup" style="margin-bottom: 16px;">
+  <div class="mockup-header">Step 2: 生产建筑迁移 (5个)</div>
+  <div class="mockup-body">
+    <p style="font-size:11px; margin:0">AlchemyScreen, ForgeScreen, HerbGardenScreen, SpiritMineScreen, LibraryScreen → 统一用新对话框/插槽/筛选器</p>
+    <p style="font-size:10px; color:#666; margin:4px 0 0">验证: 编译通过 + 手工验证每个建筑对话框</p>
+  </div>
+</div>
+
+<div class="mockup" style="margin-bottom: 16px;">
+  <div class="mockup-header">Step 3: 宗门建筑迁移 (6个)</div>
+  <div class="mockup-body">
+    <p style="font-size:11px; margin:0">WenDaoPeakScreen, QingyunPeakScreen, LawEnforcementHallScreen, TianshuHallScreen, MissionHallScreen, ReflectionCliffScreen</p>
+    <p style="font-size:10px; color:#666; margin:4px 0 0">验证: 编译通过 + 手工验证每个峰/堂对话框</p>
+  </div>
+</div>
+
+<div class="mockup" style="margin-bottom: 16px;">
+  <div class="mockup-header">Step 4: 功能界面 + 清理</div>
+  <div class="mockup-body">
+    <p style="font-size:11px; margin:0">RecruitScreen, MerchantScreen, InventoryScreen, SalaryConfigScreen, BuildingsTab, DisciplesTab, WarehouseTab + 删除 ProductionComponents / PeakScreenComponents 中的重复代码</p>
+    <p style="font-size:10px; color:#666; margin:4px 0 0">验证: 编译通过 + 全界面冒烟测试</p>
+  </div>
+</div>

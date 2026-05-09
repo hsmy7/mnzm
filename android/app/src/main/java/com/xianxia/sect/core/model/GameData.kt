@@ -108,17 +108,20 @@ data class GameData(
     var recruitList: List<Disciple> = emptyList(),
     var lastRecruitYear: Int = 0,
 
-    // 修士洞府
+    // 世界关卡（妖兽+洞府统一池子）
+    var worldLevels: List<WorldLevel> = emptyList(),
+
+    // 修士洞府（保留兼容）
     var cultivatorCaves: List<CultivatorCave> = emptyList(),
 
-    // 洞府探索队伍
+    // 洞府探索队伍（保留兼容）
     var caveExplorationTeams: List<CaveExplorationTeam> = emptyList(),
 
-    // AI洞府探索队伍
+    // AI洞府探索队伍（保留兼容）
     var aiCaveTeams: List<AICaveTeam> = emptyList(),
 
     // 解锁的副本
-    var unlockedDungeons: List<String> = emptyList(),
+    // unlockedDungeons removed — replaced by world level system
 
     // 解锁的配方
     var unlockedRecipes: List<String> = emptyList(),
@@ -187,7 +190,7 @@ data class GameData(
     var lastCompetitionYear: Int = 0,
 
     // 秘境智能战斗：开启后遭遇妖兽时根据队伍状态决定是否战斗
-    var smartBattleEnabled: Boolean = false,
+    // smartBattleEnabled removed — replaced by world level system
 
     // 自动招募灵根筛选（始终运行，1=单灵根, 2=双灵根, 3=三灵根, 4=四灵根, 5=五灵根）
     var autoRecruitSpiritRootFilter: Set<Int> = emptySet(),
@@ -253,12 +256,12 @@ data class GameData(
         cultivatorCaves = cultivatorCaves,
         caveExplorationTeams = caveExplorationTeams,
         aiCaveTeams = aiCaveTeams,
-        unlockedDungeons = unlockedDungeons,
         unlockedRecipes = unlockedRecipes,
         unlockedManuals = unlockedManuals,
         manualProficiencies = manualProficiencies,
         pendingCompetitionResults = pendingCompetitionResults,
-        lastCompetitionYear = lastCompetitionYear
+        lastCompetitionYear = lastCompetitionYear,
+        worldLevels = worldLevels
     )
 
     /**
@@ -305,12 +308,13 @@ data class GameData(
         cultivatorCaves = state.cultivatorCaves,
         caveExplorationTeams = state.caveExplorationTeams,
         aiCaveTeams = state.aiCaveTeams,
-        unlockedDungeons = state.unlockedDungeons,
+        // unlockedDungeons removed
         unlockedRecipes = state.unlockedRecipes,
         unlockedManuals = state.unlockedManuals,
         manualProficiencies = state.manualProficiencies,
         pendingCompetitionResults = state.pendingCompetitionResults,
-        lastCompetitionYear = state.lastCompetitionYear
+        lastCompetitionYear = state.lastCompetitionYear,
+        worldLevels = state.worldLevels
     )
 
     companion object {
@@ -493,7 +497,8 @@ data class WorldMapRenderData(
     val cultivatorCaves: List<CultivatorCave> = emptyList(),
     val caveExplorationTeams: List<CaveExplorationTeam> = emptyList(),
     val battleTeams: List<BattleTeam> = emptyList(),
-    val aiBattleTeams: List<AIBattleTeam> = emptyList()
+    val aiBattleTeams: List<AIBattleTeam> = emptyList(),
+    val worldLevels: List<WorldLevel> = emptyList()
 )
 
 // 世界宗门（轻量核心数据，用于地图渲染和游戏逻辑）

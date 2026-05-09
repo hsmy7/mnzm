@@ -271,15 +271,6 @@ object ProtobufConverters {
 
     @TypeConverter
     @JvmStatic
-    fun fromEventType(value: EventType): String = value.name
-
-    @TypeConverter
-    @JvmStatic
-    fun toEventType(value: String): EventType =
-        EventType.entries.find { it.name == value } ?: EventType.INFO
-
-    @TypeConverter
-    @JvmStatic
     fun fromRecipeType(value: RecipeType): String = value.name
 
     @TypeConverter
@@ -317,15 +308,7 @@ object ProtobufConverters {
     fun toGameSettingsData(value: String): GameSettingsData? =
         decodeFromBase64(GameSettingsData.serializer().nullable, value) { null }
 
-    @TypeConverter
-    @JvmStatic
-    fun fromDungeonRewards(value: DungeonRewards): String =
-        encodeToBase64(DungeonRewards.serializer(), value)
-
-    @TypeConverter
-    @JvmStatic
-    fun toDungeonRewards(value: String): DungeonRewards =
-        decodeFromBase64(DungeonRewards.serializer(), value) { DungeonRewards() }
+    // DungeonRewards converters removed
 
     @TypeConverter
     @JvmStatic
@@ -458,6 +441,16 @@ object ProtobufConverters {
     @JvmStatic
     fun toCultivatorCaveList(value: String): List<CultivatorCave> =
         decodeFromBase64(ListSerializer(CultivatorCave.serializer()), value) { emptyList() }
+
+    @TypeConverter
+    @JvmStatic
+    fun fromWorldLevelList(value: List<WorldLevel>): String =
+        encodeToBase64(ListSerializer(WorldLevel.serializer()), value)
+
+    @TypeConverter
+    @JvmStatic
+    fun toWorldLevelList(value: String): List<WorldLevel> =
+        decodeFromBase64(ListSerializer(WorldLevel.serializer()), value) { emptyList() }
 
     @TypeConverter
     @JvmStatic
