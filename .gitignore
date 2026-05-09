@@ -123,3 +123,4 @@ temp_new_check/
 android/app/release/
 decompiled_source/
 *.zip
+.worktrees/
