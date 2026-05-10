@@ -81,6 +81,8 @@ data class Disciple(
 
     var gender: String = "male",
 
+    var portraitRes: String = "",
+
     var manualIds: List<String> = emptyList(),
     var talentIds: List<String> = emptyList(),
     var manualMasteries: Map<String, Int> = emptyMap(),
@@ -343,6 +345,7 @@ data class Disciple(
         lifespan: Int = this.lifespan,
         isAlive: Boolean = this.isAlive,
         gender: String = this.gender,
+        portraitRes: String = this.portraitRes,
         manualIds: List<String> = this.manualIds,
         talentIds: List<String> = this.talentIds,
         manualMasteries: Map<String, Int> = this.manualMasteries,
@@ -446,6 +449,7 @@ data class Disciple(
             lifespan = lifespan,
             isAlive = isAlive,
             gender = gender,
+            portraitRes = portraitRes,
             manualIds = manualIds,
             talentIds = talentIds,
             manualMasteries = manualMasteries,

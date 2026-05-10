@@ -38,6 +38,7 @@ data class DiscipleCore(
     var age: Int = 16,
     var lifespan: Int = 80,
     var gender: String = "male",
+    var portraitRes: String = "",
     var spiritRootType: String = "metal",
     var recruitedMonth: Int = 0,
     var updatedAt: Long = System.currentTimeMillis()
@@ -77,6 +78,7 @@ data class DiscipleCore(
                 age = disciple.age,
                 lifespan = disciple.lifespan,
                 gender = disciple.gender,
+                portraitRes = disciple.portraitRes,
                 spiritRootType = disciple.spiritRootType,
                 recruitedMonth = disciple.usage.recruitedMonth,
                 updatedAt = System.currentTimeMillis()

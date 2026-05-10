@@ -16,6 +16,7 @@ import com.xianxia.sect.core.engine.system.StateAccessorFactory
 import com.xianxia.sect.core.engine.system.SystemPriority
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.util.NameService
+import com.xianxia.sect.core.util.PortraitPool
 import android.util.Log
 import java.util.UUID
 import javax.inject.Inject
@@ -446,6 +447,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
             name = nameResult.fullName,
             surname = nameResult.surname,
             gender = gender,
+            portraitRes = PortraitPool.getRandomPortrait(gender),
             age = Random.nextInt(16, 30),
             realm = 9,
             realmLayer = 1,

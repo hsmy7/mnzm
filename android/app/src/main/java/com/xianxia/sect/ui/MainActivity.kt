@@ -26,6 +26,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
 import com.xianxia.sect.R
+import com.xianxia.sect.ui.components.GameBackground
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -278,10 +279,7 @@ class MainActivity : ComponentActivity() {
     internal fun showMainScreen() {
         setContent {
             XianxiaTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = Color.White
-                ) {
+                GameBackground {
                     MainScreen(
                         sessionManager = sessionManager,
                         complianceDialogState = complianceDialogState,
@@ -586,178 +584,168 @@ fun MainScreen(
         }
     }
     
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .padding(16.dp)
     ) {
-        Spacer(modifier = Modifier.height(40.dp))
-        
-        Text(
-            text = "修仙宗门",
-            style = MaterialTheme.typography.headlineLarge,
-            color = Color.Black,
-            fontWeight = FontWeight.Bold,
-            fontSize = 48.sp
-        )
-        
-        Spacer(modifier = Modifier.height(8.dp))
-        
-        Text(
-            text = "踏入修仙之路，成就无上大道",
-            color = Color.Black,
-            fontSize = 16.sp
-        )
-        
-        Spacer(modifier = Modifier.weight(1f))
-        
-        if (isLoading) {
-            CircularProgressIndicator()
-            Spacer(modifier = Modifier.height(16.dp))
-            Text("正在登录...", color = Color.Black)
-        } else {
-            Button(
-                onClick = {
-                    if (!privacyChecked) {
-                        Toast.makeText(context, "请先阅读并同意隐私政策", Toast.LENGTH_SHORT).show()
-                        return@Button
-                    }
-                    
-                    isLoading = true
-                    loginResult = null
-                    
-                    val activity = context as? MainActivity
-                    if (activity == null) {
-                        isLoading = false
-                        Toast.makeText(context, "登录失败", Toast.LENGTH_SHORT).show()
-                        return@Button
-                    }
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Spacer(modifier = Modifier.height(40.dp))
 
-                    TapTapAuthManager.login(activity, object : TapTapAuthManager.LoginResultCallback {
-                        override fun onSuccess(data: LoginData) {
-                            Log.d("MainScreen", "登录成功: ${data.name}")
-                            
-                            val unionId = data.unionid
-                            if (unionId.isNullOrEmpty()) {
-                                Log.e("MainScreen", "unionId为空，登录失败")
+            Text(
+                text = "模拟宗门",
+                style = MaterialTheme.typography.headlineLarge,
+                color = Color.Black,
+                fontWeight = FontWeight.Bold,
+                fontSize = 48.sp
+            )
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            if (isLoading) {
+                CircularProgressIndicator()
+                Spacer(modifier = Modifier.height(16.dp))
+                Text("正在登录...", color = Color.Black)
+            } else {
+                Button(
+                    onClick = {
+                        if (!privacyChecked) {
+                            Toast.makeText(context, "请先阅读并同意隐私政策", Toast.LENGTH_SHORT).show()
+                            return@Button
+                        }
+
+                        isLoading = true
+                        loginResult = null
+
+                        val activity = context as? MainActivity
+                        if (activity == null) {
+                            isLoading = false
+                            Toast.makeText(context, "登录失败", Toast.LENGTH_SHORT).show()
+                            return@Button
+                        }
+
+                        TapTapAuthManager.login(activity, object : TapTapAuthManager.LoginResultCallback {
+                            override fun onSuccess(data: LoginData) {
+                                Log.d("MainScreen", "登录成功: ${data.name}")
+
+                                val unionId = data.unionid
+                                if (unionId.isNullOrEmpty()) {
+                                    Log.e("MainScreen", "unionId为空，登录失败")
+                                    isLoading = false
+                                    Toast.makeText(context, "登录失败，请重试", Toast.LENGTH_SHORT).show()
+                                    return
+                                }
+
+                                sessionManager.saveLoginSession(
+                                    userId = data.openid ?: "taptap_${System.currentTimeMillis()}",
+                                    userName = data.name ?: "TapTap用户",
+                                    loginType = "taptap",
+                                    unionId = unionId
+                                )
+
+                                com.xianxia.sect.taptap.TapDBManager.setUser(
+                                    userId = data.openid ?: "taptap_${System.currentTimeMillis()}",
+                                    name = data.name
+                                )
+
+                                Toast.makeText(context, "欢迎, ${data.name}!", Toast.LENGTH_SHORT).show()
+
                                 isLoading = false
-                                Toast.makeText(context, "登录失败，请重试", Toast.LENGTH_SHORT).show()
-                                return
+                                (context as? MainActivity)?.startComplianceCheck(unionId)
                             }
-                            
-                            sessionManager.saveLoginSession(
-                                userId = data.openid ?: "taptap_${System.currentTimeMillis()}",
-                                userName = data.name ?: "TapTap用户",
-                                loginType = "taptap",
-                                unionId = unionId
-                            )
 
-                            com.xianxia.sect.taptap.TapDBManager.setUser(
-                                userId = data.openid ?: "taptap_${System.currentTimeMillis()}",
-                                name = data.name
-                            )
+                            override fun onFailure(error: Exception) {
+                                Log.e("MainScreen", "登录失败: ${error.message}")
+                                isLoading = false
+                                loginResult = error.message
+                                Toast.makeText(context, "登录失败: ${error.message}", Toast.LENGTH_SHORT).show()
+                            }
+                        })
+                    },
+                    modifier = Modifier
+                        .wrapContentWidth()
+                        .height(56.dp),
+                    shape = RoundedCornerShape(28.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (privacyChecked) Color(0xFF00D26A) else Color(0xFFCCCCCC),
+                        contentColor = Color.White
+                    ),
+                    enabled = !isLoading
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_taptap),
+                        contentDescription = "TapTap",
+                        modifier = Modifier.size(24.dp),
+                        tint = Color.White
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        "使用 TapTap 登录",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
 
-                            Toast.makeText(context, "欢迎, ${data.name}!", Toast.LENGTH_SHORT).show()
-                            
-                            isLoading = false
-                            (context as? MainActivity)?.startComplianceCheck(unionId)
-                        }
-
-                        override fun onFailure(error: Exception) {
-                            Log.e("MainScreen", "登录失败: ${error.message}")
-                            isLoading = false
-                            loginResult = error.message
-                            Toast.makeText(context, "登录失败: ${error.message}", Toast.LENGTH_SHORT).show()
-                        }
-                    })
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                shape = RoundedCornerShape(28.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (privacyChecked) Color(0xFF00D26A) else Color(0xFFCCCCCC),
-                    contentColor = Color.White
-                ),
-                enabled = !isLoading
-            ) {
-                Icon(
-                    painter = painterResource(id = R.drawable.ic_taptap),
-                    contentDescription = "TapTap",
-                    modifier = Modifier.size(24.dp),
-                    tint = Color.White
-                )
-                Spacer(modifier = Modifier.width(12.dp))
+            loginResult?.let { error ->
+                Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    "使用 TapTap 登录",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Medium
+                    text = error,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall
                 )
             }
-        }
-        
-        loginResult?.let { error ->
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Checkbox(
+                    checked = privacyChecked,
+                    onCheckedChange = { checked ->
+                        privacyChecked = checked
+                        sessionManager.privacyCheckboxConfirmed = checked
+                    },
+                    colors = CheckboxDefaults.colors(
+                        checkedColor = GameColors.SpiritBlue,
+                        uncheckedColor = Color(0xFFCCCCCC)
+                    )
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "已阅读并同意",
+                    color = if (privacyChecked) Color.Black else Color.Black,
+                    fontSize = 12.sp
+                )
+                Spacer(modifier = Modifier.width(2.dp))
+                Text(
+                    text = "《隐私政策》",
+                    color = GameColors.SpiritBlue,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.clickable {
+                        showInAppPrivacy = true
+                    }
+                )
+            }
+
             Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = error,
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodySmall
-            )
         }
-        
-        Spacer(modifier = Modifier.height(100.dp))
-        
+
         Text(
             text = "v${com.xianxia.sect.core.GameConfig.Game.VERSION}",
             color = Color.Black,
-            fontSize = 12.sp
+            fontSize = 12.sp,
+            modifier = Modifier.align(Alignment.BottomEnd)
         )
-        
-        Spacer(modifier = Modifier.height(12.dp))
-        
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable {
-                    privacyChecked = !privacyChecked
-                    sessionManager.privacyCheckboxConfirmed = privacyChecked
-                }
-                .padding(vertical = 8.dp),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Checkbox(
-                checked = privacyChecked,
-                onCheckedChange = { checked ->
-                    privacyChecked = checked
-                    sessionManager.privacyCheckboxConfirmed = checked
-                },
-                colors = CheckboxDefaults.colors(
-                    checkedColor = GameColors.SpiritBlue,
-                    uncheckedColor = Color(0xFFCCCCCC)
-                ),
-                modifier = Modifier.size(20.dp)
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-                text = "已阅读并同意",
-                color = if (privacyChecked) Color.Black else Color.Black,
-                fontSize = 12.sp
-            )
-            Spacer(modifier = Modifier.width(2.dp))
-            Text(
-                text = "《隐私政策》",
-                color = GameColors.SpiritBlue,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier.clickable {
-                    showInAppPrivacy = true
-                }
-            )
-        }
-        
-        Spacer(modifier = Modifier.height(16.dp))
     }
 }
 

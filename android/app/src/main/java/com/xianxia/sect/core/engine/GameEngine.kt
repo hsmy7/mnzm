@@ -265,7 +265,7 @@ class GameEngine @Inject constructor(
                             gridX = centerX - 2,
                             gridY = centerY - 1,
                             width = 2,
-                            height = 2
+                            height = 3
                         ),
                         GridBuildingData(
                             buildingId = "问道塔",
@@ -273,7 +273,7 @@ class GameEngine @Inject constructor(
                             gridX = centerX,
                             gridY = centerY - 1,
                             width = 2,
-                            height = 2
+                            height = 3
                         )
                     )
                 )

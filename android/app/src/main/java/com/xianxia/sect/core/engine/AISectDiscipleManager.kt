@@ -6,6 +6,7 @@ import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.util.NameService
+import com.xianxia.sect.core.util.PortraitPool
 import kotlin.random.Random
 
 object AISectDiscipleManager {
@@ -54,6 +55,7 @@ object AISectDiscipleManager {
             name = nameResult.fullName,
             surname = nameResult.surname,
             gender = gender,
+            portraitRes = PortraitPool.getRandomPortrait(gender),
             realm = 9,
             realmLayer = 1,
             cultivation = 0.0,

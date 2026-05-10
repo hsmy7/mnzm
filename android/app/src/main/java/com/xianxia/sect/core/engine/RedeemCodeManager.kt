@@ -10,6 +10,7 @@ import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.core.util.NameService
+import com.xianxia.sect.core.util.PortraitPool
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.protobuf.ProtoBuf
@@ -745,6 +746,7 @@ object RedeemCodeManager {
             age = age,
             lifespan = (lifespan * (1.0 + lifespanBonus)).toInt(),
             gender = gender,
+            portraitRes = PortraitPool.getRandomPortrait(gender),
             discipleType = "outer",
             talentIds = talentIds,
             combat = CombatAttributes(

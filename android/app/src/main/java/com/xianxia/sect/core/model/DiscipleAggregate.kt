@@ -24,6 +24,7 @@ data class DiscipleAggregate(
     val age: Int get() = core.age
     val lifespan: Int get() = core.lifespan
     val gender: String get() = core.gender
+    val portraitRes: String get() = core.portraitRes
     val spiritRootType: String get() = core.spiritRootType
     val recruitedMonth: Int get() = core.recruitedMonth
     
@@ -258,6 +259,7 @@ data class DiscipleAggregate(
             lifespan = lifespan,
             isAlive = isAlive,
             gender = gender,
+            portraitRes = portraitRes,
             manualIds = manualIds,
             talentIds = talentIds,
             manualMasteries = manualMasteries,
