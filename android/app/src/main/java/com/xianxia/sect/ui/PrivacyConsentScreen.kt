@@ -64,7 +64,7 @@ fun PrivacyConsentScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 24.dp, vertical = 32.dp)
+                .padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 12.dp)
         ) {
             Text(
                 text = "隐私政策",
@@ -76,16 +76,6 @@ fun PrivacyConsentScreen(
             )
 
             Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = "模拟宗门",
-                fontSize = 14.sp,
-                color = GameColors.TextTertiary,
-                modifier = Modifier.fillMaxWidth(),
-                textAlign = TextAlign.Center
-            )
-
-            Spacer(modifier = Modifier.height(20.dp))
 
             Card(
                 modifier = Modifier
@@ -111,43 +101,24 @@ fun PrivacyConsentScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            Text(
-                text = buildAnnotatedString {
-                    append("点击\u201c同意\u201d即表示您已阅读并理解")
-                    withStyle(style = SpanStyle(color = GameColors.SpiritBlue, fontWeight = FontWeight.Medium, textDecoration = TextDecoration.Underline)) {
-                        append("\u300a隐私政策\u300b")
-                    }
-                    append("\uff0c")
-                    withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
-                        append("同意我们按照上述内容处理您的个人信息")
-                    }
-                    append("\u3002如您不同意\uff0c请点击\u201c不同意\u201d退出应用\u3002")
-                },
-                fontSize = 12.sp,
-                color = GameColors.TextSecondary,
-                lineHeight = 18.sp,
-                modifier = Modifier
-                    .padding(horizontal = 4.dp)
-                    .clickable { showFullPolicy = true }
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                GameButton(
+                    text = "不同意",
+                    onClick = onDisagree,
+                    fontSize = 14.sp
+                )
+                Spacer(modifier = Modifier.width(16.dp))
+                GameButton(
+                    text = "同意",
+                    onClick = onAgree,
+                    fontSize = 14.sp
+                )
+            }
 
-            Spacer(modifier = Modifier.height(12.dp))
-
-            GameButton(
-                text = "同意",
-                onClick = onAgree,
-                fontSize = 14.sp
-            )
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            GameButton(
-                text = "不同意",
-                onClick = onDisagree,
-                fontSize = 14.sp
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -172,7 +143,29 @@ fun PrivacyConsentScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Text(
+                text = buildAnnotatedString {
+                    append("点击“同意”即表示您已阅读并理解")
+                    withStyle(style = SpanStyle(color = GameColors.SpiritBlue, fontWeight = FontWeight.Medium, textDecoration = TextDecoration.Underline)) {
+                        append("《隐私政策》")
+                    }
+                    append("，")
+                    withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                        append("同意我们按照上述内容处理您的个人信息")
+                    }
+                    append("。如您不同意，请点击“不同意”退出应用。")
+                },
+                fontSize = 12.sp,
+                color = GameColors.TextSecondary,
+                lineHeight = 18.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .padding(horizontal = 4.dp)
+                    .clickable { showFullPolicy = true }
+            )
+
         }
     }
 }
@@ -299,7 +292,7 @@ private fun PrivacySummaryContent(
 
     val tapTapAnnotatedString = buildAnnotatedString {
         withStyle(ParagraphStyle(lineHeight = 19.sp)) {
-            withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color.Black)) { append("TapTap SDK\uff08v4.10.0\uff09") }
+            withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color.Black)) { append("TapTap SDK（v4.10.0）") }
             append("\n")
             withStyle(bodyStyle) { append("仅在您同意本隐私政策后初始化。可能收集：设备信息（型号、系统版本、Android ID、OAID、CPU信息、内存信息）、网络信息、TapTap账户标识、电话号码（TapTap账户注册信息）、邮箱（TapTap账户注册信息）、实名认证数据。") }
             append("\n")
@@ -357,7 +350,7 @@ private fun PrivacySummaryContent(
         "安全防护：兑换码防刷、请求防伪造和防重放"
     ).forEach { item ->
         Text(
-            text = "\u2022 $item",
+            text = "• $item",
             fontSize = 13.sp,
             color = Color.Black,
             modifier = Modifier.padding(bottom = 4.dp, start = 8.dp),
@@ -375,7 +368,7 @@ private fun PrivacySummaryContent(
     )
 
     Text(
-        text = "\u2022 账户信息使用AES-256加密存储于设备本地\n\u2022 网络通信强制TLS 1.2/1.3加密传输\n\u2022 本应用读取的设备标识符仅以哈希形式参与加密运算，原始值不离开设备\n\u2022 网络请求中仅发送设备指纹的SHA-256摘要前8位\n\u2022 所有数据存储在中国境内，不存在跨境传输",
+        text = "• 账户信息使用AES-256加密存储于设备本地\n• 网络通信强制TLS 1.2/1.3加密传输\n• 本应用读取的设备标识符仅以哈希形式参与加密运算，原始值不离开设备\n• 网络请求中仅发送设备指纹的SHA-256摘要前8位\n• 所有数据存储在中国境内，不存在跨境传输",
         fontSize = 13.sp,
         color = Color.Black,
         lineHeight = 19.sp,
@@ -459,7 +452,7 @@ fun FullPrivacyPolicyScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        text = "欢迎使用模拟宗门！【黑色毛衣工作室】（以下简称\u201c我们\u201d）系移动应用程序\u201c模拟宗门\u201d（以下简称\u201c本游戏\u201d）的运营者。我们深知个人信息对您的重要性，并将按照法律法规要求，采取相应安全保护措施来保护您的个人信息。在使用本应用前，请您仔细阅读并充分理解本隐私政策的全部内容。一旦您同意本隐私政策，即表示您已充分理解并同意我们按照本隐私政策处理您的相关信息。",
+                        text = "欢迎使用模拟宗门！【静书工作室】（以下简称“我们”）系移动应用程序“模拟宗门”（以下简称“本游戏”）的运营者。我们深知个人信息对您的重要性，并将按照法律法规要求，采取相应安全保护措施来保护您的个人信息。在使用本应用前，请您仔细阅读并充分理解本隐私政策的全部内容。一旦您同意本隐私政策，即表示您已充分理解并同意我们按照本隐私政策处理您的相关信息。",
                         fontSize = 13.sp,
                         color = Color.Black,
                         modifier = Modifier.padding(12.dp),
@@ -488,7 +481,7 @@ fun FullPrivacyPolicyScreen(
 
                 FullPolicySection("〇、隐私同意机制") {
                     Text(
-                        text = "本应用采用以下隐私同意机制，确保您的知情权和选择权：\n\n\u2022 首次启动弹窗：首次启动时弹出隐私政策同意窗口，您可以选择\"同意\"或\"不同意\"。\n\u2022 不同意即退出：选择\"不同意\"，本应用将立即退出，不会收集任何个人信息。\n\u2022 同意后初始化：只有在您明确同意后，本应用才会初始化第三方SDK（TapTap SDK）并开始收集个人信息。\n\u2022 应用内查看：您可以随时在应用内查看完整的隐私政策内容。\n\u2022 撤回同意：您可以随时退出 TapTap 登录来撤回对账户信息收集的同意。撤回同意不影响此前基于同意已进行的信息处理活动的效力。",
+                        text = "本应用采用以下隐私同意机制，确保您的知情权和选择权：\n\n• 首次启动弹窗：首次启动时弹出隐私政策同意窗口，您可以选择\"同意\"或\"不同意\"。\n• 不同意即退出：选择\"不同意\"，本应用将立即退出，不会收集任何个人信息。\n• 同意后初始化：只有在您明确同意后，本应用才会初始化第三方SDK（TapTap SDK）并开始收集个人信息。\n• 应用内查看：您可以随时在应用内查看完整的隐私政策内容。\n• 撤回同意：您可以随时退出 TapTap 登录来撤回对账户信息收集的同意。撤回同意不影响此前基于同意已进行的信息处理活动的效力。",
                         fontSize = 13.sp, color = Color.Black, lineHeight = 20.sp
                     )
                 }
@@ -501,7 +494,7 @@ fun FullPrivacyPolicyScreen(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "\u2022 用户标识：TapTap OpenID、UnionID \u2014 账户识别和游戏存档关联\n\u2022 个人资料：昵称、头像 \u2014 游戏内显示\n\u2022 联系方式：电话号码、邮箱（TapTap 账户注册信息）\u2014 TapTap 账户身份验证和账户安全\n\u2022 认证令牌：AccessToken（kid、tokenType、macKey、macAlgorithm）\u2014 安全通信和请求签名",
+                            text = "• 用户标识：TapTap OpenID、UnionID — 账户识别和游戏存档关联\n• 个人资料：昵称、头像 — 游戏内显示\n• 联系方式：电话号码、邮箱（TapTap 账户注册信息）— TapTap 账户身份验证和账户安全\n• 认证令牌：AccessToken（kid、tokenType、macKey、macAlgorithm）— 安全通信和请求签名",
                             fontSize = 12.sp, color = Color.Black, lineHeight = 18.sp
                         )
                         Spacer(modifier = Modifier.height(4.dp))
@@ -525,7 +518,7 @@ fun FullPrivacyPolicyScreen(
 
                     FullPolicySubSection("1.2 实名认证信息") {
                         Text(
-                            text = "根据《关于防止未成年人沉迷网络游戏的通知》等国家防沉迷相关规定，我们通过 TapTap 合规 SDK 进行实名认证和年龄验证。\n\n\u2022 快速认证（推荐）：复用您在 TapTap 平台已完成的实名信息（姓名、身份证号），由 TapTap 平台处理。\n\u2022 手动填写认证：需输入姓名、身份证号码和电话号码。",
+                            text = "根据《关于防止未成年人沉迷网络游戏的通知》等国家防沉迷相关规定，我们通过 TapTap 合规 SDK 进行实名认证和年龄验证。\n\n• 快速认证（推荐）：复用您在 TapTap 平台已完成的实名信息（姓名、身份证号），由 TapTap 平台处理。\n• 手动填写认证：需输入姓名、身份证号码和电话号码。",
                             fontSize = 13.sp, color = Color.Black, lineHeight = 20.sp
                         )
                         Spacer(modifier = Modifier.height(6.dp))
@@ -535,7 +528,7 @@ fun FullPrivacyPolicyScreen(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(
-                                text = "重要提示 - 关于电话号码收集：\n\n\u2022 收集目的：电话号码仅在您选择\"手动填写认证\"场景下收集，用于完成国家要求的实名身份验证，确保防沉迷政策有效执行。\n\u2022 收集方式：由 TapTap 合规 SDK 在实名认证界面中向您明示并征得同意后收集，我们不会自行设计或使用任何电话号码输入框。\n\u2022 处理方：电话号码由 TapTap 平台收集，并提交至国家新闻出版署网络游戏防沉迷实名认证系统进行验证。我们不会存储、查看或传输您的电话号码。\n\u2022 您的权利：您有权拒绝提供电话号码。如拒绝，将无法通过手动方式完成实名认证，可能导致无法正常使用游戏。建议优先使用\"快速认证\"方式，无需重新输入任何个人信息。\n\u2022 敏感信息性质：电话号码属于个人敏感信息。本条为针对电话号码的单独告知，请您仔细阅读并充分理解后再进行后续操作。",
+                                text = "重要提示 - 关于电话号码收集：\n\n• 收集目的：电话号码仅在您选择\"手动填写认证\"场景下收集，用于完成国家要求的实名身份验证，确保防沉迷政策有效执行。\n• 收集方式：由 TapTap 合规 SDK 在实名认证界面中向您明示并征得同意后收集，我们不会自行设计或使用任何电话号码输入框。\n• 处理方：电话号码由 TapTap 平台收集，并提交至国家新闻出版署网络游戏防沉迷实名认证系统进行验证。我们不会存储、查看或传输您的电话号码。\n• 您的权利：您有权拒绝提供电话号码。如拒绝，将无法通过手动方式完成实名认证，可能导致无法正常使用游戏。建议优先使用\"快速认证\"方式，无需重新输入任何个人信息。\n• 敏感信息性质：电话号码属于个人敏感信息。本条为针对电话号码的单独告知，请您仔细阅读并充分理解后再进行后续操作。",
                                 fontSize = 12.sp, color = Color(0xFFC62828), lineHeight = 18.sp,
                                 modifier = Modifier.padding(10.dp), fontWeight = FontWeight.Medium
                             )
@@ -556,7 +549,7 @@ fun FullPrivacyPolicyScreen(
 
                     FullPolicySubSection("1.3 设备标识符") {
                         Text(
-                            text = "我们读取以下设备信息，仅用于本地数据加密密钥派生和防止请求伪造：\n\n\u2022 Android ID（Settings.Secure.ANDROID_ID）\u2014 本地加密密钥派生\n\u2022 设备硬件信息（品牌、型号）\u2014 本地加密密钥派生和设备指纹\n\u2022 应用签名证书 SHA-256 哈希 \u2014 设备指纹增强\n\n上述设备标识符仅用于本地加密密钥派生，以哈希形式参与加密运算，原始值不会传输到我们的服务器。在网络请求中，仅发送设备指纹的前8位字符（SHA-256摘要前缀），用于防止请求伪造。",
+                            text = "我们读取以下设备信息，仅用于本地数据加密密钥派生和防止请求伪造：\n\n• Android ID（Settings.Secure.ANDROID_ID）— 本地加密密钥派生\n• 设备硬件信息（品牌、型号）— 本地加密密钥派生和设备指纹\n• 应用签名证书 SHA-256 哈希 — 设备指纹增强\n\n上述设备标识符仅用于本地加密密钥派生，以哈希形式参与加密运算，原始值不会传输到我们的服务器。在网络请求中，仅发送设备指纹的前8位字符（SHA-256摘要前缀），用于防止请求伪造。",
                             fontSize = 13.sp, color = Color.Black, lineHeight = 20.sp
                         )
                         Spacer(modifier = Modifier.height(6.dp))
@@ -624,7 +617,7 @@ fun FullPrivacyPolicyScreen(
                 FullPolicySection("二、第三方 SDK 数据收集") {
                     FullPolicySubSection("2.1 TapTap SDK（v4.10.0）") {
                         Text(
-                            text = "由易玩（上海）网络科技有限公司提供。仅在您同意本隐私政策后初始化。\n\n\u2022 tap-core：SDK核心功能 \u2014 可能收集设备信息（设备型号、操作系统版本、Android ID、CPU信息、内存信息）、网络信息（网络类型）。若您关闭\"限制广告追踪\"，还会收集 OAID（开放匿名设备标识符）用于广告效果分析\n\u2022 tap-login：账户登录 \u2014 收集TapTap账户标识、昵称、头像、电话号码（TapTap账户注册信息）、邮箱（TapTap账户注册信息）、Android ID、设备信息、网络信息。若您关闭\"限制广告追踪\"，还会收集 OAID\n\u2022 tap-common：公共组件 \u2014 收集设备基础信息\n\u2022 tap-compliance：防沉迷和实名认证 \u2014 收集实名认证数据、年龄信息、Android ID、设备信息、网络信息。若您关闭\"限制广告追踪\"，还会收集 OAID",
+                            text = "由易玩（上海）网络科技有限公司提供。仅在您同意本隐私政策后初始化。\n\n• tap-core：SDK核心功能 — 可能收集设备信息（设备型号、操作系统版本、Android ID、CPU信息、内存信息）、网络信息（网络类型）。若您关闭\"限制广告追踪\"，还会收集 OAID（开放匿名设备标识符）用于广告效果分析\n• tap-login：账户登录 — 收集TapTap账户标识、昵称、头像、电话号码（TapTap账户注册信息）、邮箱（TapTap账户注册信息）、Android ID、设备信息、网络信息。若您关闭\"限制广告追踪\"，还会收集 OAID\n• tap-common：公共组件 — 收集设备基础信息\n• tap-compliance：防沉迷和实名认证 — 收集实名认证数据、年龄信息、Android ID、设备信息、网络信息。若您关闭\"限制广告追踪\"，还会收集 OAID",
                             fontSize = 13.sp, color = Color.Black, lineHeight = 20.sp
                         )
                         Spacer(modifier = Modifier.height(6.dp))
@@ -657,35 +650,35 @@ fun FullPrivacyPolicyScreen(
 
                 FullPolicySection("三、信息使用目的") {
                     Text(
-                        text = "\u2022 提供游戏核心功能：存档管理、TapTap登录、防沉迷合规\n\u2022 保障本地数据安全：加密密钥派生、通信请求签名和完整性验证\n\u2022 崩溃恢复和数据保护：异常退出后的游戏数据恢复\n\u2022 安全防护：兑换码防刷、请求防伪造和防重放\n\n我们不会将您的信息用于上述目的以外的其他用途，也不会向任何第三方出售您的个人信息。",
+                        text = "• 提供游戏核心功能：存档管理、TapTap登录、防沉迷合规\n• 保障本地数据安全：加密密钥派生、通信请求签名和完整性验证\n• 崩溃恢复和数据保护：异常退出后的游戏数据恢复\n• 安全防护：兑换码防刷、请求防伪造和防重放\n\n我们不会将您的信息用于上述目的以外的其他用途，也不会向任何第三方出售您的个人信息。",
                         fontSize = 13.sp, color = Color.Black, lineHeight = 20.sp
                     )
                 }
 
                 FullPolicySection("四、信息存储与保护") {
                     Text(
-                        text = "\u2022 游戏存档和账户信息仅保存在您的设备本地\n\u2022 账户信息使用 AES-256 加密的 EncryptedSharedPreferences 存储\n\u2022 存档数据使用 AES-256-GCM 加密保护\n\u2022 网络通信强制使用 TLS 1.2/1.3 加密传输\n\u2022 启用证书固定防止中间人攻击\n\u2022 本应用读取的设备标识符仅以哈希形式参与加密运算，原始值不离开设备\n\u2022 网络请求中仅发送设备指纹的SHA-256摘要前8位\n\u2022 所有数据存储在中国境内，不存在跨境传输",
+                        text = "• 游戏存档和账户信息仅保存在您的设备本地\n• 账户信息使用 AES-256 加密的 EncryptedSharedPreferences 存储\n• 存档数据使用 AES-256-GCM 加密保护\n• 网络通信强制使用 TLS 1.2/1.3 加密传输\n• 启用证书固定防止中间人攻击\n• 本应用读取的设备标识符仅以哈希形式参与加密运算，原始值不离开设备\n• 网络请求中仅发送设备指纹的SHA-256摘要前8位\n• 所有数据存储在中国境内，不存在跨境传输",
                         fontSize = 13.sp, color = Color.Black, lineHeight = 20.sp
                     )
                 }
 
                 FullPolicySection("五、信息共享") {
                     Text(
-                        text = "我们不会与任何第三方共享您的个人信息，以下情况除外：\n\n\u2022 TapTap SDK：当您使用 TapTap 登录时，您的 TapTap 账户标识会与 TapTap 平台交互\n\u2022 法律要求：在法律法规要求或政府主管部门依法要求的情况下",
+                        text = "我们不会与任何第三方共享您的个人信息，以下情况除外：\n\n• TapTap SDK：当您使用 TapTap 登录时，您的 TapTap 账户标识会与 TapTap 平台交互\n• 法律要求：在法律法规要求或政府主管部门依法要求的情况下",
                         fontSize = 13.sp, color = Color.Black, lineHeight = 20.sp
                     )
                 }
 
                 FullPolicySection("六、数据保留期限") {
                     Text(
-                        text = "\u2022 游戏存档数据：保留至您主动删除存档或卸载应用\n\u2022 账户登录信息：保留至您主动退出登录或卸载应用\n\u2022 崩溃日志：最多保留5份，超过后自动清理\n\u2022 兑换码使用记录：保留至游戏存档删除\n\u2022 加密密钥：保留至卸载应用",
+                        text = "• 游戏存档数据：保留至您主动删除存档或卸载应用\n• 账户登录信息：保留至您主动退出登录或卸载应用\n• 崩溃日志：最多保留5份，超过后自动清理\n• 兑换码使用记录：保留至游戏存档删除\n• 加密密钥：保留至卸载应用",
                         fontSize = 13.sp, color = Color.Black, lineHeight = 20.sp
                     )
                 }
 
                 FullPolicySection("七、您的权利") {
                     Text(
-                        text = "\u2022 查询和更正：您可以在游戏内查看您的登录信息\n\u2022 删除：您可以删除游戏存档、退出登录或卸载应用来清除数据\n\u2022 撤回同意：您可以随时退出 TapTap 登录来撤回对账户信息收集的同意\n\u2022 限制广告追踪：本应用默认开启\"限制广告追踪\"，阻止 TapTap SDK 收集您的 OAID（开放匿名设备标识符）。您可以在应用设置 → 隐私设置中管理此选项\n\u2022 注销账户：如需注销 TapTap 账户，请在 TapTap 平台操作",
+                        text = "• 查询和更正：您可以在游戏内查看您的登录信息\n• 删除：您可以删除游戏存档、退出登录或卸载应用来清除数据\n• 撤回同意：您可以随时退出 TapTap 登录来撤回对账户信息收集的同意\n• 限制广告追踪：本应用默认开启\"限制广告追踪\"，阻止 TapTap SDK 收集您的 OAID（开放匿名设备标识符）。您可以在应用设置 → 隐私设置中管理此选项\n• 注销账户：如需注销 TapTap 账户，请在 TapTap 平台操作",
                         fontSize = 13.sp, color = Color.Black, lineHeight = 20.sp
                     )
                 }
@@ -706,7 +699,7 @@ fun FullPrivacyPolicyScreen(
 
                 FullPolicySection("十、联系我们") {
                     Text(
-                        text = "如您对本隐私政策有任何疑问、意见或建议，可通过以下方式与我们联系：\n\n\u2022 邮箱：cp050923@126.com\n\u2022 通过 TapTap 平台的应用页面反馈\n\n我们将在15个工作日内回复您的请求。",
+                        text = "如您对本隐私政策有任何疑问、意见或建议，可通过以下方式与我们联系：\n\n• 邮箱：jingshugzs@163.com\n• 通过 TapTap 平台的应用页面反馈\n\n我们将在15个工作日内回复您的请求。",
                         fontSize = 13.sp, color = Color.Black, lineHeight = 20.sp
                     )
                 }
