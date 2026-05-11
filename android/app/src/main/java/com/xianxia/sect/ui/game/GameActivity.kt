@@ -245,6 +245,7 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
                                 }
                             }
 
+                            if (!viewModel.gameData.value.isGameStarted) return@LaunchedEffect
                             mapPreloadData = result
                             saveLoadViewModel.setLoadingProgress(1.0f)
                             com.xianxia.sect.taptap.TapDBManager.trackEvent(
@@ -254,6 +255,12 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
                                     "game_version" to com.xianxia.sect.BuildConfig.VERSION_NAME
                                 )
                             )
+                        }
+                    }
+
+                    LaunchedEffect(Unit) {
+                        saveLoadViewModel.errorEvents.collect { msg ->
+                            errorMessage = msg
                         }
                     }
 

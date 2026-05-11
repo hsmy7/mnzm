@@ -345,6 +345,7 @@ abstract class GameDatabase : RoomDatabase() {
                         optimizeDatabase(db)
                     }
                 })
+                .fallbackToDestructiveMigration()
                 .build()
                 .also { db -> applySafetyPragmas(db) }
         }

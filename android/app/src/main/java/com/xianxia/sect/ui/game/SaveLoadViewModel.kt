@@ -424,6 +424,7 @@ class SaveLoadViewModel @Inject constructor(
                 needSlotRefresh = true
                 if (!saveSuccess) {
                     Log.e(TAG, "=== startNewGame SAVE FAILED AFTER RETRY === aborting game start for slot $slot")
+                    gameEngine.updateGameData { it.copy(isGameStarted = false) }
                     showError("保存失败，无法启动游戏。请检查存储空间后重试。")
                     return@launch
                 }
@@ -463,6 +464,7 @@ class SaveLoadViewModel @Inject constructor(
                     }
                 } else {
                     Log.e(TAG, "startNewGame: Game data not initialized, game loop will not start")
+                    gameEngine.updateGameData { it.copy(isGameStarted = false) }
                 }
 
                 showError(e.message ?: "开始新游戏失败")
