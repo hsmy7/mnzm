@@ -166,6 +166,17 @@ class GameStateStore @Inject constructor(
     // 直接读取快照（绕过 stateIn 的 Dispatchers.Default 调度延迟）
     val gameDataSnapshot: GameData get() = _state.value.gameData
     val discipleAggregatesSnapshot: List<DiscipleAggregate> get() = _state.value.disciples.map { it.toAggregate() }
+    val disciplesSnapshot: List<Disciple> get() = _state.value.disciples
+    val equipmentStacksSnapshot: List<EquipmentStack> get() = _state.value.equipmentStacks
+    val equipmentInstancesSnapshot: List<EquipmentInstance> get() = _state.value.equipmentInstances
+    val manualStacksSnapshot: List<ManualStack> get() = _state.value.manualStacks
+    val manualInstancesSnapshot: List<ManualInstance> get() = _state.value.manualInstances
+    val pillsSnapshot: List<Pill> get() = _state.value.pills
+    val materialsSnapshot: List<Material> get() = _state.value.materials
+    val herbsSnapshot: List<Herb> get() = _state.value.herbs
+    val seedsSnapshot: List<Seed> get() = _state.value.seeds
+    val teamsSnapshot: List<ExplorationTeam> get() = _state.value.teams
+    val battleLogsSnapshot: List<BattleLog> get() = _state.value.battleLogs
 
     suspend fun update(block: suspend MutableGameState.() -> Unit) {
         transactionMutex.withLock {

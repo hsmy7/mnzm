@@ -696,19 +696,19 @@ class GameEngine @Inject constructor(
 
     fun getStateSnapshotSync(): GameStateSnapshot {
         return GameStateSnapshot(
-            gameData = stateStore.gameData.value,
-            disciples = stateStore.disciples.value,
-            equipmentStacks = stateStore.equipmentStacks.value,
-            equipmentInstances = stateStore.equipmentInstances.value,
-            manualStacks = stateStore.manualStacks.value,
-            manualInstances = stateStore.manualInstances.value,
-            pills = stateStore.pills.value,
-            materials = stateStore.materials.value,
-            herbs = stateStore.herbs.value,
-            seeds = stateStore.seeds.value,
-            teams = stateStore.teams.value,
-            battleLogs = stateStore.battleLogs.value,
-            alliances = stateStore.gameData.value.alliances,
+            gameData = stateStore.gameDataSnapshot,
+            disciples = stateStore.disciplesSnapshot,
+            equipmentStacks = stateStore.equipmentStacksSnapshot,
+            equipmentInstances = stateStore.equipmentInstancesSnapshot,
+            manualStacks = stateStore.manualStacksSnapshot,
+            manualInstances = stateStore.manualInstancesSnapshot,
+            pills = stateStore.pillsSnapshot,
+            materials = stateStore.materialsSnapshot,
+            herbs = stateStore.herbsSnapshot,
+            seeds = stateStore.seedsSnapshot,
+            teams = stateStore.teamsSnapshot,
+            battleLogs = stateStore.battleLogsSnapshot,
+            alliances = stateStore.gameDataSnapshot.alliances,
             productionSlots = productionCoordinator.repository.getSlots()
         )
     }
@@ -716,20 +716,20 @@ class GameEngine @Inject constructor(
     suspend fun getStateSnapshot(): GameStateSnapshot = getStateSnapshotSuspend()
 
     suspend fun getStateSnapshotSuspend(): GameStateSnapshot {
-        val gd = stateStore.gameData.value
+        val gd = stateStore.gameDataSnapshot
         return GameStateSnapshot(
             gameData = gd,
-            disciples = stateStore.disciples.value,
-            equipmentStacks = stateStore.equipmentStacks.value,
-            equipmentInstances = stateStore.equipmentInstances.value,
-            manualStacks = stateStore.manualStacks.value,
-            manualInstances = stateStore.manualInstances.value,
-            pills = stateStore.pills.value,
-            materials = stateStore.materials.value,
-            herbs = stateStore.herbs.value,
-            seeds = stateStore.seeds.value,
-            teams = stateStore.teams.value,
-            battleLogs = stateStore.battleLogs.value,
+            disciples = stateStore.disciplesSnapshot,
+            equipmentStacks = stateStore.equipmentStacksSnapshot,
+            equipmentInstances = stateStore.equipmentInstancesSnapshot,
+            manualStacks = stateStore.manualStacksSnapshot,
+            manualInstances = stateStore.manualInstancesSnapshot,
+            pills = stateStore.pillsSnapshot,
+            materials = stateStore.materialsSnapshot,
+            herbs = stateStore.herbsSnapshot,
+            seeds = stateStore.seedsSnapshot,
+            teams = stateStore.teamsSnapshot,
+            battleLogs = stateStore.battleLogsSnapshot,
             alliances = gd.alliances,
             productionSlots = productionCoordinator.repository.getSlots()
         )
