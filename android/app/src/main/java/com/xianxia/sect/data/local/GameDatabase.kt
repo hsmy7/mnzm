@@ -66,7 +66,7 @@ object GameDatabaseConfig {
         ArchivedBattleLog::class,
         ArchivedDisciple::class
     ],
-    version = 4
+    version = 1
 )
 
 @TypeConverters(ProtobufConverters::class)
@@ -316,30 +316,6 @@ abstract class GameDatabase : RoomDatabase() {
         private const val UNIFIED_DB_NAME = "xianxia_sect.db"
         private val threadCounter = AtomicInteger(0)
 
-        val MIGRATION_1_2 = object : androidx.room.migration.Migration(1, 2) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                // 删除已废弃的 dungeons 表（秘境系统已删除）
-                db.execSQL("DROP TABLE IF EXISTS dungeons")
-                // 新增 worldLevels 列（世界关卡系统）
-                db.execSQL("ALTER TABLE game_data ADD COLUMN worldLevels TEXT NOT NULL DEFAULT ''")
-            }
-        }
-
-        val MIGRATION_2_3 = object : androidx.room.migration.Migration(2, 3) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                // 移除宗门消息系统
-                db.execSQL("DROP TABLE IF EXISTS game_events")
-                db.execSQL("DROP TABLE IF EXISTS archived_game_events")
-            }
-        }
-
-        val MIGRATION_3_4 = object : androidx.room.migration.Migration(3, 4) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE disciples ADD COLUMN portraitRes TEXT NOT NULL DEFAULT ''")
-                db.execSQL("ALTER TABLE disciples_core ADD COLUMN portraitRes TEXT NOT NULL DEFAULT ''")
-            }
-        }
-
         fun create(context: Context): GameDatabase {
             Log.i(TAG, "Creating unified single-instance database: $UNIFIED_DB_NAME")
 
@@ -359,7 +335,6 @@ abstract class GameDatabase : RoomDatabase() {
                         Thread(r, "GameDB-Txn")
                     }
                 )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         Log.i(TAG, "Unified database created")
