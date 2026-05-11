@@ -24,7 +24,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.PlatformTextStyle
@@ -43,8 +42,9 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.ui.game.components.ItemDetailDialog
 import com.xianxia.sect.ui.game.components.LearnedManualDetailDialog
 import com.xianxia.sect.core.util.GameUtils
-import com.xianxia.sect.core.util.PortraitPool
 import com.xianxia.sect.core.util.isFollowed
+import com.xianxia.sect.core.util.PortraitPool
+import androidx.compose.ui.platform.LocalContext
 import com.xianxia.sect.ui.components.DiscipleAttrText
 import com.xianxia.sect.ui.components.EmptyListMessage
 import com.xianxia.sect.ui.components.CloseButton
@@ -144,6 +144,7 @@ fun DiscipleDetailDialog(
     onDismiss: () -> Unit,
     onNavigateToDisciple: ((DiscipleAggregate) -> Unit)? = null
 ) {
+    val context = LocalContext.current
     val talents = remember(disciple.talentIds) {
         TalentDatabase.getTalentsByIds(disciple.talentIds)
     }
@@ -209,49 +210,34 @@ fun DiscipleDetailDialog(
                     contentScale = ContentScale.Crop
                 )
                 Row(modifier = Modifier.fillMaxSize()) {
-                    // Left 40%: Portrait + basic info + action buttons
-                    Column(
-                        modifier = Modifier.fillMaxHeight().fillMaxWidth(0.4f).padding(12.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Image(
-                            painter = painterResource(id = R.drawable.disciple_portrait),
-                            contentDescription = null,
-                            modifier = Modifier.weight(0.9f).fillMaxWidth().padding(8.dp),
-                            contentScale = ContentScale.Fit
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(disciple.name, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-                        Text(disciple.realmName, fontSize = 14.sp, color = Color.Black)
-                        Text(disciple.spiritRootName, fontSize = 12.sp, color = Color(0xFF00695C))
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Box(
-                                modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Color(0xFF4CAF50))
-                                    .clickable { showRelationsDialog = true }.padding(horizontal = 6.dp, vertical = 2.dp)
-                            ) { Text("关系", fontSize = 10.sp, color = Color.White) }
-                            Box(
-                                modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Color(0xFF2196F3))
-                                    .clickable { showStorageBagDialog = true }.padding(horizontal = 6.dp, vertical = 2.dp)
-                            ) { Text("储物袋", fontSize = 10.sp, color = Color.White) }
-                            Box(
-                                modifier = Modifier.clip(RoundedCornerShape(4.dp))
-                                    .background(if (disciple.isFollowed) Color(0xFFFFD700) else Color.Black)
-                                    .clickable { viewModel?.toggleFollowDisciple(disciple.id) }
-                                    .padding(horizontal = 6.dp, vertical = 2.dp)
-                            ) { Text(if (disciple.isFollowed) "已关注" else "关注", fontSize = 10.sp, color = Color.White) }
-                            Box(
-                                modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Color(0xFFE74C3C))
-                                    .clickable { showExpelConfirmDialog = true }.padding(horizontal = 6.dp, vertical = 2.dp)
-                            ) { Text("驱逐", fontSize = 10.sp, color = Color.White) }
-                        }
-                        Spacer(modifier = Modifier.weight(1f))
-                        CloseButton(onClick = onDismiss)
-                    }
-                    // Vertical divider
-                    Box(modifier = Modifier.fillMaxHeight().width(1.dp).background(Color(0xFFBDBDBD)))
-                    // Right 60%: Content + tab buttons
+                    // Left: Content + tab buttons
                     Row(modifier = Modifier.fillMaxHeight().weight(1f)) {
+                        // Tab buttons on left edge
+                        Column(
+                            modifier = Modifier.fillMaxHeight().width(44.dp),
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            tabs.forEachIndexed { index, label ->
+                                Box(
+                                    modifier = Modifier.fillMaxWidth().weight(1f)
+                                        .clickable { selectedTab = index },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        label, fontSize = 11.sp, color = Color.Black,
+                                        fontWeight = if (selectedTab == index) FontWeight.Bold else FontWeight.Normal
+                                    )
+                                }
+                                if (index < tabs.lastIndex) {
+                                    HorizontalDivider(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        thickness = 1.dp,
+                                        color = Color(0xFF757575)
+                                    )
+                                }
+                            }
+                        }
+                        // Content area
                         Column(
                             modifier = Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()).padding(12.dp)
                         ) {
@@ -308,44 +294,76 @@ fun DiscipleDetailDialog(
                                 )
                             }
                         }
-                        // Tab buttons on right edge
-                        Column(
-                            modifier = Modifier.fillMaxHeight().width(44.dp).background(Color(0xFFE0E0E0)),
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            tabs.forEachIndexed { index, label ->
-                                Box(
-                                    modifier = Modifier.fillMaxWidth().weight(1f)
-                                        .background(if (selectedTab == index) Color(0xFFBDBDBD) else Color.Transparent)
-                                        .clickable { selectedTab = index },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        label, fontSize = 11.sp, color = Color.Black,
-                                        fontWeight = if (selectedTab == index) FontWeight.Bold else FontWeight.Normal
-                                    )
+                    }
+                    // Vertical divider
+                    Box(modifier = Modifier.fillMaxHeight().width(1.dp).background(Color(0xFFBDBDBD)))
+                    // Right 40%: Portrait + basic info + action buttons
+                    Column(
+                        modifier = Modifier.fillMaxHeight().fillMaxWidth(0.4f).padding(12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        val portraitResId = PortraitPool.getResourceId(context, disciple.portraitRes)
+                        Image(
+                            painter = if (portraitResId != 0) painterResource(id = portraitResId)
+                                      else painterResource(id = R.drawable.disciple_portrait),
+                            contentDescription = null,
+                            modifier = Modifier.weight(2f).fillMaxWidth().padding(horizontal = 4.dp),
+                            contentScale = ContentScale.Fit
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(disciple.name, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                        Text(disciple.realmName, fontSize = 14.sp, color = Color.Black)
+                        Text(disciple.spiritRootName, fontSize = 12.sp, color = Color(0xFF00695C))
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Box(
+                                modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Color(0xFF4CAF50))
+                                    .clickable { showRelationsDialog = true }.padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) { Text("关系", fontSize = 10.sp, color = Color.White) }
+                            Box(
+                                modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Color(0xFF2196F3))
+                                    .clickable { showStorageBagDialog = true }.padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) { Text("储物袋", fontSize = 10.sp, color = Color.White) }
+                            Box(
+                                modifier = Modifier.clip(RoundedCornerShape(4.dp))
+                                    .background(if (disciple.isFollowed) Color(0xFFFFD700) else Color.Black)
+                                    .clickable { viewModel?.toggleFollowDisciple(disciple.id) }
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) { Text(if (disciple.isFollowed) "已关注" else "关注", fontSize = 10.sp, color = Color.White) }
+                            Box(
+                                modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Color(0xFFE74C3C))
+                                    .clickable { showExpelConfirmDialog = true }.padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) { Text("驱逐", fontSize = 10.sp, color = Color.White) }
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        // prev/next navigation at bottom
+                        if (hasPrev || hasNext) {
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                                if (hasPrev && onNavigateToDisciple != null) {
+                                    Box(
+                                        modifier = Modifier.size(28.dp).clip(CircleShape).background(Color(0x99000000))
+                                            .clickable { onNavigateToDisciple(allDisciples[currentIndex - 1]) },
+                                        contentAlignment = Alignment.Center
+                                    ) { Text("‹", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White) }
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                if (hasNext && onNavigateToDisciple != null) {
+                                    Box(
+                                        modifier = Modifier.size(28.dp).clip(CircleShape).background(Color(0x99000000))
+                                            .clickable { onNavigateToDisciple(allDisciples[currentIndex + 1]) },
+                                        contentAlignment = Alignment.Center
+                                    ) { Text("›", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White) }
                                 }
                             }
                         }
+                        Spacer(modifier = Modifier.weight(0.5f))
                     }
                 }
-                // prev/next navigation arrows
-                if (hasPrev && onNavigateToDisciple != null) {
-                    Box(
-                        modifier = Modifier.align(Alignment.CenterStart).padding(start = 4.dp).size(32.dp)
-                            .clip(CircleShape).background(Color(0x99000000))
-                            .clickable { onNavigateToDisciple(allDisciples[currentIndex - 1]) },
-                        contentAlignment = Alignment.Center
-                    ) { Text("‹", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White) }
-                }
-                if (hasNext && onNavigateToDisciple != null) {
-                    Box(
-                        modifier = Modifier.align(Alignment.CenterEnd).padding(end = 4.dp).size(32.dp)
-                            .clip(CircleShape).background(Color(0x99000000))
-                            .clickable { onNavigateToDisciple(allDisciples[currentIndex + 1]) },
-                        contentAlignment = Alignment.Center
-                    ) { Text("›", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White) }
-                }
+                // Close button at top-right
+                CloseButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)
+                )
             }
         }
         }

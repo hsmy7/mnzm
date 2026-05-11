@@ -1,5 +1,6 @@
 package com.xianxia.sect.ui.game.components
 
+import com.xianxia.sect.R
 import androidx.compose.animation.*
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
@@ -64,7 +65,7 @@ internal fun DropdownFilterButton(
     val contentAlpha = if (hasSelection) 1f else 0.7f
     Box(
         modifier = modifier
-            .height(ButtonSizes.StandardHeight)
+            .width(ButtonSizes.StandardWidth).height(ButtonSizes.Large)
             .alpha(contentAlpha)
             .clip(RoundedCornerShape(4.dp))
             .clickable { onClick() }
@@ -87,7 +88,6 @@ internal fun DropdownFilterButton(
                 fontSize = if (isCompact) 9.sp else 12.sp,
                 fontWeight = if (hasSelection) FontWeight.Bold else FontWeight.Normal,
                 color = if (hasSelection) GameColors.GoldDark else Color.Black,
-                modifier = Modifier.weight(1f),
                 textAlign = TextAlign.Center
             )
             Icon(
@@ -101,17 +101,25 @@ internal fun DropdownFilterButton(
 }
 
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 internal fun SpiritRootAttributeFilterBar(
     selectedSpiritRootFilter: Set<Int>,
     selectedAttributeSort: String?,
+    selectedRealmFilter: Set<Int> = emptySet(),
+    realmFilterOptions: List<Pair<Int, String>> = emptyList(),
+    realmCounts: Map<Int, Int> = emptyMap(),
     spiritRootExpanded: Boolean,
     attributeExpanded: Boolean,
+    realmExpanded: Boolean = false,
     spiritRootCounts: Map<Int, Int>,
     onSpiritRootFilterSelected: (Int) -> Unit,
     onSpiritRootFilterRemoved: (Int) -> Unit,
     onAttributeSortSelected: (String?) -> Unit,
+    onRealmFilterSelected: (Int) -> Unit = {},
+    onRealmFilterRemoved: (Int) -> Unit = {},
     onSpiritRootExpandToggle: () -> Unit,
     onAttributeExpandToggle: () -> Unit,
+    onRealmExpandToggle: () -> Unit = {},
     isCompact: Boolean = false
 ) {
     Column(
@@ -130,7 +138,6 @@ internal fun SpiritRootAttributeFilterBar(
                 isExpanded = spiritRootExpanded,
                 onClick = onSpiritRootExpandToggle,
                 isCompact = isCompact,
-                modifier = Modifier.weight(1f)
             )
             DropdownFilterButton(
                 displayText = "属性",
@@ -138,8 +145,16 @@ internal fun SpiritRootAttributeFilterBar(
                 isExpanded = attributeExpanded,
                 onClick = onAttributeExpandToggle,
                 isCompact = isCompact,
-                modifier = Modifier.weight(1f)
             )
+            if (realmFilterOptions.isNotEmpty()) {
+                DropdownFilterButton(
+                    displayText = "境界",
+                    hasSelection = selectedRealmFilter.isNotEmpty(),
+                    isExpanded = realmExpanded,
+                    onClick = onRealmExpandToggle,
+                    isCompact = isCompact,
+                )
+            }
         }
 
         AnimatedVisibility(
@@ -161,7 +176,6 @@ internal fun SpiritRootAttributeFilterBar(
                             if (isSelected) onSpiritRootFilterRemoved(count)
                             else onSpiritRootFilterSelected(count)
                         },
-                        modifier = Modifier.weight(1f),
                         isCompact = isCompact
                     )
                 }
@@ -191,16 +205,40 @@ internal fun SpiritRootAttributeFilterBar(
                                     if (isSelected) onAttributeSortSelected(null)
                                     else onAttributeSortSelected(option.key)
                                 },
-                                modifier = Modifier.weight(1f),
                                 isCompact = isCompact
                             )
                         }
                         if (row.size < 5) {
                             repeat(5 - row.size) {
-                                Spacer(modifier = Modifier.weight(1f))
                             }
                         }
                     }
+                }
+            }
+        }
+
+        AnimatedVisibility(
+            visible = realmExpanded,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut()
+        ) {
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                realmFilterOptions.forEach { (realm, name) ->
+                    val isSelected = realm in selectedRealmFilter
+                    val cnt = realmCounts[realm] ?: 0
+                    FilterChip(
+                        text = "$name $cnt",
+                        isSelected = isSelected,
+                        onClick = {
+                            if (isSelected) onRealmFilterRemoved(realm)
+                            else onRealmFilterSelected(realm)
+                        },
+                        isCompact = isCompact
+                    )
                 }
             }
         }
@@ -218,8 +256,8 @@ internal fun FilterChip(
     val contentAlpha = if (isSelected) 1f else 0.6f
     Box(
         modifier = modifier
-            .width(72.dp)
-            .height(38.dp)
+            .width(ButtonSizes.StandardWidth)
+            .height(ButtonSizes.StandardHeight)
             .alpha(contentAlpha)
             .clip(RoundedCornerShape(4.dp))
             .clickable(onClick = onClick),

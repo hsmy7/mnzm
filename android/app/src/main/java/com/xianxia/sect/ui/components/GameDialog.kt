@@ -4,32 +4,135 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.xianxia.sect.R
+import com.xianxia.sect.ui.theme.AppTypography
+import com.xianxia.sect.ui.theme.CornerRadius
 import com.xianxia.sect.ui.theme.GameColors
+import com.xianxia.sect.ui.theme.Spacing
+
+enum class DialogMode { Half, Full, Auto }
+
+@Composable
+fun UnifiedGameDialog(
+    onDismissRequest: () -> Unit,
+    title: String,
+    modifier: Modifier = Modifier,
+    mode: DialogMode = DialogMode.Half,
+    dismissOnBackPress: Boolean = true,
+    dismissOnClickOutside: Boolean = true,
+    headerActions: @Composable (() -> Unit)? = null,
+    content: @Composable () -> Unit
+) {
+    if (dismissOnBackPress) {
+        BackHandler(onBack = onDismissRequest)
+    }
+
+    val (widthModifier, heightModifier) = when (mode) {
+        DialogMode.Half -> Pair(
+            Modifier.fillMaxWidth(0.85f),
+            Modifier.fillMaxHeight(0.78f)
+        )
+        DialogMode.Full -> Pair(
+            Modifier.fillMaxSize(),
+            Modifier.fillMaxSize()
+        )
+        DialogMode.Auto -> Pair(
+            Modifier.fillMaxWidth(0.85f),
+            Modifier
+        )
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .then(
+                if (dismissOnClickOutside) {
+                    Modifier.clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onDismissRequest
+                    )
+                } else Modifier
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = modifier
+                .then(widthModifier)
+                .then(heightModifier)
+                .clip(RoundedCornerShape(CornerRadius.LG))
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.bg_horizontal),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.Crop
+            )
+            Column(modifier = Modifier.fillMaxSize()) {
+                // Unified header
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = Spacing.MD, vertical = Spacing.MD),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = title,
+                        fontSize = AppTypography.Title,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.SM),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        headerActions?.invoke()
+                        CloseButton(onClick = onDismissRequest)
+                    }
+                }
+                // Scrollable content
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = Spacing.MD)
+                ) {
+                    content()
+                }
+            }
+        }
+    }
+}
 
 /**
  * 替代 Compose [androidx.compose.ui.window.Dialog]。

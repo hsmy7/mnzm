@@ -86,11 +86,14 @@ import com.xianxia.sect.ui.game.SpiritMineDialog
 import com.xianxia.sect.ui.game.SpiritMineViewModel
 import com.xianxia.sect.ui.game.TianshuHallDialog
 import com.xianxia.sect.ui.game.WenDaoPeakDialog
-import com.xianxia.sect.ui.components.CloseButton
-import com.xianxia.sect.ui.components.HalfScreenDialog
+import com.xianxia.sect.ui.components.UnifiedGameDialog
+import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.state.DialogStateManager.DialogType
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.theme.XianxiaColorScheme
+import com.xianxia.sect.ui.theme.Spacing
+import com.xianxia.sect.ui.theme.AppTypography
+import com.xianxia.sect.ui.theme.CornerRadius
 
 @Composable
 internal fun BuildingsTab(
@@ -141,33 +144,19 @@ internal fun BuildingsTab(
         Triple("监牢", "悔过自新之地") { viewModel.openReflectionCliffDialog() }
     )
 
-    HalfScreenDialog(onDismissRequest = onDismiss) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("建筑", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-                CloseButton(onClick = onDismiss)
-            }
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 12.dp)
-            ) {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = "建造",
+        mode = DialogMode.Half
+    ) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(Spacing.SM)
+        ) {
+            buildings.chunked(2).forEach { rowBuildings ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.SM)
                 ) {
-                    buildings.chunked(2).forEach { rowBuildings ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
                             rowBuildings.forEach { building ->
                                 val name = building.first
                                 val desc = building.second
@@ -206,10 +195,8 @@ internal fun BuildingsTab(
                             }
                         }
                     }
-                }
             }
         }
-    }
 
     if (showSpiritMineDialog) {
         SpiritMineDialog(

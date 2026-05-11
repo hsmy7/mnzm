@@ -482,34 +482,27 @@ fun MainGameScreen(
                 discipleCount = aliveDisciples.value.size,
                 modifier = Modifier
                     .align(Alignment.TopStart)
-                    .padding(start = 12.dp, top = 12.dp)
             )
 
-            // Left column: 4 buttons — 世界, 招募, 商人, 外交
+            // Top-right button grid: row of 6 + column of 3 below
             Column(
                 modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .padding(start = 8.dp),
+                    .align(Alignment.TopEnd)
+                    .padding(top = 8.dp, end = 8.dp),
+                horizontalAlignment = Alignment.End,
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                FloatingActionButton(text = "世界", onClick = { viewModel.openWorldMapDialog() }, drawableRes = R.drawable.ui_map_button)
-                FloatingActionButton(text = "招募", onClick = { viewModel.openRecruitDialog() }, drawableRes = R.drawable.ui_recruit_button)
-                FloatingActionButton(text = "商人", onClick = { viewModel.openMerchantDialog() }, drawableRes = R.drawable.ui_merchant_button)
-                FloatingActionButton(text = "外交", onClick = { viewModel.openDiplomacyDialog() }, drawableRes = R.drawable.ui_diplomacy_button)
-            }
-
-            // Right column: 5 buttons — 弟子, 建造, 仓库, 日志, 设置
-            Column(
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .padding(end = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    FloatingActionButton(text = "日志", onClick = { viewModel.openBattleLogDialog() }, drawableRes = R.drawable.ui_log_button)
+                    FloatingActionButton(text = "商人", onClick = { viewModel.openMerchantDialog() }, drawableRes = R.drawable.ui_merchant_button)
+                    FloatingActionButton(text = "招募", onClick = { viewModel.openRecruitDialog() }, drawableRes = R.drawable.ui_recruit_button)
+                    FloatingActionButton(text = "建造", onClick = { buildingBarExpanded = !buildingBarExpanded; isPlacingBuilding = false }, drawableRes = R.drawable.ui_build_button)
+                    FloatingActionButton(text = "仓库", onClick = { showWarehouseDialog = true }, drawableRes = R.drawable.ui_warehouse_button)
+                    FloatingActionButton(text = "设置", onClick = { showSettingsDialog = true }, drawableRes = R.drawable.ui_settings_button)
+                }
                 FloatingActionButton(text = "弟子", onClick = { showDisciplesDialog = true }, drawableRes = R.drawable.ui_team_button)
-                FloatingActionButton(text = "建造", onClick = { buildingBarExpanded = !buildingBarExpanded; isPlacingBuilding = false }, drawableRes = R.drawable.ui_build_button)
-                FloatingActionButton(text = "仓库", onClick = { showWarehouseDialog = true }, drawableRes = R.drawable.ui_warehouse_button)
-                FloatingActionButton(text = "日志", onClick = { viewModel.openBattleLogDialog() }, drawableRes = R.drawable.ui_log_button)
-                FloatingActionButton(text = "设置", onClick = { showSettingsDialog = true }, drawableRes = R.drawable.ui_settings_button)
+                FloatingActionButton(text = "世界", onClick = { viewModel.openWorldMapDialog() }, drawableRes = R.drawable.ui_map_button)
+                FloatingActionButton(text = "外交", onClick = { viewModel.openDiplomacyDialog() }, drawableRes = R.drawable.ui_diplomacy_button)
             }
         }
 
@@ -537,9 +530,7 @@ fun MainGameScreen(
                         size.width, size.height
                     )
                 },
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 8.dp, start = 8.dp, end = 8.dp)
+                modifier = Modifier.align(Alignment.BottomCenter)
             )
         }
 
@@ -568,12 +559,7 @@ fun MainGameScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(
-                                    text = "弟子",
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.Black
-                                )
+                                Spacer(modifier = Modifier.weight(1f))
                                 CloseButton(onClick = { showDisciplesDialog = false })
                             }
                             DisciplesTab(
@@ -1012,39 +998,45 @@ private fun SectInfoCard(
     discipleCount: Int,
     modifier: Modifier = Modifier
 ) {
-    val cardBg = Color(0xFFB2DFDB)
-    val cardBorder = Color(0xFF4DB6AC)
-    Column(
+    Box(
         modifier = modifier
             .clip(RoundedCornerShape(8.dp))
-            .background(cardBg)
-            .border(1.5.dp, cardBorder, RoundedCornerShape(8.dp))
-            .padding(horizontal = 14.dp, vertical = 8.dp)
     ) {
-        Text(
-            text = gameData?.sectName ?: "青云宗",
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color(0xFF004D40)
+        Image(
+            painter = painterResource(id = R.drawable.bg_horizontal),
+            contentDescription = null,
+            modifier = Modifier.matchParentSize(),
+            contentScale = ContentScale.Crop
         )
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        Column(
+            modifier = Modifier
+                .padding(horizontal = 14.dp, vertical = 8.dp)
         ) {
             Text(
-                text = "${gameData?.gameYear ?: 1}年${gameData?.gameMonth ?: 1}月${gameData?.gameDay ?: 1}日",
-                fontSize = 12.sp,
-                color = Color(0xFF00695C)
+                text = gameData?.sectName ?: "青云宗",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black
             )
-            Text(
-                text = "弟子 $discipleCount",
-                fontSize = 12.sp,
-                color = Color(0xFF004D40)
-            )
-            Text(
-                text = "灵石 ${gameData?.spiritStones ?: 0}",
-                fontSize = 12.sp,
-                color = Color(0xFF004D40)
-            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Text(
+                    text = "${gameData?.gameYear ?: 1}年${gameData?.gameMonth ?: 1}月${gameData?.gameDay ?: 1}日",
+                    fontSize = 12.sp,
+                    color = Color.Black
+                )
+                Text(
+                    text = "弟子 $discipleCount",
+                    fontSize = 12.sp,
+                    color = Color.Black
+                )
+                Text(
+                    text = "灵石 ${gameData?.spiritStones ?: 0}",
+                    fontSize = 12.sp,
+                    color = Color.Black
+                )
+            }
         }
     }
 }
@@ -1340,78 +1332,70 @@ private fun BuildingConstructionBar(
     onSelectBuilding: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(130.dp)
-            .verticalScroll(rememberScrollState())
-            .clip(RoundedCornerShape(6.dp))
-            .background(Color.White.copy(alpha = 0.7f))
-            .padding(horizontal = 8.dp, vertical = 6.dp)
-    ) {
-        val rows = buildingList.chunked(5)
-        rows.forEachIndexed { rowIndex, rowItems ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                rowItems.forEach { (name, _) ->
-                    val built = if (name == "灵矿场") {
-                        placedBuildings.count { it.displayName == name } >= GameConfig.Production.MAX_SPIRIT_MINE_COUNT
-                    } else {
-                        placedBuildings.any { it.displayName == name }
-                    }
-                    val cost = buildingCosts[name] ?: 1000L
-                    val canAfford = spiritStones >= cost
-                    Column(
+    Box(modifier = modifier.fillMaxWidth()) {
+        Image(
+            painter = painterResource(id = R.drawable.bg_horizontal),
+            contentDescription = null,
+            modifier = Modifier.matchParentSize(),
+            contentScale = ContentScale.FillBounds
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            buildingList.forEach { (name, _) ->
+                val built = if (name == "灵矿场") {
+                    placedBuildings.count { it.displayName == name } >= GameConfig.Production.MAX_SPIRIT_MINE_COUNT
+                } else {
+                    placedBuildings.any { it.displayName == name }
+                }
+                val cost = buildingCosts[name] ?: 1000L
+                val canAfford = spiritStones >= cost
+                Column(
+                    modifier = Modifier
+                        .width(64.dp)
+                        .height(60.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .border(1.dp, GameColors.ButtonBorder, RoundedCornerShape(6.dp))
+                        .clickable(enabled = !built && canAfford) { onSelectBuilding(name) }
+                ) {
+                    Text(
+                        text = name,
+                        fontSize = 8.sp,
+                        lineHeight = 8.sp,
+                        color = Color.Black,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color.White.copy(alpha = 0.7f))
+                    )
+                    Image(
+                        painter = painterResource(id = getBuildingDrawable(name)),
+                        contentDescription = name,
                         modifier = Modifier
                             .weight(1f)
-                            .height(55.dp)
-                            .clip(RoundedCornerShape(6.dp))
-                            .border(1.dp, GameColors.ButtonBorder, RoundedCornerShape(6.dp))
-                            .clickable(enabled = !built && canAfford) { onSelectBuilding(name) }
-                    ) {
-                        Text(
-                            text = name,
-                            fontSize = 8.sp,
-                            lineHeight = 8.sp,
-                            color = Color.Black,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(Color.White.copy(alpha = 0.7f))
-                        )
-                        Image(
-                            painter = painterResource(id = getBuildingDrawable(name)),
-                            contentDescription = name,
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxWidth(),
-                            contentScale = ContentScale.Fit,
-                            alpha = if (built || !canAfford) 0.4f else 1f
-                        )
-                        Text(
-                            text = "${cost}灵石",
-                            fontSize = 7.sp,
-                            lineHeight = 7.sp,
-                            color = Color.Black,
-                            maxLines = 1,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(Color.White.copy(alpha = 0.7f))
-                        )
-                    }
-                }
-                if (rowIndex == rows.lastIndex) {
-                    repeat(5 - rowItems.size) {
-                        Spacer(modifier = Modifier.weight(1f))
-                    }
+                            .fillMaxWidth(),
+                        contentScale = ContentScale.Fit,
+                        alpha = if (built || !canAfford) 0.4f else 1f
+                    )
+                    Text(
+                        text = "${cost}灵石",
+                        fontSize = 7.sp,
+                        lineHeight = 7.sp,
+                        color = Color.Black,
+                        maxLines = 1,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color.White.copy(alpha = 0.7f))
+                    )
                 }
             }
-            Spacer(modifier = Modifier.height(4.dp))
         }
     }
 }

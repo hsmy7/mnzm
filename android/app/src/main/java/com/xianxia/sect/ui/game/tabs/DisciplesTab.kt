@@ -60,9 +60,9 @@ import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualStack
+import com.xianxia.sect.core.util.PortraitPool
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.core.util.sortedByFollowAttributeAndRealm
-import com.xianxia.sect.ui.components.GameBackground
 import com.xianxia.sect.ui.components.DiscipleAttrText
 import com.xianxia.sect.ui.components.DiscipleCardStyles
 import com.xianxia.sect.ui.components.CloseButton
@@ -109,6 +109,7 @@ internal fun DisciplesTab(
     var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
     var spiritRootExpanded by remember { mutableStateOf(false) }
     var attributeExpanded by remember { mutableStateOf(false) }
+    var realmExpanded by remember { mutableStateOf(false) }
     var selectedDisciple by remember { mutableStateOf<DiscipleAggregate?>(null) }
 
     val realmCounts = remember(disciples) {
@@ -123,7 +124,6 @@ internal fun DisciplesTab(
         disciples.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort)
     }
 
-    GameBackground {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -131,22 +131,21 @@ internal fun DisciplesTab(
         SpiritRootAttributeFilterBar(
             selectedSpiritRootFilter = selectedSpiritRootFilter,
             selectedAttributeSort = selectedAttributeSort,
+            selectedRealmFilter = selectedRealmFilter,
+            realmFilterOptions = REALM_FILTER_OPTIONS,
+            realmCounts = realmCounts,
             spiritRootExpanded = spiritRootExpanded,
             attributeExpanded = attributeExpanded,
+            realmExpanded = realmExpanded,
             spiritRootCounts = spiritRootCounts,
             onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
             onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
             onAttributeSortSelected = { selectedAttributeSort = it },
+            onRealmFilterSelected = { selectedRealmFilter = selectedRealmFilter + it },
+            onRealmFilterRemoved = { selectedRealmFilter = selectedRealmFilter - it },
             onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
-            onAttributeExpandToggle = { attributeExpanded = !attributeExpanded }
-        )
-
-        RealmFilterBar(
-            filters = REALM_FILTER_OPTIONS,
-            realmCounts = realmCounts,
-            selectedFilter = selectedRealmFilter,
-            onFilterSelected = { selectedRealmFilter = selectedRealmFilter + it },
-            onFilterRemoved = { selectedRealmFilter = selectedRealmFilter - it }
+            onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
+            onRealmExpandToggle = { realmExpanded = !realmExpanded }
         )
 
         if (filteredDisciples.isEmpty()) {
@@ -163,11 +162,13 @@ internal fun DisciplesTab(
                 )
             }
         } else {
-            LazyColumn(
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(3),
                 modifier = Modifier
                     .fillMaxSize()
                     .weight(1f)
                     .padding(horizontal = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 contentPadding = PaddingValues(vertical = 8.dp)
             ) {
@@ -182,7 +183,6 @@ internal fun DisciplesTab(
                 }
             }
         }
-    }
 
     selectedDisciple?.let { selected ->
         val updatedDisciple = disciples.find { it.id == selected.id } ?: selected
@@ -300,23 +300,49 @@ internal fun DiscipleCard(
             modifier = Modifier.matchParentSize(),
             contentScale = ContentScale.FillBounds
         )
-        Column(
+        Row(
             modifier = Modifier.fillMaxWidth().padding(DiscipleCardStyles.cardPadding),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            // 左侧：半身像 + 名字
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.width(48.dp)
             ) {
+                val context = LocalContext.current
+                val portraitResId = remember(disciple.portraitRes) {
+                    PortraitPool.getResourceId(context, disciple.portraitRes)
+                }
+                Image(
+                    painter = if (portraitResId != 0) painterResource(id = portraitResId)
+                              else painterResource(id = R.drawable.disciple_portrait),
+                    contentDescription = null,
+                    modifier = Modifier.width(44.dp).height(56.dp),
+                    contentScale = ContentScale.Fit
+                )
+                Text(
+                    text = disciple.name,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            // 右侧：三行信息
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(3.dp)
+            ) {
+                // 第一行：性别 + 已关注 + 状态
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = disciple.name,
+                        text = disciple.genderName,
                         fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
                         color = Color.Black
                     )
                     if (disciple.isFollowed) {
@@ -325,41 +351,45 @@ internal fun DiscipleCard(
                     Text(
                         text = disciple.status.displayName,
                         fontSize = 12.sp,
-                        color = Color.Black
+                        color = Color.Black,
+                        maxLines = 1
                     )
                 }
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                val spiritRootColor = try {
-                    Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))
-                } catch (e: Exception) {
-                    Color.Black
+                // 第二行：境界 + 灵根
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val spiritRootColor = try {
+                        Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))
+                    } catch (e: Exception) {
+                        Color.Black
+                    }
+                    Text(
+                        text = disciple.realmName,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black,
+                        maxLines = 1
+                    )
+                    Text(
+                        text = disciple.spiritRootName,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = spiritRootColor,
+                        maxLines = 1
+                    )
                 }
-                Text(
-                    text = disciple.spiritRootName,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = spiritRootColor,
-                    maxLines = 1
-                )
-                Text(
-                    text = disciple.realmName,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                DiscipleAttrText("悟性", disciple.comprehension)
-                DiscipleAttrText("忠诚", disciple.loyalty)
-                DiscipleAttrText("道德", disciple.morality)
+                // 第三行：悟性 + 忠诚 + 道德
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    DiscipleAttrText("悟性", disciple.comprehension)
+                    DiscipleAttrText("忠诚", disciple.loyalty)
+                    DiscipleAttrText("道德", disciple.morality)
+                }
             }
         }
     }
