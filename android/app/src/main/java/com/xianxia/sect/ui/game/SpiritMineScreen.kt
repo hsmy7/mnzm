@@ -40,7 +40,7 @@ import com.xianxia.sect.ui.components.ElderBonusInfoProvider
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.components.FollowedTag
-import com.xianxia.sect.ui.components.HorizontalDiscipleCard
+import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
 import com.xianxia.sect.core.util.isFollowed
@@ -562,7 +562,7 @@ private fun SpiritMineDiscipleSelectionDialog(
                     items(filteredDisciples, key = { it.id }) { disciple ->
                         val isSelected = disciple.id in selectedIds
                         val canSelectMore = selectedIds.size < maxSelectCount
-                        HorizontalDiscipleCard(
+                        PortraitDiscipleCard(
                             disciple = disciple,
                             isSelected = isSelected,
                             extraAttributes = listOf("采矿" to disciple.mining),
@@ -733,7 +733,7 @@ private fun SpiritMineDeaconSelectionDialog(
                         ) {
                             items(filteredDisciples, key = { it.id }) { disciple ->
                                 val isCurrent = disciple.id == currentDeaconId
-                                HorizontalDiscipleCard(
+                                PortraitDiscipleCard(
                                     disciple = disciple,
                                     isCurrent = isCurrent,
                                     extraAttributes = listOf("道德" to disciple.morality),

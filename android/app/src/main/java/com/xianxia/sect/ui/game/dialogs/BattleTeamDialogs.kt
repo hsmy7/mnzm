@@ -55,7 +55,7 @@ import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.HalfScreenDialog
-import com.xianxia.sect.ui.components.HorizontalDiscipleCard
+import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.game.ATTRIBUTE_FILTER_OPTIONS
 import com.xianxia.sect.ui.game.AttributeFilterOption
 import com.xianxia.sect.ui.game.SPIRIT_ROOT_FILTER_OPTIONS
@@ -493,7 +493,7 @@ internal fun BattleTeamDiscipleSelectionDialog(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(filteredDisciples, key = { it.id }) { disciple ->
-                            HorizontalDiscipleCard(
+                            PortraitDiscipleCard(
                                 disciple = disciple,
                                 onClick = { onSelect(disciple) }
                             )

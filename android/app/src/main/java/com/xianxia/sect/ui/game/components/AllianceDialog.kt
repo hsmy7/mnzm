@@ -40,6 +40,7 @@ import com.xianxia.sect.ui.components.DialogDefaults
 import com.xianxia.sect.ui.components.GameButton
 import androidx.compose.ui.window.DialogProperties
 import com.xianxia.sect.ui.components.FollowedTag
+import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.core.util.sortedByFollowAndRealm
@@ -408,10 +409,14 @@ fun EnvoyDiscipleSelectDialog(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(filteredDisciples, key = { it.id }) { disciple ->
-                            DiscipleSelectCard(
+                            PortraitDiscipleCard(
                                 disciple = disciple,
                                 isSelected = selectedDisciple?.id == disciple.id,
-                                onClick = { selectedDisciple = disciple }
+                                onClick = { selectedDisciple = disciple },
+                                customAttributes = {
+                                    DiscipleAttrText("智力", disciple.intelligence)
+                                    DiscipleAttrText("魅力", disciple.charm)
+                                }
                             )
                         }
                     }
@@ -437,74 +442,6 @@ fun EnvoyDiscipleSelectDialog(
                         text = "取消",
                         onClick = onDismiss,
                         modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun DiscipleSelectCard(
-    disciple: DiscipleAggregate,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    val borderColor = if (isSelected) GameColors.Primary else GameColors.Border
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(1.5.dp, borderColor, RoundedCornerShape(8.dp)),
-        shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) GameColors.Primary.copy(alpha = 0.05f) else GameColors.PageBackground
-        ),
-        onClick = onClick
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = disciple.name,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = GameColors.TextPrimary
-                    )
-                    if (disciple.isFollowed) {
-                        FollowedTag()
-                    }
-                }
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "${GameConfig.Realm.getName(disciple.realm)} · ${disciple.realmLayer}层",
-                    fontSize = 12.sp,
-                    color = GameColors.TextSecondary
-                )
-            }
-
-            Column(horizontalAlignment = Alignment.End) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Text(
-                        text = "智${disciple.intelligence}",
-                        fontSize = 12.sp,
-                        color = GameColors.TextSecondary
-                    )
-                    Text(
-                        text = "魅${disciple.charm}",
-                        fontSize = 12.sp,
-                        color = GameColors.TextSecondary
                     )
                 }
             }
@@ -677,7 +614,7 @@ fun ScoutDiscipleSelectDialog(
                     ) {
                         items(filteredDisciples.size, key = { filteredDisciples[it].id }) { index ->
                             val disciple = filteredDisciples[index]
-                            ScoutDiscipleCard(
+                            PortraitDiscipleCard(
                                 disciple = disciple,
                                 isSelected = selectedDisciples.contains(disciple.id),
                                 onClick = {
@@ -800,87 +737,3 @@ private fun ScoutFilterChip(
     }
 }
 
-@Composable
-private fun ScoutDiscipleCard(
-    disciple: DiscipleAggregate,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    val borderColor = if (isSelected) Color(0xFF2196F3) else GameColors.Border
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(1.5.dp, borderColor, RoundedCornerShape(8.dp)),
-        shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) Color(0xFF2196F3).copy(alpha = 0.05f) else GameColors.PageBackground
-        ),
-        onClick = onClick
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(10.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = disciple.name,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-                    if (disciple.isFollowed) {
-                        FollowedTag()
-                    }
-                    Text(
-                        text = disciple.status.displayName,
-                        fontSize = 12.sp,
-                        color = Color.Black
-                    )
-                }
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                val spiritRootColor = try {
-                    Color(AndroidColor.parseColor(disciple.spiritRoot.countColor))
-                } catch (e: Exception) {
-                    Color.Black
-                }
-                Text(
-                    text = disciple.spiritRootName,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = spiritRootColor,
-                    maxLines = 1
-                )
-                Text(
-                    text = disciple.realmName,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                DiscipleAttrText("悟性", disciple.comprehension)
-                DiscipleAttrText("忠诚", disciple.loyalty)
-                DiscipleAttrText("道德", disciple.morality)
-            }
-        }
-    }
-}

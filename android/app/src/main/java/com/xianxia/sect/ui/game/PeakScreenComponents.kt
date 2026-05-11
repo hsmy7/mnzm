@@ -34,7 +34,7 @@ import com.xianxia.sect.ui.components.ElderBonusInfoProvider
 import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.DialogDefaults
 import com.xianxia.sect.ui.components.FollowedTag
-import com.xianxia.sect.ui.components.HorizontalDiscipleCard
+import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
 
@@ -613,7 +613,7 @@ fun PeakDiscipleSelectionDialog(
                         LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             items(filteredDisciples, key = { it.id }) { disciple ->
                                 val isCurrent = disciple.id == currentDiscipleId
-                                HorizontalDiscipleCard(
+                                PortraitDiscipleCard(
                                     disciple = disciple,
                                     isCurrent = isCurrent,
                                     onClick = { onSelect(disciple) }

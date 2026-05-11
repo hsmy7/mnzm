@@ -25,8 +25,7 @@ import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.theme.getSpiritRootColor
 import com.xianxia.sect.ui.components.DiscipleAttrText
-import com.xianxia.sect.ui.components.discipleCardBorder
-import com.xianxia.sect.ui.components.CloseButton
+import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.core.util.isFollowed
@@ -86,9 +85,8 @@ fun OuterTournamentResultDialog(
                     ) {
                         items(topDisciples, key = { (d, _) -> d.id }) { (disciple, rank) ->
                             val isSelected by remember { derivedStateOf { disciple.id in selectedIds } }
-                            TournamentDiscipleCard(
+                            PortraitDiscipleCard(
                                 disciple = disciple,
-                                rank = rank,
                                 isSelected = isSelected,
                                 onClick = {
                                     if (isSelected) {
@@ -141,118 +139,3 @@ private fun TournamentHeader(
     }
 }
 
-@Composable
-private fun TournamentDiscipleCard(
-    disciple: DiscipleAggregate,
-    rank: Int,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    val borderColor = if (isSelected) {
-        Brush.linearGradient(colors = listOf(Color(0xFFFFD700), Color(0xFFFFA500)))
-    } else {
-        Brush.linearGradient(colors = listOf(Color(0xFFE0E0E0), Color(0xFFBDBDBD)))
-    }
-
-    val borderWidth = if (isSelected) 2.dp else 1.dp
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(Color.White)
-            .border(
-                width = borderWidth,
-                brush = borderColor,
-                shape = RoundedCornerShape(12.dp)
-            )
-            .clickable(onClick = onClick)
-    ) {
-        Row(
-            modifier = Modifier.padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(getRankColor(rank)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "$rank",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = disciple.name,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = GameColors.TextPrimary
-                    )
-                    if (disciple.isFollowed) {
-                        FollowedTag()
-                    }
-                    val spiritRootColor = remember(disciple.spiritRoot.countColor, disciple.spiritRootType) {
-                        try {
-                            Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))
-                        } catch (e: IllegalArgumentException) {
-                            getSpiritRootColor(disciple.spiritRootType)
-                        }
-                    }
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(spiritRootColor.copy(alpha = 0.2f))
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = disciple.spiritRootName,
-                            fontSize = 10.sp,
-                            color = spiritRootColor
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Text(
-                        text = disciple.realmName,
-                        fontSize = 11.sp,
-                        color = GameColors.TextSecondary
-                    )
-                    DiscipleAttrText("悟性", disciple.comprehension, color = GameColors.TextSecondary)
-                    DiscipleAttrText("忠诚", disciple.loyalty, color = GameColors.TextSecondary)
-                    DiscipleAttrText("道德", disciple.morality, color = GameColors.TextSecondary)
-                }
-            }
-
-            if (isSelected) {
-                Text(
-                    text = "✓",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFFFFD700)
-                )
-            }
-        }
-    }
-}
-
-private fun getRankColor(rank: Int): Color = when (rank) {
-    1 -> Color(0xFFFFD700)
-    2 -> Color(0xFFC0C0C0)
-    3 -> Color(0xFFCD7F32)
-    else -> Color(0xFF607D8B)
-}

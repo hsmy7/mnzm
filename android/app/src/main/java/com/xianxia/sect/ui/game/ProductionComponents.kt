@@ -39,7 +39,7 @@ import com.xianxia.sect.ui.components.DialogDefaults
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.ui.theme.ButtonSizes
-import com.xianxia.sect.ui.components.HorizontalDiscipleCard
+import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
 
@@ -665,7 +665,7 @@ private fun ProductionDiscipleSelectionCard(
     onClick: () -> Unit
 ) {
     val coreAttrValue = theme.getCoreAttributeValue(disciple)
-    HorizontalDiscipleCard(
+    PortraitDiscipleCard(
         disciple = disciple,
         extraAttributes = listOf(theme.coreAttributeName to coreAttrValue),
         onClick = onClick
@@ -789,7 +789,7 @@ private fun ProductionReserveDiscipleCard(
 ) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         val coreAttrValue = theme.getCoreAttributeValue(disciple)
-        HorizontalDiscipleCard(
+        PortraitDiscipleCard(
             disciple = disciple,
             extraAttributes = listOf(theme.coreAttributeName to coreAttrValue),
             onClick = {}
@@ -1054,7 +1054,7 @@ fun FilteredMultiSelectDialog(
                             items(filteredDisciples, key = { it.id }) { disciple ->
                                 val isSelected = selectedIds.contains(disciple.id)
                                 val canSelect = maxSelection == null || selectedIds.size < maxSelection || isSelected
-                                HorizontalDiscipleCard(
+                                PortraitDiscipleCard(
                                     disciple = disciple,
                                     isSelected = isSelected,
                                     extraAttributes = extraAttrs?.invoke(disciple) ?: emptyList(),
@@ -1098,7 +1098,7 @@ private fun ProductionAddReserveDiscipleSelectCard(
     onClick: () -> Unit
 ) {
     val coreAttrValue = theme.getCoreAttributeValue(disciple)
-    HorizontalDiscipleCard(
+    PortraitDiscipleCard(
         disciple = disciple,
         isSelected = isSelected,
         extraAttributes = listOf(theme.coreAttributeName to coreAttrValue),

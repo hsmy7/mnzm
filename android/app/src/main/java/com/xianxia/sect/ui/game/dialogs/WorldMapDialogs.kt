@@ -86,7 +86,7 @@ import com.xianxia.sect.ui.game.map.CaveExplorationPathData
 import com.xianxia.sect.ui.game.map.MapItem
 import com.xianxia.sect.ui.game.map.MapItemMapper
 import com.xianxia.sect.ui.game.map.WorldMapScreen
-import com.xianxia.sect.ui.components.HorizontalDiscipleCard
+import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.game.map.markers.TeamBadgeInfo
 import com.xianxia.sect.ui.game.map.markers.TeamAction
 import com.xianxia.sect.ui.theme.GameColors
@@ -1100,7 +1100,7 @@ internal fun CaveDiscipleSelectionDialog(
                             val isSelected = disciple.id in currentSelected.map { it.id }
                             val canSelect = isSelected || currentSelected.size < maxSelection
 
-                            HorizontalDiscipleCard(
+                            PortraitDiscipleCard(
                                 disciple = disciple,
                                 isSelected = isSelected,
                                 onClick = {

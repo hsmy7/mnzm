@@ -67,6 +67,7 @@ import com.xianxia.sect.ui.components.DiscipleAttrText
 import com.xianxia.sect.ui.components.DiscipleCardStyles
 import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.FollowedTag
+import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.components.discipleCardBorder
 import com.xianxia.sect.ui.game.ATTRIBUTE_FILTER_OPTIONS
 import com.xianxia.sect.ui.game.AttributeFilterOption
@@ -288,111 +289,7 @@ internal fun DiscipleCard(
     disciple: DiscipleAggregate,
     onClick: () -> Unit
 ) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .discipleCardBorder()
-            .clickable { onClick() }
-    ) {
-        Image(
-            painter = painterResource(id = R.drawable.bg_horizontal),
-            contentDescription = null,
-            modifier = Modifier.matchParentSize(),
-            contentScale = ContentScale.FillBounds
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(DiscipleCardStyles.cardPadding),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            // 左侧：半身像 + 名字
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.width(48.dp)
-            ) {
-                val context = LocalContext.current
-                val portraitResId = remember(disciple.portraitRes) {
-                    PortraitPool.getResourceId(context, disciple.portraitRes)
-                }
-                Image(
-                    painter = if (portraitResId != 0) painterResource(id = portraitResId)
-                              else painterResource(id = R.drawable.disciple_portrait),
-                    contentDescription = null,
-                    modifier = Modifier.width(44.dp).height(56.dp),
-                    contentScale = ContentScale.Fit
-                )
-                Text(
-                    text = disciple.name,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            // 右侧：三行信息
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(3.dp)
-            ) {
-                // 第一行：性别 + 已关注 + 状态
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = disciple.genderName,
-                        fontSize = 12.sp,
-                        color = Color.Black
-                    )
-                    if (disciple.isFollowed) {
-                        FollowedTag()
-                    }
-                    Text(
-                        text = disciple.status.displayName,
-                        fontSize = 12.sp,
-                        color = Color.Black,
-                        maxLines = 1
-                    )
-                }
-                // 第二行：境界 + 灵根
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    val spiritRootColor = try {
-                        Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))
-                    } catch (e: Exception) {
-                        Color.Black
-                    }
-                    Text(
-                        text = disciple.realmName,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black,
-                        maxLines = 1
-                    )
-                    Text(
-                        text = disciple.spiritRootName,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = spiritRootColor,
-                        maxLines = 1
-                    )
-                }
-                // 第三行：悟性 + 忠诚 + 道德
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(2.dp)
-                ) {
-                    DiscipleAttrText("悟性", disciple.comprehension)
-                    DiscipleAttrText("忠诚", disciple.loyalty)
-                    DiscipleAttrText("道德", disciple.morality)
-                }
-            }
-        }
-    }
+    PortraitDiscipleCard(disciple = disciple, onClick = onClick)
 }
 
 @Composable
@@ -707,75 +604,24 @@ internal fun DirectDiscipleSelectionDialog(
                         items = filteredDisciples,
                         key = { it.id }
                     ) { disciple ->
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(GameColors.PageBackground)
-                                .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
-                                .clickable { onSelect(disciple.id) }
-                                .padding(12.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = disciple.name,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.Black
-                                    )
-                                    if (disciple.isFollowed) {
-                                        FollowedTag()
-                                    }
-                                }
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    val spiritRootColor = try {
-                                        Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))
-                                    } catch (e: Exception) {
-                                        Color.Black
-                                    }
-                                    Text(
-                                        text = disciple.spiritRootName,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = spiritRootColor
-                                    )
-                                    requiredAttribute?.let { (attrKey, attrName) ->
-                                        val attrValue = when (attrKey) {
-                                            "spiritPlanting" -> disciple.spiritPlanting
-                                            "pillRefining" -> disciple.pillRefining
-                                            "artifactRefining" -> disciple.artifactRefining
-                                            "mining" -> disciple.mining
-                                            "teaching" -> disciple.teaching
-                                            "morality" -> disciple.morality
-                                            "charm" -> disciple.charm
-                                            else -> 0
-                                        }
-                                        Text(
-                                            text = "$attrName:$attrValue",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF2196F3)
-                                        )
-                                    }
-                                    Text(
-                                        text = disciple.realmName,
-                                        fontSize = 12.sp,
-                                        color = Color.Black
-                                    )
-                                }
+                        val extraAttrs = requiredAttribute?.let { (attrKey, attrName) ->
+                            val attrValue = when (attrKey) {
+                                "spiritPlanting" -> disciple.spiritPlanting
+                                "pillRefining" -> disciple.pillRefining
+                                "artifactRefining" -> disciple.artifactRefining
+                                "mining" -> disciple.mining
+                                "teaching" -> disciple.teaching
+                                "morality" -> disciple.morality
+                                "charm" -> disciple.charm
+                                else -> 0
                             }
-                        }
+                            listOf(attrName to attrValue)
+                        } ?: emptyList()
+                        PortraitDiscipleCard(
+                            disciple = disciple,
+                            extraAttributes = extraAttrs,
+                            onClick = { onSelect(disciple.id) }
+                        )
                     }
                 }
             }
@@ -923,75 +769,24 @@ internal fun ElderDiscipleSelectionDialog(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(filteredDisciples) { disciple ->
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(GameColors.PageBackground)
-                                .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
-                                .clickable { onSelect(disciple.id) }
-                                .padding(12.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = disciple.name,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.Black
-                                    )
-                                    if (disciple.isFollowed) {
-                                        FollowedTag()
-                                    }
-                                }
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    val spiritRootColor = try {
-                                        Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))
-                                    } catch (e: Exception) {
-                                        Color.Black
-                                    }
-                                    Text(
-                                        text = disciple.spiritRootName,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = spiritRootColor
-                                    )
-                                    requiredAttribute?.let { (attrKey, attrName) ->
-                                        val attrValue = when (attrKey) {
-                                            "spiritPlanting" -> disciple.spiritPlanting
-                                            "pillRefining" -> disciple.pillRefining
-                                            "artifactRefining" -> disciple.artifactRefining
-                                            "mining" -> disciple.mining
-                                            "teaching" -> disciple.teaching
-                                            "morality" -> disciple.morality
-                                            "charm" -> disciple.charm
-                                            else -> 0
-                                        }
-                                        Text(
-                                            text = "$attrName:$attrValue",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF2196F3)
-                                        )
-                                    }
-                                    Text(
-                                        text = disciple.realmName,
-                                        fontSize = 12.sp,
-                                        color = Color.Black
-                                    )
-                                }
+                        val extraAttrs = requiredAttribute?.let { (attrKey, attrName) ->
+                            val attrValue = when (attrKey) {
+                                "spiritPlanting" -> disciple.spiritPlanting
+                                "pillRefining" -> disciple.pillRefining
+                                "artifactRefining" -> disciple.artifactRefining
+                                "mining" -> disciple.mining
+                                "teaching" -> disciple.teaching
+                                "morality" -> disciple.morality
+                                "charm" -> disciple.charm
+                                else -> 0
                             }
-                        }
+                            listOf(attrName to attrValue)
+                        } ?: emptyList()
+                        PortraitDiscipleCard(
+                            disciple = disciple,
+                            extraAttributes = extraAttrs,
+                            onClick = { onSelect(disciple.id) }
+                        )
                     }
                 }
             }

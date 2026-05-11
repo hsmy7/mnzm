@@ -32,6 +32,7 @@ import com.xianxia.sect.core.engine.MissionSystem
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.DialogDefaults
+import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import androidx.compose.ui.window.DialogProperties
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.discipleCardBorder
@@ -649,7 +650,7 @@ private fun DiscipleSelectionDialog(
                             items(filteredDisciples, key = { it.id }) { disciple ->
                                 val isSelected = selectedDiscipleIds.contains(disciple.id)
 
-                                SelectionDiscipleCard(
+                                PortraitDiscipleCard(
                                     disciple = disciple,
                                     isSelected = isSelected,
                                     onClick = {
@@ -681,109 +682,6 @@ private fun DiscipleSelectionDialog(
                         modifier = Modifier.width(ButtonSizes.StandardWidth)
                     )
                 }
-            }
-        }
-    }
-}
-
-@Composable
-private fun SelectionDiscipleCard(
-    disciple: DiscipleAggregate,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    val borderColor = if (isSelected) Color(0xFFFFD700) else Color.Transparent
-    val backgroundColor = if (isSelected) Color(0xFFFFF8E1) else Color.White
-
-    val spiritRootColor = try {
-        Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))
-    } catch (e: Exception) {
-        Color.Black
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .discipleCardBorder()
-            .then(
-                if (isSelected) {
-                    Modifier.border(
-                        width = 2.dp,
-                        color = Color(0xFFFFD700),
-                        shape = DiscipleCardStyles.mediumShape
-                    )
-                } else {
-                    Modifier
-                }
-            )
-            .background(backgroundColor, DiscipleCardStyles.mediumShape)
-            .clickable { onClick() }
-            .padding(DiscipleCardStyles.cardPadding)
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = disciple.name,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-                    if (disciple.isFollowed) {
-                        FollowedTag()
-                    }
-                    Text(
-                        text = if (disciple.discipleType == "outer") "外门弟子" else "内门弟子",
-                        fontSize = 11.sp,
-                        color = Color.Black
-                    )
-                }
-                if (isSelected) {
-                    Text(
-                        text = "✓",
-                        fontSize = 14.sp,
-                        color = Color(0xFFFFD700),
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = disciple.spiritRootName,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = spiritRootColor,
-                    maxLines = 1
-                )
-                Text(
-                    text = disciple.realmNameOnly,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                DiscipleAttrText("悟性", disciple.comprehension, fontSize = 10.sp)
-                DiscipleAttrText("忠诚", disciple.loyalty, fontSize = 10.sp)
             }
         }
     }
