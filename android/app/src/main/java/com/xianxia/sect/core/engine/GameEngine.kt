@@ -150,7 +150,7 @@ class GameEngine @Inject constructor(
         productionSlots: List<com.xianxia.sect.core.model.production.ProductionSlot> = emptyList()
     ) {
         stateStore.loadFromSnapshot(
-            gameData = gameData,
+            gameData = gameData.copy(isGameStarted = true),
             disciples = disciples,
             equipmentStacks = equipmentStacks,
             equipmentInstances = equipmentInstances,
