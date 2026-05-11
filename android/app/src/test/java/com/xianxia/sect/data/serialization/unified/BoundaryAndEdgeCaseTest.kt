@@ -33,6 +33,7 @@ class BoundaryAndEdgeCaseTest {
                 cultivationSpeedBonus = if (i % 3 == 0) i * 0.5 else 0.0,
                 cultivationSpeedDuration = if (i % 3 == 0) i else 0,
                 discipleType = listOf("inner", "outer")[i % 2],
+                soulPower = i * 5,
                 combat = CombatAttributes(
                     baseHp = 100 + i * 10,
                     baseMp = 50 + i * 5,
@@ -57,7 +58,6 @@ class BoundaryAndEdgeCaseTest {
                     weaponId = if (i % 2 == 0) "weapon_$i" else "",
                     armorId = if (i % 3 == 0) "armor_$i" else "",
                     spiritStones = i * 100,
-                    soulPower = i * 5,
                     storageBagSpiritStones = (i * 50L)
                 ),
                 social = SocialData(
@@ -145,6 +145,7 @@ class BoundaryAndEdgeCaseTest {
             cultivationSpeedBonus = 15.5,
             cultivationSpeedDuration = 10,
             discipleType = "inner",
+            soulPower = 888,
             combat = CombatAttributes(
                 baseHp = 2000, baseMp = 1000,
                 basePhysicalAttack = 300, baseMagicAttack = 250,
@@ -166,7 +167,7 @@ class BoundaryAndEdgeCaseTest {
             equipment = EquipmentSet(
                 weaponId = "weapon_1", armorId = "armor_1",
                 bootsId = "boots_1", accessoryId = "accessory_1",
-                spiritStones = 9999, soulPower = 888,
+                spiritStones = 9999,
                 storageBagSpiritStones = 7777L
             ),
             social = SocialData(
@@ -286,7 +287,7 @@ class BoundaryAndEdgeCaseTest {
                 totalCultivation = 0L, breakthroughCount = 0, breakthroughFailCount = 0
             ),
             pillEffects = PillEffects(),
-            equipment = EquipmentSet(spiritStones = 0, soulPower = 0, storageBagSpiritStones = 0L),
+            equipment = EquipmentSet(spiritStones = 0, storageBagSpiritStones = 0L),
             social = SocialData(),
             skills = SkillStats(
                 intelligence = 0, charm = 0, loyalty = 0, comprehension = 0,
@@ -339,6 +340,7 @@ class BoundaryAndEdgeCaseTest {
             cultivationSpeedBonus = Double.MAX_VALUE,
             cultivationSpeedDuration = Int.MAX_VALUE,
             discipleType = "inner",
+            soulPower = Int.MAX_VALUE,
             combat = CombatAttributes(
                 baseHp = Int.MAX_VALUE, baseMp = Int.MAX_VALUE,
                 basePhysicalAttack = Int.MAX_VALUE, baseMagicAttack = Int.MAX_VALUE,
@@ -358,7 +360,7 @@ class BoundaryAndEdgeCaseTest {
                 pillSpeedBonus = Int.MAX_VALUE, pillEffectDuration = Int.MAX_VALUE
             ),
             equipment = EquipmentSet(
-                spiritStones = Int.MAX_VALUE, soulPower = Int.MAX_VALUE,
+                spiritStones = Int.MAX_VALUE,
                 storageBagSpiritStones = Long.MAX_VALUE
             ),
             social = SocialData(lastChildYear = Int.MAX_VALUE),
@@ -420,6 +422,7 @@ class BoundaryAndEdgeCaseTest {
             cultivationSpeedBonus = -5.0,
             cultivationSpeedDuration = -3,
             discipleType = "inner",
+            soulPower = -50,
             combat = CombatAttributes(
                 baseHp = -100, baseMp = -50,
                 basePhysicalAttack = -10, baseMagicAttack = -10,
@@ -429,7 +432,7 @@ class BoundaryAndEdgeCaseTest {
                 breakthroughFailCount = -1
             ),
             pillEffects = PillEffects(),
-            equipment = EquipmentSet(spiritStones = -500, soulPower = -50, storageBagSpiritStones = -1000L),
+            equipment = EquipmentSet(spiritStones = -500, storageBagSpiritStones = -1000L),
             social = SocialData(lastChildYear = -10),
             skills = SkillStats(
                 intelligence = -10, charm = -5, loyalty = -20, comprehension = -15,

@@ -466,8 +466,6 @@ object DiscipleStatCalculator {
     ): Double {
         if (disciple.realm < 0) return 0.0
 
-        if (!meetsSoulPowerRequirement(disciple)) return 0.0
-
         val rootCount = disciple.spiritRoot.types.size
         val baseChance = GameConfig.Realm.getBreakthroughChance(disciple.realm, rootCount, disciple.realmLayer)
 
@@ -480,7 +478,9 @@ object DiscipleStatCalculator {
         val talentEffects = getTalentEffects(disciple)
         val talentBreakthroughBonus = talentEffects["breakthroughChance"] ?: 0.0
 
-        val totalBonus = innerElderBonus + outerElderComprehensionBonus + pillBonus + talentBreakthroughBonus
+        val soulPowerBonus = getSoulPowerBreakthroughBonus(disciple.soulPower)
+
+        val totalBonus = innerElderBonus + outerElderComprehensionBonus + pillBonus + talentBreakthroughBonus + soulPowerBonus
         return (baseChance + totalBonus).coerceIn(0.0, 1.0)
     }
 
@@ -491,8 +491,6 @@ object DiscipleStatCalculator {
         pillBonus: Double = 0.0
     ): Double {
         if (aggregate.realm < 0) return 0.0
-
-        if (!meetsSoulPowerRequirement(aggregate)) return 0.0
 
         val rootCount = aggregate.spiritRoot.types.size
         val baseChance = GameConfig.Realm.getBreakthroughChance(aggregate.realm, rootCount, aggregate.realmLayer)
@@ -506,29 +504,14 @@ object DiscipleStatCalculator {
         val talentEffects = getTalentEffects(aggregate)
         val talentBreakthroughBonus = talentEffects["breakthroughChance"] ?: 0.0
 
-        val totalBonus = innerElderBonus + outerElderComprehensionBonus + pillBonus + talentBreakthroughBonus
+        val soulPowerBonus = getSoulPowerBreakthroughBonus(aggregate.soulPower)
+
+        val totalBonus = innerElderBonus + outerElderComprehensionBonus + pillBonus + talentBreakthroughBonus + soulPowerBonus
         return (baseChance + totalBonus).coerceIn(0.0, 1.0)
     }
 
-    fun meetsSoulPowerRequirement(disciple: Disciple): Boolean {
-        return meetsSoulPowerRequirement(disciple.realm, disciple.realmLayer, disciple.equipment.soulPower)
-    }
-
-    fun meetsSoulPowerRequirement(aggregate: DiscipleAggregate): Boolean {
-        return meetsSoulPowerRequirement(aggregate.realm, aggregate.realmLayer, aggregate.equipment?.soulPower ?: 0)
-    }
-
-    fun meetsSoulPowerRequirement(realm: Int, realmLayer: Int, soulPower: Int): Boolean {
-        val isMajorBreakthrough = realmLayer >= GameConfig.Realm.get(realm).maxLayers
-        if (!isMajorBreakthrough) return true
-
-        val targetRealm = realm - 1
-        if (targetRealm < 0) return true
-
-        val requiredSoul = GameConfig.Realm.getSoulPowerRequirement(targetRealm)
-        if (requiredSoul <= 0) return true
-
-        return soulPower >= requiredSoul
+    fun getSoulPowerBreakthroughBonus(soulPower: Int): Double {
+        return ((soulPower / 10).coerceAtMost(10)) / 100.0
     }
 
     fun getMaxManualSlots(disciple: Disciple): Int {

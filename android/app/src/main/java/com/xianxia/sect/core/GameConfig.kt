@@ -162,28 +162,22 @@ object GameConfig {
                 baseHp = 3448, baseMp = 1326, basePhysicalAttack = 265, baseMagicAttack = 265,
                 basePhysicalDefense = 221, baseMagicDefense = 177, baseSpeed = 255),
             5 to RealmConfig(5, "化神", 3600, 110,
-                maxAge = 500, maxLayers = 9, soulPowerRequirement = 0,
-                baseHp = 9126, baseMp = 3510, basePhysicalAttack = 702, baseMagicAttack = 702,
+                maxAge = 500, maxLayers = 9,                baseHp = 9126, baseMp = 3510, basePhysicalAttack = 702, baseMagicAttack = 702,
                 basePhysicalDefense = 585, baseMagicDefense = 468, baseSpeed = 675),
             4 to RealmConfig(4, "炼虚", 16000, 180,
-                maxAge = 800, maxLayers = 9, soulPowerRequirement = 0,
-                baseHp = 22308, baseMp = 8580, basePhysicalAttack = 1716, baseMagicAttack = 1716,
+                maxAge = 800, maxLayers = 9,                baseHp = 22308, baseMp = 8580, basePhysicalAttack = 1716, baseMagicAttack = 1716,
                 basePhysicalDefense = 1430, baseMagicDefense = 1144, baseSpeed = 1650),
             3 to RealmConfig(3, "合体", 32000, 220,
-                maxAge = 1500, maxLayers = 9, soulPowerRequirement = 0,
-                baseHp = 52728, baseMp = 20280, basePhysicalAttack = 4056, baseMagicAttack = 4056,
+                maxAge = 1500, maxLayers = 9,                baseHp = 52728, baseMp = 20280, basePhysicalAttack = 4056, baseMagicAttack = 4056,
                 basePhysicalDefense = 3380, baseMagicDefense = 2704, baseSpeed = 3900),
             2 to RealmConfig(2, "大乘", 64000, 280,
-                maxAge = 3000, maxLayers = 9, soulPowerRequirement = 0,
-                baseHp = 117624, baseMp = 45240, basePhysicalAttack = 9048, baseMagicAttack = 9048,
+                maxAge = 3000, maxLayers = 9,                baseHp = 117624, baseMp = 45240, basePhysicalAttack = 9048, baseMagicAttack = 9048,
                 basePhysicalDefense = 7540, baseMagicDefense = 6032, baseSpeed = 8700),
             1 to RealmConfig(1, "渡劫", 128000, 360,
-                maxAge = 5000, maxLayers = 9, soulPowerRequirement = 0,
-                baseHp = 243360, baseMp = 93600, basePhysicalAttack = 18720, baseMagicAttack = 18720,
+                maxAge = 5000, maxLayers = 9,                baseHp = 243360, baseMp = 93600, basePhysicalAttack = 18720, baseMagicAttack = 18720,
                 basePhysicalDefense = 15600, baseMagicDefense = 12480, baseSpeed = 18000),
             0 to RealmConfig(0, "仙人", 256000, 500,
-                maxAge = 9999, maxLayers = 9, soulPowerRequirement = 0,
-                baseHp = 507000, baseMp = 195000, basePhysicalAttack = 39000, baseMagicAttack = 39000,
+                maxAge = 9999, maxLayers = 9,                baseHp = 507000, baseMp = 195000, basePhysicalAttack = 39000, baseMagicAttack = 39000,
                 basePhysicalDefense = 32500, baseMagicDefense = 26000, baseSpeed = 37500)
         )
 
@@ -219,7 +213,6 @@ object GameConfig {
             return kotlin.math.round(rawProb * 100.0) / 100.0
         }
         
-        fun getSoulPowerRequirement(realm: Int): Int = get(realm).soulPowerRequirement
         
         fun getMaxRarity(realm: Int): Int = when (realm) {
             9, 8 -> 1
@@ -497,7 +490,6 @@ object GameConfig {
         val salary: Int,
         val maxAge: Int = 100,
         val maxLayers: Int = 9,
-        val soulPowerRequirement: Int = 0,
         val baseHp: Int = 156,
         val baseMp: Int = 78,
         val basePhysicalAttack: Int = 16,

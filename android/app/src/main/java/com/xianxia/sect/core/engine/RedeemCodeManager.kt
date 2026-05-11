@@ -13,7 +13,6 @@ import com.xianxia.sect.core.util.NameService
 import com.xianxia.sect.core.util.PortraitPool
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.serialization.protobuf.ProtoBuf
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.random.Random
@@ -89,27 +88,6 @@ object RedeemCodeManager {
 
     private val predefinedCodes = mutableMapOf<String, RedeemCode>()
 
-    init {
-        predefinedCodes["8888"] = RedeemCode(
-            code = "8888",
-            rewardType = RedeemRewardType.SPIRIT_STONES,
-            quantity = 10_000_000,
-            maxUses = 100_000,
-            isEnabled = true
-        )
-        predefinedCodes["9999"] = RedeemCode(
-            code = "9999",
-            rewardType = RedeemRewardType.DISCIPLE,
-            quantity = 10,
-            maxUses = 100_000,
-            discipleConfig = DiscipleRewardConfig(
-                spiritRootCount = 1
-            ),
-            isEnabled = true
-        )
-        Log.i(TAG, "Initialized ${predefinedCodes.size} predefined redeem codes")
-    }
-
     // ══════════════════════════════════
     // 多层级频率限制数据结构
     // ══════════════════════════════════
@@ -181,28 +159,6 @@ object RedeemCodeManager {
         val playerId: String
     )
     
-    fun initializeFromConfig(configData: ByteArray) {
-        predefinedCodes.clear()
-        try {
-            val config = ProtoBuf.decodeFromByteArray(RedeemCodeConfig.serializer(), configData)
-            for (codeProto in config.codes) {
-                val code = RedeemCode(
-                    code = codeProto.code,
-                    rewardType = RedeemRewardType.valueOf(codeProto.rewardType.uppercase(java.util.Locale.getDefault())),
-                    quantity = codeProto.quantity,
-                    maxUses = codeProto.maxUses,
-                    rarity = codeProto.rarity,
-                    expireYear = codeProto.expireYear,
-                    expireMonth = codeProto.expireMonth,
-                    isEnabled = codeProto.isEnabled
-                )
-                predefinedCodes[code.code.uppercase(java.util.Locale.getDefault())] = code
-            }
-            Log.i(TAG, "Loaded ${predefinedCodes.size} redeem codes from config")
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to parse redeem code config", e)
-        }
-    }
     
     fun setRemoteValidator(validator: RedeemCodeValidator?) {
         remoteValidator = validator

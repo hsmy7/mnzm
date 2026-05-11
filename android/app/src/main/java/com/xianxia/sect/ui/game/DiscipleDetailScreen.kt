@@ -1111,16 +1111,7 @@ private fun BasicInfoSection(
         ) {
             InfoItem("寿命 ${disciple.age}/${disciple.lifespan}", Modifier.weight(1f))
             val breakthroughChance = disciple.getBreakthroughChance()
-            val isMajorBreakthrough = disciple.realmLayer >= GameConfig.Realm.get(disciple.realm).maxLayers
-            val targetRealm = disciple.realm - 1
-            val soulRequired = if (isMajorBreakthrough && targetRealm >= 0) {
-                GameConfig.Realm.getSoulPowerRequirement(targetRealm)
-            } else 0
-            if (soulRequired > 0 && disciple.soulPower < soulRequired) {
-                InfoItem("神魂 ${disciple.soulPower}/$soulRequired", Modifier.weight(1f), color = Color(0xFFFF6B6B))
-            } else {
-                InfoItem("突破率 ${GameUtils.formatPercent(breakthroughChance)}", Modifier.weight(1f))
-            }
+            InfoItem("突破率 ${GameUtils.formatPercent(breakthroughChance)}", Modifier.weight(1f))
         }
         
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -1545,7 +1536,8 @@ private fun CombatStatsSection(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             StatItemWithBonus("速度", baseStats.speed, finalStats.speed, Modifier.weight(1f))
-            StatItem("神魂", disciple.soulPower, Modifier.weight(1f))
+            val soulBonus = (disciple.soulPower / 10).coerceAtMost(10)
+            StatItem(if (soulBonus > 0) "神魂 +${soulBonus}%突破" else "神魂 0", disciple.soulPower, Modifier.weight(1f))
         }
     }
 }

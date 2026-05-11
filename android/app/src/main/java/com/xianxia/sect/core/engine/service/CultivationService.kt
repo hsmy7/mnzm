@@ -629,11 +629,6 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                 if (newCultivation < currentMaxCultivation) break
 
                 val isMajorBreakthrough = newRealmLayer >= GameConfig.Realm.get(newRealm).maxLayers
-                if (isMajorBreakthrough && !DiscipleStatCalculator.meetsSoulPowerRequirement(newRealm, newRealmLayer, disciple.equipment.soulPower)) {
-                    newCultivation = 0.0
-                    shouldContinue = false
-                    continue
-                }
 
                 val success = tryBreakthrough(disciple)
                 if (success) {
@@ -1304,12 +1299,6 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         val data = currentGameData
         val elderSlots = data.elderSlots
         val allDisciples = currentDisciples.associateBy { it.id }
-
-        val isMajorBreakthrough = disciple.realmLayer >= GameConfig.Realm.get(disciple.realm).maxLayers
-
-        if (isMajorBreakthrough && !DiscipleStatCalculator.meetsSoulPowerRequirement(disciple)) {
-            return false
-        }
 
         val innerElderId = elderSlots.innerElder
         val innerElderComprehension = if (innerElderId.isNotEmpty() && disciple.discipleType == "inner") {
@@ -2887,7 +2876,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                 .map { it.id }.toSet()
             currentDisciples = currentDisciples.map { disciple ->
                 if (disciple.id in aliveDefenderIds) {
-                    disciple.copyWith(soulPower = disciple.equipment.soulPower + 1)
+                    disciple.copyWith(soulPower = disciple.soulPower + 1)
                 } else {
                     disciple
                 }
@@ -3216,7 +3205,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
 
         currentDisciples = currentDisciples.map { disciple ->
             if (disciple.id in survivorIds && disciple.isAlive) {
-                disciple.copyWith(soulPower = disciple.equipment.soulPower + 1)
+                disciple.copyWith(soulPower = disciple.soulPower + 1)
             } else {
                 disciple
             }

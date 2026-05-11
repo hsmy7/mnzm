@@ -54,6 +54,7 @@ class SaveDataConverterTest {
             cultivationSpeedBonus = 0.0,
             cultivationSpeedDuration = 0,
             discipleType = "inner",
+            soulPower = 50,
             combat = CombatAttributes(
                 baseHp = 1000,
                 baseMp = 500,
@@ -89,7 +90,6 @@ class SaveDataConverterTest {
                 bootsId = "",
                 accessoryId = "",
                 spiritStones = 1000,
-                soulPower = 50,
                 storageBagItems = emptyList(),
                 storageBagSpiritStones = 500L
             ),
@@ -618,7 +618,6 @@ class SaveDataConverterTest {
                 ),
                 equipment = EquipmentSet(
                     spiritStones = 0,
-                    soulPower = 0,
                     storageBagItems = emptyList(),
                     storageBagSpiritStones = 0L
                 ),

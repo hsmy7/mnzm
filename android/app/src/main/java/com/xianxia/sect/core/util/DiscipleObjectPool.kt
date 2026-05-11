@@ -342,7 +342,7 @@ class MutableDisciple {
         bootsNurture = disciple.equipment.bootsNurture
         accessoryNurture = disciple.equipment.accessoryNurture
         spiritStones = disciple.equipment.spiritStones
-        soulPower = disciple.equipment.soulPower
+        soulPower = disciple.soulPower
         storageBagItems.clear()
         storageBagItems.addAll(disciple.equipment.storageBagItems)
         storageBagSpiritStones = disciple.equipment.storageBagSpiritStones
@@ -427,6 +427,7 @@ class MutableDisciple {
             cultivationSpeedBonus = cultivationSpeedBonus,
             cultivationSpeedDuration = cultivationSpeedDuration,
             discipleType = discipleType,
+            soulPower = soulPower,
             combat = CombatAttributes(
                 baseHp = baseHp,
                 baseMp = baseMp,
@@ -475,8 +476,7 @@ class MutableDisciple {
                 accessoryNurture = accessoryNurture,
                 storageBagItems = storageBagItems.toList(),
                 storageBagSpiritStones = storageBagSpiritStones,
-                spiritStones = spiritStones,
-                soulPower = soulPower
+                spiritStones = spiritStones
             ),
             social = SocialData(
                 partnerId = partnerId,

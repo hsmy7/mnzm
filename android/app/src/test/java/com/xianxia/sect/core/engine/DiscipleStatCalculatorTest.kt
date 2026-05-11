@@ -208,18 +208,30 @@ class DiscipleStatCalculatorTest {
     }
 
     @Test
-    fun `getBreakthroughChance - 不满足神魂要求返回0`() {
-        val disciple = createDisciple(realm = 5, realmLayer = 9)
-        val chance = DiscipleStatCalculator.getBreakthroughChance(disciple)
-        assertEquals(0.0, chance, 0.001)
+    fun `getSoulPowerBreakthroughBonus - 0神魂无加成`() {
+        assertEquals(0.0, DiscipleStatCalculator.getSoulPowerBreakthroughBonus(0), 0.001)
     }
 
     @Test
-    fun `getBreakthroughChance - 满足神魂要求返回基础概率`() {
-        val disciple = createDisciple(realm = 9, realmLayer = 1)
-        val baseChance = GameConfig.Realm.getBreakthroughChance(9, 1)
-        val chance = DiscipleStatCalculator.getBreakthroughChance(disciple)
-        assertEquals(baseChance, chance, 0.001)
+    fun `getSoulPowerBreakthroughBonus - 每10点加1%`() {
+        assertEquals(0.01, DiscipleStatCalculator.getSoulPowerBreakthroughBonus(10), 0.001)
+        assertEquals(0.05, DiscipleStatCalculator.getSoulPowerBreakthroughBonus(50), 0.001)
+        assertEquals(0.10, DiscipleStatCalculator.getSoulPowerBreakthroughBonus(100), 0.001)
+    }
+
+    @Test
+    fun `getSoulPowerBreakthroughBonus - 超过100后上限10%`() {
+        assertEquals(0.10, DiscipleStatCalculator.getSoulPowerBreakthroughBonus(150), 0.001)
+        assertEquals(0.10, DiscipleStatCalculator.getSoulPowerBreakthroughBonus(999), 0.001)
+    }
+
+    @Test
+    fun `getBreakthroughChance - 神魂加成增加突破率`() {
+        val disciple = createDisciple(realm = 3, realmLayer = 1)
+        val baseChance = DiscipleStatCalculator.getBreakthroughChance(disciple)
+        val boostedDisciple = disciple.copyWith(soulPower = 50)
+        val boostedChance = DiscipleStatCalculator.getBreakthroughChance(boostedDisciple)
+        assertEquals(baseChance + 0.05, boostedChance, 0.001)
     }
 
     @Test

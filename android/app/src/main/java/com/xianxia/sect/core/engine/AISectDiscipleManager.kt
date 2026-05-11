@@ -275,10 +275,6 @@ object AISectDiscipleManager {
 
             while (newCultivation >= disciple.maxCultivation && newRealm > 0) {
                 val isMajorBreakthrough = newRealmLayer >= GameConfig.Realm.get(newRealm).maxLayers
-                if (isMajorBreakthrough && !DiscipleStatCalculator.meetsSoulPowerRequirement(newRealm, newRealmLayer, disciple.equipment.soulPower)) {
-                    break
-                }
-
                 val rootCount = disciple.spiritRoot.types.size
                 val breakthroughChance = GameConfig.Realm.getBreakthroughChance(newRealm, rootCount, newRealmLayer)
                 if (Random.nextDouble() < breakthroughChance) {

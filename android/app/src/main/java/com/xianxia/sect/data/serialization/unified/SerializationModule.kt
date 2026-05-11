@@ -1217,7 +1217,7 @@ class SaveDataConverter @Inject constructor() {
             accessoryNurture = NullSafeProtoBuf.nurtureDataToProto(disciple.equipment.accessoryNurture),
             // 数值字段
             spiritStones = disciple.equipment.spiritStones ?: 0,
-            soulPower = disciple.equipment.soulPower ?: 0,
+            soulPower = disciple.soulPower,
             storageBagItems = NullSafeProtoBuf.listToProto(disciple.equipment.storageBagItems)?.map { convertStorageBagItem(it) } ?: emptyList(),
             storageBagSpiritStones = disciple.equipment.storageBagSpiritStones ?: 0L,
             status = disciple.status.name,
@@ -1319,6 +1319,7 @@ class SaveDataConverter @Inject constructor() {
             cultivationSpeedBonus = data.cultivationSpeedBonus,
             cultivationSpeedDuration = data.cultivationSpeedDuration,
             discipleType = data.discipleType.ifEmpty { "outer" },
+            soulPower = data.soulPower,
             combat = com.xianxia.sect.core.model.CombatAttributes(
                 baseHp = data.baseHp,
                 baseMp = data.baseMp,
@@ -1367,8 +1368,7 @@ class SaveDataConverter @Inject constructor() {
                 accessoryNurture = accessoryNurture ?: com.xianxia.sect.core.model.EquipmentNurtureData("", 0),
                 storageBagItems = data.storageBagItems.map { convertBackStorageBagItem(it) },
                 storageBagSpiritStones = data.storageBagSpiritStones,
-                spiritStones = data.spiritStones,
-                soulPower = data.soulPower
+                spiritStones = data.spiritStones
             ),
             social = com.xianxia.sect.core.model.SocialData(
                 partnerId = partnerId,

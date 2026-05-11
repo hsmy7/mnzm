@@ -97,6 +97,8 @@ data class Disciple(
 
     var autoLearnFromWarehouse: Boolean = false,
 
+    var soulPower: Int = 0,
+
     // ========== @Embedded 组件 ==========
     @Embedded
     var combat: CombatAttributes = CombatAttributes(),
@@ -218,9 +220,6 @@ data class Disciple(
     var storageBagSpiritStones: Long get() = equipment.storageBagSpiritStones; set(value) { equipment.storageBagSpiritStones = value }
     /** @deprecated 请改用 [equipment.spiritStones] */
     var spiritStones: Int get() = equipment.spiritStones; set(value) { equipment.spiritStones = value }
-    /** @deprecated 请改用 [equipment.soulPower] */
-    var soulPower: Int get() = equipment.soulPower; set(value) { equipment.soulPower = value }
-
     // --- SocialData 委托 ---
     /** @deprecated 请改用 [social.partnerId] */
     var partnerId: String? get() = social.partnerId; set(value) { social.partnerId = value }
@@ -459,6 +458,7 @@ data class Disciple(
             cultivationSpeedDuration = cultivationSpeedDuration,
             discipleType = discipleType,
             autoLearnFromWarehouse = autoLearnFromWarehouse,
+            soulPower = soulPower,
             combat = CombatAttributes(
                 baseHp = baseHp,
                 baseMp = baseMp,
@@ -508,8 +508,7 @@ data class Disciple(
                 autoEquipFromWarehouse = autoEquipFromWarehouse,
                 storageBagItems = storageBagItems,
                 storageBagSpiritStones = storageBagSpiritStones,
-                spiritStones = spiritStones,
-                soulPower = soulPower
+                spiritStones = spiritStones
             ),
             social = SocialData(
                 partnerId = partnerId,

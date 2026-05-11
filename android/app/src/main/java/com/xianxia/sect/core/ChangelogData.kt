@@ -9,6 +9,14 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.0.03",
+            date = "2026-05-12",
+            changes = listOf(
+                "移除内置开发用兑换码，清理未使用的兑换码配置代码",
+                "神魂系统重做：神魂改为突破率加成（每10点+1%，最多+10%），适用于所有境界突破；弟子初始神魂为0"
+            )
+        ),
+        ChangelogEntry(
             version = "3.0.02",
             date = "2026-05-12",
             changes = listOf(

@@ -47,7 +47,7 @@ data class DiscipleEquipment(
                 storageBagItems = disciple.equipment.storageBagItems,
                 storageBagSpiritStones = disciple.equipment.storageBagSpiritStones,
                 spiritStones = disciple.equipment.spiritStones,
-                soulPower = disciple.equipment.soulPower,
+                soulPower = disciple.soulPower,
                 autoEquipFromWarehouse = disciple.equipment.autoEquipFromWarehouse
             )
         }

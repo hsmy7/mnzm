@@ -269,6 +269,7 @@ data class DiscipleAggregate(
             cultivationSpeedDuration = cultivationSpeedDuration,
             discipleType = discipleType,
             autoLearnFromWarehouse = autoLearnFromWarehouse,
+            soulPower = soulPower,
             combat = CombatAttributes(
                 baseHp = baseHp,
                 baseMp = baseMp,
@@ -325,8 +326,7 @@ data class DiscipleAggregate(
                 autoEquipFromWarehouse = autoEquipFromWarehouse,
                 storageBagItems = storageBagItems,
                 storageBagSpiritStones = storageBagSpiritStones,
-                spiritStones = spiritStones,
-                soulPower = soulPower
+                spiritStones = spiritStones
             ),
             social = SocialData(
                 partnerId = partnerId,
