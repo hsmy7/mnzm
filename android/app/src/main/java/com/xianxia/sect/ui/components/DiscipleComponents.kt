@@ -110,7 +110,7 @@ fun FollowedTag(
  * 统一的弟子卡片，左侧半身像 + 右侧多行信息。
  * 用于所有弟子列表和选择界面。
  * actions: 替换第一行右侧（状态/选中标记）
- * customAttributes: 替换第三行（悟性/忠诚/道德）
+ * customAttributes: 替换第三行（悟性/忠诚）
  * extraAttributes: 追加在第三行后面
  */
 @Composable
@@ -247,7 +247,6 @@ fun PortraitDiscipleCard(
                     } else {
                         DiscipleAttrText("悟性", disciple.comprehension)
                         DiscipleAttrText("忠诚", disciple.loyalty)
-                        DiscipleAttrText("道德", disciple.morality)
                     }
                     extraAttributes.forEach { (name, value) ->
                         DiscipleAttrText(name, value)
