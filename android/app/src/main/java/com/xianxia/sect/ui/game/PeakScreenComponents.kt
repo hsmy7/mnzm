@@ -414,7 +414,7 @@ fun PeakDiscipleListSection(
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 items(displayItems) { disciple ->
-                    PeakDiscipleItem(disciple = disciple)
+                    PortraitDiscipleCard(disciple = disciple, onClick = {})
                 }
                 if (truncateAt != null && sortedDisciples.size > truncateAt) {
                     item {
@@ -427,61 +427,6 @@ fun PeakDiscipleListSection(
                         )
                     }
                 }
-            }
-        }
-    }
-}
-
-@Composable
-private fun PeakDiscipleItem(disciple: DiscipleAggregate) {
-    val borderColor = try {
-        Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))
-    } catch (e: Exception) {
-        GameColors.Border
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(6.dp))
-            .background(GameColors.PageBackground)
-            .border(1.dp, borderColor, RoundedCornerShape(6.dp))
-            .padding(8.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = disciple.name,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-                if (disciple.isFollowed) {
-                    FollowedTag()
-                }
-            }
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = disciple.spiritRootName,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = borderColor
-                )
-                Text(
-                    text = disciple.realmName,
-                    fontSize = 10.sp,
-                    color = Color.Black
-                )
             }
         }
     }

@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.sp
 import com.xianxia.sect.R
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.Talent
+import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.util.PortraitPool
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.theme.GameColors
@@ -106,8 +107,9 @@ fun FollowedTag(
 }
 
 /**
- * 统一的弟子卡片，左侧半身像 + 右侧三行信息。
+ * 统一的弟子卡片，左侧半身像 + 右侧多行信息。
  * 用于所有弟子列表和选择界面。
+ * actions: 替换第一行右侧（状态/选中标记）
  * customAttributes: 替换第三行（悟性/忠诚/道德）
  * extraAttributes: 追加在第三行后面
  */
@@ -118,11 +120,15 @@ fun PortraitDiscipleCard(
     isCurrent: Boolean = false,
     extraAttributes: List<Pair<String, Int>> = emptyList(),
     customAttributes: @Composable (() -> Unit)? = null,
+    actions: @Composable (() -> Unit)? = null,
     onClick: () -> Unit
 ) {
     val borderColor = if (isSelected) GameColors.Gold else Color(0xFFE0E0E0)
     val borderWidth = if (isSelected) 2.dp else 1.dp
     val statusText = disciple.status.displayName
+    val talents = remember(disciple.talentIds) {
+        TalentDatabase.getTalentsByIds(disciple.talentIds)
+    }
 
     Box(
         modifier = Modifier
@@ -185,23 +191,27 @@ fun PortraitDiscipleCard(
                             Text(text = "当前", fontSize = 10.sp, color = Color(0xFFE74C3C))
                         }
                     }
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = statusText,
-                            fontSize = 12.sp,
-                            color = Color.Black,
-                            maxLines = 1
-                        )
-                        if (isSelected) {
+                    if (actions != null) {
+                        actions()
+                    } else {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Text(
-                                text = "✓",
-                                fontSize = 13.sp,
-                                color = GameColors.GoldDark,
-                                fontWeight = FontWeight.Bold
+                                text = statusText,
+                                fontSize = 12.sp,
+                                color = Color.Black,
+                                maxLines = 1
                             )
+                            if (isSelected) {
+                                Text(
+                                    text = "✓",
+                                    fontSize = 13.sp,
+                                    color = GameColors.GoldDark,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                     }
                 }
@@ -241,6 +251,26 @@ fun PortraitDiscipleCard(
                     }
                     extraAttributes.forEach { (name, value) ->
                         DiscipleAttrText(name, value)
+                    }
+                }
+                if (talents.isNotEmpty()) {
+                    val talentRows = talents.chunked(3)
+                    talentRows.forEach { rowTalents ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(3.dp)
+                        ) {
+                            rowTalents.forEach { talent ->
+                                val rarityColor = getTalentRarityColor(talent.rarity)
+                                Text(
+                                    text = talent.name,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = rarityColor,
+                                    maxLines = 1
+                                )
+                            }
+                        }
                     }
                 }
             }

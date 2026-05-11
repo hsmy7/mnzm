@@ -33,6 +33,8 @@ import com.xianxia.sect.ui.theme.getSpiritRootColor
 import com.xianxia.sect.ui.components.discipleCardBorder
 import com.xianxia.sect.ui.components.DiscipleAttrText
 import com.xianxia.sect.ui.components.CloseButton
+import com.xianxia.sect.ui.components.PortraitDiscipleCard
+import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.TalentDetailDialog
 import com.xianxia.sect.ui.components.getTalentRarityColor
@@ -78,12 +80,24 @@ fun RecruitDialog(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(sortedRecruitList, key = { it.id }) { disciple ->
-                            val onAccept = remember { { viewModel.recruitDisciple(disciple) } }
-                            val onReject = remember { { viewModel.rejectDiscipleFromList(disciple.id) } }
-                            RecruitDiscipleCard(
+                            PortraitDiscipleCard(
                                 disciple = disciple,
-                                onAccept = onAccept,
-                                onReject = onReject
+                                isSelected = false,
+                                actions = {
+                                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        GameButton(
+                                            text = "拒绝",
+                                            onClick = { viewModel.rejectDiscipleFromList(disciple.id) },
+                                            modifier = Modifier.width(ButtonSizes.StandardWidth)
+                                        )
+                                        GameButton(
+                                            text = "同意",
+                                            onClick = { viewModel.recruitDisciple(disciple) },
+                                            modifier = Modifier.width(ButtonSizes.StandardWidth)
+                                        )
+                                    }
+                                },
+                                onClick = {}
                             )
                         }
                     }
@@ -132,127 +146,6 @@ private fun RecruitHeader(
                 onClick = onAutoRecruitClick
             )
             CloseButton(onClick = onDismiss)
-        }
-    }
-}
-
-@Composable
-private fun RecruitDiscipleCard(
-    disciple: DiscipleAggregate,
-    onAccept: () -> Unit,
-    onReject: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .discipleCardBorder()
-    ) {
-        Image(
-            painter = painterResource(id = R.drawable.bg_horizontal),
-            contentDescription = null,
-            modifier = Modifier.matchParentSize(),
-            contentScale = ContentScale.FillBounds
-        )
-        Column(modifier = Modifier.padding(12.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = disciple.name,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = GameColors.TextPrimary
-                )
-                val spiritRootColor = remember(disciple.spiritRoot.countColor, disciple.spiritRootType) {
-                    try {
-                        Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))
-                    } catch (e: IllegalArgumentException) {
-                        getSpiritRootColor(disciple.spiritRootType)
-                    }
-                }
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(spiritRootColor.copy(alpha = 0.2f))
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                ) {
-                    Text(
-                        text = disciple.spiritRootName,
-                        fontSize = 11.sp,
-                        color = spiritRootColor
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    DiscipleAttrText("悟性", disciple.comprehension)
-                    DiscipleAttrText("道德", disciple.morality)
-                }
-                
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    GameButton(
-                        text = "拒绝",
-                        onClick = onReject,
-                        modifier = Modifier.width(ButtonSizes.StandardWidth)
-                    )
-                    GameButton(
-                        text = "同意",
-                        onClick = onAccept,
-                        modifier = Modifier.width(ButtonSizes.StandardWidth)
-                    )
-                }
-            }
-
-            val talents = remember(disciple.talentIds) {
-                TalentDatabase.getTalentsByIds(disciple.talentIds)
-            }
-            if (talents.isNotEmpty()) {
-                var selectedTalent by remember { mutableStateOf<Talent?>(null) }
-                Spacer(modifier = Modifier.height(6.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    talents.forEach { talent ->
-                        val rarityColor = getTalentRarityColor(talent.rarity)
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(rarityColor.copy(alpha = 0.15f))
-                                .clickable { selectedTalent = talent }
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                text = talent.name,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = rarityColor,
-                                maxLines = 1
-                            )
-                        }
-                    }
-                }
-                selectedTalent?.let { talent ->
-                    TalentDetailDialog(
-                        talent = talent,
-                        onDismiss = { selectedTalent = null }
-                    )
-                }
-            }
         }
     }
 }

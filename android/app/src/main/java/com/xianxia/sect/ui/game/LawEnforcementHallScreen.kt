@@ -35,6 +35,7 @@ import com.xianxia.sect.ui.components.ElderBonusInfoButton
 import com.xianxia.sect.ui.components.ElderBonusInfoProvider
 import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.ui.components.HalfScreenDialog
+import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.core.util.sortedByFollowAndRealm
 
@@ -261,91 +262,6 @@ private fun LawDisciplesSection(
                     disciple = disciple,
                     onClick = { onDiscipleClick(index) },
                     onRemove = { onDiscipleRemove(index) }
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ReserveDiscipleCard(
-    disciple: DiscipleAggregate,
-    onRemove: () -> Unit
-) {
-    val spiritRootColor = try {
-        Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))
-    } catch (e: Exception) {
-        Color.Black
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(6.dp))
-            .background(Color(0xFFF8F8F8))
-            .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
-            .padding(10.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = disciple.name,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black,
-                        maxLines = 1
-                    )
-                    if (disciple.isFollowed) {
-                        FollowedTag()
-                    }
-                    Text(
-                        text = disciple.spiritRootName,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = spiritRootColor,
-                        maxLines = 1
-                    )
-                }
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "智力: ${disciple.intelligence}",
-                        fontSize = 10.sp,
-                        color = Color.Black
-                    )
-                    Text(
-                        text = disciple.realmName,
-                        fontSize = 10.sp,
-                        color = Color.Black
-                    )
-                }
-            }
-            
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(GameColors.PageBackground)
-                    .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
-                    .clickable(onClick = onRemove)
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-            ) {
-                Text(
-                    text = "移除",
-                    fontSize = 10.sp,
-                    color = Color.Black
                 )
             }
         }
@@ -672,9 +588,22 @@ private fun ReserveDiscipleListDialog(
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         items(sortedReserveDisciples, key = { it.id }) { disciple ->
-                            ReserveDiscipleCard(
+                            PortraitDiscipleCard(
                                 disciple = disciple,
-                                onRemove = { productionViewModel.removeReserveDisciple(disciple.id) }
+                                extraAttributes = listOf("智力" to disciple.intelligence),
+                                actions = {
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(GameColors.PageBackground)
+                                            .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
+                                            .clickable { productionViewModel.removeReserveDisciple(disciple.id) }
+                                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                                    ) {
+                                        Text(text = "移除", fontSize = 10.sp, color = Color.Black)
+                                    }
+                                },
+                                onClick = {}
                             )
                         }
                     }

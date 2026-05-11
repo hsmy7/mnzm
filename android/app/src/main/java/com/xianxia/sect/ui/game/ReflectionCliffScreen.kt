@@ -31,6 +31,7 @@ import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.ui.components.HalfScreenDialog
+import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.theme.GameColors
 
@@ -96,10 +97,27 @@ fun ReflectionCliffDialog(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(reflectingDisciples) { disciple ->
-                        ReflectingDiscipleCard(
+                        val startYear = disciple.statusData["reflectionStartYear"]?.toIntOrNull() ?: 1
+                        val endYear = disciple.statusData["reflectionEndYear"]?.toIntOrNull() ?: (startYear + 10)
+                        val remainingYears = (endYear - (gameData?.gameYear ?: 1)).coerceAtLeast(0)
+                        PortraitDiscipleCard(
                             disciple = disciple,
-                            currentYear = gameData?.gameYear ?: 1,
-                            onExpelClick = { showExpelConfirmDialog = disciple }
+                            extraAttributes = listOf("道德" to disciple.morality, "思过" to remainingYears),
+                            actions = {
+                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text(text = "思过中", fontSize = 10.sp, color = Color.Black)
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(Color(0xFFE74C3C))
+                                            .clickable { showExpelConfirmDialog = disciple }
+                                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                                    ) {
+                                        Text(text = "驱逐", fontSize = 10.sp, color = Color.White)
+                                    }
+                                }
+                            },
+                            onClick = {}
                         )
                     }
                 }
@@ -150,111 +168,6 @@ fun ReflectionCliffDialog(
                         )
                     }
                 }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ReflectingDiscipleCard(
-    disciple: DiscipleAggregate,
-    currentYear: Int,
-    onExpelClick: () -> Unit = {}
-) {
-    val startYear = disciple.statusData["reflectionStartYear"]?.toIntOrNull() ?: 1
-    val endYear = disciple.statusData["reflectionEndYear"]?.toIntOrNull() ?: (startYear + 10)
-    val remainingYears = (endYear - currentYear).coerceAtLeast(0)
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFFAFAFA))
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Text(
-                        text = disciple.name,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-                    if (disciple.isFollowed) {
-                        FollowedTag()
-                    }
-                    Text(
-                        text = disciple.core.genderSymbol,
-                        fontSize = 11.sp,
-                        color = if (disciple.gender == "male") Color(0xFF2196F3) else Color(0xFFE91E63)
-                    )
-                }
-
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = disciple.realmName,
-                        fontSize = 10.sp,
-                        color = Color.Black
-                    )
-                    Text(
-                        text = "道德: ${disciple.morality}",
-                        fontSize = 10.sp,
-                        color = Color.Black
-                    )
-                }
-
-                Text(
-                    text = "剩余思过: ${remainingYears}年",
-                    fontSize = 11.sp,
-                    color = Color(0xFF9C27B0),
-                    fontWeight = FontWeight.Medium
-                )
-            }
-
-            Column(
-                horizontalAlignment = Alignment.End
-            ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(Color(0xFFE74C3C))
-                            .clickable { onExpelClick() }
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "驱逐",
-                            fontSize = 10.sp,
-                            color = Color.White
-                        )
-                    }
-                    Text(
-                            text = "思过中",
-                            fontSize = 10.sp,
-                            color = Color.Black
-                        )
-                }
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "第${startYear}年入崖",
-                    fontSize = 9.sp,
-                    color = Color.Black
-                )
             }
         }
     }
