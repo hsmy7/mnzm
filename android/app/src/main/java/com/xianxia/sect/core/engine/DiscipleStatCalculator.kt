@@ -515,7 +515,7 @@ object DiscipleStatCalculator {
     }
 
     fun meetsSoulPowerRequirement(aggregate: DiscipleAggregate): Boolean {
-        return meetsSoulPowerRequirement(aggregate.realm, aggregate.realmLayer, aggregate.equipment?.soulPower ?: 10)
+        return meetsSoulPowerRequirement(aggregate.realm, aggregate.realmLayer, aggregate.equipment?.soulPower ?: 0)
     }
 
     fun meetsSoulPowerRequirement(realm: Int, realmLayer: Int, soulPower: Int): Boolean {

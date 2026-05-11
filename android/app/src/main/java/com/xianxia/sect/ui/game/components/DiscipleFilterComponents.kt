@@ -64,7 +64,7 @@ internal fun DropdownFilterButton(
     val contentAlpha = if (hasSelection) 1f else 0.7f
     Box(
         modifier = modifier
-            .height(ButtonSizes.Large)
+            .height(ButtonSizes.StandardHeight)
             .alpha(contentAlpha)
             .clip(RoundedCornerShape(4.dp))
             .clickable { onClick() }

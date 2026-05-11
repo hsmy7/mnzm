@@ -166,6 +166,7 @@ fun PrivacyConsentScreen(
                     .clickable { showFullPolicy = true }
             )
 
+            Spacer(modifier = Modifier.height(4.dp))
         }
     }
 }

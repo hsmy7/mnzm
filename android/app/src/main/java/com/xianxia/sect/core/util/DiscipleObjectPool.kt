@@ -146,7 +146,7 @@ class MutableDisciple {
     var accessoryNurture: EquipmentNurtureData = EquipmentNurtureData("", 0)
     
     var spiritStones: Int = 0
-    var soulPower: Int = 10
+    var soulPower: Int = 0
     
     var storageBagItems: MutableList<StorageBagItem> = mutableListOf()
     var storageBagSpiritStones: Long = 0
@@ -249,7 +249,7 @@ class MutableDisciple {
         bootsNurture = EquipmentNurtureData("", 0)
         accessoryNurture = EquipmentNurtureData("", 0)
         spiritStones = 0
-        soulPower = 10
+        soulPower = 0
         storageBagItems.clear()
         storageBagSpiritStones = 0
         status = DiscipleStatus.IDLE

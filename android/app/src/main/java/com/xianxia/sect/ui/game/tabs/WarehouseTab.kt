@@ -111,7 +111,14 @@ internal enum class WarehouseFilter(val displayName: String) {
 }
 
 @Composable
-internal fun WarehouseTab(viewModel: GameViewModel) {
+@OptIn(ExperimentalLayoutApi::class)
+internal fun WarehouseTab(
+    viewModel: GameViewModel,
+    showBulkSell: Boolean = false,
+    onShowBulkSell: () -> Unit = {},
+    onDismissBulkSell: () -> Unit = {},
+    onClose: () -> Unit = {}
+) {
     val equipmentStacks by viewModel.equipmentStacks.collectAsState()
     val manualStacks by viewModel.manualStacks.collectAsState()
     val pills by viewModel.pills.collectAsState()

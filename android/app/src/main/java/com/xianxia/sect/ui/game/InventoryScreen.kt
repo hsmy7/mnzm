@@ -32,6 +32,7 @@ import com.xianxia.sect.R
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.ui.components.*
+import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.ui.theme.GameColors
 
 @Composable

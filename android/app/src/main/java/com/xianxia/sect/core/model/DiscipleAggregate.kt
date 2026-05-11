@@ -87,7 +87,7 @@ data class DiscipleAggregate(
     val storageBagItems: List<StorageBagItem> get() = equipment?.storageBagItems ?: emptyList()
     val storageBagSpiritStones: Long get() = equipment?.storageBagSpiritStones ?: 0
     val spiritStones: Int get() = equipment?.spiritStones ?: 0
-    val soulPower: Int get() = equipment?.soulPower ?: 10
+    val soulPower: Int get() = equipment?.soulPower ?: 0
     val autoEquipFromWarehouse: Boolean get() = equipment?.autoEquipFromWarehouse ?: false
     
     val manualIds: List<String> get() = extended?.manualIds ?: emptyList()

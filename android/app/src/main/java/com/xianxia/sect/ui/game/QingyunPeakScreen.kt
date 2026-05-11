@@ -15,6 +15,7 @@ import com.xianxia.sect.core.model.*
 import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.ElderBonusInfoProvider
 import com.xianxia.sect.ui.components.HalfScreenDialog
+import androidx.compose.ui.window.DialogProperties
 import com.xianxia.sect.ui.theme.GameColors
 
 @Composable

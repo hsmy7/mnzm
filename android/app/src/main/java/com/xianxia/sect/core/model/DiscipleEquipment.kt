@@ -25,7 +25,7 @@ data class DiscipleEquipment(
     var storageBagItems: List<StorageBagItem> = emptyList(),
     var storageBagSpiritStones: Long = 0,
     var spiritStones: Int = 0,
-    var soulPower: Int = 10,
+    var soulPower: Int = 0,
     var autoEquipFromWarehouse: Boolean = false
 ) {
     val hasEquippedItems: Boolean get() = listOf(weaponId, armorId, bootsId, accessoryId).any { it.isNotEmpty() }

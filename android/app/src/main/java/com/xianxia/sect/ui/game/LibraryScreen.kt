@@ -30,9 +30,10 @@ import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.core.util.sortedByFollowAndRealm
 import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.DialogDefaults
-import com.xianxia.sect.ui.components.HalfScreenDialog
+import androidx.compose.ui.window.DialogProperties
 import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.ui.components.HorizontalDiscipleCard
+import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
 

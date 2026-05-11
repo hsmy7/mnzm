@@ -26,7 +26,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.*
-import com.xianxia.sect.ui.components.HalfScreenDialog
+import androidx.compose.ui.window.DialogProperties
 import com.xianxia.sect.ui.theme.GameColors
 
 import com.xianxia.sect.ui.components.CloseButton
@@ -34,6 +34,7 @@ import com.xianxia.sect.ui.components.DialogDefaults
 import com.xianxia.sect.ui.components.ElderBonusInfoButton
 import com.xianxia.sect.ui.components.ElderBonusInfoProvider
 import com.xianxia.sect.ui.components.FollowedTag
+import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.core.util.sortedByFollowAndRealm
 

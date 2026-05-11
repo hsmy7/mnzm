@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.PlatformTextStyle
@@ -42,6 +43,7 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.ui.game.components.ItemDetailDialog
 import com.xianxia.sect.ui.game.components.LearnedManualDetailDialog
 import com.xianxia.sect.core.util.GameUtils
+import com.xianxia.sect.core.util.PortraitPool
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.components.DiscipleAttrText
 import com.xianxia.sect.ui.components.EmptyListMessage
@@ -215,7 +217,7 @@ fun DiscipleDetailDialog(
                         Image(
                             painter = painterResource(id = R.drawable.disciple_portrait),
                             contentDescription = null,
-                            modifier = Modifier.weight(0.6f).fillMaxWidth().padding(8.dp),
+                            modifier = Modifier.weight(0.9f).fillMaxWidth().padding(8.dp),
                             contentScale = ContentScale.Fit
                         )
                         Spacer(modifier = Modifier.height(12.dp))

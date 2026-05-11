@@ -37,6 +37,7 @@ import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.TalentDetailDialog
 import com.xianxia.sect.ui.components.getTalentRarityColor
 import com.xianxia.sect.ui.components.HalfScreenDialog
+import androidx.compose.ui.window.DialogProperties
 
 @Composable
 fun RecruitDialog(

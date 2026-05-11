@@ -33,6 +33,7 @@ import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.DialogDefaults
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.HalfScreenDialog
+import androidx.compose.ui.window.DialogProperties
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.game.ForgeViewModel
 import com.xianxia.sect.ui.game.ProductionViewModel

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -505,8 +506,8 @@ fun MainGameScreen(
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 FloatingActionButton(text = "弟子", onClick = { showDisciplesDialog = true }, drawableRes = R.drawable.ui_team_button)
-                FloatingActionButton(text = "建造", onClick = { buildingBarExpanded = !buildingBarExpanded; isPlacingBuilding = false }, drawableRes = R.drawable.ui_start_button)
-                FloatingActionButton(text = "仓库", onClick = { showWarehouseDialog = true }, drawableRes = R.drawable.ui_secret_realm_button)
+                FloatingActionButton(text = "建造", onClick = { buildingBarExpanded = !buildingBarExpanded; isPlacingBuilding = false }, drawableRes = R.drawable.ui_build_button)
+                FloatingActionButton(text = "仓库", onClick = { showWarehouseDialog = true }, drawableRes = R.drawable.ui_warehouse_button)
                 FloatingActionButton(text = "日志", onClick = { viewModel.openBattleLogDialog() }, drawableRes = R.drawable.ui_log_button)
                 FloatingActionButton(text = "设置", onClick = { showSettingsDialog = true }, drawableRes = R.drawable.ui_settings_button)
             }
@@ -1271,7 +1272,7 @@ private fun FloatingActionButton(
     onClick: () -> Unit,
     drawableRes: Int = R.drawable.ui_button
 ) {
-    val size = ButtonSizes.StandardHeight + 6.dp
+    val size = 35.dp
     Box(
         modifier = Modifier
             .size(size)
