@@ -539,7 +539,7 @@ fun MainGameScreen(
         if (showDisciplesDialog) {
             Dialog(
                 onDismissRequest = { showDisciplesDialog = false },
-                properties = DialogProperties(usePlatformDefaultWidth = false)
+                properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
             ) {
             Surface(
                 modifier = Modifier.fillMaxSize(),
@@ -588,7 +588,7 @@ fun MainGameScreen(
         if (showWarehouseDialog) {
             Dialog(
                 onDismissRequest = { showWarehouseDialog = false },
-                properties = DialogProperties(usePlatformDefaultWidth = false)
+                properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
             ) {
             Surface(
                 modifier = Modifier.fillMaxSize(),
@@ -616,7 +616,7 @@ fun MainGameScreen(
         if (showSettingsDialog) {
             Dialog(
                 onDismissRequest = { showSettingsDialog = false },
-                properties = DialogProperties(usePlatformDefaultWidth = false)
+                properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
             ) {
             Surface(
                 modifier = Modifier.fillMaxSize(),
@@ -1467,7 +1467,7 @@ private fun GameOverDialog(
 ) {
     Dialog(
         onDismissRequest = { /* no-op: game-over can't be dismissed */ },
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
     ) {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Card(

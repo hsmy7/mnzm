@@ -214,7 +214,7 @@ private fun ElderRemoveConfirmDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         Box(
             modifier = Modifier
                 .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
@@ -565,7 +565,7 @@ private fun SeedPlantingDialog(
         }
     }
 
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         Box(
             modifier = Modifier
                 .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)

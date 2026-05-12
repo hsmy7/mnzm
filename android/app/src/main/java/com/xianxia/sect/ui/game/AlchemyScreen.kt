@@ -460,7 +460,7 @@ private fun PillDetailDialog(
     herbs: List<Herb>,
     onDismiss: () -> Unit
 ) {
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()

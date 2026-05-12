@@ -236,7 +236,7 @@ private fun LibraryDiscipleSelectionDialog(
         sortedDisciples.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort)
     }
 
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         Box(
             modifier = Modifier
                 .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)

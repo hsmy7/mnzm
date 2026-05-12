@@ -9,6 +9,13 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.0.12",
+            date = "2026-05-13",
+            changes = listOf(
+                "修复全屏弹窗（弟子/仓库/设置/世界地图/招募/炼丹/锻造/药园等）在部分手机上左右两侧有空隙的问题，统一配置 Dialog 窗口边距"
+            )
+        ),
+        ChangelogEntry(
             version = "3.0.11",
             date = "2026-05-12",
             changes = listOf(

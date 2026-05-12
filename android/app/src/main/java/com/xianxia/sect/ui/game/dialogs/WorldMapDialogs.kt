@@ -250,7 +250,7 @@ internal fun WorldMapDialog(
 
     Dialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
     ) {
     WorldMapScreen(
         items = mapItems,
