@@ -41,8 +41,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
+import androidx.activity.compose.BackHandler
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.R
 import com.xianxia.sect.core.model.BattleSlotType
@@ -536,42 +535,38 @@ fun MainGameScreen(
 
         // Full-screen disciples dialog
         if (showDisciplesDialog) {
-            Dialog(
-                onDismissRequest = { showDisciplesDialog = false },
-                properties = DialogProperties(usePlatformDefaultWidth = false)
+            BackHandler(onBack = { showDisciplesDialog = false })
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = GameColors.PageBackground
             ) {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = GameColors.PageBackground
-                ) {
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        Image(
-                            painter = painterResource(id = R.drawable.bg_horizontal),
-                            contentDescription = null,
-                            modifier = Modifier.matchParentSize(),
-                            contentScale = ContentScale.Crop
-                        )
-                        Column(modifier = Modifier.fillMaxSize()) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Spacer(modifier = Modifier.weight(1f))
-                                CloseButton(onClick = { showDisciplesDialog = false })
-                            }
-                            DisciplesTab(
-                                gameData = gameData,
-                                disciples = aliveDisciples.value,
-                                equipment = equipment,
-                                manuals = manuals,
-                                manualStacks = manualStacks,
-                                equipmentStacks = equipmentStacks,
-                                viewModel = viewModel
-                            )
+                Box(modifier = Modifier.fillMaxSize()) {
+                    Image(
+                        painter = painterResource(id = R.drawable.bg_horizontal),
+                        contentDescription = null,
+                        modifier = Modifier.matchParentSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Spacer(modifier = Modifier.weight(1f))
+                            CloseButton(onClick = { showDisciplesDialog = false })
                         }
+                        DisciplesTab(
+                            gameData = gameData,
+                            disciples = aliveDisciples.value,
+                            equipment = equipment,
+                            manuals = manuals,
+                            manualStacks = manualStacks,
+                            equipmentStacks = equipmentStacks,
+                            viewModel = viewModel
+                        )
                     }
                 }
             }
@@ -579,27 +574,23 @@ fun MainGameScreen(
 
         // Full-screen warehouse dialog
         if (showWarehouseDialog) {
-            Dialog(
-                onDismissRequest = { showWarehouseDialog = false },
-                properties = DialogProperties(usePlatformDefaultWidth = false)
+            BackHandler(onBack = { showWarehouseDialog = false })
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = GameColors.PageBackground
             ) {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = GameColors.PageBackground
-                ) {
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        Image(
-                            painter = painterResource(id = R.drawable.bg_horizontal),
-                            contentDescription = null,
-                            modifier = Modifier.matchParentSize(),
-                            contentScale = ContentScale.Crop
+                Box(modifier = Modifier.fillMaxSize()) {
+                    Image(
+                        painter = painterResource(id = R.drawable.bg_horizontal),
+                        contentDescription = null,
+                        modifier = Modifier.matchParentSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        WarehouseTab(
+                            viewModel = viewModel,
+                            onDismiss = { showWarehouseDialog = false }
                         )
-                        Column(modifier = Modifier.fillMaxSize()) {
-                            WarehouseTab(
-                                viewModel = viewModel,
-                                onDismiss = { showWarehouseDialog = false }
-                            )
-                        }
                     }
                 }
             }
@@ -607,30 +598,26 @@ fun MainGameScreen(
 
         // Full-screen settings dialog
         if (showSettingsDialog) {
-            Dialog(
-                onDismissRequest = { showSettingsDialog = false },
-                properties = DialogProperties(usePlatformDefaultWidth = false)
+            BackHandler(onBack = { showSettingsDialog = false })
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = GameColors.PageBackground
             ) {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = GameColors.PageBackground
-                ) {
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        Image(
-                            painter = painterResource(id = R.drawable.bg_horizontal),
-                            contentDescription = null,
-                            modifier = Modifier.matchParentSize(),
-                            contentScale = ContentScale.Crop
-                        )
-                        SettingsTab(
-                            viewModel = viewModel,
-                            saveLoadViewModel = saveLoadViewModel,
-                            onLogout = onLogout,
-                            onDismiss = { showSettingsDialog = false },
-                            limitAdTracking = limitAdTracking,
-                            onLimitAdTrackingChanged = onLimitAdTrackingChanged
-                        )
-                    }
+                Box(modifier = Modifier.fillMaxSize()) {
+                    Image(
+                        painter = painterResource(id = R.drawable.bg_horizontal),
+                        contentDescription = null,
+                        modifier = Modifier.matchParentSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                    SettingsTab(
+                        viewModel = viewModel,
+                        saveLoadViewModel = saveLoadViewModel,
+                        onLogout = onLogout,
+                        onDismiss = { showSettingsDialog = false },
+                        limitAdTracking = limitAdTracking,
+                        onLimitAdTrackingChanged = onLimitAdTrackingChanged
+                    )
                 }
             }
         }
@@ -1458,7 +1445,8 @@ private fun GameOverDialog(
     onRestartGame: () -> Unit,
     onReturnToMain: () -> Unit
 ) {
-    Dialog(onDismissRequest = {}) {
+    BackHandler(onBack = {})
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1514,7 +1502,8 @@ private fun CommonDialog(
     onDismiss: () -> Unit,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    Dialog(onDismissRequest = onDismiss) {
+    BackHandler(onBack = onDismiss)
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Box(
             modifier = Modifier
                 .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)

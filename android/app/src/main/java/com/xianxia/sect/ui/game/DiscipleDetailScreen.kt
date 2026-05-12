@@ -33,7 +33,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
+import androidx.activity.compose.BackHandler
 import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.engine.DiscipleStatCalculator
 import com.xianxia.sect.core.engine.ManualProficiencySystem
@@ -193,16 +193,13 @@ fun DiscipleDetailDialog(
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("信息", "属性", "装备", "功法")
 
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+    BackHandler(onBack = onDismiss)
+    key(disciple.id) {
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = GameColors.PageBackground
     ) {
-        key(disciple.id) {
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = GameColors.PageBackground
-        ) {
-            Box(modifier = Modifier.fillMaxSize()) {
+        Box(modifier = Modifier.fillMaxSize()) {
                 Image(
                     painter = painterResource(id = R.drawable.bg_horizontal),
                     contentDescription = null,
@@ -365,7 +362,6 @@ fun DiscipleDetailDialog(
                     modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)
                 )
             }
-        }
         }
     }
 

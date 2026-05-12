@@ -30,8 +30,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
+
 import com.xianxia.sect.R
 import com.xianxia.sect.ui.theme.AppTypography
 import com.xianxia.sect.ui.theme.CornerRadius
@@ -238,23 +237,19 @@ fun HalfScreenDialog(
     onDismissRequest: () -> Unit,
     content: @Composable () -> Unit
 ) {
-    Dialog(
-        onDismissRequest = onDismissRequest,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+    BackHandler(onBack = onDismissRequest)
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = GameColors.PageBackground
     ) {
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = GameColors.PageBackground
-        ) {
-            Box(modifier = Modifier.fillMaxSize()) {
-                Image(
-                    painter = painterResource(id = R.drawable.bg_horizontal),
-                    contentDescription = null,
-                    modifier = Modifier.matchParentSize(),
-                    contentScale = ContentScale.Crop
-                )
-                content()
-            }
+        Box(modifier = Modifier.fillMaxSize()) {
+            Image(
+                painter = painterResource(id = R.drawable.bg_horizontal),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.Crop
+            )
+            content()
         }
     }
 }
