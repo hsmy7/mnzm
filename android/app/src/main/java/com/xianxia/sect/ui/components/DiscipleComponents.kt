@@ -252,13 +252,20 @@ fun PortraitDiscipleCard(
                         DiscipleAttrText(name, value)
                     }
                 }
-                if (talents.isNotEmpty()) {
-                    val talentRows = talents.chunked(3)
-                    talentRows.forEach { rowTalents ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(3.dp)
-                        ) {
+                val talentRows = talents.chunked(3)
+                val displayRows = (talentRows + List(2) { emptyList<Talent>() }).take(2)
+                displayRows.forEach { rowTalents ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(3.dp)
+                    ) {
+                        if (rowTalents.isEmpty()) {
+                            Text(
+                                text = " ",
+                                fontSize = 9.sp,
+                                color = Color.Transparent
+                            )
+                        } else {
                             rowTalents.forEach { talent ->
                                 val rarityColor = getTalentRarityColor(talent.rarity)
                                 Text(

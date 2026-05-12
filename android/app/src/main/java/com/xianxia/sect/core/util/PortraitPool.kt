@@ -3,8 +3,8 @@ package com.xianxia.sect.core.util
 import kotlin.random.Random
 
 object PortraitPool {
-    private val malePortraits = (1..7).map { "male_disciple_$it" }
-    private val femalePortraits = (1..8).map { "female_disciple_$it" }
+    private val malePortraits = (1..20).map { "male_disciple_$it" }
+    private val femalePortraits = (1..17).map { "female_disciple_$it" }
 
     fun getRandomPortrait(gender: String): String {
         val pool = if (gender == "male") malePortraits else femalePortraits
