@@ -18,6 +18,7 @@ import com.xianxia.sect.core.engine.HerbGardenSystem
 import com.xianxia.sect.core.registry.HerbDatabase
 import com.xianxia.sect.core.engine.CaveExplorationSystem
 import com.xianxia.sect.core.engine.SectWarehouseManager
+import com.xianxia.sect.core.util.PortraitPool
 import com.xianxia.sect.core.engine.WorldMapGenerator
 import com.xianxia.sect.core.engine.CaveGenerator
 import com.xianxia.sect.core.engine.LevelGenerator
@@ -482,6 +483,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
             name = nameResult.fullName,
             surname = nameResult.surname,
             gender = gender,
+            portraitRes = PortraitPool.getRandomPortrait(gender),
             age = 1,
             realm = 9,
             realmLayer = 0, // 未成年，无境界
@@ -4017,6 +4019,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                 name = nameResult.fullName,
                 surname = nameResult.surname,
                 gender = gender,
+                portraitRes = PortraitPool.getRandomPortrait(gender),
                 age = Random.nextInt(16, 30),
                 realm = 9,
                 realmLayer = 1,

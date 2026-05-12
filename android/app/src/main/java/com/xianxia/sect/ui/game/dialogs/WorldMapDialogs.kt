@@ -44,7 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.window.Dialog
-import androidx.activity.compose.BackHandler
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -248,8 +248,10 @@ internal fun WorldMapDialog(
         }
     }
 
-    BackHandler(onBack = onDismiss)
-
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
     WorldMapScreen(
         items = mapItems,
         paths = paths,
@@ -353,6 +355,7 @@ internal fun WorldMapDialog(
                 }
             )
         }
+    }
     }
 }
 

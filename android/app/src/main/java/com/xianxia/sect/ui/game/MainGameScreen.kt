@@ -42,6 +42,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.activity.compose.BackHandler
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.R
 import com.xianxia.sect.core.model.BattleSlotType
@@ -535,7 +537,10 @@ fun MainGameScreen(
 
         // Full-screen disciples dialog
         if (showDisciplesDialog) {
-            BackHandler(onBack = { showDisciplesDialog = false })
+            Dialog(
+                onDismissRequest = { showDisciplesDialog = false },
+                properties = DialogProperties(usePlatformDefaultWidth = false)
+            ) {
             Surface(
                 modifier = Modifier.fillMaxSize(),
                 color = GameColors.PageBackground
@@ -576,11 +581,15 @@ fun MainGameScreen(
                     }
                 }
             }
+            }
         }
 
         // Full-screen warehouse dialog
         if (showWarehouseDialog) {
-            BackHandler(onBack = { showWarehouseDialog = false })
+            Dialog(
+                onDismissRequest = { showWarehouseDialog = false },
+                properties = DialogProperties(usePlatformDefaultWidth = false)
+            ) {
             Surface(
                 modifier = Modifier.fillMaxSize(),
                 color = GameColors.PageBackground
@@ -600,11 +609,15 @@ fun MainGameScreen(
                     }
                 }
             }
+            }
         }
 
         // Full-screen settings dialog
         if (showSettingsDialog) {
-            BackHandler(onBack = { showSettingsDialog = false })
+            Dialog(
+                onDismissRequest = { showSettingsDialog = false },
+                properties = DialogProperties(usePlatformDefaultWidth = false)
+            ) {
             Surface(
                 modifier = Modifier.fillMaxSize(),
                 color = GameColors.PageBackground
@@ -625,6 +638,7 @@ fun MainGameScreen(
                         onLimitAdTrackingChanged = onLimitAdTrackingChanged
                     )
                 }
+            }
             }
         }
 
@@ -1451,7 +1465,10 @@ private fun GameOverDialog(
     onRestartGame: () -> Unit,
     onReturnToMain: () -> Unit
 ) {
-    BackHandler(onBack = {})
+    Dialog(
+        onDismissRequest = { /* no-op: game-over can't be dismissed */ },
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Card(
             modifier = Modifier
@@ -1500,6 +1517,7 @@ private fun GameOverDialog(
                 )
             }
         }
+    }
     }
 }
 @Composable

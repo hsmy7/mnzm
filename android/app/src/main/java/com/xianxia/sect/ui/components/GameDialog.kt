@@ -1,6 +1,8 @@
 package com.xianxia.sect.ui.components
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.Image
@@ -237,7 +239,10 @@ fun HalfScreenDialog(
     onDismissRequest: () -> Unit,
     content: @Composable () -> Unit
 ) {
-    BackHandler(onBack = onDismissRequest)
+    Dialog(
+        onDismissRequest = onDismissRequest,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = GameColors.PageBackground
@@ -251,5 +256,6 @@ fun HalfScreenDialog(
             )
             content()
         }
+    }
     }
 }
