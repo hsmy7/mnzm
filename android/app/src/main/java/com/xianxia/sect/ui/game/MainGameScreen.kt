@@ -555,6 +555,12 @@ fun MainGameScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            Text(
+                                "弟子",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Black
+                            )
                             Spacer(modifier = Modifier.weight(1f))
                             CloseButton(onClick = { showDisciplesDialog = false })
                         }
