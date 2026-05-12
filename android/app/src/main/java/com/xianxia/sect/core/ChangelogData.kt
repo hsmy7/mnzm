@@ -9,6 +9,13 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.0.07",
+            date = "2026-05-12",
+            changes = listOf(
+                "仓库界面标题栏与筛选栏合并，移除重复的仓库文字，筛选按钮修复为标准大小"
+            )
+        ),
+        ChangelogEntry(
             version = "3.0.06",
             date = "2026-05-12",
             changes = listOf(

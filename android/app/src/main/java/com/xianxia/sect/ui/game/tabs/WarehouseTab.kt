@@ -111,7 +111,7 @@ internal enum class WarehouseFilter(val displayName: String) {
 }
 
 @Composable
-internal fun WarehouseTab(viewModel: GameViewModel) {
+internal fun WarehouseTab(viewModel: GameViewModel, onDismiss: () -> Unit = {}) {
     val equipmentStacks by viewModel.equipmentStacks.collectAsState()
     val manualStacks by viewModel.manualStacks.collectAsState()
     val pills by viewModel.pills.collectAsState()
@@ -201,129 +201,40 @@ internal fun WarehouseTab(viewModel: GameViewModel) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "仓库",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black
-            )
-            
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(Color(0xFFE74C3C))
-                    .clickable { showBulkSellDialog = true }
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
+                    text = "仓库",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                GameButton(
                     text = "一键出售",
-                    fontSize = 12.sp,
-                    color = Color.White
-                )
-            }
-        }
-        
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                WarehouseFilterButton(
-                    text = WarehouseFilter.ALL.displayName,
-                    selected = selectedFilter == WarehouseFilter.ALL,
-                    onClick = { 
-                        if (selectedFilter != WarehouseFilter.ALL) {
-                            selectedFilter = WarehouseFilter.ALL
-                            currentPage = 0
-                            selectedItemId = null
-                        }
-                    },
-                    modifier = Modifier.weight(1f)
-                )
-                WarehouseFilterButton(
-                    text = WarehouseFilter.EQUIPMENT.displayName,
-                    selected = selectedFilter == WarehouseFilter.EQUIPMENT,
-                    onClick = { 
-                        if (selectedFilter != WarehouseFilter.EQUIPMENT) {
-                            selectedFilter = WarehouseFilter.EQUIPMENT
-                            currentPage = 0
-                            selectedItemId = null
-                        }
-                    },
-                    modifier = Modifier.weight(1f)
-                )
-                WarehouseFilterButton(
-                    text = WarehouseFilter.PILL.displayName,
-                    selected = selectedFilter == WarehouseFilter.PILL,
-                    onClick = { 
-                        if (selectedFilter != WarehouseFilter.PILL) {
-                            selectedFilter = WarehouseFilter.PILL
-                            currentPage = 0
-                            selectedItemId = null
-                        }
-                    },
-                    modifier = Modifier.weight(1f)
-                )
-                WarehouseFilterButton(
-                    text = WarehouseFilter.MANUAL.displayName,
-                    selected = selectedFilter == WarehouseFilter.MANUAL,
-                    onClick = { 
-                        if (selectedFilter != WarehouseFilter.MANUAL) {
-                            selectedFilter = WarehouseFilter.MANUAL
-                            currentPage = 0
-                            selectedItemId = null
-                        }
-                    },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                WarehouseFilterButton(
-                    text = WarehouseFilter.HERB.displayName,
-                    selected = selectedFilter == WarehouseFilter.HERB,
-                    onClick = { 
-                        if (selectedFilter != WarehouseFilter.HERB) {
-                            selectedFilter = WarehouseFilter.HERB
-                            currentPage = 0
-                            selectedItemId = null
-                        }
-                    },
-                    modifier = Modifier.weight(1f)
-                )
-                WarehouseFilterButton(
-                    text = WarehouseFilter.SEED.displayName,
-                    selected = selectedFilter == WarehouseFilter.SEED,
-                    onClick = { 
-                        if (selectedFilter != WarehouseFilter.SEED) {
-                            selectedFilter = WarehouseFilter.SEED
-                            currentPage = 0
-                            selectedItemId = null
-                        }
-                    },
-                    modifier = Modifier.weight(1f)
-                )
-                WarehouseFilterButton(
-                    text = WarehouseFilter.MATERIAL.displayName,
-                    selected = selectedFilter == WarehouseFilter.MATERIAL,
-                    onClick = { 
-                        if (selectedFilter != WarehouseFilter.MATERIAL) {
-                            selectedFilter = WarehouseFilter.MATERIAL
-                            currentPage = 0
-                            selectedItemId = null
-                        }
-                    },
-                    modifier = Modifier.weight(1f)
+                    onClick = { showBulkSellDialog = true }
                 )
                 Spacer(modifier = Modifier.weight(1f))
+                CloseButton(onClick = onDismiss)
+            }
+        
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            WarehouseFilter.entries.forEach { filter ->
+                WarehouseFilterButton(
+                    text = filter.displayName,
+                    selected = selectedFilter == filter,
+                    onClick = {
+                        if (selectedFilter != filter) {
+                            selectedFilter = filter
+                            currentPage = 0
+                            selectedItemId = null
+                        }
+                    }
+                )
             }
         }
         
@@ -1513,13 +1424,13 @@ internal fun BulkSellDialog(
 internal fun WarehouseFilterButton(
     text: String,
     selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    onClick: () -> Unit
 ) {
     val contentAlpha = if (selected) 1f else 0.6f
     Box(
-        modifier = modifier
-            .height(ButtonSizes.Large)
+        modifier = Modifier
+            .width(ButtonSizes.StandardWidth)
+            .height(ButtonSizes.StandardHeight)
             .alpha(contentAlpha)
             .clip(RoundedCornerShape(4.dp))
             .clickable { onClick() },

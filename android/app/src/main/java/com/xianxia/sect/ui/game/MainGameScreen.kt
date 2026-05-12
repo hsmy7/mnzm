@@ -595,22 +595,10 @@ fun MainGameScreen(
                             contentScale = ContentScale.Crop
                         )
                         Column(modifier = Modifier.fillMaxSize()) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "仓库",
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.Black
-                                )
-                                CloseButton(onClick = { showWarehouseDialog = false })
-                            }
-                            WarehouseTab(viewModel = viewModel)
+                            WarehouseTab(
+                                viewModel = viewModel,
+                                onDismiss = { showWarehouseDialog = false }
+                            )
                         }
                     }
                 }
