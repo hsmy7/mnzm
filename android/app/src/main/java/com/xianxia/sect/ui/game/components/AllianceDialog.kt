@@ -351,12 +351,6 @@ fun EnvoyDiscipleSelectDialog(
                             fontWeight = FontWeight.Bold,
                             color = Color.White
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "需要境界: $requiredRealm 及以上",
-                            fontSize = 13.sp,
-                            color = Color.White.copy(alpha = 0.8f)
-                        )
                     }
                 }
 
@@ -382,15 +376,21 @@ fun EnvoyDiscipleSelectDialog(
                 )
 
                 if (filteredDisciples.isEmpty()) {
-                    Box(
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f),
-                        contentAlignment = Alignment.Center
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
                             text = "没有符合条件的弟子",
                             fontSize = 14.sp,
+                            color = Color.Black
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "需要境界: $requiredRealm 及以上",
+                            fontSize = 12.sp,
                             color = Color.Black
                         )
                     }

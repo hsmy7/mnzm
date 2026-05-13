@@ -463,21 +463,6 @@ fun PeakDiscipleSelectionDialog(
             }
             Spacer(modifier = Modifier.height(12.dp))
             Column(Modifier.fillMaxWidth().heightIn(max = DialogDefaults.CommonMaxHeight)) {
-                    if (disciples.isEmpty()) {
-                        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(text = "暂无符合条件的弟子", fontSize = 12.sp, color = Color.Black)
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(text = requirementText, fontSize = 10.sp, color = Color.Black)
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
-                    }
-
-                    Text(
-                        text = requirementText, fontSize = 10.sp, color = Color(0xFF4CAF50),
-                        modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-
                     SpiritRootAttributeFilterBar(
                         selectedSpiritRootFilter = selectedSpiritRootFilter,
                         selectedAttributeSort = selectedAttributeSort,
@@ -502,8 +487,10 @@ fun PeakDiscipleSelectionDialog(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     if (filteredDisciples.isEmpty()) {
-                        Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                        Column(Modifier.fillMaxWidth().weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(text = "暂无符合条件的弟子", fontSize = 12.sp, color = Color.Black)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(text = requirementText, fontSize = 10.sp, color = Color.Black)
                         }
                     } else {
                         LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {

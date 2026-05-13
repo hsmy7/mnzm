@@ -577,23 +577,6 @@ private fun DiscipleSelectionDialog(
                 Column(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(
-                        text = "任务：${mission.name}",
-                        fontSize = 11.sp,
-                        color = Color.Black
-                    )
-                    Text(
-                        text = "要求：${mission.difficulty.allowedPositions.joinToString("/")}，${com.xianxia.sect.core.GameConfig.Realm.getName(mission.difficulty.minRealm)}及以上，空闲状态",
-                        fontSize = 11.sp,
-                        color = Color.Black
-                    )
-
-                    HorizontalDivider(
-                        modifier = Modifier.padding(vertical = 4.dp),
-                        color = GameColors.Border,
-                        thickness = 1.dp
-                    )
-
                     SpiritRootAttributeFilterBar(
                         selectedSpiritRootFilter = selectedSpiritRootFilter,
                         selectedAttributeSort = selectedAttributeSort,
@@ -616,15 +599,29 @@ private fun DiscipleSelectionDialog(
                     )
 
                     if (filteredDisciples.isEmpty()) {
-                        Text(
-                            text = "没有符合条件的弟子",
-                            fontSize = 11.sp,
-                            color = Color.Black,
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 20.dp),
-                            textAlign = TextAlign.Center
-                        )
+                                .padding(vertical = 20.dp)
+                        ) {
+                            Text(
+                                text = "没有符合条件的弟子",
+                                fontSize = 11.sp,
+                                color = Color.Black
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "任务：${mission.name}",
+                                fontSize = 10.sp,
+                                color = Color.Black
+                            )
+                            Text(
+                                text = "要求：${mission.difficulty.allowedPositions.joinToString("/")}，${com.xianxia.sect.core.GameConfig.Realm.getName(mission.difficulty.minRealm)}及以上，空闲状态",
+                                fontSize = 10.sp,
+                                color = Color.Black
+                            )
+                        }
                     } else {
                         LazyColumn(
                             verticalArrangement = Arrangement.spacedBy(6.dp),

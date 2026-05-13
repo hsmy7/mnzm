@@ -585,12 +585,6 @@ fun ProductionDirectDiscipleSelectionDialog(
                     CloseButton(onClick = onDismiss)
                 }
                 Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    text = "推荐属性: ${theme.recommendAttributeText}",
-                    fontSize = 10.sp,
-                    color = Color.Black,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
                 SpiritRootAttributeFilterBar(
                     selectedSpiritRootFilter = selectedSpiritRootFilter,
                     selectedAttributeSort = selectedAttributeSort,
@@ -614,10 +608,18 @@ fun ProductionDirectDiscipleSelectionDialog(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 if (filteredDisciples.isEmpty()) {
-                    Box(
+                    Column(
                         modifier = Modifier.fillMaxWidth().weight(1f),
-                        contentAlignment = Alignment.Center
-                    ) { Text(text = "暂无可用弟子", fontSize = 12.sp, color = Color.Black) }
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(text = "暂无可用弟子", fontSize = 12.sp, color = Color.Black)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "推荐属性: ${theme.recommendAttributeText}",
+                            fontSize = 10.sp,
+                            color = Color.Black
+                        )
+                    }
                 } else {
                     LazyColumn(
                         modifier = Modifier.fillMaxWidth().weight(1f),
