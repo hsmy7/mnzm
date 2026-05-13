@@ -58,6 +58,7 @@ import com.xianxia.sect.core.model.RedeemResult
 import com.xianxia.sect.data.model.SaveSlot
 import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.DialogDefaults
+import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.ui.components.DiscipleAttrText
 import com.xianxia.sect.ui.components.GameBackground
 import com.xianxia.sect.ui.components.GameButton
@@ -109,21 +110,10 @@ internal fun RedeemCodeDialog(
         }
     }
 
-    Dialog(onDismissRequest = onDismiss) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
-                .clip(RoundedCornerShape(DialogDefaults.CornerRadius))
+    HalfScreenDialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier.padding(20.dp)
         ) {
-            Image(
-                painter = painterResource(id = R.drawable.bg_horizontal),
-                contentDescription = null,
-                modifier = Modifier.matchParentSize(),
-                contentScale = ContentScale.FillBounds
-            )
-            Column(
-                modifier = Modifier.padding(20.dp)
-            ) {
                 Text(
                     text = "兑换码",
                     fontSize = 14.sp,
@@ -161,7 +151,6 @@ internal fun RedeemCodeDialog(
                 }
             }
         }
-    }
 
     if (showRewardDialog) {
         com.xianxia.sect.ui.game.RewardDialog(
@@ -345,21 +334,10 @@ internal fun SettingsTab(
                     }
                     
                     if (showEditIntervalDialog) {
-                        Dialog(onDismissRequest = { showEditIntervalDialog = false }) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
-                                    .clip(RoundedCornerShape(DialogDefaults.CornerRadius))
+                        HalfScreenDialog(onDismissRequest = { showEditIntervalDialog = false }) {
+                            Column(
+                                modifier = Modifier.padding(20.dp)
                             ) {
-                                Image(
-                                    painter = painterResource(id = R.drawable.bg_horizontal),
-                                    contentDescription = null,
-                                    modifier = Modifier.matchParentSize(),
-                                    contentScale = ContentScale.FillBounds
-                                )
-                                Column(
-                                    modifier = Modifier.padding(20.dp)
-                                ) {
                                     Text(
                                         text = "设置自动存档间隔",
                                         fontSize = 14.sp,
@@ -414,7 +392,6 @@ internal fun SettingsTab(
                                             modifier = Modifier.width(ButtonSizes.StandardWidth)
                                         )
                                     }
-                                }
                             }
                         }
                     }
@@ -600,23 +577,12 @@ internal fun SettingsTab(
     }
 
     if (showRestartConfirmDialog) {
-        Dialog(onDismissRequest = { showRestartConfirmDialog = false }) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
-                    .clip(RoundedCornerShape(DialogDefaults.CornerRadius))
+        HalfScreenDialog(onDismissRequest = { showRestartConfirmDialog = false }) {
+            Column(
+                modifier = Modifier.padding(20.dp)
             ) {
-                Image(
-                    painter = painterResource(id = R.drawable.bg_horizontal),
-                    contentDescription = null,
-                    modifier = Modifier.matchParentSize(),
-                    contentScale = ContentScale.FillBounds
-                )
-                Column(
-                    modifier = Modifier.padding(20.dp)
-                ) {
-                    Text(
-                        text = "确认重新开始",
+                Text(
+                    text = "确认重新开始",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.Black
@@ -645,29 +611,17 @@ internal fun SettingsTab(
                             modifier = Modifier.width(ButtonSizes.StandardWidth)
                         )
                     }
-                }
             }
         }
     }
 
     if (showResetDisciplesConfirmDialog) {
-        Dialog(onDismissRequest = { showResetDisciplesConfirmDialog = false }) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
-                    .clip(RoundedCornerShape(DialogDefaults.CornerRadius))
+        HalfScreenDialog(onDismissRequest = { showResetDisciplesConfirmDialog = false }) {
+            Column(
+                modifier = Modifier.padding(20.dp)
             ) {
-                Image(
-                    painter = painterResource(id = R.drawable.bg_horizontal),
-                    contentDescription = null,
-                    modifier = Modifier.matchParentSize(),
-                    contentScale = ContentScale.FillBounds
-                )
-                Column(
-                    modifier = Modifier.padding(20.dp)
-                ) {
-                    Text(
-                        text = "确认重置弟子状态",
+                Text(
+                    text = "确认重置弟子状态",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.Black
@@ -696,7 +650,6 @@ internal fun SettingsTab(
                             modifier = Modifier.width(ButtonSizes.StandardWidth)
                         )
                     }
-                }
             }
         }
     }
@@ -710,21 +663,10 @@ internal fun SettingsTab(
     }
 
     if (showOtherSettingsDialog) {
-        Dialog(onDismissRequest = { showOtherSettingsDialog = false }) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
-                    .clip(RoundedCornerShape(DialogDefaults.CornerRadius))
+        HalfScreenDialog(onDismissRequest = { showOtherSettingsDialog = false }) {
+            Column(
+                modifier = Modifier.padding(20.dp)
             ) {
-                Image(
-                    painter = painterResource(id = R.drawable.bg_horizontal),
-                    contentDescription = null,
-                    modifier = Modifier.matchParentSize(),
-                    contentScale = ContentScale.FillBounds
-                )
-                Column(
-                    modifier = Modifier.padding(20.dp)
-                ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -833,7 +775,6 @@ internal fun SettingsTab(
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
-                }
             }
         }
     }
@@ -870,25 +811,13 @@ internal fun SaveSlotDialog(
         }
     }
     
-    Dialog(onDismissRequest = {
+    HalfScreenDialog(onDismissRequest = {
         if (isBusy) {
             saveLoadViewModel.cancelSaveLoad()
         }
         onDismiss()
     }) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
-                .fillMaxHeight(DialogDefaults.HalfScreenHeightFraction)
-                .clip(RoundedCornerShape(16.dp))
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.bg_horizontal),
-                contentDescription = null,
-                modifier = Modifier.matchParentSize(),
-                contentScale = ContentScale.Crop
-            )
-            Column(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize()) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1053,7 +982,6 @@ internal fun SaveSlotDialog(
                         }
                     }
                 }
-            }
         }
     }
 }
@@ -1152,28 +1080,17 @@ internal fun SaveSlotCard(
 
 @Composable
 private fun ChangelogDialog(onDismiss: () -> Unit) {
-    Dialog(onDismissRequest = onDismiss) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
-                .clip(RoundedCornerShape(DialogDefaults.CornerRadius))
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.bg_horizontal),
-                contentDescription = null,
-                modifier = Modifier.matchParentSize(),
-                contentScale = ContentScale.Crop
-            )
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "更新日志",
+    HalfScreenDialog(onDismissRequest = onDismiss) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "更新日志",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.Black
@@ -1240,5 +1157,4 @@ private fun ChangelogDialog(onDismiss: () -> Unit) {
             }
         }
     }
-}
 }

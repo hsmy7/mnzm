@@ -382,8 +382,8 @@ internal fun WorldMapSectDetailDialog(
     
     val relationLevel = GameUtils.getSectRelationLevel(relation)
     val relationColor = Color(relationLevel.colorHex)
-    
-    HalfScreenDialog(onDismissRequest = onDismiss) {
+
+    HalfScreenDialog(onDismissRequest = onDismiss, isFullScreen = true) {
         Column(modifier = Modifier.fillMaxSize()) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
@@ -678,8 +678,8 @@ fun DiplomacyDialog(
     val sortedSects = worldSects.sortedByDescending { sectFavors[it] ?: 0 }
     
     var showGiftedMessage by remember { mutableStateOf(false) }
-    
-    HalfScreenDialog(onDismissRequest = onDismiss) {
+
+    HalfScreenDialog(onDismissRequest = onDismiss, isFullScreen = true) {
         Column(modifier = Modifier.fillMaxSize()) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
@@ -1332,7 +1332,7 @@ fun SectTradeDialog(
         else -> "80（至交关系）"
     }
 
-    HalfScreenDialog(onDismissRequest = onDismiss) {
+    HalfScreenDialog(onDismissRequest = onDismiss, isFullScreen = true) {
         Box(modifier = Modifier.fillMaxSize()) {
                 Column(modifier = Modifier.fillMaxSize()) {
                     Row(

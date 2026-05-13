@@ -39,7 +39,7 @@ fun SalaryConfigDialog(
         9 to "练气"
     )
 
-    HalfScreenDialog(onDismissRequest = onDismiss) {
+    HalfScreenDialog(onDismissRequest = onDismiss, isFullScreen = true) {
         Column(modifier = Modifier.fillMaxSize()) {
                 SalaryConfigHeader(onDismiss = onDismiss)
 

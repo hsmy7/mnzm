@@ -3,7 +3,6 @@ package com.xianxia.sect.ui.game.dialogs
 import androidx.compose.animation.*
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -27,8 +26,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -45,12 +42,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.window.Dialog
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import com.xianxia.sect.R
+import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.model.BattleLogAction
 import com.xianxia.sect.core.model.BattleLogRound
@@ -138,18 +134,11 @@ internal fun BattleLogDetailDialog(
         BattleResult.DRAW -> "平局"
     }
     
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
-                .fillMaxHeight(0.9f),
-            shape = RoundedCornerShape(16.dp),
-            color = GameColors.PageBackground
+    HalfScreenDialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier.fillMaxSize()
         ) {
-            Column(
-                modifier = Modifier.fillMaxSize()
-            ) {
-                Row(
+            Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(16.dp),
@@ -290,7 +279,6 @@ internal fun BattleLogDetailDialog(
                     }
                 }
             }
-        }
     }
 }
 
@@ -449,25 +437,11 @@ internal fun BattleLogListDialog(
         battleLogs.sortedByDescending { it.timestamp }.take(30)
     }
 
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
-                .fillMaxHeight(DialogDefaults.HalfScreenHeightFraction),
-            shape = RoundedCornerShape(16.dp),
-            color = GameColors.PageBackground
+    HalfScreenDialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier.fillMaxSize()
         ) {
-            Box(modifier = Modifier.fillMaxSize()) {
-                Image(
-                    painter = painterResource(id = R.drawable.bg_horizontal),
-                    contentDescription = null,
-                    modifier = Modifier.matchParentSize(),
-                    contentScale = ContentScale.Crop
-                )
-                Column(
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                Row(
+            Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(16.dp),
@@ -513,8 +487,6 @@ internal fun BattleLogListDialog(
                     }
                 }
             }
-            }
-        }
     }
 
     selectedBattleLog?.let { log ->

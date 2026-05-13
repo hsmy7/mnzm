@@ -50,7 +50,7 @@ fun RecruitDialog(
 ) {
     var showAutoRecruitDialog by remember { mutableStateOf(false) }
 
-    HalfScreenDialog(onDismissRequest = onDismiss) {
+    HalfScreenDialog(onDismissRequest = onDismiss, isFullScreen = true) {
         Column(modifier = Modifier.fillMaxSize()) {
                 RecruitHeader(
                     gameData = gameData,
@@ -167,22 +167,11 @@ private fun AutoRecruitFilterDialog(
     val initialFilter = gameData?.autoRecruitSpiritRootFilter ?: emptySet()
     var selectedFilter by remember { mutableStateOf(initialFilter) }
 
-    Dialog(onDismissRequest = onDismiss) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
+    HalfScreenDialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Image(
-                painter = painterResource(id = R.drawable.bg_horizontal),
-                contentDescription = null,
-                modifier = Modifier.matchParentSize(),
-                contentScale = ContentScale.FillBounds
-            )
-            Column(
-                modifier = Modifier.padding(20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
                 Text(
                     text = "自动招募筛选",
                     fontSize = 12.sp,
@@ -221,7 +210,6 @@ private fun AutoRecruitFilterDialog(
                     },
                     modifier = Modifier.align(Alignment.CenterHorizontally)
                 )
-            }
         }
     }
 }

@@ -50,6 +50,7 @@ import com.xianxia.sect.ui.components.DiscipleAttrText
 import com.xianxia.sect.ui.components.EmptyListMessage
 import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.DialogDefaults
+import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.ItemCardData
 import com.xianxia.sect.ui.components.TalentDetailDialog
@@ -389,19 +390,8 @@ fun DiscipleDetailDialog(
     }
 
     if (showExpelConfirmDialog) {
-        Dialog(onDismissRequest = { showExpelConfirmDialog = false }) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
-                    .clip(RoundedCornerShape(DialogDefaults.CornerRadius))
-            ) {
-                Image(
-                    painter = painterResource(id = R.drawable.bg_horizontal),
-                    contentDescription = null,
-                    modifier = Modifier.matchParentSize(),
-                    contentScale = ContentScale.FillBounds
-                )
-                Column(modifier = Modifier.padding(20.dp)) {
+        HalfScreenDialog(onDismissRequest = { showExpelConfirmDialog = false }) {
+            Column(modifier = Modifier.padding(20.dp)) {
                     Text(
                         text = "确认驱逐",
                         fontSize = 14.sp,
@@ -432,10 +422,9 @@ fun DiscipleDetailDialog(
                         )
                     }
                 }
-            }
         }
     }
-    
+
     showEquipmentSelection?.let { slotType ->
         EquipmentSelectionDialog(
             slotType = slotType,
@@ -680,19 +669,8 @@ private fun RelationsDialog(
         }
     }
 
-    Dialog(onDismissRequest = onDismiss) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
-                .clip(RoundedCornerShape(DialogDefaults.CornerRadius))
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.bg_horizontal),
-                contentDescription = null,
-                modifier = Modifier.matchParentSize(),
-                contentScale = ContentScale.FillBounds
-            )
-            Column(modifier = Modifier.padding(20.dp)) {
+    HalfScreenDialog(onDismissRequest = onDismiss) {
+        Column(modifier = Modifier.padding(20.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -754,7 +732,6 @@ private fun RelationsDialog(
                     }
                 }
             }
-        }
     }
 }
 
@@ -803,10 +780,8 @@ private fun EquipmentSelectionDialog(
 
     var showDetailItem by remember { mutableStateOf<Any?>(null) }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
-        title = {
+    HalfScreenDialog(onDismissRequest = onDismiss) {
+        Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -820,8 +795,10 @@ private fun EquipmentSelectionDialog(
                 )
                 CloseButton(onClick = onDismiss)
             }
-        },
-        text = {
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
             if (availableItems.isEmpty()) {
                 Text(
                     text = "暂无可用的$slotTypeText",
@@ -863,8 +840,10 @@ private fun EquipmentSelectionDialog(
                     }
                 }
             }
-        },
-        confirmButton = {
+        }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
@@ -879,7 +858,7 @@ private fun EquipmentSelectionDialog(
                 )
             }
         }
-    )
+    }
 
     showDetailItem?.let { item ->
         ItemDetailDialog(
@@ -1904,18 +1883,7 @@ private fun StorageBagDialog(
     var selectedItem by remember { mutableStateOf<StorageBagItem?>(null) }
     var showDetailDialog by remember { mutableStateOf(false) }
     
-    Dialog(onDismissRequest = onDismiss) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.bg_horizontal),
-                contentDescription = null,
-                modifier = Modifier.matchParentSize(),
-                contentScale = ContentScale.FillBounds
-            )
+    HalfScreenDialog(onDismissRequest = onDismiss) {
             Column(modifier = Modifier.padding(20.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -2012,7 +1980,6 @@ private fun StorageBagDialog(
                     }
                 }
             }
-        }
     }
 
     if (showDetailDialog) {
@@ -2079,15 +2046,8 @@ private fun RewardItemsDialog(
     val availableManuals = manualStacks
     val availableEquipment = equipmentStacks
 
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
-                .fillMaxHeight(DialogDefaults.HalfScreenHeightFraction),
-            shape = RoundedCornerShape(16.dp),
-            color = GameColors.PageBackground
-        ) {
-            Column(modifier = Modifier.fillMaxSize()) {
+    HalfScreenDialog(onDismissRequest = onDismiss) {
+        Column(modifier = Modifier.fillMaxSize()) {
                 RewardHeader(
                     discipleName = disciple.name,
                     onDismiss = onDismiss
@@ -2278,7 +2238,6 @@ private fun RewardItemsDialog(
                 )
             }
         }
-    }
 
     if (showDetailDialog) {
         detailItem?.let { item ->

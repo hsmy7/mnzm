@@ -220,10 +220,10 @@ fun GameAlertDialog(
 }
 
 object DialogDefaults {
-    /** Width fraction for half-screen dialogs: leaves ~3.5% margin on each side */
+    /** Width fraction for half-screen dialogs: leaves ~7.5% margin on each side */
     const val HalfScreenWidthFraction = 0.85f
-    /** Height fraction for half-screen dialogs: reduced from 0.85f */
-    const val HalfScreenHeightFraction = 0.90f
+    /** Height fraction for half-screen dialogs: 78% of screen height */
+    const val HalfScreenHeightFraction = 0.78f
     /** Standard max height for scrollable CommonDialog-style wrappers */
     val CommonMaxHeight: Dp = 280.dp
     /** Standard corner radius for dialog boxes */
@@ -231,31 +231,50 @@ object DialogDefaults {
 }
 
 /**
- * Half-screen dialog with standardized width (93%) and height (78%).
- * Includes bg_screen background image. For Box-variant half-screen dialogs.
+ * Unified dialog wrapper for both full-screen and half-screen game dialogs.
+ * Full-screen mode: content fills entire window.
+ * Half-screen mode: content constrained to standard size (85% width × 78% height), centered.
+ * Includes bg_horizontal background image automatically.
  */
 @Composable
 fun HalfScreenDialog(
     onDismissRequest: () -> Unit,
+    isFullScreen: Boolean = false,
+    widthFraction: Float = DialogDefaults.HalfScreenWidthFraction,
+    heightFraction: Float = DialogDefaults.HalfScreenHeightFraction,
     content: @Composable () -> Unit
 ) {
     Dialog(
         onDismissRequest = onDismissRequest,
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
     ) {
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = GameColors.PageBackground
-    ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            Image(
-                painter = painterResource(id = R.drawable.bg_horizontal),
-                contentDescription = null,
-                modifier = Modifier.matchParentSize(),
-                contentScale = ContentScale.Crop
-            )
-            content()
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = Color.Transparent
+        ) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .then(
+                            if (isFullScreen) Modifier.fillMaxSize()
+                            else Modifier
+                                .fillMaxWidth(widthFraction)
+                                .fillMaxHeight(heightFraction)
+                        )
+                        .clip(RoundedCornerShape(if (isFullScreen) 0.dp else DialogDefaults.CornerRadius))
+                ) {
+                    Image(
+                        painter = painterResource(id = R.drawable.bg_horizontal),
+                        contentDescription = null,
+                        modifier = Modifier.matchParentSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                    content()
+                }
+            }
         }
-    }
     }
 }

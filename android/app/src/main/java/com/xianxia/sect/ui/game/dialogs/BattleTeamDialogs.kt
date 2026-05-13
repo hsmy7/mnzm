@@ -127,7 +127,7 @@ internal fun BattleTeamDialog(
         )
     }
 
-    HalfScreenDialog(onDismissRequest = onDismiss) {
+    HalfScreenDialog(onDismissRequest = onDismiss, isFullScreen = true) {
         Column(modifier = Modifier.fillMaxSize()) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),

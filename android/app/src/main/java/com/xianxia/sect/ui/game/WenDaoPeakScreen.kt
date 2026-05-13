@@ -34,7 +34,7 @@ fun WenDaoPeakDialog(
     val preachingMasters = productionViewModel.getPreachingMasters()
     val outerDisciples = disciples.filter { it.isAlive && it.discipleType == "outer" }
 
-    HalfScreenDialog(onDismissRequest = { viewModel.closeCurrentDialog() }) {
+    HalfScreenDialog(onDismissRequest = { viewModel.closeCurrentDialog() }, isFullScreen = true) {
         Column(modifier = Modifier.fillMaxSize()) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),

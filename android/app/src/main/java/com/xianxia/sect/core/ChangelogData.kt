@@ -9,6 +9,16 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.0.13",
+            date = "2026-05-13",
+            changes = listOf(
+                "统一所有半屏弹窗为85%宽×78%高标准尺寸，修复大小不一问题",
+                "补全所有弹窗的背景图，修复部分弹窗背景透明或白色的问题",
+                "主要功能界面（炼丹/锻造/招募/背包/行商/宗门外交等）保持全屏显示",
+                "半屏弹窗后方可见游戏画面，不再遮挡背景"
+            )
+        ),
+        ChangelogEntry(
             version = "3.0.12",
             date = "2026-05-13",
             changes = listOf(

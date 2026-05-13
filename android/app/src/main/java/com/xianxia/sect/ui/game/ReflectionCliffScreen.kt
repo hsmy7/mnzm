@@ -16,17 +16,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.window.Dialog
-import com.xianxia.sect.R
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.ui.components.CloseButton
-import com.xianxia.sect.ui.components.DialogDefaults
-import androidx.compose.ui.window.DialogProperties
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.components.FollowedTag
@@ -126,19 +119,8 @@ fun ReflectionCliffDialog(
     }
 
     showExpelConfirmDialog?.let { disciple ->
-        Dialog(onDismissRequest = { showExpelConfirmDialog = null }) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
-                    .clip(RoundedCornerShape(DialogDefaults.CornerRadius))
-            ) {
-                Image(
-                    painter = painterResource(id = R.drawable.bg_horizontal),
-                    contentDescription = null,
-                    modifier = Modifier.matchParentSize(),
-                    contentScale = ContentScale.FillBounds
-                )
-                Column(modifier = Modifier.padding(20.dp)) {
+        HalfScreenDialog(onDismissRequest = { showExpelConfirmDialog = null }) {
+            Column(modifier = Modifier.padding(20.dp)) {
                     Text(
                         text = "确认驱逐",
                         fontSize = 14.sp,
@@ -168,7 +150,6 @@ fun ReflectionCliffDialog(
                         )
                     }
                 }
-            }
         }
     }
 }
@@ -179,7 +160,7 @@ private fun CommonDialog(
     onDismiss: () -> Unit,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    HalfScreenDialog(onDismissRequest = onDismiss) {
+    HalfScreenDialog(onDismissRequest = onDismiss, isFullScreen = true) {
         Column(modifier = Modifier.fillMaxSize()) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),

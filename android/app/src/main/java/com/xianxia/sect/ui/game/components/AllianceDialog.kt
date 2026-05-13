@@ -23,7 +23,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import androidx.compose.material3.AlertDialog
 import android.graphics.Color as AndroidColor
 import com.xianxia.sect.R
@@ -74,7 +73,7 @@ fun AllianceDialog(
     val hasOtherAlliance = sect?.allianceId?.isNotEmpty() == true && !isAlly
     var showAlreadyAllianceDialog by remember { mutableStateOf(false) }
 
-    HalfScreenDialog(onDismissRequest = onDismiss) {
+    HalfScreenDialog(onDismissRequest = onDismiss, isFullScreen = true) {
         Column(modifier = Modifier.fillMaxSize()) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
@@ -127,19 +126,8 @@ fun AllianceDialog(
     }
     
     if (showAlreadyAllianceDialog) {
-        Dialog(onDismissRequest = { showAlreadyAllianceDialog = false }) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
-                    .clip(RoundedCornerShape(DialogDefaults.CornerRadius))
-            ) {
-                Image(
-                    painter = painterResource(id = R.drawable.bg_horizontal),
-                    contentDescription = null,
-                    modifier = Modifier.matchParentSize(),
-                    contentScale = ContentScale.FillBounds
-                )
-                Column(modifier = Modifier.padding(20.dp)) {
+        HalfScreenDialog(onDismissRequest = { showAlreadyAllianceDialog = false }) {
+            Column(modifier = Modifier.padding(20.dp)) {
                     Text("提示", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)
                     Spacer(modifier = Modifier.height(12.dp))
                     Text("该宗门已有盟友", fontSize = 12.sp, color = Color.Black)
@@ -149,7 +137,6 @@ fun AllianceDialog(
                         onClick = { showAlreadyAllianceDialog = false },
                         modifier = Modifier.align(Alignment.CenterHorizontally)
                     )
-                }
             }
         }
     }
@@ -343,18 +330,11 @@ fun EnvoyDiscipleSelectDialog(
         disciples.applyFilters(emptySet(), selectedSpiritRootFilter, selectedAttributeSort)
     }
 
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
-                .fillMaxHeight(DialogDefaults.HalfScreenHeightFraction),
-            shape = RoundedCornerShape(16.dp),
-            color = Color.Transparent
-        ) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = Color(0xFFFF9800),
+    HalfScreenDialog(onDismissRequest = onDismiss) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = Color(0xFFFF9800),
                     shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
@@ -444,7 +424,6 @@ fun EnvoyDiscipleSelectDialog(
                         modifier = Modifier.weight(1f)
                     )
                 }
-            }
         }
     }
 }
@@ -539,18 +518,11 @@ fun ScoutDiscipleSelectDialog(
         disciples.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort)
     }
 
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth(DialogDefaults.HalfScreenWidthFraction)
-                .fillMaxHeight(DialogDefaults.HalfScreenHeightFraction),
-            shape = RoundedCornerShape(16.dp),
-            color = Color.Transparent
-        ) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = Color(0xFF2196F3),
+    HalfScreenDialog(onDismissRequest = onDismiss) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = Color(0xFF2196F3),
                     shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
@@ -651,7 +623,6 @@ fun ScoutDiscipleSelectDialog(
                         modifier = Modifier.weight(1f)
                     )
                 }
-            }
         }
     }
 }

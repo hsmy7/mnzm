@@ -69,7 +69,7 @@ fun InventoryDialog(
         seeds.sortedWith(compareByDescending<Seed> { it.rarity }.thenBy { it.name })
     }
 
-    HalfScreenDialog(onDismissRequest = onDismiss) {
+    HalfScreenDialog(onDismissRequest = onDismiss, isFullScreen = true) {
         Column(modifier = Modifier.fillMaxSize()) {
                 InventoryHeader(
                     onDismiss = onDismiss,
@@ -483,7 +483,7 @@ internal fun BulkSellDialog(
         )
     }
 
-    HalfScreenDialog(onDismissRequest = onDismiss) {
+    HalfScreenDialog(onDismissRequest = onDismiss, isFullScreen = true) {
         Column(
             modifier = Modifier.fillMaxSize().padding(16.dp)
         ) {
@@ -705,19 +705,8 @@ internal fun BulkSellDialog(
 
     //二次确认对话框
     if (showConfirmDialog) {
-        Dialog(onDismissRequest = { showConfirmDialog = false }) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-            ) {
-                Image(
-                    painter = painterResource(id = R.drawable.bg_horizontal),
-                    contentDescription = null,
-                    modifier = Modifier.matchParentSize(),
-                    contentScale = ContentScale.FillBounds
-                )
-                Column(modifier = Modifier.padding(20.dp)) {
+        HalfScreenDialog(onDismissRequest = { showConfirmDialog = false }) {
+            Column(modifier = Modifier.padding(20.dp)) {
                     Text(
                         text = "确认出售",
                         fontSize = 14.sp,
@@ -765,7 +754,6 @@ internal fun BulkSellDialog(
                             }
                         )
                     }
-                }
             }
         }
     }

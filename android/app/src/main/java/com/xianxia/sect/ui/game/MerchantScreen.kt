@@ -76,7 +76,7 @@ fun MerchantDialog(
         items.sortedWith(compareByDescending<MerchantItem> { it.rarity }.thenBy { it.name })
     }
 
-    HalfScreenDialog(onDismissRequest = onDismiss) {
+    HalfScreenDialog(onDismissRequest = onDismiss, isFullScreen = true) {
         Column(modifier = Modifier.fillMaxSize()) {
             MerchantHeader(
                     gameData = gameData,
@@ -435,7 +435,7 @@ fun ListingManagementDialog(
         }
     }
 
-    HalfScreenDialog(onDismissRequest = onDismiss) {
+    HalfScreenDialog(onDismissRequest = onDismiss, isFullScreen = true) {
         Column(modifier = Modifier.fillMaxSize()) {
             Row(
                 modifier = Modifier
@@ -664,7 +664,7 @@ fun InventorySelectDialog(
         filterAndSortItems(seeds, listedItemIds)
     }
 
-    HalfScreenDialog(onDismissRequest = onDismiss) {
+    HalfScreenDialog(onDismissRequest = onDismiss, isFullScreen = true) {
         Column(modifier = Modifier.fillMaxSize()) {
             Row(
                 modifier = Modifier
@@ -1068,19 +1068,8 @@ private fun ConfirmListingDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    Dialog(onDismissRequest = onDismiss) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.bg_horizontal),
-                contentDescription = null,
-                modifier = Modifier.matchParentSize(),
-                contentScale = ContentScale.FillBounds
-            )
-            Column(modifier = Modifier.padding(20.dp)) {
+    HalfScreenDialog(onDismissRequest = onDismiss) {
+        Column(modifier = Modifier.padding(20.dp)) {
                 Text(
                     text = "确认上架",
                     fontSize = 14.sp,
@@ -1112,7 +1101,6 @@ private fun ConfirmListingDialog(
                         modifier = Modifier.width(ButtonSizes.StandardWidth)
                     )
                 }
-            }
         }
     }
 }

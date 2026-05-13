@@ -34,7 +34,7 @@ fun QingyunPeakDialog(
     val preachingMasters = productionViewModel.getQingyunPreachingMasters()
     val innerDisciples = disciples.filter { it.isAlive && it.discipleType == "inner" }
 
-    HalfScreenDialog(onDismissRequest = { viewModel.closeCurrentDialog() }) {
+    HalfScreenDialog(onDismissRequest = { viewModel.closeCurrentDialog() }, isFullScreen = true) {
         Column(modifier = Modifier.fillMaxSize()) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
