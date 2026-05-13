@@ -91,7 +91,7 @@ fun LevelDetailDialog(
         GameConfig.Realm.getName(level.realm)
     }
 
-    val occupiedCount = remember(slots) { slots.count { it != null } }
+    val occupiedCount by remember { derivedStateOf { slots.count { it != null } } }
 
     // One-click appoint: fill empty slots with highest-realm idle disciples
     val oneClickAppoint: () -> Unit = {
