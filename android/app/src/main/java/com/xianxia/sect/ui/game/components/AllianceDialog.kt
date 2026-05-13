@@ -48,6 +48,7 @@ import com.xianxia.sect.core.util.SectRelationLevel
 import com.xianxia.sect.ui.game.getSpiritRootCount
 import com.xianxia.sect.ui.game.applyFilters
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
+import com.xianxia.sect.ui.game.tabs.REALM_FILTER_OPTIONS
 
 @Composable
 fun AllianceDialog(
@@ -315,19 +316,25 @@ fun EnvoyDiscipleSelectDialog(
     onDismiss: () -> Unit
 ) {
     var selectedDisciple by remember { mutableStateOf<DiscipleAggregate?>(null) }
+    var selectedRealmFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
     var selectedSpiritRootFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
     var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
     var spiritRootExpanded by remember { mutableStateOf(false) }
     var attributeExpanded by remember { mutableStateOf(false) }
+    var realmExpanded by remember { mutableStateOf(false) }
     val sectLevel = sect?.level ?: 0
     val requiredRealm = GameConfig.Realm.getName(worldMapViewModel.getEnvoyRealmRequirement(sectLevel))
+
+    val realmCounts = remember(disciples) {
+        disciples.groupingBy { it.realm }.eachCount()
+    }
 
     val spiritRootCounts = remember(disciples) {
         disciples.groupingBy { it.getSpiritRootCount() }.eachCount()
     }
 
-    val filteredDisciples = remember(disciples, selectedSpiritRootFilter, selectedAttributeSort) {
-        disciples.applyFilters(emptySet(), selectedSpiritRootFilter, selectedAttributeSort)
+    val filteredDisciples = remember(disciples, selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort) {
+        disciples.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort)
     }
 
     HalfScreenDialog(onDismissRequest = onDismiss) {
@@ -356,14 +363,21 @@ fun EnvoyDiscipleSelectDialog(
                 SpiritRootAttributeFilterBar(
                     selectedSpiritRootFilter = selectedSpiritRootFilter,
                     selectedAttributeSort = selectedAttributeSort,
+                    selectedRealmFilter = selectedRealmFilter,
+                    realmFilterOptions = REALM_FILTER_OPTIONS,
+                    realmCounts = realmCounts,
                     spiritRootExpanded = spiritRootExpanded,
                     attributeExpanded = attributeExpanded,
+                    realmExpanded = realmExpanded,
                     spiritRootCounts = spiritRootCounts,
                     onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
                     onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
                     onAttributeSortSelected = { selectedAttributeSort = it },
+                    onRealmFilterSelected = { selectedRealmFilter = selectedRealmFilter + it },
+                    onRealmFilterRemoved = { selectedRealmFilter = selectedRealmFilter - it },
                     onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
                     onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
+                    onRealmExpandToggle = { realmExpanded = !realmExpanded },
                     isCompact = true
                 )
 
@@ -493,20 +507,8 @@ fun ScoutDiscipleSelectDialog(
     var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
     var spiritRootExpanded by remember { mutableStateOf(false) }
     var attributeExpanded by remember { mutableStateOf(false) }
+    var realmExpanded by remember { mutableStateOf(false) }
     val maxSelectCount = 7
-
-    val realmFilters = listOf(
-        0 to "仙人",
-        1 to "渡劫",
-        2 to "大乘",
-        3 to "合体",
-        4 to "炼虚",
-        5 to "化神",
-        6 to "元婴",
-        7 to "金丹",
-        8 to "筑基",
-        9 to "炼气"
-    )
 
     val realmCounts = remember(disciples) { disciples.groupingBy { it.realm }.eachCount() }
 
@@ -544,23 +546,22 @@ fun ScoutDiscipleSelectDialog(
                 SpiritRootAttributeFilterBar(
                     selectedSpiritRootFilter = selectedSpiritRootFilter,
                     selectedAttributeSort = selectedAttributeSort,
+                    selectedRealmFilter = selectedRealmFilter,
+                    realmFilterOptions = REALM_FILTER_OPTIONS,
+                    realmCounts = realmCounts,
                     spiritRootExpanded = spiritRootExpanded,
                     attributeExpanded = attributeExpanded,
+                    realmExpanded = realmExpanded,
                     spiritRootCounts = spiritRootCounts,
                     onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
                     onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
                     onAttributeSortSelected = { selectedAttributeSort = it },
+                    onRealmFilterSelected = { selectedRealmFilter = selectedRealmFilter + it },
+                    onRealmFilterRemoved = { selectedRealmFilter = selectedRealmFilter - it },
                     onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
                     onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
+                    onRealmExpandToggle = { realmExpanded = !realmExpanded },
                     isCompact = true
-                )
-
-                ScoutRealmFilterBar(
-                    filters = realmFilters,
-                    realmCounts = realmCounts,
-                    selectedFilter = selectedRealmFilter,
-                    onFilterSelected = { selectedRealmFilter = selectedRealmFilter + it },
-                    onFilterRemoved = { selectedRealmFilter = selectedRealmFilter - it }
                 )
 
                 if (filteredDisciples.isEmpty()) {
@@ -627,84 +628,4 @@ fun ScoutDiscipleSelectDialog(
     }
 }
 
-@Composable
-private fun ScoutRealmFilterBar(
-    filters: List<Pair<Int, String>>,
-    realmCounts: Map<Int, Int>,
-    selectedFilter: Set<Int>,
-    onFilterSelected: (Int) -> Unit,
-    onFilterRemoved: (Int) -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 8.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            filters.take(5).forEach { (realm, name) ->
-                val isSelected = realm in selectedFilter
-                val count = realmCounts[realm] ?: 0
-                ScoutFilterChip(
-                    text = "$name $count",
-                    isSelected = isSelected,
-                    onClick = { if (isSelected) onFilterRemoved(realm) else onFilterSelected(realm) },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(6.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            filters.drop(5).forEach { (realm, name) ->
-                val isSelected = realm in selectedFilter
-                val count = realmCounts[realm] ?: 0
-                ScoutFilterChip(
-                    text = "$name $count",
-                    isSelected = isSelected,
-                    onClick = { if (isSelected) onFilterRemoved(realm) else onFilterSelected(realm) },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ScoutFilterChip(
-    text: String,
-    isSelected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val contentAlpha = if (isSelected) 1f else 0.6f
-    Box(
-        modifier = modifier
-            .width(72.dp)
-            .height(38.dp)
-            .alpha(contentAlpha)
-            .clip(RoundedCornerShape(4.dp))
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Image(
-            painter = painterResource(id = R.drawable.ui_button),
-            contentDescription = null,
-            modifier = Modifier.matchParentSize(),
-            contentScale = ContentScale.FillBounds
-        )
-        Text(
-            text = text,
-            fontSize = 12.sp,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-            color = if (isSelected) GameColors.GoldDark else Color.Black
-        )
-    }
-}
 

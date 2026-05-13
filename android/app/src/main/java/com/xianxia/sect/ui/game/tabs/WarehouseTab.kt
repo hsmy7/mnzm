@@ -79,6 +79,7 @@ import com.xianxia.sect.ui.game.components.ItemDetailDialog
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
 import com.xianxia.sect.ui.game.getAttributeValue
 import com.xianxia.sect.ui.game.getSpiritRootCount
+import com.xianxia.sect.ui.game.tabs.REALM_FILTER_OPTIONS
 import com.xianxia.sect.ui.theme.GameColors
 
 internal fun getWarehouseItemIsLocked(item: Any): Boolean = when (item) {
@@ -497,21 +498,9 @@ internal fun DiscipleSelectForRewardDialog(
     var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
     var spiritRootExpanded by remember { mutableStateOf(false) }
     var attributeExpanded by remember { mutableStateOf(false) }
+    var realmExpanded by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    
-    val realmFilters = listOf(
-        0 to "仙人",
-        1 to "渡劫",
-        2 to "大乘",
-        3 to "合体",
-        4 to "炼虚",
-        5 to "化神",
-        6 to "元婴",
-        7 to "金丹",
-        8 to "筑基",
-        9 to "炼气"
-    )
-    
+
     val realmCounts = remember(aliveDisciples) {
         aliveDisciples.groupingBy { it.realm }.eachCount()
     }
@@ -552,23 +541,22 @@ internal fun DiscipleSelectForRewardDialog(
                 SpiritRootAttributeFilterBar(
                     selectedSpiritRootFilter = selectedSpiritRootFilter,
                     selectedAttributeSort = selectedAttributeSort,
+                    selectedRealmFilter = selectedRealmFilter,
+                    realmFilterOptions = REALM_FILTER_OPTIONS,
+                    realmCounts = realmCounts,
                     spiritRootExpanded = spiritRootExpanded,
                     attributeExpanded = attributeExpanded,
+                    realmExpanded = realmExpanded,
                     spiritRootCounts = spiritRootCounts,
                     onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
                     onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
                     onAttributeSortSelected = { selectedAttributeSort = it },
+                    onRealmFilterSelected = { selectedRealmFilter = selectedRealmFilter + it },
+                    onRealmFilterRemoved = { selectedRealmFilter = selectedRealmFilter - it },
                     onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
                     onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
+                    onRealmExpandToggle = { realmExpanded = !realmExpanded },
                     isCompact = true
-                )
-
-                RealmFilterBar(
-                    filters = realmFilters,
-                    realmCounts = realmCounts,
-                    selectedFilter = selectedRealmFilter,
-                    onFilterSelected = { selectedRealmFilter = selectedRealmFilter + it },
-                    onFilterRemoved = { selectedRealmFilter = selectedRealmFilter - it }
                 )
                 
                 if (currentQuantity <= 0) {

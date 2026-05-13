@@ -37,6 +37,7 @@ import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
+import com.xianxia.sect.ui.game.tabs.REALM_FILTER_OPTIONS
 
 @Composable
 fun MissionHallDialog(
@@ -126,7 +127,6 @@ fun MissionHallDialog(
                 disciples = eligibleDisciples,
                 selectedIds = missionSelectedIds,
                 maxSelection = mission.memberCount,
-                showRealmFilter = false,
                 confirmEnabled = { missionSelectedIds.size == mission.memberCount },
                 confirmText = "确认派遣",
                 showDismiss = true,
@@ -537,10 +537,12 @@ private fun DiscipleSelectionDialog(
     onDismiss: () -> Unit
 ) {
     val selectedDiscipleIds = remember { mutableStateListOf<String>() }
+    var selectedRealmFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
     var selectedSpiritRootFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
     var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
     var spiritRootExpanded by remember { mutableStateOf(false) }
     var attributeExpanded by remember { mutableStateOf(false) }
+    var realmExpanded by remember { mutableStateOf(false) }
 
     val eligibleDisciples = disciples.filter { disciple ->
         val disciplePosition = if (disciple.discipleType == "outer") "外门弟子" else "内门弟子"
@@ -551,12 +553,16 @@ private fun DiscipleSelectionDialog(
         disciple.realm <= mission.difficulty.minRealm
     }
 
+    val realmCounts = remember(eligibleDisciples) {
+        eligibleDisciples.groupingBy { it.realm }.eachCount()
+    }
+
     val spiritRootCounts = remember(eligibleDisciples) {
         eligibleDisciples.groupingBy { it.getSpiritRootCount() }.eachCount()
     }
 
-    val filteredDisciples = remember(eligibleDisciples, selectedSpiritRootFilter, selectedAttributeSort) {
-        eligibleDisciples.applyFilters(emptySet(), selectedSpiritRootFilter, selectedAttributeSort)
+    val filteredDisciples = remember(eligibleDisciples, selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort) {
+        eligibleDisciples.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort)
     }
 
     HalfScreenDialog(onDismissRequest = onDismiss) {
@@ -591,14 +597,21 @@ private fun DiscipleSelectionDialog(
                     SpiritRootAttributeFilterBar(
                         selectedSpiritRootFilter = selectedSpiritRootFilter,
                         selectedAttributeSort = selectedAttributeSort,
+                        selectedRealmFilter = selectedRealmFilter,
+                        realmFilterOptions = REALM_FILTER_OPTIONS,
+                        realmCounts = realmCounts,
                         spiritRootExpanded = spiritRootExpanded,
                         attributeExpanded = attributeExpanded,
+                        realmExpanded = realmExpanded,
                         spiritRootCounts = spiritRootCounts,
                         onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
                         onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
                         onAttributeSortSelected = { selectedAttributeSort = it },
+                        onRealmFilterSelected = { selectedRealmFilter = selectedRealmFilter + it },
+                        onRealmFilterRemoved = { selectedRealmFilter = selectedRealmFilter - it },
                         onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
                         onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
+                        onRealmExpandToggle = { realmExpanded = !realmExpanded },
                         isCompact = true
                     )
 

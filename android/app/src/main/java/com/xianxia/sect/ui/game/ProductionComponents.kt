@@ -436,6 +436,7 @@ fun ProductionElderSelectionDialog(
     var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
     var spiritRootExpanded by remember { mutableStateOf(false) }
     var attributeExpanded by remember { mutableStateOf(false) }
+    var realmExpanded by remember { mutableStateOf(false) }
 
     val filteredDisciplesBase = remember(disciples, elderSlots) {
         disciples.filter { it.isEligibleForInnerPosition && !elderSlots.isDiscipleInAnyPosition(it.id) }
@@ -477,17 +478,23 @@ fun ProductionElderSelectionDialog(
                 SpiritRootAttributeFilterBar(
                     selectedSpiritRootFilter = selectedSpiritRootFilter,
                     selectedAttributeSort = selectedAttributeSort,
+                    selectedRealmFilter = selectedRealmFilter,
+                    realmFilterOptions = REALM_FILTERS,
+                    realmCounts = realmCounts,
                     spiritRootExpanded = spiritRootExpanded,
                     attributeExpanded = attributeExpanded,
+                    realmExpanded = realmExpanded,
                     spiritRootCounts = spiritRootCounts,
                     onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
                     onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
                     onAttributeSortSelected = { selectedAttributeSort = it },
+                    onRealmFilterSelected = { selectedRealmFilter = selectedRealmFilter + it },
+                    onRealmFilterRemoved = { selectedRealmFilter = selectedRealmFilter - it },
                     onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
                     onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
+                    onRealmExpandToggle = { realmExpanded = !realmExpanded },
                     isCompact = true
                 )
-                RealmFilterRow(realmFilters = REALM_FILTERS, selectedFilter = selectedRealmFilter, onFilterChange = { selectedRealmFilter = it }, onFilterRemoved = { selectedRealmFilter = selectedRealmFilter - it })
                 Spacer(modifier = Modifier.height(12.dp))
                 Column(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp)) {
                     if (filteredDisciples.isEmpty()) {
@@ -537,6 +544,7 @@ fun ProductionDirectDiscipleSelectionDialog(
     var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
     var spiritRootExpanded by remember { mutableStateOf(false) }
     var attributeExpanded by remember { mutableStateOf(false) }
+    var realmExpanded by remember { mutableStateOf(false) }
 
     val allDirectDiscipleIds = remember(elderSlots) {
         listOf(
@@ -586,17 +594,23 @@ fun ProductionDirectDiscipleSelectionDialog(
                 SpiritRootAttributeFilterBar(
                     selectedSpiritRootFilter = selectedSpiritRootFilter,
                     selectedAttributeSort = selectedAttributeSort,
+                    selectedRealmFilter = selectedRealmFilter,
+                    realmFilterOptions = REALM_FILTERS,
+                    realmCounts = realmCounts,
                     spiritRootExpanded = spiritRootExpanded,
                     attributeExpanded = attributeExpanded,
+                    realmExpanded = realmExpanded,
                     spiritRootCounts = spiritRootCounts,
                     onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
                     onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
                     onAttributeSortSelected = { selectedAttributeSort = it },
+                    onRealmFilterSelected = { selectedRealmFilter = selectedRealmFilter + it },
+                    onRealmFilterRemoved = { selectedRealmFilter = selectedRealmFilter - it },
                     onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
                     onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
+                    onRealmExpandToggle = { realmExpanded = !realmExpanded },
                     isCompact = true
                 )
-                RealmFilterRow(realmFilters = REALM_FILTERS, selectedFilter = selectedRealmFilter, onFilterChange = { selectedRealmFilter = it }, onFilterRemoved = { selectedRealmFilter = selectedRealmFilter - it })
                 Spacer(modifier = Modifier.height(12.dp))
 
                 if (filteredDisciples.isEmpty()) {
@@ -634,47 +648,6 @@ private fun ProductionDiscipleSelectionCard(
         extraAttributes = listOf(theme.coreAttributeName to coreAttrValue),
         onClick = onClick
     )
-}
-
-@Composable
-private fun RealmFilterRow(
-    realmFilters: List<Pair<Int, String>>,
-    selectedFilter: Set<Int>,
-    onFilterChange: (Set<Int>) -> Unit,
-    onFilterRemoved: (Int) -> Unit
-) {
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        realmFilters.chunked(4).forEach { chunk ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                chunk.forEach { (realmVal, name) ->
-                    val isSelected = realmVal in selectedFilter
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(if (isSelected) GameColors.Gold.copy(alpha = 0.3f) else GameColors.PageBackground)
-                            .border(1.dp, if (isSelected) GameColors.Gold else GameColors.Border, RoundedCornerShape(4.dp))
-                            .clickable { onFilterChange(if (isSelected) selectedFilter - realmVal else selectedFilter + realmVal) }
-                            .padding(vertical = 4.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = name,
-                            fontSize = 9.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                            color = if (isSelected) GameColors.GoldDark else Color.Black
-                        )
-                    }
-                }
-            }
-        }
-    }
 }
 
 @Composable
@@ -829,7 +802,6 @@ fun FilteredMultiSelectDialog(
     disciples: List<DiscipleAggregate>,
     selectedIds: SnapshotStateList<String>,
     maxSelection: Int? = null,
-    showRealmFilter: Boolean = true,
     confirmEnabled: (Int) -> Boolean = { it > 0 },
     confirmText: String = "确认",
     showDismiss: Boolean = false,
@@ -846,8 +818,7 @@ fun FilteredMultiSelectDialog(
     var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
     var spiritRootExpanded by remember { mutableStateOf(false) }
     var attributeExpanded by remember { mutableStateOf(false) }
-
-    val realmFilters = REALM_FILTERS
+    var realmExpanded by remember { mutableStateOf(false) }
 
     val realmCounts = remember(disciples) {
         disciples.groupingBy { it.realm }.eachCount()
@@ -913,52 +884,23 @@ fun FilteredMultiSelectDialog(
                     SpiritRootAttributeFilterBar(
                         selectedSpiritRootFilter = selectedSpiritRootFilter,
                         selectedAttributeSort = selectedAttributeSort,
+                        selectedRealmFilter = selectedRealmFilter,
+                        realmFilterOptions = REALM_FILTERS,
+                        realmCounts = realmCounts,
                         spiritRootExpanded = spiritRootExpanded,
                         attributeExpanded = attributeExpanded,
+                        realmExpanded = realmExpanded,
                         spiritRootCounts = spiritRootCounts,
                         onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
                         onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
                         onAttributeSortSelected = { selectedAttributeSort = it },
+                        onRealmFilterSelected = { selectedRealmFilter = selectedRealmFilter + it },
+                        onRealmFilterRemoved = { selectedRealmFilter = selectedRealmFilter - it },
                         onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
                         onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
+                        onRealmExpandToggle = { realmExpanded = !realmExpanded },
                         isCompact = true
                     )
-
-                    if (showRealmFilter) {
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            realmFilters.chunked(4).forEach { chunk ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    chunk.forEach { (realm, name) ->
-                                        val isSelected = realm in selectedRealmFilter
-                                        val count = realmCounts[realm] ?: 0
-                                        Box(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .clip(RoundedCornerShape(4.dp))
-                                                .background(if (isSelected) GameColors.Gold.copy(alpha = 0.3f) else GameColors.PageBackground)
-                                                .border(1.dp, if (isSelected) GameColors.Gold else GameColors.Border, RoundedCornerShape(4.dp))
-                                                .clickable { selectedRealmFilter = if (isSelected) selectedRealmFilter - realm else selectedRealmFilter + realm }
-                                                .padding(vertical = 4.dp),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(
-                                                text = "$name $count",
-                                                fontSize = 8.sp,
-                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                                color = if (isSelected) GameColors.GoldDark else Color.Black
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
 
                     Spacer(modifier = Modifier.height(12.dp))
 
