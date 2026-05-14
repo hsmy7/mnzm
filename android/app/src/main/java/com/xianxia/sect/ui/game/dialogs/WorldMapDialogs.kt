@@ -269,7 +269,7 @@ internal fun WorldMapSectDetailDialog(
     val relationLevel = GameUtils.getSectRelationLevel(relation)
     val relationColor = Color(relationLevel.colorHex)
 
-    HalfScreenDialog(onDismissRequest = onDismiss, isFullScreen = true) {
+    HalfScreenDialog(onDismissRequest = onDismiss) {
         Column(modifier = Modifier.fillMaxSize()) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
@@ -453,17 +453,16 @@ internal fun WorldMapSectDetailDialog(
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             GameButton(
                                 text = "探查",
                                 onClick = {
                                     worldMapViewModel.openScoutDialog(sect.id)
                                     onDismiss()
-                                },
-                                modifier = Modifier.weight(1f)
+                                }
                             )
-                            
+
                             GameButton(
                                 text = if (hasGiftedThisYear) "已送礼" else "送礼",
                                 onClick = {
@@ -473,32 +472,29 @@ internal fun WorldMapSectDetailDialog(
                                         worldMapViewModel.openGiftDialog(sect.id)
                                         onDismiss()
                                     }
-                                },
-                                modifier = Modifier.weight(1f)
+                                }
                             )
-                            
+
                             GameButton(
                                 text = if (isAlly) "盟约" else "结盟",
                                 onClick = {
                                     worldMapViewModel.openAllianceDialog(sect.id)
                                     onDismiss()
                                 },
-                                enabled = relationLevel == SectRelationLevel.INTIMATE || isAlly,
-                                modifier = Modifier.weight(1f)
+                                enabled = relationLevel == SectRelationLevel.INTIMATE || isAlly
                             )
                         }
                         
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             GameButton(
                                 text = "交易",
                                 onClick = {
                                     worldMapViewModel.openSectTradeDialog(sect.id)
                                     onDismiss()
-                                },
-                                modifier = Modifier.weight(1f)
+                                }
                             )
 
                             if (!sect.isPlayerOccupied) {
@@ -506,8 +502,7 @@ internal fun WorldMapSectDetailDialog(
                                     text = "进攻",
                                     onClick = {
                                         showAttackDialog = true
-                                    },
-                                    modifier = Modifier.weight(1f)
+                                    }
                                 )
                             }
                         }

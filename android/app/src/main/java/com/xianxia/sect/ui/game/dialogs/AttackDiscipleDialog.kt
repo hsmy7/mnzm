@@ -134,8 +134,7 @@ internal fun AttackDiscipleDialog(
             ) {
                 GameButton(
                     text = "取消",
-                    onClick = onDismiss,
-                    modifier = Modifier.weight(1f)
+                    onClick = onDismiss
                 )
                 GameButton(
                     text = "进攻",
@@ -147,8 +146,7 @@ internal fun AttackDiscipleDialog(
                             onAttack(selected)
                         }
                     },
-                    enabled = filledCount > 0,
-                    modifier = Modifier.weight(1f)
+                    enabled = filledCount > 0
                 )
             }
         }

@@ -9,6 +9,14 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.0.20",
+            date = "2026-05-14",
+            changes = listOf(
+                "宗门详情界面和进攻妖兽/洞府界面改为半屏弹窗，世界地图背景可见",
+                "修复宗门详情界面和进攻弟子选择界面按钮大小不符合标准（72×38）的问题"
+            )
+        ),
+        ChangelogEntry(
             version = "3.0.19",
             date = "2026-05-14",
             changes = listOf(

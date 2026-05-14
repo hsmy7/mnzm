@@ -114,7 +114,7 @@ fun LevelDetailDialog(
         }
     }
 
-    HalfScreenDialog(onDismissRequest = onDismiss, isFullScreen = true) {
+    HalfScreenDialog(onDismissRequest = onDismiss) {
         Column(modifier = Modifier.fillMaxSize()) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
