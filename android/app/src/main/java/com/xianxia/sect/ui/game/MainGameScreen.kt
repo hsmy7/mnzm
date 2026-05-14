@@ -483,12 +483,14 @@ fun MainGameScreen(
                 discipleCount = aliveDisciples.value.size,
                 modifier = Modifier
                     .align(Alignment.TopStart)
+                    .displayCutoutPadding()
             )
 
             // Top-right button grid: row of 6 + column of 3 below
             Column(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
+                    .displayCutoutPadding()
                     .padding(top = 8.dp, end = 8.dp),
                 horizontalAlignment = Alignment.End,
                 verticalArrangement = Arrangement.spacedBy(6.dp)
