@@ -9,6 +9,13 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.0.17",
+            date = "2026-05-14",
+            changes = listOf(
+                "修复游戏平台启动时全屏界面左右仍有缝隙的问题，全屏弹窗改为Box叠加层避免平台对Dialog窗口的重定位"
+            )
+        ),
+        ChangelogEntry(
             version = "3.0.16",
             date = "2026-05-13",
             changes = listOf(

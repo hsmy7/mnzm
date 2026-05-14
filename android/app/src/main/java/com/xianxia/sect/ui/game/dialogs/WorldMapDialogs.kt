@@ -43,9 +43,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
-import androidx.compose.ui.platform.LocalContext
+import com.xianxia.sect.ui.components.GameFullDialog
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.xianxia.sect.R
@@ -223,36 +221,7 @@ internal fun WorldMapDialog(
         pathsList
     }
 
-    val window = LocalContext.current.let {
-        (it as? android.app.Activity)?.window
-    }
-
-    LaunchedEffect(Unit) {
-        window?.let { w ->
-            androidx.core.view.WindowCompat.setDecorFitsSystemWindows(w, false)
-            androidx.core.view.WindowInsetsControllerCompat(w, w.decorView).let { controller ->
-                controller.hide(androidx.core.view.WindowInsetsCompat.Type.statusBars())
-                controller.hide(androidx.core.view.WindowInsetsCompat.Type.navigationBars())
-                controller.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            }
-        }
-    }
-
-    DisposableEffect(Unit) {
-        onDispose {
-            window?.let { w ->
-                androidx.core.view.WindowCompat.setDecorFitsSystemWindows(w, true)
-                val controller = androidx.core.view.WindowInsetsControllerCompat(w, w.decorView)
-                controller.show(androidx.core.view.WindowInsetsCompat.Type.statusBars())
-                controller.show(androidx.core.view.WindowInsetsCompat.Type.navigationBars())
-            }
-        }
-    }
-
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
-    ) {
+    GameFullDialog(onDismissRequest = onDismiss) {
     WorldMapScreen(
         items = mapItems,
         paths = paths,

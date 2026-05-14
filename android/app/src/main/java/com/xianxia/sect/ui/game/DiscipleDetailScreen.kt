@@ -32,8 +32,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
+import androidx.activity.compose.BackHandler
 
 import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.engine.DiscipleStatCalculator
@@ -196,10 +195,7 @@ fun DiscipleDetailDialog(
     val tabs = listOf("信息", "属性", "装备", "功法")
 
     key(disciple.id) {
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
-    ) {
+    BackHandler(onBack = onDismiss)
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = GameColors.PageBackground
@@ -368,7 +364,6 @@ fun DiscipleDetailDialog(
                 )
             }
         }
-    }
 
     if (showRelationsDialog) {
         RelationsDialog(

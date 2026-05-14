@@ -244,35 +244,50 @@ fun HalfScreenDialog(
     heightFraction: Float = DialogDefaults.HalfScreenHeightFraction,
     content: @Composable () -> Unit
 ) {
-    Dialog(
-        onDismissRequest = onDismissRequest,
-        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
-    ) {
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = Color.Transparent
+    if (isFullScreen) {
+        // Box overlay in the Activity window — immune to platform Dialog-window manipulation
+        GameFullDialog(
+            onDismissRequest = onDismissRequest,
+            dismissOnBackPress = true,
+            dismissOnClickOutside = false
         ) {
-            Box(
+            Box(modifier = Modifier.fillMaxSize()) {
+                Image(
+                    painter = painterResource(id = R.drawable.bg_horizontal),
+                    contentDescription = null,
+                    modifier = Modifier.matchParentSize(),
+                    contentScale = ContentScale.Crop
+                )
+                content()
+            }
+        }
+    } else {
+        Dialog(
+            onDismissRequest = onDismissRequest,
+            properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
+        ) {
+            Surface(
                 modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
+                color = Color.Transparent
             ) {
                 Box(
-                    modifier = Modifier
-                        .then(
-                            if (isFullScreen) Modifier.fillMaxSize()
-                            else Modifier
-                                .fillMaxWidth(widthFraction)
-                                .fillMaxHeight(heightFraction)
-                        )
-                        .clip(RoundedCornerShape(if (isFullScreen) 0.dp else DialogDefaults.CornerRadius))
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.bg_horizontal),
-                        contentDescription = null,
-                        modifier = Modifier.matchParentSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                    content()
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(widthFraction)
+                            .fillMaxHeight(heightFraction)
+                            .clip(RoundedCornerShape(DialogDefaults.CornerRadius))
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.bg_horizontal),
+                            contentDescription = null,
+                            modifier = Modifier.matchParentSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                        content()
+                    }
                 }
             }
         }
