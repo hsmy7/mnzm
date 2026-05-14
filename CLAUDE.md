@@ -59,26 +59,55 @@ Tests live in `android/app/src/test/`. They use JUnit 4, Mockito, Robolectric, a
 └──────────────────────────────────────────────────┘
 ```
 
+### Data Flow
+
+```
+User Action (Compose UI)
+  → ViewModel calls GameEngine method
+    → GameEngine delegates to Service (e.g., CombatService)
+      → Service reads from / writes to GameStateStore._state
+        → StateFlow emits new UnifiedGameState
+          → ViewModel.collectAsState() triggers recomposition
+            → Compose UI renders updated state
+```
+
+- **GameEngine** is the single entry point for all state mutations from the UI layer. ViewModels never write to `GameStateStore` directly.
+- **GameEngineCore** runs on a 200ms tick via `SystemManager`, driving autonomous systems (TimeSystem, BuildingSubsystem, etc.) that also write to `GameStateStore`.
+- **GameStateStore** is the single source of truth — one `MutableStateFlow<UnifiedGameState>` containing all game state. Individual `StateFlow` projections are derived via `.map {}`.
+
 ### Key Source Directories
 
+**Core — Game logic, state, and static data**
 | Directory | Purpose |
 |-----------|---------|
-| `core/engine/` | Game loop, services, systems, production, scheduling |
+| `core/engine/` | Game loop (200ms tick), services, systems, production, scheduling |
 | `core/engine/service/` | Per-domain services (Disciple, Combat, Cultivation, Diplomacy, Building, Event, Exploration, etc.) |
 | `core/engine/system/` | ECS-like systems: Inventory, Building, Time, SystemManager |
 | `core/model/` | Data classes: GameData (Room Entity), Disciple, Items, Equipment, etc. |
 | `core/state/` | GameStateStore (central state), UnifiedGameState, UnifiedGameStateManager |
 | `core/registry/` | Static game data: Equipment, Manuals, Herbs, ForgeRecipes, Items |
 | `core/config/` | JSON-driven config: buildings, gifts, diplomatic events, inventory |
+
+**Data — Storage, serialization, and persistence**
+| Directory | Purpose |
+|-----------|---------|
 | `data/` | Storage layer: Room DB, serialization, compression, encryption, WAL, backup |
 | `data/facade/` | StorageFacade — single external API for save/load/delete |
 | `data/engine/` | StorageEngine — internal storage orchestration |
 | `data/local/` | Room database, DAOs, migrations, type converters |
+
+**UI — Compose screens, components, and theming**
+| Directory | Purpose |
+|-----------|---------|
 | `ui/game/` | Game screens, ViewModels (one per feature), dialogs |
 | `ui/game/tabs/` | Tab content: Disciples, Buildings, Warehouse, Settings |
 | `ui/game/map/` | World map (Compose Canvas), markers, camera |
 | `ui/components/` | Shared Compose components (GameButton, ItemCard, DialogManager) |
 | `ui/theme/` | Colors, typography, shapes, button sizes |
+
+**Infrastructure — DI, networking, and third-party SDKs**
+| Directory | Purpose |
+|-----------|---------|
 | `di/` | Hilt modules: AppModule, CoreModule, RepositoryModule, StorageModule |
 | `network/` | Retrofit API interfaces |
 | `taptap/` | TapTap SDK wrappers (auth, compliance) |
