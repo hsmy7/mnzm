@@ -159,7 +159,19 @@ data class GameData(
     // 宗门政策
     var sectPolicies: SectPolicies = SectPolicies(),
 
-    // AI战斗队伍 (removed in v3.0.19 — battles resolve immediately)
+    // 战斗队伍（支持多队伍）
+    // battleTeam 保留用于 Room schema 兼容旧存档，逻辑层使用 battleTeams
+    var battleTeam: BattleTeam? = null,
+
+    @Ignore
+    var battleTeams: List<BattleTeam> = emptyList(),
+
+    // 已使用的队伍编号（用于解散后编号复用）
+    @Ignore
+    var usedTeamNumbers: List<Int> = emptyList(),
+
+    // AI战斗队伍
+    var aiBattleTeams: List<AIBattleTeam> = emptyList(),
 
     // 已使用的兑换码列表（使用 LinkedHashSet 去重 + 上限保护）
     var usedRedeemCodes: List<String> = emptyList(),
@@ -229,6 +241,8 @@ data class GameData(
     val organization: SectOrganizationState get() = SectOrganizationState(
         elderSlots = elderSlots,
         alliances = alliances,
+        battleTeams = battleTeams,
+        aiBattleTeams = aiBattleTeams,
         sectPolicies = sectPolicies,
         activeMissions = activeMissions,
         availableMissions = availableMissions,
@@ -280,6 +294,8 @@ data class GameData(
     fun withOrganization(state: SectOrganizationState): GameData = this.copy(
         elderSlots = state.elderSlots,
         alliances = state.alliances,
+        battleTeams = state.battleTeams,
+        aiBattleTeams = state.aiBattleTeams,
         sectPolicies = state.sectPolicies,
         activeMissions = state.activeMissions,
         availableMissions = state.availableMissions,
@@ -635,6 +651,77 @@ data class GarrisonSlot(
 ) {
     val isActive: Boolean get() = discipleId.isNotEmpty()
 }
+
+@Serializable
+data class BattleTeam(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val name: String = "战斗队伍",
+    val teamNumber: Int = 0,
+    val slots: List<BattleTeamSlot> = buildList {
+        repeat(2) { index ->
+            add(BattleTeamSlot(index, slotType = BattleSlotType.ELDER))
+        }
+        repeat(8) { index ->
+            add(BattleTeamSlot(index + 2, slotType = BattleSlotType.DISCIPLE))
+        }
+    },
+    val isAtSect: Boolean = true,
+    val currentX: Float = 0f,
+    val currentY: Float = 0f,
+    val targetX: Float = 0f,
+    val targetY: Float = 0f,
+    val status: String = "idle",
+    val targetSectId: String = "",
+    val originSectId: String = "",
+    val route: List<String> = emptyList(),
+    val currentRouteIndex: Int = 0,
+    val moveProgress: Float = 0f,
+    val isOccupying: Boolean = false,
+    val occupiedSectId: String = "",
+    val isReturning: Boolean = false
+)
+
+@Serializable
+enum class BattleSlotType {
+    ELDER,
+    DISCIPLE
+}
+
+@Serializable
+data class BattleTeamSlot(
+    val index: Int = 0,
+    val discipleId: String = "",
+    val discipleName: String = "",
+    val discipleRealm: String = "",
+    val slotType: BattleSlotType = BattleSlotType.DISCIPLE,
+    val isAlive: Boolean = true
+)
+
+@Serializable
+data class AIBattleTeam(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val attackerSectId: String = "",
+    val attackerSectName: String = "",
+    val defenderSectId: String = "",
+    val defenderSectName: String = "",
+    val disciples: List<Disciple> = emptyList(),
+    val currentX: Float = 0f,
+    val currentY: Float = 0f,
+    val targetX: Float = 0f,
+    val targetY: Float = 0f,
+    val attackerStartX: Float = 0f,
+    val attackerStartY: Float = 0f,
+    val moveProgress: Float = 0f,
+    val status: String = "moving",
+    val route: List<String> = emptyList(),
+    val currentRouteIndex: Int = 0,
+    val startYear: Int = 0,
+    val startMonth: Int = 0,
+    val isPlayerDefender: Boolean = false,
+    val isGarrison: Boolean = false,
+    val garrisonSectId: String = "",
+    val garrisonSectName: String = ""
+)
 
 @Serializable
 data class CompetitionRankResult(

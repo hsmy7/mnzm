@@ -564,6 +564,26 @@ object ProtobufConverters {
 
     @TypeConverter
     @JvmStatic
+    fun fromBattleTeam(value: BattleTeam?): String? =
+        value?.let { encodeToBase64(BattleTeam.serializer(), it) }
+
+    @TypeConverter
+    @JvmStatic
+    fun toBattleTeam(value: String?): BattleTeam? =
+        value?.let { decodeFromBase64(BattleTeam.serializer(), it) { BattleTeam() } }
+
+    @TypeConverter
+    @JvmStatic
+    fun fromAIBattleTeamList(value: List<AIBattleTeam>): String =
+        encodeToBase64(ListSerializer(AIBattleTeam.serializer()), value)
+
+    @TypeConverter
+    @JvmStatic
+    fun toAIBattleTeamList(value: String): List<AIBattleTeam> =
+        decodeFromBase64(ListSerializer(AIBattleTeam.serializer()), value) { emptyList() }
+
+    @TypeConverter
+    @JvmStatic
     fun fromAlchemySlotList(value: List<AlchemySlot>): String =
         encodeToBase64(ListSerializer(AlchemySlot.serializer()), value)
 
