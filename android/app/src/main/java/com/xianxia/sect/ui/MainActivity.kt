@@ -447,7 +447,8 @@ class MainActivity : ComponentActivity() {
             )
             
             ComplianceManager.registerCallback(MainComplianceCallback(this))
-            
+            com.xianxia.sect.taptap.TapDBManager.startGameDurationTracking(application)
+
             Log.d(TAG, "TapTap SDK初始化成功")
         } catch (e: Exception) {
             Log.e(TAG, "TapTap SDK初始化失败: ${e.message}")
@@ -457,6 +458,7 @@ class MainActivity : ComponentActivity() {
     internal fun handleUserExit() {
         runOnUiThread {
             sessionManager.clearSession()
+            com.xianxia.sect.taptap.TapDBManager.stopGameDurationTracking()
             TapTapAuthManager.logout()
             showMainScreen()
         }

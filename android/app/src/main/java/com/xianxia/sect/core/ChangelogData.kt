@@ -9,6 +9,13 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.0.21",
+            date = "2026-05-14",
+            changes = listOf(
+                "接入TapDB游戏时长追踪，后台可查看用户活跃时长数据"
+            )
+        ),
+        ChangelogEntry(
             version = "3.0.20",
             date = "2026-05-14",
             changes = listOf(

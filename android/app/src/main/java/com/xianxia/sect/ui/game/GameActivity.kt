@@ -248,6 +248,8 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
                             if (!viewModel.gameData.value.isGameStarted) return@LaunchedEffect
                             mapPreloadData = result
                             saveLoadViewModel.setLoadingProgress(1.0f)
+                            com.xianxia.sect.taptap.TapDBManager.setLevel(gameData.gameYear)
+                            com.xianxia.sect.taptap.TapDBManager.setServer(gameData.sectName)
                             com.xianxia.sect.taptap.TapDBManager.trackEvent(
                                 "game_start",
                                 mapOf(

@@ -1,7 +1,9 @@
 package com.xianxia.sect.taptap
 
+import android.app.Application
 import android.util.Log
 import com.taptap.sdk.db.TapDB
+import com.taptap.sdk.db.biz.gameplay.GameDurationService
 import com.taptap.sdk.db.data.model.Event
 import com.taptap.sdk.db.data.model.EventType
 import com.taptap.sdk.db.data.model.WrapEvent
@@ -11,6 +13,8 @@ import java.util.UUID
 object TapDBManager {
     private const val TAG = "TapDBManager"
 
+    private var gameDurationService: GameDurationService? = null
+
     private val instance: TapDB?
         get() = try {
             TapDB.getInstance()
@@ -18,6 +22,30 @@ object TapDBManager {
             Log.e(TAG, "Failed to get TapDB instance: ${e.message}")
             null
         }
+
+    /**
+     * Start tracking game duration. The GameDurationService internally
+     * registers ActivityLifecycleCallbacks to track foreground/background
+     * time and automatically submits game_duration events.
+     * Must be called after TapTap SDK initialization.
+     */
+    fun startGameDurationTracking(app: Application) {
+        try {
+            gameDurationService = GameDurationService.Builder(app).build()
+            Log.d(TAG, "Game duration tracking started")
+        } catch (e: Exception) {
+            Log.e(TAG, "startGameDurationTracking failed: ${e.message}")
+        }
+    }
+
+    fun stopGameDurationTracking() {
+        try {
+            gameDurationService = null
+            Log.d(TAG, "Game duration tracking stopped")
+        } catch (e: Exception) {
+            Log.e(TAG, "stopGameDurationTracking failed: ${e.message}")
+        }
+    }
 
     fun setUser(userId: String, name: String?) {
         try {
