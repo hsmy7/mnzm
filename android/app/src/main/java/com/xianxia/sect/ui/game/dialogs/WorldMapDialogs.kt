@@ -5,7 +5,23 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -55,6 +71,7 @@ import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.ExplorationTeam
 import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.GarrisonSlot
 import com.xianxia.sect.core.model.MerchantItem
 import com.xianxia.sect.core.model.SectScoutInfo
 import com.xianxia.sect.core.model.WorldMapRenderData
@@ -70,7 +87,6 @@ import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.ui.game.ATTRIBUTE_FILTER_OPTIONS
 import com.xianxia.sect.ui.game.AttributeFilterOption
-import com.xianxia.sect.ui.game.BattleViewModel
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.SPIRIT_ROOT_FILTER_OPTIONS
 import com.xianxia.sect.ui.game.WorldMapViewModel
@@ -80,14 +96,11 @@ import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
 import com.xianxia.sect.ui.game.getAttributeValue
 import com.xianxia.sect.ui.game.getSpiritRootCount
 import com.xianxia.sect.ui.game.tabs.REALM_FILTER_OPTIONS
-import com.xianxia.sect.ui.game.map.BattleTeamPathData
 import com.xianxia.sect.ui.game.map.CaveExplorationPathData
 import com.xianxia.sect.ui.game.map.MapItem
 import com.xianxia.sect.ui.game.map.MapItemMapper
 import com.xianxia.sect.ui.game.map.WorldMapScreen
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
-import com.xianxia.sect.ui.game.map.markers.TeamBadgeInfo
-import com.xianxia.sect.ui.game.map.markers.TeamAction
 import com.xianxia.sect.ui.theme.GameColors
 import java.util.Locale
 
@@ -101,8 +114,6 @@ internal fun WorldMapDialog(
     disciples: List<DiscipleAggregate>,
     viewModel: GameViewModel,
     worldMapViewModel: WorldMapViewModel,
-    battleViewModel: BattleViewModel,
-    battleTeamMoveMode: Boolean = false,
     onDismiss: () -> Unit
 ) {
     var selectedSect by remember { mutableStateOf<WorldSect?>(null) }
@@ -117,36 +128,15 @@ internal fun WorldMapDialog(
     val playerSectX = playerSect?.x ?: 2000f
     val playerSectY = playerSect?.y ?: 1750f
     val caveExplorationTeams: List<CaveExplorationTeam> = mapRenderData.caveExplorationTeams
-    val movableTargetIds = worldMapViewModel.getHighlightedSectIds()
 
-    // Build team badges for player sect
-    val selectedTeamId by worldMapViewModel.selectedTeamId.collectAsState()
-    val teamBadgesBySect = remember(mapRenderData.battleTeams, selectedTeamId) {
-        val atSectTeams = mapRenderData.battleTeams.filter { it.isAtSect }
-        if (atSectTeams.isEmpty() || playerSect == null) emptyMap()
-        else mapOf(playerSect.id to atSectTeams.map { team ->
-            TeamBadgeInfo(
-                teamId = team.id,
-                teamName = team.name,
-                isExpanded = team.id == selectedTeamId
-            )
-        })
+    val sectItems = remember(worldSects) {
+        MapItemMapper.fromWorldSects(worldSects, emptySet())
     }
 
-    val sectItems = remember(worldSects, movableTargetIds) {
-        MapItemMapper.fromWorldSects(worldSects, movableTargetIds)
-    }
-
-    val dynamicItems = remember(scoutTeams, caves, caveExplorationTeams, mapRenderData.battleTeams, mapRenderData.aiBattleTeams, mapRenderData.worldLevels, playerSect) {
+    val dynamicItems = remember(scoutTeams, caves, caveExplorationTeams, mapRenderData.worldLevels, playerSect) {
         val items = mutableListOf<MapItem>()
         items.addAll(MapItemMapper.fromScoutTeams(scoutTeams))
         items.addAll(MapItemMapper.fromCaveExplorationTeams(caveExplorationTeams))
-        items.addAll(MapItemMapper.fromBattleTeams(mapRenderData.battleTeams, playerSect, worldSects))
-        val (aiTeams, battleIndicators) = MapItemMapper.fromAIBattleTeams(
-            mapRenderData.aiBattleTeams, worldSects
-        )
-        items.addAll(aiTeams)
-        items.addAll(battleIndicators)
         items.addAll(MapItemMapper.fromLevels(mapRenderData.worldLevels))
         items
     }
@@ -173,62 +163,11 @@ internal fun WorldMapDialog(
         }
     }
 
-    val battleTeamPaths = remember(mapRenderData.battleTeams, mapRenderData.aiBattleTeams, worldSects) {
-        val pathsList = mutableListOf<BattleTeamPathData>()
-        mapRenderData.battleTeams.forEach { bt ->
-            if (bt.status == "moving") {
-                val targetSect = worldSects.find { it.id == bt.targetSectId }
-                if (targetSect != null && playerSect != null) {
-                    pathsList.add(
-                        BattleTeamPathData(
-                            startWorldX = playerSect.x,
-                            startWorldY = playerSect.y,
-                            targetWorldX = targetSect.x,
-                            targetWorldY = targetSect.y,
-                            isRighteous = true
-                        )
-                    )
-                }
-            } else if (bt.status == "returning" && playerSect != null) {
-                val targetSect = worldSects.find { it.id == bt.targetSectId }
-                val start = if (targetSect != null) { targetSect } else { playerSect }
-                pathsList.add(
-                    BattleTeamPathData(
-                        startWorldX = bt.currentX,
-                        startWorldY = bt.currentY,
-                        targetWorldX = playerSect.x,
-                        targetWorldY = playerSect.y,
-                        isRighteous = true
-                    )
-                )
-            }
-        }
-        mapRenderData.aiBattleTeams.filter { it.status == "moving" || it.status == "returning" }.forEach { aiTeam ->
-            val attackerSect = worldSects.find { it.id == aiTeam.attackerSectId }
-            val defenderSect = worldSects.find { it.id == aiTeam.defenderSectId }
-            if (attackerSect != null && defenderSect != null) {
-                pathsList.add(
-                    BattleTeamPathData(
-                        startWorldX = attackerSect.x,
-                        startWorldY = attackerSect.y,
-                        targetWorldX = defenderSect.x,
-                        targetWorldY = defenderSect.y,
-                        isRighteous = attackerSect.isRighteous
-                    )
-                )
-            }
-        }
-        pathsList
-    }
-
     GameFullDialog(onDismissRequest = onDismiss) {
     WorldMapScreen(
         items = mapItems,
         paths = paths,
         caveExplorationPaths = caveExplorationPaths,
-        battleTeamPaths = battleTeamPaths,
-        hasBattleTeam = mapRenderData.battleTeams.isNotEmpty(),
-        isBattleTeamAtSect = mapRenderData.battleTeams.any { it.isAtSect },
         focusWorldX = playerSectX,
         focusWorldY = playerSectY,
         onBack = onDismiss,
@@ -249,31 +188,6 @@ internal fun WorldMapDialog(
         onLevelClick = { levelItem ->
             selectedLevel = levelItem
             showLevelDetail = true
-        },
-        onBattleTeamClick = {
-            battleViewModel.openBattleTeamDialog()
-        },
-        onMovableTargetClick = { targetSectId ->
-            val teamId = selectedTeamId
-            if (teamId != null && worldMapViewModel.teamInteractionMode.value != WorldMapViewModel.TeamInteractionMode.NONE) {
-                worldMapViewModel.selectTeamTarget(targetSectId)
-            } else {
-                battleViewModel.selectBattleTeamTarget(battleViewModel.battleTeamMoveModeTeamId, targetSectId)
-            }
-        },
-        onCreateTeamClick = { battleViewModel.openBattleTeamDialog() },
-        onManageTeamClick = { battleViewModel.openBattleTeamDialog() },
-        teamBadgesBySect = teamBadgesBySect,
-        onTeamBadgeClick = { teamId ->
-            worldMapViewModel.toggleTeamExpanded(teamId)
-        },
-        onTeamAction = { teamId, action ->
-            when (action) {
-                TeamAction.VIEW -> battleViewModel.openBattleTeamDialog(teamId)
-                TeamAction.MOVE -> worldMapViewModel.startTeamMoveMode(teamId)
-                TeamAction.ATTACK -> worldMapViewModel.startTeamAttackMode(teamId)
-                TeamAction.DISBAND -> battleViewModel.disbandBattleTeam(teamId)
-            }
         }
     )
 
@@ -341,7 +255,9 @@ internal fun WorldMapSectDetailDialog(
     val isAlly = worldMapViewModel.isAlly(sect.id)
     val hasGiftedThisYear = (gameData?.sectDetails?.get(sect.id)?.lastGiftYear ?: 0) == currentYear
     var showGiftedMessage by remember { mutableStateOf(false) }
-    
+    var showAttackDialog by remember { mutableStateOf(false) }
+    var showGarrisonSelection by remember { mutableStateOf<Int?>(null) }
+
     val playerSect = gameData?.worldMapSects?.find { it.isPlayerSect }
     val relation = if (playerSect != null) {
         gameData?.sectRelations?.find { 
@@ -584,15 +500,57 @@ internal fun WorldMapSectDetailDialog(
                                 },
                                 modifier = Modifier.weight(1f)
                             )
-                            
-                            Spacer(modifier = Modifier.weight(1f))
-                            
-                            Spacer(modifier = Modifier.weight(1f))
+
+                            if (!sect.isPlayerOccupied) {
+                                GameButton(
+                                    text = "进攻",
+                                    onClick = {
+                                        showAttackDialog = true
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+
+                        if (sect.isPlayerOccupied) {
+                            HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
+
+                            Text(
+                                text = "驻守弟子",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Black
+                            )
+
+                            val garrisonSlots = sect.garrisonSlots
+
+                            for (row in 0..1) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    for (col in 0..4) {
+                                        val slotIndex = row * 5 + col
+                                        if (slotIndex < garrisonSlots.size) {
+                                            val gSlot = garrisonSlots[slotIndex]
+                                            GarrisonSlotBox(
+                                                slot = gSlot,
+                                                onClick = {
+                                                    showGarrisonSelection = slotIndex
+                                                },
+                                                onRemoveClick = {
+                                                    worldMapViewModel.removeGarrisonDisciple(sect.id, slotIndex)
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 } else {
                     HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
-                    
+
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -616,6 +574,200 @@ internal fun WorldMapSectDetailDialog(
             message = "今年已送过礼品等明年再来吧",
             onDismiss = { showGiftedMessage = false }
         )
+    }
+
+    if (showAttackDialog) {
+        val idleDisciples = viewModel.discipleAggregates.value.filter {
+            it.isAlive && it.status == com.xianxia.sect.core.model.DiscipleStatus.IDLE
+        }
+        AttackDiscipleDialog(
+            sectName = sect.name,
+            disciples = idleDisciples,
+            gameData = gameData,
+            viewModel = viewModel,
+            onAttack = { attackSlots ->
+                worldMapViewModel.attackSect(sect.id, attackSlots)
+                showAttackDialog = false
+                onDismiss()
+            },
+            onDismiss = { showAttackDialog = false }
+        )
+    }
+
+    if (showGarrisonSelection != null) {
+        val slotIndex = showGarrisonSelection!!
+        val idleDisciples = viewModel.discipleAggregates.value.filter {
+            it.isAlive && it.status == com.xianxia.sect.core.model.DiscipleStatus.IDLE
+        }
+        GarrisonDiscipleSelectionDialog(
+            disciples = idleDisciples,
+            onSelect = { disciple ->
+                worldMapViewModel.assignGarrisonDisciple(sect.id, slotIndex, disciple.id)
+                showGarrisonSelection = null
+            },
+            onDismiss = { showGarrisonSelection = null }
+        )
+    }
+}
+
+@Composable
+private fun RowScope.GarrisonSlotBox(
+    slot: GarrisonSlot,
+    onClick: () -> Unit,
+    onRemoveClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier.weight(1f),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .aspectRatio(1f)
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(6.dp))
+                .background(if (slot.isActive) Color(0xFFFFF8E1) else GameColors.CardBackground)
+                .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
+                .clickable { onClick() }
+                .padding(6.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            if (slot.isActive) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = slot.discipleName,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black,
+                        maxLines = 1
+                    )
+                    Text(
+                        text = slot.discipleRealm,
+                        fontSize = 10.sp,
+                        color = Color.Black
+                    )
+                }
+            } else {
+                Text(
+                    text = "+",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+            }
+        }
+
+        if (slot.isActive) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "卸任",
+                fontSize = 10.sp,
+                color = Color(0xFFE53935),
+                modifier = Modifier.clickable { onRemoveClick() }
+            )
+        }
+    }
+}
+
+@Composable
+private fun GarrisonDiscipleSelectionDialog(
+    disciples: List<DiscipleAggregate>,
+    onSelect: (DiscipleAggregate) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var selectedRealmFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
+    var selectedSpiritRootFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
+    var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
+    var spiritRootExpanded by remember { mutableStateOf(false) }
+    var attributeExpanded by remember { mutableStateOf(false) }
+    var realmExpanded by remember { mutableStateOf(false) }
+
+    val availableDisciples = remember(disciples) {
+        disciples.filter { it.isAlive && it.status == com.xianxia.sect.core.model.DiscipleStatus.IDLE && it.realmLayer > 0 }
+            .sortedByFollowAndRealm()
+    }
+
+    val realmCounts = remember(availableDisciples) {
+        availableDisciples.groupingBy { it.realm }.eachCount()
+    }
+
+    val spiritRootCounts = remember(availableDisciples) {
+        availableDisciples.groupingBy { it.getSpiritRootCount() }.eachCount()
+    }
+
+    val filteredDisciples = remember(availableDisciples, selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort) {
+        availableDisciples.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort)
+    }
+
+    HalfScreenDialog(onDismissRequest = onDismiss) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "选择驻守弟子",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+                CloseButton(onClick = onDismiss)
+            }
+
+            if (availableDisciples.isEmpty()) {
+                Box(
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "暂无空闲弟子",
+                        fontSize = 12.sp,
+                        color = Color.Black
+                    )
+                }
+            } else {
+                Column(
+                    modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 12.dp)
+                ) {
+                    SpiritRootAttributeFilterBar(
+                        selectedSpiritRootFilter = selectedSpiritRootFilter,
+                        selectedAttributeSort = selectedAttributeSort,
+                        selectedRealmFilter = selectedRealmFilter,
+                        realmFilterOptions = REALM_FILTER_OPTIONS,
+                        realmCounts = realmCounts,
+                        spiritRootExpanded = spiritRootExpanded,
+                        attributeExpanded = attributeExpanded,
+                        realmExpanded = realmExpanded,
+                        spiritRootCounts = spiritRootCounts,
+                        onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
+                        onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
+                        onAttributeSortSelected = { selectedAttributeSort = it },
+                        onRealmFilterSelected = { selectedRealmFilter = selectedRealmFilter + it },
+                        onRealmFilterRemoved = { selectedRealmFilter = selectedRealmFilter - it },
+                        onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
+                        onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
+                        onRealmExpandToggle = { realmExpanded = !realmExpanded },
+                        isCompact = true
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    LazyColumn(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(filteredDisciples, key = { it.id }) { disciple ->
+                            PortraitDiscipleCard(
+                                disciple = disciple,
+                                onClick = { onSelect(disciple) }
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

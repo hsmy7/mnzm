@@ -20,22 +20,11 @@ import com.xianxia.sect.ui.game.map.MapItem
 import com.xianxia.sect.ui.game.map.MapStyle
 import com.xianxia.sect.ui.game.map.CameraState
 
-enum class TeamAction { VIEW, MOVE, ATTACK, DISBAND }
-
-data class TeamBadgeInfo(
-    val teamId: String,
-    val teamName: String,
-    val isExpanded: Boolean
-)
-
 @Composable
 fun SectMarker(
     item: MapItem.Sect,
     cameraState: CameraState,
-    teamBadges: List<TeamBadgeInfo> = emptyList(),
-    onClick: () -> Unit,
-    onTeamBadgeClick: (String) -> Unit = {},
-    onTeamAction: (String, TeamAction) -> Unit = { _, _ -> }
+    onClick: () -> Unit
 ) {
     val markerColor = if (item.isPlayerSect) MapStyle.Colors.sectPlayer else MapStyle.Colors.sectNormal
     val borderColor = if (item.isHighlighted) MapStyle.Colors.sectHighlighted else MapStyle.Colors.sectBorderNormal
@@ -46,13 +35,6 @@ fun SectMarker(
     val x = cameraState.worldToScreenX(item.worldX)
     val y = cameraState.worldToScreenY(item.worldY)
 
-    val hasActionButtons = teamBadges.any { it.isExpanded }
-    val expandedTeam = teamBadges.find { it.isExpanded }
-    val badgeHeight = 20.dp
-    val badgeSpacing = 2.dp
-    val actionButtonWidth = 40.dp
-
-    // Main container placed at sect position
     Box(
         modifier = Modifier
             .layout { measurable, constraints ->
@@ -65,105 +47,29 @@ fun SectMarker(
                 }
             }
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(MapStyle.Dimensions.sectBorderRadius))
+                .background(markerColor)
+                .border(
+                    width = borderWidth,
+                    color = borderColor,
+                    shape = RoundedCornerShape(MapStyle.Dimensions.sectBorderRadius)
+                )
+                .padding(
+                    horizontal = MapStyle.Dimensions.sectPaddingH,
+                    vertical = MapStyle.Dimensions.sectPaddingV
+                )
+                .clickable { onClick() },
+            contentAlignment = Alignment.Center
         ) {
-            // Team badges stacked above sect name
-            if (teamBadges.isNotEmpty()) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(badgeSpacing)
-                ) {
-                    // Render badges bottom-up (1队 at bottom, 2队 above, etc.)
-                    teamBadges.reversed().forEach { badge ->
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(Color.White)
-                                .border(1.dp, Color.Black, RoundedCornerShape(4.dp))
-                                .clickable { onTeamBadgeClick(badge.teamId) }
-                                .padding(horizontal = 6.dp, vertical = 1.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = badge.teamName,
-                                fontSize = 9.sp,
-                                color = Color.Black,
-                                fontWeight = if (badge.isExpanded) FontWeight.Bold else FontWeight.Normal,
-                                maxLines = 1
-                            )
-                        }
-                    }
-                }
-                Spacer(modifier = Modifier.height(badgeSpacing))
-            }
-
-            // Action buttons row (shown right of sect, to the right side)
-            Box {
-                // Sect name badge
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(MapStyle.Dimensions.sectBorderRadius))
-                        .background(markerColor)
-                        .border(
-                            width = borderWidth,
-                            color = borderColor,
-                            shape = RoundedCornerShape(MapStyle.Dimensions.sectBorderRadius)
-                        )
-                        .padding(
-                            horizontal = MapStyle.Dimensions.sectPaddingH,
-                            vertical = MapStyle.Dimensions.sectPaddingV
-                        )
-                        .clickable { onClick() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = item.name,
-                        fontSize = fontSize,
-                        color = textColor,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1
-                    )
-                }
-
-                // Action buttons to the right of sect badge
-                if (hasActionButtons && expandedTeam != null) {
-                    Row(
-                        modifier = Modifier
-                            .align(Alignment.CenterStart)
-                            .offset(
-                                x = MapStyle.Dimensions.sectPaddingH + MapStyle.Dimensions.sectPaddingH + 60.dp,
-                                y = 0.dp
-                            ),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        TeamActionButton("查看") { onTeamAction(expandedTeam.teamId, TeamAction.VIEW) }
-                        TeamActionButton("移动") { onTeamAction(expandedTeam.teamId, TeamAction.MOVE) }
-                        TeamActionButton("进攻") { onTeamAction(expandedTeam.teamId, TeamAction.ATTACK) }
-                        TeamActionButton("解散") { onTeamAction(expandedTeam.teamId, TeamAction.DISBAND) }
-                    }
-                }
-            }
+            Text(
+                text = item.name,
+                fontSize = fontSize,
+                color = textColor,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1
+            )
         }
-    }
-}
-
-@Composable
-private fun TeamActionButton(text: String, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(4.dp))
-            .background(Color(0xFFF0F0F0))
-            .border(0.5.dp, Color.Black, RoundedCornerShape(4.dp))
-            .clickable { onClick() }
-            .padding(horizontal = 6.dp, vertical = 2.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = text,
-            fontSize = 9.sp,
-            color = Color.Black,
-            maxLines = 1
-        )
     }
 }

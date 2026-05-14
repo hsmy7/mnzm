@@ -34,75 +34,6 @@ class WorldMapViewModel @Inject constructor(
     private val _showEnvoyDiscipleSelectDialog = MutableStateFlow(false)
     val showEnvoyDiscipleSelectDialog: StateFlow<Boolean> = _showEnvoyDiscipleSelectDialog.asStateFlow()
 
-    private val _battleTeamMoveMode = MutableStateFlow(false)
-    val battleTeamMoveMode: StateFlow<Boolean> = _battleTeamMoveMode.asStateFlow()
-
-    private val _selectedTeamId = MutableStateFlow<String?>(null)
-    val selectedTeamId: StateFlow<String?> = _selectedTeamId.asStateFlow()
-
-    enum class TeamInteractionMode { NONE, MOVE, ATTACK }
-
-    private val _teamInteractionMode = MutableStateFlow(TeamInteractionMode.NONE)
-    val teamInteractionMode: StateFlow<TeamInteractionMode> = _teamInteractionMode.asStateFlow()
-
-    fun toggleTeamExpanded(teamId: String) {
-        if (_selectedTeamId.value == teamId) {
-            _selectedTeamId.value = null
-            _teamInteractionMode.value = TeamInteractionMode.NONE
-        } else {
-            _selectedTeamId.value = teamId
-            _teamInteractionMode.value = TeamInteractionMode.NONE
-        }
-    }
-
-    fun clearTeamExpansion() {
-        _selectedTeamId.value = null
-        _teamInteractionMode.value = TeamInteractionMode.NONE
-    }
-
-    fun startTeamMoveMode(teamId: String) {
-        _selectedTeamId.value = teamId
-        _teamInteractionMode.value = TeamInteractionMode.MOVE
-    }
-
-    fun startTeamAttackMode(teamId: String) {
-        _selectedTeamId.value = teamId
-        _teamInteractionMode.value = TeamInteractionMode.ATTACK
-    }
-
-    fun getMoveTargetSectIds(): List<String> {
-        val data = gameEngine.gameData.value
-        val playerSectId = data.worldMapSects.find { it.isPlayerSect }?.id ?: ""
-        return data.worldMapSects.filter { sect ->
-            sect.isPlayerSect || (sect.isPlayerOccupied && sect.occupierSectId == playerSectId)
-        }.map { it.id }
-    }
-
-    fun getAttackTargetSectIds(): List<String> = getMovableTargetSectIds()
-
-    fun getHighlightedSectIds(): Set<String> {
-        return when (_teamInteractionMode.value) {
-            TeamInteractionMode.MOVE -> getMoveTargetSectIds().toSet()
-            TeamInteractionMode.ATTACK -> getAttackTargetSectIds().toSet()
-            TeamInteractionMode.NONE -> if (_battleTeamMoveMode.value) getMovableTargetSectIds().toSet() else emptySet()
-        }
-    }
-
-    fun selectTeamTarget(targetSectId: String) {
-        val teamId = _selectedTeamId.value ?: return
-        when (_teamInteractionMode.value) {
-            TeamInteractionMode.MOVE -> {
-                gameEngine.startBattleTeamMove(teamId, targetSectId)
-                clearTeamExpansion()
-            }
-            TeamInteractionMode.ATTACK -> {
-                gameEngine.startBattleTeamMove(teamId, targetSectId)
-                clearTeamExpansion()
-            }
-            TeamInteractionMode.NONE -> {}
-        }
-    }
-
     fun openScoutDialog(sectId: String) {
         _selectedScoutSectId.value = sectId
         _showScoutDialog.value = true
@@ -210,44 +141,6 @@ class WorldMapViewModel @Inject constructor(
         }
     }
 
-    fun startBattleTeamMoveMode() {
-        _battleTeamMoveMode.value = true
-    }
-
-    fun cancelBattleTeamMoveMode() {
-        _battleTeamMoveMode.value = false
-    }
-
-    fun selectBattleTeamTarget(teamId: String, targetSectId: String) {
-        val data = gameEngine.gameData.value
-        val playerSect = data.worldMapSects.find { it.isPlayerSect }
-        val targetSect = data.worldMapSects.find { it.id == targetSectId }
-
-        if (playerSect == null || targetSect == null) {
-            showError("无效的目标宗门")
-            _battleTeamMoveMode.value = false
-            return
-        }
-
-        if (targetSect.isPlayerSect) {
-            showError("不能攻击自己的宗门")
-            _battleTeamMoveMode.value = false
-            return
-        }
-
-        val playerSectId = playerSect.id
-        if (targetSect.isPlayerOccupied && targetSect.occupierSectId == playerSectId) {
-            showError("不能攻击自己占领的宗门")
-            _battleTeamMoveMode.value = false
-            return
-        }
-
-        viewModelScope.launch {
-            gameEngine.startBattleTeamMove(teamId, targetSectId)
-            _battleTeamMoveMode.value = false
-        }
-    }
-
     fun getMovableTargetSectIds(): List<String> {
         val data = gameEngine.gameData.value
         val playerSectId = data.worldMapSects.find { it.isPlayerSect }?.id ?: ""
@@ -255,6 +148,36 @@ class WorldMapViewModel @Inject constructor(
         return data.worldMapSects.filter { sect ->
             !sect.isPlayerSect && !(sect.isPlayerOccupied && sect.occupierSectId == playerSectId)
         }.map { it.id }
+    }
+
+    fun attackSect(sectId: String, attackSlots: List<Pair<Int, DiscipleAggregate>>) {
+        viewModelScope.launch {
+            try {
+                gameEngine.attackSect(sectId, attackSlots)
+            } catch (e: Exception) {
+                showError(e.message ?: "进攻失败")
+            }
+        }
+    }
+
+    fun assignGarrisonDisciple(sectId: String, slotIndex: Int, discipleId: String) {
+        viewModelScope.launch {
+            try {
+                gameEngine.assignGarrisonDisciple(sectId, slotIndex, discipleId)
+            } catch (e: Exception) {
+                showError(e.message ?: "驻守失败")
+            }
+        }
+    }
+
+    fun removeGarrisonDisciple(sectId: String, slotIndex: Int) {
+        viewModelScope.launch {
+            try {
+                gameEngine.removeGarrisonDisciple(sectId, slotIndex)
+            } catch (e: Exception) {
+                showError(e.message ?: "卸任失败")
+            }
+        }
     }
 
     private val _showSectTradeDialog = MutableStateFlow(false)

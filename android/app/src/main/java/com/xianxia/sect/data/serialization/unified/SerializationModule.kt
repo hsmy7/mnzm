@@ -1099,9 +1099,6 @@ class SaveDataConverter @Inject constructor() {
             sectRelations = gameData.sectRelations?.map { convertSectRelation(it) } ?: emptyList(),
             playerAllianceSlots = gameData.playerAllianceSlots ?: 3,
             sectPolicies = convertSectPolicies(gameData.sectPolicies),
-            // 战斗队伍：使用 NullSafeProtoBuf 的专用方法
-            battleTeam = NullSafeProtoBuf.battleTeamToProto(gameData.battleTeams.firstOrNull()),
-            aiBattleTeams = gameData.aiBattleTeams?.map { convertAIBattleTeam(it) } ?: emptyList(),
             usedRedeemCodes = gameData.usedRedeemCodes ?: emptyList(),
             playerProtectionEnabled = gameData.playerProtectionEnabled ?: true,
             playerProtectionStartYear = gameData.playerProtectionStartYear ?: 1,
@@ -1163,9 +1160,6 @@ class SaveDataConverter @Inject constructor() {
             sectRelations = data.sectRelations.map { convertBackSectRelation(it) },
             playerAllianceSlots = data.playerAllianceSlots,
             sectPolicies = convertBackSectPolicies(data.sectPolicies),
-            // 战斗队伍：使用 NullSafeProtoBuf 的反向转换方法
-            battleTeams = listOfNotNull(NullSafeProtoBuf.battleTeamFromProto(data.battleTeam)),
-            aiBattleTeams = data.aiBattleTeams.map { convertBackAIBattleTeam(it) },
             usedRedeemCodes = data.usedRedeemCodes,
             playerProtectionEnabled = data.playerProtectionEnabled,
             playerProtectionStartYear = data.playerProtectionStartYear,
@@ -1994,20 +1988,17 @@ class SaveDataConverter @Inject constructor() {
             allianceStartYear = sect.allianceStartYear ?: 0,
             isRighteous = sect.isRighteous ?: true,
             isPlayerOccupied = sect.isPlayerOccupied ?: false,
-            occupierBattleTeamId = sect.occupierBattleTeamId ?: "",
             isUnderAttack = sect.isUnderAttack ?: false,
             attackerSectId = sect.attackerSectId ?: "",
             occupierSectId = sect.occupierSectId ?: "",
             warehouse = detail?.warehouse?.let { convertSectWarehouse(it) } ?: SerializableSectWarehouse(),
             giftPreference = detail?.giftPreference?.name ?: "NONE",
-            garrisonTeamId = sect.garrisonTeamId ?: ""
         )
     }
 
     private fun convertBackWorldSect(data: SerializableWorldSect): com.xianxia.sect.core.model.WorldSect {
         val occupierTeamId = data.occupierTeamId.ifEmpty { "" }
         val allianceId = data.allianceId.ifEmpty { "" }
-        val occupierBattleTeamId = data.occupierBattleTeamId.ifEmpty { "" }
         val attackerSectId = data.attackerSectId.ifEmpty { "" }
         val occupierSectId = data.occupierSectId.ifEmpty { "" }
         return com.xianxia.sect.core.model.WorldSect(
@@ -2032,11 +2023,9 @@ class SaveDataConverter @Inject constructor() {
             allianceStartYear = data.allianceStartYear,
             isRighteous = data.isRighteous,
             isPlayerOccupied = data.isPlayerOccupied,
-            occupierBattleTeamId = occupierBattleTeamId,
             isUnderAttack = data.isUnderAttack,
             attackerSectId = attackerSectId,
             occupierSectId = occupierSectId,
-            garrisonTeamId = data.garrisonTeamId
         )
     }
 
@@ -2642,130 +2631,6 @@ class SaveDataConverter @Inject constructor() {
             autoPlant = data.autoPlant,
             autoAlchemy = data.autoAlchemy,
             autoForge = data.autoForge
-        )
-    }
-
-    private fun convertBattleTeam(team: com.xianxia.sect.core.model.BattleTeam): SerializableBattleTeam {
-        return SerializableBattleTeam(
-            id = team.id ?: "",
-            name = team.name ?: "",
-            slots = team.slots?.map { convertBattleTeamSlot(it) } ?: emptyList(),
-            isAtSect = team.isAtSect ?: true,
-            currentX = team.currentX ?: 0f,
-            currentY = team.currentY ?: 0f,
-            targetX = team.targetX ?: 0f,
-            targetY = team.targetY ?: 0f,
-            status = team.status ?: "",
-            targetSectId = team.targetSectId ?: "",
-            originSectId = team.originSectId ?: "",
-            route = team.route ?: emptyList(),
-            currentRouteIndex = team.currentRouteIndex ?: 0,
-            moveProgress = team.moveProgress ?: 0f,
-            isOccupying = team.isOccupying ?: false,
-            occupiedSectId = team.occupiedSectId ?: "",
-            isReturning = team.isReturning ?: false
-        )
-    }
-
-    private fun convertBackBattleTeam(data: SerializableBattleTeam): com.xianxia.sect.core.model.BattleTeam {
-        val targetSectId = data.targetSectId.ifEmpty { "" }
-        val originSectId = data.originSectId.ifEmpty { "" }
-        val occupiedSectId = data.occupiedSectId.ifEmpty { "" }
-
-        return com.xianxia.sect.core.model.BattleTeam(
-            id = data.id,
-            name = data.name,
-            slots = data.slots.map { convertBackBattleTeamSlot(it) },
-            isAtSect = data.isAtSect,
-            currentX = data.currentX,
-            currentY = data.currentY,
-            targetX = data.targetX,
-            targetY = data.targetY,
-            status = data.status,
-            targetSectId = targetSectId,
-            originSectId = originSectId,
-            route = data.route,
-            currentRouteIndex = data.currentRouteIndex,
-            moveProgress = data.moveProgress,
-            isOccupying = data.isOccupying,
-            occupiedSectId = occupiedSectId,
-            isReturning = data.isReturning
-        )
-    }
-
-    private fun convertBattleTeamSlot(slot: com.xianxia.sect.core.model.BattleTeamSlot): SerializableBattleTeamSlot {
-        return SerializableBattleTeamSlot(
-            index = slot.index,
-            discipleId = slot.discipleId ?: "",
-            discipleName = slot.discipleName,
-            discipleRealm = slot.discipleRealm,
-            slotType = slot.slotType.name,
-            isAlive = slot.isAlive
-        )
-    }
-
-    private fun convertBackBattleTeamSlot(data: SerializableBattleTeamSlot): com.xianxia.sect.core.model.BattleTeamSlot {
-        return com.xianxia.sect.core.model.BattleTeamSlot(
-            index = data.index,
-            discipleId = data.discipleId,
-            discipleName = data.discipleName,
-            discipleRealm = data.discipleRealm,
-            slotType = safeEnumValueOf(data.slotType, com.xianxia.sect.core.model.BattleSlotType.DISCIPLE, "slotType", "BattleTeamSlot"),
-            isAlive = data.isAlive
-        )
-    }
-
-    private fun convertAIBattleTeam(team: com.xianxia.sect.core.model.AIBattleTeam): SerializableAIBattleTeam {
-        return SerializableAIBattleTeam(
-            id = team.id ?: "",
-            attackerSectId = team.attackerSectId ?: "",
-            attackerSectName = team.attackerSectName ?: "",
-            defenderSectId = team.defenderSectId ?: "",
-            defenderSectName = team.defenderSectName ?: "",
-            disciples = team.disciples?.map { convertDisciple(it) } ?: emptyList(),
-            currentX = team.currentX ?: 0f,
-            currentY = team.currentY ?: 0f,
-            targetX = team.targetX ?: 0f,
-            targetY = team.targetY ?: 0f,
-            attackerStartX = team.attackerStartX ?: 0f,
-            attackerStartY = team.attackerStartY ?: 0f,
-            moveProgress = team.moveProgress ?: 0f,
-            status = team.status ?: "",
-            route = team.route ?: emptyList(),
-            currentRouteIndex = team.currentRouteIndex ?: 0,
-            startYear = team.startYear ?: 0,
-            startMonth = team.startMonth ?: 0,
-            isPlayerDefender = team.isPlayerDefender ?: false,
-            isGarrison = team.isGarrison,
-            garrisonSectId = team.garrisonSectId,
-            garrisonSectName = team.garrisonSectName
-        )
-    }
-
-    private fun convertBackAIBattleTeam(data: SerializableAIBattleTeam): com.xianxia.sect.core.model.AIBattleTeam {
-        return com.xianxia.sect.core.model.AIBattleTeam(
-            id = data.id,
-            attackerSectId = data.attackerSectId,
-            attackerSectName = data.attackerSectName,
-            defenderSectId = data.defenderSectId,
-            defenderSectName = data.defenderSectName,
-            disciples = data.disciples.map { convertBackDisciple(it) },
-            currentX = data.currentX,
-            currentY = data.currentY,
-            targetX = data.targetX,
-            targetY = data.targetY,
-            attackerStartX = data.attackerStartX,
-            attackerStartY = data.attackerStartY,
-            moveProgress = data.moveProgress,
-            status = data.status,
-            route = data.route,
-            currentRouteIndex = data.currentRouteIndex,
-            startYear = data.startYear,
-            startMonth = data.startMonth,
-            isPlayerDefender = data.isPlayerDefender,
-            isGarrison = data.isGarrison,
-            garrisonSectId = data.garrisonSectId,
-            garrisonSectName = data.garrisonSectName
         )
     }
 

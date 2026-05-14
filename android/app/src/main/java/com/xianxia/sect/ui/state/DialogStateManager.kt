@@ -30,7 +30,6 @@ class DialogStateManager @Inject constructor() {
         object MissionHall : DialogType()
         object ReflectionCliff : DialogType()
         object QingyunPeak : DialogType()
-        object BattleTeam : DialogType()
         object SectTrade : DialogType()
         object Gift : DialogType()
         object Scout : DialogType()

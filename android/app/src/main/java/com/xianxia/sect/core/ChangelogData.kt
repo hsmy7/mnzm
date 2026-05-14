@@ -9,6 +9,16 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.0.19",
+            date = "2026-05-14",
+            changes = listOf(
+                "宗门战争系统全面重构：移除战斗队伍，改为宗门信息界面直接进攻；占领后驻守槽位任命弟子；防守仅驻守弟子出战；AI战斗即时结算不再行军",
+                "进攻弟子选择界面：10槽位2行5列方形槽位，卸任/更换按钮，点击弟子弹出详细信息",
+                "玩家主宗被攻击自动选10名在宗门内最高境界弟子防守，占领宗门仅驻守弟子防守",
+                "AI占领宗门每月自动补全驻守弟子至10人，移除路线连通限制"
+            )
+        ),
+        ChangelogEntry(
             version = "3.0.18",
             date = "2026-05-14",
             changes = listOf(

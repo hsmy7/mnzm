@@ -61,8 +61,7 @@ data class SerializableGameData(
     @ProtoNumber(39) val sectRelations: List<SerializableSectRelation> = emptyList(),
     @ProtoNumber(40) val playerAllianceSlots: Int = 3,
     @ProtoNumber(42) val sectPolicies: SerializableSectPolicies = SerializableSectPolicies(),
-    @ProtoNumber(43) val battleTeam: SerializableBattleTeam = SerializableBattleTeam(id="", name="", slots = emptyList(), isAtSect=true, currentX=0f, currentY=0f, targetX=0f, targetY=0f, status="", targetSectId="", originSectId="", route = emptyList(), currentRouteIndex=0, moveProgress=0f, isOccupying=false, isReturning=false),
-    @ProtoNumber(44) val aiBattleTeams: List<SerializableAIBattleTeam> = emptyList(),
+    // @ProtoNumber(44) val aiBattleTeams — removed in v3.0.19
     @ProtoNumber(45) val usedRedeemCodes: List<String> = emptyList(),
     @ProtoNumber(46) val playerProtectionEnabled: Boolean = true,
     @ProtoNumber(47) val playerProtectionStartYear: Int = 1,
@@ -413,13 +412,11 @@ data class SerializableWorldSect(
     @ProtoNumber(28) val allianceStartYear: Int,
     @ProtoNumber(29) val isRighteous: Boolean,
     @ProtoNumber(31) val isPlayerOccupied: Boolean,
-    @ProtoNumber(32) val occupierBattleTeamId: String = "",
     @ProtoNumber(33) val isUnderAttack: Boolean,
     @ProtoNumber(34) val attackerSectId: String = "",
     @ProtoNumber(35) val occupierSectId: String = "",
     @ProtoNumber(36) val warehouse: SerializableSectWarehouse = SerializableSectWarehouse(),
     @ProtoNumber(37) val giftPreference: String = "NONE",
-    @ProtoNumber(38) val garrisonTeamId: String = ""
 )
 
 @Serializable
@@ -694,63 +691,6 @@ data class SerializableSectPolicies(
     @ProtoNumber(8) val autoPlant: Boolean = false,
     @ProtoNumber(9) val autoAlchemy: Boolean = false,
     @ProtoNumber(10) val autoForge: Boolean = false
-)
-
-@Serializable
-data class SerializableBattleTeam(
-    @ProtoNumber(1) val id: String,
-    @ProtoNumber(2) val name: String,
-    @ProtoNumber(3) val slots: List<SerializableBattleTeamSlot> = emptyList(),
-    @ProtoNumber(4) val isAtSect: Boolean,
-    @ProtoNumber(5) val currentX: Float,
-    @ProtoNumber(6) val currentY: Float,
-    @ProtoNumber(7) val targetX: Float,
-    @ProtoNumber(8) val targetY: Float,
-    @ProtoNumber(9) val status: String,
-    @ProtoNumber(10) val targetSectId: String = "",
-    @ProtoNumber(11) val originSectId: String = "",
-    @ProtoNumber(12) val route: List<String> = emptyList(),
-    @ProtoNumber(13) val currentRouteIndex: Int,
-    @ProtoNumber(14) val moveProgress: Float,
-    @ProtoNumber(15) val isOccupying: Boolean,
-    @ProtoNumber(16) val occupiedSectId: String = "",
-    @ProtoNumber(17) val isReturning: Boolean
-)
-
-@Serializable
-data class SerializableBattleTeamSlot(
-    @ProtoNumber(1) val index: Int,
-    @ProtoNumber(2) val discipleId: String = "",
-    @ProtoNumber(3) val discipleName: String,
-    @ProtoNumber(4) val discipleRealm: String,
-    @ProtoNumber(5) val slotType: String,
-    @ProtoNumber(6) val isAlive: Boolean
-)
-
-@Serializable
-data class SerializableAIBattleTeam(
-    @ProtoNumber(1) val id: String,
-    @ProtoNumber(2) val attackerSectId: String,
-    @ProtoNumber(3) val attackerSectName: String,
-    @ProtoNumber(4) val defenderSectId: String,
-    @ProtoNumber(5) val defenderSectName: String,
-    @ProtoNumber(6) val disciples: List<SerializableDisciple> = emptyList(),
-    @ProtoNumber(7) val currentX: Float,
-    @ProtoNumber(8) val currentY: Float,
-    @ProtoNumber(9) val targetX: Float,
-    @ProtoNumber(10) val targetY: Float,
-    @ProtoNumber(11) val attackerStartX: Float,
-    @ProtoNumber(12) val attackerStartY: Float,
-    @ProtoNumber(13) val moveProgress: Float,
-    @ProtoNumber(14) val status: String,
-    @ProtoNumber(15) val route: List<String> = emptyList(),
-    @ProtoNumber(16) val currentRouteIndex: Int,
-    @ProtoNumber(17) val startYear: Int,
-    @ProtoNumber(18) val startMonth: Int,
-    @ProtoNumber(19) val isPlayerDefender: Boolean,
-    @ProtoNumber(20) val isGarrison: Boolean = false,
-    @ProtoNumber(21) val garrisonSectId: String = "",
-    @ProtoNumber(22) val garrisonSectName: String = ""
 )
 
 @Serializable

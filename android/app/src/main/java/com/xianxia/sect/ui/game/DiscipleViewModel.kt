@@ -106,16 +106,6 @@ class DiscipleViewModel @Inject constructor(
         }
     }
     
-    fun getDisciplesForBattleTeamSlot(slotIndex: Int, currentSlotDiscipleIds: List<String>): List<DiscipleAggregate> {
-        return disciples.value.filter { disciple ->
-            disciple.isAlive &&
-            disciple.realmLayer > 0 &&
-            disciple.status == DiscipleStatus.IDLE &&
-            !currentSlotDiscipleIds.contains(disciple.id) &&
-            !disciplePositionQuery.isPositionWorkStatus(disciple.id)
-        }.sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
-    }
-    
     fun getEligibleScoutDisciples(): List<DiscipleAggregate> {
         return disciples.value.filter { 
             it.isAlive && it.status == DiscipleStatus.IDLE 

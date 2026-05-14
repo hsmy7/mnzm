@@ -120,10 +120,9 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         if (disciple.status == DiscipleStatus.REFLECTING) return DiscipleStatus.REFLECTING
         if (disciple.status == DiscipleStatus.ON_MISSION) return DiscipleStatus.ON_MISSION
 
-        val inTeam = data.battleTeams.any { team ->
-            team.status != "idle" && team.slots.any { it.discipleId == discipleId }
-        }
-        if (inTeam) return DiscipleStatus.IN_TEAM
+        val playerSect = data.worldMapSects.find { it.isPlayerSect }
+        val inGarrison = playerSect?.garrisonSlots?.any { it.discipleId == discipleId } == true
+        if (inGarrison) return DiscipleStatus.IN_TEAM
 
         if (_isInExploration(discipleId)) return DiscipleStatus.IN_TEAM
 
@@ -232,9 +231,9 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         }
 
         val inTeamIds = mutableSetOf<String>()
-        data.battleTeams.filter { it.status != "idle" }.forEach { team ->
-            team.slots.mapNotNull { it.discipleId }.forEach { inTeamIds.add(it) }
-        }
+        data.worldMapSects.find { it.isPlayerSect }?.garrisonSlots
+            ?.filter { it.discipleId.isNotEmpty() }
+            ?.forEach { inTeamIds.add(it.discipleId) }
 
         currentTeams.filter { it.status == ExplorationStatus.TRAVELING || it.status == ExplorationStatus.EXPLORING || it.status == ExplorationStatus.SCOUTING || it.status == ExplorationStatus.DANGER }
             .forEach { team -> inTeamIds.addAll(team.memberIds) }
@@ -289,25 +288,16 @@ private val applicationScopeProvider: ApplicationScopeProvider,
 
         val clearedElderSlots = clearAllDisciplesFromElderSlots(data.elderSlots, reflectingIds)
 
-        val clearedBattleTeams = data.battleTeams.map { team ->
-            if (team.status != "idle") {
-                team.copy(
-                    slots = team.slots.map { slot ->
+        val clearedGarrisonSects = data.worldMapSects.map { sect ->
+            if (sect.isPlayerSect) {
+                sect.copy(
+                    garrisonSlots = sect.garrisonSlots.map { slot ->
                         if (slot.discipleId.isNotEmpty() && slot.discipleId !in reflectingIds)
-                            slot.copy(discipleId = "", discipleName = "", discipleRealm = "", isAlive = true)
+                            GarrisonSlot(index = slot.index)
                         else slot
-                    },
-                    status = "idle",
-                    targetSectId = "",
-                    originSectId = "",
-                    route = emptyList(),
-                    currentRouteIndex = 0,
-                    moveProgress = 0f,
-                    isOccupying = false,
-                    occupiedSectId = "",
-                    isReturning = false
+                    }
                 )
-            } else team
+            } else sect
         }
 
         val clearedCaveTeams = data.caveExplorationTeams.map { team ->
@@ -328,7 +318,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
             spiritMineSlots = clearedSpiritMineSlots,
             librarySlots = clearedLibrarySlots,
             elderSlots = clearedElderSlots,
-            battleTeams = clearedBattleTeams,
+            worldMapSects = clearedGarrisonSects,
             caveExplorationTeams = clearedCaveTeams,
             activeMissions = clearedActiveMissions
         )

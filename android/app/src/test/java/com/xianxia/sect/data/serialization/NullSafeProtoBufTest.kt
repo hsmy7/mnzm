@@ -535,20 +535,4 @@ class NullSafeProtoBufTest {
         assertEquals(0.8, result.nurtureProgress!!, 0.001)
     }
 
-    @Test
-    fun `battleTeamToProto - null returns default with empty id`() {
-        val result = NullSafeProtoBuf.battleTeamToProto(null)
-        assertEquals("", result.id)
-    }
-
-    @Test
-    fun `battleTeamFromProto - empty id returns null`() {
-        val proto = com.xianxia.sect.data.serialization.unified.SerializableBattleTeam(
-            id = "", name = "未命名队伍", slots = emptyList(), isAtSect = true,
-            currentX = 0f, currentY = 0f, targetX = 0f, targetY = 0f,
-            status = "IDLE", targetSectId = "", originSectId = "", route = emptyList(),
-            currentRouteIndex = 0, moveProgress = 0f, isOccupying = false, isReturning = false
-        )
-        assertNull(NullSafeProtoBuf.battleTeamFromProto(proto))
-    }
 }

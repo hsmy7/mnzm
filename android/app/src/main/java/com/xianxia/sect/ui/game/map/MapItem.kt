@@ -46,40 +46,6 @@ sealed interface MapItem {
         val targetY: Float
     ) : MapItem
 
-    data class BattleTeam(
-        override val id: String,
-        override val worldX: Float,
-        override val worldY: Float,
-        val name: String = "战斗队伍",
-        val isAtSect: Boolean,
-        val sectWorldX: Float,
-        val sectWorldY: Float,
-        val startWorldX: Float = 0f,
-        val startWorldY: Float = 0f,
-        val targetWorldX: Float = 0f,
-        val targetWorldY: Float = 0f
-    ) : MapItem
-
-    data class AIBattleTeam(
-        override val id: String,
-        override val worldX: Float,
-        override val worldY: Float,
-        val attackerSectName: String,
-        val attackerIsRighteous: Boolean,
-        val defenderSectId: String,
-        val startWorldX: Float = 0f,
-        val startWorldY: Float = 0f,
-        val targetWorldX: Float = 0f,
-        val targetWorldY: Float = 0f
-    ) : MapItem
-
-    data class BattleIndicator(
-        override val id: String,
-        override val worldX: Float,
-        override val worldY: Float,
-        val isBattling: Boolean
-    ) : MapItem
-
     data class Level(
         override val id: String,
         override val worldX: Float,

@@ -9,7 +9,6 @@ import com.xianxia.sect.core.SkillType
 import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.registry.TalentDatabase
-import com.xianxia.sect.core.model.AIBattleTeam
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.EquipmentSlot
@@ -18,7 +17,6 @@ import com.xianxia.sect.core.model.ManualProficiencyData
 import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.engine.ManualProficiencySystem
 import com.xianxia.sect.core.util.BattleCalculator
-import kotlin.math.sqrt
 import kotlin.random.Random
 
 object AISectAttackManager {
@@ -27,44 +25,132 @@ object AISectAttackManager {
     private val POWER_RATIO_THRESHOLD get() = GameConfig.AI.POWER_RATIO_THRESHOLD
     val TEAM_SIZE get() = GameConfig.AI.TEAM_SIZE
 
-    fun decideAttacks(gameData: GameData): List<AIBattleTeam> {
-        val newBattles = mutableListOf<AIBattleTeam>()
-        val existingAttacks = gameData.aiBattleTeams.filter { it.status == "moving" || it.status == "battling" }
-        val attackingSectIds = existingAttacks.map { it.attackerSectId }.toSet()
-        val underAttackSectIds = existingAttacks.map { it.defenderSectId }.toSet()
-        val aiDisciplesMap = gameData.aiSectDisciples
+    /**
+     * Result of an AI attack decision with immediate execution.
+     * The caller applies these changes to game state.
+     */
+    data class AIAttackResult(
+        val attackerSectId: String,
+        val defenderSectId: String,
+        val attackerSectName: String,
+        val defenderSectName: String,
+        val winner: AIBattleWinner,
+        val deadAttackerIds: List<String>,
+        val deadDefenderIds: List<String>,
+        val canOccupy: Boolean,
+        val survivingAttackers: List<Disciple>
+    )
 
-        val existingTeamDiscipleIds = gameData.aiBattleTeams
-            .filter { it.status != "completed" }
-            .flatMap { it.disciples.map { d -> d.id } }
-            .toSet()
+    fun decideAttacks(gameData: GameData): List<AIAttackResult> {
+        val results = mutableListOf<AIAttackResult>()
+        val aiDisciplesMap = gameData.aiSectDisciples
 
         val aiSects = gameData.worldMapSects.filter { !it.isPlayerSect }
 
         for (attacker in aiSects) {
-            if (attacker.id in attackingSectIds) continue
             val attackerDisciples = aiDisciplesMap[attacker.id] ?: emptyList()
-            if (attackerDisciples.filter { it.isAlive && it.id !in existingTeamDiscipleIds }.size < MIN_DISCIPLES_FOR_ATTACK) continue
+            val availableAttackers = attackerDisciples.filter { it.isAlive }
+            if (availableAttackers.size < MIN_DISCIPLES_FOR_ATTACK) continue
 
             val allTargets = gameData.worldMapSects.filter { sect ->
                 sect.id != attacker.id && sect.occupierSectId != attacker.id
             }
 
             for (defender in allTargets) {
-                if (defender.id in underAttackSectIds) continue
-
-                if (!isRouteConnected(attacker, defender, gameData)) continue
+                if (results.any { it.defenderSectId == defender.id || it.attackerSectId == attacker.id }) continue
                 if (!checkAttackConditions(attacker, defender, gameData, aiDisciplesMap)) continue
 
-                val battleTeam = createAttackTeam(attacker, defender, gameData, attackerDisciples, existingTeamDiscipleIds)
-                if (battleTeam != null) {
-                    newBattles.add(battleTeam)
-                    break
+                // Build attack team
+                val selectedAttackers = availableAttackers
+                    .sortedByDescending { it.realm }
+                    .take(TEAM_SIZE)
+                if (selectedAttackers.size < MIN_DISCIPLES_FOR_ATTACK) continue
+
+                // Get defenders: garrison first, then sect disciples
+                val defenderSect = gameData.worldMapSects.find { it.id == defender.id }
+                val isAiOccupied = defenderSect?.occupierSectId?.isNotEmpty() == true && defenderSect.occupierSectId != attacker.id
+                val garrisonDisciples = if (isAiOccupied && defenderSect != null) {
+                    val occupierDisciples = aiDisciplesMap[defenderSect.occupierSectId] ?: emptyList()
+                    defenderSect.garrisonSlots
+                        .filter { it.discipleId.isNotEmpty() }
+                        .mapNotNull { slot -> occupierDisciples.find { d -> d.id == slot.discipleId && d.isAlive } }
+                } else {
+                    emptyList()
                 }
+
+                val defenderPool = aiDisciplesMap[defender.id] ?: emptyList()
+                val defenderDisciples = if (garrisonDisciples.isNotEmpty()) {
+                    garrisonDisciples
+                } else {
+                    defenderPool.filter { it.isAlive }.sortedByDescending { it.realm }.take(TEAM_SIZE)
+                }
+
+                if (defenderDisciples.isEmpty()) continue
+
+                // Execute battle immediately
+                val battleResult = executeSectBattle(selectedAttackers, defenderSect ?: defender, defenderDisciples)
+
+                val survivingAttackers = selectedAttackers.filter { it.id !in battleResult.deadAttackerIds }
+
+                results.add(
+                    AIAttackResult(
+                        attackerSectId = attacker.id,
+                        defenderSectId = defender.id,
+                        attackerSectName = attacker.name,
+                        defenderSectName = defender.name,
+                        winner = battleResult.winner,
+                        deadAttackerIds = battleResult.deadAttackerIds,
+                        deadDefenderIds = battleResult.deadDefenderIds,
+                        canOccupy = battleResult.canOccupy,
+                        survivingAttackers = survivingAttackers
+                    )
+                )
+
+                // One attack per attacker per month
+                break
             }
         }
 
-        return newBattles
+        return results
+    }
+
+    /**
+     * Execute a sect battle given raw disciple lists (no AIBattleTeam needed).
+     */
+    fun executeSectBattle(
+        attackers: List<Disciple>,
+        defenderSect: WorldSect,
+        defenderDisciples: List<Disciple>
+    ): AIBattleResult {
+        val defenseTeam = createDefenseTeam(defenderDisciples)
+        val combatAttackers = attackers.map { convertToCombatant(it, CombatantSide.ATTACKER) }
+        val combatDefenders = defenseTeam.map { convertToCombatant(it, CombatantSide.DEFENDER) }
+
+        val result = executeUnifiedAIBattle(combatAttackers, combatDefenders)
+
+        val deadAttackerIds = attackers
+            .filter { disciple ->
+                result.attackers.find { it.id == disciple.id }?.isDead == true
+            }
+            .map { it.id }
+
+        val deadDefenderIds = defenseTeam
+            .filter { disciple ->
+                result.defenders.find { it.id == disciple.id }?.isDead == true
+            }
+            .map { it.id }
+
+        val allDefenderDisciples = defenderDisciples.filter { it.isAlive && it.id !in deadDefenderIds }
+        val highRealmAllDead = allDefenderDisciples.filter { it.realm <= 5 }.isEmpty()
+
+        val canOccupy = result.winner == AIBattleWinner.ATTACKER && highRealmAllDead
+
+        return AIBattleResult(
+            winner = result.winner,
+            deadAttackerIds = deadAttackerIds,
+            deadDefenderIds = deadDefenderIds,
+            canOccupy = canOccupy
+        )
     }
 
     fun checkAttackConditions(
@@ -93,20 +179,6 @@ object AISectAttackManager {
         if (attackerPower < defenderPower * POWER_RATIO_THRESHOLD) return false
 
         return true
-    }
-
-    fun isRouteConnected(attacker: WorldSect, target: WorldSect, gameData: GameData): Boolean {
-        if (target.id in attacker.connectedSectIds) return true
-
-        val occupiedByAttacker = gameData.worldMapSects.filter { sect ->
-            sect.occupierSectId == attacker.id
-        }
-
-        for (occupied in occupiedByAttacker) {
-            if (target.id in occupied.connectedSectIds) return true
-        }
-
-        return false
     }
 
     fun calculatePowerScore(disciples: List<Disciple>): Double {
@@ -140,41 +212,16 @@ object AISectAttackManager {
     }
 
     fun createAttackTeam(
-        attacker: WorldSect,
-        defender: WorldSect,
-        gameData: GameData,
         attackerDisciples: List<Disciple>,
-        existingTeamDiscipleIds: Set<String> = emptySet()
-    ): AIBattleTeam? {
+        existingBusyIds: Set<String> = emptySet()
+    ): List<Disciple> {
         val availableDisciples = attackerDisciples
-            .filter { it.isAlive && it.id !in existingTeamDiscipleIds }
-            .sortedBy { it.realm }
+            .filter { it.isAlive && it.id !in existingBusyIds }
+            .sortedByDescending { it.realm }
 
-        if (availableDisciples.size < MIN_DISCIPLES_FOR_ATTACK) return null
+        if (availableDisciples.size < MIN_DISCIPLES_FOR_ATTACK) return emptyList()
 
-        val selectedDisciples = availableDisciples.take(TEAM_SIZE)
-
-        return AIBattleTeam(
-            id = java.util.UUID.randomUUID().toString(),
-            attackerSectId = attacker.id,
-            attackerSectName = attacker.name,
-            defenderSectId = defender.id,
-            defenderSectName = defender.name,
-            disciples = selectedDisciples,
-            currentX = attacker.x,
-            currentY = attacker.y,
-            targetX = defender.x,
-            targetY = defender.y,
-            attackerStartX = attacker.x,
-            attackerStartY = attacker.y,
-            moveProgress = 0f,
-            status = "moving",
-            route = emptyList(),
-            currentRouteIndex = 0,
-            startYear = gameData.gameYear,
-            startMonth = gameData.gameMonth,
-            isPlayerDefender = defender.isPlayerSect
-        )
+        return availableDisciples.take(TEAM_SIZE)
     }
 
     fun createDefenseTeam(defenderDisciples: List<Disciple>): List<Disciple> {
@@ -207,39 +254,50 @@ object AISectAttackManager {
         return targets.toList()
     }
 
-    fun decidePlayerAttack(gameData: GameData): AIBattleTeam? {
+    fun decidePlayerAttack(gameData: GameData): AIAttackResult? {
         if (gameData.isPlayerProtected) return null
 
-        val existingAttacks = gameData.aiBattleTeams.filter { it.status == "moving" || it.status == "battling" }
-        val attackingSectIds = existingAttacks.map { it.attackerSectId }.toSet()
         val aiDisciplesMap = gameData.aiSectDisciples
-
-        val existingTeamDiscipleIds = gameData.aiBattleTeams
-            .filter { it.status != "completed" }
-            .flatMap { it.disciples.map { d -> d.id } }
-            .toSet()
-
         val playerSect = gameData.worldMapSects.find { it.isPlayerSect } ?: return null
+        val playerSectId = playerSect.id
 
-        val aiSects = gameData.worldMapSects.filter { !it.isPlayerSect }
-
-        for (attacker in aiSects) {
-            if (attacker.id in attackingSectIds) continue
+        for (attacker in gameData.worldMapSects.filter { !it.isPlayerSect }) {
             val attackerDisciples = aiDisciplesMap[attacker.id] ?: emptyList()
-            if (attackerDisciples.filter { it.isAlive && it.id !in existingTeamDiscipleIds }.size < MIN_DISCIPLES_FOR_ATTACK) continue
+            if (attackerDisciples.filter { it.isAlive }.size < MIN_DISCIPLES_FOR_ATTACK) continue
 
             val relation = gameData.sectRelations.find {
-                (it.sectId1 == attacker.id && it.sectId2 == playerSect.id) ||
-                (it.sectId1 == playerSect.id && it.sectId2 == attacker.id)
+                (it.sectId1 == attacker.id && it.sectId2 == playerSectId) ||
+                (it.sectId1 == playerSectId && it.sectId2 == attacker.id)
             }
             val favor = relation?.favor ?: 0
             if (favor > 0) continue
 
             if (attacker.allianceId.isNotEmpty() && playerSect.allianceId == attacker.allianceId) continue
 
-            if (!isRouteConnected(attacker, playerSect, gameData)) continue
+            val selectedAttackers = attackerDisciples.filter { it.isAlive }
+                .sortedByDescending { it.realm }
+                .take(TEAM_SIZE)
+            if (selectedAttackers.size < MIN_DISCIPLES_FOR_ATTACK) continue
 
-            return createAttackTeam(attacker, playerSect, gameData, attackerDisciples, existingTeamDiscipleIds)
+            // Execute battle immediately — garrison from player's home sect
+            val defenderDisciples = gameData.aiSectDisciples[playerSectId] ?: emptyList()
+            if (defenderDisciples.isEmpty()) continue
+
+            val battleResult = executeSectBattle(selectedAttackers, playerSect, defenderDisciples)
+
+            val survivingAttackers = selectedAttackers.filter { it.id !in battleResult.deadAttackerIds }
+
+            return AIAttackResult(
+                attackerSectId = attacker.id,
+                defenderSectId = playerSectId,
+                attackerSectName = attacker.name,
+                defenderSectName = playerSect.name,
+                winner = battleResult.winner,
+                deadAttackerIds = battleResult.deadAttackerIds,
+                deadDefenderIds = battleResult.deadDefenderIds,
+                canOccupy = battleResult.canOccupy,
+                survivingAttackers = survivingAttackers
+            )
         }
 
         return null
@@ -259,7 +317,6 @@ object AISectAttackManager {
 
             val hasTarget = gameData.worldMapSects.any { target ->
                 target.id != sect.id && target.occupierSectId != sect.id &&
-                isRouteConnected(sect, target, gameData) &&
                 checkAttackConditions(sect, target, gameData, aiDisciplesMap)
             }
 
@@ -269,84 +326,6 @@ object AISectAttackManager {
         }
 
         return sectsWithNoTargets
-    }
-
-    fun updateAIBattleTeamMovement(team: AIBattleTeam, gameData: GameData): AIBattleTeam {
-        if (team.moveProgress >= 1f) return team
-
-        if (team.status == "moving") {
-            val attackerSect = gameData.worldMapSects.find { it.id == team.attackerSectId } ?: return team
-            val defenderSect = gameData.worldMapSects.find { it.id == team.defenderSectId } ?: return team
-
-            val distance = sqrt(
-                (defenderSect.x - attackerSect.x) * (defenderSect.x - attackerSect.x) +
-                (defenderSect.y - attackerSect.y) * (defenderSect.y - attackerSect.y)
-            )
-
-            val duration = distance / 33.33f
-            val progressIncrement = 1f / duration.coerceAtLeast(0.001f)
-            val newProgress = (team.moveProgress + progressIncrement).coerceAtMost(1f)
-
-            val newX = attackerSect.x + (defenderSect.x - attackerSect.x) * newProgress
-            val newY = attackerSect.y + (defenderSect.y - attackerSect.y) * newProgress
-
-            return if (newProgress >= 1f) {
-                team.copy(
-                    status = "battling",
-                    moveProgress = 1f,
-                    currentX = defenderSect.x,
-                    currentY = defenderSect.y
-                )
-            } else {
-                team.copy(
-                    moveProgress = newProgress,
-                    currentX = newX,
-                    currentY = newY
-                )
-            }
-        }
-
-        if (team.status == "returning") {
-            val attackerSect = gameData.worldMapSects.find { it.id == team.attackerSectId } ?: return team
-            val defenderSect = gameData.worldMapSects.find { it.id == team.defenderSectId } ?: return team
-
-            val distance = sqrt(
-                (attackerSect.x - defenderSect.x) * (attackerSect.x - defenderSect.x) +
-                (attackerSect.y - defenderSect.y) * (attackerSect.y - defenderSect.y)
-            )
-
-            val duration = distance / 33.33f
-            val progressIncrement = 1f / duration.coerceAtLeast(0.001f)
-            val newProgress = (team.moveProgress + progressIncrement).coerceAtMost(1f)
-
-            val newX = defenderSect.x + (team.attackerStartX - defenderSect.x) * newProgress
-            val newY = defenderSect.y + (team.attackerStartY - defenderSect.y) * newProgress
-
-            return if (newProgress >= 1f) {
-                team.copy(
-                    status = "completed",
-                    moveProgress = 1f,
-                    currentX = team.attackerStartX,
-                    currentY = team.attackerStartY
-                )
-            } else {
-                team.copy(
-                    moveProgress = newProgress,
-                    currentX = newX,
-                    currentY = newY
-                )
-            }
-        }
-
-        return team
-    }
-
-    fun isTeamArrived(team: AIBattleTeam): Boolean {
-        return team.status == "battling" && team.moveProgress >= 1f
-    }
-
-    fun isTeamReturned(team: AIBattleTeam): Boolean {
-        return team.status == "completed" && team.moveProgress >= 1f
     }
 
     private fun convertToCombatant(disciple: Disciple, side: CombatantSide): Combatant {
@@ -475,51 +454,23 @@ object AISectAttackManager {
     }
 
     fun executeAISectBattle(
-        attackTeam: AIBattleTeam,
+        attackers: List<Disciple>,
         defenderSect: WorldSect,
         defenderDisciples: List<Disciple>
     ): AIBattleResult {
-        val defenseTeam = createDefenseTeam(defenderDisciples)
-        val attackers = attackTeam.disciples.map { convertToCombatant(it, CombatantSide.ATTACKER) }
-        val defenders = defenseTeam.map { convertToCombatant(it, CombatantSide.DEFENDER) }
-
-        val result = executeUnifiedAIBattle(attackers, defenders)
-
-        val deadAttackerIds = attackTeam.disciples
-            .filter { disciple ->
-                result.attackers.find { it.id == disciple.id }?.isDead == true
-            }
-            .map { it.id }
-
-        val deadDefenderIds = defenseTeam
-            .filter { disciple ->
-                result.defenders.find { it.id == disciple.id }?.isDead == true
-            }
-            .map { it.id }
-
-        val allDefenderDisciples = defenderDisciples.filter { it.isAlive && it.id !in deadDefenderIds }
-        val highRealmAllDead = allDefenderDisciples.filter { it.realm <= 5 }.isEmpty()
-
-        val canOccupy = result.winner == AIBattleWinner.ATTACKER && highRealmAllDead
-
-        return AIBattleResult(
-            winner = result.winner,
-            deadAttackerIds = deadAttackerIds,
-            deadDefenderIds = deadDefenderIds,
-            canOccupy = canOccupy
-        )
+        return executeSectBattle(attackers, defenderSect, defenderDisciples)
     }
 
     fun executePlayerSectBattle(
-        attackTeam: AIBattleTeam,
+        attackers: List<Disciple>,
         playerDefenseTeam: List<Disciple>
     ): AIBattleResult {
-        val attackers = attackTeam.disciples.map { convertToCombatant(it, CombatantSide.ATTACKER) }
-        val defenders = playerDefenseTeam.map { convertToCombatant(it, CombatantSide.DEFENDER) }
+        val combatAttackers = attackers.map { convertToCombatant(it, CombatantSide.ATTACKER) }
+        val combatDefenders = playerDefenseTeam.map { convertToCombatant(it, CombatantSide.DEFENDER) }
 
-        val result = executeUnifiedAIBattle(attackers, defenders)
+        val result = executeUnifiedAIBattle(combatAttackers, combatDefenders)
 
-        val deadAttackerIds = attackTeam.disciples
+        val deadAttackerIds = attackers
             .filter { disciple ->
                 result.attackers.find { it.id == disciple.id }?.isDead == true
             }
@@ -787,12 +738,11 @@ object AISectAttackManager {
         return BattleCalculator.selectTarget(attacker, aliveTargets)
     }
 
-    fun findGarrisonTeam(sect: WorldSect, aiBattleTeams: List<AIBattleTeam>): AIBattleTeam? {
-        return if (sect.garrisonTeamId.isNotEmpty()) {
-            aiBattleTeams.find { it.id == sect.garrisonTeamId }
-        } else {
-            aiBattleTeams.find { it.isGarrison && it.garrisonSectId == sect.id }
-        }
+    fun getGarrisonDisciples(sect: WorldSect, allDisciples: List<Disciple>): List<Disciple> {
+        return sect.garrisonSlots
+            .filter { it.discipleId.isNotEmpty() }
+            .mapNotNull { slot -> allDisciples.find { it.id == slot.discipleId } }
+            .filter { it.isAlive }
     }
 
     fun supplementDisciples(

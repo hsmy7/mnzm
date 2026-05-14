@@ -45,7 +45,6 @@ import androidx.activity.compose.BackHandler
 
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.R
-import com.xianxia.sect.core.model.BattleSlotType
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.GameData
@@ -82,9 +81,7 @@ import com.xianxia.sect.ui.game.dialogs.WorldMapSectDetailDialog
 import com.xianxia.sect.ui.game.dialogs.DiplomacyDialog
 import com.xianxia.sect.ui.game.dialogs.CaveDetailDialog
 import com.xianxia.sect.ui.game.dialogs.SectTradeDialog
-import com.xianxia.sect.ui.game.dialogs.BattleTeamDialog
 import com.xianxia.sect.ui.game.dialogs.GiftedMessageToast
-import com.xianxia.sect.ui.game.dialogs.BattleTeamDiscipleSelectionDialog
 import com.xianxia.sect.ui.game.SpiritMineDialog
 import com.xianxia.sect.ui.game.HerbGardenDialog
 import com.xianxia.sect.ui.game.AlchemyDialog
@@ -396,11 +393,6 @@ fun MainGameScreen(
     val showMissionHallDialog = currentDialog?.type == DialogType.MissionHall
     val showReflectionCliffDialog = currentDialog?.type == DialogType.ReflectionCliff
 
-    val showBattleTeamDialog by battleViewModel.showBattleTeamDialog.collectAsState()
-    val battleTeamSlots by battleViewModel.battleTeamSlots.collectAsState()
-    var selectedBattleTeamSlotIndex by remember { mutableStateOf<Int?>(null) }
-    val battleTeamMoveMode by battleViewModel.battleTeamMoveMode.collectAsState()
-
     val showBattleLogDialog = currentDialog?.type == DialogType.BattleLog
     val battleLogs by viewModel.battleLogs.collectAsState()
 
@@ -688,8 +680,6 @@ fun MainGameScreen(
                 disciples = disciples,
                 viewModel = viewModel,
                 worldMapViewModel = worldMapViewModel,
-                battleViewModel = battleViewModel,
-                battleTeamMoveMode = battleTeamMoveMode,
                 onDismiss = { viewModel.closeCurrentDialog() }
             )
         }
@@ -766,47 +756,6 @@ fun MainGameScreen(
                 gameData = gameData ?: GameData(),
                 worldMapViewModel = worldMapViewModel,
                 onDismiss = { worldMapViewModel.closeOuterTournamentDialog() }
-            )
-        }
-        
-        if (showBattleTeamDialog) {
-            val teamCount = battleViewModel.getBattleTeamCount()
-            val firstTeam = gameData.battleTeams.firstOrNull()
-            val viewingTeamId = firstTeam?.id ?: ""
-            BattleTeamDialog(
-                slots = battleTeamSlots,
-                hasExistingTeam = teamCount > 0,
-                teamStatus = firstTeam?.status ?: "idle",
-                isAtSect = firstTeam?.isAtSect ?: true,
-                isOccupying = firstTeam?.isOccupying ?: false,
-                teamId = viewingTeamId,
-                onSlotClick = { slotIndex -> selectedBattleTeamSlotIndex = slotIndex },
-                onRemoveClick = { slotIndex -> battleViewModel.removeDiscipleFromBattleTeamSlot(viewingTeamId, slotIndex) },
-                onCreateTeam = { battleViewModel.createBattleTeam() },
-                onMoveClick = { battleViewModel.startBattleTeamMoveMode(viewingTeamId) },
-                onDisbandClick = { battleViewModel.disbandBattleTeam(viewingTeamId) },
-                onReturnClick = { battleViewModel.returnStationedBattleTeam(viewingTeamId) },
-                onDismiss = { battleViewModel.closeBattleTeamDialog() }
-            )
-        }
-        
-        if (selectedBattleTeamSlotIndex != null) {
-            val selectedSlot = battleTeamSlots.find { it.index == selectedBattleTeamSlotIndex }
-            val isElderSlot = selectedSlot?.slotType == BattleSlotType.ELDER
-            val availableDisciples = if (isElderSlot) {
-                battleViewModel.getAvailableEldersForBattleTeam()
-            } else {
-                battleViewModel.getAvailableDisciplesForBattleTeam()
-            }
-            val slotIndex = selectedBattleTeamSlotIndex
-            BattleTeamDiscipleSelectionDialog(
-                disciples = availableDisciples,
-                isElderSlot = isElderSlot,
-                onSelect = { disciple ->
-                    slotIndex?.let { battleViewModel.assignDiscipleToBattleTeamSlot(it, disciple) }
-                    selectedBattleTeamSlotIndex = null
-                },
-                onDismiss = { selectedBattleTeamSlotIndex = null }
             )
         }
         

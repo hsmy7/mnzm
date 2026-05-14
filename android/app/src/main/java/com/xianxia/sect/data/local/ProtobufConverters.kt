@@ -332,16 +332,6 @@ object ProtobufConverters {
 
     @TypeConverter
     @JvmStatic
-    fun fromBattleTeam(value: BattleTeam?): String =
-        encodeNullableToBase64(BattleTeam.serializer(), value)
-
-    @TypeConverter
-    @JvmStatic
-    fun toBattleTeam(value: String): BattleTeam? =
-        decodeFromBase64(BattleTeam.serializer().nullable, value) { null }
-
-    @TypeConverter
-    @JvmStatic
     fun fromSectScoutInfo(value: SectScoutInfo?): String =
         encodeNullableToBase64(SectScoutInfo.serializer(), value)
 
@@ -551,16 +541,6 @@ object ProtobufConverters {
     @JvmStatic
     fun toSectRelationList(value: String): List<SectRelation> =
         decodeFromBase64(ListSerializer(SectRelation.serializer()), value) { emptyList() }
-
-    @TypeConverter
-    @JvmStatic
-    fun fromAIBattleTeamList(value: List<AIBattleTeam>): String =
-        encodeToBase64(ListSerializer(AIBattleTeam.serializer()), value)
-
-    @TypeConverter
-    @JvmStatic
-    fun toAIBattleTeamList(value: String): List<AIBattleTeam> =
-        decodeFromBase64(ListSerializer(AIBattleTeam.serializer()), value) { emptyList() }
 
     @TypeConverter
     @JvmStatic

@@ -117,8 +117,6 @@ class GameEngine @Inject constructor(
                 worldMapSects = data.worldMapSects,
                 cultivatorCaves = data.cultivatorCaves ?: emptyList(),
                 caveExplorationTeams = data.caveExplorationTeams ?: emptyList(),
-                battleTeams = data.battleTeams,
-                aiBattleTeams = data.aiBattleTeams ?: emptyList(),
                 worldLevels = data.worldLevels ?: emptyList()
             )
         }.distinctUntilChanged()
@@ -183,19 +181,6 @@ class GameEngine @Inject constructor(
                 if (this.gameData.recruitList.isEmpty()) {
                     cultivationService.refreshRecruitList(this.gameData.gameYear)
                 }
-            }
-        }
-
-        // 迁移旧存档：单队 battleTeam → 多队 battleTeams
-        val loadedData = stateStore.gameData.value
-        if (loadedData.battleTeams.isEmpty() && loadedData.battleTeam != null) {
-            val migratedTeam = loadedData.battleTeam!!.copy(teamNumber = 1, name = "战斗1队")
-            stateStore.update {
-                this.gameData = this.gameData.copy(
-                    battleTeams = listOf(migratedTeam),
-                    usedTeamNumbers = listOf(1),
-                    battleTeam = null
-                )
             }
         }
 
@@ -814,13 +799,6 @@ class GameEngine @Inject constructor(
                         gameData = gameData.copy(worldMapSects = trimmedSects)
                         trimmed = true
                         Log.d(TAG, "内存释放($levelName): worldMapSects 裁剪至 ${trimmedSects.size} 个")
-                    }
-
-                    val aiTeams = gameData.aiBattleTeams
-                    if (aiTeams.size > 20) {
-                        gameData = gameData.copy(aiBattleTeams = aiTeams.take(20))
-                        trimmed = true
-                        Log.d(TAG, "内存释放($levelName): aiBattleTeams 裁剪至 20 个")
                     }
 
                     val caveTeams = gameData.caveExplorationTeams
@@ -2587,24 +2565,153 @@ class GameEngine @Inject constructor(
         result.manualStacks.forEach { manual -> inventorySystem.addManualStack(manual) }
     }
 
-    fun startBattleTeamMove(teamId: String, targetSectId: String) {
+    /**
+     * Execute an immediate attack on a target sect.
+     * attackSlots are (slotIndex, disciple) pairs selected from the player's disciples.
+     * This replaces the old movement+battle flow with immediate resolution.
+     */
+    suspend fun attackSect(sectId: String, attackSlots: List<Pair<Int, com.xianxia.sect.core.model.DiscipleAggregate>>) {
         val data = stateStore.gameData.value
-        val team = data.battleTeams.find { it.id == teamId } ?: return
-        val targetSect = data.worldMapSects.find { it.id == targetSectId } ?: return
+        val targetSect = data.worldMapSects.find { it.id == sectId } ?: return
+        val allDisciples = stateStore.disciples.value
 
-        val updatedTeam = team.copy(
-            targetSectId = targetSectId,
-            status = "moving",
-            targetX = targetSect.x,
-            targetY = targetSect.y,
-            originSectId = data.worldMapSects.find { it.isPlayerSect }?.id ?: "",
-            route = emptyList(),
-            currentRouteIndex = 0,
-            moveProgress = 0f,
-            isReturning = false
+        val attackers = attackSlots.mapNotNull { (_, agg) ->
+            allDisciples.find { it.id == agg.id && it.isAlive }
+        }
+        if (attackers.isEmpty()) return
+
+        val playerSect = data.worldMapSects.find { it.isPlayerSect }
+
+        // Get defender disciples: from garrison slots only (no supplementation)
+        val defenderDisciples = targetSect.garrisonSlots
+            .filter { it.discipleId.isNotEmpty() }
+            .mapNotNull { slot -> allDisciples.find { it.id == slot.discipleId && it.isAlive } }
+
+        val result = AISectAttackManager.executeSectBattle(attackers, targetSect, defenderDisciples)
+
+        // Apply player casualties
+        val deadPlayerIds = result.deadAttackerIds.toSet()
+        stateStore.update {
+            disciples = disciples.map { d ->
+                if (d.id in deadPlayerIds) d.copy(isAlive = false) else d
+            }
+        }
+
+        // Clear garrison slots for dead defenders
+        val deadDefenderIds = result.deadDefenderIds.toSet()
+        stateStore.update {
+            gameData = gameData.copy(
+                worldMapSects = gameData.worldMapSects.map { sect ->
+                    if (sect.id == sectId) {
+                        sect.copy(
+                            garrisonSlots = sect.garrisonSlots.map { slot ->
+                                if (slot.discipleId in deadDefenderIds) {
+                                    com.xianxia.sect.core.model.GarrisonSlot(index = slot.index)
+                                } else slot
+                            }
+                        )
+                    } else sect
+                }
+            )
+        }
+
+        // If win, generate rewards and handle occupation
+        if (result.winner == AIBattleWinner.ATTACKER) {
+            if (result.canOccupy) {
+                val survivors = attackers.filter { it.id !in deadPlayerIds }
+                val garrisonSlots = targetSect.garrisonSlots.mapIndexed { index, _ ->
+                    if (index < survivors.size) {
+                        val d = survivors[index]
+                        com.xianxia.sect.core.model.GarrisonSlot(
+                            index = index,
+                            discipleId = d.id,
+                            discipleName = d.name,
+                            discipleRealm = d.realmName,
+                            discipleSpiritRootColor = d.spiritRoot.countColor
+                        )
+                    } else {
+                        com.xianxia.sect.core.model.GarrisonSlot(index = index)
+                    }
+                }
+
+                val rewardCount = (80..130).random()
+                val rewards = AISectAttackManager.generateWarRewards(targetSect.level, rewardCount)
+
+                stateStore.update {
+                    gameData = gameData.copy(
+                        worldMapSects = gameData.worldMapSects.map { sect ->
+                            if (sect.id == sectId) {
+                                sect.copy(
+                                    isPlayerOccupied = true,
+                                    occupierSectId = playerSect?.id ?: "",
+                                    garrisonSlots = garrisonSlots
+                                )
+                            } else sect
+                        }
+                    )
+                    addWarRewardsToWarehouse(rewards)
+                }
+            } else {
+                val rewardCount = (20..60).random()
+                val rewards = AISectAttackManager.generateWarRewards(targetSect.level, rewardCount)
+                stateStore.update { addWarRewardsToWarehouse(rewards) }
+            }
+        }
+    }
+
+    private fun MutableGameState.addWarRewardsToWarehouse(rewards: WarRewards) {
+        val playerSectId = gameData.worldMapSects.find { it.isPlayerSect }?.id ?: return
+        val playerDetail = gameData.sectDetails[playerSectId] ?: com.xianxia.sect.core.model.SectDetail(sectId = playerSectId)
+        val warehouseItems = com.xianxia.sect.core.engine.SectWarehouseManager.convertWarRewardsToWarehouseItems(rewards)
+        val updatedWarehouse = com.xianxia.sect.core.engine.SectWarehouseManager.addItemsToWarehouse(playerDetail.warehouse, warehouseItems)
+        val finalWarehouse = com.xianxia.sect.core.engine.SectWarehouseManager.addSpiritStonesToWarehouse(updatedWarehouse, rewards.spiritStones)
+        gameData = gameData.copy(
+            sectDetails = gameData.sectDetails.toMutableMap().apply {
+                this[playerSectId] = playerDetail.copy(warehouse = finalWarehouse)
+            }
         )
-        updateGameDataSync {
-            it.copy(battleTeams = it.battleTeams.map { t -> if (t.id == teamId) updatedTeam else t })
+    }
+
+    suspend fun assignGarrisonDisciple(sectId: String, slotIndex: Int, discipleId: String) {
+        val data = stateStore.gameData.value
+        val disciple = stateStore.disciples.value.find { it.id == discipleId && it.isAlive } ?: return
+
+        stateStore.update {
+            gameData = gameData.copy(
+                worldMapSects = gameData.worldMapSects.map { sect ->
+                    if (sect.id == sectId) {
+                        val slots = sect.garrisonSlots.map { slot ->
+                            if (slot.index == slotIndex) {
+                                com.xianxia.sect.core.model.GarrisonSlot(
+                                    index = slotIndex,
+                                    discipleId = disciple.id,
+                                    discipleName = disciple.name,
+                                    discipleRealm = disciple.realmName,
+                                    discipleSpiritRootColor = disciple.spiritRoot.countColor
+                                )
+                            } else slot
+                        }
+                        sect.copy(garrisonSlots = slots)
+                    } else sect
+                }
+            )
+        }
+    }
+
+    suspend fun removeGarrisonDisciple(sectId: String, slotIndex: Int) {
+        stateStore.update {
+            gameData = gameData.copy(
+                worldMapSects = gameData.worldMapSects.map { sect ->
+                    if (sect.id == sectId) {
+                        val slots = sect.garrisonSlots.map { slot ->
+                            if (slot.index == slotIndex) {
+                                com.xianxia.sect.core.model.GarrisonSlot(index = slotIndex)
+                            } else slot
+                        }
+                        sect.copy(garrisonSlots = slots)
+                    } else sect
+                }
+            )
         }
     }
 

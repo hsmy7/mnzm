@@ -618,64 +618,9 @@ message PlantSlotDataProto {
 // ============================================================================
 
 message CombatModuleProto {
-    BattleTeamProto battle_team = 40;
-    repeated AIBattleTeamProto ai_battle_teams = 41;
     repeated ExplorationTeamProto teams = 11;        // from original SaveDataProto.teams
     repeated BattleLogProto battle_logs = 14;       // from original SaveDataProto.battle_logs
     repeated GameEventProto events = 13;            // from original SaveDataProto.events
-}
-
-// --- Battle team types ---
-
-message BattleTeamProto {
-    string id = 1;
-    string name = 2;
-    repeated BattleTeamSlotProto slots = 3;
-    bool is_at_sect = 4;
-    float current_x = 5;
-    float current_y = 6;
-    float target_x = 7;
-    float target_y = 8;
-    string status = 9;
-    string target_sect_id = 10;
-    string origin_sect_id = 11;
-    repeated string route = 12;
-    int32 current_route_index = 13;
-    float move_progress = 14;
-    bool is_occupying = 15;
-    string occupied_sect_id = 16;
-    bool is_returning = 17;
-}
-
-message BattleTeamSlotProto {
-    int32 index = 1;
-    string disciple_id = 2;
-    string disciple_name = 3;
-    string disciple_realm = 4;
-    string slot_type = 5;
-    bool is_alive = 6;
-}
-
-message AIBattleTeamProto {
-    string id = 1;
-    string attacker_sect_id = 2;
-    string attacker_sect_name = 3;
-    string defender_sect_id = 4;
-    string defender_sect_name = 5;
-    repeated DiscipleProto disciples = 6;
-    float current_x = 7;
-    float current_y = 8;
-    float target_x = 9;
-    float target_y = 10;
-    float attacker_start_x = 11;
-    float attacker_start_y = 12;
-    float move_progress = 13;
-    string status = 14;
-    repeated string route = 15;
-    int32 current_route_index = 16;
-    int32 start_year = 17;
-    int32 start_month = 18;
-    bool is_player_defender = 19;
 }
 
 // --- Exploration team (standalone, used by combat module) ---

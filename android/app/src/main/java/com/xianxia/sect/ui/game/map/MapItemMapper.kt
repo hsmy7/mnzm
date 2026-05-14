@@ -1,7 +1,5 @@
 package com.xianxia.sect.ui.game.map
 
-import com.xianxia.sect.core.model.AIBattleTeam
-import com.xianxia.sect.core.model.BattleTeam
 import com.xianxia.sect.core.model.CaveExplorationTeam
 import com.xianxia.sect.core.model.CaveExplorationStatus
 import com.xianxia.sect.core.model.CaveStatus
@@ -109,94 +107,6 @@ object MapItemMapper {
                     targetY = team.targetY
                 )
             }
-
-    fun fromBattleTeams(
-        battleTeams: List<BattleTeam>,
-        playerSect: WorldSect?,
-        worldSects: List<WorldSect> = emptyList()
-    ): List<MapItem.BattleTeam> {
-        val items = mutableListOf<MapItem.BattleTeam>()
-        for (battleTeam in battleTeams) {
-            if (battleTeam.isAtSect && playerSect != null) {
-                items.add(
-                    MapItem.BattleTeam(
-                        id = battleTeam.id,
-                        worldX = playerSect.x,
-                        worldY = playerSect.y,
-                        name = battleTeam.name,
-                        isAtSect = true,
-                        sectWorldX = playerSect.x,
-                        sectWorldY = playerSect.y,
-                        startWorldX = playerSect.x,
-                        startWorldY = playerSect.y,
-                        targetWorldX = 0f,
-                        targetWorldY = 0f
-                    )
-                )
-            }
-            if ((battleTeam.status == "moving" || battleTeam.status == "returning") && battleTeam.currentX > 0 && battleTeam.currentY > 0) {
-                val targetSect = worldSects.find { it.id == battleTeam.targetSectId }
-                items.add(
-                    MapItem.BattleTeam(
-                        id = battleTeam.id + "_moving",
-                        worldX = battleTeam.currentX,
-                        worldY = battleTeam.currentY,
-                        name = battleTeam.name,
-                        isAtSect = false,
-                        sectWorldX = 0f,
-                        sectWorldY = 0f,
-                        startWorldX = if (battleTeam.status == "moving") playerSect?.x ?: 0f else targetSect?.x ?: 0f,
-                        startWorldY = if (battleTeam.status == "moving") playerSect?.y ?: 0f else targetSect?.y ?: 0f,
-                        targetWorldX = if (battleTeam.status == "moving") targetSect?.x ?: 0f else playerSect?.x ?: 0f,
-                        targetWorldY = if (battleTeam.status == "moving") targetSect?.y ?: 0f else playerSect?.y ?: 0f
-                    )
-                )
-            }
-        }
-        return items
-    }
-
-    fun fromAIBattleTeams(
-        aiTeams: List<AIBattleTeam>,
-        worldSects: List<WorldSect>
-    ): Pair<List<MapItem.AIBattleTeam>, List<MapItem.BattleIndicator>> {
-        val teamItems = mutableListOf<MapItem.AIBattleTeam>()
-        val battleIndicators = mutableListOf<MapItem.BattleIndicator>()
-
-        aiTeams.filter { it.status == "moving" || it.status == "battling" || it.status == "returning" }.forEach { aiTeam ->
-            if (aiTeam.status == "moving" || aiTeam.status == "returning") {
-                val attackerSect = worldSects.find { it.id == aiTeam.attackerSectId }
-                val defenderSect = worldSects.find { it.id == aiTeam.defenderSectId }
-                teamItems.add(
-                    MapItem.AIBattleTeam(
-                        id = aiTeam.id,
-                        worldX = aiTeam.currentX,
-                        worldY = aiTeam.currentY,
-                        attackerSectName = aiTeam.attackerSectName,
-                        attackerIsRighteous = attackerSect?.isRighteous ?: true,
-                        defenderSectId = aiTeam.defenderSectId,
-                        startWorldX = attackerSect?.x ?: 0f,
-                        startWorldY = attackerSect?.y ?: 0f,
-                        targetWorldX = defenderSect?.x ?: 0f,
-                        targetWorldY = defenderSect?.y ?: 0f
-                    )
-                )
-            }
-
-            if (aiTeam.status == "battling") {
-                battleIndicators.add(
-                    MapItem.BattleIndicator(
-                        id = "battle_${aiTeam.id}",
-                        worldX = aiTeam.currentX,
-                        worldY = aiTeam.currentY,
-                        isBattling = true
-                    )
-                )
-            }
-        }
-
-        return teamItems to battleIndicators
-    }
 
     fun fromLevels(levels: List<WorldLevel>): List<MapItem.Level> =
         levels.filter { !it.defeated }
