@@ -147,7 +147,9 @@ object StorageModule {
         storageIntegrity: StorageIntegrity,
         storageBackup: StorageBackup,
         storageWal: StorageWal,
-        storageMetrics: StorageMetrics
+        storageMetrics: StorageMetrics,
+        saveFileHandler: SaveFileHandler,
+        serializationModule: SerializationModule
     ): StorageEngine {
         return StorageEngine(
             database = database,
@@ -165,7 +167,9 @@ object StorageModule {
             storageIntegrity = storageIntegrity,
             storageBackup = storageBackup,
             storageWal = storageWal,
-            storageMetrics = storageMetrics
+            storageMetrics = storageMetrics,
+            saveFileHandler = saveFileHandler,
+            serializationModule = serializationModule
         )
     }
 
