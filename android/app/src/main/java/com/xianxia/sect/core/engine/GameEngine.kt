@@ -2827,6 +2827,11 @@ class GameEngine @Inject constructor(
         val data = stateStore.gameData.value
         val disciple = stateStore.disciples.value.find { it.id == discipleId && it.isAlive } ?: return
 
+        // Prevent assigning same disciple to multiple garrison slots
+        val targetSect = data.worldMapSects.find { it.id == sectId } ?: return
+        val alreadyGarrisoned = targetSect.garrisonSlots.any { it.discipleId == discipleId }
+        if (alreadyGarrisoned) return
+
         stateStore.update {
             gameData = gameData.copy(
                 worldMapSects = gameData.worldMapSects.map { sect ->
@@ -2838,7 +2843,8 @@ class GameEngine @Inject constructor(
                                     discipleId = disciple.id,
                                     discipleName = disciple.name,
                                     discipleRealm = disciple.realmName,
-                                    discipleSpiritRootColor = disciple.spiritRoot.countColor
+                                    discipleSpiritRootColor = disciple.spiritRoot.countColor,
+                                    portraitRes = disciple.portraitRes
                                 )
                             } else slot
                         }

@@ -520,7 +520,8 @@ internal fun WorldMapSectDetailDialog(
                                 color = Color.Black
                             )
 
-                            val garrisonSlots = sect.garrisonSlots
+                            val latestSect = gameData?.worldMapSects?.find { it.id == sect.id } ?: sect
+                            val garrisonSlots = latestSect.garrisonSlots
 
                             for (row in 0..1) {
                                 Row(
@@ -594,8 +595,10 @@ internal fun WorldMapSectDetailDialog(
 
     if (showGarrisonSelection != null) {
         val slotIndex = showGarrisonSelection!!
+        val latestSect = gameData?.worldMapSects?.find { it.id == sect.id } ?: sect
+        val garrisonedIds = latestSect.garrisonSlots.map { it.discipleId }.filter { it.isNotEmpty() }.toSet()
         val idleDisciples = viewModel.discipleAggregates.value.filter {
-            it.isAlive && it.status == com.xianxia.sect.core.model.DiscipleStatus.IDLE
+            it.isAlive && it.status == com.xianxia.sect.core.model.DiscipleStatus.IDLE && it.id !in garrisonedIds
         }
         GarrisonDiscipleSelectionDialog(
             disciples = idleDisciples,
