@@ -107,6 +107,8 @@ import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.game.DiscipleDetailDialog
 import com.xianxia.sect.core.util.PortraitPool
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import java.util.Locale
 
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
@@ -127,7 +129,6 @@ internal fun WorldMapDialog(
     var showCaveDetail by remember { mutableStateOf(false) }
     var selectedLevel by remember { mutableStateOf<MapItem.Level?>(null) }
     var showLevelDetail by remember { mutableStateOf(false) }
-    var selectedGarrisonDetail by remember { mutableStateOf<DiscipleAggregate?>(null) }
 
     val caves: List<CultivatorCave> = mapRenderData.cultivatorCaves.filter { it.status != CaveStatus.EXPIRED && it.status != CaveStatus.EXPLORED }
     val playerSect = mapRenderData.worldMapSects.find { it.isPlayerSect }
@@ -208,9 +209,6 @@ internal fun WorldMapDialog(
                 onDismiss = {
                     showSectDetail = false
                     selectedSect = null
-                },
-                onGarrisonDetailClick = { disciple ->
-                    selectedGarrisonDetail = disciple
                 }
             )
         }
@@ -252,23 +250,6 @@ internal fun WorldMapDialog(
     }
     }
 
-    if (selectedGarrisonDetail != null) {
-        val equipment by viewModel.equipment.collectAsState()
-        val manuals by viewModel.manuals.collectAsState()
-        val manualStacks by viewModel.manualStacks.collectAsState()
-        val equipmentStacks by viewModel.equipmentStacks.collectAsState()
-        DiscipleDetailDialog(
-            disciple = selectedGarrisonDetail!!,
-            allDisciples = disciples,
-            allEquipment = equipment,
-            allManuals = manuals,
-            manualStacks = manualStacks,
-            equipmentStacks = equipmentStacks,
-            manualProficiencies = gameData?.manualProficiencies ?: emptyMap(),
-            viewModel = viewModel,
-            onDismiss = { selectedGarrisonDetail = null }
-        )
-    }
 }
 
 @Composable
@@ -278,8 +259,7 @@ internal fun WorldMapSectDetailDialog(
     disciples: List<DiscipleAggregate>,
     viewModel: GameViewModel,
     worldMapViewModel: WorldMapViewModel,
-    onDismiss: () -> Unit,
-    onGarrisonDetailClick: (DiscipleAggregate) -> Unit = {}
+    onDismiss: () -> Unit
 ) {
     val currentYear = gameData?.gameYear ?: 1
     val isAlly = worldMapViewModel.isAlly(sect.id)
@@ -287,6 +267,7 @@ internal fun WorldMapSectDetailDialog(
     var showGiftedMessage by remember { mutableStateOf(false) }
     var showAttackDialog by remember { mutableStateOf(false) }
     var showGarrisonSelection by remember { mutableStateOf<Int?>(null) }
+    var selectedGarrisonDetail by remember { mutableStateOf<DiscipleAggregate?>(null) }
 
     val playerSect = gameData?.worldMapSects?.find { it.isPlayerSect }
     val relation = if (playerSect != null) {
@@ -566,7 +547,7 @@ internal fun WorldMapSectDetailDialog(
                                                 portraitRes = gSlot.portraitRes,
                                                 onClick = {
                                                     if (gDisciple != null) {
-                                                        onGarrisonDetailClick(gDisciple)
+                                                        selectedGarrisonDetail = gDisciple
                                                     } else {
                                                         showGarrisonSelection = slotIndex
                                                     }
@@ -647,6 +628,28 @@ internal fun WorldMapSectDetailDialog(
         )
     }
 
+    if (selectedGarrisonDetail != null) {
+        val equipment by viewModel.equipment.collectAsState()
+        val manuals by viewModel.manuals.collectAsState()
+        val manualStacks by viewModel.manualStacks.collectAsState()
+        val equipmentStacks by viewModel.equipmentStacks.collectAsState()
+        Dialog(
+            onDismissRequest = { selectedGarrisonDetail = null },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            DiscipleDetailDialog(
+                disciple = selectedGarrisonDetail!!,
+                allDisciples = disciples,
+                allEquipment = equipment,
+                allManuals = manuals,
+                manualStacks = manualStacks,
+                equipmentStacks = equipmentStacks,
+                manualProficiencies = gameData?.manualProficiencies ?: emptyMap(),
+                viewModel = viewModel,
+                onDismiss = { selectedGarrisonDetail = null }
+            )
+        }
+    }
 }
 
 @Composable
