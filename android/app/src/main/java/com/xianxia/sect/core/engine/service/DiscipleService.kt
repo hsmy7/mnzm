@@ -122,7 +122,12 @@ private val applicationScopeProvider: ApplicationScopeProvider,
 
         val playerSect = data.worldMapSects.find { it.isPlayerSect }
         val inGarrison = playerSect?.garrisonSlots?.any { it.discipleId == discipleId } == true
-        if (inGarrison) return DiscipleStatus.IN_TEAM
+        if (inGarrison) return DiscipleStatus.GARRISONING
+
+        val inBattleTeam = data.battleTeams.any { team ->
+            team.slots.any { it.discipleId == discipleId }
+        }
+        if (inBattleTeam) return DiscipleStatus.IN_TEAM
 
         if (_isInExploration(discipleId)) return DiscipleStatus.IN_TEAM
 
@@ -230,10 +235,15 @@ private val applicationScopeProvider: ApplicationScopeProvider,
             currentGameData = data
         }
 
-        val inTeamIds = mutableSetOf<String>()
+        val garrisonIds = mutableSetOf<String>()
         data.worldMapSects.find { it.isPlayerSect }?.garrisonSlots
             ?.filter { it.discipleId.isNotEmpty() }
-            ?.forEach { inTeamIds.add(it.discipleId) }
+            ?.forEach { garrisonIds.add(it.discipleId) }
+
+        val inTeamIds = mutableSetOf<String>()
+        data.battleTeams.flatMap { it.slots }
+            .filter { it.discipleId.isNotEmpty() }
+            .forEach { inTeamIds.add(it.discipleId) }
 
         currentTeams.filter { it.status == ExplorationStatus.TRAVELING || it.status == ExplorationStatus.EXPLORING || it.status == ExplorationStatus.SCOUTING || it.status == ExplorationStatus.DANGER }
             .forEach { team -> inTeamIds.addAll(team.memberIds) }
@@ -246,6 +256,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
             if (disciple.status == DiscipleStatus.ON_MISSION) return@map disciple
 
             val newStatus = when {
+                garrisonIds.contains(disciple.id) -> DiscipleStatus.GARRISONING
                 inTeamIds.contains(disciple.id) -> DiscipleStatus.IN_TEAM
                 lawEnforcerIds.contains(disciple.id) -> DiscipleStatus.LAW_ENFORCING
                 preachingIds.contains(disciple.id) -> DiscipleStatus.PREACHING

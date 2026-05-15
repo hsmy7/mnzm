@@ -278,7 +278,7 @@ private val eventBus: EventBus,
             if (discipleIndex >= 0 && !deadMemberIds.contains(memberId)) {
                 val disciple = currentDisciples[discipleIndex]
                 val mp = survivorMpMap[memberId] ?: disciple.combat.currentMp
-                val updatedStatus = if (disciple.status == DiscipleStatus.IN_TEAM) DiscipleStatus.IDLE else disciple.status
+                val updatedStatus = if (disciple.status in setOf(DiscipleStatus.IN_TEAM, DiscipleStatus.GARRISONING)) DiscipleStatus.IDLE else disciple.status
                 val updatedDisciple = disciple.copyWith(
                     status = updatedStatus,
                     currentHp = hp,
