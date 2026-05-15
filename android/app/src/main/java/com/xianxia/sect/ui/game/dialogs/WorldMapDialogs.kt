@@ -82,6 +82,7 @@ import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.core.util.sortedByFollowAndRealm
 import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.ui.components.CloseButton
+import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.ui.components.DialogDefaults
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.HalfScreenDialog
@@ -749,9 +750,11 @@ private fun GarrisonDiscipleSelectionDialog(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    LazyColumn(
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(2),
                         modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         items(filteredDisciples, key = { it.id }) { disciple ->
                             PortraitDiscipleCard(
@@ -1108,12 +1111,12 @@ internal fun CaveDiscipleSelectionDialog(
         availableDisciples.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort)
     }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
-        title = {
+    HalfScreenDialog(onDismissRequest = onDismiss) {
+        Column(Modifier.fillMaxSize()) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -1125,27 +1128,24 @@ internal fun CaveDiscipleSelectionDialog(
                 )
                 CloseButton(onClick = onDismiss)
             }
-        },
-        text = {
-            if (availableDisciples.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(100.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "暂无空闲弟子",
-                        fontSize = 12.sp,
-                        color = Color.Black
-                    )
-                }
-            } else {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 500.dp)
-                ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .padding(horizontal = 12.dp)
+            ) {
+                if (availableDisciples.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "暂无空闲弟子",
+                            fontSize = 12.sp,
+                            color = Color.Black
+                        )
+                    }
+                } else {
                     SpiritRootAttributeFilterBar(
                         selectedSpiritRootFilter = selectedSpiritRootFilter,
                         selectedAttributeSort = selectedAttributeSort,
@@ -1169,14 +1169,14 @@ internal fun CaveDiscipleSelectionDialog(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    LazyColumn(
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(2),
                         modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         items(filteredDisciples, key = { it.id }) { disciple ->
                             val isSelected = disciple.id in currentSelected.map { it.id }
-                            val canSelect = isSelected || currentSelected.size < maxSelection
-
                             PortraitDiscipleCard(
                                 disciple = disciple,
                                 isSelected = isSelected,
@@ -1192,9 +1192,10 @@ internal fun CaveDiscipleSelectionDialog(
                     }
                 }
             }
-        },
-        confirmButton = {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 GameButton(
                     text = "清空",
                     onClick = { currentSelected = mutableListOf() }
@@ -1205,7 +1206,7 @@ internal fun CaveDiscipleSelectionDialog(
                 )
             }
         }
-    )
+    }
 }
 
 @Composable

@@ -66,6 +66,7 @@ import com.xianxia.sect.core.util.sortedByFollowAttributeAndRealm
 import com.xianxia.sect.ui.components.DiscipleAttrText
 import com.xianxia.sect.ui.components.DiscipleCardStyles
 import com.xianxia.sect.ui.components.CloseButton
+import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.components.discipleCardBorder
@@ -418,12 +419,12 @@ internal fun DirectDiscipleSelectionDialog(
         filteredDisciplesBase.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort, requiredAttribute?.first)
     }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
-        title = {
+    HalfScreenDialog(onDismissRequest = onDismiss) {
+        Column(Modifier.fillMaxSize()) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -435,12 +436,11 @@ internal fun DirectDiscipleSelectionDialog(
                 )
                 CloseButton(onClick = onDismiss)
             }
-        },
-        text = {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 500.dp)
+                    .weight(1f)
+                    .padding(horizontal = 12.dp)
             ) {
                 SpiritRootAttributeFilterBar(
                     selectedSpiritRootFilter = selectedSpiritRootFilter,
@@ -465,38 +465,52 @@ internal fun DirectDiscipleSelectionDialog(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                LazyColumn(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(
-                        items = filteredDisciples,
-                        key = { it.id }
-                    ) { disciple ->
-                        val extraAttrs = requiredAttribute?.let { (attrKey, attrName) ->
-                            val attrValue = when (attrKey) {
-                                "spiritPlanting" -> disciple.spiritPlanting
-                                "pillRefining" -> disciple.pillRefining
-                                "artifactRefining" -> disciple.artifactRefining
-                                "mining" -> disciple.mining
-                                "teaching" -> disciple.teaching
-                                "morality" -> disciple.morality
-                                "charm" -> disciple.charm
-                                else -> 0
-                            }
-                            listOf(attrName to attrValue)
-                        } ?: emptyList()
-                        PortraitDiscipleCard(
-                            disciple = disciple,
-                            extraAttributes = extraAttrs,
-                            onClick = { onSelect(disciple.id) }
+                if (filteredDisciples.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "暂无符合条件的弟子",
+                            fontSize = 12.sp,
+                            color = Color.Black
                         )
+                    }
+                } else {
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(2),
+                        modifier = Modifier.weight(1f),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        items(
+                            items = filteredDisciples,
+                            key = { it.id }
+                        ) { disciple ->
+                            val extraAttrs = requiredAttribute?.let { (attrKey, attrName) ->
+                                val attrValue = when (attrKey) {
+                                    "spiritPlanting" -> disciple.spiritPlanting
+                                    "pillRefining" -> disciple.pillRefining
+                                    "artifactRefining" -> disciple.artifactRefining
+                                    "mining" -> disciple.mining
+                                    "teaching" -> disciple.teaching
+                                    "morality" -> disciple.morality
+                                    "charm" -> disciple.charm
+                                    else -> 0
+                                }
+                                listOf(attrName to attrValue)
+                            } ?: emptyList()
+                            PortraitDiscipleCard(
+                                disciple = disciple,
+                                extraAttributes = extraAttrs,
+                                onClick = { onSelect(disciple.id) }
+                            )
+                        }
                     }
                 }
             }
-        },
-        confirmButton = {}
-    )
+        }
+    }
 }
 @Composable
 internal fun ElderDiscipleSelectionDialog(
@@ -536,12 +550,12 @@ internal fun ElderDiscipleSelectionDialog(
         filteredDisciplesBase.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort, requiredAttribute?.first)
     }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
-        title = {
+    HalfScreenDialog(onDismissRequest = onDismiss) {
+        Column(Modifier.fillMaxSize()) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -553,12 +567,11 @@ internal fun ElderDiscipleSelectionDialog(
                 )
                 CloseButton(onClick = onDismiss)
             }
-        },
-        text = {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 500.dp)
+                    .weight(1f)
+                    .padding(horizontal = 12.dp)
             ) {
                 SpiritRootAttributeFilterBar(
                     selectedSpiritRootFilter = selectedSpiritRootFilter,
@@ -583,33 +596,47 @@ internal fun ElderDiscipleSelectionDialog(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                LazyColumn(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(filteredDisciples) { disciple ->
-                        val extraAttrs = requiredAttribute?.let { (attrKey, attrName) ->
-                            val attrValue = when (attrKey) {
-                                "spiritPlanting" -> disciple.spiritPlanting
-                                "pillRefining" -> disciple.pillRefining
-                                "artifactRefining" -> disciple.artifactRefining
-                                "mining" -> disciple.mining
-                                "teaching" -> disciple.teaching
-                                "morality" -> disciple.morality
-                                "charm" -> disciple.charm
-                                else -> 0
-                            }
-                            listOf(attrName to attrValue)
-                        } ?: emptyList()
-                        PortraitDiscipleCard(
-                            disciple = disciple,
-                            extraAttributes = extraAttrs,
-                            onClick = { onSelect(disciple.id) }
+                if (filteredDisciples.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "暂无符合条件的弟子",
+                            fontSize = 12.sp,
+                            color = Color.Black
                         )
+                    }
+                } else {
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(2),
+                        modifier = Modifier.weight(1f),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        items(filteredDisciples) { disciple ->
+                            val extraAttrs = requiredAttribute?.let { (attrKey, attrName) ->
+                                val attrValue = when (attrKey) {
+                                    "spiritPlanting" -> disciple.spiritPlanting
+                                    "pillRefining" -> disciple.pillRefining
+                                    "artifactRefining" -> disciple.artifactRefining
+                                    "mining" -> disciple.mining
+                                    "teaching" -> disciple.teaching
+                                    "morality" -> disciple.morality
+                                    "charm" -> disciple.charm
+                                    else -> 0
+                                }
+                                listOf(attrName to attrValue)
+                            } ?: emptyList()
+                            PortraitDiscipleCard(
+                                disciple = disciple,
+                                extraAttributes = extraAttrs,
+                                onClick = { onSelect(disciple.id) }
+                            )
+                        }
                     }
                 }
             }
-        },
-        confirmButton = {}
-    )
+        }
+    }
 }

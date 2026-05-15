@@ -586,11 +586,14 @@ internal fun DiscipleSelectForRewardDialog(
                         )
                     }
                 } else {
-                    LazyColumn(
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(2),
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f)
-                            .padding(horizontal = 8.dp, vertical = 8.dp)
+                            .padding(horizontal = 8.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         items(filteredAndSortedDisciples, key = { it.id }) { disciple ->
                             DiscipleCard(

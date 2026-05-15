@@ -6,6 +6,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -392,17 +396,19 @@ fun PeakDiscipleListSection(
             }
         } else {
             val displayItems = truncateAt?.let { sortedDisciples.take(it) } ?: sortedDisciples
-            LazyColumn(
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(max = maxHeightDp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 items(displayItems) { disciple ->
                     PortraitDiscipleCard(disciple = disciple, onClick = {})
                 }
                 if (truncateAt != null && sortedDisciples.size > truncateAt) {
-                    item {
+                    item(span = { GridItemSpan(2) }) {
                         Text(
                             text = "还有${sortedDisciples.size - truncateAt}名弟子...",
                             fontSize = 10.sp,
@@ -493,7 +499,9 @@ fun PeakDiscipleSelectionDialog(
                             Text(text = requirementText, fontSize = 10.sp, color = Color.Black)
                         }
                     } else {
-                        LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        LazyVerticalGrid(columns = GridCells.Fixed(2), modifier = Modifier.weight(1f),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             items(filteredDisciples, key = { it.id }) { disciple ->
                                 val isCurrent = disciple.id == currentDiscipleId
                                 PortraitDiscipleCard(

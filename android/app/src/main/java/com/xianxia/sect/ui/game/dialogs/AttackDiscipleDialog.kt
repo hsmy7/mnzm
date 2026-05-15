@@ -4,12 +4,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -26,6 +26,7 @@ import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.util.sortedByFollowAndRealm
 import com.xianxia.sect.ui.components.CloseButton
+import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
@@ -290,12 +291,12 @@ private fun AttackDiscipleSelectionDialog(
         availableDisciples.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort)
     }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
-        title = {
+    HalfScreenDialog(onDismissRequest = onDismiss) {
+        Column(Modifier.fillMaxSize()) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -307,27 +308,24 @@ private fun AttackDiscipleSelectionDialog(
                 )
                 CloseButton(onClick = onDismiss)
             }
-        },
-        text = {
-            if (availableDisciples.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(100.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "暂无空闲弟子",
-                        fontSize = 12.sp,
-                        color = Color.Black
-                    )
-                }
-            } else {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 500.dp)
-                ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .padding(horizontal = 12.dp)
+            ) {
+                if (availableDisciples.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "暂无空闲弟子",
+                            fontSize = 12.sp,
+                            color = Color.Black
+                        )
+                    }
+                } else {
                     SpiritRootAttributeFilterBar(
                         selectedSpiritRootFilter = selectedSpiritRootFilter,
                         selectedAttributeSort = selectedAttributeSort,
@@ -351,9 +349,11 @@ private fun AttackDiscipleSelectionDialog(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    LazyColumn(
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(2),
                         modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         items(filteredDisciples, key = { it.id }) { disciple ->
                             PortraitDiscipleCard(
@@ -365,7 +365,6 @@ private fun AttackDiscipleSelectionDialog(
                     }
                 }
             }
-        },
-        confirmButton = {}
-    )
+        }
+    }
 }

@@ -5,8 +5,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -30,6 +31,7 @@ import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.LevelType
 import com.xianxia.sect.ui.components.CloseButton
+import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
@@ -412,45 +414,41 @@ private fun LevelSlotSelectionDialog(
         )
     }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
-        title = {
+    HalfScreenDialog(onDismissRequest = onDismiss) {
+        Column(Modifier.fillMaxSize()) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     text = "选择弟子",
-                    fontSize = 14.sp,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.Black
                 )
                 CloseButton(onClick = onDismiss)
             }
-        },
-        text = {
-            if (idleDisciples.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(100.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "暂无空闲弟子",
-                        fontSize = 12.sp,
-                        color = Color.Black
-                    )
-                }
-            } else {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 500.dp)
-                ) {
-                    // Filter bar
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .padding(horizontal = 12.dp)
+            ) {
+                if (idleDisciples.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "暂无空闲弟子",
+                            fontSize = 12.sp,
+                            color = Color.Black
+                        )
+                    }
+                } else {
                     SpiritRootAttributeFilterBar(
                         selectedSpiritRootFilter = selectedSpiritRootFilter,
                         selectedAttributeSort = selectedAttributeSort,
@@ -478,12 +476,9 @@ private fun LevelSlotSelectionDialog(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // Disciple list
                     if (filteredDisciples.isEmpty()) {
                         Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(1f),
+                            modifier = Modifier.fillMaxWidth().weight(1f),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
@@ -493,9 +488,11 @@ private fun LevelSlotSelectionDialog(
                             )
                         }
                     } else {
-                        LazyColumn(
+                        LazyVerticalGrid(
+                            columns = GridCells.Fixed(2),
                             modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             items(filteredDisciples, key = { it.id }) { disciple ->
                                 PortraitDiscipleCard(
@@ -508,7 +505,6 @@ private fun LevelSlotSelectionDialog(
                     }
                 }
             }
-        },
-        confirmButton = {}
-    )
+        }
+    }
 }

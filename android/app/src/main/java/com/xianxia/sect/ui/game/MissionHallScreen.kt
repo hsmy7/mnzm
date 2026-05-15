@@ -7,10 +7,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items as lazyItems
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -83,7 +83,7 @@ fun MissionHallDialog(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.heightIn(max = 400.dp)
                 ) {
-                    items(activeMissions, key = { it.id }) { activeMission ->
+                    lazyItems(activeMissions, key = { it.id }) { activeMission ->
                         ActiveMissionCard(
                             mission = activeMission,
                             currentYear = currentYear,
@@ -95,7 +95,7 @@ fun MissionHallDialog(
                         )
                     }
 
-                    items(availableMissions, key = { it.id }) { mission ->
+                    lazyItems(availableMissions, key = { it.id }) { mission ->
                         AvailableMissionCard(
                             mission = mission,
                             onClick = {
@@ -623,9 +623,11 @@ private fun DiscipleSelectionDialog(
                             )
                         }
                     } else {
-                        LazyColumn(
-                            verticalArrangement = Arrangement.spacedBy(6.dp),
-                            modifier = Modifier.heightIn(max = 300.dp)
+                        LazyVerticalGrid(
+                            columns = GridCells.Fixed(2),
+                            modifier = Modifier.heightIn(max = 300.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             items(filteredDisciples, key = { it.id }) { disciple ->
                                 val isSelected = selectedDiscipleIds.contains(disciple.id)
