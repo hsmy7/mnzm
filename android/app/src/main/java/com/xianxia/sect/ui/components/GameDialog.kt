@@ -58,7 +58,7 @@ fun UnifiedGameDialog(
 
     val (widthModifier, heightModifier) = when (mode) {
         DialogMode.Half -> Pair(
-            Modifier.fillMaxWidth(0.85f),
+            Modifier.fillMaxWidth(0.83f),
             Modifier.fillMaxHeight(0.78f)
         )
         DialogMode.Full -> Pair(
@@ -66,7 +66,7 @@ fun UnifiedGameDialog(
             Modifier.fillMaxSize()
         )
         DialogMode.Auto -> Pair(
-            Modifier.fillMaxWidth(0.85f),
+            Modifier.fillMaxWidth(0.83f),
             Modifier
         )
     }
@@ -221,7 +221,7 @@ fun GameAlertDialog(
 
 object DialogDefaults {
     /** Width fraction for half-screen dialogs: leaves ~7.5% margin on each side */
-    const val HalfScreenWidthFraction = 0.85f
+    const val HalfScreenWidthFraction = 0.83f
     /** Height fraction for half-screen dialogs: 78% of screen height */
     const val HalfScreenHeightFraction = 0.78f
     /** Standard max height for scrollable CommonDialog-style wrappers */

@@ -48,7 +48,7 @@ fun LawEnforcementHallDialog(
     val lawDisciples = productionViewModel.getLawEnforcementDisciples()
     val reserveDisciplesWithInfo = productionViewModel.getLawEnforcementReserveDisciplesWithInfo()
 
-    HalfScreenDialog(onDismissRequest = onDismiss, isFullScreen = true) {
+    HalfScreenDialog(onDismissRequest = onDismiss, isFullScreen = false) {
         Column(modifier = Modifier.fillMaxSize()) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),

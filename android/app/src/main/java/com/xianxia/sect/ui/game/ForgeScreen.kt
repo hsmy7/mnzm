@@ -63,7 +63,7 @@ fun ForgeDialog(
     val workerDisciple = if (assignedDiscipleId.isNullOrEmpty()) null
         else disciples.find { it.id == assignedDiscipleId }
 
-    HalfScreenDialog(onDismissRequest = { viewModel.closeCurrentDialog() }, isFullScreen = true) {
+    HalfScreenDialog(onDismissRequest = { viewModel.closeCurrentDialog() }, isFullScreen = false) {
         Column(modifier = Modifier.fillMaxSize()) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),

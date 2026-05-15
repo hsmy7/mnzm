@@ -9,6 +9,13 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.0.26",
+            date = "2026-05-15",
+            changes = listOf(
+                "半屏弹窗宽度由85%调整为83%，所有建筑界面（炼丹炉、锻造坊、问道塔、青云塔、天枢殿、执法堂、灵矿场、灵植阁、藏经阁、任务阁、监牢）改为半屏展示"
+            )
+        ),
+        ChangelogEntry(
             version = "3.0.25",
             date = "2026-05-15",
             changes = listOf(

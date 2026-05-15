@@ -54,7 +54,7 @@ fun TianshuHallDialog(
     val forgeElderId = elderSlots?.forgeElder
     val forgeElder = disciples.find { it.id == forgeElderId }
 
-    HalfScreenDialog(onDismissRequest = onDismiss, isFullScreen = true) {
+    HalfScreenDialog(onDismissRequest = onDismiss, isFullScreen = false) {
         Column(modifier = Modifier.fillMaxSize()) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
