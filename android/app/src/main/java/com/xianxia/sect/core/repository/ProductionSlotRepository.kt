@@ -314,6 +314,8 @@ class ProductionSlotRepository @Inject constructor(
         globalMutex.withLock {
             val allSlots = mutableListOf<ProductionSlot>()
             BuildingType.entries.forEach { buildingType ->
+                // Alchemy and Forge slots are created dynamically when buildings are placed
+                if (buildingType == BuildingType.ALCHEMY || buildingType == BuildingType.FORGE) return@forEach
                 val slotCount = configService.getSlotCountByType(buildingType)
                 (0 until slotCount).forEach { idx ->
                     allSlots.add(ProductionSlot.createIdle(
@@ -334,6 +336,8 @@ class ProductionSlotRepository @Inject constructor(
     }
 
     suspend fun initializeSlotsForType(buildingType: BuildingType, slotId: Int) {
+        // Alchemy and Forge slots are created dynamically when buildings are placed
+        if (buildingType == BuildingType.ALCHEMY || buildingType == BuildingType.FORGE) return
         globalMutex.withLock {
             val slotCount = configService.getSlotCountByType(buildingType)
             val newSlots = (0 until slotCount).map { idx ->

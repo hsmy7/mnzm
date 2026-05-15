@@ -27,7 +27,10 @@ data class AlchemySlot(
     val duration: Int = 0,
     val status: AlchemySlotStatus = AlchemySlotStatus.IDLE,
     val successRate: Double = 0.0,
-    val requiredMaterials: Map<String, Int> = emptyMap()
+    val requiredMaterials: Map<String, Int> = emptyMap(),
+    val autoRestartEnabled: Boolean = false,
+    val assignedDiscipleId: String? = null,
+    val assignedDiscipleName: String = ""
 ) {
     val isIdle: Boolean get() = status == AlchemySlotStatus.IDLE
     val isWorking: Boolean get() = status == AlchemySlotStatus.WORKING
@@ -110,7 +113,10 @@ data class ForgeSlot(
     val duration: Int = 0,
     val status: ForgeSlotStatus = ForgeSlotStatus.IDLE,
     val successRate: Double = 0.0,
-    val requiredMaterials: Map<String, Int> = emptyMap()
+    val requiredMaterials: Map<String, Int> = emptyMap(),
+    val autoRestartEnabled: Boolean = false,
+    val assignedDiscipleId: String? = null,
+    val assignedDiscipleName: String = ""
 ) {
     val isIdle: Boolean get() = status == ForgeSlotStatus.IDLE
     val isWorking: Boolean get() = status == ForgeSlotStatus.WORKING

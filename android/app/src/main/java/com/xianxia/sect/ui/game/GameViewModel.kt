@@ -15,6 +15,8 @@ import com.xianxia.sect.core.engine.service.HighFrequencyData
 import com.xianxia.sect.core.engine.system.SystemError
 import com.xianxia.sect.core.engine.system.SystemManager
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.production.BuildingType
+import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.usecase.DisciplePositionQueryUseCase
 import com.xianxia.sect.ui.state.DialogStateManager
 import com.xianxia.sect.ui.state.DialogStateManager.DialogType
@@ -78,12 +80,12 @@ class GameViewModel @Inject constructor(
         openDialog(DialogType.HerbGarden)
     }
 
-    fun openAlchemyDialog() {
-        openDialog(DialogType.Alchemy)
+    fun openAlchemyDialog(buildingIndex: Int = 0) {
+        openDialog(DialogType.Alchemy, params = mapOf("buildingIndex" to buildingIndex))
     }
 
-    fun openForgeDialog() {
-        openDialog(DialogType.Forge)
+    fun openForgeDialog(buildingIndex: Int = 0) {
+        openDialog(DialogType.Forge, params = mapOf("buildingIndex" to buildingIndex))
     }
 
     fun openLibraryDialog() {
@@ -138,12 +140,36 @@ class GameViewModel @Inject constructor(
             val cost = config?.cost ?: 1000L
             val (gridW, gridH) = buildingConfigService.getBuildingGridSize(name)
 
+            // Pre-compute new production slot for alchemy/forge multi-build
+            val newProductionSlot = when (name) {
+                "炼丹炉" -> {
+                    val idx = gameEngine.gameDataSnapshot.placedBuildings.count { it.displayName == "炼丹炉" }
+                    ProductionSlot.createIdle(slotIndex = idx, buildingType = BuildingType.ALCHEMY, buildingId = "alchemy")
+                }
+                "锻造坊" -> {
+                    val idx = gameEngine.gameDataSnapshot.placedBuildings.count { it.displayName == "锻造坊" }
+                    ProductionSlot.createIdle(slotIndex = idx, buildingType = BuildingType.FORGE, buildingId = "forge")
+                }
+                else -> null
+            }
+
             gameEngine.updateGameData { data ->
-                if (name == "灵矿场") {
-                    val currentMines = data.placedBuildings.count { it.displayName == "灵矿场" }
-                    if (currentMines >= GameConfig.Production.MAX_SPIRIT_MINE_COUNT) return@updateGameData data
-                } else {
-                    if (data.placedBuildings.any { it.displayName == name }) return@updateGameData data
+                when (name) {
+                    "灵矿场" -> {
+                        val currentMines = data.placedBuildings.count { it.displayName == "灵矿场" }
+                        if (currentMines >= GameConfig.Production.MAX_SPIRIT_MINE_COUNT) return@updateGameData data
+                    }
+                    "炼丹炉" -> {
+                        val cnt = data.placedBuildings.count { it.displayName == "炼丹炉" }
+                        if (cnt >= GameConfig.Production.MAX_ALCHEMY_FURNACE_COUNT) return@updateGameData data
+                    }
+                    "锻造坊" -> {
+                        val cnt = data.placedBuildings.count { it.displayName == "锻造坊" }
+                        if (cnt >= GameConfig.Production.MAX_FORGE_WORKSHOP_COUNT) return@updateGameData data
+                    }
+                    else -> {
+                        if (data.placedBuildings.any { it.displayName == name }) return@updateGameData data
+                    }
                 }
                 if (data.spiritStones < cost) return@updateGameData data
 
@@ -162,8 +188,14 @@ class GameViewModel @Inject constructor(
                         width = gridW,
                         height = gridH
                     ),
-                    spiritMineSlots = data.spiritMineSlots + newSlots
+                    spiritMineSlots = data.spiritMineSlots + newSlots,
+                    productionSlots = if (newProductionSlot != null)
+                        data.productionSlots + newProductionSlot else data.productionSlots
                 )
+            }
+
+            if (newProductionSlot != null) {
+                gameEngine.addProductionSlot(newProductionSlot)
             }
         }
     }

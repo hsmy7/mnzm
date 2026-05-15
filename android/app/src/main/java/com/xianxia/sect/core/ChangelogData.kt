@@ -9,6 +9,16 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.0.22",
+            date = "2026-05-15",
+            changes = listOf(
+                "炼丹炉和锻造坊可建造7座，每座1个生产槽位，需分配弟子上岗才能开始生产",
+                "生产中弟子被卸任或死亡时进度自动冻结，重新分配弟子后恢复",
+                "炼丹长老和锻造长老移至天枢殿，放在副宗主下方统一管理",
+                "自动炼丹/锻造改为每个槽位独立开关"
+            )
+        ),
+        ChangelogEntry(
             version = "3.0.21",
             date = "2026-05-14",
             changes = listOf(

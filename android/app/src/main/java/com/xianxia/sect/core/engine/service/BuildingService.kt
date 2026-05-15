@@ -160,8 +160,7 @@ private val inventorySystem: InventorySystem,
     }
 
     suspend fun startAlchemy(slotIndex: Int, recipeId: String): Boolean {
-        val maxSlotCount = 3
-        if (slotIndex < 0 || slotIndex >= maxSlotCount) {
+        if (slotIndex < 0 || slotIndex >= GameConfig.Production.MAX_ALCHEMY_FURNACE_COUNT) {
             return false
         }
 
@@ -169,6 +168,9 @@ private val inventorySystem: InventorySystem,
 
         val alchemySlot = productionSlotRepository.getSlotByBuildingId("alchemy", slotIndex)
         if (alchemySlot != null && alchemySlot.isWorking) {
+            return false
+        }
+        if (alchemySlot?.assignedDiscipleId.isNullOrEmpty()) {
             return false
         }
 
@@ -242,6 +244,9 @@ private val inventorySystem: InventorySystem,
 
         val forgeSlot = productionSlotRepository.getSlotByBuildingId("forge", slotIndex)
         if (forgeSlot != null && forgeSlot.isWorking) {
+            return false
+        }
+        if (forgeSlot?.assignedDiscipleId.isNullOrEmpty()) {
             return false
         }
 

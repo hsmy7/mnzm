@@ -66,7 +66,7 @@ object GameDatabaseConfig {
         ArchivedBattleLog::class,
         ArchivedDisciple::class
     ],
-    version = 1
+    version = 2
 )
 
 @TypeConverters(ProtobufConverters::class)

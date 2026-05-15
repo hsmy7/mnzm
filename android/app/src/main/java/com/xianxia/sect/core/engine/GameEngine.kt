@@ -13,6 +13,7 @@ import com.xianxia.sect.core.engine.system.MerchantItemConverter
 import com.xianxia.sect.core.engine.BattleSystem
 import com.xianxia.sect.core.engine.DisciplePillManager
 import com.xianxia.sect.core.engine.production.ProductionCoordinator
+import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.ForgeRecipeDatabase
@@ -164,8 +165,13 @@ class GameEngine @Inject constructor(
 
         Log.d(TAG, "loadData: restored game year=${gameData.gameYear}, ${disciples.size} disciples, recruitList=${gameData.recruitList.size} unrecruited disciples")
 
-        if (productionSlots.isNotEmpty()) {
-            productionCoordinator.repository.restoreSlots(productionSlots, gameData.currentSlot)
+        // Validate and fix alchemy/forge slot count to match placed buildings
+        val alchemyCount = gameData.placedBuildings.count { it.displayName == "炼丹炉" }
+        val forgeCount = gameData.placedBuildings.count { it.displayName == "锻造坊" }
+        val fixedProductionSlots = fixAlchemyForgeSlotCount(productionSlots, alchemyCount, forgeCount)
+
+        if (fixedProductionSlots.isNotEmpty()) {
+            productionCoordinator.repository.restoreSlots(fixedProductionSlots, gameData.currentSlot)
         } else {
             productionCoordinator.repository.initializeAllSlots(gameData.currentSlot)
         }
@@ -621,6 +627,98 @@ class GameEngine @Inject constructor(
 
     suspend fun startForging(slotIndex: Int, recipeId: String): Boolean =
         buildingService.startForging(slotIndex, recipeId)
+
+    suspend fun addProductionSlot(slot: ProductionSlot) {
+        productionCoordinator.repository.addSlot(slot)
+    }
+
+    fun assignDiscipleToProductionSlot(
+        buildingType: BuildingType,
+        slotIndex: Int,
+        discipleId: String,
+        discipleName: String
+    ) {
+        val data = stateStore.gameDataSnapshot
+        val currentYear = data.gameYear
+        val currentMonth = data.gameMonth
+        updateGameDataSync { gd ->
+            gd.copy(productionSlots = gd.productionSlots.map { slot ->
+                if (slot.buildingType == buildingType && slot.slotIndex == slotIndex) {
+                    // If slot was paused (working but no disciple), resume with frozen time
+                    if (slot.isWorking && slot.assignedDiscipleId.isNullOrEmpty()) {
+                        slot.copy(
+                            assignedDiscipleId = discipleId,
+                            assignedDiscipleName = discipleName
+                        )
+                    } else {
+                        slot.copy(
+                            assignedDiscipleId = discipleId,
+                            assignedDiscipleName = discipleName
+                        )
+                    }
+                } else slot
+            })
+        }
+    }
+
+    fun removeDiscipleFromProductionSlot(
+        buildingType: BuildingType,
+        slotIndex: Int
+    ) {
+        val data = stateStore.gameDataSnapshot
+        val currentYear = data.gameYear
+        val currentMonth = data.gameMonth
+        val slot = data.productionSlots.find {
+            it.buildingType == buildingType && it.slotIndex == slotIndex
+        }
+        val discipleId = slot?.assignedDiscipleId
+
+        updateGameDataSync { gd ->
+            gd.copy(productionSlots = gd.productionSlots.map { s ->
+                if (s.buildingType == buildingType && s.slotIndex == slotIndex) {
+                    if (s.isWorking && !s.assignedDiscipleId.isNullOrEmpty()) {
+                        // Freeze progress: save remaining time as new duration
+                        val remaining = s.remainingTime(currentYear, currentMonth)
+                        s.copy(
+                            assignedDiscipleId = null,
+                            assignedDiscipleName = "",
+                            startYear = currentYear,
+                            startMonth = currentMonth,
+                            duration = remaining.coerceAtLeast(1)
+                        )
+                    } else {
+                        s.copy(
+                            assignedDiscipleId = null,
+                            assignedDiscipleName = ""
+                        )
+                    }
+                } else s
+            })
+        }
+        if (discipleId != null) {
+            gameEngineCore.launchInScope {
+                stateStore.update {
+                    disciples = disciples.map { d ->
+                        if (d.id == discipleId) d.copy(status = DiscipleStatus.IDLE) else d
+                    }
+                }
+            }
+        }
+    }
+
+    fun getAssignedDiscipleForSlot(buildingType: BuildingType, slotIndex: Int): Pair<String, String>? {
+        val slot = stateStore.gameDataSnapshot.productionSlots.find {
+            it.buildingType == buildingType && it.slotIndex == slotIndex
+        }
+        val id = slot?.assignedDiscipleId
+        return if (id.isNullOrEmpty()) null else Pair(id, slot.assignedDiscipleName)
+    }
+
+    fun getAlchemyFurnaceCount(): Int =
+        stateStore.gameDataSnapshot.placedBuildings.count { it.displayName == "炼丹炉" }
+
+    fun getForgeWorkshopCount(): Int =
+        stateStore.gameDataSnapshot.placedBuildings.count { it.displayName == "锻造坊" }
 
     suspend fun autoHarvestCompletedAlchemySlots(): List<AlchemyResult> =
         buildingService.autoHarvestCompletedAlchemySlots()
@@ -1096,6 +1194,58 @@ class GameEngine @Inject constructor(
             }
             updateGameDataSync { it.copy(spiritMineSlots = finalSlots) }
         }
+    }
+
+    /**
+     * Ensure alchemy/forge slot counts match placed building counts.
+     * Called synchronously in loadData before restoreSlots.
+     */
+    private fun fixAlchemyForgeSlotCount(
+        slots: List<ProductionSlot>,
+        alchemyCount: Int,
+        forgeCount: Int
+    ): List<ProductionSlot> {
+        val result = slots.toMutableList()
+
+        // Fix alchemy slots: keep first N (sorted by slotIndex), fill missing
+        val alchemySlots = result.filter { it.buildingType == BuildingType.ALCHEMY }
+        result.removeAll { it.buildingType == BuildingType.ALCHEMY }
+        val fixedAlchemy = mutableListOf<ProductionSlot>()
+        alchemySlots.sortedBy { it.slotIndex }.take(alchemyCount).forEach { fixedAlchemy.add(it) }
+        if (fixedAlchemy.size < alchemyCount) {
+            val existingIndices = fixedAlchemy.map { it.slotIndex }.toSet()
+            var nextIdx = 0
+            while (fixedAlchemy.size < alchemyCount) {
+                if (nextIdx !in existingIndices) {
+                    fixedAlchemy.add(ProductionSlot.createIdle(
+                        slotIndex = nextIdx, buildingType = BuildingType.ALCHEMY, buildingId = "alchemy"
+                    ))
+                }
+                nextIdx++
+            }
+        }
+        result.addAll(fixedAlchemy)
+
+        // Fix forge slots: keep first N (sorted by slotIndex), fill missing
+        val forgeSlots = result.filter { it.buildingType == BuildingType.FORGE }
+        result.removeAll { it.buildingType == BuildingType.FORGE }
+        val fixedForge = mutableListOf<ProductionSlot>()
+        forgeSlots.sortedBy { it.slotIndex }.take(forgeCount).forEach { fixedForge.add(it) }
+        if (fixedForge.size < forgeCount) {
+            val existingIndices = fixedForge.map { it.slotIndex }.toSet()
+            var nextIdx = 0
+            while (fixedForge.size < forgeCount) {
+                if (nextIdx !in existingIndices) {
+                    fixedForge.add(ProductionSlot.createIdle(
+                        slotIndex = nextIdx, buildingType = BuildingType.FORGE, buildingId = "forge"
+                    ))
+                }
+                nextIdx++
+            }
+        }
+        result.addAll(fixedForge)
+
+        return result
     }
 
     fun updateSpiritMineSlots(slots: List<SpiritMineSlot>) {

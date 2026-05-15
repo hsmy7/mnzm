@@ -1349,6 +1349,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
     internal suspend fun processBuildingProduction(year: Int, month: Int) {
         val forgeSlots = productionSlotRepository.getSlotsByBuildingId("forge")
         forgeSlots.forEach { slot ->
+            if (slot.isWorking && slot.assignedDiscipleId.isNullOrEmpty()) return@forEach
             if (slot.isWorking && slot.isFinished(year, month)) {
                 val recipeId = slot.recipeId
                 if (recipeId != null) {
@@ -1378,6 +1379,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
 
         val alchemySlots = productionSlotRepository.getSlotsByType(com.xianxia.sect.core.model.production.BuildingType.ALCHEMY)
         alchemySlots.forEach { slot ->
+            if (slot.isWorking && slot.assignedDiscipleId.isNullOrEmpty()) return@forEach
             if (slot.isWorking && slot.isFinished(year, month)) {
                 val success = Random.nextDouble() <= slot.successRate
                 if (success) {
@@ -1491,11 +1493,12 @@ private val applicationScopeProvider: ApplicationScopeProvider,
 
     internal suspend fun processAutoAlchemy() {
         val data = currentGameData
-        if (!data.sectPolicies.autoAlchemy) return
 
         val alchemySlots = productionSlotRepository.getSlotsByType(com.xianxia.sect.core.model.production.BuildingType.ALCHEMY)
         val idleSlotIndices = alchemySlots
-            .filter { it.status == com.xianxia.sect.core.model.production.ProductionSlotStatus.IDLE }
+            .filter { it.autoRestartEnabled
+                && it.status == com.xianxia.sect.core.model.production.ProductionSlotStatus.IDLE
+                && it.assignedDiscipleId.isNullOrEmpty().not() }
             .map { it.slotIndex }
         if (idleSlotIndices.isEmpty()) return
 
@@ -1536,14 +1539,13 @@ private val applicationScopeProvider: ApplicationScopeProvider,
 
     internal suspend fun processAutoForge() {
         val data = currentGameData
-        if (!data.sectPolicies.autoForge) return
 
         val forgeSlots = productionSlotRepository.getSlotsByBuildingId("forge")
-        val maxSlotCount = 3
-        val idleSlotIndices = (0 until maxSlotCount).filter { idx ->
-            val slot = forgeSlots.find { it.slotIndex == idx }
-            slot == null || slot.status == com.xianxia.sect.core.model.production.ProductionSlotStatus.IDLE
-        }
+        val idleSlotIndices = forgeSlots
+            .filter { it.autoRestartEnabled
+                && it.status == com.xianxia.sect.core.model.production.ProductionSlotStatus.IDLE
+                && it.assignedDiscipleId.isNullOrEmpty().not() }
+            .map { it.slotIndex }
         if (idleSlotIndices.isEmpty()) return
 
         val allRecipes = ForgeRecipeDatabase.getAllRecipes().sortedByDescending { it.rarity }

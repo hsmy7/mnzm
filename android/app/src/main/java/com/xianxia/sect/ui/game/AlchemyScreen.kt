@@ -31,6 +31,7 @@ import com.xianxia.sect.core.registry.PillRecipeDatabase
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.ui.components.DialogDefaults
 import com.xianxia.sect.ui.components.CloseButton
+import com.xianxia.sect.ui.components.ElderBonusInfo
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.getQualityColor
 import com.xianxia.sect.ui.components.HalfScreenDialog
@@ -41,6 +42,7 @@ import java.util.Locale
 
 @Composable
 fun AlchemyDialog(
+    buildingIndex: Int = 0,
     alchemySlots: List<AlchemySlot>,
     materials: List<Material>,
     herbs: List<Herb>,
@@ -55,13 +57,14 @@ fun AlchemyDialog(
     val theme = ALCHEMY_THEME
     var showPillSelection by remember { mutableStateOf(false) }
     var selectedSlotIndex by remember { mutableStateOf<Int?>(null) }
-    var showElderSelection by remember { mutableStateOf(false) }
-    var showDirectDiscipleSelection by remember { mutableStateOf<Int?>(null) }
+    var showWorkerSelection by remember { mutableStateOf(false) }
     var showReserveDiscipleDialog by remember { mutableStateOf(false) }
 
-    val elderSlots = gameData?.elderSlots ?: ElderSlots()
-    val alchemyElder = disciples.find { it.id == elderSlots.alchemyElder }
-    val alchemyDisciples = elderSlots.alchemyDisciples
+    val mySlot = alchemySlots.find { it.slotIndex == buildingIndex }
+    val slotIndex = mySlot?.slotIndex ?: buildingIndex
+    val assignedDiscipleId = mySlot?.assignedDiscipleId
+    val workerDisciple = if (assignedDiscipleId.isNullOrEmpty()) null
+        else disciples.find { it.id == assignedDiscipleId }
 
     HalfScreenDialog(onDismissRequest = { viewModel.closeCurrentDialog() }, isFullScreen = true) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -70,7 +73,7 @@ fun AlchemyDialog(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("炼丹炉", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                Text("炼丹炉 #${buildingIndex + 1}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
@@ -94,20 +97,63 @@ fun AlchemyDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                ProductionElderSection(
-                    theme = theme,
-                    elder = alchemyElder,
-                    onElderClick = { showElderSelection = true },
-                    onElderRemove = { productionViewModel.removeElder(ElderSlotType.ALCHEMY) }
-                )
-
-                ProductionDirectDiscipleSection(
-                    theme = theme,
-                    directDisciples = alchemyDisciples,
-                    slotCount = alchemySlots.size,
-                    onDirectDiscipleClick = { index -> showDirectDiscipleSelection = index },
-                    onDirectDiscipleRemove = { index -> productionViewModel.removeDirectDisciple("alchemy", index) }
-                )
+                // Worker disciple section
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = "炼丹弟子",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Black
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Box(
+                        modifier = Modifier
+                            .size(60.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(GameColors.PageBackground)
+                            .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
+                            .clickable { showWorkerSelection = true },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (workerDisciple != null) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = workerDisciple.name,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.Black,
+                                    maxLines = 1
+                                )
+                                Text(
+                                    text = workerDisciple.realmName,
+                                    fontSize = 9.sp,
+                                    color = Color.Black,
+                                    maxLines = 1
+                                )
+                            }
+                        } else {
+                            Text(text = "+", fontSize = 24.sp, color = Color.Black)
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    if (workerDisciple != null) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(GameColors.PageBackground)
+                                .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
+                                .clickable { alchemyViewModel.removeWorker(buildingIndex) }
+                                .padding(horizontal = 12.dp, vertical = 4.dp)
+                        ) {
+                            Text(text = "卸任", fontSize = 10.sp, color = Color.Black)
+                        }
+                    }
+                }
 
                 HorizontalDivider(
                     modifier = Modifier.padding(vertical = 4.dp),
@@ -126,65 +172,91 @@ fun AlchemyDialog(
                         fontWeight = FontWeight.Bold,
                         color = Color.Black
                     )
-                    val autoAlchemyEnabled by alchemyViewModel.autoAlchemyEnabled.collectAsState()
+                    val autoEnabled = alchemyViewModel.isAutoEnabled(buildingIndex)
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(4.dp))
-                            .background(if (autoAlchemyEnabled) Color(0xFFFFD700) else Color.Black)
-                            .clickable { alchemyViewModel.toggleAutoAlchemy() }
+                            .background(if (autoEnabled) Color(0xFFFFD700) else Color.Black)
+                            .clickable { alchemyViewModel.toggleAuto(buildingIndex) }
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
                         Text(
-                            text = if (autoAlchemyEnabled) "自动炼丹:开" else "自动炼丹:关",
+                            text = if (autoEnabled) "自动炼丹:开" else "自动炼丹:关",
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (autoAlchemyEnabled) Color.Black else Color.White
+                            color = if (autoEnabled) Color.Black else Color.White
                         )
                     }
                 }
 
-                val slotCount = alchemySlots.size
-                (0 until slotCount).chunked(3).forEach { rowIndexes ->
-                    Box(modifier = Modifier.fillMaxWidth()) {
-                        Image(
-                            painter = painterResource(id = R.drawable.bg_horizontal),
-                            contentDescription = null,
-                            modifier = Modifier.matchParentSize(),
-                            contentScale = ContentScale.FillBounds
-                        )
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 8.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
-                        ) {
-                            rowIndexes.forEach { index ->
-                                val slot = alchemySlots.getOrNull(index)
-                                val isIdle = slot?.status == AlchemySlotStatus.IDLE || slot == null
-                                val isWorking = slot?.status == AlchemySlotStatus.WORKING
-                                val remainingMonths = if (isWorking && gameData != null)
-                                    slot.getRemainingMonths(gameData.gameYear, gameData.gameMonth) else 0
+                val isIdle = mySlot?.status == AlchemySlotStatus.IDLE || mySlot == null
+                val isWorking = mySlot?.status == AlchemySlotStatus.WORKING
+                val remainingMonths = if (isWorking && gameData != null)
+                    mySlot.getRemainingMonths(gameData.gameYear, gameData.gameMonth) else 0
 
-                                ProductionSlotItem(
-                                    theme = theme,
-                                    productName = slot?.pillName,
-                                    isWorking = isWorking,
-                                    isIdle = isIdle,
-                                    remainingMonths = remainingMonths,
-                                    index = index,
-                                    onClick = {
-                                        if (isIdle) {
-                                            selectedSlotIndex = index
-                                            showPillSelection = true
-                                        }
-                                    }
-                                )
-                            }
+                ProductionSlotItem(
+                    theme = theme,
+                    productName = mySlot?.pillName,
+                    isWorking = isWorking,
+                    isIdle = isIdle,
+                    remainingMonths = remainingMonths,
+                    index = slotIndex,
+                    onClick = {
+                        if (isIdle) {
+                            selectedSlotIndex = slotIndex
+                            showPillSelection = true
                         }
                     }
-                }
+                )
             }
         }
+    }
+
+    if (showWorkerSelection) {
+        val workerTheme = remember {
+            ProductionTheme(
+                buildingId = "alchemy",
+                displayName = "炼丹炉",
+                elderTitle = "炼丹弟子",
+                elderBonusInfo = ElderBonusInfo(
+                    title = "炼丹弟子",
+                    requiredAttribute = "炼丹",
+                    effectDescription = "负责炼丹槽位的工作，炼丹属性影响产出",
+                    bonusFormula = "炼丹越高，产出越高"
+                ),
+                coreAttributeName = "炼丹",
+                coreAttributeColor = Color(0xFF9C27B0),
+                defaultBorderColor = Color(0xFF9C27B0),
+                workingStatusColor = Color(0xFF2196F3),
+                selectedHighlightColor = Color(0xFFFFD700),
+                reserveButtonBackgroundColor = GameColors.ButtonBackground,
+                reserveButtonTextColor = Color.Black,
+                slotLabelPrefix = "炼丹槽",
+                selectionDialogTitle = "选择炼丹弟子",
+                startProductionText = "确认",
+                elderSelectionTitle = "选择炼丹弟子",
+                recommendAttributeText = "炼丹",
+                getCoreAttributeValue = { it.pillRefining },
+                getElderId = { it.alchemyElder },
+                getDirectDisciples = { it.alchemyDisciples },
+                elderSortComparator = compareByDescending<DiscipleAggregate> { it.pillRefining }
+                    .thenBy { it.realm }.thenByDescending { it.realmLayer },
+                directDiscipleSortComparator = compareBy<DiscipleAggregate> { it.realm }
+                    .thenByDescending { it.realmLayer }
+            )
+        }
+        ProductionElderSelectionDialog(
+            theme = workerTheme,
+            disciples = alchemyViewModel.getAvailableWorkers(),
+            currentElderId = assignedDiscipleId,
+            elderSlots = gameData?.elderSlots ?: ElderSlots(),
+            onDismiss = { showWorkerSelection = false },
+            onSelect = { discipleId ->
+                val d = disciples.find { it.id == discipleId }
+                alchemyViewModel.assignWorker(buildingIndex, discipleId, d?.name ?: "")
+                showWorkerSelection = false
+            }
+        )
     }
 
     if (showPillSelection) {
@@ -202,33 +274,6 @@ fun AlchemyDialog(
                 }
             )
         }
-    }
-
-    if (showElderSelection) {
-        ProductionElderSelectionDialog(
-            theme = theme,
-            disciples = disciples.filter { it.isAlive },
-            currentElderId = elderSlots.alchemyElder,
-            elderSlots = elderSlots,
-            onDismiss = { showElderSelection = false },
-            onSelect = { discipleId ->
-                productionViewModel.assignElder(ElderSlotType.ALCHEMY, discipleId)
-                showElderSelection = false
-            }
-        )
-    }
-
-    showDirectDiscipleSelection?.let { slotIndex ->
-        ProductionDirectDiscipleSelectionDialog(
-            theme = theme,
-            disciples = disciples.filter { it.isAlive },
-            elderSlots = elderSlots,
-            onDismiss = { showDirectDiscipleSelection = null },
-            onSelect = { discipleId ->
-                productionViewModel.assignDirectDisciple("alchemy", slotIndex, discipleId)
-                showDirectDiscipleSelection = null
-            }
-        )
     }
 
     if (showReserveDiscipleDialog) {

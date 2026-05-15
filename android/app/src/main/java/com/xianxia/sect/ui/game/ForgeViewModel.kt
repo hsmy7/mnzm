@@ -41,7 +41,10 @@ class ForgeViewModel @Inject constructor(
                         ProductionSlotStatus.WORKING -> ForgeSlotStatus.WORKING
                         ProductionSlotStatus.COMPLETED -> ForgeSlotStatus.FINISHED
                         else -> ForgeSlotStatus.IDLE
-                    }
+                    },
+                    autoRestartEnabled = slot.autoRestartEnabled,
+                    assignedDiscipleId = slot.assignedDiscipleId,
+                    assignedDiscipleName = slot.assignedDiscipleName
                 )
             }
         }
@@ -54,10 +57,9 @@ class ForgeViewModel @Inject constructor(
     private val _isStartingForge = MutableStateFlow(false)
     val isStartingForge: StateFlow<Boolean> = _isStartingForge.asStateFlow()
 
-    val autoForgeEnabled: StateFlow<Boolean> = gameEngine.gameData
-        .map { it.sectPolicies.autoForge }
-        .distinctUntilChanged()
-        .stateIn(viewModelScope, sharingStarted, false)
+    fun isAutoEnabled(buildingIndex: Int): Boolean {
+        return forgeSlots.value.find { it.slotIndex == buildingIndex }?.autoRestartEnabled ?: false
+    }
 
     fun startForge(slotIndex: Int, recipe: ForgeRecipeDatabase.ForgeRecipe) {
         if (_isStartingForge.value) return
@@ -81,12 +83,9 @@ class ForgeViewModel @Inject constructor(
                 val forgeSlots = slots.filter {
                     it.buildingType == BuildingType.FORGE
                 }
-                val maxSlotCount = 3
-
-                val idleSlotIndices = (0 until maxSlotCount).filter { idx ->
-                    val slot = forgeSlots.find { it.slotIndex == idx }
-                    slot == null || slot.status == ProductionSlotStatus.IDLE
-                }
+                val idleSlotIndices = forgeSlots
+                    .filter { it.status == ProductionSlotStatus.IDLE }
+                    .map { it.slotIndex }
 
                 if (idleSlotIndices.isEmpty()) {
                     showError("没有空闲的锻造槽位")
@@ -128,10 +127,42 @@ class ForgeViewModel @Inject constructor(
         }
     }
 
-    fun toggleAutoForge() {
+    fun toggleAuto(buildingIndex: Int) {
         viewModelScope.launch {
-            gameEngine.updateGameData { it.copy(sectPolicies = it.sectPolicies.copy(autoForge = !it.sectPolicies.autoForge)) }
+            gameEngine.updateGameData { data ->
+                data.copy(productionSlots = data.productionSlots.map { slot ->
+                    if (slot.buildingType == BuildingType.FORGE && slot.slotIndex == buildingIndex)
+                        slot.copy(autoRestartEnabled = !slot.autoRestartEnabled)
+                    else slot
+                })
+            }
         }
+    }
+
+    fun assignWorker(buildingIndex: Int, discipleId: String, discipleName: String) {
+        gameEngine.assignDiscipleToProductionSlot(BuildingType.FORGE, buildingIndex, discipleId, discipleName)
+    }
+
+    fun removeWorker(buildingIndex: Int) {
+        gameEngine.removeDiscipleFromProductionSlot(BuildingType.FORGE, buildingIndex)
+    }
+
+    fun getAvailableWorkers(): List<DiscipleAggregate> {
+        val all = gameEngine.discipleAggregatesSnapshot
+        val data = gameEngine.gameDataSnapshot
+        val assignedIds = data.productionSlots
+            .filter { it.buildingType == BuildingType.FORGE && it.assignedDiscipleId.isNullOrEmpty().not() }
+            .mapNotNull { it.assignedDiscipleId }.toSet()
+        val elderSlots = data.elderSlots
+        val elderIds = setOf(
+            elderSlots.alchemyElder, elderSlots.forgeElder,
+            elderSlots.herbGardenElder, elderSlots.viceSectMaster
+        ).filter { it.isNotEmpty() }
+        val directIds = (elderSlots.alchemyDisciples + elderSlots.forgeDisciples + elderSlots.herbGardenDisciples
+            + elderSlots.alchemyReserveDisciples + elderSlots.forgeReserveDisciples + elderSlots.herbGardenReserveDisciples)
+            .mapNotNull { it.discipleId }.toSet()
+        return all.filter { it.isAlive && it.id !in assignedIds && it.id !in elderIds && it.id !in directIds }
+            .sortedByDescending { it.artifactRefining }
     }
 
     fun getForgeReserveDisciplesWithInfo(): List<DiscipleAggregate> {

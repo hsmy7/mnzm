@@ -439,6 +439,8 @@ fun MainGameScreen(
             previewValid = placementValidity,
             buildingList = buildingList,
             onSpiritMineClick = { mineIndex -> viewModel.openSpiritMineDialog(mineIndex) },
+            onAlchemyClick = { idx -> viewModel.openAlchemyDialog(idx) },
+            onForgeClick = { idx -> viewModel.openForgeDialog(idx) },
             onPlacementDrag = { dx, dy ->
                 placingWorldX += dx * 0.3f
                 placingWorldY += dy * 0.3f
@@ -808,7 +810,9 @@ fun MainGameScreen(
         }
 
         if (showAlchemyDialog) {
+            val buildingIndex = (currentDialog?.params?.get("buildingIndex") as? Int) ?: 0
             AlchemyDialog(
+                buildingIndex = buildingIndex,
                 alchemySlots = alchemySlots,
                 materials = materials,
                 herbs = herbs,
@@ -823,7 +827,9 @@ fun MainGameScreen(
         }
 
         if (showForgeDialog) {
+            val buildingIndex = (currentDialog?.params?.get("buildingIndex") as? Int) ?: 0
             ForgeDialog(
+                buildingIndex = buildingIndex,
                 forgeSlots = forgeSlots,
                 materials = materials,
                 gameData = gameData,
@@ -998,6 +1004,8 @@ private fun SectMapLayer(
     previewValid: GridSnapHelper.PlacementValidity,
     buildingList: List<Pair<String, (GridBuildingData?) -> Unit>>,
     onSpiritMineClick: (Int) -> Unit = {},
+    onAlchemyClick: (Int) -> Unit = {},
+    onForgeClick: (Int) -> Unit = {},
     onPlacementDrag: (Float, Float) -> Unit,
     onPlacementConfirm: () -> Unit,
     onPlacementCancel: () -> Unit
@@ -1023,14 +1031,29 @@ private fun SectMapLayer(
         previewValid = previewValid,
         textMeasurer = textMeasurer,
         onBuildingClick = { building ->
-            if (building.displayName == "灵矿场") {
-                val mineIndex = placedBuildings
-                    .filter { it.displayName == "灵矿场" }
-                    .indexOfFirst { it.gridX == building.gridX && it.gridY == building.gridY }
-                onSpiritMineClick(mineIndex.coerceAtLeast(0))
-            } else {
-                val b = buildingList.find { it.first == building.displayName }
-                b?.second?.invoke(building)
+            when (building.displayName) {
+                "灵矿场" -> {
+                    val mineIndex = placedBuildings
+                        .filter { it.displayName == "灵矿场" }
+                        .indexOfFirst { it.gridX == building.gridX && it.gridY == building.gridY }
+                    onSpiritMineClick(mineIndex.coerceAtLeast(0))
+                }
+                "炼丹炉" -> {
+                    val furnaceIndex = placedBuildings
+                        .filter { it.displayName == "炼丹炉" }
+                        .indexOfFirst { it.gridX == building.gridX && it.gridY == building.gridY }
+                    onAlchemyClick(furnaceIndex.coerceAtLeast(0))
+                }
+                "锻造坊" -> {
+                    val forgeIndex = placedBuildings
+                        .filter { it.displayName == "锻造坊" }
+                        .indexOfFirst { it.gridX == building.gridX && it.gridY == building.gridY }
+                    onForgeClick(forgeIndex.coerceAtLeast(0))
+                }
+                else -> {
+                    val b = buildingList.find { it.first == building.displayName }
+                    b?.second?.invoke(building)
+                }
             }
         },
         onPlacementDrag = onPlacementDrag,

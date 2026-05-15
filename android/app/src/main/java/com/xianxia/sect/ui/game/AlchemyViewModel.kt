@@ -41,7 +41,10 @@ class AlchemyViewModel @Inject constructor(
                         ProductionSlotStatus.COMPLETED -> AlchemySlotStatus.FINISHED
                     },
                     successRate = slot.successRate,
-                    requiredMaterials = slot.requiredMaterials
+                    requiredMaterials = slot.requiredMaterials,
+                    autoRestartEnabled = slot.autoRestartEnabled,
+                    assignedDiscipleId = slot.assignedDiscipleId,
+                    assignedDiscipleName = slot.assignedDiscipleName
                 )
             }
         }
@@ -50,10 +53,9 @@ class AlchemyViewModel @Inject constructor(
     private val _isStartingAlchemy = MutableStateFlow(false)
     val isStartingAlchemy: StateFlow<Boolean> = _isStartingAlchemy.asStateFlow()
 
-    val autoAlchemyEnabled: StateFlow<Boolean> = gameEngine.gameData
-        .map { it.sectPolicies.autoAlchemy }
-        .distinctUntilChanged()
-        .stateIn(viewModelScope, sharingStarted, false)
+    fun isAutoEnabled(buildingIndex: Int): Boolean {
+        return alchemySlots.value.find { it.slotIndex == buildingIndex }?.autoRestartEnabled ?: false
+    }
 
     fun startAlchemy(slotIndex: Int, recipe: PillRecipeDatabase.PillRecipe) {
         if (_isStartingAlchemy.value) return
@@ -118,10 +120,45 @@ class AlchemyViewModel @Inject constructor(
         }
     }
 
-    fun toggleAutoAlchemy() {
+    fun toggleAuto(buildingIndex: Int) {
         viewModelScope.launch {
-            gameEngine.updateGameData { it.copy(sectPolicies = it.sectPolicies.copy(autoAlchemy = !it.sectPolicies.autoAlchemy)) }
+            gameEngine.updateGameData { data ->
+                data.copy(productionSlots = data.productionSlots.map { slot ->
+                    if (slot.buildingType == BuildingType.ALCHEMY && slot.slotIndex == buildingIndex)
+                        slot.copy(autoRestartEnabled = !slot.autoRestartEnabled)
+                    else slot
+                })
+            }
         }
+    }
+
+    fun assignWorker(buildingIndex: Int, discipleId: String, discipleName: String) {
+        gameEngine.assignDiscipleToProductionSlot(BuildingType.ALCHEMY, buildingIndex, discipleId, discipleName)
+    }
+
+    fun removeWorker(buildingIndex: Int) {
+        gameEngine.removeDiscipleFromProductionSlot(BuildingType.ALCHEMY, buildingIndex)
+    }
+
+    fun getAvailableWorkers(): List<DiscipleAggregate> {
+        val all = gameEngine.discipleAggregatesSnapshot
+        val data = gameEngine.gameDataSnapshot
+        val assignedIds = data.productionSlots
+            .filter { it.buildingType == BuildingType.ALCHEMY && it.assignedDiscipleId.isNullOrEmpty().not() }
+            .mapNotNull { it.assignedDiscipleId }.toSet()
+        // Also exclude disciples already in elder/direct disciple/reserve positions
+        val elderSlots = data.elderSlots
+        val elderIds = setOf(
+            elderSlots.alchemyElder,
+            elderSlots.forgeElder,
+            elderSlots.herbGardenElder,
+            elderSlots.viceSectMaster
+        ).filter { it.isNotEmpty() }
+        val directIds = (elderSlots.alchemyDisciples + elderSlots.forgeDisciples + elderSlots.herbGardenDisciples
+            + elderSlots.alchemyReserveDisciples + elderSlots.forgeReserveDisciples + elderSlots.herbGardenReserveDisciples)
+            .mapNotNull { it.discipleId }.toSet()
+        return all.filter { it.isAlive && it.id !in assignedIds && it.id !in elderIds && it.id !in directIds }
+            .sortedByDescending { it.pillRefining }
     }
 
     fun getAlchemyReserveDisciplesWithInfo(): List<DiscipleAggregate> {

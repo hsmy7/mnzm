@@ -44,8 +44,15 @@ fun TianshuHallDialog(
     val viceSectMaster = disciples.find { it.id == viceSectMasterId }
 
     var showViceSectMasterSelectDialog by remember { mutableStateOf(false) }
+    var showAlchemyElderSelectDialog by remember { mutableStateOf(false) }
+    var showForgeElderSelectDialog by remember { mutableStateOf(false) }
     var showSectAffairsDialog by remember { mutableStateOf(false) }
     var showSectPoliciesDialog by remember { mutableStateOf(false) }
+
+    val alchemyElderId = elderSlots?.alchemyElder
+    val alchemyElder = disciples.find { it.id == alchemyElderId }
+    val forgeElderId = elderSlots?.forgeElder
+    val forgeElder = disciples.find { it.id == forgeElderId }
 
     HalfScreenDialog(onDismissRequest = onDismiss, isFullScreen = true) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -131,6 +138,24 @@ fun TianshuHallDialog(
                         }
                     }
 
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    ProductionElderSection(
+                        theme = ALCHEMY_THEME,
+                        elder = alchemyElder,
+                        onElderClick = { showAlchemyElderSelectDialog = true },
+                        onElderRemove = { productionViewModel.removeElder(ElderSlotType.ALCHEMY) }
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    ProductionElderSection(
+                        theme = FORGE_THEME,
+                        elder = forgeElder,
+                        onElderClick = { showForgeElderSelectDialog = true },
+                        onElderRemove = { productionViewModel.removeElder(ElderSlotType.FORGE) }
+                    )
+
                     HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
 
                     Row(
@@ -198,6 +223,34 @@ fun TianshuHallDialog(
                 productionViewModel.setViceSectMaster(discipleId)
                 showViceSectMasterSelectDialog = false
             },
+        )
+    }
+
+    if (showAlchemyElderSelectDialog) {
+        ProductionElderSelectionDialog(
+            theme = ALCHEMY_THEME,
+            disciples = disciples.filter { it.isAlive },
+            currentElderId = alchemyElderId,
+            elderSlots = elderSlots ?: ElderSlots(),
+            onDismiss = { showAlchemyElderSelectDialog = false },
+            onSelect = { discipleId ->
+                productionViewModel.assignElder(ElderSlotType.ALCHEMY, discipleId)
+                showAlchemyElderSelectDialog = false
+            }
+        )
+    }
+
+    if (showForgeElderSelectDialog) {
+        ProductionElderSelectionDialog(
+            theme = FORGE_THEME,
+            disciples = disciples.filter { it.isAlive },
+            currentElderId = forgeElderId,
+            elderSlots = elderSlots ?: ElderSlots(),
+            onDismiss = { showForgeElderSelectDialog = false },
+            onSelect = { discipleId ->
+                productionViewModel.assignElder(ElderSlotType.FORGE, discipleId)
+                showForgeElderSelectDialog = false
+            }
         )
     }
 

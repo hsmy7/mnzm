@@ -114,6 +114,8 @@ object GameConfig {
 
     object Production {
         const val MAX_SPIRIT_MINE_COUNT = 8
+        const val MAX_ALCHEMY_FURNACE_COUNT = 7
+        const val MAX_FORGE_WORKSHOP_COUNT = 7
         const val SPIRIT_MINE_BASE_OUTPUT_PER_MINER = 160
         const val SPIRIT_MINE_MINING_THRESHOLD = 70
         const val SPIRIT_MINE_MINING_BONUS_RATE = 0.02
