@@ -145,11 +145,16 @@ object AISectAttackManager {
 
         val canOccupy = result.winner == AIBattleWinner.ATTACKER && highRealmAllDead
 
+        val survivorHpMap = result.attackers.associate { it.id to it.hp }
+        val survivorMpMap = result.attackers.associate { it.id to it.mp }
+
         return AIBattleResult(
             winner = result.winner,
             deadAttackerIds = deadAttackerIds,
             deadDefenderIds = deadDefenderIds,
-            canOccupy = canOccupy
+            canOccupy = canOccupy,
+            survivorHpMap = survivorHpMap,
+            survivorMpMap = survivorMpMap
         )
     }
 
@@ -483,11 +488,16 @@ object AISectAttackManager {
             }
             .map { it.id }
 
+        val survivorHpMap = result.defenders.associate { it.id to it.hp }
+        val survivorMpMap = result.defenders.associate { it.id to it.mp }
+
         return AIBattleResult(
             winner = result.winner,
             deadAttackerIds = deadAttackerIds,
             deadDefenderIds = deadDefenderIds,
-            canOccupy = result.winner == AIBattleWinner.ATTACKER
+            canOccupy = result.winner == AIBattleWinner.ATTACKER,
+            survivorHpMap = survivorHpMap,
+            survivorMpMap = survivorMpMap
         )
     }
 
@@ -887,7 +897,9 @@ data class AIBattleResult(
     val winner: AIBattleWinner,
     val deadAttackerIds: List<String>,
     val deadDefenderIds: List<String>,
-    val canOccupy: Boolean
+    val canOccupy: Boolean,
+    val survivorHpMap: Map<String, Int> = emptyMap(),
+    val survivorMpMap: Map<String, Int> = emptyMap()
 )
 
 data class PlayerLootLossResult(

@@ -9,6 +9,15 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.0.32",
+            date = "2026-05-15",
+            changes = listOf(
+                "修复进攻宗门战斗未触发的严重Bug：派遣弟子进攻AI宗门时未获取防守方弟子（仅检查空的驻守槽位），导致战斗直接跳过、宗门立即被占领",
+                "进攻宗门战斗现在正确从AI宗门弟子池中选取防守方，低境界弟子无法再轻松取胜",
+                "进攻宗门战斗结束后生成战斗日志记录"
+            )
+        ),
+        ChangelogEntry(
             version = "3.0.31",
             date = "2026-05-15",
             changes = listOf(

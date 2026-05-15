@@ -2734,25 +2734,41 @@ class GameEngine @Inject constructor(
 
         val playerSect = data.worldMapSects.find { it.isPlayerSect }
 
-        // Get defender disciples: from garrison slots only (no supplementation)
-        val defenderDisciples = targetSect.garrisonSlots
-            .filter { it.discipleId.isNotEmpty() }
-            .mapNotNull { slot -> allDisciples.find { it.id == slot.discipleId && it.isAlive } }
-
-        val result = AISectAttackManager.executeSectBattle(attackers, targetSect, defenderDisciples)
-
-        // Apply player casualties
-        val deadPlayerIds = result.deadAttackerIds.toSet()
-        stateStore.update {
-            disciples = disciples.map { d ->
-                if (d.id in deadPlayerIds) d.copy(isAlive = false) else d
-            }
+        // Get defender disciples: follow decideAttacks() logic
+        // If occupied by another AI sect, defenders come from occupier's garrison
+        // Otherwise, defenders come from the sect's own disciple pool
+        val isAiOccupied = targetSect.occupierSectId.isNotEmpty() && targetSect.occupierSectId != playerSect?.id
+        val defenderDisciples = if (isAiOccupied) {
+            val occupierDisciples = data.aiSectDisciples[targetSect.occupierSectId] ?: emptyList()
+            targetSect.garrisonSlots
+                .filter { it.discipleId.isNotEmpty() }
+                .mapNotNull { slot -> occupierDisciples.find { d -> d.id == slot.discipleId && d.isAlive } }
+        } else {
+            val sectDisciplePool = data.aiSectDisciples[sectId] ?: emptyList()
+            sectDisciplePool.filter { it.isAlive }.sortedByDescending { it.realm }.take(AISectAttackManager.TEAM_SIZE)
         }
 
-        // Clear garrison slots for dead defenders
-        val deadDefenderIds = result.deadDefenderIds.toSet()
+        val battleResult = AISectAttackManager.executeSectBattle(attackers, targetSect, defenderDisciples)
+
+        // Apply player casualties and survivor HP/MP
+        val deadPlayerIds = battleResult.deadAttackerIds.toSet()
+        combatService.processBattleCasualties(
+            deadMemberIds = deadPlayerIds,
+            survivorHpMap = battleResult.survivorHpMap,
+            survivorMpMap = battleResult.survivorMpMap,
+            isOutsideSect = true
+        )
+
+        // Update AI defender disciples: remove dead defenders from aiSectDisciples
+        val deadDefenderIds = battleResult.deadDefenderIds.toSet()
+        val defenderPoolSectId = if (isAiOccupied) targetSect.occupierSectId else sectId
         stateStore.update {
             gameData = gameData.copy(
+                aiSectDisciples = gameData.aiSectDisciples.mapValues { (sId, disciples) ->
+                    if (sId == defenderPoolSectId) {
+                        disciples.filter { it.id !in deadDefenderIds }
+                    } else disciples
+                },
                 worldMapSects = gameData.worldMapSects.map { sect ->
                     if (sect.id == sectId) {
                         sect.copy(
@@ -2767,9 +2783,42 @@ class GameEngine @Inject constructor(
             )
         }
 
+        // Build battle log
+        val teamMembers = attackers.map { d ->
+            BattleLogMember(name = d.name, realm = d.realm, realmName = d.realmName, portraitRes = d.portraitRes)
+        }
+        val enemyMembers = defenderDisciples.map { d ->
+            BattleLogEnemy(name = d.name, realm = d.realm, realmName = d.realmName)
+        }
+        val winResult = when (battleResult.winner) {
+            AIBattleWinner.ATTACKER -> BattleResult.WIN
+            AIBattleWinner.DEFENDER -> BattleResult.LOSE
+            AIBattleWinner.DRAW -> BattleResult.DRAW
+        }
+        val log = BattleLog(
+            year = data.gameYear,
+            month = data.gameMonth,
+            type = BattleType.SECT_WAR,
+            attackerName = "玩家队伍",
+            defenderName = targetSect.name,
+            result = winResult,
+            teamMembers = teamMembers,
+            enemies = enemyMembers,
+            turns = 0,
+            teamCasualties = deadPlayerIds.size,
+            details = when (battleResult.winner) {
+                AIBattleWinner.ATTACKER -> "攻占了${targetSect.name}"
+                AIBattleWinner.DEFENDER -> "进攻${targetSect.name}失败"
+                AIBattleWinner.DRAW -> "与${targetSect.name}打成平手"
+            }
+        )
+        val existingLogs = stateStore.battleLogs.value
+        val updatedLogs = (existingLogs + log).takeLast(GameConfig.Logs.MAX_BATTLE_LOGS)
+        stateStore.update { battleLogs = updatedLogs }
+
         // If win, generate rewards and handle occupation
-        if (result.winner == AIBattleWinner.ATTACKER) {
-            if (result.canOccupy) {
+        if (battleResult.winner == AIBattleWinner.ATTACKER) {
+            if (battleResult.canOccupy) {
                 val survivors = attackers.filter { it.id !in deadPlayerIds }
                 val garrisonSlots = targetSect.garrisonSlots.mapIndexed { index, _ ->
                     if (index < survivors.size) {
