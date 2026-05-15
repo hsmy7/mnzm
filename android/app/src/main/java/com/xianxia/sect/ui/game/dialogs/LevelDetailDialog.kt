@@ -268,8 +268,10 @@ fun LevelDetailDialog(
 
     // ========== Disciple selection dialog ==========
     if (showDiscipleSelection && targetSlotIndex >= 0) {
+        val alreadySelectedIds = slots.filterNotNull().toSet()
         LevelSlotSelectionDialog(
             disciples = disciples,
+            alreadySelectedIds = alreadySelectedIds,
             onSelect = { discipleId ->
                 slots[targetSlotIndex] = discipleId
                 showDiscipleSelection = false
@@ -344,6 +346,7 @@ private fun LevelSlotBox(
 @Composable
 private fun LevelSlotSelectionDialog(
     disciples: List<DiscipleAggregate>,
+    alreadySelectedIds: Set<String> = emptySet(),
     onSelect: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -354,9 +357,9 @@ private fun LevelSlotSelectionDialog(
     var attributeExpanded by remember { mutableStateOf(false) }
     var realmExpanded by remember { mutableStateOf(false) }
 
-    val idleDisciples = remember(disciples) {
+    val idleDisciples = remember(disciples, alreadySelectedIds) {
         disciples.filter {
-            it.status == DiscipleStatus.IDLE && it.realmLayer > 0 && it.age >= 5
+            it.status == DiscipleStatus.IDLE && it.realmLayer > 0 && it.age >= 5 && it.id !in alreadySelectedIds
         }
     }
 

@@ -1255,6 +1255,8 @@ class GameEngine @Inject constructor(
     fun assignDiscipleToLibrarySlot(slotIndex: Int, discipleId: String, discipleName: String) {
         val data = stateStore.gameData.value
         val slots = data.librarySlots.toMutableList()
+        // Prevent assigning same disciple to multiple library slots
+        if (slots.any { it.discipleId == discipleId && it.index != slotIndex }) return
         while (slots.size <= slotIndex) {
             slots.add(LibrarySlot(index = slots.size))
         }

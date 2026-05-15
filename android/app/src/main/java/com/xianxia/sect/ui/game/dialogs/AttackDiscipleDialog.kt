@@ -156,9 +156,11 @@ internal fun AttackDiscipleDialog(
     // Disciple selection sub-dialog
     if (showDiscipleSelection && selectedSlotIndex != null) {
         val currentSlotIndex = selectedSlotIndex!!
+        val alreadySelectedIds = slots.filterNotNull().map { it.id }.filter { it != slots[currentSlotIndex]?.id }.toSet()
         AttackDiscipleSelectionDialog(
             disciples = disciples,
             currentSlotDiscipleId = slots[currentSlotIndex]?.id,
+            alreadySelectedIds = alreadySelectedIds,
             onSelect = { disciple ->
                 slots[currentSlotIndex] = disciple
                 showDiscipleSelection = false
@@ -230,6 +232,7 @@ private fun AttackSlotBox(
 private fun AttackDiscipleSelectionDialog(
     disciples: List<DiscipleAggregate>,
     currentSlotDiscipleId: String? = null,
+    alreadySelectedIds: Set<String> = emptySet(),
     onSelect: (DiscipleAggregate) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -240,9 +243,12 @@ private fun AttackDiscipleSelectionDialog(
     var attributeExpanded by remember { mutableStateOf(false) }
     var realmExpanded by remember { mutableStateOf(false) }
 
-    // Only IDLE disciples, exclude already selected ones
-    val availableDisciples = remember(disciples) {
-        disciples.filter { it.isAlive && it.status == DiscipleStatus.IDLE && it.realmLayer > 0 }
+    // Only IDLE disciples, exclude already selected ones (except current slot)
+    val availableDisciples = remember(disciples, alreadySelectedIds) {
+        disciples.filter {
+            it.isAlive && it.status == DiscipleStatus.IDLE && it.realmLayer > 0 &&
+            (it.id == currentSlotDiscipleId || it.id !in alreadySelectedIds)
+        }
             .sortedByFollowAndRealm()
     }
 

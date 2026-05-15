@@ -1109,12 +1109,14 @@ internal fun CaveDiscipleSelectionDialog(
     var realmExpanded by remember { mutableStateOf(false) }
     var currentSelected by remember(selectedDisciples) { @Suppress("MutableCollectionMutableState") mutableStateOf(selectedDisciples.toMutableList()) }
 
-    val availableDisciples = remember(disciples, caveRealm) {
+    val availableDisciples = remember(disciples, caveRealm, selectedDisciples) {
+        val selectedIds = selectedDisciples.map { it.id }.toSet()
         disciples.filter { disciple ->
             disciple.status == DiscipleStatus.IDLE &&
             disciple.realmLayer > 0 &&
             disciple.age >= 5 &&
-            disciple.realm <= caveRealm
+            disciple.realm <= caveRealm &&
+            disciple.id !in selectedIds
         }.sortedByFollowAndRealm()
     }
 

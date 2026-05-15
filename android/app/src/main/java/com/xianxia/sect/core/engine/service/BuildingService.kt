@@ -110,6 +110,13 @@ private val inventorySystem: InventorySystem,
             return
         }
 
+        // Prevent assigning same disciple to multiple building slots
+        val allSlots = productionSlotRepository.getSlots()
+        val alreadyAssigned = allSlots.any {
+            it.buildingId != buildingId && it.assignedDiscipleId == discipleId
+        }
+        if (alreadyAssigned) return
+
         val existingSlot = productionSlotRepository.getSlotByBuildingId(buildingId, slotIndex)
 
         if (existingSlot != null && existingSlot.isWorking) {
