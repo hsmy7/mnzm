@@ -90,7 +90,7 @@ internal fun AttackDiscipleDialog(
                 for (row in 0..1) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally)
                     ) {
                         for (col in 0..4) {
                             val slotIndex = row * 5 + col
@@ -208,8 +208,7 @@ private fun AttackSlotBox(
         if (disciple != null) {
             Spacer(modifier = Modifier.height(4.dp))
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
                     text = "卸任",

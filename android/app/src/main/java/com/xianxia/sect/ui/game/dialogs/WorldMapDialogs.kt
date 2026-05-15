@@ -526,7 +526,7 @@ internal fun WorldMapSectDetailDialog(
                             for (row in 0..1) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally)
                                 ) {
                                     for (col in 0..4) {
                                         val slotIndex = row * 5 + col
