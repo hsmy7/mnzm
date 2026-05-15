@@ -527,7 +527,15 @@ fun MainGameScreen(
                         size.width, size.height
                     )
                 },
-                modifier = Modifier.align(Alignment.BottomCenter)
+                modifier = Modifier.align(Alignment.BottomCenter),
+                getBuildingMaxCount = { name ->
+                    when (name) {
+                        "灵矿场" -> GameConfig.Production.MAX_SPIRIT_MINE_COUNT
+                        "炼丹炉" -> GameConfig.Production.MAX_ALCHEMY_FURNACE_COUNT
+                        "锻造坊" -> GameConfig.Production.MAX_FORGE_WORKSHOP_COUNT
+                        else -> 1
+                    }
+                }
             )
         }
 
@@ -1287,7 +1295,9 @@ private fun BuildingConstructionBar(
     buildingCosts: Map<String, Long>,
     spiritStones: Long,
     onSelectBuilding: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    getBuildingCount: (String) -> Int = { name -> placedBuildings.count { it.displayName == name } },
+    getBuildingMaxCount: (String) -> Int = { 1 }
 ) {
     Box(modifier = modifier.fillMaxWidth()) {
         Image(
@@ -1312,44 +1322,54 @@ private fun BuildingConstructionBar(
                 val cost = buildingCosts[name] ?: 1000L
                 val canAfford = spiritStones >= cost
                 Column(
-                    modifier = Modifier
-                        .width(64.dp)
-                        .height(60.dp)
-                        .clip(RoundedCornerShape(6.dp))
-                        .border(1.dp, GameColors.ButtonBorder, RoundedCornerShape(6.dp))
-                        .clickable(enabled = !built && canAfford) { onSelectBuilding(name) }
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+                    Column(
+                        modifier = Modifier
+                            .width(64.dp)
+                            .height(60.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .border(1.dp, GameColors.ButtonBorder, RoundedCornerShape(6.dp))
+                            .clickable(enabled = !built && canAfford) { onSelectBuilding(name) }
+                    ) {
+                        Text(
+                            text = name,
+                            fontSize = 8.sp,
+                            lineHeight = 8.sp,
+                            color = Color.Black,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color.White.copy(alpha = 0.7f))
+                        )
+                        Image(
+                            painter = painterResource(id = getBuildingDrawable(name)),
+                            contentDescription = name,
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth(),
+                            contentScale = ContentScale.Fit,
+                            alpha = if (built || !canAfford) 0.4f else 1f
+                        )
+                        Text(
+                            text = "${cost}灵石",
+                            fontSize = 7.sp,
+                            lineHeight = 7.sp,
+                            color = Color.Black,
+                            maxLines = 1,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color.White.copy(alpha = 0.7f))
+                        )
+                    }
                     Text(
-                        text = name,
-                        fontSize = 8.sp,
-                        lineHeight = 8.sp,
+                        text = "${getBuildingCount(name)}/${getBuildingMaxCount(name)}",
+                        fontSize = 9.sp,
                         color = Color.Black,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(Color.White.copy(alpha = 0.7f))
-                    )
-                    Image(
-                        painter = painterResource(id = getBuildingDrawable(name)),
-                        contentDescription = name,
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth(),
-                        contentScale = ContentScale.Fit,
-                        alpha = if (built || !canAfford) 0.4f else 1f
-                    )
-                    Text(
-                        text = "${cost}灵石",
-                        fontSize = 7.sp,
-                        lineHeight = 7.sp,
-                        color = Color.Black,
-                        maxLines = 1,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(Color.White.copy(alpha = 0.7f))
+                        textAlign = TextAlign.Center
                     )
                 }
             }
