@@ -6,7 +6,6 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
-import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.model.production.ProductionSlot
@@ -67,7 +66,7 @@ object GameDatabaseConfig {
         ArchivedBattleLog::class,
         ArchivedDisciple::class
     ],
-    version = 2
+    version = 3
 )
 
 @TypeConverters(ProtobufConverters::class)
@@ -317,12 +316,6 @@ abstract class GameDatabase : RoomDatabase() {
         private const val UNIFIED_DB_NAME = "xianxia_sect.db"
         private val threadCounter = AtomicInteger(0)
 
-        val MIGRATION_1_2 = object : Migration(1, 2) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE production_slots ADD COLUMN autoRestartEnabled INTEGER NOT NULL DEFAULT 0")
-            }
-        }
-
         fun create(context: Context): GameDatabase {
             Log.i(TAG, "Creating unified single-instance database: $UNIFIED_DB_NAME")
 
@@ -352,7 +345,6 @@ abstract class GameDatabase : RoomDatabase() {
                         optimizeDatabase(db)
                     }
                 })
-                .addMigrations(MIGRATION_1_2)
                 .fallbackToDestructiveMigration()
                 .build()
                 .also { db -> applySafetyPragmas(db) }
