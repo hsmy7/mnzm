@@ -227,7 +227,7 @@ internal fun BattleLogDetailDialog(
                                 )
                             }
                             repeat(4 - rowMembers.size) {
-                                Spacer(modifier = Modifier.width(52.dp).height(68.dp))
+                                Spacer(modifier = Modifier.width(52.dp).height(76.dp))
                             }
                         }
                     }
@@ -260,7 +260,7 @@ internal fun BattleLogDetailDialog(
                                 )
                             }
                             repeat(4 - rowEnemies.size) {
-                                Spacer(modifier = Modifier.width(52.dp).height(68.dp))
+                                Spacer(modifier = Modifier.width(52.dp).height(76.dp))
                             }
                         }
                     }
@@ -331,7 +331,7 @@ internal fun BattleParticipantSlot(
         Box(
             modifier = Modifier
                 .width(52.dp)
-                .height(68.dp)
+                .height(76.dp)
                 .clip(RoundedCornerShape(6.dp))
                 .background(if (isAlive) Color.White else Color(0xFFEEEEEE))
                 .border(1.dp, if (isAlive) Color(0xFFE0E0E0) else Color(0xFFCCCCCC), RoundedCornerShape(6.dp)),

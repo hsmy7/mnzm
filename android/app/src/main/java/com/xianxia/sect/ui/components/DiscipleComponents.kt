@@ -286,7 +286,7 @@ fun PortraitDiscipleCard(
 }
 
 /**
- * 统一的弟子槽位：固定 52×68dp，内部仅显示头像 + 境界。
+ * 统一的弟子槽位：固定 52×76dp，内部仅显示头像 + 境界。
  * 空态显示 "+"，有弟子显示肖像图 + 境界名。
  * 额外信息（血条、属性等）由调用方在槽位外部自行处理。
  */
@@ -300,7 +300,7 @@ fun UnifiedDiscipleSlot(
     Box(
         modifier = modifier
             .width(52.dp)
-            .height(68.dp)
+            .height(76.dp)
             .clip(RoundedCornerShape(6.dp))
             .background(if (disciple != null) Color.White else GameColors.PageBackground)
             .border(1.dp, borderColor, RoundedCornerShape(6.dp))

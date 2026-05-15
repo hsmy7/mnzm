@@ -102,7 +102,9 @@ import com.xianxia.sect.ui.game.map.MapItem
 import com.xianxia.sect.ui.game.map.MapItemMapper
 import com.xianxia.sect.ui.game.map.WorldMapScreen
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
+import com.xianxia.sect.ui.components.UnifiedDiscipleSlot
 import com.xianxia.sect.ui.theme.GameColors
+import com.xianxia.sect.ui.game.DiscipleDetailDialog
 import com.xianxia.sect.core.util.PortraitPool
 import androidx.compose.ui.platform.LocalContext
 import java.util.Locale
@@ -199,6 +201,7 @@ internal fun WorldMapDialog(
             WorldMapSectDetailDialog(
                 sect = sect,
                 gameData = gameData,
+                disciples = disciples,
                 viewModel = viewModel,
                 worldMapViewModel = worldMapViewModel,
                 onDismiss = {
@@ -250,6 +253,7 @@ internal fun WorldMapDialog(
 internal fun WorldMapSectDetailDialog(
     sect: WorldSect,
     gameData: GameData?,
+    disciples: List<DiscipleAggregate>,
     viewModel: GameViewModel,
     worldMapViewModel: WorldMapViewModel,
     onDismiss: () -> Unit
@@ -260,6 +264,7 @@ internal fun WorldMapSectDetailDialog(
     var showGiftedMessage by remember { mutableStateOf(false) }
     var showAttackDialog by remember { mutableStateOf(false) }
     var showGarrisonSelection by remember { mutableStateOf<Int?>(null) }
+    var selectedGarrisonDetail by remember { mutableStateOf<DiscipleAggregate?>(null) }
 
     val playerSect = gameData?.worldMapSects?.find { it.isPlayerSect }
     val relation = if (playerSect != null) {
@@ -532,9 +537,19 @@ internal fun WorldMapSectDetailDialog(
                                         val slotIndex = row * 5 + col
                                         if (slotIndex < garrisonSlots.size) {
                                             val gSlot = garrisonSlots[slotIndex]
+                                            val gDisciple = if (gSlot.isActive) disciples.find { it.id == gSlot.discipleId } else null
                                             GarrisonSlotBox(
-                                                slot = gSlot,
+                                                disciple = gDisciple,
+                                                spiritRootColor = gSlot.discipleSpiritRootColor,
+                                                portraitRes = gSlot.portraitRes,
                                                 onClick = {
+                                                    if (gDisciple != null) {
+                                                        selectedGarrisonDetail = gDisciple
+                                                    } else {
+                                                        showGarrisonSelection = slotIndex
+                                                    }
+                                                },
+                                                onSwap = {
                                                     showGarrisonSelection = slotIndex
                                                 },
                                                 onRemoveClick = {
@@ -609,16 +624,37 @@ internal fun WorldMapSectDetailDialog(
             onDismiss = { showGarrisonSelection = null }
         )
     }
+
+    if (selectedGarrisonDetail != null) {
+        val equipment by viewModel.equipment.collectAsState()
+        val manuals by viewModel.manuals.collectAsState()
+        val manualStacks by viewModel.manualStacks.collectAsState()
+        val equipmentStacks by viewModel.equipmentStacks.collectAsState()
+        DiscipleDetailDialog(
+            disciple = selectedGarrisonDetail!!,
+            allDisciples = disciples,
+            allEquipment = equipment,
+            allManuals = manuals,
+            manualStacks = manualStacks,
+            equipmentStacks = equipmentStacks,
+            manualProficiencies = gameData?.manualProficiencies ?: emptyMap(),
+            viewModel = viewModel,
+            onDismiss = { selectedGarrisonDetail = null }
+        )
+    }
 }
 
 @Composable
 private fun GarrisonSlotBox(
-    slot: GarrisonSlot,
+    disciple: DiscipleAggregate?,
+    spiritRootColor: String,
+    portraitRes: String,
     onClick: () -> Unit,
+    onSwap: () -> Unit,
     onRemoveClick: () -> Unit
 ) {
-    val borderColor = if (slot.isActive) {
-        try { Color(android.graphics.Color.parseColor(slot.discipleSpiritRootColor)) }
+    val borderColor = if (disciple != null) {
+        try { Color(android.graphics.Color.parseColor(spiritRootColor)) }
         catch (e: Exception) { GameColors.Border }
     } else {
         GameColors.Border
@@ -627,60 +663,30 @@ private fun GarrisonSlotBox(
     Column(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Box(
-            modifier = Modifier
-                .width(52.dp)
-                .height(68.dp)
-                .clip(RoundedCornerShape(6.dp))
-                .background(if (slot.isActive) Color.White else GameColors.PageBackground)
-                .border(1.dp, borderColor, RoundedCornerShape(6.dp))
-                .clickable { onClick() },
-            contentAlignment = Alignment.Center
-        ) {
-            if (slot.isActive) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
-                    modifier = Modifier.padding(4.dp)
-                ) {
-                    val context = LocalContext.current
-                    val portraitResId = remember(slot.portraitRes) {
-                        PortraitPool.getResourceId(context, slot.portraitRes)
-                    }
-                    Image(
-                        painter = if (portraitResId != 0) painterResource(id = portraitResId)
-                                  else painterResource(id = R.drawable.disciple_portrait),
-                        contentDescription = null,
-                        modifier = Modifier.width(40.dp).height(50.dp),
-                        contentScale = ContentScale.Fit
-                    )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = slot.discipleRealm,
-                        fontSize = 10.sp,
-                        color = Color.Black,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            } else {
+        UnifiedDiscipleSlot(
+            disciple = disciple,
+            borderColor = borderColor,
+            onClick = { onClick() }
+        )
+
+        if (disciple != null) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 Text(
-                    text = "+",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
+                    text = "更换",
+                    fontSize = 9.sp,
+                    color = Color.Black,
+                    modifier = Modifier.clickable { onSwap() }
+                )
+                Text(
+                    text = "卸任",
+                    fontSize = 9.sp,
+                    color = Color(0xFFE53935),
+                    modifier = Modifier.clickable { onRemoveClick() }
                 )
             }
-        }
-
-        if (slot.isActive) {
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "卸任",
-                fontSize = 10.sp,
-                color = Color(0xFFE53935),
-                modifier = Modifier.clickable { onRemoveClick() }
-            )
         }
     }
 }
