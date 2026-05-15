@@ -29,6 +29,7 @@ import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.ui.components.UnifiedDiscipleSlot
+import com.xianxia.sect.ui.components.DiscipleSlotWithActions
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.theme.GameColors
 
@@ -44,6 +45,7 @@ fun TianshuHallDialog(
     val viceSectMasterId = elderSlots?.viceSectMaster
     val viceSectMaster = disciples.find { it.id == viceSectMasterId }
 
+    var selectedDiscipleDetail by remember { mutableStateOf<DiscipleAggregate?>(null) }
     var showViceSectMasterSelectDialog by remember { mutableStateOf(false) }
     var showAlchemyElderSelectDialog by remember { mutableStateOf(false) }
     var showForgeElderSelectDialog by remember { mutableStateOf(false) }
@@ -81,31 +83,13 @@ fun TianshuHallDialog(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
 
-                        UnifiedDiscipleSlot(
+                        DiscipleSlotWithActions(
                             disciple = viceSectMaster,
-                            onClick = { showViceSectMasterSelectDialog = true }
+                            onSlotClick = { selectedDiscipleDetail = viceSectMaster },
+                            onEmptySlotClick = { showViceSectMasterSelectDialog = true },
+                            onDismiss = { productionViewModel.removeViceSectMaster() },
+                            onSwap = { showViceSectMasterSelectDialog = true }
                         )
-
-                        Spacer(modifier = Modifier.height(4.dp))
-
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(GameColors.PageBackground)
-                                .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
-                                .clickable {
-                                    if (viceSectMasterId != null) {
-                                        productionViewModel.removeViceSectMaster()
-                                    }
-                                }
-                                .padding(horizontal = 12.dp, vertical = 4.dp)
-                        ) {
-                            Text(
-                                text = "卸任",
-                                fontSize = 10.sp,
-                                color = Color.Black
-                            )
-                        }
                     }
 
                     Spacer(modifier = Modifier.height(8.dp))
@@ -113,8 +97,9 @@ fun TianshuHallDialog(
                     ProductionElderSection(
                         theme = ALCHEMY_THEME,
                         elder = alchemyElder,
-                        onElderClick = { showAlchemyElderSelectDialog = true },
-                        onElderRemove = { productionViewModel.removeElder(ElderSlotType.ALCHEMY) }
+                        onSlotClick = { selectedDiscipleDetail = alchemyElder },
+                        onElderRemove = { productionViewModel.removeElder(ElderSlotType.ALCHEMY) },
+                        onSwap = { showAlchemyElderSelectDialog = true }
                     )
 
                     Spacer(modifier = Modifier.height(8.dp))
@@ -122,8 +107,9 @@ fun TianshuHallDialog(
                     ProductionElderSection(
                         theme = FORGE_THEME,
                         elder = forgeElder,
-                        onElderClick = { showForgeElderSelectDialog = true },
-                        onElderRemove = { productionViewModel.removeElder(ElderSlotType.FORGE) }
+                        onSlotClick = { selectedDiscipleDetail = forgeElder },
+                        onElderRemove = { productionViewModel.removeElder(ElderSlotType.FORGE) },
+                        onSwap = { showForgeElderSelectDialog = true }
                     )
 
                     HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
@@ -234,6 +220,16 @@ fun TianshuHallDialog(
             viewModel = viewModel,
             productionViewModel = productionViewModel,
             onDismiss = { showSectPoliciesDialog = false }
+        )
+    }
+
+    selectedDiscipleDetail?.let { disciple ->
+        DiscipleDetailDialog(
+            disciple = disciple,
+            allDisciples = disciples,
+            gameData = gameData,
+            viewModel = viewModel,
+            onDismiss = { selectedDiscipleDetail = null }
         )
     }
 }

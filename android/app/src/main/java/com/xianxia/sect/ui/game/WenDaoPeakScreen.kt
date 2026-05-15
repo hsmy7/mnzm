@@ -28,6 +28,7 @@ fun WenDaoPeakDialog(
     var showOuterElderSelection by remember { mutableStateOf(false) }
     var showPreachingElderSelection by remember { mutableStateOf(false) }
     var showPreachingMasterSelection by remember { mutableStateOf<Int?>(null) }
+    var selectedDiscipleDetail by remember { mutableStateOf<DiscipleAggregate?>(null) }
 
     val outerElder = productionViewModel.getOuterElder()
     val preachingElder = productionViewModel.getPreachingElder()
@@ -55,15 +56,17 @@ fun WenDaoPeakDialog(
                 title = "外门长老",
                 elder = outerElder,
                 bonusInfo = ElderBonusInfoProvider.getOuterElderInfo(),
-                onClick = { showOuterElderSelection = true },
-                onRemove = { productionViewModel.removeElder(ElderSlotType.OUTER_ELDER) }
+                onClick = { selectedDiscipleDetail = outerElder },
+                onRemove = { productionViewModel.removeElder(ElderSlotType.OUTER_ELDER) },
+                onSwap = { showOuterElderSelection = true }
             ),
             slot2 = PeakElderSlotConfig(
                 title = "问道塔传道长老",
                 elder = preachingElder,
                 bonusInfo = ElderBonusInfoProvider.getWenDaoPreachingElderInfo(),
-                onClick = { showPreachingElderSelection = true },
-                onRemove = { productionViewModel.removeElder(ElderSlotType.PREACHING) }
+                onClick = { selectedDiscipleDetail = preachingElder },
+                onRemove = { productionViewModel.removeElder(ElderSlotType.PREACHING) },
+                onSwap = { showPreachingElderSelection = true }
             )
         )
 
@@ -77,8 +80,13 @@ fun WenDaoPeakDialog(
             ),
             preachingMasters = preachingMasters,
             disciples = disciples,
-            onMasterClick = { index -> showPreachingMasterSelection = index },
-            onMasterRemove = { index -> productionViewModel.removeDirectDisciple("preaching", index) }
+            onMasterClick = { index ->
+                val master = preachingMasters.find { it.index == index }
+                val d = if (master?.isActive == true) disciples.find { it.id == master.discipleId } else null
+                selectedDiscipleDetail = d
+            },
+            onMasterRemove = { index -> productionViewModel.removeDirectDisciple("preaching", index) },
+            onMasterSwap = { index -> showPreachingMasterSelection = index }
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -132,6 +140,16 @@ fun WenDaoPeakDialog(
                 showPreachingMasterSelection = null
             },
             onDismiss = { showPreachingMasterSelection = null }
+        )
+    }
+
+    selectedDiscipleDetail?.let { disciple ->
+        DiscipleDetailDialog(
+            disciple = disciple,
+            allDisciples = disciples,
+            gameData = gameData,
+            viewModel = viewModel,
+            onDismiss = { selectedDiscipleDetail = null }
         )
     }
 }

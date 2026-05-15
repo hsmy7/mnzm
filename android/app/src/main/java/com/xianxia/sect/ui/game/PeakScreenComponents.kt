@@ -36,6 +36,7 @@ import com.xianxia.sect.ui.components.DialogDefaults
 import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.components.UnifiedDiscipleSlot
+import com.xianxia.sect.ui.components.DiscipleSlotWithActions
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
 import com.xianxia.sect.ui.game.tabs.REALM_FILTER_OPTIONS
@@ -45,7 +46,8 @@ data class PeakElderSlotConfig(
     val elder: DiscipleAggregate?,
     val bonusInfo: ElderBonusInfo,
     val onClick: () -> Unit,
-    val onRemove: () -> Unit
+    val onRemove: () -> Unit,
+    val onSwap: () -> Unit = {}
 )
 
 data class PeakPreachingMasterConfig(
@@ -155,30 +157,14 @@ private fun PeakElderSlotItem(config: PeakElderSlotConfig) {
             GameColors.Border
         }
 
-        UnifiedDiscipleSlot(
+        DiscipleSlotWithActions(
             disciple = config.elder,
             borderColor = borderColor,
-            onClick = config.onClick
+            onSlotClick = { config.onClick() },
+            onEmptySlotClick = { config.onClick() },
+            onDismiss = { config.onRemove() },
+            onSwap = { config.onSwap() }
         )
-
-        if (config.elder != null) {
-            Spacer(modifier = Modifier.height(4.dp))
-
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(GameColors.PageBackground)
-                    .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
-                    .clickable(onClick = config.onRemove)
-                    .padding(horizontal = 12.dp, vertical = 4.dp)
-            ) {
-                Text(
-                    text = "卸任",
-                    fontSize = 10.sp,
-                    color = Color.Black
-                )
-            }
-        }
     }
 }
 
@@ -189,7 +175,8 @@ fun PeakPreachingMasterSection(
     preachingMasters: List<DirectDiscipleSlot>,
     disciples: List<DiscipleAggregate>,
     onMasterClick: (Int) -> Unit,
-    onMasterRemove: (Int) -> Unit
+    onMasterRemove: (Int) -> Unit,
+    onMasterSwap: (Int) -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -220,7 +207,8 @@ fun PeakPreachingMasterSection(
                     spiritRootColor = spiritRootColor,
                     config = masterConfig,
                     onClick = { onMasterClick(index) },
-                    onRemove = { onMasterRemove(index) }
+                    onRemove = { onMasterRemove(index) },
+                    onSwap = { onMasterSwap(index) }
                 )
             }
         }
@@ -234,7 +222,8 @@ private fun PeakPreachingMasterSlotItem(
     spiritRootColor: String,
     config: PeakPreachingMasterConfig,
     onClick: () -> Unit,
-    onRemove: () -> Unit
+    onRemove: () -> Unit,
+    onSwap: () -> Unit = {}
 ) {
     val borderColor = if (isActive) {
         try {
@@ -263,30 +252,14 @@ private fun PeakPreachingMasterSlotItem(
         }
         Spacer(modifier = Modifier.height(2.dp))
 
-        UnifiedDiscipleSlot(
+        DiscipleSlotWithActions(
             disciple = if (isActive) disciple else null,
             borderColor = borderColor,
-            onClick = onClick
+            onSlotClick = { onClick() },
+            onEmptySlotClick = { onClick() },
+            onDismiss = { onRemove() },
+            onSwap = { onSwap() }
         )
-
-        if (isActive && disciple != null) {
-            Spacer(modifier = Modifier.height(2.dp))
-
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(3.dp))
-                    .background(GameColors.PageBackground)
-                    .border(1.dp, GameColors.Border, RoundedCornerShape(3.dp))
-                    .clickable(onClick = onRemove)
-                    .padding(horizontal = 8.dp, vertical = 2.dp)
-            ) {
-                Text(
-                    text = "卸任",
-                    fontSize = 8.sp,
-                    color = Color.Black
-                )
-            }
-        }
     }
 }
 

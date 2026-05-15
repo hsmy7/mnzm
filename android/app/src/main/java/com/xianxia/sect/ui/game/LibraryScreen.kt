@@ -29,6 +29,7 @@ import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.ui.components.UnifiedDiscipleSlot
+import com.xianxia.sect.ui.components.DiscipleSlotWithActions
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
 import com.xianxia.sect.ui.game.tabs.REALM_FILTER_OPTIONS
@@ -43,6 +44,7 @@ fun LibraryDialog(
     onDismiss: () -> Unit
 ) {
     var showDiscipleSelection by remember { mutableStateOf<Int?>(null) }
+    var selectedDiscipleDetail by remember { mutableStateOf<DiscipleAggregate?>(null) }
     
     val librarySlots = gameData?.librarySlots ?: emptyList()
     val slots = (0 until 3).map { index ->
@@ -74,7 +76,9 @@ fun LibraryDialog(
                             slot = slot,
                             disciple = disciple,
                             onAssign = { showDiscipleSelection = slot.index },
-                            onRemove = { productionViewModel.removeDiscipleFromLibrarySlot(slot.index) }
+                            onRemove = { productionViewModel.removeDiscipleFromLibrarySlot(slot.index) },
+                            onSwap = { showDiscipleSelection = slot.index },
+                            onSlotClick = { selectedDiscipleDetail = disciple }
                         )
                     }
                 }
@@ -85,8 +89,8 @@ fun LibraryDialog(
     showDiscipleSelection?.let { slotIndex ->
         val currentDiscipleId = slots.getOrNull(slotIndex)?.discipleId
         LibraryDiscipleSelectionDialog(
-            disciples = disciples.filter { disciple -> 
-                disciple.isAlive && 
+            disciples = disciples.filter { disciple ->
+                disciple.isAlive &&
                 disciple.status != DiscipleStatus.REFLECTING &&
                 (disciple.status == DiscipleStatus.IDLE || disciple.id == currentDiscipleId)
             },
@@ -98,6 +102,16 @@ fun LibraryDialog(
             onDismiss = { showDiscipleSelection = null }
         )
     }
+
+    selectedDiscipleDetail?.let { disciple ->
+        DiscipleDetailDialog(
+            disciple = disciple,
+            allDisciples = disciples,
+            gameData = gameData,
+            viewModel = viewModel,
+            onDismiss = { selectedDiscipleDetail = null }
+        )
+    }
 }
 
 @Composable
@@ -105,7 +119,9 @@ private fun LibrarySlotItem(
     slot: LibrarySlot,
     disciple: DiscipleAggregate?,
     onAssign: () -> Unit,
-    onRemove: () -> Unit
+    onRemove: () -> Unit,
+    onSwap: () -> Unit,
+    onSlotClick: () -> Unit
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally
@@ -126,28 +142,14 @@ private fun LibrarySlotItem(
         } else {
             GameColors.Border
         }
-        UnifiedDiscipleSlot(
+        DiscipleSlotWithActions(
             disciple = if (slot.discipleId.isNotEmpty()) disciple else null,
             borderColor = borderColor,
-            onClick = { onAssign() }
+            onSlotClick = { onSlotClick() },
+            onEmptySlotClick = { onAssign() },
+            onDismiss = { onRemove() },
+            onSwap = { onSwap() }
         )
-        if (slot.isActive) {
-            Spacer(modifier = Modifier.height(4.dp))
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(GameColors.PageBackground)
-                    .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
-                    .clickable { onRemove() }
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
-            ) {
-                Text(
-                    text = "卸任",
-                    fontSize = 12.sp,
-                    color = Color.Black
-                )
-            }
-        }
     }
 }
 

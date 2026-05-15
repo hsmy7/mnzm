@@ -33,6 +33,7 @@ import com.xianxia.sect.ui.components.ElderBonusInfo
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.ui.components.UnifiedDiscipleSlot
+import com.xianxia.sect.ui.components.DiscipleSlotWithActions
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.game.ForgeViewModel
 import com.xianxia.sect.ui.game.ProductionViewModel
@@ -52,6 +53,7 @@ fun ForgeDialog(
     onDismiss: () -> Unit
 ) {
     val theme = FORGE_THEME
+    var selectedDiscipleDetail by remember { mutableStateOf<DiscipleAggregate?>(null) }
     var showEquipmentSelection by remember { mutableStateOf(false) }
     var selectedSlotIndex by remember { mutableStateOf<Int?>(null) }
     var showWorkerSelection by remember { mutableStateOf(false) }
@@ -109,23 +111,13 @@ fun ForgeDialog(
                         )
                     }
                     Spacer(modifier = Modifier.height(4.dp))
-                    UnifiedDiscipleSlot(
+                    DiscipleSlotWithActions(
                         disciple = workerDisciple,
-                        onClick = { showWorkerSelection = true }
+                        onSlotClick = { selectedDiscipleDetail = workerDisciple },
+                        onEmptySlotClick = { showWorkerSelection = true },
+                        onDismiss = { forgeViewModel.removeWorker(buildingIndex) },
+                        onSwap = { showWorkerSelection = true }
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    if (workerDisciple != null) {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(GameColors.PageBackground)
-                                .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
-                                .clickable { forgeViewModel.removeWorker(buildingIndex) }
-                                .padding(horizontal = 12.dp, vertical = 4.dp)
-                        ) {
-                            Text(text = "卸任", fontSize = 10.sp, color = Color.Black)
-                        }
-                    }
                 }
 
                 HorizontalDivider(
@@ -267,6 +259,16 @@ fun ForgeDialog(
                 forgeViewModel.addForgeReserveDisciples(selectedIds)
                 showAddReserveDialog = false
             }
+        )
+    }
+
+    selectedDiscipleDetail?.let { disciple ->
+        DiscipleDetailDialog(
+            disciple = disciple,
+            allDisciples = disciples,
+            gameData = gameData,
+            viewModel = viewModel,
+            onDismiss = { selectedDiscipleDetail = null }
         )
     }
 }

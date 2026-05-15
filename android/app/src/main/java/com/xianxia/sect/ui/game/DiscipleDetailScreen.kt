@@ -630,6 +630,37 @@ fun DiscipleDetailDialog(
     }
 }
 
+/**
+ * DiscipleDetailDialog 便捷重载：自动从 GameViewModel 收集 StateFlow。
+ */
+@Composable
+fun DiscipleDetailDialog(
+    disciple: DiscipleAggregate,
+    allDisciples: List<DiscipleAggregate>,
+    gameData: GameData?,
+    viewModel: GameViewModel,
+    onDismiss: () -> Unit,
+    onNavigateToDisciple: ((DiscipleAggregate) -> Unit)? = null
+) {
+    val equipment by viewModel.equipment.collectAsState()
+    val manuals by viewModel.manuals.collectAsState()
+    val manualStacks by viewModel.manualStacks.collectAsState()
+    val equipmentStacks by viewModel.equipmentStacks.collectAsState()
+
+    DiscipleDetailDialog(
+        disciple = disciple,
+        allDisciples = allDisciples,
+        allEquipment = equipment,
+        allManuals = manuals,
+        manualStacks = manualStacks,
+        equipmentStacks = equipmentStacks,
+        manualProficiencies = gameData?.manualProficiencies ?: emptyMap(),
+        viewModel = viewModel,
+        onDismiss = onDismiss,
+        onNavigateToDisciple = onNavigateToDisciple
+    )
+}
+
 @Composable
 private fun RelationsDialog(
     disciple: DiscipleAggregate,

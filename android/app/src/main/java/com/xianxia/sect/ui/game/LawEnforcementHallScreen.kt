@@ -31,6 +31,7 @@ import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.components.UnifiedDiscipleSlot
+import com.xianxia.sect.ui.components.DiscipleSlotWithActions
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.core.util.sortedByFollowAndRealm
 
@@ -45,6 +46,7 @@ fun LawEnforcementHallDialog(
     var showElderSelection by remember { mutableStateOf(false) }
     var showDiscipleSelection by remember { mutableStateOf<Int?>(null) }
     var showReserveDiscipleList by remember { mutableStateOf(false) }
+    var selectedDiscipleDetail by remember { mutableStateOf<DiscipleAggregate?>(null) }
 
     val lawElder = productionViewModel.getLawEnforcementElder()
     val lawDisciples = productionViewModel.getLawEnforcementDisciples()
@@ -91,15 +93,21 @@ fun LawEnforcementHallDialog(
 
                 LawElderSection(
                     elder = lawElder,
-                    onElderClick = { showElderSelection = true },
-                    onElderRemove = { productionViewModel.removeElder(ElderSlotType.LAW_ENFORCEMENT) }
+                    onElderClick = { selectedDiscipleDetail = lawElder },
+                    onElderRemove = { productionViewModel.removeElder(ElderSlotType.LAW_ENFORCEMENT) },
+                    onElderSwap = { showElderSelection = true }
                 )
 
                 LawDisciplesSection(
                     lawDisciples = lawDisciples,
                     disciples = disciples,
-                    onDiscipleClick = { index -> showDiscipleSelection = index },
-                    onDiscipleRemove = { index -> productionViewModel.removeDirectDisciple("lawEnforcement", index) }
+                    onDiscipleClick = { index ->
+                        val slot = lawDisciples.find { it.index == index }
+                        val d = if (slot != null && slot.isActive) disciples.find { it.id == slot.discipleId } else null
+                        selectedDiscipleDetail = d
+                    },
+                    onDiscipleRemove = { index -> productionViewModel.removeDirectDisciple("lawEnforcement", index) },
+                    onDiscipleSwap = { index -> showDiscipleSelection = index }
                 )
             }
         }
@@ -172,13 +180,24 @@ fun LawEnforcementHallDialog(
             onDismiss = { showReserveDiscipleList = false }
         )
     }
+
+    selectedDiscipleDetail?.let { disciple ->
+        DiscipleDetailDialog(
+            disciple = disciple,
+            allDisciples = disciples,
+            gameData = gameData,
+            viewModel = viewModel,
+            onDismiss = { selectedDiscipleDetail = null }
+        )
+    }
 }
 
 @Composable
 private fun LawElderSection(
     elder: DiscipleAggregate?,
     onElderClick: () -> Unit,
-    onElderRemove: () -> Unit
+    onElderRemove: () -> Unit,
+    onElderSwap: () -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -201,7 +220,8 @@ private fun LawElderSection(
             elder = elder,
             bonusInfo = ElderBonusInfoProvider.getLawEnforcementElderInfo(),
             onClick = onElderClick,
-            onRemove = onElderRemove
+            onRemove = onElderRemove,
+            onSwap = onElderSwap
         )
     }
 }
@@ -211,7 +231,8 @@ private fun LawDisciplesSection(
     lawDisciples: List<DirectDiscipleSlot>,
     disciples: List<DiscipleAggregate>,
     onDiscipleClick: (Int) -> Unit,
-    onDiscipleRemove: (Int) -> Unit
+    onDiscipleRemove: (Int) -> Unit,
+    onDiscipleSwap: (Int) -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -247,7 +268,8 @@ private fun LawDisciplesSection(
                     isActive = slot?.isActive == true,
                     spiritRootColor = spiritRootColor,
                     onClick = { onDiscipleClick(index) },
-                    onRemove = { onDiscipleRemove(index) }
+                    onRemove = { onDiscipleRemove(index) },
+                    onSwap = { onDiscipleSwap(index) }
                 )
             }
         }
@@ -266,7 +288,8 @@ private fun LawDisciplesSection(
                     isActive = slot?.isActive == true,
                     spiritRootColor = spiritRootColor,
                     onClick = { onDiscipleClick(index) },
-                    onRemove = { onDiscipleRemove(index) }
+                    onRemove = { onDiscipleRemove(index) },
+                    onSwap = { onDiscipleSwap(index) }
                 )
             }
         }
@@ -279,7 +302,8 @@ private fun ElderSlotItem(
     elder: DiscipleAggregate?,
     bonusInfo: com.xianxia.sect.ui.components.ElderBonusInfo,
     onClick: () -> Unit,
-    onRemove: () -> Unit
+    onRemove: () -> Unit,
+    onSwap: () -> Unit = {}
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally
@@ -308,30 +332,14 @@ private fun ElderSlotItem(
             GameColors.Border
         }
 
-        UnifiedDiscipleSlot(
+        DiscipleSlotWithActions(
             disciple = elder,
             borderColor = borderColor,
-            onClick = onClick
+            onSlotClick = { onClick() },
+            onEmptySlotClick = { onClick() },
+            onDismiss = { onRemove() },
+            onSwap = { onSwap() }
         )
-
-        if (elder != null) {
-            Spacer(modifier = Modifier.height(4.dp))
-
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(GameColors.PageBackground)
-                    .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
-                    .clickable(onClick = onRemove)
-                    .padding(horizontal = 12.dp, vertical = 4.dp)
-            ) {
-                Text(
-                    text = "卸任",
-                    fontSize = 10.sp,
-                    color = Color.Black
-                )
-            }
-        }
     }
 }
 
@@ -341,7 +349,8 @@ private fun LawDiscipleSlotItem(
     isActive: Boolean,
     spiritRootColor: String,
     onClick: () -> Unit,
-    onRemove: () -> Unit
+    onRemove: () -> Unit,
+    onSwap: () -> Unit = {}
 ) {
     val borderColor = if (isActive) {
         try {
@@ -364,30 +373,14 @@ private fun LawDiscipleSlotItem(
         )
         Spacer(modifier = Modifier.height(2.dp))
 
-        UnifiedDiscipleSlot(
+        DiscipleSlotWithActions(
             disciple = if (isActive) disciple else null,
             borderColor = borderColor,
-            onClick = onClick
+            onSlotClick = { onClick() },
+            onEmptySlotClick = { onClick() },
+            onDismiss = { onRemove() },
+            onSwap = { onSwap() }
         )
-
-        if (isActive && disciple != null) {
-            Spacer(modifier = Modifier.height(2.dp))
-
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(3.dp))
-                    .background(GameColors.PageBackground)
-                    .border(1.dp, GameColors.Border, RoundedCornerShape(3.dp))
-                    .clickable(onClick = onRemove)
-                    .padding(horizontal = 6.dp, vertical = 2.dp)
-            ) {
-                Text(
-                    text = "卸任",
-                    fontSize = 8.sp,
-                    color = Color.Black
-                )
-            }
-        }
     }
 }
 

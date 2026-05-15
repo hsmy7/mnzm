@@ -103,6 +103,7 @@ import com.xianxia.sect.ui.game.map.MapItemMapper
 import com.xianxia.sect.ui.game.map.WorldMapScreen
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.components.UnifiedDiscipleSlot
+import com.xianxia.sect.ui.components.DiscipleSlotWithActions
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.game.DiscipleDetailDialog
 import com.xianxia.sect.core.util.PortraitPool
@@ -668,35 +669,14 @@ private fun GarrisonSlotBox(
         GameColors.Border
     }
 
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        UnifiedDiscipleSlot(
-            disciple = disciple,
-            borderColor = borderColor,
-            onClick = { onClick() }
-        )
-
-        if (disciple != null) {
-            Spacer(modifier = Modifier.height(4.dp))
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Text(
-                    text = "更换",
-                    fontSize = 9.sp,
-                    color = Color.Black,
-                    modifier = Modifier.clickable { onSwap() }
-                )
-                Text(
-                    text = "卸任",
-                    fontSize = 9.sp,
-                    color = Color(0xFFE53935),
-                    modifier = Modifier.clickable { onRemoveClick() }
-                )
-            }
-        }
-    }
+    DiscipleSlotWithActions(
+        disciple = disciple,
+        borderColor = borderColor,
+        onSlotClick = { onClick() },
+        onEmptySlotClick = { onClick() },
+        onDismiss = { onRemoveClick() },
+        onSwap = { onSwap() }
+    )
 }
 
 @Composable

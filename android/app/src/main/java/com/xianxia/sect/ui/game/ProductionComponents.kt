@@ -40,6 +40,7 @@ import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.components.UnifiedDiscipleSlot
+import com.xianxia.sect.ui.components.DiscipleSlotWithActions
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
 
@@ -233,8 +234,9 @@ fun ProductionCommonDialog(
 fun ProductionElderSection(
     theme: ProductionTheme,
     elder: DiscipleAggregate?,
-    onElderClick: () -> Unit,
-    onElderRemove: () -> Unit
+    onSlotClick: () -> Unit,
+    onElderRemove: () -> Unit,
+    onSwap: () -> Unit = {}
 ) {
     val elderBorderColor = if (elder != null) {
         try { Color(android.graphics.Color.parseColor(elder.spiritRoot.countColor)) }
@@ -255,33 +257,14 @@ fun ProductionElderSection(
             ElderBonusInfoButton(bonusInfo = theme.elderBonusInfo)
         }
 
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            UnifiedDiscipleSlot(
-                disciple = elder,
-                borderColor = elderBorderColor,
-                onClick = { onElderClick() }
-            )
-            if (elder != null) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Box(
-                    modifier = Modifier
-                        .width(72.dp)
-                        .height(38.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .clickable { onElderRemove() }
-                        .padding(horizontal = 12.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.ui_button),
-                        contentDescription = null,
-                        modifier = Modifier.matchParentSize(),
-                        contentScale = ContentScale.FillBounds
-                    )
-                    Text(text = "卸任", fontSize = 12.sp, color = Color.Black)
-                }
-            }
-        }
+        DiscipleSlotWithActions(
+            disciple = elder,
+            borderColor = elderBorderColor,
+            onSlotClick = { onSlotClick() },
+            onEmptySlotClick = { onSlotClick() },
+            onDismiss = { onElderRemove() },
+            onSwap = { onSwap() }
+        )
     }
 }
 
@@ -292,7 +275,8 @@ fun ProductionDirectDiscipleSection(
     disciples: List<DiscipleAggregate>,
     slotCount: Int,
     onDirectDiscipleClick: (Int) -> Unit,
-    onDirectDiscipleRemove: (Int) -> Unit
+    onDirectDiscipleRemove: (Int) -> Unit,
+    onDirectDiscipleSwap: (Int) -> Unit = {}
 ) {
     Column(
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -316,8 +300,9 @@ fun ProductionDirectDiscipleSection(
                 ProductionDirectDiscipleSlotItem(
                     disciple = disciple,
                     borderColor = borderColor,
-                    onClick = { onDirectDiscipleClick(index) },
-                    onRemove = { onDirectDiscipleRemove(index) }
+                    onSlotClick = { onDirectDiscipleClick(index) },
+                    onDismiss = { onDirectDiscipleRemove(index) },
+                    onSwap = { onDirectDiscipleSwap(index) }
                 )
             }
         }
@@ -328,27 +313,18 @@ fun ProductionDirectDiscipleSection(
 private fun ProductionDirectDiscipleSlotItem(
     disciple: DiscipleAggregate?,
     borderColor: Color,
-    onClick: () -> Unit,
-    onRemove: () -> Unit
+    onSlotClick: () -> Unit,
+    onDismiss: () -> Unit,
+    onSwap: () -> Unit
 ) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        UnifiedDiscipleSlot(
-            disciple = disciple,
-            borderColor = borderColor,
-            onClick = { onClick() }
-        )
-        if (disciple != null) {
-            Spacer(modifier = Modifier.height(2.dp))
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(GameColors.PageBackground)
-                    .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
-                    .clickable { onRemove() }
-                    .padding(horizontal = 8.dp, vertical = 2.dp)
-            ) { Text(text = "卸任", fontSize = 9.sp, color = Color.Black) }
-        }
-    }
+    DiscipleSlotWithActions(
+        disciple = disciple,
+        borderColor = borderColor,
+        onSlotClick = { onSlotClick() },
+        onEmptySlotClick = { onSlotClick() },
+        onDismiss = { onDismiss() },
+        onSwap = { onSwap() }
+    )
 }
 
 @Composable

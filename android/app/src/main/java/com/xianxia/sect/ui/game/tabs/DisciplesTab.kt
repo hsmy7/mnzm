@@ -70,6 +70,7 @@ import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.components.UnifiedDiscipleSlot
+import com.xianxia.sect.ui.components.DiscipleSlotWithActions
 import com.xianxia.sect.ui.components.discipleCardBorder
 import com.xianxia.sect.ui.game.ATTRIBUTE_FILTER_OPTIONS
 import com.xianxia.sect.ui.game.AttributeFilterOption
@@ -222,8 +223,10 @@ internal fun ElderSlotWithDisciples(
     disciples: List<DiscipleAggregate>,
     onElderClick: () -> Unit,
     onElderRemove: () -> Unit,
+    onElderSwap: () -> Unit = {},
     onDirectDiscipleClick: (Int) -> Unit,
-    onDirectDiscipleRemove: (Int) -> Unit
+    onDirectDiscipleRemove: (Int) -> Unit,
+    onDirectDiscipleSwap: (Int) -> Unit = {}
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally
@@ -235,45 +238,31 @@ internal fun ElderSlotWithDisciples(
             color = Color.Black
         )
         Spacer(modifier = Modifier.height(4.dp))
-        
-        UnifiedDiscipleSlot(
+
+        DiscipleSlotWithActions(
             disciple = elder,
-            onClick = onElderClick
+            onSlotClick = { onElderClick() },
+            onEmptySlotClick = { onElderClick() },
+            onDismiss = { onElderRemove() },
+            onSwap = { onElderSwap() }
         )
-        
-        Spacer(modifier = Modifier.height(2.dp))
-        
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(4.dp))
-                .background(GameColors.PageBackground)
-                .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
-                .clickable(onClick = onElderRemove)
-                .padding(horizontal = 8.dp, vertical = 3.dp)
-        ) {
-            Text(
-                text = "卸任",
-                fontSize = 9.sp,
-                color = Color.Black
-            )
-        }
-        
+
         Spacer(modifier = Modifier.height(4.dp))
-        
+
         Box(
             modifier = Modifier
                 .width(1.dp)
                 .height(8.dp)
                 .background(Color(0xFFCCCCCC))
         )
-        
+
         Text(
             text = "亲传弟子",
             fontSize = 9.sp,
             fontWeight = FontWeight.Bold,
             color = Color.Black
         )
-        
+
         Row(
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
@@ -283,7 +272,8 @@ internal fun ElderSlotWithDisciples(
                     disciple = if (slot?.isActive == true) disciples.find { it.id == slot.discipleId } else null,
                     isActive = slot?.isActive == true,
                     onClick = { onDirectDiscipleClick(index) },
-                    onRemove = { onDirectDiscipleRemove(index) }
+                    onRemove = { onDirectDiscipleRemove(index) },
+                    onSwap = { onDirectDiscipleSwap(index) }
                 )
             }
         }
@@ -295,35 +285,16 @@ internal fun DirectDiscipleSlotItem(
     disciple: DiscipleAggregate?,
     isActive: Boolean,
     onClick: () -> Unit,
-    onRemove: () -> Unit
+    onRemove: () -> Unit,
+    onSwap: () -> Unit = {}
 ) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        UnifiedDiscipleSlot(
-            disciple = if (isActive) disciple else null,
-            onClick = onClick
-        )
-
-        if (isActive && disciple != null) {
-            Spacer(modifier = Modifier.height(2.dp))
-
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(3.dp))
-                    .background(GameColors.PageBackground)
-                    .border(1.dp, GameColors.Border, RoundedCornerShape(3.dp))
-                    .clickable(onClick = onRemove)
-                    .padding(horizontal = 6.dp, vertical = 2.dp)
-            ) {
-                Text(
-                    text = "卸任",
-                    fontSize = 8.sp,
-                    color = Color.Black
-                )
-            }
-        }
-    }
+    DiscipleSlotWithActions(
+        disciple = if (isActive) disciple else null,
+        onSlotClick = { onClick() },
+        onEmptySlotClick = { onClick() },
+        onDismiss = { onRemove() },
+        onSwap = { onSwap() }
+    )
 }
 
 @Composable

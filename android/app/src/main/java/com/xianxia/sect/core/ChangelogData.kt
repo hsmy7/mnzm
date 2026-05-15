@@ -9,6 +9,15 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.0.33",
+            date = "2026-05-15",
+            changes = listOf(
+                "所有弟子槽位交互统一：点击已占槽位弹出弟子详情，所有槽位下方均有「卸任」+「更换」按钮",
+                "炼丹/炼器/灵植/灵矿/藏经阁/执法堂/天枢堂/青云塔/问道塔/弟子标签/进攻/驻守/关卡/任务等全场景槽位全部统一",
+                "新增 DiscipleSlotWithActions 共享组件，消除各处重复的槽位+按钮代码"
+            )
+        ),
+        ChangelogEntry(
             version = "3.0.32",
             date = "2026-05-15",
             changes = listOf(

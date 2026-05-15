@@ -43,6 +43,7 @@ import com.xianxia.sect.ui.components.ElderBonusInfoButton
 import com.xianxia.sect.ui.components.ElderBonusInfoProvider
 import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.ui.components.UnifiedDiscipleSlot
+import com.xianxia.sect.ui.components.DiscipleSlotWithActions
 import com.xianxia.sect.ui.theme.getRarityColor
 import com.xianxia.sect.ui.game.components.ItemDetailDialog
 
@@ -61,6 +62,7 @@ fun HerbGardenDialog(
     var showElderSelection by remember { mutableStateOf(false) }
     var showDirectDiscipleSelection by remember { mutableStateOf<Int?>(null) }
     var showElderRemoveConfirm by remember { mutableStateOf(false) }
+    var selectedDiscipleDetail by remember { mutableStateOf<DiscipleAggregate?>(null) }
 
     val elderSlots = gameData?.elderSlots ?: ElderSlots()
     val herbGardenElder = disciples.find { it.id == elderSlots.herbGardenElder }
@@ -77,21 +79,27 @@ fun HerbGardenDialog(
         ) {
             HerbGardenElderSection(
                 elder = herbGardenElder,
-                onElderClick = { showElderSelection = true },
+                onSlotClick = { selectedDiscipleDetail = herbGardenElder },
                 onElderRemove = {
                     if (hasDirectDisciples) {
                         showElderRemoveConfirm = true
                     } else {
                         productionViewModel.removeElder(ElderSlotType.HERB_GARDEN)
                     }
-                }
+                },
+                onSwap = { showElderSelection = true }
             )
 
             HerbGardenDirectDiscipleSection(
                 directDisciples = herbGardenDisciples,
                 disciples = disciples,
-                onDirectDiscipleClick = { index -> showDirectDiscipleSelection = index },
-                onDirectDiscipleRemove = { index -> productionViewModel.removeDirectDisciple("herbGarden", index) }
+                onDirectDiscipleClick = { index ->
+                    val slot = herbGardenDisciples.getOrNull(index)
+                    val d = if (slot?.isActive == true) disciples.find { it.id == slot.discipleId } else null
+                    selectedDiscipleDetail = d
+                },
+                onDirectDiscipleRemove = { index -> productionViewModel.removeDirectDisciple("herbGarden", index) },
+                onDirectDiscipleSwap = { index -> showDirectDiscipleSelection = index }
             )
 
             HorizontalDivider(
@@ -199,6 +207,16 @@ fun HerbGardenDialog(
             onDismiss = { showElderRemoveConfirm = false }
         )
     }
+
+    selectedDiscipleDetail?.let { disciple ->
+        DiscipleDetailDialog(
+            disciple = disciple,
+            allDisciples = disciples,
+            gameData = gameData,
+            viewModel = viewModel,
+            onDismiss = { selectedDiscipleDetail = null }
+        )
+    }
 }
 
 @Composable
@@ -262,8 +280,9 @@ private fun ElderRemoveConfirmDialog(
 @Composable
 private fun HerbGardenElderSection(
     elder: DiscipleAggregate?,
-    onElderClick: () -> Unit,
-    onElderRemove: () -> Unit
+    onSlotClick: () -> Unit,
+    onElderRemove: () -> Unit,
+    onSwap: () -> Unit = {}
 ) {
     val elderBorderColor = if (elder != null) {
         try {
@@ -292,32 +311,14 @@ private fun HerbGardenElderSection(
             ElderBonusInfoButton(bonusInfo = ElderBonusInfoProvider.getHerbGardenElderInfo())
         }
 
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            UnifiedDiscipleSlot(
-                disciple = elder,
-                borderColor = elderBorderColor,
-                onClick = { onElderClick() }
-            )
-            if (elder != null) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(GameColors.PageBackground)
-                        .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
-                        .clickable { onElderRemove() }
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
-                ) {
-                    Text(
-                        text = "卸任",
-                        fontSize = 12.sp,
-                        color = Color.Black
-                    )
-                }
-            }
-        }
+        DiscipleSlotWithActions(
+            disciple = elder,
+            borderColor = elderBorderColor,
+            onSlotClick = { onSlotClick() },
+            onEmptySlotClick = { onSlotClick() },
+            onDismiss = { onElderRemove() },
+            onSwap = { onSwap() }
+        )
     }
 }
 
@@ -326,7 +327,8 @@ private fun HerbGardenDirectDiscipleSection(
     directDisciples: List<DirectDiscipleSlot>,
     disciples: List<DiscipleAggregate>,
     onDirectDiscipleClick: (Int) -> Unit,
-    onDirectDiscipleRemove: (Int) -> Unit
+    onDirectDiscipleRemove: (Int) -> Unit,
+    onDirectDiscipleSwap: (Int) -> Unit = {}
 ) {
     Column(
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -355,8 +357,9 @@ private fun HerbGardenDirectDiscipleSection(
                 HerbGardenDirectDiscipleSlotItem(
                     disciple = agg,
                     borderColor = borderColor,
-                    onClick = { onDirectDiscipleClick(index) },
-                    onRemove = { onDirectDiscipleRemove(index) }
+                    onSlotClick = { onDirectDiscipleClick(index) },
+                    onDismiss = { onDirectDiscipleRemove(index) },
+                    onSwap = { onDirectDiscipleSwap(index) }
                 )
             }
         }
@@ -367,35 +370,18 @@ private fun HerbGardenDirectDiscipleSection(
 private fun HerbGardenDirectDiscipleSlotItem(
     disciple: DiscipleAggregate?,
     borderColor: Color,
-    onClick: () -> Unit,
-    onRemove: () -> Unit
+    onSlotClick: () -> Unit,
+    onDismiss: () -> Unit,
+    onSwap: () -> Unit
 ) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        UnifiedDiscipleSlot(
-            disciple = disciple,
-            borderColor = borderColor,
-            onClick = { onClick() }
-        )
-        if (disciple != null) {
-            Spacer(modifier = Modifier.height(2.dp))
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(GameColors.PageBackground)
-                    .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
-                    .clickable { onRemove() }
-                    .padding(horizontal = 8.dp, vertical = 2.dp)
-            ) {
-                Text(
-                    text = "卸任",
-                    fontSize = 9.sp,
-                    color = Color.Black
-                )
-            }
-        }
-    }
+    DiscipleSlotWithActions(
+        disciple = disciple,
+        borderColor = borderColor,
+        onSlotClick = { onSlotClick() },
+        onEmptySlotClick = { onSlotClick() },
+        onDismiss = { onDismiss() },
+        onSwap = { onSwap() }
+    )
 }
 @Composable
 private fun PlantSlotItem(

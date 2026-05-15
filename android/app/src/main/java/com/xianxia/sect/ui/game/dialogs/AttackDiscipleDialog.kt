@@ -31,6 +31,7 @@ import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.components.UnifiedDiscipleSlot
+import com.xianxia.sect.ui.components.DiscipleSlotWithActions
 import com.xianxia.sect.ui.game.ATTRIBUTE_FILTER_OPTIONS
 import com.xianxia.sect.ui.game.AttributeFilterOption
 import com.xianxia.sect.ui.game.DiscipleDetailDialog
@@ -197,34 +198,13 @@ private fun AttackSlotBox(
     onDismiss: () -> Unit,
     onSwap: () -> Unit
 ) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        UnifiedDiscipleSlot(
-            disciple = disciple,
-            onClick = { onSlotClick() }
-        )
-
-        if (disciple != null) {
-            Spacer(modifier = Modifier.height(4.dp))
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Text(
-                    text = "卸任",
-                    fontSize = 9.sp,
-                    color = Color(0xFFE53935),
-                    modifier = Modifier.clickable { onDismiss() }
-                )
-                Text(
-                    text = "更换",
-                    fontSize = 9.sp,
-                    color = Color.Black,
-                    modifier = Modifier.clickable { onSwap() }
-                )
-            }
-        }
-    }
+    DiscipleSlotWithActions(
+        disciple = disciple,
+        onSlotClick = { onSlotClick() },
+        onEmptySlotClick = { onSlotClick() },
+        onDismiss = { onDismiss() },
+        onSwap = { onSwap() }
+    )
 }
 
 @Composable

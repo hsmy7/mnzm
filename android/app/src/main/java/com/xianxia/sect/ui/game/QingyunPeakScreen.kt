@@ -28,6 +28,7 @@ fun QingyunPeakDialog(
     var showInnerElderSelection by remember { mutableStateOf(false) }
     var showPreachingElderSelection by remember { mutableStateOf(false) }
     var showPreachingMasterSelection by remember { mutableStateOf<Int?>(null) }
+    var selectedDiscipleDetail by remember { mutableStateOf<DiscipleAggregate?>(null) }
 
     val innerElder = productionViewModel.getInnerElder()
     val preachingElder = productionViewModel.getQingyunPreachingElder()
@@ -55,15 +56,17 @@ fun QingyunPeakDialog(
                 title = "内门长老",
                 elder = innerElder,
                 bonusInfo = ElderBonusInfoProvider.getInnerElderInfo(),
-                onClick = { showInnerElderSelection = true },
-                onRemove = { productionViewModel.removeElder(ElderSlotType.INNER_ELDER) }
+                onClick = { selectedDiscipleDetail = innerElder },
+                onRemove = { productionViewModel.removeElder(ElderSlotType.INNER_ELDER) },
+                onSwap = { showInnerElderSelection = true }
             ),
             slot2 = PeakElderSlotConfig(
                 title = "青云塔传道长老",
                 elder = preachingElder,
                 bonusInfo = ElderBonusInfoProvider.getQingyunPreachingElderInfo(),
-                onClick = { showPreachingElderSelection = true },
-                onRemove = { productionViewModel.removeElder(ElderSlotType.CLOUD_PREACHING) }
+                onClick = { selectedDiscipleDetail = preachingElder },
+                onRemove = { productionViewModel.removeElder(ElderSlotType.CLOUD_PREACHING) },
+                onSwap = { showPreachingElderSelection = true }
             )
         )
 
@@ -77,8 +80,13 @@ fun QingyunPeakDialog(
             ),
             preachingMasters = preachingMasters,
             disciples = disciples,
-            onMasterClick = { index -> showPreachingMasterSelection = index },
-            onMasterRemove = { index -> productionViewModel.removeDirectDisciple("qingyunPreaching", index) }
+            onMasterClick = { index ->
+                val master = preachingMasters.find { it.index == index }
+                val d = if (master?.isActive == true) disciples.find { it.id == master.discipleId } else null
+                selectedDiscipleDetail = d
+            },
+            onMasterRemove = { index -> productionViewModel.removeDirectDisciple("qingyunPreaching", index) },
+            onMasterSwap = { index -> showPreachingMasterSelection = index }
         )
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -134,6 +142,16 @@ fun QingyunPeakDialog(
                 showPreachingMasterSelection = null
             },
             onDismiss = { showPreachingMasterSelection = null }
+        )
+    }
+
+    selectedDiscipleDetail?.let { disciple ->
+        DiscipleDetailDialog(
+            disciple = disciple,
+            allDisciples = disciples,
+            gameData = gameData,
+            viewModel = viewModel,
+            onDismiss = { selectedDiscipleDetail = null }
         )
     }
 }

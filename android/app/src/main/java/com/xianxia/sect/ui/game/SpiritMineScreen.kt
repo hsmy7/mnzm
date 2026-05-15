@@ -36,6 +36,7 @@ import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.components.UnifiedDiscipleSlot
+import com.xianxia.sect.ui.components.DiscipleSlotWithActions
 import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
 import com.xianxia.sect.ui.game.tabs.REALM_FILTER_OPTIONS
@@ -55,6 +56,7 @@ fun SpiritMineDialog(
     
     var showDiscipleSelection by remember { mutableStateOf(false) }
     var showDeaconSelection by remember { mutableStateOf<Int?>(null) }
+    var selectedDiscipleDetail by remember { mutableStateOf<DiscipleAggregate?>(null) }
 
     LaunchedEffect(Unit) {
         spiritMineViewModel.validateSpiritMineData()
@@ -121,8 +123,9 @@ fun SpiritMineDialog(
             SpiritMineDeaconSection(
                 deaconSlots = deaconDisciples,
                 disciples = disciples,
-                onDeaconClick = { index -> showDeaconSelection = index },
-                onDeaconRemove = { index -> spiritMineViewModel.removeSpiritMineDeacon(index) }
+                onDeaconClick = { selectedDiscipleDetail = it },
+                onDeaconRemove = { index -> spiritMineViewModel.removeSpiritMineDeacon(index) },
+                onDeaconSwap = { index -> showDeaconSelection = index }
             )
 
             HorizontalDivider(
@@ -173,7 +176,9 @@ fun SpiritMineDialog(
                             slot = slot,
                             disciple = disciple,
                             onAssign = { if (emptySlotCount > 0) showDiscipleSelection = true },
-                            onRemove = { spiritMineViewModel.removeDiscipleFromSpiritMineSlot(slot.index) }
+                            onRemove = { spiritMineViewModel.removeDiscipleFromSpiritMineSlot(slot.index) },
+                            onSwap = { if (emptySlotCount > 0) showDiscipleSelection = true },
+                            onSlotClick = { selectedDiscipleDetail = disciple }
                         )
                     }
                 }
@@ -214,14 +219,25 @@ fun SpiritMineDialog(
         )
     }
 
+    selectedDiscipleDetail?.let { disciple ->
+        DiscipleDetailDialog(
+            disciple = disciple,
+            allDisciples = disciples,
+            gameData = gameData,
+            viewModel = viewModel,
+            onDismiss = { selectedDiscipleDetail = null }
+        )
+    }
+
 }
 
 @Composable
 private fun SpiritMineDeaconSection(
     deaconSlots: List<DirectDiscipleSlot>,
     disciples: List<DiscipleAggregate>,
-    onDeaconClick: (Int) -> Unit,
-    onDeaconRemove: (Int) -> Unit
+    onDeaconClick: (DiscipleAggregate?) -> Unit,
+    onDeaconRemove: (Int) -> Unit,
+    onDeaconSwap: (Int) -> Unit = {}
 ) {
     Column(
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -250,8 +266,9 @@ private fun SpiritMineDeaconSection(
                     index = deaconSlot.index,
                     deaconSlot = deaconSlot,
                     disciple = disciple,
-                    onClick = { onDeaconClick(deaconSlot.index) },
-                    onRemove = { onDeaconRemove(deaconSlot.index) }
+                    onSlotClick = { onDeaconClick(disciple) },
+                    onRemove = { onDeaconRemove(deaconSlot.index) },
+                    onSwap = { onDeaconSwap(deaconSlot.index) }
                 )
             }
         }
@@ -263,8 +280,9 @@ private fun SpiritMineDeaconSlotItem(
     index: Int,
     deaconSlot: DirectDiscipleSlot,
     disciple: DiscipleAggregate?,
-    onClick: () -> Unit,
-    onRemove: () -> Unit
+    onSlotClick: () -> Unit,
+    onRemove: () -> Unit,
+    onSwap: () -> Unit
 ) {
     val borderColor = if (deaconSlot.isActive) {
         try {
@@ -286,28 +304,14 @@ private fun SpiritMineDeaconSlotItem(
             color = Color.Black
         )
         Spacer(modifier = Modifier.height(4.dp))
-        UnifiedDiscipleSlot(
+        DiscipleSlotWithActions(
             disciple = if (deaconSlot.isActive) disciple else null,
             borderColor = borderColor,
-            onClick = { onClick() }
+            onSlotClick = { onSlotClick() },
+            onEmptySlotClick = { onSlotClick() },
+            onDismiss = { onRemove() },
+            onSwap = { onSwap() }
         )
-        if (deaconSlot.isActive) {
-            Spacer(modifier = Modifier.height(4.dp))
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(GameColors.PageBackground)
-                    .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
-                    .clickable { onRemove() }
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
-            ) {
-                Text(
-                    text = "卸任",
-                    fontSize = 12.sp,
-                    color = Color.Black
-                )
-            }
-        }
     }
 }
 
@@ -316,7 +320,9 @@ private fun SpiritMineSlotItem(
     slot: SpiritMineSlot,
     disciple: DiscipleAggregate?,
     onAssign: () -> Unit,
-    onRemove: () -> Unit
+    onRemove: () -> Unit,
+    onSwap: () -> Unit,
+    onSlotClick: () -> Unit
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally
@@ -330,28 +336,14 @@ private fun SpiritMineSlotItem(
         } else {
             GameColors.Border
         }
-        UnifiedDiscipleSlot(
+        DiscipleSlotWithActions(
             disciple = if (slot.discipleId.isNotEmpty()) disciple else null,
             borderColor = borderColor,
-            onClick = { if (slot.discipleId.isEmpty()) onAssign() else onRemove() }
+            onSlotClick = { onSlotClick() },
+            onEmptySlotClick = { onAssign() },
+            onDismiss = { onRemove() },
+            onSwap = { onSwap() }
         )
-        if (slot.isActive) {
-            Spacer(modifier = Modifier.height(4.dp))
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(GameColors.PageBackground)
-                    .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
-                    .clickable { onRemove() }
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
-            ) {
-                Text(
-                    text = "卸任",
-                    fontSize = 12.sp,
-                    color = Color.Black
-                )
-            }
-        }
     }
 }
 

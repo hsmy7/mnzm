@@ -51,6 +51,7 @@ fun MissionHallDialog(
     var selectedActiveMission by remember { mutableStateOf<ActiveMission?>(null) }
     var showDiscipleSelection by remember { mutableStateOf(false) }
     var showActiveMissionDetail by remember { mutableStateOf(false) }
+    var selectedDiscipleDetail by remember { mutableStateOf<DiscipleAggregate?>(null) }
 
     val activeMissions = gameData?.activeMissions ?: emptyList()
     val availableMissions = gameData?.availableMissions ?: emptyList()
@@ -168,12 +169,23 @@ fun MissionHallDialog(
                 disciples = disciples,
                 currentYear = currentYear,
                 currentMonth = currentMonth,
+                onDiscipleClick = { selectedDiscipleDetail = it },
                 onDismiss = {
                     showActiveMissionDetail = false
                     selectedActiveMission = null
                 }
             )
         }
+    }
+
+    selectedDiscipleDetail?.let { disciple ->
+        DiscipleDetailDialog(
+            disciple = disciple,
+            allDisciples = disciples,
+            gameData = gameData,
+            viewModel = viewModel,
+            onDismiss = { selectedDiscipleDetail = null }
+        )
     }
 }
 
@@ -336,6 +348,7 @@ private fun ActiveMissionDetailDialog(
     disciples: List<DiscipleAggregate>,
     currentYear: Int,
     currentMonth: Int,
+    onDiscipleClick: (DiscipleAggregate?) -> Unit,
     onDismiss: () -> Unit
 ) {
     val progress = mission.getProgressPercent(currentYear, currentMonth)
@@ -465,7 +478,8 @@ private fun ActiveMissionDetailDialog(
 
                             MissionDiscipleSlot(
                                 disciple = disciple,
-                                hpRatio = 1f
+                                hpRatio = 1f,
+                                onClick = { onDiscipleClick(disciple) }
                             )
                         }
                     }
@@ -477,7 +491,8 @@ private fun ActiveMissionDetailDialog(
 @Composable
 private fun MissionDiscipleSlot(
     disciple: DiscipleAggregate?,
-    hpRatio: Float
+    hpRatio: Float,
+    onClick: () -> Unit = {}
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -507,7 +522,7 @@ private fun MissionDiscipleSlot(
 
         UnifiedDiscipleSlot(
             disciple = disciple,
-            onClick = {}
+            onClick = { onClick() }
         )
     }
 }

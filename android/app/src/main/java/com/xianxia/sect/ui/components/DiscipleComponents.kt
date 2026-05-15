@@ -344,6 +344,50 @@ fun UnifiedDiscipleSlot(
     }
 }
 
+/**
+ * 统一的弟子槽位 + 操作按钮组件。
+ * 已占：点击槽位触发 [onSlotClick]，下方显示"卸任"/"更换"按钮。
+ * 空置：点击槽位触发 [onEmptySlotClick]。
+ */
+@Composable
+fun DiscipleSlotWithActions(
+    disciple: DiscipleAggregate?,
+    borderColor: Color = GameColors.Border,
+    onSlotClick: () -> Unit,
+    onEmptySlotClick: () -> Unit,
+    onDismiss: () -> Unit,
+    onSwap: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier
+    ) {
+        UnifiedDiscipleSlot(
+            disciple = disciple,
+            borderColor = borderColor,
+            onClick = { if (disciple != null) onSlotClick() else onEmptySlotClick() }
+        )
+        if (disciple != null) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = "卸任",
+                    fontSize = 9.sp,
+                    color = Color(0xFFE53935),
+                    modifier = Modifier.clickable { onDismiss() }
+                )
+                Text(
+                    text = "更换",
+                    fontSize = 9.sp,
+                    color = Color.Black,
+                    modifier = Modifier.clickable { onSwap() }
+                )
+            }
+        }
+    }
+}
+
 fun getTalentRarityColor(rarity: Int): Color = when (rarity) {
     1 -> Color(0xFF95A5A6)
     2 -> Color(0xFF27AE60)
