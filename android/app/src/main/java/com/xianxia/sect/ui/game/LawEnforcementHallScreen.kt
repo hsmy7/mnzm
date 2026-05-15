@@ -30,6 +30,7 @@ import com.xianxia.sect.ui.components.ElderBonusInfoProvider
 import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
+import com.xianxia.sect.ui.components.UnifiedDiscipleSlot
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.core.util.sortedByFollowAndRealm
 
@@ -96,6 +97,7 @@ fun LawEnforcementHallDialog(
 
                 LawDisciplesSection(
                     lawDisciples = lawDisciples,
+                    disciples = disciples,
                     onDiscipleClick = { index -> showDiscipleSelection = index },
                     onDiscipleRemove = { index -> productionViewModel.removeDirectDisciple("lawEnforcement", index) }
                 )
@@ -207,6 +209,7 @@ private fun LawElderSection(
 @Composable
 private fun LawDisciplesSection(
     lawDisciples: List<DirectDiscipleSlot>,
+    disciples: List<DiscipleAggregate>,
     onDiscipleClick: (Int) -> Unit,
     onDiscipleRemove: (Int) -> Unit
 ) {
@@ -236,9 +239,13 @@ private fun LawDisciplesSection(
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             (0..3).forEach { index ->
-                val disciple = lawDisciples.find { it.index == index }
+                val slot = lawDisciples.find { it.index == index }
+                val disciple = if (slot != null && slot.isActive) disciples.find { it.id == slot.discipleId } else null
+                val spiritRootColor = slot?.discipleSpiritRootColor ?: ""
                 LawDiscipleSlotItem(
                     disciple = disciple,
+                    isActive = slot?.isActive == true,
+                    spiritRootColor = spiritRootColor,
                     onClick = { onDiscipleClick(index) },
                     onRemove = { onDiscipleRemove(index) }
                 )
@@ -251,9 +258,13 @@ private fun LawDisciplesSection(
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             (4..7).forEach { index ->
-                val disciple = lawDisciples.find { it.index == index }
+                val slot = lawDisciples.find { it.index == index }
+                val disciple = if (slot != null && slot.isActive) disciples.find { it.id == slot.discipleId } else null
+                val spiritRootColor = slot?.discipleSpiritRootColor ?: ""
                 LawDiscipleSlotItem(
                     disciple = disciple,
+                    isActive = slot?.isActive == true,
+                    spiritRootColor = spiritRootColor,
                     onClick = { onDiscipleClick(index) },
                     onRemove = { onDiscipleRemove(index) }
                 )
@@ -297,41 +308,11 @@ private fun ElderSlotItem(
             GameColors.Border
         }
 
-        Box(
-            modifier = Modifier
-                .size(60.dp)
-                .clip(RoundedCornerShape(6.dp))
-                .background(GameColors.PageBackground)
-                .border(1.dp, borderColor, RoundedCornerShape(6.dp))
-                .clickable(onClick = onClick),
-            contentAlignment = Alignment.Center
-        ) {
-            if (elder != null) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = elder.name,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black,
-                        maxLines = 1
-                    )
-                    Text(
-                        text = elder.realmName,
-                        fontSize = 8.sp,
-                        color = Color.Black,
-                        maxLines = 1
-                    )
-                }
-            } else {
-                Text(
-                    text = "+",
-                    fontSize = 20.sp,
-                    color = Color.Black
-                )
-            }
-        }
+        UnifiedDiscipleSlot(
+            disciple = elder,
+            borderColor = borderColor,
+            onClick = onClick
+        )
 
         if (elder != null) {
             Spacer(modifier = Modifier.height(4.dp))
@@ -356,10 +337,22 @@ private fun ElderSlotItem(
 
 @Composable
 private fun LawDiscipleSlotItem(
-    disciple: DirectDiscipleSlot?,
+    disciple: DiscipleAggregate?,
+    isActive: Boolean,
+    spiritRootColor: String,
     onClick: () -> Unit,
     onRemove: () -> Unit
 ) {
+    val borderColor = if (isActive) {
+        try {
+            Color(android.graphics.Color.parseColor(spiritRootColor))
+        } catch (e: Exception) {
+            Color(0xFFE74C3C)
+        }
+    } else {
+        GameColors.Border
+    }
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -371,53 +364,13 @@ private fun LawDiscipleSlotItem(
         )
         Spacer(modifier = Modifier.height(2.dp))
 
-        val borderColor = if (disciple != null && disciple.isActive) {
-            try {
-                Color(android.graphics.Color.parseColor(disciple.discipleSpiritRootColor))
-            } catch (e: Exception) {
-                Color(0xFFE74C3C)
-            }
-        } else {
-            GameColors.Border
-        }
+        UnifiedDiscipleSlot(
+            disciple = if (isActive) disciple else null,
+            borderColor = borderColor,
+            onClick = onClick
+        )
 
-        Box(
-            modifier = Modifier
-                .size(48.dp)
-                .clip(RoundedCornerShape(4.dp))
-                .background(GameColors.PageBackground)
-                .border(1.dp, borderColor, RoundedCornerShape(4.dp))
-                .clickable(onClick = onClick),
-            contentAlignment = Alignment.Center
-        ) {
-            if (disciple != null && disciple.isActive) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = disciple.discipleName,
-                        fontSize = 8.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black,
-                        maxLines = 1
-                    )
-                    Text(
-                        text = disciple.discipleRealm,
-                        fontSize = 7.sp,
-                        color = Color.Black,
-                        maxLines = 1
-                    )
-                }
-            } else {
-                Text(
-                    text = "+",
-                    fontSize = 14.sp,
-                    color = Color.Black
-                )
-            }
-        }
-
-        if (disciple != null && disciple.isActive) {
+        if (isActive && disciple != null) {
             Spacer(modifier = Modifier.height(2.dp))
 
             Box(

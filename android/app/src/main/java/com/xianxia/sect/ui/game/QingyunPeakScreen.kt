@@ -76,6 +76,7 @@ fun QingyunPeakDialog(
                 bonusInfo = ElderBonusInfoProvider.getQingyunPreachingMasterInfo()
             ),
             preachingMasters = preachingMasters,
+            disciples = disciples,
             onMasterClick = { index -> showPreachingMasterSelection = index },
             onMasterRemove = { index -> productionViewModel.removeDirectDisciple("qingyunPreaching", index) }
         )

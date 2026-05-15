@@ -28,6 +28,7 @@ import com.xianxia.sect.ui.components.ElderBonusInfo
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.ui.components.HalfScreenDialog
+import com.xianxia.sect.ui.components.UnifiedDiscipleSlot
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.theme.GameColors
 
@@ -80,41 +81,10 @@ fun TianshuHallDialog(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
 
-                        Box(
-                            modifier = Modifier
-                                .size(60.dp)
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(GameColors.PageBackground)
-                                .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
-                                .clickable { showViceSectMasterSelectDialog = true },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            if (viceSectMaster != null) {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Text(
-                                        text = viceSectMaster.name,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.Black,
-                                        maxLines = 1
-                                    )
-                                    Text(
-                                        text = viceSectMaster.realmName,
-                                        fontSize = 9.sp,
-                                        color = Color.Black,
-                                        maxLines = 1
-                                    )
-                                }
-                            } else {
-                                Text(
-                                    text = "+",
-                                    fontSize = 24.sp,
-                                    color = Color.Black
-                                )
-                            }
-                        }
+                        UnifiedDiscipleSlot(
+                            disciple = viceSectMaster,
+                            onClick = { showViceSectMasterSelectDialog = true }
+                        )
 
                         Spacer(modifier = Modifier.height(4.dp))
 

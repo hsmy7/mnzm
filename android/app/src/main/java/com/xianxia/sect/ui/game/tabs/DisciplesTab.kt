@@ -69,6 +69,7 @@ import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
+import com.xianxia.sect.ui.components.UnifiedDiscipleSlot
 import com.xianxia.sect.ui.components.discipleCardBorder
 import com.xianxia.sect.ui.game.ATTRIBUTE_FILTER_OPTIONS
 import com.xianxia.sect.ui.game.AttributeFilterOption
@@ -218,6 +219,7 @@ internal fun ElderSlotWithDisciples(
     slotType: String,
     elder: DiscipleAggregate?,
     directDisciples: List<DirectDiscipleSlot>,
+    disciples: List<DiscipleAggregate>,
     onElderClick: () -> Unit,
     onElderRemove: () -> Unit,
     onDirectDiscipleClick: (Int) -> Unit,
@@ -234,41 +236,10 @@ internal fun ElderSlotWithDisciples(
         )
         Spacer(modifier = Modifier.height(4.dp))
         
-        Box(
-            modifier = Modifier
-                .size(50.dp)
-                .clip(RoundedCornerShape(6.dp))
-                .background(GameColors.PageBackground)
-                .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
-                .clickable(onClick = onElderClick),
-            contentAlignment = Alignment.Center
-        ) {
-            if (elder != null) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = elder.name,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black,
-                        maxLines = 1
-                    )
-                    Text(
-                        text = elder.realmName,
-                        fontSize = 8.sp,
-                        color = Color.Black,
-                        maxLines = 1
-                    )
-                }
-            } else {
-                Text(
-                    text = "+",
-                    fontSize = 20.sp,
-                    color = Color.Black
-                )
-            }
-        }
+        UnifiedDiscipleSlot(
+            disciple = elder,
+            onClick = onElderClick
+        )
         
         Spacer(modifier = Modifier.height(2.dp))
         
@@ -307,9 +278,10 @@ internal fun ElderSlotWithDisciples(
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             (0..1).forEach { index ->
-                val disciple = directDisciples.find { it.index == index }
+                val slot = directDisciples.find { it.index == index }
                 DirectDiscipleSlotItem(
-                    disciple = disciple,
+                    disciple = if (slot?.isActive == true) disciples.find { it.id == slot.discipleId } else null,
+                    isActive = slot?.isActive == true,
                     onClick = { onDirectDiscipleClick(index) },
                     onRemove = { onDirectDiscipleRemove(index) }
                 )
@@ -320,64 +292,36 @@ internal fun ElderSlotWithDisciples(
 
 @Composable
 internal fun DirectDiscipleSlotItem(
-    disciple: DirectDiscipleSlot?,
+    disciple: DiscipleAggregate?,
+    isActive: Boolean,
     onClick: () -> Unit,
     onRemove: () -> Unit
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(RoundedCornerShape(4.dp))
-                .background(GameColors.PageBackground)
-                .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
-                .clickable(onClick = onClick),
-            contentAlignment = Alignment.Center
-        ) {
-            if (disciple != null && disciple.isActive) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = disciple.discipleName,
-                        fontSize = 8.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black,
-                        maxLines = 1
-                    )
-                    Text(
-                        text = disciple.discipleRealm,
-                        fontSize = 7.sp,
-                        color = Color.Black,
-                        maxLines = 1
-                    )
-                }
-            } else {
+        UnifiedDiscipleSlot(
+            disciple = if (isActive) disciple else null,
+            onClick = onClick
+        )
+
+        if (isActive && disciple != null) {
+            Spacer(modifier = Modifier.height(2.dp))
+
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(GameColors.PageBackground)
+                    .border(1.dp, GameColors.Border, RoundedCornerShape(3.dp))
+                    .clickable(onClick = onRemove)
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
+            ) {
                 Text(
-                    text = "+",
-                    fontSize = 16.sp,
+                    text = "卸任",
+                    fontSize = 8.sp,
                     color = Color.Black
                 )
             }
-        }
-        
-        Spacer(modifier = Modifier.height(2.dp))
-        
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(3.dp))
-                .background(GameColors.PageBackground)
-                .border(1.dp, GameColors.Border, RoundedCornerShape(3.dp))
-                .clickable(onClick = onRemove)
-                .padding(horizontal = 6.dp, vertical = 2.dp)
-        ) {
-            Text(
-                text = "卸任",
-                fontSize = 8.sp,
-                color = Color.Black
-            )
         }
     }
 }

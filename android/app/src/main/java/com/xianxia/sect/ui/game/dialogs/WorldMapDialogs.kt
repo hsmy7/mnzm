@@ -103,6 +103,8 @@ import com.xianxia.sect.ui.game.map.MapItemMapper
 import com.xianxia.sect.ui.game.map.WorldMapScreen
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.theme.GameColors
+import com.xianxia.sect.core.util.PortraitPool
+import androidx.compose.ui.platform.LocalContext
 import java.util.Locale
 
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
@@ -607,41 +609,55 @@ internal fun WorldMapSectDetailDialog(
 }
 
 @Composable
-private fun RowScope.GarrisonSlotBox(
+private fun GarrisonSlotBox(
     slot: GarrisonSlot,
     onClick: () -> Unit,
     onRemoveClick: () -> Unit
 ) {
+    val borderColor = if (slot.isActive) {
+        try { Color(android.graphics.Color.parseColor(slot.discipleSpiritRootColor)) }
+        catch (e: Exception) { GameColors.Border }
+    } else {
+        GameColors.Border
+    }
+
     Column(
-        modifier = Modifier.weight(1f),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
             modifier = Modifier
-                .aspectRatio(1f)
-                .fillMaxWidth()
+                .width(52.dp)
+                .height(68.dp)
                 .clip(RoundedCornerShape(6.dp))
-                .background(if (slot.isActive) Color(0xFFFFF8E1) else GameColors.CardBackground)
-                .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
-                .clickable { onClick() }
-                .padding(6.dp),
+                .background(if (slot.isActive) Color.White else GameColors.PageBackground)
+                .border(1.dp, borderColor, RoundedCornerShape(6.dp))
+                .clickable { onClick() },
             contentAlignment = Alignment.Center
         ) {
             if (slot.isActive) {
                 Column(
-                    horizontalAlignment = Alignment.CenterHorizontally
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                    modifier = Modifier.padding(4.dp)
                 ) {
-                    Text(
-                        text = slot.discipleName,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black,
-                        maxLines = 1
+                    val context = LocalContext.current
+                    val portraitResId = remember(slot.portraitRes) {
+                        PortraitPool.getResourceId(context, slot.portraitRes)
+                    }
+                    Image(
+                        painter = if (portraitResId != 0) painterResource(id = portraitResId)
+                                  else painterResource(id = R.drawable.disciple_portrait),
+                        contentDescription = null,
+                        modifier = Modifier.width(40.dp).height(50.dp),
+                        contentScale = ContentScale.Fit
                     )
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = slot.discipleRealm,
                         fontSize = 10.sp,
-                        color = Color.Black
+                        color = Color.Black,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             } else {

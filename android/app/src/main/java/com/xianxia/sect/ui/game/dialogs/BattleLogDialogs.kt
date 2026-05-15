@@ -3,6 +3,7 @@ package com.xianxia.sect.ui.game.dialogs
 import androidx.compose.animation.*
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -44,6 +45,10 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.IntOffset
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import com.xianxia.sect.core.util.PortraitPool
+import com.xianxia.sect.R
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.xianxia.sect.ui.components.HalfScreenDialog
@@ -217,11 +222,12 @@ internal fun BattleLogDetailDialog(
                                     realmName = member.realmName,
                                     hp = member.hp,
                                     maxHp = member.maxHp,
-                                    isAlive = member.isAlive
+                                    isAlive = member.isAlive,
+                                    portraitRes = member.portraitRes
                                 )
                             }
                             repeat(4 - rowMembers.size) {
-                                Spacer(modifier = Modifier.size(40.dp))
+                                Spacer(modifier = Modifier.width(52.dp).height(68.dp))
                             }
                         }
                     }
@@ -254,7 +260,7 @@ internal fun BattleLogDetailDialog(
                                 )
                             }
                             repeat(4 - rowEnemies.size) {
-                                Spacer(modifier = Modifier.size(40.dp))
+                                Spacer(modifier = Modifier.width(52.dp).height(68.dp))
                             }
                         }
                     }
@@ -288,7 +294,8 @@ internal fun BattleParticipantSlot(
     realmName: String,
     hp: Int,
     maxHp: Int,
-    isAlive: Boolean
+    isAlive: Boolean,
+    portraitRes: String = ""
 ) {
     val hpPercent = maxHp.takeIf { it > 0 }?.let {
         (hp.toFloat() / it.toFloat()).coerceIn(0f, 1f)
@@ -303,9 +310,10 @@ internal fun BattleParticipantSlot(
     Column(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        // HP bar above slot, width matches slot
         Box(
             modifier = Modifier
-                .width(40.dp)
+                .width(52.dp)
                 .height(4.dp)
                 .clip(RoundedCornerShape(2.dp))
                 .background(Color(0xFFE0E0E0))
@@ -322,28 +330,37 @@ internal fun BattleParticipantSlot(
 
         Box(
             modifier = Modifier
-                .size(40.dp)
-                .clip(RoundedCornerShape(4.dp))
+                .width(52.dp)
+                .height(68.dp)
+                .clip(RoundedCornerShape(6.dp))
                 .background(if (isAlive) Color.White else Color(0xFFEEEEEE))
-                .border(1.dp, if (isAlive) Color(0xFFE0E0E0) else Color(0xFFCCCCCC), RoundedCornerShape(4.dp)),
+                .border(1.dp, if (isAlive) Color(0xFFE0E0E0) else Color(0xFFCCCCCC), RoundedCornerShape(6.dp)),
             contentAlignment = Alignment.Center
         ) {
             if (isAlive) {
                 Column(
-                    horizontalAlignment = Alignment.CenterHorizontally
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                    modifier = Modifier.padding(4.dp)
                 ) {
-                    Text(
-                        text = name,
-                        fontSize = 8.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black,
-                        maxLines = 1
+                    val context = LocalContext.current
+                    val portraitResId = remember(portraitRes) {
+                        PortraitPool.getResourceId(context, portraitRes)
+                    }
+                    Image(
+                        painter = if (portraitResId != 0) painterResource(id = portraitResId)
+                                  else painterResource(id = R.drawable.disciple_portrait),
+                        contentDescription = null,
+                        modifier = Modifier.width(40.dp).height(50.dp),
+                        contentScale = ContentScale.Fit
                     )
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = realmName,
-                        fontSize = 7.sp,
+                        fontSize = 10.sp,
                         color = Color.Black,
-                        maxLines = 1
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             } else {

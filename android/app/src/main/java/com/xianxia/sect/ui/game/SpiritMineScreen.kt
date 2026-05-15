@@ -35,6 +35,7 @@ import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
+import com.xianxia.sect.ui.components.UnifiedDiscipleSlot
 import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
 import com.xianxia.sect.ui.game.tabs.REALM_FILTER_OPTIONS
@@ -285,54 +286,11 @@ private fun SpiritMineDeaconSlotItem(
             color = Color.Black
         )
         Spacer(modifier = Modifier.height(4.dp))
-        Box(
-            modifier = Modifier
-                .size(65.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(GameColors.PageBackground)
-                .border(
-                    2.dp,
-                    borderColor,
-                    RoundedCornerShape(8.dp)
-                )
-                .clickable { onClick() },
-            contentAlignment = Alignment.Center
-        ) {
-            if (deaconSlot.isActive && disciple != null) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(2.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = disciple.name,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.Black,
-                            maxLines = 1
-                        )
-                    }
-                    Text(
-                        text = disciple.realmName,
-                        fontSize = 9.sp,
-                        color = Color.Black
-                    )
-                    Text(
-                        text = "道德: ${disciple.morality}",
-                        fontSize = 9.sp,
-                        color = Color(0xFF4CAF50)
-                    )
-                }
-            } else {
-                Text(
-                    text = "点击任命",
-                    fontSize = 10.sp,
-                    color = Color.Black
-                )
-            }
-        }
+        UnifiedDiscipleSlot(
+            disciple = if (deaconSlot.isActive) disciple else null,
+            borderColor = borderColor,
+            onClick = { onClick() }
+        )
         if (deaconSlot.isActive) {
             Spacer(modifier = Modifier.height(4.dp))
             Box(
@@ -372,43 +330,11 @@ private fun SpiritMineSlotItem(
         } else {
             GameColors.Border
         }
-        Box(
-            modifier = Modifier
-                .size(60.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(GameColors.PageBackground)
-                .border(
-                    1.dp,
-                    borderColor,
-                    RoundedCornerShape(8.dp)
-                )
-                .clickable { if (slot.discipleId.isEmpty()) onAssign() else onRemove() },
-            contentAlignment = Alignment.Center
-        ) {
-            if (slot.discipleId.isNotEmpty() && disciple != null) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = disciple.name,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-                    Text(
-                        text = disciple.realmName,
-                        fontSize = 10.sp,
-                        color = Color.Black
-                    )
-                }
-            } else {
-                Text(
-                    text = "+",
-                    fontSize = 24.sp,
-                    color = Color.Black
-                )
-            }
-        }
+        UnifiedDiscipleSlot(
+            disciple = if (slot.discipleId.isNotEmpty()) disciple else null,
+            borderColor = borderColor,
+            onClick = { if (slot.discipleId.isEmpty()) onAssign() else onRemove() }
+        )
         if (slot.isActive) {
             Spacer(modifier = Modifier.height(4.dp))
             Box(

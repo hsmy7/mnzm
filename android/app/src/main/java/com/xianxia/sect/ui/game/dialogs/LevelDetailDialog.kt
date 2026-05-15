@@ -35,6 +35,7 @@ import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
+import com.xianxia.sect.ui.components.UnifiedDiscipleSlot
 import com.xianxia.sect.ui.game.AttributeFilterOption
 import com.xianxia.sect.ui.game.ATTRIBUTE_FILTER_OPTIONS
 import com.xianxia.sect.ui.game.DiscipleDetailDialog
@@ -206,7 +207,6 @@ fun LevelDetailDialog(
 
                                 LevelSlotBox(
                                     disciple = disciple,
-                                    modifier = Modifier.weight(1f),
                                     onSlotClick = {
                                         if (disciple != null) {
                                             selectedDiscipleDetail = disciple
@@ -304,51 +304,18 @@ fun LevelDetailDialog(
 @Composable
 private fun LevelSlotBox(
     disciple: DiscipleAggregate?,
-    modifier: Modifier = Modifier,
     onSlotClick: () -> Unit,
     onDismiss: () -> Unit,
     onSwap: () -> Unit
 ) {
     Column(
-        modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Square slot box
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(1f)
-                .clip(RoundedCornerShape(6.dp))
-                .background(
-                    if (disciple != null) Color(0xFFFFF8E1)
-                    else GameColors.CardBackground
-                )
-                .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
-                .clickable { onSlotClick() },
-            contentAlignment = Alignment.Center
-        ) {
-            if (disciple != null) {
-                Text(
-                    text = disciple.name,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(4.dp),
-                    textAlign = TextAlign.Center
-                )
-            } else {
-                Text(
-                    text = "+",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-            }
-        }
+        UnifiedDiscipleSlot(
+            disciple = disciple,
+            onClick = { onSlotClick() }
+        )
 
-        // Action buttons below slot (only visible when occupied)
         if (disciple != null) {
             Spacer(modifier = Modifier.height(4.dp))
             Row(

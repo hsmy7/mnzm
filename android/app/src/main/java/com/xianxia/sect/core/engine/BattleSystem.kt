@@ -107,7 +107,8 @@ class BattleSystem @Inject constructor() {
             realmName = GameConfig.Realm.getName(disciple.realm),
             realmLayer = disciple.realmLayer,
             element = primaryElement,
-            weaponName = weaponName
+            weaponName = weaponName,
+            portraitRes = disciple.portraitRes
         )
     }
 
@@ -195,7 +196,8 @@ class BattleSystem @Inject constructor() {
                 maxHp = combatant.maxHp,
                 mp = combatant.mp,
                 maxMp = combatant.maxMp,
-                isAlive = true
+                isAlive = true,
+                portraitRes = combatant.portraitRes
             )
         }.toMutableList()
         val enemies = battle.beasts.map { combatant ->
@@ -684,7 +686,8 @@ data class Combatant(
     val realmName: String = "",
     val realmLayer: Int = 0,
     val element: String = "",
-    val weaponName: String? = null
+    val weaponName: String? = null,
+    val portraitRes: String = ""
 ) {
     val isDead: Boolean get() = hp <= 0
     val hpPercent: Double get() = if (maxHp > 0) hp.toDouble() / maxHp else 0.0
@@ -830,7 +833,8 @@ data class BattleMemberData(
     val maxHp: Int = 0,
     val mp: Int = 0,
     val maxMp: Int = 0,
-    var isAlive: Boolean = true
+    var isAlive: Boolean = true,
+    val portraitRes: String = ""
 )
 
 data class BattleEnemyData(

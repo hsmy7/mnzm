@@ -449,7 +449,8 @@ object AISectAttackManager {
             realmName = disciple.realmName,
             skills = skills,
             buffs = emptyList(),
-            element = primaryElement
+            element = primaryElement,
+            portraitRes = disciple.portraitRes
         )
     }
 

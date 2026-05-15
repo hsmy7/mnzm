@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -280,6 +281,65 @@ fun PortraitDiscipleCard(
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * 统一的弟子槽位：固定 52×68dp，内部仅显示头像 + 境界。
+ * 空态显示 "+"，有弟子显示肖像图 + 境界名。
+ * 额外信息（血条、属性等）由调用方在槽位外部自行处理。
+ */
+@Composable
+fun UnifiedDiscipleSlot(
+    disciple: DiscipleAggregate?,
+    modifier: Modifier = Modifier,
+    borderColor: Color = GameColors.Border,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = modifier
+            .width(52.dp)
+            .height(68.dp)
+            .clip(RoundedCornerShape(6.dp))
+            .background(if (disciple != null) Color.White else GameColors.PageBackground)
+            .border(1.dp, borderColor, RoundedCornerShape(6.dp))
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        if (disciple != null) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+                modifier = Modifier.padding(4.dp)
+            ) {
+                val context = LocalContext.current
+                val portraitResId = remember(disciple.portraitRes) {
+                    PortraitPool.getResourceId(context, disciple.portraitRes)
+                }
+                Image(
+                    painter = if (portraitResId != 0) painterResource(id = portraitResId)
+                              else painterResource(id = R.drawable.disciple_portrait),
+                    contentDescription = null,
+                    modifier = Modifier.width(40.dp).height(50.dp),
+                    contentScale = ContentScale.Fit
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = disciple.realmName,
+                    fontSize = 10.sp,
+                    color = Color.Black,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        } else {
+            Text(
+                text = "+",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black
+            )
         }
     }
 }

@@ -647,7 +647,8 @@ data class GarrisonSlot(
     val discipleId: String = "",
     val discipleName: String = "",
     val discipleRealm: String = "",
-    val discipleSpiritRootColor: String = "#E0E0E0"
+    val discipleSpiritRootColor: String = "#E0E0E0",
+    val portraitRes: String = ""
 ) {
     val isActive: Boolean get() = discipleId.isNotEmpty()
 }

@@ -2378,7 +2378,8 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                     maxHp = member.maxHp,
                     mp = member.mp,
                     maxMp = member.maxMp,
-                    isAlive = member.isAlive
+                    isAlive = member.isAlive,
+                    portraitRes = member.portraitRes
                 )
             },
             enemies = battleResult.log.enemies.map { enemy ->

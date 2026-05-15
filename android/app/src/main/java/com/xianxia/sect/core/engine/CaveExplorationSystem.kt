@@ -90,7 +90,8 @@ object CaveExplorationSystem {
                 skills = skills,
                 realm = disciple.realm,
                 realmName = disciple.realmName,
-                element = disciple.spiritRoot.types.firstOrNull()?.trim() ?: "metal"
+                element = disciple.spiritRoot.types.firstOrNull()?.trim() ?: "metal",
+                portraitRes = disciple.portraitRes
             )
         }
 

@@ -76,6 +76,7 @@ fun WenDaoPeakDialog(
                 bonusInfo = ElderBonusInfoProvider.getPreachingMasterInfo()
             ),
             preachingMasters = preachingMasters,
+            disciples = disciples,
             onMasterClick = { index -> showPreachingMasterSelection = index },
             onMasterRemove = { index -> productionViewModel.removeDirectDisciple("preaching", index) }
         )

@@ -35,6 +35,7 @@ import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.DialogDefaults
 import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
+import com.xianxia.sect.ui.components.UnifiedDiscipleSlot
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
 import com.xianxia.sect.ui.game.tabs.REALM_FILTER_OPTIONS
@@ -154,41 +155,11 @@ private fun PeakElderSlotItem(config: PeakElderSlotConfig) {
             GameColors.Border
         }
 
-        Box(
-            modifier = Modifier
-                .size(60.dp)
-                .clip(RoundedCornerShape(6.dp))
-                .background(GameColors.PageBackground)
-                .border(1.dp, borderColor, RoundedCornerShape(6.dp))
-                .clickable(onClick = config.onClick),
-            contentAlignment = Alignment.Center
-        ) {
-            if (config.elder != null) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = config.elder.name,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black,
-                        maxLines = 1
-                    )
-                    Text(
-                        text = config.elder.realmName,
-                        fontSize = 8.sp,
-                        color = Color.Black,
-                        maxLines = 1
-                    )
-                }
-            } else {
-                Text(
-                    text = "+",
-                    fontSize = 20.sp,
-                    color = Color.Black
-                )
-            }
-        }
+        UnifiedDiscipleSlot(
+            disciple = config.elder,
+            borderColor = borderColor,
+            onClick = config.onClick
+        )
 
         if (config.elder != null) {
             Spacer(modifier = Modifier.height(4.dp))
@@ -216,6 +187,7 @@ fun PeakPreachingMasterSection(
     sectionTitle: String,
     masterConfig: PeakPreachingMasterConfig,
     preachingMasters: List<DirectDiscipleSlot>,
+    disciples: List<DiscipleAggregate>,
     onMasterClick: (Int) -> Unit,
     onMasterRemove: (Int) -> Unit
 ) {
@@ -240,8 +212,12 @@ fun PeakPreachingMasterSection(
         ) {
             (0..3).forEach { index ->
                 val master = preachingMasters.find { it.index == index }
+                val agg = if (master?.isActive == true) disciples.find { it.id == master.discipleId } else null
+                val spiritRootColor = master?.discipleSpiritRootColor ?: ""
                 PeakPreachingMasterSlotItem(
-                    master = master,
+                    disciple = agg,
+                    isActive = master?.isActive == true,
+                    spiritRootColor = spiritRootColor,
                     config = masterConfig,
                     onClick = { onMasterClick(index) },
                     onRemove = { onMasterRemove(index) }
@@ -253,11 +229,23 @@ fun PeakPreachingMasterSection(
 
 @Composable
 private fun PeakPreachingMasterSlotItem(
-    master: DirectDiscipleSlot?,
+    disciple: DiscipleAggregate?,
+    isActive: Boolean,
+    spiritRootColor: String,
     config: PeakPreachingMasterConfig,
     onClick: () -> Unit,
     onRemove: () -> Unit
 ) {
+    val borderColor = if (isActive) {
+        try {
+            Color(android.graphics.Color.parseColor(spiritRootColor))
+        } catch (e: Exception) {
+            Color(0xFF9C27B0)
+        }
+    } else {
+        GameColors.Border
+    }
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -275,53 +263,13 @@ private fun PeakPreachingMasterSlotItem(
         }
         Spacer(modifier = Modifier.height(2.dp))
 
-        val borderColor = if (master != null && master.isActive) {
-            try {
-                Color(android.graphics.Color.parseColor(master.discipleSpiritRootColor))
-            } catch (e: Exception) {
-                Color(0xFF9C27B0)
-            }
-        } else {
-            GameColors.Border
-        }
+        UnifiedDiscipleSlot(
+            disciple = if (isActive) disciple else null,
+            borderColor = borderColor,
+            onClick = onClick
+        )
 
-        Box(
-            modifier = Modifier
-                .size(50.dp)
-                .clip(RoundedCornerShape(4.dp))
-                .background(GameColors.PageBackground)
-                .border(1.dp, borderColor, RoundedCornerShape(4.dp))
-                .clickable(onClick = onClick),
-            contentAlignment = Alignment.Center
-        ) {
-            if (master != null && master.isActive) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = master.discipleName,
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black,
-                        maxLines = 1
-                    )
-                    Text(
-                        text = master.discipleRealm,
-                        fontSize = 7.sp,
-                        color = Color.Black,
-                        maxLines = 1
-                    )
-                }
-            } else {
-                Text(
-                    text = "+",
-                    fontSize = 16.sp,
-                    color = Color.Black
-                )
-            }
-        }
-
-        if (master != null && master.isActive) {
+        if (isActive && disciple != null) {
             Spacer(modifier = Modifier.height(2.dp))
 
             Box(

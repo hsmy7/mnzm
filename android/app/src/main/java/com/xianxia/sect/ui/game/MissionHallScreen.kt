@@ -27,6 +27,7 @@ import com.xianxia.sect.core.engine.MissionSystem
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
+import com.xianxia.sect.ui.components.UnifiedDiscipleSlot
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.discipleCardBorder
 import com.xianxia.sect.ui.components.DiscipleAttrText
@@ -463,8 +464,7 @@ private fun ActiveMissionDetailDialog(
                             val disciple = discipleMap[discipleId]
 
                             MissionDiscipleSlot(
-                                name = name,
-                                realm = realm,
+                                disciple = disciple,
                                 hpRatio = 1f
                             )
                         }
@@ -476,23 +476,22 @@ private fun ActiveMissionDetailDialog(
 
 @Composable
 private fun MissionDiscipleSlot(
-    name: String,
-    realm: String,
+    disciple: DiscipleAggregate?,
     hpRatio: Float
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(6.dp))
-            .background(Color(0xFFF5F5F5))
-            .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(6.dp))
-            .padding(8.dp)
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
+        // HP bar above slot, width matches slot
+        val hpColor = when {
+            hpRatio > 0.6f -> Color(0xFF4CAF50)
+            hpRatio > 0.3f -> Color(0xFFFF9800)
+            else -> Color(0xFFF44336)
+        }
         Box(
             modifier = Modifier
-                .fillMaxWidth()
+                .width(52.dp)
                 .height(6.dp)
                 .clip(RoundedCornerShape(3.dp))
                 .background(Color(0xFFE0E0E0))
@@ -502,28 +501,13 @@ private fun MissionDiscipleSlot(
                     .fillMaxWidth(hpRatio.coerceIn(0f, 1f))
                     .height(6.dp)
                     .clip(RoundedCornerShape(3.dp))
-                    .background(
-                        when {
-                            hpRatio > 0.6f -> Color(0xFF4CAF50)
-                            hpRatio > 0.3f -> Color(0xFFFF9800)
-                            else -> Color(0xFFF44336)
-                        }
-                    )
+                    .background(hpColor)
             )
         }
 
-        Text(
-            text = name,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.Black,
-            maxLines = 1
-        )
-
-        Text(
-            text = realm,
-            fontSize = 9.sp,
-            color = Color.Black
+        UnifiedDiscipleSlot(
+            disciple = disciple,
+            onClick = {}
         )
     }
 }

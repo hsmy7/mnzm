@@ -405,7 +405,8 @@ data class BattleLogMember(
     val maxHp: Int = 0,
     val mp: Int = 0,
     val maxMp: Int = 0,
-    val isAlive: Boolean = true
+    val isAlive: Boolean = true,
+    val portraitRes: String = ""
 )
 
 @Serializable

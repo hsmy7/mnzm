@@ -2777,7 +2777,8 @@ class GameEngine @Inject constructor(
                             discipleId = d.id,
                             discipleName = d.name,
                             discipleRealm = d.realmName,
-                            discipleSpiritRootColor = d.spiritRoot.countColor
+                            discipleSpiritRootColor = d.spiritRoot.countColor,
+                            portraitRes = d.portraitRes
                         )
                     } else {
                         com.xianxia.sect.core.model.GarrisonSlot(index = index)
@@ -2918,7 +2919,7 @@ class GameEngine @Inject constructor(
 
         // Build battle log
         val teamMembers = combatDisciples.map { d ->
-            BattleLogMember(name = d.name, realm = d.realm, realmName = d.realmName)
+            BattleLogMember(name = d.name, realm = d.realm, realmName = d.realmName, portraitRes = d.portraitRes)
         }
         val enemies = result.battle.beasts.map { b ->
             BattleLogEnemy(name = b.name, realm = b.realm, realmName = b.realmName)

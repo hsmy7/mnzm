@@ -32,6 +32,7 @@ import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.ElderBonusInfo
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.HalfScreenDialog
+import com.xianxia.sect.ui.components.UnifiedDiscipleSlot
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.game.ForgeViewModel
 import com.xianxia.sect.ui.game.ProductionViewModel
@@ -108,35 +109,10 @@ fun ForgeDialog(
                         )
                     }
                     Spacer(modifier = Modifier.height(4.dp))
-                    Box(
-                        modifier = Modifier
-                            .size(60.dp)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(GameColors.PageBackground)
-                            .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
-                            .clickable { showWorkerSelection = true },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (workerDisciple != null) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(
-                                    text = workerDisciple.name,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.Black,
-                                    maxLines = 1
-                                )
-                                Text(
-                                    text = workerDisciple.realmName,
-                                    fontSize = 9.sp,
-                                    color = Color.Black,
-                                    maxLines = 1
-                                )
-                            }
-                        } else {
-                            Text(text = "+", fontSize = 24.sp, color = Color.Black)
-                        }
-                    }
+                    UnifiedDiscipleSlot(
+                        disciple = workerDisciple,
+                        onClick = { showWorkerSelection = true }
+                    )
                     Spacer(modifier = Modifier.height(4.dp))
                     if (workerDisciple != null) {
                         Box(

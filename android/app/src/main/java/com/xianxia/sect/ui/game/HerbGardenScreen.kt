@@ -42,6 +42,7 @@ import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.ui.components.ElderBonusInfoButton
 import com.xianxia.sect.ui.components.ElderBonusInfoProvider
 import com.xianxia.sect.ui.components.HalfScreenDialog
+import com.xianxia.sect.ui.components.UnifiedDiscipleSlot
 import com.xianxia.sect.ui.theme.getRarityColor
 import com.xianxia.sect.ui.game.components.ItemDetailDialog
 
@@ -88,6 +89,7 @@ fun HerbGardenDialog(
 
             HerbGardenDirectDiscipleSection(
                 directDisciples = herbGardenDisciples,
+                disciples = disciples,
                 onDirectDiscipleClick = { index -> showDirectDiscipleSelection = index },
                 onDirectDiscipleRemove = { index -> productionViewModel.removeDirectDisciple("herbGarden", index) }
             )
@@ -293,49 +295,11 @@ private fun HerbGardenElderSection(
         Column(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Box(
-                modifier = Modifier
-                    .size(70.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(GameColors.PageBackground)
-                    .border(
-                        2.dp,
-                        elderBorderColor,
-                        RoundedCornerShape(8.dp)
-                    )
-                    .clickable { onElderClick() },
-                contentAlignment = Alignment.Center
-            ) {
-                if (elder != null) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = elder.name,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.Black,
-                            maxLines = 1
-                        )
-                        Text(
-                            text = elder.realmName,
-                            fontSize = 9.sp,
-                            color = Color.Black
-                        )
-                        Text(
-                            text = "灵植: ${elder.spiritPlanting}",
-                            fontSize = 9.sp,
-                            color = Color(0xFF4CAF50)
-                        )
-                    }
-                } else {
-                    Text(
-                        text = "点击任命",
-                        fontSize = 10.sp,
-                        color = Color.Black
-                    )
-                }
-            }
+            UnifiedDiscipleSlot(
+                disciple = elder,
+                borderColor = elderBorderColor,
+                onClick = { onElderClick() }
+            )
             if (elder != null) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Box(
@@ -360,6 +324,7 @@ private fun HerbGardenElderSection(
 @Composable
 private fun HerbGardenDirectDiscipleSection(
     directDisciples: List<DirectDiscipleSlot>,
+    disciples: List<DiscipleAggregate>,
     onDirectDiscipleClick: (Int) -> Unit,
     onDirectDiscipleRemove: (Int) -> Unit
 ) {
@@ -379,10 +344,17 @@ private fun HerbGardenDirectDiscipleSection(
             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
         ) {
             (0 until 3).forEach { index ->
-                val disciple = directDisciples.getOrNull(index) ?: DirectDiscipleSlot(index = index)
+                val slot = directDisciples.getOrNull(index) ?: DirectDiscipleSlot(index = index)
+                val agg = if (slot.isActive) disciples.find { it.id == slot.discipleId } else null
+                val borderColor = if (slot.isActive) {
+                    try { Color(android.graphics.Color.parseColor(agg?.spiritRoot?.countColor)) }
+                    catch (e: Exception) { Color(0xFF4CAF50) }
+                } else {
+                    GameColors.Border
+                }
                 HerbGardenDirectDiscipleSlotItem(
-                    index = index,
-                    disciple = disciple,
+                    disciple = agg,
+                    borderColor = borderColor,
                     onClick = { onDirectDiscipleClick(index) },
                     onRemove = { onDirectDiscipleRemove(index) }
                 )
@@ -393,64 +365,20 @@ private fun HerbGardenDirectDiscipleSection(
 
 @Composable
 private fun HerbGardenDirectDiscipleSlotItem(
-    index: Int,
-    disciple: DirectDiscipleSlot,
+    disciple: DiscipleAggregate?,
+    borderColor: Color,
     onClick: () -> Unit,
     onRemove: () -> Unit
 ) {
-    val borderColor = if (disciple.isActive) {
-        try {
-            Color(android.graphics.Color.parseColor(disciple.discipleSpiritRootColor))
-        } catch (e: Exception) {
-            Color(0xFF4CAF50)
-        }
-    } else {
-        GameColors.Border
-    }
-
     Column(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Box(
-            modifier = Modifier
-                .size(55.dp)
-                .clip(RoundedCornerShape(6.dp))
-                .background(GameColors.PageBackground)
-                .border(
-                    1.dp,
-                    borderColor,
-                    RoundedCornerShape(6.dp)
-                )
-                .clickable { onClick() },
-            contentAlignment = Alignment.Center
-        ) {
-            if (disciple.isActive) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = disciple.discipleName,
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black,
-                        maxLines = 1,
-                        textAlign = TextAlign.Center
-                    )
-                    Text(
-                        text = disciple.discipleRealm,
-                        fontSize = 8.sp,
-                        color = Color.Black
-                    )
-                }
-            } else {
-                Text(
-                    text = "+",
-                    fontSize = 20.sp,
-                    color = Color.Black
-                )
-            }
-        }
-        if (disciple.isActive) {
+        UnifiedDiscipleSlot(
+            disciple = disciple,
+            borderColor = borderColor,
+            onClick = { onClick() }
+        )
+        if (disciple != null) {
             Spacer(modifier = Modifier.height(2.dp))
             Box(
                 modifier = Modifier
