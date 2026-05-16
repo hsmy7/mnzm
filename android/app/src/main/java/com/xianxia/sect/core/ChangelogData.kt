@@ -9,6 +9,17 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.0.36",
+            date = "2026-05-16",
+            changes = listOf(
+                "弟子装备界面装备槽位显示优化：装备槽位缩小，品阶色背景上显示装备精灵图（已支持精铁剑/烈焰剑/雷霆剑/诛仙剑），暂无素材的装备显示「敬请期待」",
+                "装备名称移至槽位下方白底显示，品阶颜色边框标识稀有度",
+                "弟子功法界面功法槽位样式统一为与装备槽位一致",
+                "道具品阶颜色标准统一：凡品#B8B8B8、灵品#AFCB8A、宝品#9FC2EE、玄品#C0A2DD、地品#E7C67D、天品#E3A0A0",
+                "所有道具卡片（商人/储物袋/仓库/背包/锻造/炼丹/天赋等）统一使用新品阶颜色背景"
+            )
+        ),
+        ChangelogEntry(
             version = "3.0.35",
             date = "2026-05-16",
             changes = listOf(

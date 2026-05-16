@@ -1529,12 +1529,4 @@ internal fun EmptyWarehouseMessage() {
     }
 }
 
-internal fun getRarityColor(rarity: Int): Color = when (rarity) {
-    1 -> Color(0xFF95A5A6)
-    2 -> Color(0xFF27AE60)
-    3 -> Color(0xFF3498DB)
-    4 -> Color(0xFF9B59B6)
-    5 -> Color(0xFFF39C12)
-    6 -> Color(0xFFE74C3C)
-    else -> Color(0xFF95A5A6)
-}
+internal fun getRarityColor(rarity: Int): Color = com.xianxia.sect.ui.theme.getRarityColor(rarity)

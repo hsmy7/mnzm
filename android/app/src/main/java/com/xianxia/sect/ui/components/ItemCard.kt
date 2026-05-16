@@ -54,7 +54,7 @@ fun UnifiedItemCard(
             modifier = Modifier
                 .fillMaxSize()
                 .clip(RoundedCornerShape(6.dp))
-                .background(if (isSelected) Color(0xFFFFF8E1) else GameColors.PageBackground)
+                .background(if (isSelected) Color(0xFFFFF8E1) else rarityColor)
                 .border(
                     width = if (isSelected) 3.dp else 2.dp,
                     color = if (isSelected) Color(0xFFFFD700) else rarityColor,
@@ -262,7 +262,7 @@ fun CompactItemCard(
 @Composable
 fun RarityBadge(rarity: Int) {
     val (text, color) = when (rarity) {
-        1 -> "普通" to GameColors.RarityCommon
+        1 -> "凡品" to GameColors.RarityCommon
         2 -> "灵品" to GameColors.RaritySpirit
         3 -> "宝品" to GameColors.RarityTreasure
         4 -> "玄品" to GameColors.RarityMystic
@@ -326,13 +326,13 @@ fun getRarityColor(rarity: Int): Color = when (rarity) {
 }
 
 fun getRarityName(rarity: Int): String = when (rarity) {
-    1 -> "普通"
+    1 -> "凡品"
     2 -> "灵品"
     3 -> "宝品"
     4 -> "玄品"
     5 -> "地品"
     6 -> "天品"
-    else -> "普通"
+    else -> "凡品"
 }
 
 fun getQualityColor(quality: String?): Color = when (quality) {

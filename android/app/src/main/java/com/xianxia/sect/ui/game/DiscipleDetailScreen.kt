@@ -33,6 +33,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.activity.compose.BackHandler
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 
 import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.engine.DiscipleStatCalculator
@@ -54,6 +56,7 @@ import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.ItemCardData
 import com.xianxia.sect.ui.components.TalentDetailDialog
 import com.xianxia.sect.ui.components.UnifiedItemCard
+import com.xianxia.sect.ui.components.EquipmentSpriteBox
 import com.xianxia.sect.ui.components.getRarityColor
 import com.xianxia.sect.ui.components.getTalentRarityColor
 import com.xianxia.sect.R
@@ -631,7 +634,8 @@ fun DiscipleDetailDialog(
 }
 
 /**
- * DiscipleDetailDialog 便捷重载：自动从 GameViewModel 收集 StateFlow。
+ * DiscipleDetailDialog 便捷重载：自动从 GameViewModel 收集 StateFlow，
+ * 并用 Dialog 独立窗口渲染，确保在 HalfScreenDialog 之上显示。
  */
 @Composable
 fun DiscipleDetailDialog(
@@ -647,18 +651,23 @@ fun DiscipleDetailDialog(
     val manualStacks by viewModel.manualStacks.collectAsState()
     val equipmentStacks by viewModel.equipmentStacks.collectAsState()
 
-    DiscipleDetailDialog(
-        disciple = disciple,
-        allDisciples = allDisciples,
-        allEquipment = equipment,
-        allManuals = manuals,
-        manualStacks = manualStacks,
-        equipmentStacks = equipmentStacks,
-        manualProficiencies = gameData?.manualProficiencies ?: emptyMap(),
-        viewModel = viewModel,
-        onDismiss = onDismiss,
-        onNavigateToDisciple = onNavigateToDisciple
-    )
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        DiscipleDetailDialog(
+            disciple = disciple,
+            allDisciples = allDisciples,
+            allEquipment = equipment,
+            allManuals = manuals,
+            manualStacks = manualStacks,
+            equipmentStacks = equipmentStacks,
+            manualProficiencies = gameData?.manualProficiencies ?: emptyMap(),
+            viewModel = viewModel,
+            onDismiss = onDismiss,
+            onNavigateToDisciple = onNavigateToDisciple
+        )
+    }
 }
 
 @Composable
@@ -1604,25 +1613,15 @@ private fun EquipmentSection(
 
 @Composable
 private fun EquipmentSlot(
-    slotName: String, 
-    equipment: EquipmentInstance?, 
+    slotName: String,
+    equipment: EquipmentInstance?,
     modifier: Modifier = Modifier,
     onSlotClick: (String) -> Unit,
     onEquipmentClick: (EquipmentInstance) -> Unit,
     slotType: String
 ) {
-    val rarityColor = remember(equipment?.rarity) {
-        when (equipment?.rarity) {
-            1 -> Color(0xFF95A5A6)
-            2 -> Color(0xFF27AE60)
-            3 -> Color(0xFF3498DB)
-            4 -> Color(0xFF9B59B6)
-            5 -> Color(0xFFF39C12)
-            6 -> Color(0xFFE74C3C)
-            else -> GameColors.Border
-        }
-    }
-    
+    val rarityColor = getRarityColor(equipment?.rarity ?: 1)
+
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally
@@ -1633,34 +1632,49 @@ private fun EquipmentSlot(
             color = Color.Black
         )
         Spacer(modifier = Modifier.height(4.dp))
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(1f)
-                .clip(RoundedCornerShape(8.dp))
-                .background(GameColors.PageBackground)
-                .border(1.dp, rarityColor, RoundedCornerShape(8.dp))
-                .clickable { 
-                    if (equipment != null) {
-                        onEquipmentClick(equipment)
-                    } else {
-                        onSlotClick(slotType)
-                    }
-                },
-            contentAlignment = Alignment.Center
-        ) {
-            if (equipment != null) {
+
+        if (equipment != null) {
+            Box(
+                modifier = Modifier
+                    .requiredSize(48.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .border(1.dp, rarityColor, RoundedCornerShape(8.dp))
+                    .clickable { onEquipmentClick(equipment) }
+            ) {
+                EquipmentSpriteBox(
+                    name = equipment.name,
+                    rarityColor = rarityColor,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+            Spacer(modifier = Modifier.height(2.dp))
+            Box(
+                modifier = Modifier
+                    .background(Color.White, RoundedCornerShape(4.dp))
+                    .padding(horizontal = 4.dp, vertical = 2.dp),
+                contentAlignment = Alignment.Center
+            ) {
                 Text(
                     text = equipment.name,
-                    fontSize = 11.sp,
+                    fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
-                    color = rarityColor,
-                    maxLines = 2
+                    color = Color.Black,
+                    maxLines = 1
                 )
-            } else {
+            }
+        } else {
+            Box(
+                modifier = Modifier
+                    .requiredSize(48.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(GameColors.PageBackground)
+                    .border(1.dp, GameColors.Border, RoundedCornerShape(8.dp))
+                    .clickable { onSlotClick(slotType) },
+                contentAlignment = Alignment.Center
+            ) {
                 Text(
                     text = "+",
-                    fontSize = 24.sp,
+                    fontSize = 20.sp,
                     color = Color.Black
                 )
             }
@@ -1756,65 +1770,61 @@ private fun ManualSlot(
     onSlotClick: () -> Unit,
     onManualClick: (ManualInstance) -> Unit
 ) {
-    val rarityColor = remember(manual?.rarity) {
-        when (manual?.rarity) {
-            1 -> Color(0xFF95A5A6)
-            2 -> Color(0xFF27AE60)
-            3 -> Color(0xFF3498DB)
-            4 -> Color(0xFF9B59B6)
-            5 -> Color(0xFFF39C12)
-            6 -> Color(0xFFE74C3C)
-            else -> GameColors.Border
-        }
-    }
-    
+    val rarityColor = getRarityColor(manual?.rarity ?: 1)
     val masteryLevel = proficiencyData?.masteryLevel ?: 0
     val mastery = ManualProficiencySystem.MasteryLevel.fromLevel(masteryLevel)
     val masteryText = mastery.displayName
-    
+
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(1f)
-                .clip(RoundedCornerShape(8.dp))
-                .background(GameColors.PageBackground)
-                .border(1.dp, rarityColor, RoundedCornerShape(8.dp))
-                .clickable {
-                    if (manual != null) {
-                        onManualClick(manual)
-                    } else {
-                        onSlotClick()
-                    }
-                },
-            contentAlignment = Alignment.Center
-        ) {
-            if (manual != null) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Text(
-                        text = manual.name,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = rarityColor,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    if (proficiencyData != null) {
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = masteryText,
-                            fontSize = 8.sp,
-                            color = Color.Black
-                        )
-                    }
-                }
-            } else {
+        if (manual != null) {
+            Box(
+                modifier = Modifier
+                    .requiredSize(48.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .border(1.dp, rarityColor, RoundedCornerShape(8.dp))
+                    .clickable { onManualClick(manual) }
+            ) {
+                EquipmentSpriteBox(
+                    name = manual.name,
+                    rarityColor = rarityColor,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+            Spacer(modifier = Modifier.height(2.dp))
+            Box(
+                modifier = Modifier
+                    .background(Color.White, RoundedCornerShape(4.dp))
+                    .padding(horizontal = 4.dp, vertical = 2.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = manual.name,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black,
+                    maxLines = 1
+                )
+            }
+            if (proficiencyData != null) {
+                Text(
+                    text = masteryText,
+                    fontSize = 8.sp,
+                    color = Color.Black
+                )
+            }
+        } else {
+            Box(
+                modifier = Modifier
+                    .requiredSize(48.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(GameColors.PageBackground)
+                    .border(1.dp, GameColors.Border, RoundedCornerShape(8.dp))
+                    .clickable { onSlotClick() },
+                contentAlignment = Alignment.Center
+            ) {
                 Text(
                     text = "+",
                     fontSize = 20.sp,

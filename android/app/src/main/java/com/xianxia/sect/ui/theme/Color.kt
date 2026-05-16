@@ -37,12 +37,12 @@ object GameColors {
     val CardBackground = Color(0xFFE9E4DF)
     val CardBackgroundSelected = Color(0xFFE9E4DF)
     
-    val RarityCommon = Color(0xFF95A5A6)
-    val RaritySpirit = Color(0xFF27AE60)
-    val RarityTreasure = Color(0xFF3498DB)
-    val RarityMystic = Color(0xFF9B59B6)
-    val RarityEarth = Color(0xFFF39C12)
-    val RarityHeaven = Color(0xFFE74C3C)
+    val RarityCommon = Color(0xFFB8B8B8)
+    val RaritySpirit = Color(0xFFAFCB8A)
+    val RarityTreasure = Color(0xFF9FC2EE)
+    val RarityMystic = Color(0xFFC0A2DD)
+    val RarityEarth = Color(0xFFE7C67D)
+    val RarityHeaven = Color(0xFFE3A0A0)
     
     val RealmLianQi = Color(0xFF95A5A6)
     val RealmZhuJi = Color(0xFF27AE60)
@@ -151,11 +151,11 @@ data class XianxiaColorScheme(
     val spiritBlue: Color = Color(0xFF4A90E2),
     val bloodRed: Color = Color(0xFFE74C3C),
     val rarityColors: Map<Int, Color> = mapOf(
-        1 to Color(0xFF95A5A6),
-        2 to Color(0xFF27AE60),
-        3 to Color(0xFF3498DB),
-        4 to Color(0xFF9B59B6),
-        5 to Color(0xFFF39C12),
-        6 to Color(0xFFE74C3C)
+        1 to Color(0xFFB8B8B8),
+        2 to Color(0xFFAFCB8A),
+        3 to Color(0xFF9FC2EE),
+        4 to Color(0xFFC0A2DD),
+        5 to Color(0xFFE7C67D),
+        6 to Color(0xFFE3A0A0)
     )
 )

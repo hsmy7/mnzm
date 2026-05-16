@@ -381,15 +381,7 @@ private fun PurchasePanel(
     }
 }
 
-private fun getRarityColor(rarity: Int): Color = when (rarity) {
-    1 -> GameColors.RarityCommon
-    2 -> GameColors.RaritySpirit
-    3 -> GameColors.RarityTreasure
-    4 -> GameColors.RarityMystic
-    5 -> GameColors.RarityEarth
-    6 -> GameColors.RarityHeaven
-    else -> GameColors.RarityCommon
-}
+private fun getRarityColor(rarity: Int): Color = com.xianxia.sect.ui.theme.getRarityColor(rarity)
 
 private fun getRarityName(rarity: Int): String = when (rarity) {
     1 -> "凡品"
