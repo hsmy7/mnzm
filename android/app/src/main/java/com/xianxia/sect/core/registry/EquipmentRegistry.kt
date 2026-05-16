@@ -28,7 +28,7 @@ class EquipmentRegistry : BaseTemplateRegistry<EquipmentDatabase.EquipmentTempla
         "ironSword" to EquipmentDatabase.EquipmentTemplate("ironSword", "精铁剑", EquipmentSlot.WEAPON, 1, physicalAttack = 10, critChance = 0.02, description = "普通铁匠打造的精铁剑，物理攻击力出众", price = 3600),
         "bronzeDagger" to EquipmentDatabase.EquipmentTemplate("bronzeDagger", "精铁刀", EquipmentSlot.WEAPON, 1, physicalAttack = 14, critChance = 0.04, description = "精铁锻造的宝刀，锋利易暴击", price = 3600),
         "woodenStaff" to EquipmentDatabase.EquipmentTemplate("woodenStaff", "桃木杖", EquipmentSlot.WEAPON, 1, magicAttack = 10, critChance = 0.02, description = "百年桃木制成的法杖，法术攻击力强大", price = 3600),
-        "crystalOrb" to EquipmentDatabase.EquipmentTemplate("crystalOrb", "水晶珠", EquipmentSlot.WEAPON, 1, magicAttack = 14, critChance = 0.04, description = "蕴含微量灵气的水晶球，易触发暴击", price = 3600),
+        "crystalOrb" to EquipmentDatabase.EquipmentTemplate("crystalOrb", "碧木扇", EquipmentSlot.WEAPON, 1, magicAttack = 14, critChance = 0.04, description = "蕴含微量灵气的水晶球，易触发暴击", price = 3600),
 
         // 灵品 (rarity: 2)
         "spiritSword" to EquipmentDatabase.EquipmentTemplate("spiritSword", "灵锋剑", EquipmentSlot.WEAPON, 2, physicalAttack = 30, critChance = 0.04, description = "注入灵气的锋利长剑，物理攻击力强大", price = 16200),
@@ -40,25 +40,25 @@ class EquipmentRegistry : BaseTemplateRegistry<EquipmentDatabase.EquipmentTempla
         "frostBlade" to EquipmentDatabase.EquipmentTemplate("frostBlade", "青碧刃", EquipmentSlot.WEAPON, 3, physicalAttack = 92, critChance = 0.06, description = "蕴含寒冰之力的宝刀，物理攻击力出众", price = 64800),
         "flameSword" to EquipmentDatabase.EquipmentTemplate("flameSword", "烈焰剑", EquipmentSlot.WEAPON, 3, physicalAttack = 136, critChance = 0.09, description = "燃烧着火焰的灵剑，攻击易暴击", price = 64800),
         "thunderStaff" to EquipmentDatabase.EquipmentTemplate("thunderStaff", "玄雷杖", EquipmentSlot.WEAPON, 3, magicAttack = 92, critChance = 0.06, description = "可召唤雷电的法杖，法术攻击力强大", price = 64800),
-        "frostOrb" to EquipmentDatabase.EquipmentTemplate("frostOrb", "玄冰珠", EquipmentSlot.WEAPON, 3, magicAttack = 136, critChance = 0.09, description = "蕴含玄冰之力的宝珠，攻击易暴击", price = 64800),
+        "frostOrb" to EquipmentDatabase.EquipmentTemplate("frostOrb", "玄冰扇", EquipmentSlot.WEAPON, 3, magicAttack = 136, critChance = 0.09, description = "蕴含玄冰之力的宝珠，攻击易暴击", price = 64800),
 
         // 玄品 (rarity: 4)
         "thunderSword" to EquipmentDatabase.EquipmentTemplate("thunderSword", "雷霆剑", EquipmentSlot.WEAPON, 4, physicalAttack = 285, critChance = 0.08, description = "引动天雷的玄妙飞剑，物理攻击力惊人", price = 259200),
         "shadowBlade" to EquipmentDatabase.EquipmentTemplate("shadowBlade", "暗影刃", EquipmentSlot.WEAPON, 4, physicalAttack = 420, critChance = 0.12, description = "来无影去无踪的暗杀之刃，暴击率极高", price = 259200),
         "voidStaff" to EquipmentDatabase.EquipmentTemplate("voidStaff", "虚华杖", EquipmentSlot.WEAPON, 4, magicAttack = 285, critChance = 0.08, description = "可撕裂虚空的法杖，法术攻击力出众", price = 259200),
-        "phoenixFan" to EquipmentDatabase.EquipmentTemplate("phoenixFan", "凤凰扇", EquipmentSlot.WEAPON, 4, magicAttack = 420, critChance = 0.12, description = "凤凰羽毛制成的神扇，攻击易暴击", price = 259200),
+        "phoenixFan" to EquipmentDatabase.EquipmentTemplate("phoenixFan", "凰焰扇", EquipmentSlot.WEAPON, 4, magicAttack = 420, critChance = 0.12, description = "凤凰羽毛制成的神扇，攻击易暴击", price = 259200),
 
         // 地品 (rarity: 5)
         "dragonSlayer" to EquipmentDatabase.EquipmentTemplate("dragonSlayer", "凤炎刃", EquipmentSlot.WEAPON, 5, physicalAttack = 880, critChance = 0.10, description = "传说中屠龙的绝世神兵，物理攻击力无双", price = 1036800),
         "godSlayer" to EquipmentDatabase.EquipmentTemplate("godSlayer", "青莲剑", EquipmentSlot.WEAPON, 5, physicalAttack = 1280, critChance = 0.15, description = "传说中自青莲中诞生的神剑，剑气纵横天地间", price = 1036800),
-        "phoenixWing" to EquipmentDatabase.EquipmentTemplate("phoenixWing", "凤凰羽", EquipmentSlot.WEAPON, 5, magicAttack = 880, critChance = 0.10, description = "凤凰羽翼化作的神兵，法术攻击力出众", price = 1036800),
+        "phoenixWing" to EquipmentDatabase.EquipmentTemplate("phoenixWing", "阴阳扇", EquipmentSlot.WEAPON, 5, magicAttack = 880, critChance = 0.10, description = "凤凰羽翼化作的神兵，法术攻击力出众", price = 1036800),
         "celestialOrb" to EquipmentDatabase.EquipmentTemplate("celestialOrb", "天玄杖", EquipmentSlot.WEAPON, 5, magicAttack = 1280, critChance = 0.15, description = "凝聚星辰之力的宝珠，攻击易暴击", price = 1036800),
 
         // 天品 (rarity: 6)
         "immortalSword" to EquipmentDatabase.EquipmentTemplate("immortalSword", "诛仙剑", EquipmentSlot.WEAPON, 6, physicalAttack = 2700, critChance = 0.13, description = "上古仙人遗留的仙器，物理攻击力毁天灭地", price = 6000000),
         "chaosBlade" to EquipmentDatabase.EquipmentTemplate("chaosBlade", "玄玉刃", EquipmentSlot.WEAPON, 6, physicalAttack = 3980, critChance = 0.18, description = "开天辟地时的混沌之刃，暴击率超凡入圣", price = 6000000),
         "primordialStaff" to EquipmentDatabase.EquipmentTemplate("primordialStaff", "天星杖", EquipmentSlot.WEAPON, 6, magicAttack = 2700, critChance = 0.13, description = "鸿蒙初开时诞生的法杖，法术攻击力无双", price = 6000000),
-        "yinYangOrb" to EquipmentDatabase.EquipmentTemplate("yinYangOrb", "阴阳珠", EquipmentSlot.WEAPON, 6, magicAttack = 3980, critChance = 0.18, description = "蕴含阴阳大道的至宝，攻击易暴击", price = 6000000)
+        "yinYangOrb" to EquipmentDatabase.EquipmentTemplate("yinYangOrb", "天玄扇", EquipmentSlot.WEAPON, 6, magicAttack = 3980, critChance = 0.18, description = "蕴含阴阳大道的至宝，攻击易暴击", price = 6000000)
     )
 
     /**

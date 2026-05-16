@@ -24,5 +24,11 @@ fun equipmentSpriteRes(name: String): Int? = when (name) {
     "虚华杖" -> R.drawable.xu_hua_zhang
     "天玄杖" -> R.drawable.tian_xuan_zhang
     "天星杖" -> R.drawable.tian_xing_zhang
+    "碧木扇" -> R.drawable.bi_mu_shan
+    "灵风扇" -> R.drawable.ling_feng_shan
+    "玄冰扇" -> R.drawable.xuan_bing_shan
+    "凰焰扇" -> R.drawable.huang_yan_shan
+    "阴阳扇" -> R.drawable.yin_yang_shan
+    "天玄扇" -> R.drawable.tian_xuan_shan
     else -> null
 }
