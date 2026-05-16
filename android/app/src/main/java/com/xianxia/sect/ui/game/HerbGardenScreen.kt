@@ -32,6 +32,8 @@ import com.xianxia.sect.core.model.ElderSlots
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.ui.components.ItemCardData
+import com.xianxia.sect.ui.components.UnifiedItemCard
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.game.HerbGardenViewModel
@@ -44,7 +46,6 @@ import com.xianxia.sect.ui.components.ElderBonusInfoProvider
 import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.ui.components.UnifiedDiscipleSlot
 import com.xianxia.sect.ui.components.DiscipleSlotWithActions
-import com.xianxia.sect.ui.theme.getRarityColor
 import com.xianxia.sect.ui.game.components.ItemDetailDialog
 
 @Composable
@@ -504,7 +505,7 @@ private fun SeedPlantingDialog(
                     }
                 } else {
                     LazyVerticalGrid(
-                        columns = GridCells.Fixed(5),
+                        columns = GridCells.Adaptive(60.dp),
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(max = 340.dp),
@@ -512,11 +513,15 @@ private fun SeedPlantingDialog(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         gridItems(seeds) { seed ->
-                            SeedSelectionCard(
-                                seed = seed,
+                            UnifiedItemCard(
+                                data = ItemCardData(
+                                    name = seed.name,
+                                    rarity = seed.rarity,
+                                    quantity = seed.quantity
+                                ),
                                 isSelected = selectedSeed?.id == seed.id,
-                                isClicked = clickedSeed?.id == seed.id,
-                                onSelect = {
+                                showViewButton = true,
+                                onClick = {
                                     if (selectedSeed?.id == seed.id) {
                                         selectedSeed = null
                                         clickedSeed = null
@@ -525,10 +530,7 @@ private fun SeedPlantingDialog(
                                         clickedSeed = seed
                                     }
                                 },
-                                onViewDetail = {
-                                    clickedSeed = seed
-                                    showDetail = true
-                                }
+                                onViewDetail = { showDetail = true }
                             )
                         }
                     }
@@ -543,82 +545,6 @@ private fun SeedPlantingDialog(
                     },
                     modifier = Modifier.fillMaxWidth(),
                     enabled = selectedSeed != null
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun SeedSelectionCard(
-    seed: Seed,
-    isSelected: Boolean,
-    isClicked: Boolean,
-    onSelect: () -> Unit,
-    onViewDetail: () -> Unit
-) {
-    val rarityColor = getRarityColor(seed.rarity)
-
-    Box(
-        modifier = Modifier.size(68.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .clip(RoundedCornerShape(6.dp))
-                .background(GameColors.PageBackground)
-                .border(
-                    width = if (isSelected) 3.dp else 2.dp,
-                    color = if (isSelected) GameColors.SelectedBorder else rarityColor,
-                    shape = RoundedCornerShape(6.dp)
-                )
-                .clickable { onSelect() },
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = seed.name,
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Bold,
-                color = GameColors.TextPrimary,
-                maxLines = 2,
-                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(horizontal = 4.dp)
-            )
-
-            if (seed.quantity > 1) {
-                Text(
-                    text = "x${seed.quantity}",
-                    fontSize = 9.sp,
-                    color = GameColors.TextSecondary,
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(4.dp)
-                )
-            }
-        }
-
-        if (isClicked) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .offset(x = 4.dp, y = (-4).dp)
-                    .size(22.dp)
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(GameColors.SelectedBorder)
-                    .clickable(
-                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                        indication = null,
-                        onClick = { onViewDetail() }
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "查看",
-                    fontSize = 7.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
                 )
             }
         }

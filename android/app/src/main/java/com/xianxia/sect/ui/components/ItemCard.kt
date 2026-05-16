@@ -1,5 +1,6 @@
 package com.xianxia.sect.ui.components
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -12,6 +13,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -41,70 +44,104 @@ fun UnifiedItemCard(
     showViewButton: Boolean = false,
     showQuantity: Boolean = true,
     showPrice: Boolean = false,
+    craftable: Boolean = true,
     onClick: () -> Unit = {},
     onViewDetail: (() -> Unit)? = null
 ) {
     val rarityColor = getRarityColor(data.rarity)
+    val spriteRes = equipmentSpriteRes(data.name)
 
     Box(
-        modifier = modifier.wrapContentSize(Alignment.Center).requiredSize(56.dp),
+        modifier = modifier.wrapContentSize(Alignment.Center).size(60.dp),
         contentAlignment = Alignment.Center
     ) {
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .clip(RoundedCornerShape(6.dp))
-                .background(if (isSelected) Color(0xFFFFF8E1) else rarityColor)
                 .border(
                     width = if (isSelected) 3.dp else 2.dp,
-                    color = if (isSelected) Color(0xFFFFD700) else rarityColor,
+                    color = if (isSelected) Color(0xFFFFD700) else GameColors.Border,
                     shape = RoundedCornerShape(6.dp)
                 )
-                .clickable(onClick = onClick),
-            contentAlignment = Alignment.Center
+                .clickable(onClick = onClick)
         ) {
-            Text(
-                text = data.name,
-                modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = if (data.isLocked) 12.dp else 4.dp, bottom = 14.dp),
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Bold,
-                color = GameColors.TextPrimary,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.Center
-            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .background(rarityColor),
+                contentAlignment = Alignment.Center
+            ) {
+                if (spriteRes != null) {
+                    Image(
+                        painter = painterResource(id = spriteRes),
+                        contentDescription = data.name,
+                        modifier = Modifier.fillMaxSize().padding(3.dp),
+                        contentScale = ContentScale.Fit
+                    )
+                } else {
+                    Text(
+                        text = "敬请期待",
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(2.dp)
+                    )
+                }
 
-            if (data.isLocked) {
+                if (data.isLocked) {
+                    Text(
+                        text = "锁定",
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFFFD700),
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(start = 3.dp, top = 2.dp)
+                    )
+                }
+
+                if (!data.grade.isNullOrEmpty()) {
+                    Text(
+                        text = data.grade,
+                        fontSize = 8.sp,
+                        color = getQualityColor(data.grade),
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(start = 3.dp, bottom = 2.dp)
+                    )
+                }
+
+                if (showQuantity && data.quantity > 1) {
+                    Text(
+                        text = "x${data.quantity}",
+                        fontSize = 8.sp,
+                        color = Color.White,
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(end = 3.dp, bottom = 2.dp)
+                    )
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(14.dp)
+                    .background(Color.White),
+                contentAlignment = Alignment.Center
+            ) {
                 Text(
-                    text = "锁定",
+                    text = data.name,
                     fontSize = 9.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFFFFD700),
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(start = 4.dp, top = 2.dp)
-                )
-            }
-
-            if (!data.grade.isNullOrEmpty()) {
-                Text(
-                    text = data.grade,
-                    fontSize = 9.sp,
-                    color = getQualityColor(data.grade),
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(start = 4.dp, bottom = 2.dp)
-                )
-            }
-
-            if (showQuantity && data.quantity > 1) {
-                Text(
-                    text = "x${data.quantity}",
-                    fontSize = 9.sp,
-                    color = rarityColor,
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(end = 4.dp, bottom = 2.dp)
+                    color = Color.Black,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 2.dp)
                 )
             }
         }
@@ -121,7 +158,7 @@ fun UnifiedItemCard(
                         indication = null,
                         onClick = { onViewDetail() }
                     )
-                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                    .padding(horizontal = 5.dp, vertical = 1.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -129,6 +166,23 @@ fun UnifiedItemCard(
                     fontSize = 8.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White
+                )
+            }
+        }
+
+        if (!craftable) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(Color.Black.copy(alpha = 0.35f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "材料不足",
+                    fontSize = 8.sp,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold
                 )
             }
         }

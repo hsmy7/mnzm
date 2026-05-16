@@ -9,6 +9,19 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.0.38",
+            date = "2026-05-16",
+            changes = listOf(
+                "全界面物品卡片样式统一：卡片统一为60dp尺寸，上方素材区（品阶色背景，有精灵图显示精灵图、无图显示「敬请期待」白字），下方名称区（白底黑字）",
+                "卡片边框统一为灰色，选中时变为金色",
+                "品阶（上品/中品/下品）和数量保留在素材区左下/右下角贴边显示",
+                "锻造/炼丹配方卡片的炼制时长和品级信息移至卡片外部下方",
+                "弟子装备槽位和功法槽位统一使用52dp新卡片，熟练度信息移至卡片外部下方",
+                "灵植阁种子选择卡片统一为52dp尺寸",
+                "无数据库迁移"
+            )
+        ),
+        ChangelogEntry(
             version = "3.0.37",
             date = "2026-05-16",
             changes = listOf(

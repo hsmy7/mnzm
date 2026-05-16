@@ -56,7 +56,6 @@ import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.ItemCardData
 import com.xianxia.sect.ui.components.TalentDetailDialog
 import com.xianxia.sect.ui.components.UnifiedItemCard
-import com.xianxia.sect.ui.components.EquipmentSpriteBox
 import com.xianxia.sect.ui.components.getRarityColor
 import com.xianxia.sect.ui.components.getTalentRarityColor
 import com.xianxia.sect.R
@@ -547,7 +546,7 @@ fun DiscipleDetailDialog(
                         )
                     } else {
                         LazyVerticalGrid(
-                            columns = GridCells.Adaptive(56.dp),
+                            columns = GridCells.Adaptive(60.dp),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .heightIn(max = 400.dp),
@@ -843,7 +842,7 @@ private fun EquipmentSelectionDialog(
                 )
             } else {
                 LazyVerticalGrid(
-                    columns = GridCells.Adaptive(56.dp),
+                    columns = GridCells.Adaptive(60.dp),
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(max = 400.dp),
@@ -969,7 +968,7 @@ private fun ManualSelectionDialog(
                 )
             } else {
                 LazyVerticalGrid(
-                    columns = GridCells.Adaptive(56.dp),
+                    columns = GridCells.Adaptive(60.dp),
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(max = 400.dp),
@@ -1620,8 +1619,6 @@ private fun EquipmentSlot(
     onEquipmentClick: (EquipmentInstance) -> Unit,
     slotType: String
 ) {
-    val rarityColor = getRarityColor(equipment?.rarity ?: 1)
-
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally
@@ -1634,38 +1631,17 @@ private fun EquipmentSlot(
         Spacer(modifier = Modifier.height(4.dp))
 
         if (equipment != null) {
-            Box(
-                modifier = Modifier
-                    .requiredSize(48.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .border(1.dp, rarityColor, RoundedCornerShape(8.dp))
-                    .clickable { onEquipmentClick(equipment) }
-            ) {
-                EquipmentSpriteBox(
+            UnifiedItemCard(
+                data = ItemCardData(
                     name = equipment.name,
-                    rarityColor = rarityColor,
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
-            Spacer(modifier = Modifier.height(2.dp))
-            Box(
-                modifier = Modifier
-                    .background(Color.White, RoundedCornerShape(4.dp))
-                    .padding(horizontal = 4.dp, vertical = 2.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = equipment.name,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black,
-                    maxLines = 1
-                )
-            }
+                    rarity = equipment.rarity
+                ),
+                onClick = { onEquipmentClick(equipment) }
+            )
         } else {
             Box(
                 modifier = Modifier
-                    .requiredSize(48.dp)
+                    .size(60.dp)
                     .clip(RoundedCornerShape(8.dp))
                     .background(GameColors.PageBackground)
                     .border(1.dp, GameColors.Border, RoundedCornerShape(8.dp))
@@ -1770,7 +1746,6 @@ private fun ManualSlot(
     onSlotClick: () -> Unit,
     onManualClick: (ManualInstance) -> Unit
 ) {
-    val rarityColor = getRarityColor(manual?.rarity ?: 1)
     val masteryLevel = proficiencyData?.masteryLevel ?: 0
     val mastery = ManualProficiencySystem.MasteryLevel.fromLevel(masteryLevel)
     val masteryText = mastery.displayName
@@ -1780,34 +1755,13 @@ private fun ManualSlot(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         if (manual != null) {
-            Box(
-                modifier = Modifier
-                    .requiredSize(48.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .border(1.dp, rarityColor, RoundedCornerShape(8.dp))
-                    .clickable { onManualClick(manual) }
-            ) {
-                EquipmentSpriteBox(
+            UnifiedItemCard(
+                data = ItemCardData(
                     name = manual.name,
-                    rarityColor = rarityColor,
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
-            Spacer(modifier = Modifier.height(2.dp))
-            Box(
-                modifier = Modifier
-                    .background(Color.White, RoundedCornerShape(4.dp))
-                    .padding(horizontal = 4.dp, vertical = 2.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = manual.name,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black,
-                    maxLines = 1
-                )
-            }
+                    rarity = manual.rarity
+                ),
+                onClick = { onManualClick(manual) }
+            )
             if (proficiencyData != null) {
                 Text(
                     text = masteryText,
@@ -1818,7 +1772,7 @@ private fun ManualSlot(
         } else {
             Box(
                 modifier = Modifier
-                    .requiredSize(48.dp)
+                    .size(60.dp)
                     .clip(RoundedCornerShape(8.dp))
                     .background(GameColors.PageBackground)
                     .border(1.dp, GameColors.Border, RoundedCornerShape(8.dp))
@@ -1986,7 +1940,7 @@ private fun StorageBagDialog(
                         Spacer(modifier = Modifier.height(8.dp))
 
                         LazyVerticalGrid(
-                            columns = GridCells.Adaptive(56.dp),
+                            columns = GridCells.Adaptive(60.dp),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .weight(1f),
@@ -2327,7 +2281,7 @@ private fun <T> RewardItemGrid(
         EmptyListMessage("暂无道具")
     } else {
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(56.dp),
+            columns = GridCells.Adaptive(60.dp),
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(8.dp),
@@ -2398,7 +2352,7 @@ private fun RewardAllItemsGrid(
         EmptyListMessage("暂无道具")
     } else {
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(56.dp),
+            columns = GridCells.Adaptive(60.dp),
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(8.dp),

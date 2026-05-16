@@ -249,7 +249,7 @@ internal fun WarehouseTab(viewModel: GameViewModel, onDismiss: () -> Unit = {}) 
                     .weight(1f)
                     .fillMaxWidth()
             ) {
-                val cellSize = 56.dp
+                val cellSize = 60.dp
                 val spacing = 8.dp
                 val paginationHeight = 44.dp
                 val availableHeight = maxHeight - paginationHeight

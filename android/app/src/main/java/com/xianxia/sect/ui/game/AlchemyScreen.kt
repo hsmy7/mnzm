@@ -35,6 +35,8 @@ import com.xianxia.sect.ui.components.ElderBonusInfo
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.getQualityColor
 import com.xianxia.sect.ui.components.HalfScreenDialog
+import com.xianxia.sect.ui.components.ItemCardData
+import com.xianxia.sect.ui.components.UnifiedItemCard
 import com.xianxia.sect.ui.components.UnifiedDiscipleSlot
 import com.xianxia.sect.ui.components.DiscipleSlotWithActions
 import com.xianxia.sect.ui.theme.GameColors
@@ -346,7 +348,7 @@ private fun PillSelectionDialog(
 
         Column(modifier = Modifier.weight(1f)) {
             LazyVerticalGrid(
-                columns = GridCells.Adaptive(56.dp),
+                columns = GridCells.Adaptive(60.dp),
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -354,94 +356,42 @@ private fun PillSelectionDialog(
                 items(sortedRecipes) { recipeWithStatus ->
                     val recipe = recipeWithStatus.recipe
                     val hasEnoughMaterials = recipeWithStatus.canCraft
-                    val rarityColor = try {
-                        Color(android.graphics.Color.parseColor(GameConfig.Rarity.getColor(recipe.rarity)))
-                    } catch (e: Exception) {
-                        Color(0xFF95a5a6)
-                    }
-
                     val isSelected = selectedRecipe?.id == recipe.id
 
-                    Box(modifier = Modifier.wrapContentSize(Alignment.Center).requiredSize(56.dp)) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(if (isSelected) Color(0xFFFFF8E1) else if (hasEnoughMaterials) GameColors.PageBackground else GameColors.CardBackground)
-                                .border(
-                                    if (isSelected) 3.dp else 2.dp,
-                                    if (isSelected) Color(0xFFFFD700) else rarityColor,
-                                    RoundedCornerShape(6.dp)
-                                )
-                                .clickable {
-                                    if (selectedRecipe?.id == recipe.id) {
-                                        selectedRecipe = null
-                                        clickedRecipe = null
-                                    } else {
-                                        selectedRecipe = recipe
-                                        clickedRecipe = recipe
-                                    }
-                                },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center,
-                                modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 4.dp, bottom = 14.dp)
-                            ) {
-                                Text(
-                                    text = recipe.name,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (hasEnoughMaterials) Color.Black else Color.Black,
-                                    maxLines = 2,
-                                    textAlign = TextAlign.Center
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = "${recipe.duration}月",
-                                    fontSize = 9.sp,
-                                    color = if (hasEnoughMaterials) Color.Black else Color.Black
-                                )
-                            }
-
-                            Text(
-                                text = PillRecipeDatabase.getTierName(recipe.tier),
-                                fontSize = 9.sp,
-                                color = rarityColor,
-                                modifier = Modifier
-                                    .align(Alignment.BottomStart)
-                                    .padding(start = 4.dp, bottom = 2.dp)
-                            )
-
-                            Text(
-                                text = recipe.grade.displayName,
-                                fontSize = 9.sp,
-                                color = getQualityColor(recipe.grade.displayName),
-                                modifier = Modifier
-                                    .align(Alignment.BottomEnd)
-                                    .padding(end = 4.dp, bottom = 2.dp)
-                            )
-                        }
-
-                        if (isSelected) {
-                            Box(
-                                modifier = Modifier
-                                    .align(Alignment.TopEnd)
-                                    .offset(x = (-2).dp, y = 2.dp)
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(Color(0xFFFFD700))
-                                    .clickable { showDetail = true }
-                                    .padding(horizontal = 6.dp, vertical = 2.dp)
-                            ) {
-                                Text(
-                                    text = "查看",
-                                    fontSize = 8.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White
-                                )
-                            }
-                        }
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        UnifiedItemCard(
+                            data = ItemCardData(
+                                name = recipe.name,
+                                rarity = recipe.rarity,
+                                grade = recipe.grade.displayName
+                            ),
+                            isSelected = isSelected,
+                            showViewButton = true,
+                            craftable = hasEnoughMaterials,
+                            showQuantity = false,
+                            onClick = {
+                                if (selectedRecipe?.id == recipe.id) {
+                                    selectedRecipe = null
+                                    clickedRecipe = null
+                                } else {
+                                    selectedRecipe = recipe
+                                    clickedRecipe = recipe
+                                }
+                            },
+                            onViewDetail = { showDetail = true }
+                        )
+                        Text(
+                            text = "${recipe.duration}月",
+                            fontSize = 9.sp,
+                            color = Color.Black
+                        )
+                        Text(
+                            text = PillRecipeDatabase.getTierName(recipe.tier),
+                            fontSize = 9.sp,
+                            color = Color.Black
+                        )
                     }
                 }
             }

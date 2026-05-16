@@ -281,7 +281,7 @@ private fun <T> InventoryGrid(
     } else {
         Column(modifier = Modifier.fillMaxSize()) {
             LazyVerticalGrid(
-                columns = GridCells.Adaptive(56.dp),
+                columns = GridCells.Adaptive(60.dp),
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
@@ -613,7 +613,7 @@ internal fun BulkSellDialog(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     LazyVerticalGrid(
-                        columns = GridCells.Adaptive(56.dp),
+                        columns = GridCells.Adaptive(60.dp),
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f),

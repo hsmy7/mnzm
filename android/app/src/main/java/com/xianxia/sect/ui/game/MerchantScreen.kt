@@ -136,7 +136,7 @@ fun MerchantDialog(
                             }
                         } else {
                             LazyVerticalGrid(
-                                columns = GridCells.Adaptive(56.dp),
+                                columns = GridCells.Adaptive(60.dp),
                                 modifier = Modifier
                                     .weight(1f)
                                     .padding(8.dp),
@@ -849,7 +849,7 @@ private fun <T> InventorySelectGrid(
         }
     } else {
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(56.dp),
+            columns = GridCells.Adaptive(60.dp),
             modifier = Modifier
                 .fillMaxSize()
                 .padding(8.dp),
@@ -995,7 +995,7 @@ private fun AllItemsSelectGrid(
         }
     } else {
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(56.dp),
+            columns = GridCells.Adaptive(60.dp),
             modifier = Modifier
                 .fillMaxSize()
                 .padding(8.dp),
