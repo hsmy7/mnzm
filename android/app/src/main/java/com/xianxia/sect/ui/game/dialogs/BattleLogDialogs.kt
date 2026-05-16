@@ -59,6 +59,23 @@ import com.xianxia.sect.core.model.BattleResult
 import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.DialogDefaults
 import com.xianxia.sect.ui.theme.GameColors
+import com.xianxia.sect.core.GameConfig
+
+private val beastDrawables = listOf(
+    R.drawable.tiger_beast,
+    R.drawable.wolf_beast,
+    R.drawable.snake_beast,
+    R.drawable.bear_beast,
+    R.drawable.eagle_beast,
+    R.drawable.fox_beast,
+    R.drawable.dragon_beast,
+    R.drawable.turtle_beast
+)
+
+private fun resolveBeastImageRes(enemyName: String): Int? {
+    val idx = GameConfig.Beast.TYPES.indexOfFirst { enemyName.endsWith(it.name) }
+    return if (idx >= 0) beastDrawables.getOrNull(idx) else null
+}
 
 @Composable
 internal fun BattleLogItem(
@@ -251,12 +268,14 @@ internal fun BattleLogDetailDialog(
                             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
                         ) {
                             rowEnemies.forEach { enemy ->
+                                val beastResId = resolveBeastImageRes(enemy.name)
                                 BattleParticipantSlot(
                                     name = enemy.name,
                                     realmName = enemy.realmName,
                                     hp = enemy.hp,
                                     maxHp = enemy.maxHp,
-                                    isAlive = enemy.isAlive
+                                    isAlive = enemy.isAlive,
+                                    portraitRes = if (beastResId != null) "beast_$beastResId" else ""
                                 )
                             }
                             repeat(4 - rowEnemies.size) {
@@ -344,8 +363,10 @@ internal fun BattleParticipantSlot(
                     modifier = Modifier.padding(4.dp)
                 ) {
                     val context = LocalContext.current
+                    val isBeastPortrait = portraitRes.startsWith("beast_")
                     val portraitResId = remember(portraitRes) {
-                        PortraitPool.getResourceId(context, portraitRes)
+                        if (isBeastPortrait) portraitRes.removePrefix("beast_").toIntOrNull() ?: 0
+                        else PortraitPool.getResourceId(context, portraitRes)
                     }
                     Image(
                         painter = if (portraitResId != 0) painterResource(id = portraitResId)
