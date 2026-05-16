@@ -9,6 +9,15 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.0.41",
+            date = "2026-05-16",
+            changes = listOf(
+                "武器更名：屠龙刀→凤炎刃、寒霜刃→青碧刃、混沌刀→玄玉刃、雷霆杖→玄雷杖、虚空杖→虚华杖、天星珠→天玄杖、鸿蒙杖→天星杖",
+                "新增10把武器精灵图：凤炎刃、青碧刃、暗影刃、玄玉刃、桃木杖、碧玉杖、玄雷杖、虚华杖、天玄杖、天星杖",
+                "无数据库迁移"
+            )
+        ),
+        ChangelogEntry(
             version = "3.0.40",
             date = "2026-05-16",
             changes = listOf(
