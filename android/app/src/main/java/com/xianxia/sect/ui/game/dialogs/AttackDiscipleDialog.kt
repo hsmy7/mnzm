@@ -180,11 +180,7 @@ internal fun AttackDiscipleDialog(
         DiscipleDetailDialog(
             disciple = updated,
             allDisciples = disciples,
-            allEquipment = equipment,
-            allManuals = manuals,
-            manualStacks = manualStacks,
-            equipmentStacks = equipmentStacks,
-            manualProficiencies = gameData?.manualProficiencies ?: emptyMap(),
+            gameData = gameData,
             viewModel = viewModel,
             onDismiss = { selectedDiscipleDetail = null }
         )
@@ -201,7 +197,7 @@ private fun AttackSlotBox(
     DiscipleSlotWithActions(
         disciple = disciple,
         onSlotClick = { onSlotClick() },
-        onEmptySlotClick = { onSlotClick() },
+        onEmptySlotClick = { onSwap() },
         onDismiss = { onDismiss() },
         onSwap = { onSwap() }
     )

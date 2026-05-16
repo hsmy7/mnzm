@@ -193,11 +193,7 @@ internal fun DisciplesTab(
         DiscipleDetailDialog(
             disciple = updatedDisciple,
             allDisciples = disciples,
-            allEquipment = equipment,
-            allManuals = manuals,
-            manualStacks = manualStacks,
-            equipmentStacks = equipmentStacks,
-            manualProficiencies = gameData?.manualProficiencies ?: emptyMap(),
+            gameData = gameData,
             viewModel = viewModel,
             onDismiss = { selectedDisciple = null },
             onNavigateToDisciple = { disciple -> selectedDisciple = disciple }
@@ -242,7 +238,7 @@ internal fun ElderSlotWithDisciples(
         DiscipleSlotWithActions(
             disciple = elder,
             onSlotClick = { onElderClick() },
-            onEmptySlotClick = { onElderClick() },
+            onEmptySlotClick = { onElderSwap() },
             onDismiss = { onElderRemove() },
             onSwap = { onElderSwap() }
         )
@@ -291,7 +287,7 @@ internal fun DirectDiscipleSlotItem(
     DiscipleSlotWithActions(
         disciple = if (isActive) disciple else null,
         onSlotClick = { onClick() },
-        onEmptySlotClick = { onClick() },
+        onEmptySlotClick = { onSwap() },
         onDismiss = { onRemove() },
         onSwap = { onSwap() }
     )
