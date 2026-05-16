@@ -161,7 +161,7 @@ private fun PeakElderSlotItem(config: PeakElderSlotConfig) {
             disciple = config.elder,
             borderColor = borderColor,
             onSlotClick = { config.onClick() },
-            onEmptySlotClick = { config.onClick() },
+            onEmptySlotClick = { config.onSwap() },
             onDismiss = { config.onRemove() },
             onSwap = { config.onSwap() }
         )
@@ -256,7 +256,7 @@ private fun PeakPreachingMasterSlotItem(
             disciple = if (isActive) disciple else null,
             borderColor = borderColor,
             onSlotClick = { onClick() },
-            onEmptySlotClick = { onClick() },
+            onEmptySlotClick = { onSwap() },
             onDismiss = { onRemove() },
             onSwap = { onSwap() }
         )

@@ -308,7 +308,7 @@ private fun SpiritMineDeaconSlotItem(
             disciple = if (deaconSlot.isActive) disciple else null,
             borderColor = borderColor,
             onSlotClick = { onSlotClick() },
-            onEmptySlotClick = { onSlotClick() },
+            onEmptySlotClick = { onSwap() },
             onDismiss = { onRemove() },
             onSwap = { onSwap() }
         )

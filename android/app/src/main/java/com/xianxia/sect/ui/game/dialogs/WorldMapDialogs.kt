@@ -673,7 +673,7 @@ private fun GarrisonSlotBox(
         disciple = disciple,
         borderColor = borderColor,
         onSlotClick = { onClick() },
-        onEmptySlotClick = { onClick() },
+        onEmptySlotClick = { onSwap() },
         onDismiss = { onRemoveClick() },
         onSwap = { onSwap() }
     )

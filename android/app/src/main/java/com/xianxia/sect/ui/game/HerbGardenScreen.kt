@@ -315,7 +315,7 @@ private fun HerbGardenElderSection(
             disciple = elder,
             borderColor = elderBorderColor,
             onSlotClick = { onSlotClick() },
-            onEmptySlotClick = { onSlotClick() },
+            onEmptySlotClick = { onSwap() },
             onDismiss = { onElderRemove() },
             onSwap = { onSwap() }
         )
@@ -378,7 +378,7 @@ private fun HerbGardenDirectDiscipleSlotItem(
         disciple = disciple,
         borderColor = borderColor,
         onSlotClick = { onSlotClick() },
-        onEmptySlotClick = { onSlotClick() },
+        onEmptySlotClick = { onSwap() },
         onDismiss = { onDismiss() },
         onSwap = { onSwap() }
     )

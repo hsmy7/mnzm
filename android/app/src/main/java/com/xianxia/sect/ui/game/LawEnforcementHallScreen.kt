@@ -336,7 +336,7 @@ private fun ElderSlotItem(
             disciple = elder,
             borderColor = borderColor,
             onSlotClick = { onClick() },
-            onEmptySlotClick = { onClick() },
+            onEmptySlotClick = { onSwap() },
             onDismiss = { onRemove() },
             onSwap = { onSwap() }
         )
@@ -377,7 +377,7 @@ private fun LawDiscipleSlotItem(
             disciple = if (isActive) disciple else null,
             borderColor = borderColor,
             onSlotClick = { onClick() },
-            onEmptySlotClick = { onClick() },
+            onEmptySlotClick = { onSwap() },
             onDismiss = { onRemove() },
             onSwap = { onSwap() }
         )

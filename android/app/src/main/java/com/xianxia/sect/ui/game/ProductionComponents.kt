@@ -261,7 +261,7 @@ fun ProductionElderSection(
             disciple = elder,
             borderColor = elderBorderColor,
             onSlotClick = { onSlotClick() },
-            onEmptySlotClick = { onSlotClick() },
+            onEmptySlotClick = { onSwap() },
             onDismiss = { onElderRemove() },
             onSwap = { onSwap() }
         )
@@ -321,7 +321,7 @@ private fun ProductionDirectDiscipleSlotItem(
         disciple = disciple,
         borderColor = borderColor,
         onSlotClick = { onSlotClick() },
-        onEmptySlotClick = { onSlotClick() },
+        onEmptySlotClick = { onSwap() },
         onDismiss = { onDismiss() },
         onSwap = { onSwap() }
     )
