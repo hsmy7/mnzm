@@ -114,8 +114,7 @@ fun MerchantDialog(
                                             selectedFilter = filter
                                             selectedItem = null
                                             buyQuantity = 1
-                                        },
-                                        modifier = Modifier.weight(1f)
+                                        }
                                     )
                                 }
                             }
@@ -713,26 +712,22 @@ fun InventorySelectDialog(
                             ListingFilterButton(
                                 text = ListingFilter.ALL.displayName,
                                 selected = selectedFilter == ListingFilter.ALL,
-                                onClick = { selectedFilter = ListingFilter.ALL },
-                                modifier = Modifier.weight(1f)
+                                onClick = { selectedFilter = ListingFilter.ALL }
                             )
                             ListingFilterButton(
                                 text = ListingFilter.EQUIPMENT.displayName,
                                 selected = selectedFilter == ListingFilter.EQUIPMENT,
-                                onClick = { selectedFilter = ListingFilter.EQUIPMENT },
-                                modifier = Modifier.weight(1f)
+                                onClick = { selectedFilter = ListingFilter.EQUIPMENT }
                             )
                             ListingFilterButton(
                                 text = ListingFilter.PILL.displayName,
                                 selected = selectedFilter == ListingFilter.PILL,
-                                onClick = { selectedFilter = ListingFilter.PILL },
-                                modifier = Modifier.weight(1f)
+                                onClick = { selectedFilter = ListingFilter.PILL }
                             )
                             ListingFilterButton(
                                 text = ListingFilter.MANUAL.displayName,
                                 selected = selectedFilter == ListingFilter.MANUAL,
-                                onClick = { selectedFilter = ListingFilter.MANUAL },
-                                modifier = Modifier.weight(1f)
+                                onClick = { selectedFilter = ListingFilter.MANUAL }
                             )
                         }
                         Row(
@@ -742,20 +737,17 @@ fun InventorySelectDialog(
                             ListingFilterButton(
                                 text = ListingFilter.HERB.displayName,
                                 selected = selectedFilter == ListingFilter.HERB,
-                                onClick = { selectedFilter = ListingFilter.HERB },
-                                modifier = Modifier.weight(1f)
+                                onClick = { selectedFilter = ListingFilter.HERB }
                             )
                             ListingFilterButton(
                                 text = ListingFilter.SEED.displayName,
                                 selected = selectedFilter == ListingFilter.SEED,
-                                onClick = { selectedFilter = ListingFilter.SEED },
-                                modifier = Modifier.weight(1f)
+                                onClick = { selectedFilter = ListingFilter.SEED }
                             )
                             ListingFilterButton(
                                 text = ListingFilter.MATERIAL.displayName,
                                 selected = selectedFilter == ListingFilter.MATERIAL,
-                                onClick = { selectedFilter = ListingFilter.MATERIAL },
-                                modifier = Modifier.weight(1f)
+                                onClick = { selectedFilter = ListingFilter.MATERIAL }
                             )
                             Spacer(modifier = Modifier.weight(1f))
                         }
@@ -918,6 +910,7 @@ private fun ListingFilterButton(
 ) {
     Box(
         modifier = modifier
+            .width(ButtonSizes.StandardWidth)
             .height(ButtonSizes.Large)
             .clip(RoundedCornerShape(4.dp))
             .clickable { onClick() },

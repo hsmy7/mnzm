@@ -28,12 +28,12 @@ object EquipmentDatabase {
 
     val weapons: Map<String, EquipmentTemplate> = mapOf(
         "ironSword" to EquipmentTemplate("ironSword", "精铁剑", EquipmentSlot.WEAPON, 1, physicalAttack = 10, critChance = 0.02, description = "普通铁匠打造的精铁剑，物理攻击力出众", price = 3600),
-        "bronzeDagger" to EquipmentTemplate("bronzeDagger", "青铜匕首", EquipmentSlot.WEAPON, 1, physicalAttack = 14, critChance = 0.04, description = "青铜铸造的短刃，锋利易暴击", price = 3600),
+        "bronzeDagger" to EquipmentTemplate("bronzeDagger", "精铁刀", EquipmentSlot.WEAPON, 1, physicalAttack = 14, critChance = 0.04, description = "精铁锻造的宝刀，锋利易暴击", price = 3600),
         "woodenStaff" to EquipmentTemplate("woodenStaff", "桃木杖", EquipmentSlot.WEAPON, 1, magicAttack = 10, critChance = 0.02, description = "百年桃木制成的法杖，法术攻击力强大", price = 3600),
         "crystalOrb" to EquipmentTemplate("crystalOrb", "水晶珠", EquipmentSlot.WEAPON, 1, magicAttack = 14, critChance = 0.04, description = "蕴含微量灵气的水晶球，易触发暴击", price = 3600),
 
         "spiritSword" to EquipmentTemplate("spiritSword", "灵锋剑", EquipmentSlot.WEAPON, 2, physicalAttack = 30, critChance = 0.04, description = "注入灵气的锋利长剑，物理攻击力强大", price = 16200),
-        "battleAxe" to EquipmentTemplate("battleAxe", "战斧", EquipmentSlot.WEAPON, 2, physicalAttack = 44, critChance = 0.06, description = "沉重的战斧，威力巨大且易暴击", price = 16200),
+        "battleAxe" to EquipmentTemplate("battleAxe", "凌华刀", EquipmentSlot.WEAPON, 2, physicalAttack = 44, critChance = 0.06, description = "刀光凌厉如华，威力巨大且易暴击", price = 16200),
         "jadeStaff" to EquipmentTemplate("jadeStaff", "碧玉杖", EquipmentSlot.WEAPON, 2, magicAttack = 30, critChance = 0.04, description = "碧玉雕刻的法杖，法术攻击力出众", price = 16200),
         "spiritFan" to EquipmentTemplate("spiritFan", "灵风扇", EquipmentSlot.WEAPON, 2, magicAttack = 44, critChance = 0.06, description = "可扇出灵风的法器，攻击易暴击", price = 16200),
 
@@ -48,7 +48,7 @@ object EquipmentDatabase {
         "phoenixFan" to EquipmentTemplate("phoenixFan", "凤凰扇", EquipmentSlot.WEAPON, 4, magicAttack = 420, critChance = 0.12, description = "凤凰羽毛制成的神扇，攻击易暴击", price = 259200),
 
         "dragonSlayer" to EquipmentTemplate("dragonSlayer", "屠龙刀", EquipmentSlot.WEAPON, 5, physicalAttack = 880, critChance = 0.10, description = "传说中屠龙的绝世神兵，物理攻击力无双", price = 1036800),
-        "godSlayer" to EquipmentTemplate("godSlayer", "弑神剑", EquipmentSlot.WEAPON, 5, physicalAttack = 1280, critChance = 0.15, description = "可弑杀神明的神剑，暴击率极高", price = 1036800),
+        "godSlayer" to EquipmentTemplate("godSlayer", "青莲剑", EquipmentSlot.WEAPON, 5, physicalAttack = 1280, critChance = 0.15, description = "传说中自青莲中诞生的神剑，剑气纵横天地间", price = 1036800),
         "phoenixWing" to EquipmentTemplate("phoenixWing", "凤凰羽", EquipmentSlot.WEAPON, 5, magicAttack = 880, critChance = 0.10, description = "凤凰羽翼化作的神兵，法术攻击力出众", price = 1036800),
         "celestialOrb" to EquipmentTemplate("celestialOrb", "天星珠", EquipmentSlot.WEAPON, 5, magicAttack = 1280, critChance = 0.15, description = "凝聚星辰之力的宝珠，攻击易暴击", price = 1036800),
 

@@ -864,17 +864,11 @@ object BattleDescriptionGenerator {
     private val staffVerbs = listOf(
         "一杖击向", "舞杖砸向", "杖影重重，攻向", "法杖挥动，击向", "杖风呼啸，砸向"
     )
-    private val daggerVerbs = listOf(
-        "匕首突刺", "短刃疾刺", "寒光一闪，刺向", "匕首如电，刺向", "短匕疾刺"
-    )
     private val orbVerbs = listOf(
         "灵珠旋转，轰向", "宝珠发光，攻向", "珠光闪耀，击向", "灵珠飞旋，轰向", "宝珠璀璨，攻向"
     )
     private val bowVerbs = listOf(
         "弯弓搭箭，射向", "一箭破空，射向", "弓弦响处，箭射", "利箭疾射", "弓如满月，射向"
-    )
-    private val axeVerbs = listOf(
-        "一斧劈向", "巨斧横扫", "斧影重重，砍向", "巨斧劈下，斩向", "战斧挥动，劈向"
     )
     private val fanVerbs = listOf(
         "折扇一挥，攻向", "扇影翻飞，击向", "折扇轻挥，攻向", "扇风卷起，击向", "折扇展开，攻向"
@@ -889,10 +883,8 @@ object BattleDescriptionGenerator {
             weaponName.contains("剑") -> swordVerbs
             weaponName.contains("刀") -> bladeVerbs
             weaponName.contains("杖") -> staffVerbs
-            weaponName.contains("匕首") -> daggerVerbs
             weaponName.contains("珠") || weaponName.contains("球") -> orbVerbs
             weaponName.contains("弓") -> bowVerbs
-            weaponName.contains("斧") -> axeVerbs
             weaponName.contains("扇") -> fanVerbs
             else -> genericWeaponVerbs
         }
