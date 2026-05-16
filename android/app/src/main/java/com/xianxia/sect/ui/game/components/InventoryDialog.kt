@@ -62,19 +62,19 @@ fun InventoryDialog(
                         2 -> items(pills) { item ->
                             ListItem(
                                 headlineContent = { Text(item.name) },
-                                supportingContent = { Text("稀有度: ${item.rarity} x${item.quantity}") }
+                                supportingContent = { Text("稀有度: ${item.rarity} ${item.quantity}") }
                             )
                         }
                         3 -> items(materials) { item ->
                             ListItem(
                                 headlineContent = { Text(item.name) },
-                                supportingContent = { Text("稀有度: ${item.rarity} x${item.quantity}") }
+                                supportingContent = { Text("稀有度: ${item.rarity} ${item.quantity}") }
                             )
                         }
                         4 -> items(herbs) { item ->
                             ListItem(
                                 headlineContent = { Text(item.name) },
-                                supportingContent = { Text("稀有度: ${item.rarity} x${item.quantity}") }
+                                supportingContent = { Text("稀有度: ${item.rarity} ${item.quantity}") }
                             )
                         }
                     }

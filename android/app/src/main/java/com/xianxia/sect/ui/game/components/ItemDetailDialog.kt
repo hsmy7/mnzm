@@ -597,7 +597,7 @@ private fun MutableList<String>.addForgeMaterialsInfo(equipmentName: String) {
         add("锻造所需:")
         forgeRecipe.materials.forEach { (materialId, count) ->
             val materialName = com.xianxia.sect.core.registry.BeastMaterialDatabase.getMaterialById(materialId)?.name ?: materialId
-            add("  · $materialName x$count")
+            add("  · $materialName $count")
         }
     }
 }
@@ -822,7 +822,7 @@ private fun getPillEffects(item: Pill): List<String> = buildList {
         add("炼制所需:")
         pillRecipe.materials.forEach { (herbId, count) ->
             val herbName = HerbDatabase.getHerbById(herbId)?.name ?: herbId
-            add("  · $herbName x$count")
+            add("  · $herbName $count")
         }
     }
 }
@@ -1228,7 +1228,7 @@ private fun MutableList<String>.addPillRecipeInfo(pillId: String, pillName: Stri
         add("炼制所需:")
         pillRecipe.materials.forEach { (herbId, count) ->
             val herbName = HerbDatabase.getHerbById(herbId)?.name ?: herbId
-            add("  · $herbName x$count")
+            add("  · $herbName $count")
         }
     }
 }

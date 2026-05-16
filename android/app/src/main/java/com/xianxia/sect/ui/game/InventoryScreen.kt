@@ -441,13 +441,11 @@ private fun SellableItemRow(item: Any) {
                 color = getRarityColor(rarity),
                 fontWeight = FontWeight.Medium
             )
-            if (quantity > 1) {
-                Text(
-                    text = "x$quantity",
-                    fontSize = 11.sp,
-                    color = GameColors.TextSecondary
-                )
-            }
+            Text(
+                text = "$quantity",
+                fontSize = 11.sp,
+                color = GameColors.TextSecondary
+            )
         }
         Text(
             text = "$price 灵石",

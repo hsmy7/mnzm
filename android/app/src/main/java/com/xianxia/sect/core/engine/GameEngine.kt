@@ -2592,7 +2592,7 @@ class GameEngine @Inject constructor(
                     }
                 }
                 if (sold) {
-                    soldItemNames.add(if (op.quantity > 1) "${op.name} x${op.quantity}" else op.name)
+                    soldItemNames.add("${op.name} ${op.quantity}")
                 } else {
                     failedItemNames.add(op.name)
                 }

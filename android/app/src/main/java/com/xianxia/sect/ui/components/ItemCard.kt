@@ -114,9 +114,9 @@ fun UnifiedItemCard(
                     )
                 }
 
-                if (showQuantity && data.quantity > 1) {
+                if (showQuantity) {
                     Text(
-                        text = "x${data.quantity}",
+                        text = "${data.quantity}",
                         fontSize = 8.sp,
                         color = Color.White,
                         modifier = Modifier
@@ -249,14 +249,12 @@ fun ItemCard(
                 }
             }
 
-            if (data.quantity > 1 || data.additionalInfo != null) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = data.additionalInfo ?: "数量: ${data.quantity}",
-                    fontSize = 12.sp,
-                    color = GameColors.JadeGreen
-                )
-            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = data.additionalInfo ?: "${data.quantity}",
+                fontSize = 12.sp,
+                color = GameColors.JadeGreen
+            )
 
             content()
         }
@@ -303,7 +301,7 @@ fun CompactItemCard(
                     .padding(horizontal = 12.dp, vertical = 6.dp)
             ) {
                 Text(
-                    text = "x${data.quantity}",
+                    text = "${data.quantity}",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                     color = GameColors.Primary

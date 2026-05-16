@@ -9,6 +9,14 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.0.39",
+            date = "2026-05-16",
+            changes = listOf(
+                "道具数量显示优化：所有卡片右下角数量去除x前缀（x3→3），数量为1时也显示数字",
+                "弟子详情界面装备槽位和功法槽位隐藏数量显示"
+            )
+        ),
+        ChangelogEntry(
             version = "3.0.38",
             date = "2026-05-16",
             changes = listOf(

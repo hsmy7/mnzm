@@ -1590,7 +1590,7 @@ fun SectTradeDialog(
                                         }
                                         
                                         Text(
-                                            text = "x${item.quantity}",
+                                            text = "${item.quantity}",
                                             fontSize = 9.sp,
                                             color = if (canBuyThisItem) GameColors.TextSecondary else Color(0xFF9E9E9E),
                                             modifier = Modifier

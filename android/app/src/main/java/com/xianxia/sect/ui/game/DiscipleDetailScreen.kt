@@ -1636,6 +1636,7 @@ private fun EquipmentSlot(
                     name = equipment.name,
                     rarity = equipment.rarity
                 ),
+                showQuantity = false,
                 onClick = { onEquipmentClick(equipment) }
             )
         } else {
@@ -1760,6 +1761,7 @@ private fun ManualSlot(
                     name = manual.name,
                     rarity = manual.rarity
                 ),
+                showQuantity = false,
                 onClick = { onManualClick(manual) }
             )
             if (proficiencyData != null) {

@@ -487,7 +487,7 @@ private val secureClient: SecureHttpClient,
             when (reward.type) {
                 "spiritStones" -> "${reward.quantity}灵石"
                 "disciple" -> "弟子${reward.name}"
-                else -> "${reward.name}x${reward.quantity}"
+                else -> "${reward.name}${reward.quantity}"
             }
         }
 
