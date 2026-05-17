@@ -1,16 +1,17 @@
 package com.xianxia.sect.core.model
 
+import kotlinx.serialization.protobuf.ProtoNumber
 import kotlinx.serialization.Serializable
 
 @Serializable
 data class GridBuildingData(
-    val instanceId: String = "",
-    val buildingId: String = "",
-    val displayName: String = "",
-    val gridX: Int = 0,
-    val gridY: Int = 0,
-    val width: Int = 2,
-    val height: Int = 3
+    @ProtoNumber(1) val buildingId: String = "",
+    @ProtoNumber(2) val displayName: String = "",
+    @ProtoNumber(3) val gridX: Int = 0,
+    @ProtoNumber(4) val gridY: Int = 0,
+    @ProtoNumber(5) val width: Int = 2,
+    @ProtoNumber(6) val height: Int = 3,
+    @ProtoNumber(7) val instanceId: String = ""
 ) {
     fun withInstanceId(): GridBuildingData =
         if (instanceId.isNotBlank()) this else copy(instanceId = java.util.UUID.randomUUID().toString())

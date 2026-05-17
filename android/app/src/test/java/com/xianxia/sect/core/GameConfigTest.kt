@@ -193,32 +193,32 @@ class GameConfigTest {
 
     @Test
     fun `getColor传入1应返回灰色`() {
-        assertEquals("#95a5a6", GameConfig.Rarity.getColor(1))
+        assertEquals("#b8b8b8", GameConfig.Rarity.getColor(1))
     }
 
     @Test
     fun `getColor传入2应返回绿色`() {
-        assertEquals("#27ae60", GameConfig.Rarity.getColor(2))
+        assertEquals("#afcb8a", GameConfig.Rarity.getColor(2))
     }
 
     @Test
     fun `getColor传入3应返回蓝色`() {
-        assertEquals("#3498db", GameConfig.Rarity.getColor(3))
+        assertEquals("#9fc2ee", GameConfig.Rarity.getColor(3))
     }
 
     @Test
     fun `getColor传入4应返回紫色`() {
-        assertEquals("#9b59b6", GameConfig.Rarity.getColor(4))
+        assertEquals("#c0a2dd", GameConfig.Rarity.getColor(4))
     }
 
     @Test
     fun `getColor传入5应返回橙色`() {
-        assertEquals("#f39c12", GameConfig.Rarity.getColor(5))
+        assertEquals("#e7c67d", GameConfig.Rarity.getColor(5))
     }
 
     @Test
     fun `getColor传入6应返回红色`() {
-        assertEquals("#e74c3c", GameConfig.Rarity.getColor(6))
+        assertEquals("#e3a0a0", GameConfig.Rarity.getColor(6))
     }
 
     // ============================================================
@@ -495,27 +495,27 @@ class GameConfigTest {
 
     @Test
     fun `炼气单灵根1层突破概率应为1`() {
-        assertEquals(1.00, GameConfig.Realm.getBreakthroughChance(9, 1, 1), 0.001)
+        assertEquals(0.95, GameConfig.Realm.getBreakthroughChance(9, 1, 1), 0.001)
     }
 
     @Test
     fun `筑基双灵根1层突破概率应为0点9`() {
-        assertEquals(0.90, GameConfig.Realm.getBreakthroughChance(8, 2, 1), 0.001)
+        assertEquals(0.85, GameConfig.Realm.getBreakthroughChance(8, 2, 1), 0.001)
     }
 
     @Test
     fun `金丹三灵根1层突破概率应为0点75`() {
-        assertEquals(0.75, GameConfig.Realm.getBreakthroughChance(7, 3, 1), 0.001)
+        assertEquals(0.70, GameConfig.Realm.getBreakthroughChance(7, 3, 1), 0.001)
     }
 
     @Test
     fun `元婴单灵根1层突破概率应为0点85`() {
-        assertEquals(0.85, GameConfig.Realm.getBreakthroughChance(6, 1, 1), 0.001)
+        assertEquals(0.80, GameConfig.Realm.getBreakthroughChance(6, 1, 1), 0.001)
     }
 
     @Test
     fun `化神五灵根1层突破概率应为0点08`() {
-        assertEquals(0.08, GameConfig.Realm.getBreakthroughChance(5, 5, 1), 0.001)
+        assertEquals(0.03, GameConfig.Realm.getBreakthroughChance(5, 5, 1), 0.001)
     }
 
     @Test
@@ -597,7 +597,7 @@ class GameConfigTest {
 
     @Test
     fun `筑基双灵根5层突破概率应为0点88`() {
-        assertEquals(0.88, GameConfig.Realm.getBreakthroughChance(8, 2, 5), 0.001)
+        assertEquals(0.82, GameConfig.Realm.getBreakthroughChance(8, 2, 5), 0.001)
     }
 
     // ============================================================

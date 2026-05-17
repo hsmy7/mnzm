@@ -268,63 +268,63 @@ class DiscipleStatCalculatorTest {
     fun `getBreakthroughChance - 单灵根炼气突破概率为1`() {
         val disciple = createDisciple(realm = 9, realmLayer = 1, spiritRootType = "metal")
         val chance = DiscipleStatCalculator.getBreakthroughChance(disciple)
-        assertEquals(1.00, chance, 0.001)
+        assertEquals(0.95, chance, 0.001)
     }
 
     @Test
     fun `getBreakthroughChance - 五灵根炼气突破概率也是1`() {
         val disciple = createDisciple(realm = 9, realmLayer = 1, spiritRootType = "metal,wood,water,fire,earth")
         val chance = DiscipleStatCalculator.getBreakthroughChance(disciple)
-        assertEquals(1.00, chance, 0.001)
+        assertEquals(0.95, chance, 0.001)
     }
 
     @Test
     fun `getBreakthroughChance - 双灵根筑基突破概率0点9`() {
         val disciple = createDisciple(realm = 8, realmLayer = 1, spiritRootType = "metal,wood")
         val chance = DiscipleStatCalculator.getBreakthroughChance(disciple)
-        assertEquals(0.90, chance, 0.001)
+        assertEquals(0.85, chance, 0.001)
     }
 
     @Test
     fun `getBreakthroughChance - 三灵根金丹突破概率0点75`() {
         val disciple = createDisciple(realm = 7, realmLayer = 1, spiritRootType = "metal,wood,water")
         val chance = DiscipleStatCalculator.getBreakthroughChance(disciple)
-        assertEquals(0.75, chance, 0.001)
+        assertEquals(0.70, chance, 0.001)
     }
 
     @Test
     fun `getBreakthroughChance - 单灵根金丹突破概率0点95`() {
         val disciple = createDisciple(realm = 7, realmLayer = 1, spiritRootType = "metal")
         val chance = DiscipleStatCalculator.getBreakthroughChance(disciple)
-        assertEquals(0.95, chance, 0.001)
+        assertEquals(0.90, chance, 0.001)
     }
 
     @Test
     fun `getBreakthroughChance - 单灵根元婴突破概率0点85`() {
         val disciple = createDisciple(realm = 6, realmLayer = 1, spiritRootType = "metal")
         val chance = DiscipleStatCalculator.getBreakthroughChance(disciple)
-        assertEquals(0.85, chance, 0.001)
+        assertEquals(0.80, chance, 0.001)
     }
 
     @Test
     fun `getBreakthroughChance - 单灵根化神突破概率0点75`() {
         val disciple = createDisciple(realm = 5, realmLayer = 1, spiritRootType = "metal")
         val chance = DiscipleStatCalculator.getBreakthroughChance(disciple)
-        assertEquals(0.75, chance, 0.001)
+        assertEquals(0.70, chance, 0.001)
     }
 
     @Test
     fun `getBreakthroughChance - 四灵根元婴突破概率0点25`() {
         val disciple = createDisciple(realm = 6, realmLayer = 1, spiritRootType = "metal,wood,water,fire")
         val chance = DiscipleStatCalculator.getBreakthroughChance(disciple)
-        assertEquals(0.25, chance, 0.001)
+        assertEquals(0.20, chance, 0.001)
     }
 
     @Test
     fun `getBreakthroughChance - 五灵根化神突破概率0点08`() {
         val disciple = createDisciple(realm = 5, realmLayer = 1, spiritRootType = "metal,wood,water,fire,earth")
         val chance = DiscipleStatCalculator.getBreakthroughChance(disciple)
-        assertEquals(0.08, chance, 0.001)
+        assertEquals(0.03, chance, 0.001)
     }
 
     @Test
@@ -386,21 +386,21 @@ class DiscipleStatCalculatorTest {
     fun `getBreakthroughChance - 五灵根筑基9层突破概率0点32`() {
         val disciple = createDisciple(realm = 8, realmLayer = 9, spiritRootType = "metal,wood,water,fire,earth")
         val chance = DiscipleStatCalculator.getBreakthroughChance(disciple)
-        assertEquals(0.32, chance, 0.001)
+        assertEquals(0.27, chance, 0.001)
     }
 
     @Test
     fun `getBreakthroughChance - 单灵根炼气9层突破概率为1`() {
         val disciple = createDisciple(realm = 9, realmLayer = 9, spiritRootType = "metal")
         val chance = DiscipleStatCalculator.getBreakthroughChance(disciple)
-        assertEquals(1.00, chance, 0.001)
+        assertEquals(0.95, chance, 0.001)
     }
 
     @Test
     fun `getBreakthroughChance - 五灵根炼气9层突破概率0点45`() {
         val disciple = createDisciple(realm = 9, realmLayer = 9, spiritRootType = "metal,wood,water,fire,earth")
         val chance = DiscipleStatCalculator.getBreakthroughChance(disciple)
-        assertEquals(0.45, chance, 0.001)
+        assertEquals(0.40, chance, 0.001)
     }
 
     @Test

@@ -300,12 +300,15 @@ fun MainGameScreen(
                         if (cellKey !in clearedDecorationCells) {
                             clearedDecorationCells.add(cellKey)
                             rawTileData[cy][cx] = TILE_GROUND
-                            canvas.drawBitmap(
-                                groundBmp,
-                                (cx * tileSize).toFloat(),
-                                (cy * tileSize).toFloat(),
-                                null
+                            val srcRect = android.graphics.Rect(
+                                cx * tileSize, cy * tileSize,
+                                (cx + 1) * tileSize, (cy + 1) * tileSize
                             )
+                            val dstRect = android.graphics.Rect(
+                                cx * tileSize, cy * tileSize,
+                                (cx + 1) * tileSize, (cy + 1) * tileSize
+                            )
+                            canvas.drawBitmap(groundBmp, srcRect, dstRect, null)
                         }
                     }
                 }
