@@ -9,6 +9,16 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.0.42",
+            date = "2026-05-17",
+            changes = listOf(
+                "自动招募筛选界面优化：右上角增加关闭按钮，筛选条件改为5列显示，勾选框改为黑色",
+                "筛选界面底部增加取消按钮（左）和保存按钮（右），修改后需点击保存才生效",
+                "修改筛选条件后点击关闭按钮弹出确认对话框，提示未保存更改，使用对话框素材",
+                "无数据库迁移"
+            )
+        ),
+        ChangelogEntry(
             version = "3.0.41",
             date = "2026-05-16",
             changes = listOf(

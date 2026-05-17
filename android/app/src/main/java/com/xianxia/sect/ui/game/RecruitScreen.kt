@@ -170,26 +170,54 @@ private fun AutoRecruitFilterDialog(
 ) {
     val initialFilter = gameData?.autoRecruitSpiritRootFilter ?: emptySet()
     var selectedFilter by remember { mutableStateOf(initialFilter) }
+    val hasChanges = selectedFilter != initialFilter
+    var showUnsavedDialog by remember { mutableStateOf(false) }
 
-    HalfScreenDialog(onDismissRequest = onDismiss) {
-        Column(
-            modifier = Modifier.padding(20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-                Text(
-                    text = "自动招募筛选",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                Column(
+    val saveAndDismiss = {
+        viewModel.setAutoRecruitFilter(selectedFilter)
+        onDismiss()
+    }
+
+    val handleClose = {
+        if (hasChanges) {
+            showUnsavedDialog = true
+        } else {
+            onDismiss()
+        }
+    }
+
+    HalfScreenDialog(onDismissRequest = handleClose) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier.fillMaxSize().padding(16.dp)
+            ) {
+                // Header
+                Row(
                     modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "自动招募筛选",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+                    CloseButton(onClick = handleClose)
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // 5-column filter grid
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(5),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    ROOT_COUNT_OPTIONS.forEach { (count, name) ->
+                    items(ROOT_COUNT_OPTIONS, key = { it.first }) { (count, name) ->
                         val rootColor = GameColors.getSpiritRootCountColor(count)
                         AutoRecruitFilterRow(
                             label = name,
@@ -205,15 +233,70 @@ private fun AutoRecruitFilterDialog(
                         )
                     }
                 }
-                Spacer(modifier = Modifier.height(16.dp))
-                GameButton(
-                    text = "保存",
-                    onClick = {
-                        viewModel.setAutoRecruitFilter(selectedFilter)
-                        onDismiss()
-                    },
-                    modifier = Modifier.align(Alignment.CenterHorizontally)
-                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Bottom buttons
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    GameButton(text = "取消", onClick = onDismiss)
+                    GameButton(text = "保存", onClick = saveAndDismiss)
+                }
+            }
+
+            if (showUnsavedDialog) {
+                Dialog(
+                    onDismissRequest = { showUnsavedDialog = false },
+                    properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(0.83f)
+                            .clip(RoundedCornerShape(12.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.dialog_box),
+                            contentDescription = null,
+                            modifier = Modifier.matchParentSize(),
+                            contentScale = ContentScale.FillBounds
+                        )
+                        Column(
+                            modifier = Modifier.padding(20.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "未保存更改",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Black
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "您所做的更改尚未保存，若直接退出则视为取消更改",
+                                fontSize = 12.sp,
+                                color = Color.Black
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                GameButton(text = "关闭", onClick = {
+                                    showUnsavedDialog = false
+                                    onDismiss()
+                                })
+                                GameButton(text = "保存", onClick = {
+                                    showUnsavedDialog = false
+                                    saveAndDismiss()
+                                })
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -245,11 +328,11 @@ private fun AutoRecruitFilterRow(
                 .clip(CircleShape)
                 .border(
                     width = 1.5.dp,
-                    color = if (checked) GameColors.Success else GameColors.Border,
+                    color = Color.Black,
                     shape = CircleShape
                 )
                 .background(
-                    color = if (checked) GameColors.Success.copy(alpha = 0.15f) else Color.Transparent,
+                    color = if (checked) Color.Black.copy(alpha = 0.15f) else Color.Transparent,
                     shape = CircleShape
                 )
                 .clickable { onToggle() },
@@ -260,7 +343,7 @@ private fun AutoRecruitFilterRow(
                     text = "✓",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
-                    color = GameColors.Success
+                    color = Color.Black
                 )
             }
         }
