@@ -2,6 +2,7 @@ package com.xianxia.sect.ui.game
 
 import androidx.compose.animation.*
 import androidx.compose.foundation.Image
+import kotlin.math.roundToInt
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.Canvas
@@ -411,6 +412,8 @@ fun MainGameScreen(
             buildingBarExpanded = buildingBarExpanded,
             previewGridX = placingSnappedGridX,
             previewGridY = placingSnappedGridY,
+            previewWorldX = placingWorldX,
+            previewWorldY = placingWorldY,
             previewSize = placingBuildingSize,
             previewValid = placementValidity,
             buildingList = buildingList,
@@ -418,8 +421,8 @@ fun MainGameScreen(
             onAlchemyClick = { idx -> dialogNavController.navigate(GameRoute.Alchemy.createRoute(idx)) },
             onForgeClick = { idx -> dialogNavController.navigate(GameRoute.Forge.createRoute(idx)) },
             onPlacementDrag = { dx, dy ->
-                placingWorldX += dx * 0.3f
-                placingWorldY += dy * 0.3f
+                placingWorldX += dx
+                placingWorldY += dy
                 placingSnappedGridX = GridSnapHelper.worldToGrid(placingWorldX, tileSize)
                 placingSnappedGridY = GridSnapHelper.worldToGrid(placingWorldY, tileSize)
                 placementValidity = gridSystem.validatePlacement(
@@ -890,6 +893,8 @@ private fun SectMapLayer(
     buildingBarExpanded: Boolean,
     previewGridX: Int,
     previewGridY: Int,
+    previewWorldX: Float = 0f,
+    previewWorldY: Float = 0f,
     previewSize: GridSnapHelper.BuildingSize,
     previewValid: GridSnapHelper.PlacementValidity,
     buildingList: List<Pair<String, (GridBuildingData?) -> Unit>>,
@@ -917,6 +922,8 @@ private fun SectMapLayer(
         buildingBarExpanded = buildingBarExpanded,
         previewGridX = previewGridX,
         previewGridY = previewGridY,
+        previewWorldX = previewWorldX,
+        previewWorldY = previewWorldY,
         previewSize = previewSize,
         previewValid = previewValid,
         textMeasurer = textMeasurer,
@@ -980,6 +987,8 @@ private fun SectGroundCanvas(
     buildingBarExpanded: Boolean = false,
     previewGridX: Int = 0,
     previewGridY: Int = 0,
+    previewWorldX: Float = 0f,
+    previewWorldY: Float = 0f,
     previewSize: GridSnapHelper.BuildingSize = GridSnapHelper.BuildingSize(2, 3),
     previewValid: GridSnapHelper.PlacementValidity = GridSnapHelper.PlacementValidity.Valid,
     textMeasurer: androidx.compose.ui.text.TextMeasurer,
@@ -1081,7 +1090,7 @@ private fun SectGroundCanvas(
                     if (placeBmp != null) {
                         drawImage(
                             placeBmp,
-                            dstOffset = IntOffset(previewGridX * tileSize, previewGridY * tileSize),
+                            dstOffset = IntOffset(previewWorldX.roundToInt(), previewWorldY.roundToInt()),
                             dstSize = IntSize(previewSize.width * tileSize, previewSize.height * tileSize)
                         )
                     }
