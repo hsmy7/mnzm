@@ -30,5 +30,29 @@ fun equipmentSpriteRes(name: String): Int? = when (name) {
     "凰焰扇" -> R.drawable.huang_yan_shan
     "阴阳扇" -> R.drawable.yin_yang_shan
     "天玄扇" -> R.drawable.tian_xuan_shan
+    "锁子甲" -> R.drawable.suo_zi_jia
+    "皮甲" -> R.drawable.pi_jia
+    "灵竹衣" -> R.drawable.ling_zhu_yi
+    "精铁甲" -> R.drawable.jing_tie_jia
+    "碧叶甲" -> R.drawable.bi_ye_jia
+    "丹羽衣" -> R.drawable.dan_yu_yi
+    "青鳞铠" -> R.drawable.qing_lin_kai
+    "银板铠" -> R.drawable.yin_ban_kai
+    "汐流衣" -> R.drawable.xi_liu_yi
+    "灵丝袍" -> R.drawable.ling_si_pao
+    "云纹袍" -> R.drawable.yun_wen_pao
+    "龙鳞铠" -> R.drawable.long_lin_kai
+    "渊岩铠" -> R.drawable.yuan_yan_kai
+    "瑶光袍" -> R.drawable.yao_guang_pao
+    "月华袍" -> R.drawable.yue_hua_pao
+    "星辰袍" -> R.drawable.xing_chen_pao
+    "玄幽袍" -> R.drawable.xuan_you_pao
+    "墨幽铠" -> R.drawable.mo_you_kai
+    "凌星袍" -> R.drawable.ling_xing_pao
+    "定海铠" -> R.drawable.ding_hai_kai
+    "不朽铠" -> R.drawable.bu_xiu_kai
+    "苍罡铠" -> R.drawable.cang_gang_kai
+    "曦光铠" -> R.drawable.xi_guang_kai
+    "云影袍" -> R.drawable.yun_ying_pao
     else -> null
 }

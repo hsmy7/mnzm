@@ -61,33 +61,33 @@ object EquipmentDatabase {
     val armors: Map<String, EquipmentTemplate> = mapOf(
         "leatherArmor" to EquipmentTemplate("leatherArmor", "皮甲", EquipmentSlot.ARMOR, 1, physicalDefense = 7, hp = 84, description = "野兽皮革制成的护甲，物理防御出众", price = 3600),
         "chainMail" to EquipmentTemplate("chainMail", "锁子甲", EquipmentSlot.ARMOR, 1, physicalDefense = 11, hp = 126, description = "铁环编织的护甲，增强生命力", price = 3600),
-        "bronzePlate" to EquipmentTemplate("bronzePlate", "青铜铠", EquipmentSlot.ARMOR, 1, magicDefense = 7, hp = 84, description = "青铜铸造的铠甲，坚固且增强生命", price = 3600),
-        "clothRobe" to EquipmentTemplate("clothRobe", "布衣", EquipmentSlot.ARMOR, 1, magicDefense = 11, hp = 126, description = "普通布料制成的衣物，法术防御出众", price = 3600),
+        "bronzePlate" to EquipmentTemplate("bronzePlate", "精铁甲", EquipmentSlot.ARMOR, 1, magicDefense = 7, hp = 84, description = "精铁铸造的铠甲，坚固且增强生命", price = 3600),
+        "clothRobe" to EquipmentTemplate("clothRobe", "灵竹衣", EquipmentSlot.ARMOR, 1, magicDefense = 11, hp = 126, description = "灵竹纤维制成的衣物，法术防御出众", price = 3600),
 
-        "ironPlate" to EquipmentTemplate("ironPlate", "铁叶甲", EquipmentSlot.ARMOR, 2, physicalDefense = 22, hp = 264, description = "精铁叶片打造的护甲，物理防御力强大", price = 16200),
-        "steelArmor" to EquipmentTemplate("steelArmor", "精钢铠", EquipmentSlot.ARMOR, 2, physicalDefense = 34, hp = 396, description = "百炼精钢打造的铠甲，增强生命力", price = 16200),
+        "ironPlate" to EquipmentTemplate("ironPlate", "碧叶甲", EquipmentSlot.ARMOR, 2, physicalDefense = 22, hp = 264, description = "碧玉叶片打造的护甲，物理防御力强大", price = 16200),
+        "steelArmor" to EquipmentTemplate("steelArmor", "丹羽衣", EquipmentSlot.ARMOR, 2, physicalDefense = 34, hp = 396, description = "丹砂羽线织成的法衣，增强生命力", price = 16200),
         "spiritRobe" to EquipmentTemplate("spiritRobe", "灵丝袍", EquipmentSlot.ARMOR, 2, magicDefense = 22, hp = 264, description = "灵蚕丝织成的法袍，法术防御出众", price = 16200),
         "cloudRobe" to EquipmentTemplate("cloudRobe", "云纹袍", EquipmentSlot.ARMOR, 2, magicDefense = 34, hp = 396, description = "绣有云纹的法袍，增强生命力", price = 16200),
 
-        "scaleArmor" to EquipmentTemplate("scaleArmor", "鳞甲", EquipmentSlot.ARMOR, 3, physicalDefense = 68, hp = 846, description = "妖兽鳞片打造的护甲，物理防御力惊人", price = 64800),
-        "plateArmor" to EquipmentTemplate("plateArmor", "板甲", EquipmentSlot.ARMOR, 3, physicalDefense = 102, hp = 1270, description = "整块精钢锻造的重甲，增强生命力", price = 64800),
-        "mysticRobe" to EquipmentTemplate("mysticRobe", "玄法袍", EquipmentSlot.ARMOR, 3, magicDefense = 68, hp = 846, description = "蕴含玄妙法力的长袍，法术防御出众", price = 64800),
+        "scaleArmor" to EquipmentTemplate("scaleArmor", "青鳞铠", EquipmentSlot.ARMOR, 3, physicalDefense = 68, hp = 846, description = "妖兽青鳞打造的铠甲，物理防御力惊人", price = 64800),
+        "plateArmor" to EquipmentTemplate("plateArmor", "银板铠", EquipmentSlot.ARMOR, 3, physicalDefense = 102, hp = 1270, description = "整块银钢锻造的铠甲，增强生命力", price = 64800),
+        "mysticRobe" to EquipmentTemplate("mysticRobe", "汐流衣", EquipmentSlot.ARMOR, 3, magicDefense = 68, hp = 846, description = "蕴含汐流之力的法衣，法术防御出众", price = 64800),
         "starRobe" to EquipmentTemplate("starRobe", "星辰袍", EquipmentSlot.ARMOR, 3, magicDefense = 102, hp = 1270, description = "绣有星辰图案的法袍，增强生命力", price = 64800),
 
-        "dragonScale" to EquipmentTemplate("dragonScale", "龙鳞甲", EquipmentSlot.ARMOR, 4, physicalDefense = 210, hp = 2688, description = "真龙鳞片锻造的宝甲，物理防御无双", price = 259200),
-        "titanArmor" to EquipmentTemplate("titanArmor", "泰坦铠", EquipmentSlot.ARMOR, 4, physicalDefense = 315, hp = 4032, description = "泰坦巨人使用的铠甲，增强生命力", price = 259200),
-        "voidRobe" to EquipmentTemplate("voidRobe", "虚空袍", EquipmentSlot.ARMOR, 4, magicDefense = 210, hp = 2688, description = "穿梭于虚空之中的法袍，法术防御出众", price = 259200),
+        "dragonScale" to EquipmentTemplate("dragonScale", "龙鳞铠", EquipmentSlot.ARMOR, 4, physicalDefense = 210, hp = 2688, description = "真龙鳞片锻造的铠甲，物理防御无双", price = 259200),
+        "titanArmor" to EquipmentTemplate("titanArmor", "渊岩铠", EquipmentSlot.ARMOR, 4, physicalDefense = 315, hp = 4032, description = "深渊岩铁铸造的铠甲，增强生命力", price = 259200),
+        "voidRobe" to EquipmentTemplate("voidRobe", "瑶光袍", EquipmentSlot.ARMOR, 4, magicDefense = 210, hp = 2688, description = "蕴含瑶光之力的法袍，法术防御出众", price = 259200),
         "moonRobe" to EquipmentTemplate("moonRobe", "月华袍", EquipmentSlot.ARMOR, 4, magicDefense = 315, hp = 4032, description = "吸收月华之力织成的法袍，增强生命力", price = 259200),
 
-        "earthArmor" to EquipmentTemplate("earthArmor", "大地甲", EquipmentSlot.ARMOR, 5, physicalDefense = 650, hp = 8500, description = "承载大地之力的神甲，物理防御如大地般坚固", price = 1036800),
-        "divinePlate" to EquipmentTemplate("divinePlate", "神铸铠", EquipmentSlot.ARMOR, 5, physicalDefense = 978, hp = 12760, description = "神匠铸造的铠甲，增强生命力", price = 1036800),
-        "celestialRobe" to EquipmentTemplate("celestialRobe", "天罡袍", EquipmentSlot.ARMOR, 5, magicDefense = 650, hp = 8500, description = "天罡星力凝聚的法袍，法术防御超凡入圣", price = 1036800),
-        "voidShadowRobe" to EquipmentTemplate("voidShadowRobe", "虚空影袍", EquipmentSlot.ARMOR, 5, magicDefense = 978, hp = 12760, description = "穿梭于虚空阴影中的神秘法袍，增强生命力", price = 1036800),
+        "earthArmor" to EquipmentTemplate("earthArmor", "玄幽袍", EquipmentSlot.ARMOR, 5, physicalDefense = 650, hp = 8500, description = "承载玄幽之力的法袍，物理防御如幽渊般坚固", price = 1036800),
+        "divinePlate" to EquipmentTemplate("divinePlate", "墨幽铠", EquipmentSlot.ARMOR, 5, physicalDefense = 978, hp = 12760, description = "墨幽玄铁铸造的铠甲，增强生命力", price = 1036800),
+        "celestialRobe" to EquipmentTemplate("celestialRobe", "凌星袍", EquipmentSlot.ARMOR, 5, magicDefense = 650, hp = 8500, description = "凌驾星辰之力的法袍，法术防御超凡入圣", price = 1036800),
+        "voidShadowRobe" to EquipmentTemplate("voidShadowRobe", "定海铠", EquipmentSlot.ARMOR, 5, magicDefense = 978, hp = 12760, description = "定海之力凝聚的铠甲，增强生命力", price = 1036800),
 
         "immortalArmor" to EquipmentTemplate("immortalArmor", "不朽铠", EquipmentSlot.ARMOR, 6, physicalDefense = 2000, hp = 26200, description = "仙界神甲，物理防御不朽不灭", price = 6000000),
-        "primordialArmor" to EquipmentTemplate("primordialArmor", "鸿蒙铠", EquipmentSlot.ARMOR, 6, physicalDefense = 3000, hp = 39400, description = "鸿蒙初开时诞生的神甲，承载创世生命之力", price = 6000000),
-        "immortalRobe" to EquipmentTemplate("immortalRobe", "仙衣", EquipmentSlot.ARMOR, 6, magicDefense = 2000, hp = 26200, description = "仙人穿着的防御至宝，法术防御超凡入圣", price = 6000000),
-        "chaosRobe" to EquipmentTemplate("chaosRobe", "混沌袍", EquipmentSlot.ARMOR, 6, magicDefense = 3000, hp = 39400, description = "混沌初开时诞生的法袍，蕴含无尽生命之力", price = 6000000)
+        "primordialArmor" to EquipmentTemplate("primordialArmor", "苍罡铠", EquipmentSlot.ARMOR, 6, physicalDefense = 3000, hp = 39400, description = "苍罡之力凝聚的神甲，承载创世生命之力", price = 6000000),
+        "immortalRobe" to EquipmentTemplate("immortalRobe", "曦光铠", EquipmentSlot.ARMOR, 6, magicDefense = 2000, hp = 26200, description = "蕴含曦光之力的铠甲，法术防御超凡入圣", price = 6000000),
+        "chaosRobe" to EquipmentTemplate("chaosRobe", "云影袍", EquipmentSlot.ARMOR, 6, magicDefense = 3000, hp = 39400, description = "云影交织的法袍，蕴含无尽生命之力", price = 6000000)
     )
 
     val boots: Map<String, EquipmentTemplate> = mapOf(
