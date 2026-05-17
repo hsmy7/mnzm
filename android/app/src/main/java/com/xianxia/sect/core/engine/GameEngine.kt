@@ -214,7 +214,7 @@ class GameEngine @Inject constructor(
                         gridY = centerY - 1,
                         width = 2,
                         height = 3
-                    ),
+                    ).withInstanceId(),
                     GridBuildingData(
                         buildingId = "问道塔",
                         displayName = "问道塔",
@@ -222,7 +222,7 @@ class GameEngine @Inject constructor(
                         gridY = centerY - 1,
                         width = 2,
                         height = 3
-                    )
+                    ).withInstanceId()
                 )
             )
             repeat(3) { discipleService.recruitDisciple() }
@@ -257,7 +257,7 @@ class GameEngine @Inject constructor(
                             gridY = centerY - 1,
                             width = 2,
                             height = 3
-                        ),
+                        ).withInstanceId(),
                         GridBuildingData(
                             buildingId = "问道塔",
                             displayName = "问道塔",
@@ -265,7 +265,7 @@ class GameEngine @Inject constructor(
                             gridY = centerY - 1,
                             width = 2,
                             height = 3
-                        )
+                        ).withInstanceId()
                     )
                 )
                 repeat(3) { discipleService.recruitDisciple() }
@@ -316,6 +316,18 @@ class GameEngine @Inject constructor(
     suspend fun placeBuilding(building: GridBuildingData) {
         updateGameData { gd ->
             gd.copy(placedBuildings = gd.placedBuildings + building)
+        }
+    }
+
+    /** 直接更新建筑位置，绕过 transactionMutex 避免与游戏 tick 竞争锁导致延迟 */
+    fun moveBuildingDirect(instanceId: String, newGridX: Int, newGridY: Int) {
+        stateStore.updateGameDataDirect { data ->
+            data.copy(
+                placedBuildings = data.placedBuildings.map {
+                    if (it.instanceId == instanceId) it.copy(gridX = newGridX, gridY = newGridY)
+                    else it
+                }
+            )
         }
     }
 

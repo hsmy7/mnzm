@@ -186,7 +186,7 @@ class GameViewModel @Inject constructor(
                         gridY = gridY,
                         width = gridW,
                         height = gridH
-                    ),
+                    ).withInstanceId(),
                     spiritMineSlots = data.spiritMineSlots + newSlots,
                     productionSlots = if (newProductionSlot != null)
                         data.productionSlots + newProductionSlot else data.productionSlots
@@ -207,12 +207,17 @@ class GameViewModel @Inject constructor(
         return buildingConfigService.getBuildingGridSize(displayName)
     }
 
+    fun moveBuilding(instanceId: String, newGridX: Int, newGridY: Int) {
+        gameEngine.moveBuildingDirect(instanceId, newGridX, newGridY)
+    }
+
     /** 修正已有存档中的建筑尺寸（存档加载后调用） */
     fun fixupBuildingSizesIfNeeded() {
         viewModelScope.launch {
             gameEngine.updateGameData { data ->
                 val fixed = buildingConfigService.fixupBuildingSizes(data.placedBuildings)
-                if (fixed != data.placedBuildings) data.copy(placedBuildings = fixed) else data
+                val withIds = GridBuildingData.ensureAllHaveInstanceId(fixed)
+                if (withIds != data.placedBuildings) data.copy(placedBuildings = withIds) else data
             }
         }
     }

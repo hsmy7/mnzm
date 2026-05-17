@@ -197,6 +197,28 @@ fun MainGameScreen(
     var placingWorldX by remember { mutableFloatStateOf(0f) }
     var placingWorldY by remember { mutableFloatStateOf(0f) }
     var buildingBarExpanded by remember { mutableStateOf(false) }
+
+    // 建筑移动状态（长按拖动）
+    var movingBuilding by remember { mutableStateOf<GridBuildingData?>(null) }
+    var movingWorldX by remember { mutableFloatStateOf(0f) }
+    var movingWorldY by remember { mutableFloatStateOf(0f) }
+    var movingSnappedGridX by remember { mutableIntStateOf(0) }
+    var movingSnappedGridY by remember { mutableIntStateOf(0) }
+    var movingValid by remember {
+        mutableStateOf<GridSnapHelper.PlacementValidity>(GridSnapHelper.PlacementValidity.Valid)
+    }
+    val movingBuildingSize by derivedStateOf {
+        movingBuilding?.let { GridSnapHelper.BuildingSize(it.width, it.height) }
+            ?: GridSnapHelper.BuildingSize(2, 3)
+    }
+
+    // 移动中临时从网格排除正在移动的建筑，避免自身重叠检测
+    val effectivePlacedBuildings by derivedStateOf {
+        val mb = movingBuilding
+        if (mb != null) placedBuildings.filter { it.instanceId != mb.instanceId }
+        else placedBuildings
+    }
+
     val dialogNavController = rememberNavController()
     val tileSize = mapPreloadData.tileSize
     val worldPixelWidth = mapPreloadData.worldPixelWidth
@@ -250,9 +272,9 @@ fun MainGameScreen(
     val rawTileData = mapPreloadData.rawTileData
 
     // 建筑覆盖到瓦片数据
-    val tileData = remember(rawTileData, placedBuildings) {
+    val tileData = remember(rawTileData, effectivePlacedBuildings) {
         val data = Array(rawTileData.size) { rawTileData[it].copyOf() }
-        for (b in placedBuildings) {
+        for (b in effectivePlacedBuildings) {
             for (cx in b.gridX until b.gridX + b.width) {
                 for (cy in b.gridY until b.gridY + b.height) {
                     if (cy in data.indices && cx in data[cy].indices) {
@@ -296,8 +318,8 @@ fun MainGameScreen(
         GridSystem(tileSize, worldWidthCells, worldHeightCells)
     }
 
-    LaunchedEffect(placedBuildings) {
-        gridSystem.rebuildFrom(placedBuildings)
+    LaunchedEffect(effectivePlacedBuildings) {
+        gridSystem.rebuildFrom(effectivePlacedBuildings)
     }
 
     // 建筑列表及点击回调
@@ -329,11 +351,12 @@ fun MainGameScreen(
         }
     }
 
-    // Dialog dismiss on NavHost back press: cancel building placement
+    // Dialog dismiss on NavHost back press: cancel building placement / moving
     LaunchedEffect(dialogNavController) {
         dialogNavController.currentBackStackEntryFlow.collect {
             if (it.destination.route != null) {
                 isPlacingBuilding = false
+                movingBuilding = null
             }
         }
     }
@@ -387,6 +410,11 @@ fun MainGameScreen(
         if (isGameOver) {
             viewModel.openGameOverDialog()
         }
+    }
+
+    // 移动模式下按返回键取消移动
+    BackHandler(enabled = movingBuilding != null) {
+        movingBuilding = null
     }
 
     Box(
@@ -446,8 +474,70 @@ fun MainGameScreen(
             onPlacementCancel = {
                 isPlacingBuilding = false
                 placingBuildingName = ""
+            },
+            // 移动模式参数
+            isMoving = movingBuilding != null,
+            movingBuildingName = movingBuilding?.displayName ?: "",
+            movingGridX = movingSnappedGridX,
+            movingGridY = movingSnappedGridY,
+            movingWorldX = movingWorldX,
+            movingWorldY = movingWorldY,
+            movingSize = movingBuildingSize,
+            movingValid = movingValid,
+            movingInstanceId = movingBuilding?.instanceId,
+            onBuildingLongPress = { building ->
+                if (!isPlacingBuilding) {
+                    movingBuilding = building
+                    movingWorldX = (building.gridX * tileSize).toFloat()
+                    movingWorldY = (building.gridY * tileSize).toFloat()
+                    movingSnappedGridX = building.gridX
+                    movingSnappedGridY = building.gridY
+                    movingValid = GridSnapHelper.PlacementValidity.Valid
+                }
+            },
+            onMovingDrag = { dx, dy ->
+                movingWorldX += dx
+                movingWorldY += dy
+                movingSnappedGridX = GridSnapHelper.worldToGrid(movingWorldX, tileSize)
+                movingSnappedGridY = GridSnapHelper.worldToGrid(movingWorldY, tileSize)
+                movingValid = gridSystem.validatePlacement(
+                    movingSnappedGridX, movingSnappedGridY,
+                    movingBuildingSize.width, movingBuildingSize.height
+                )
+                // 边缘自动平移
+                val edgePx = 80f
+                val screenX = cameraState.worldToScreenX(movingWorldX)
+                val screenY = cameraState.worldToScreenY(movingWorldY)
+                val panSpeed = 8f
+                if (screenX < edgePx) cameraState.pan(-panSpeed, 0f)
+                if (screenX > screenWidthPx - edgePx) cameraState.pan(panSpeed, 0f)
+                if (screenY < edgePx) cameraState.pan(0f, -panSpeed)
+                if (screenY > screenHeightPx - edgePx) cameraState.pan(0f, panSpeed)
             }
         )
+
+        // 移动模式确认按钮
+        if (movingBuilding != null) {
+            PlacementConfirmButtons(
+                snappedGridX = movingSnappedGridX,
+                snappedGridY = movingSnappedGridY,
+                buildingSize = movingBuildingSize,
+                cameraState = cameraState,
+                tileSize = tileSize,
+                validity = movingValid,
+                onConfirm = {
+                    movingBuilding?.let { b ->
+                        if (movingValid == GridSnapHelper.PlacementValidity.Valid &&
+                            (movingSnappedGridX != b.gridX || movingSnappedGridY != b.gridY)
+                        ) {
+                            viewModel.moveBuilding(b.instanceId, movingSnappedGridX, movingSnappedGridY)
+                        }
+                    }
+                    movingBuilding = null
+                },
+                onCancel = { movingBuilding = null }
+            )
+        }
 
         // UI overlay — SectInfoCard + two side button columns
         Box(modifier = Modifier.fillMaxSize()) {
@@ -472,7 +562,7 @@ fun MainGameScreen(
                     FloatingActionButton(text = "日志", onClick = { dialogNavController.navigate(GameRoute.BattleLog.route) }, drawableRes = R.drawable.ui_log_button)
                     FloatingActionButton(text = "商人", onClick = { dialogNavController.navigate(GameRoute.Merchant.route) }, drawableRes = R.drawable.ui_merchant_button)
                     FloatingActionButton(text = "招募", onClick = { dialogNavController.navigate(GameRoute.Recruit.route) }, drawableRes = R.drawable.ui_recruit_button)
-                    FloatingActionButton(text = "建造", onClick = { buildingBarExpanded = !buildingBarExpanded; isPlacingBuilding = false }, drawableRes = R.drawable.ui_build_button)
+                    FloatingActionButton(text = "建造", onClick = { buildingBarExpanded = !buildingBarExpanded; isPlacingBuilding = false; movingBuilding = null }, drawableRes = R.drawable.ui_build_button)
                     FloatingActionButton(text = "仓库", onClick = { dialogNavController.navigate(GameRoute.Warehouse.route) }, drawableRes = R.drawable.ui_warehouse_button)
                     FloatingActionButton(text = "设置", onClick = { dialogNavController.navigate(GameRoute.Settings.route) }, drawableRes = R.drawable.ui_settings_button)
                 }
@@ -903,7 +993,19 @@ private fun SectMapLayer(
     onForgeClick: (Int) -> Unit = {},
     onPlacementDrag: (Float, Float) -> Unit,
     onPlacementConfirm: () -> Unit,
-    onPlacementCancel: () -> Unit
+    onPlacementCancel: () -> Unit,
+    // 移动模式参数
+    isMoving: Boolean = false,
+    movingBuildingName: String = "",
+    movingGridX: Int = 0,
+    movingGridY: Int = 0,
+    movingWorldX: Float = 0f,
+    movingWorldY: Float = 0f,
+    movingSize: GridSnapHelper.BuildingSize = GridSnapHelper.BuildingSize(2, 3),
+    movingValid: GridSnapHelper.PlacementValidity = GridSnapHelper.PlacementValidity.Valid,
+    movingInstanceId: String? = null,
+    onBuildingLongPress: (GridBuildingData) -> Unit = {},
+    onMovingDrag: (Float, Float) -> Unit = { _, _ -> }
 ) {
     val textMeasurer = rememberTextMeasurer()
     val buildingBitmaps = rememberBuildingBitmaps()
@@ -954,6 +1056,18 @@ private fun SectMapLayer(
             }
         },
         onPlacementDrag = onPlacementDrag,
+        // 移动模式参数
+        isMoving = isMoving,
+        movingBuildingName = movingBuildingName,
+        movingGridX = movingGridX,
+        movingGridY = movingGridY,
+        movingWorldX = movingWorldX,
+        movingWorldY = movingWorldY,
+        movingSize = movingSize,
+        movingValid = movingValid,
+        movingInstanceId = movingInstanceId,
+        onBuildingLongPress = onBuildingLongPress,
+        onMovingDrag = onMovingDrag,
         modifier = Modifier.fillMaxSize()
     )
 
@@ -994,33 +1108,66 @@ private fun SectGroundCanvas(
     textMeasurer: androidx.compose.ui.text.TextMeasurer,
     onBuildingClick: (GridBuildingData) -> Unit = {},
     onPlacementDrag: (Float, Float) -> Unit = { _, _ -> },
+    // 移动模式参数
+    isMoving: Boolean = false,
+    movingBuildingName: String = "",
+    movingGridX: Int = 0,
+    movingGridY: Int = 0,
+    movingWorldX: Float = 0f,
+    movingWorldY: Float = 0f,
+    movingSize: GridSnapHelper.BuildingSize = GridSnapHelper.BuildingSize(2, 3),
+    movingValid: GridSnapHelper.PlacementValidity = GridSnapHelper.PlacementValidity.Valid,
+    onBuildingLongPress: (GridBuildingData) -> Unit = {},
+    onMovingDrag: (Float, Float) -> Unit = { _, _ -> },
+    // 正在移动的建筑instanceId（用于从渲染列表排除）
+    movingInstanceId: String? = null,
     modifier: Modifier = Modifier
 ) {
     Canvas(
         modifier = modifier
-            .pointerInput(isPlacing, cameraState) {
+            .pointerInput(placedBuildings, tileSize, isMoving) {
+                detectTapGestures(
+                    onTap = { offset ->
+                        val wx = cameraState.screenToWorldX(offset.x)
+                        val wy = cameraState.screenToWorldY(offset.y)
+                        for (b in placedBuildings) {
+                            if (b.instanceId == movingInstanceId) continue
+                            val bx = b.gridX * tileSize
+                            val by = b.gridY * tileSize
+                            if (wx >= bx && wx < bx + b.width * tileSize &&
+                                wy >= by && wy < by + b.height * tileSize
+                            ) {
+                                onBuildingClick(b)
+                                return@detectTapGestures
+                            }
+                        }
+                    },
+                    onLongPress = { offset ->
+                        if (isMoving || isPlacing) return@detectTapGestures
+                        val wx = cameraState.screenToWorldX(offset.x)
+                        val wy = cameraState.screenToWorldY(offset.y)
+                        for (b in placedBuildings) {
+                            val bx = b.gridX * tileSize
+                            val by = b.gridY * tileSize
+                            if (wx >= bx && wx < bx + b.width * tileSize &&
+                                wy >= by && wy < by + b.height * tileSize
+                            ) {
+                                onBuildingLongPress(b)
+                                return@detectTapGestures
+                            }
+                        }
+                    }
+                )
+            }
+            .pointerInput(isPlacing, isMoving, cameraState) {
                 detectDragGestures { change, dragAmount ->
                     change.consume()
-                    if (isPlacing) {
+                    if (isMoving) {
+                        onMovingDrag(dragAmount.x, dragAmount.y)
+                    } else if (isPlacing) {
                         onPlacementDrag(dragAmount.x, dragAmount.y)
                     } else {
                         cameraState.pan(dragAmount.x, dragAmount.y)
-                    }
-                }
-            }
-            .pointerInput(placedBuildings.size, tileSize) {
-                detectTapGestures { offset ->
-                    val wx = cameraState.screenToWorldX(offset.x)
-                    val wy = cameraState.screenToWorldY(offset.y)
-                    for (b in placedBuildings) {
-                        val bx = b.gridX * tileSize
-                        val by = b.gridY * tileSize
-                        if (wx >= bx && wx < bx + b.width * tileSize &&
-                            wy >= by && wy < by + b.height * tileSize
-                        ) {
-                            onBuildingClick(b)
-                            return@detectTapGestures
-                        }
                     }
                 }
             }
@@ -1034,8 +1181,9 @@ private fun SectGroundCanvas(
             // 1. 静态背景层
             drawImage(fullMapBmp, topLeft = Offset.Zero)
 
-            // 2. 动态建筑层
+            // 2. 动态建筑层（跳过正在移动的建筑）
             for (building in placedBuildings) {
+                if (movingInstanceId != null && building.instanceId == movingInstanceId) continue
                 val bx = building.gridX * tileSize
                 val by = building.gridY * tileSize
                 val bw = building.width * tileSize
@@ -1059,8 +1207,8 @@ private fun SectGroundCanvas(
                 }
             }
 
-            // 3. 网格线
-            if (isPlacing || buildingBarExpanded) {
+            // 3. 网格线（放置/建造栏展开/移动模式时显示）
+            if (isPlacing || buildingBarExpanded || isMoving) {
                 val gridColor = Color(0xFFE4DDD0)
                 val visibleStartX = cameraState.cameraX
                 val visibleEndX = cameraState.cameraX + sw
@@ -1104,6 +1252,35 @@ private fun SectGroundCanvas(
                     for (cgy in previewGridY until previewGridY + previewSize.height) {
                         drawRect(
                             previewColor,
+                            Offset((cgx * tileSize).toFloat(), (cgy * tileSize).toFloat()),
+                            Size(tileSize.toFloat(), tileSize.toFloat())
+                        )
+                    }
+                }
+            }
+
+            // 5. 移动预览
+            if (isMoving) {
+                if (movingBuildingName.isNotEmpty()) {
+                    val moveBmp = buildingBitmaps[movingBuildingName]
+                    if (moveBmp != null) {
+                        drawImage(
+                            moveBmp,
+                            dstOffset = IntOffset(movingWorldX.roundToInt(), movingWorldY.roundToInt()),
+                            dstSize = IntSize(movingSize.width * tileSize, movingSize.height * tileSize),
+                            alpha = 0.7f
+                        )
+                    }
+                }
+                val moveColor = when (movingValid) {
+                    is GridSnapHelper.PlacementValidity.Valid -> Color(0x404CAF50)
+                    is GridSnapHelper.PlacementValidity.OutOfBounds -> Color(0x40F44336)
+                    is GridSnapHelper.PlacementValidity.Overlap -> Color(0x40FF5722)
+                }
+                for (cgx in movingGridX until movingGridX + movingSize.width) {
+                    for (cgy in movingGridY until movingGridY + movingSize.height) {
+                        drawRect(
+                            moveColor,
                             Offset((cgx * tileSize).toFloat(), (cgy * tileSize).toFloat()),
                             Size(tileSize.toFloat(), tileSize.toFloat())
                         )

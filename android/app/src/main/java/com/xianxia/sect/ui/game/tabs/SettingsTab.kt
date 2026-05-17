@@ -599,6 +599,7 @@ internal fun SettingsTab(
                             text = "确认",
                             onClick = {
                                 showRestartConfirmDialog = false
+                                onDismiss()
                                 saveLoadViewModel.restartGame()
                             },
                             modifier = Modifier.width(ButtonSizes.StandardWidth)

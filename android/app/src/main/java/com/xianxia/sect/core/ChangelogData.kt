@@ -9,6 +9,15 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.0.47",
+            date = "2026-05-18",
+            changes = listOf(
+                "新增长按建筑拖动重新放置功能，长按建筑0.6秒即可拖动到新位置确认后落位",
+                "修复设置界面重新开始游戏后设置界面不关闭的问题",
+                "无数据库迁移"
+            )
+        ),
+        ChangelogEntry(
             version = "3.0.46",
             date = "2026-05-17",
             changes = listOf(

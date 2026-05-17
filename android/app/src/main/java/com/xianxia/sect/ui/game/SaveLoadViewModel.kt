@@ -3,6 +3,7 @@ package com.xianxia.sect.ui.game
 import android.util.Log
 import androidx.lifecycle.viewModelScope
 import com.xianxia.sect.core.config.BuildingConfigService
+import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.GameEngineCore
 import com.xianxia.sect.core.engine.coordinator.SavePipeline
@@ -621,10 +622,11 @@ class SaveLoadViewModel @Inject constructor(
 
                 setSaveLoadState(isLoading = false, pendingSlot = saveSlot.slot, pendingAction = null)
 
-                // 修正已有存档中的建筑网格尺寸
+                // 修正已有存档中的建筑网格尺寸，补齐instanceId
                 gameEngine.updateGameData { data ->
                     val fixed = buildingConfigService.fixupBuildingSizes(data.placedBuildings)
-                    if (fixed != data.placedBuildings) data.copy(placedBuildings = fixed) else data
+                    val withIds = GridBuildingData.ensureAllHaveInstanceId(fixed)
+                    if (withIds != data.placedBuildings) data.copy(placedBuildings = withIds) else data
                 }
 
                 startGameLoop()
@@ -730,10 +732,11 @@ class SaveLoadViewModel @Inject constructor(
                         productionSlots = saveData.productionSlots
                     )
 
-                    // 修正已有存档中的建筑网格尺寸
+                    // 修正已有存档中的建筑网格尺寸，补齐instanceId
                     gameEngine.updateGameData { data ->
                         val fixed = buildingConfigService.fixupBuildingSizes(data.placedBuildings)
-                        if (fixed != data.placedBuildings) data.copy(placedBuildings = fixed) else data
+                        val withIds = GridBuildingData.ensureAllHaveInstanceId(fixed)
+                        if (withIds != data.placedBuildings) data.copy(placedBuildings = withIds) else data
                     }
 
                     preloadGameResources()
