@@ -25,10 +25,9 @@ import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.util.sortedByFollowAndRealm
-import com.xianxia.sect.ui.components.CloseButton
-import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.ui.components.GameButton
-import com.xianxia.sect.ui.components.HalfScreenDialog
+import com.xianxia.sect.ui.components.UnifiedGameDialog
+import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.components.UnifiedDiscipleSlot
 import com.xianxia.sect.ui.components.DiscipleSlotWithActions
@@ -66,23 +65,13 @@ internal fun AttackDiscipleDialog(
 
     val filledCount = slots.count { it != null }
 
-    HalfScreenDialog(onDismissRequest = onDismiss) {
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = "选择进攻弟子",
+        mode = DialogMode.Half,
+        scrollableContent = false
+    ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Title
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "选择进攻弟子",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-                CloseButton(onClick = onDismiss)
-            }
-
             Column(
                 modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -239,23 +228,13 @@ private fun AttackDiscipleSelectionDialog(
         availableDisciples.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort)
     }
 
-    HalfScreenDialog(onDismissRequest = onDismiss) {
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = "选择进攻弟子",
+        mode = DialogMode.Half,
+        scrollableContent = false
+    ) {
         Column(Modifier.fillMaxSize()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "选择进攻弟子",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-                CloseButton(onClick = onDismiss)
-            }
             Column(
                 modifier = Modifier
                     .fillMaxWidth()

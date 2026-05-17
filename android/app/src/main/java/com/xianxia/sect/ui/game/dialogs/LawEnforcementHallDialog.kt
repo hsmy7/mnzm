@@ -1,4 +1,4 @@
-package com.xianxia.sect.ui.game
+package com.xianxia.sect.ui.game.dialogs
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -23,12 +23,19 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.ui.theme.GameColors
-
+import com.xianxia.sect.ui.game.GameViewModel
+import com.xianxia.sect.ui.game.ProductionViewModel
+import com.xianxia.sect.ui.game.ProductionTheme
+import com.xianxia.sect.ui.game.ProductionElderSelectionDialog
+import com.xianxia.sect.ui.game.ProductionDirectDiscipleSelectionDialog
+import com.xianxia.sect.ui.game.DiscipleDetailDialog
+import com.xianxia.sect.ui.game.FilteredMultiSelectDialog
 import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.ElderBonusInfoButton
 import com.xianxia.sect.ui.components.ElderBonusInfoProvider
 import com.xianxia.sect.ui.components.FollowedTag
-import com.xianxia.sect.ui.components.HalfScreenDialog
+import com.xianxia.sect.ui.components.UnifiedGameDialog
+import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.components.UnifiedDiscipleSlot
 import com.xianxia.sect.ui.components.DiscipleSlotWithActions
@@ -52,34 +59,28 @@ fun LawEnforcementHallDialog(
     val lawDisciples = productionViewModel.getLawEnforcementDisciples()
     val reserveDisciplesWithInfo = productionViewModel.getLawEnforcementReserveDisciplesWithInfo()
 
-    HalfScreenDialog(onDismissRequest = onDismiss, isFullScreen = false) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = "执法堂",
+        mode = DialogMode.Half,
+        scrollableContent = false,
+        headerActions = {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(Color(0xFFE74C3C))
+                    .clickable { showReserveDiscipleList = true }
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
             ) {
-                Text("执法堂", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(Color(0xFFE74C3C))
-                            .clickable { showReserveDiscipleList = true }
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = "储备弟子(${reserveDisciplesWithInfo.size})",
-                            fontSize = 10.sp,
-                            color = Color.White
-                        )
-                    }
-                    CloseButton(onClick = onDismiss)
-                }
+                Text(
+                    text = "储备弟子(${reserveDisciplesWithInfo.size})",
+                    fontSize = 10.sp,
+                    color = Color.White
+                )
             }
+        }
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
             Column(
                 modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState())
             ) {
@@ -390,23 +391,19 @@ private fun CommonDialog(
     onDismiss: () -> Unit,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    HalfScreenDialog(onDismissRequest = onDismiss) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-                CloseButton(onClick = onDismiss)
-            }
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = title,
+        mode = DialogMode.Half,
+        scrollableContent = false,
+        content = {
             Column(
-                modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)
+                modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)
             ) {
                 content()
             }
         }
-    }
+    )
 }
 
 @Composable
@@ -424,50 +421,31 @@ private fun ReserveDiscipleListDialog(
         reserveDisciples.sortedByFollowAndRealm()
     }
 
-    HalfScreenDialog(onDismissRequest = onDismiss) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = "储备弟子 (${sortedReserveDisciples.size})",
+        mode = DialogMode.Half,
+        scrollableContent = false,
+        headerActions = {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(Color(0xFFE74C3C))
+                    .clickable { showAddDiscipleDialog = true }
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Text(
-                        text = "储备弟子",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-                    Text(
-                        text = "(${sortedReserveDisciples.size})",
-                        fontSize = 10.sp,
-                        color = Color.Black
-                    )
-                }
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(Color(0xFFE74C3C))
-                            .clickable { showAddDiscipleDialog = true }
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = "+ 添加",
-                            fontSize = 10.sp,
-                            color = Color.White
-                        )
+                Text(
+                    text = "+ 添加",
+                    fontSize = 10.sp,
+                    color = Color.White
+                )
                     }
-                    CloseButton(onClick = onDismiss)
                 }
-            }
+            )
+            {
+                Column(modifier = Modifier.fillMaxSize()) {
             Spacer(modifier = Modifier.height(12.dp))
+
             Text(
                 text = "执法弟子空缺时自动补位",
                 fontSize = 9.sp,

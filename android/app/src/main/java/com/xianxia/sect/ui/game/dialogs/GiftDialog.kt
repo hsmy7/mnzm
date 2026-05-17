@@ -1,4 +1,4 @@
-package com.xianxia.sect.ui.game.components
+package com.xianxia.sect.ui.game.dialogs
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -22,9 +22,9 @@ import com.xianxia.sect.core.config.GiftConfig
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.core.util.SectRelationLevel
-import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.DialogDefaults
-import com.xianxia.sect.ui.components.HalfScreenDialog
+import com.xianxia.sect.ui.components.UnifiedGameDialog
+import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.WorldMapViewModel
@@ -41,95 +41,85 @@ fun GiftDialog(
     val hasGiftedThisYear = (gameData?.sectDetails?.get(sect?.id)?.lastGiftYear ?: 0) == currentYear
     val playerSect = gameData?.worldMapSects?.find { it.isPlayerSect }
     val relation = if (playerSect != null && sect != null) {
-        gameData.sectRelations.find { 
+        gameData.sectRelations.find {
             (it.sectId1 == playerSect.id && it.sectId2 == sect.id) ||
             (it.sectId1 == sect.id && it.sectId2 == playerSect.id)
         }?.favor ?: 0
     } else 0
 
-    HalfScreenDialog(onDismissRequest = onDismiss, isFullScreen = true) {
-        Column(modifier = Modifier.fillMaxSize()) {
+    UnifiedGameDialog(onDismissRequest = onDismiss, title = "赠礼", mode = DialogMode.Full, scrollableContent = false) {
+        Column(
+            modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "向 ${sect?.name ?: "宗门"} 送礼",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                FavorProgressBar(currentFavor = relation, maxFavor = 100)
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("赠礼", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-                CloseButton(onClick = onDismiss)
-            }
-            Column(
-                modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        text = "向 ${sect?.name ?: "宗门"} 送礼",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    FavorProgressBar(currentFavor = relation, maxFavor = 100)
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "灵石: ${GameUtils.formatNumber(gameData?.spiritStones ?: 0)}",
-                        fontSize = 12.sp,
-                        color = Color.Black
-                    )
-                    if (hasGiftedThisYear) {
-                        Surface(
-                            shape = RoundedCornerShape(4.dp),
-                            color = Color(0xFFE74C3C).copy(alpha = 0.9f)
-                        ) {
-                            Text(
-                                text = "本年已送礼",
-                                fontSize = 11.sp,
-                                color = Color.White,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                            )
-                        }
-                    }
-                }
-
-                if (!hasGiftedThisYear) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        color = GameColors.JadeGreen.copy(alpha = 0.1f)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "每年只能向同一宗门送礼一次，请谨慎选择",
-                                fontSize = 12.sp,
-                                color = GameColors.JadeGreen
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                SpiritStoneGiftTab(
-                    sect = sect,
-                    gameData = gameData,
-                    hasGiftedThisYear = hasGiftedThisYear,
-                    viewModel = viewModel,
-                    worldMapViewModel = worldMapViewModel,
-                    onDismiss = onDismiss
+                Text(
+                    text = "灵石: ${GameUtils.formatNumber(gameData?.spiritStones ?: 0)}",
+                    fontSize = 12.sp,
+                    color = Color.Black
                 )
+                if (hasGiftedThisYear) {
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = Color(0xFFE74C3C).copy(alpha = 0.9f)
+                    ) {
+                        Text(
+                            text = "本年已送礼",
+                            fontSize = 11.sp,
+                            color = Color.White,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                        )
+                    }
+                }
             }
+
+            if (!hasGiftedThisYear) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = GameColors.JadeGreen.copy(alpha = 0.1f)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "每年只能向同一宗门送礼一次，请谨慎选择",
+                            fontSize = 12.sp,
+                            color = GameColors.JadeGreen
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            SpiritStoneGiftTab(
+                sect = sect,
+                gameData = gameData,
+                hasGiftedThisYear = hasGiftedThisYear,
+                viewModel = viewModel,
+                worldMapViewModel = worldMapViewModel,
+                onDismiss = onDismiss
+            )
         }
     }
 }
@@ -138,9 +128,9 @@ fun GiftDialog(
 private fun FavorProgressBar(currentFavor: Int, maxFavor: Int) {
     val progress = (currentFavor.toFloat() / maxFavor).coerceIn(0f, 1f)
     val relationLevel = GameUtils.getSectRelationLevel(currentFavor)
-    
+
     val favorColor = Color(relationLevel.colorHex)
-    
+
     Column {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -199,7 +189,7 @@ private fun SpiritStoneGiftTab(
 ) {
     val tiers = GiftConfig.SpiritStoneGiftConfig.getAllTiers()
     val spiritStones = gameData?.spiritStones ?: 0
-    
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -209,15 +199,15 @@ private fun SpiritStoneGiftTab(
             text = "选择送礼档位",
             fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
-            color = GameColors.TextPrimary
+            color = Color.Black
         )
-        
+
         Spacer(modifier = Modifier.height(12.dp))
-        
+
         tiers.forEach { tier ->
             val canAfford = spiritStones >= tier.spiritStones
             val isDisabled = hasGiftedThisYear || !canAfford
-            
+
             GiftTierCard(
                 tier = tier,
                 isDisabled = isDisabled,
@@ -229,10 +219,10 @@ private fun SpiritStoneGiftTab(
                     }
                 }
             )
-            
+
             Spacer(modifier = Modifier.height(10.dp))
         }
-        
+
         Spacer(modifier = Modifier.weight(1f))
     }
 }
@@ -245,7 +235,7 @@ private fun GiftTierCard(
     onClick: () -> Unit
 ) {
     val borderColor = if (isDisabled) GameColors.Border else Color(0xFFD2B48C)
-    
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -274,7 +264,7 @@ private fun GiftTierCard(
                     color = if (isDisabled) GameColors.TextTertiary else GameColors.TextPrimary
                 )
             }
-            
+
             Column(horizontalAlignment = Alignment.End) {
                 Text(
                     text = GameUtils.formatNumber(tier.spiritStones),

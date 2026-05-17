@@ -1,4 +1,4 @@
-package com.xianxia.sect.ui.game
+package com.xianxia.sect.ui.game.dialogs
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -24,15 +24,20 @@ import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.core.util.sortedByFollowAndRealm
-import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
-import com.xianxia.sect.ui.components.HalfScreenDialog
+import com.xianxia.sect.ui.components.UnifiedGameDialog
+import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.UnifiedDiscipleSlot
 import com.xianxia.sect.ui.components.DiscipleSlotWithActions
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
 import com.xianxia.sect.ui.game.tabs.REALM_FILTER_OPTIONS
+import com.xianxia.sect.ui.game.GameViewModel
+import com.xianxia.sect.ui.game.ProductionViewModel
+import com.xianxia.sect.ui.game.DiscipleDetailDialog
+import com.xianxia.sect.ui.game.getSpiritRootCount
+import com.xianxia.sect.ui.game.applyFilters
 
 @Composable
 fun LibraryDialog(
@@ -183,21 +188,13 @@ private fun LibraryDiscipleSelectionDialog(
         sortedDisciples.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort)
     }
 
-    HalfScreenDialog(onDismissRequest = onDismiss) {
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = "选择弟子",
+        mode = DialogMode.Half,
+        scrollableContent = false
+    ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "选择弟子",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-                CloseButton(onClick = onDismiss)
-            }
             if (disciples.isEmpty()) {
                 Box(
                     modifier = Modifier
@@ -267,21 +264,17 @@ private fun CommonDialog(
     onDismiss: () -> Unit,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    HalfScreenDialog(onDismissRequest = onDismiss, isFullScreen = false) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-                CloseButton(onClick = onDismiss)
-            }
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = title,
+        mode = DialogMode.Half,
+        scrollableContent = false,
+        content = {
             Column(
-                modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)
+                modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)
             ) {
                 content()
             }
         }
-    }
+    )
 }

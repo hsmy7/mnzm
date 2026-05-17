@@ -1,4 +1,4 @@
-package com.xianxia.sect.ui.game
+package com.xianxia.sect.ui.game.dialogs
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -47,13 +47,13 @@ import com.xianxia.sect.core.model.MerchantItem
 import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.util.GameUtils
-import com.xianxia.sect.ui.components.CloseButton
+import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.components.GameButton
-import androidx.compose.ui.window.DialogProperties
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.components.ItemCardData
 import com.xianxia.sect.ui.components.UnifiedItemCard
-import com.xianxia.sect.ui.components.HalfScreenDialog
+import com.xianxia.sect.ui.components.UnifiedGameDialog
+import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.theme.GameColors
 import java.util.Locale
 
@@ -76,13 +76,25 @@ fun MerchantDialog(
         items.sortedWith(compareByDescending<MerchantItem> { it.rarity }.thenBy { it.name })
     }
 
-    HalfScreenDialog(onDismissRequest = onDismiss, isFullScreen = true) {
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = "云游商人",
+        mode = DialogMode.Full,
+        scrollableContent = false,
+        headerActions = {
+            GameButton(
+                text = "上架",
+                onClick = { showListingDialog = true }
+            )
+        }
+    ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            MerchantHeader(
-                    gameData = gameData,
-                    onDismiss = onDismiss,
-                    onListClick = { showListingDialog = true }
-                )
+            Text(
+                text = "灵石: ${gameData?.spiritStones ?: 0}",
+                fontSize = 11.sp,
+                color = GameColors.TextSecondary,
+                modifier = Modifier.padding(start = 12.dp, top = 4.dp, bottom = 8.dp)
+            )
 
                 if (merchantItems.isEmpty()) {
                     Box(
@@ -179,7 +191,7 @@ fun MerchantDialog(
                     quantity = buyQuantity,
                     maxQuantity = selectedItem?.quantity ?: 1,
                     spiritStones = gameData?.spiritStones ?: 0,
-                    onQuantityChange = { qty -> 
+                    onQuantityChange = { qty ->
                         selectedItem?.let { buyQuantity = qty.coerceIn(1, it.quantity) }
                     },
                     onConfirm = {
@@ -215,45 +227,6 @@ fun MerchantDialog(
     }
 }
 
-@Composable
-private fun MerchantHeader(
-    gameData: GameData?,
-    onDismiss: () -> Unit,
-    onListClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(12.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column {
-            Text(
-                text = "云游商人",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black
-            )
-            Text(
-                text = "灵石: ${gameData?.spiritStones ?: 0}",
-                fontSize = 11.sp,
-                color = GameColors.TextSecondary
-            )
-        }
-
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            GameButton(
-                text = "上架",
-                onClick = onListClick
-            )
-            CloseButton(onClick = onDismiss)
-        }
-    }
-}
 
 @Composable
 private fun PurchasePanel(
@@ -267,7 +240,7 @@ private fun PurchasePanel(
 ) {
     val totalPrice = (item?.price ?: 0L) * quantity
     val canAfford = spiritStones >= totalPrice && item != null
-    
+
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = GameColors.PageBackground,
@@ -296,7 +269,7 @@ private fun PurchasePanel(
                             color = GameColors.TextSecondary
                         )
                     }
-                    
+
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -306,7 +279,7 @@ private fun PurchasePanel(
                             fontSize = 11.sp,
                             color = GameColors.TextSecondary
                         )
-                        
+
                         Box(
                             modifier = Modifier
                                 .size(28.dp)
@@ -317,7 +290,7 @@ private fun PurchasePanel(
                         ) {
                             Text("-", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = GameColors.TextPrimary)
                         }
-                        
+
                         Text(
                             text = "$quantity",
                             fontSize = 12.sp,
@@ -326,7 +299,7 @@ private fun PurchasePanel(
                             modifier = Modifier.widthIn(min = 24.dp),
                             textAlign = TextAlign.Center
                         )
-                        
+
                         Box(
                             modifier = Modifier
                                 .size(28.dp)
@@ -339,9 +312,9 @@ private fun PurchasePanel(
                         }
                     }
                 }
-                
+
                 Spacer(modifier = Modifier.height(8.dp))
-                
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -353,7 +326,7 @@ private fun PurchasePanel(
                         fontWeight = FontWeight.Bold,
                         color = if (canAfford) GameColors.GoldDark else Color.Red
                     )
-                    
+
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
@@ -426,33 +399,19 @@ fun ListingManagementDialog(
         }
     }
 
-    HalfScreenDialog(onDismissRequest = onDismiss, isFullScreen = true) {
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = "上架管理",
+        mode = DialogMode.Full,
+        scrollableContent = false,
+        headerActions = {
+            GameButton(
+                text = "上架",
+                onClick = { showInventorySelectDialog = true }
+            )
+        }
+    ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                        .padding(12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "上架管理",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        GameButton(
-                            text = "上架",
-                            onClick = { showInventorySelectDialog = true }
-                        )
-                        CloseButton(onClick = onDismiss)
-                    }
-                }
 
                 if (listItems.isEmpty()) {
                     Box(
@@ -655,42 +614,25 @@ fun InventorySelectDialog(
         filterAndSortItems(seeds, listedItemIds)
     }
 
-    HalfScreenDialog(onDismissRequest = onDismiss, isFullScreen = true) {
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = "选择上架道具",
+        mode = DialogMode.Full,
+        scrollableContent = false,
+        headerActions = {
+            Text(
+                text = "已选: ${selectedItems.size}种",
+                fontSize = 11.sp,
+                color = GameColors.TextSecondary
+            )
+            GameButton(
+                text = "确认上架",
+                onClick = { showConfirmDialog = true },
+                enabled = selectedItems.isNotEmpty() && !isSubmitting
+            )
+        }
+    ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                        .padding(12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "选择上架道具",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "已选: ${selectedItems.size}种",
-                            fontSize = 11.sp,
-                            color = GameColors.TextSecondary
-                        )
-                        GameButton(
-                            text = "确认上架",
-                            onClick = { showConfirmDialog = true },
-                            enabled = selectedItems.isNotEmpty() && !isSubmitting
-                        )
-                        GameButton(
-                            text = "取消",
-                            onClick = onDismiss
-                        )
-                    }
-                }
 
                 Box(modifier = Modifier.fillMaxWidth()) {
                     Image(
@@ -1053,15 +995,13 @@ private fun ConfirmListingDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    HalfScreenDialog(onDismissRequest = onDismiss) {
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = "确认上架",
+        mode = DialogMode.Half
+    ) {
         Column(modifier = Modifier.padding(20.dp)) {
-                Text(
-                    text = "确认上架",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "确定要上架 $selectedCount 种道具（共 $totalCount 件）吗？",
                     fontSize = 12.sp,

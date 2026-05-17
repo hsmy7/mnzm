@@ -12,7 +12,7 @@ import com.xianxia.sect.data.incremental.ChangeTracker
 import com.xianxia.sect.data.incremental.ChangeLogPersistence
 import com.xianxia.sect.data.serialization.unified.SaveDataConverter
 import com.xianxia.sect.data.serialization.unified.UnifiedSerializationEngine
-import com.xianxia.sect.ui.state.DialogStateManager
+
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn

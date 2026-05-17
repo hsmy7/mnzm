@@ -1,4 +1,4 @@
-package com.xianxia.sect.ui.game
+package com.xianxia.sect.ui.game.dialogs
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -12,9 +12,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.xianxia.sect.ui.components.HalfScreenDialog
+import com.xianxia.sect.ui.components.UnifiedGameDialog
+import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.core.model.GameData
-import com.xianxia.sect.ui.components.CloseButton
+import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.theme.GameColors
 
 @Composable
@@ -39,9 +40,13 @@ fun SalaryConfigDialog(
         9 to "练气"
     )
 
-    HalfScreenDialog(onDismissRequest = onDismiss, isFullScreen = true) {
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = "月俸配置",
+        mode = DialogMode.Full,
+        scrollableContent = false
+    ) {
         Column(modifier = Modifier.fillMaxSize()) {
-                SalaryConfigHeader(onDismiss = onDismiss)
 
                 LazyColumn(
                     modifier = Modifier
@@ -65,25 +70,6 @@ fun SalaryConfigDialog(
         }
 }
 
-@Composable
-private fun SalaryConfigHeader(onDismiss: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = "月俸配置",
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.Black
-        )
-
-        CloseButton(onClick = onDismiss)
-    }
-}
 
 @Composable
 private fun SalaryRealmCard(

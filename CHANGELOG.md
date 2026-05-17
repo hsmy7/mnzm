@@ -1,5 +1,17 @@
 # 模拟宗门 - 更新日志
 
+## [3.0.43] - 2026-05-17
+
+### 全屏界面架构重构
+- 引入 Jetpack Navigation Compose 路由系统，统一所有 23 个全屏界面的打开/关闭方式
+- 拆分大文件：WorldMapDialogs.kt（1850行）拆为 6 个独立文件
+- 15 个 Screen 对话框文件重命名并统一移至 dialogs/ 目录
+- 统一对话框包装器：80+ 处 HalfScreenDialog → UnifiedGameDialog + DialogMode
+- 废弃 HalfScreenDialog、GameFullDialog，删除 DialogStateManager
+- 共享组件提取：DialogHeader、DiscipleFilterState、统一弟子选择器 DiscipleSelectorDialog
+- 修复真机测试问题：渐隐动画关闭、双标题/双关闭按钮、按钮无响应、世界地图缩小
+- 无数据库迁移
+
 ## [3.0.42] - 2026-05-17
 
 ### 自动招募筛选界面优化

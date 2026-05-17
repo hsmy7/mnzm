@@ -1,4 +1,4 @@
-package com.xianxia.sect.ui.game.components
+package com.xianxia.sect.ui.game.dialogs
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -35,13 +35,11 @@ import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.WorldMapViewModel
 import com.xianxia.sect.ui.components.DiscipleAttrText
-import com.xianxia.sect.ui.components.CloseButton
-import com.xianxia.sect.ui.components.DialogDefaults
 import com.xianxia.sect.ui.components.GameButton
-import androidx.compose.ui.window.DialogProperties
 import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
-import com.xianxia.sect.ui.components.HalfScreenDialog
+import com.xianxia.sect.ui.components.UnifiedGameDialog
+import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.core.util.sortedByFollowAndRealm
 import com.xianxia.sect.core.util.GameUtils
@@ -75,16 +73,13 @@ fun AllianceDialog(
     val hasOtherAlliance = sect?.allianceId?.isNotEmpty() == true && !isAlly
     var showAlreadyAllianceDialog by remember { mutableStateOf(false) }
 
-    HalfScreenDialog(onDismissRequest = onDismiss, isFullScreen = true) {
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = "联盟",
+        mode = DialogMode.Full,
+        scrollableContent = false
+    ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("联盟", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-                CloseButton(onClick = onDismiss)
-            }
             Column(
                 modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)
             ) {
@@ -128,10 +123,13 @@ fun AllianceDialog(
     }
     
     if (showAlreadyAllianceDialog) {
-        HalfScreenDialog(onDismissRequest = { showAlreadyAllianceDialog = false }) {
+        UnifiedGameDialog(
+            onDismissRequest = { showAlreadyAllianceDialog = false },
+            title = "提示",
+            mode = DialogMode.Half
+        ) {
             Column(modifier = Modifier.padding(20.dp)) {
-                    Text("提示", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text("该宗门已有盟友", fontSize = 12.sp, color = Color.Black)
                     Spacer(modifier = Modifier.height(16.dp))
                     GameButton(
@@ -338,23 +336,13 @@ fun EnvoyDiscipleSelectDialog(
         disciples.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort)
     }
 
-    HalfScreenDialog(onDismissRequest = onDismiss) {
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = "选择游说弟子",
+        mode = DialogMode.Half,
+        scrollableContent = false
+    ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = Color(0xFFFF9800),
-                    shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            text = "选择游说弟子",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                    }
-                }
-
                 SpiritRootAttributeFilterBar(
                     selectedSpiritRootFilter = selectedSpiritRootFilter,
                     selectedAttributeSort = selectedAttributeSort,
@@ -523,29 +511,20 @@ fun ScoutDiscipleSelectDialog(
         disciples.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort)
     }
 
-    HalfScreenDialog(onDismissRequest = onDismiss) {
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = "选择探查弟子",
+        mode = DialogMode.Half,
+        scrollableContent = false,
+        headerActions = {
+            Text(
+                text = "目标: ${sect?.name ?: "未知宗门"} · 已选 ${selectedDisciples.size}/$maxSelectCount 人",
+                fontSize = 11.sp,
+                color = Color.Black
+            )
+        }
+    ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = Color(0xFF2196F3),
-                    shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            text = "选择探查弟子",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "目标: ${sect?.name ?: "未知宗门"} · 已选 ${selectedDisciples.size}/$maxSelectCount 人",
-                            fontSize = 13.sp,
-                            color = Color.White.copy(alpha = 0.8f)
-                        )
-                    }
-                }
-
                 SpiritRootAttributeFilterBar(
                     selectedSpiritRootFilter = selectedSpiritRootFilter,
                     selectedAttributeSort = selectedAttributeSort,

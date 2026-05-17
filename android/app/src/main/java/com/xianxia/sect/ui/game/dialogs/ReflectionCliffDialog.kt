@@ -1,4 +1,4 @@
-package com.xianxia.sect.ui.game
+package com.xianxia.sect.ui.game.dialogs
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -20,11 +20,11 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import com.xianxia.sect.core.model.*
-import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.components.FollowedTag
-import com.xianxia.sect.ui.components.HalfScreenDialog
+import com.xianxia.sect.ui.components.UnifiedGameDialog
+import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.theme.GameColors
@@ -122,15 +122,13 @@ fun ReflectionCliffDialog(
     }
 
     showExpelConfirmDialog?.let { disciple ->
-        HalfScreenDialog(onDismissRequest = { showExpelConfirmDialog = null }) {
+        UnifiedGameDialog(
+            onDismissRequest = { showExpelConfirmDialog = null },
+            title = "确认驱逐",
+            mode = DialogMode.Half
+        ) {
             Column(modifier = Modifier.padding(20.dp)) {
-                    Text(
-                        text = "确认驱逐",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = "确定要驱逐弟子 ${disciple.name} 吗？此操作不可撤销。",
                         fontSize = 12.sp,
@@ -163,21 +161,17 @@ private fun CommonDialog(
     onDismiss: () -> Unit,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    HalfScreenDialog(onDismissRequest = onDismiss, isFullScreen = false) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-                CloseButton(onClick = onDismiss)
-            }
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = title,
+        mode = DialogMode.Half,
+        scrollableContent = false,
+        content = {
             Column(
-                modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)
+                modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)
             ) {
                 content()
             }
         }
-    }
+    )
 }

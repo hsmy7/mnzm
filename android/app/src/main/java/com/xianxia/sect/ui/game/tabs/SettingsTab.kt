@@ -60,7 +60,6 @@ import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.DialogDefaults
 import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.ui.components.DiscipleAttrText
-import com.xianxia.sect.ui.components.GameBackground
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.SaveLoadViewModel
@@ -79,7 +78,7 @@ internal fun RedeemCodeDialog(
     var showTipDialog by remember { mutableStateOf(false) }
     var tipMessage by remember { mutableStateOf("") }
     var tipIsError by remember { mutableStateOf(false) }
-    var rewardItems by remember { mutableStateOf<List<com.xianxia.sect.ui.game.RewardItem>>(emptyList()) }
+    var rewardItems by remember { mutableStateOf<List<com.xianxia.sect.ui.game.dialogs.RewardItem>>(emptyList()) }
 
     LaunchedEffect(redeemResult) {
         redeemResult?.let { result ->
@@ -88,7 +87,7 @@ internal fun RedeemCodeDialog(
                     val rarityColor = try {
                         Color(android.graphics.Color.parseColor(GameConfig.Rarity.getColor(reward.rarity)))
                     } catch (e: Exception) { Color.Black }
-                    com.xianxia.sect.ui.game.RewardItem(
+                    com.xianxia.sect.ui.game.dialogs.RewardItem(
                         name = when (reward.type) {
                             "spiritStones" -> "${reward.quantity}灵石"
                             "disciple" -> "弟子 ${reward.name}"
@@ -153,7 +152,7 @@ internal fun RedeemCodeDialog(
         }
 
     if (showRewardDialog) {
-        com.xianxia.sect.ui.game.RewardDialog(
+        com.xianxia.sect.ui.game.dialogs.RewardDialog(
             title = "兑换成功！",
             rewards = rewardItems,
             onDismiss = { showRewardDialog = false }
@@ -190,18 +189,12 @@ internal fun SettingsTab(
     val showRedeemCodeDialogState by viewModel.showRedeemCodeDialog.collectAsState()
     val redeemResult by viewModel.redeemResult.collectAsState()
     
-    GameBackground {
+    Box(Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(16.dp)
         ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.End
-        ) {
-            CloseButton(onClick = onDismiss)
-        }
         Spacer(modifier = Modifier.height(8.dp))
         LazyColumn(
             modifier = Modifier.weight(1f),
@@ -566,7 +559,7 @@ internal fun SettingsTab(
                 )
             }
         }
-    }
+        }
 
     if (showSaveSlotDialog) {
         SaveSlotDialog(
@@ -652,7 +645,6 @@ internal fun SettingsTab(
                     }
             }
         }
-    }
     }
 
     if (showRedeemCodeDialogState) {
@@ -781,6 +773,7 @@ internal fun SettingsTab(
 
     if (showChangelogDialog) {
         ChangelogDialog(onDismiss = { showChangelogDialog = false })
+    }
     }
 }
 

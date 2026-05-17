@@ -42,6 +42,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.R
@@ -56,18 +61,11 @@ import com.xianxia.sect.ui.game.map.rememberCameraState
 import com.xianxia.sect.core.util.GridSystem
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.core.util.sortedByFollowAttributeAndRealm
-import com.xianxia.sect.ui.state.DialogStateManager.DialogType
+import com.xianxia.sect.ui.navigation.GameRoute
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.components.CloseButton
-import com.xianxia.sect.ui.components.DialogDefaults
-import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.ui.components.GameButton
-import com.xianxia.sect.ui.game.components.GiftDialog
-import com.xianxia.sect.ui.game.components.AllianceDialog
-import com.xianxia.sect.ui.game.components.EnvoyDiscipleSelectDialog
-import com.xianxia.sect.ui.game.components.ScoutDiscipleSelectDialog
-import com.xianxia.sect.ui.game.OuterTournamentResultDialog
 
 import com.xianxia.sect.ui.game.tabs.BuildingsTab
 import com.xianxia.sect.ui.game.tabs.DisciplesTab
@@ -80,19 +78,21 @@ import com.xianxia.sect.ui.game.dialogs.WorldMapDialog
 import com.xianxia.sect.ui.game.dialogs.WorldMapSectDetailDialog
 import com.xianxia.sect.ui.game.dialogs.DiplomacyDialog
 import com.xianxia.sect.ui.game.dialogs.CaveDetailDialog
-import com.xianxia.sect.ui.game.dialogs.SectTradeDialog
-import com.xianxia.sect.ui.game.dialogs.GiftedMessageToast
-import com.xianxia.sect.ui.game.SpiritMineDialog
-import com.xianxia.sect.ui.game.HerbGardenDialog
-import com.xianxia.sect.ui.game.AlchemyDialog
-import com.xianxia.sect.ui.game.ForgeDialog
-import com.xianxia.sect.ui.game.LibraryDialog
-import com.xianxia.sect.ui.game.WenDaoPeakDialog
-import com.xianxia.sect.ui.game.QingyunPeakDialog
-import com.xianxia.sect.ui.game.TianshuHallDialog
-import com.xianxia.sect.ui.game.LawEnforcementHallDialog
-import com.xianxia.sect.ui.game.MissionHallDialog
-import com.xianxia.sect.ui.game.ReflectionCliffDialog
+
+import com.xianxia.sect.ui.game.dialogs.SpiritMineDialog
+import com.xianxia.sect.ui.game.dialogs.HerbGardenDialog
+import com.xianxia.sect.ui.game.dialogs.AlchemyDialog
+import com.xianxia.sect.ui.game.dialogs.ForgeDialog
+import com.xianxia.sect.ui.game.dialogs.LibraryDialog
+import com.xianxia.sect.ui.game.dialogs.WenDaoPeakDialog
+import com.xianxia.sect.ui.game.dialogs.QingyunPeakDialog
+import com.xianxia.sect.ui.game.dialogs.TianshuHallDialog
+import com.xianxia.sect.ui.game.dialogs.LawEnforcementHallDialog
+import com.xianxia.sect.ui.game.dialogs.MissionHallDialog
+import com.xianxia.sect.ui.game.dialogs.RecruitDialog
+import com.xianxia.sect.ui.game.dialogs.ReflectionCliffDialog
+import com.xianxia.sect.ui.game.dialogs.SalaryConfigDialog
+import com.xianxia.sect.ui.game.dialogs.MerchantDialog
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.PlantSlotData
 import com.xianxia.sect.core.model.production.ProductionSlotStatus
@@ -196,10 +196,7 @@ fun MainGameScreen(
     var placingWorldX by remember { mutableFloatStateOf(0f) }
     var placingWorldY by remember { mutableFloatStateOf(0f) }
     var buildingBarExpanded by remember { mutableStateOf(false) }
-    var showDisciplesDialog by remember { mutableStateOf(false) }
-    var showWarehouseDialog by remember { mutableStateOf(false) }
-    var showSettingsDialog by remember { mutableStateOf(false) }
-    var showBuildingsDialog by remember { mutableStateOf(false) }
+    val dialogNavController = rememberNavController()
     val tileSize = mapPreloadData.tileSize
     val worldPixelWidth = mapPreloadData.worldPixelWidth
     val worldPixelHeight = mapPreloadData.worldPixelHeight
@@ -305,30 +302,38 @@ fun MainGameScreen(
     // 建筑列表及点击回调
     val buildingList = remember {
         listOf(
-            "灵矿场" to { _: GridBuildingData? -> viewModel.openSpiritMineDialog() },
-            "灵植阁" to { _: GridBuildingData? -> viewModel.openHerbGardenDialog() },
-            "炼丹炉" to { _: GridBuildingData? -> viewModel.openAlchemyDialog() },
-            "锻造坊" to { _: GridBuildingData? -> viewModel.openForgeDialog() },
-            "藏经阁" to { _: GridBuildingData? -> viewModel.openLibraryDialog() },
-            "问道塔" to { _: GridBuildingData? -> viewModel.openWenDaoPeakDialog() },
-            "青云塔" to { _: GridBuildingData? -> viewModel.openQingyunPeakDialog() },
-            "天枢殿" to { _: GridBuildingData? -> viewModel.openTianshuHallDialog() },
-            "执法堂" to { _: GridBuildingData? -> viewModel.openLawEnforcementHallDialog() },
-            "任务阁" to { _: GridBuildingData? -> viewModel.openMissionHallDialog() },
-            "监牢" to { _: GridBuildingData? -> viewModel.openReflectionCliffDialog() }
+            "灵矿场" to { _: GridBuildingData? -> dialogNavController.navigate(GameRoute.SpiritMine.createRoute(0)) },
+            "灵植阁" to { _: GridBuildingData? -> dialogNavController.navigate(GameRoute.HerbGarden.route) },
+            "炼丹炉" to { _: GridBuildingData? -> dialogNavController.navigate(GameRoute.Alchemy.createRoute(0)) },
+            "锻造坊" to { _: GridBuildingData? -> dialogNavController.navigate(GameRoute.Forge.createRoute(0)) },
+            "藏经阁" to { _: GridBuildingData? -> dialogNavController.navigate(GameRoute.Library.route) },
+            "问道塔" to { _: GridBuildingData? -> dialogNavController.navigate(GameRoute.WenDaoPeak.route) },
+            "青云塔" to { _: GridBuildingData? -> dialogNavController.navigate(GameRoute.QingyunPeak.route) },
+            "天枢殿" to { _: GridBuildingData? -> dialogNavController.navigate(GameRoute.TianshuHall.route) },
+            "执法堂" to { _: GridBuildingData? -> dialogNavController.navigate(GameRoute.LawEnforcementHall.route) },
+            "任务阁" to { _: GridBuildingData? -> dialogNavController.navigate(GameRoute.MissionHall.route) },
+            "监牢" to { _: GridBuildingData? -> dialogNavController.navigate(GameRoute.ReflectionCliff.route) }
         )
     }
 
-    // [M7-OPT-5] 对话框状态惰性收集
-    // 这些 Boolean 状态控制 Dialog 显示/隐藏
-    // Compose 编译器会自动跳过未变化的读取，开销较小
-    // 如需进一步优化，可考虑合并为单个 StateFlow<DialogState>
-    val currentDialog by viewModel.dialogStateManager.currentDialog.collectAsState()
+    // Navigation event collectors — ViewModel-triggered dialogs
+    LaunchedEffect(Unit) {
+        viewModel.navigationEvents.collect { route ->
+            dialogNavController.navigate(route.route)
+        }
+    }
+    LaunchedEffect(Unit) {
+        viewModel.popBackEvents.collect {
+            dialogNavController.popBackStack()
+        }
+    }
 
-    // 弹窗打开时取消建筑放置
-    LaunchedEffect(currentDialog) {
-        if (currentDialog != null) {
-            isPlacingBuilding = false
+    // Dialog dismiss on NavHost back press: cancel building placement
+    LaunchedEffect(dialogNavController) {
+        dialogNavController.currentBackStackEntryFlow.collect {
+            if (it.destination.route != null) {
+                isPlacingBuilding = false
+            }
         }
     }
 
@@ -357,43 +362,15 @@ fun MainGameScreen(
         }
     }
     // 关闭弹窗后重新居中
-    LaunchedEffect(currentDialog) {
-        if (currentDialog == null && screenWidthPx > 0 && screenHeightPx > 0) {
-            cameraState.centerOn(worldPixelWidth / 2f, worldPixelHeight / 2f)
+    // Re-center camera when no dialog is shown
+    LaunchedEffect(dialogNavController) {
+        dialogNavController.currentBackStackEntryFlow.collect { entry ->
+            if (entry.destination.route == null && screenWidthPx > 0 && screenHeightPx > 0) {
+                cameraState.centerOn(worldPixelWidth / 2f, worldPixelHeight / 2f)
+            }
         }
     }
 
-    val showRecruitDialog = currentDialog?.type == DialogType.Recruit
-    val showDiplomacyDialog = currentDialog?.type == DialogType.Diplomacy
-    val showMerchantDialog = currentDialog?.type == DialogType.Merchant
-    val showSalaryConfigDialog = currentDialog?.type == DialogType.SalaryConfig
-    val showWorldMapDialog = currentDialog?.type == DialogType.WorldMap
-    val showSectTradeDialog by worldMapViewModel.showSectTradeDialog.collectAsState()
-    val selectedTradeSectId by worldMapViewModel.selectedTradeSectId.collectAsState()
-    val sectTradeItems by worldMapViewModel.sectTradeItems.collectAsState()
-    val showGiftDialog by worldMapViewModel.showGiftDialog.collectAsState()
-    val selectedGiftSectId by worldMapViewModel.selectedGiftSectId.collectAsState()
-
-    val showAllianceDialog by worldMapViewModel.showAllianceDialog.collectAsState()
-    val selectedAllianceSectId by worldMapViewModel.selectedAllianceSectId.collectAsState()
-    val showEnvoyDiscipleSelectDialog by worldMapViewModel.showEnvoyDiscipleSelectDialog.collectAsState()
-
-    val showScoutDialog by worldMapViewModel.showScoutDialog.collectAsState()
-    val selectedScoutSectId by worldMapViewModel.selectedScoutSectId.collectAsState()
-    val showOuterTournamentDialog by worldMapViewModel.showOuterTournamentDialog.collectAsState()
-    val showTianshuHallDialog = currentDialog?.type == DialogType.TianshuHall
-    val showSpiritMineDialog = currentDialog?.type == DialogType.SpiritMine
-    val showHerbGardenDialog = currentDialog?.type == DialogType.HerbGarden
-    val showAlchemyDialog = currentDialog?.type == DialogType.Alchemy
-    val showForgeDialog = currentDialog?.type == DialogType.Forge
-    val showLibraryDialog = currentDialog?.type == DialogType.Library
-    val showWenDaoPeakDialog = currentDialog?.type == DialogType.WenDaoPeak
-    val showQingyunPeakDialog = currentDialog?.type == DialogType.QingyunPeak
-    val showLawEnforcementHallDialog = currentDialog?.type == DialogType.LawEnforcementHall
-    val showMissionHallDialog = currentDialog?.type == DialogType.MissionHall
-    val showReflectionCliffDialog = currentDialog?.type == DialogType.ReflectionCliff
-
-    val showBattleLogDialog = currentDialog?.type == DialogType.BattleLog
     val battleLogs by viewModel.battleLogs.collectAsState()
 
     LaunchedEffect(gameData?.pendingCompetitionResults) {
@@ -404,10 +381,9 @@ fun MainGameScreen(
     }
 
     val isGameOver by viewModel.isGameOver.collectAsState()
-    val showGameOverDialog = currentDialog?.type == DialogType.GameOver
 
     LaunchedEffect(isGameOver) {
-        if (isGameOver && !showGameOverDialog) {
+        if (isGameOver) {
             viewModel.openGameOverDialog()
         }
     }
@@ -438,9 +414,9 @@ fun MainGameScreen(
             previewSize = placingBuildingSize,
             previewValid = placementValidity,
             buildingList = buildingList,
-            onSpiritMineClick = { mineIndex -> viewModel.openSpiritMineDialog(mineIndex) },
-            onAlchemyClick = { idx -> viewModel.openAlchemyDialog(idx) },
-            onForgeClick = { idx -> viewModel.openForgeDialog(idx) },
+            onSpiritMineClick = { mineIndex -> dialogNavController.navigate(GameRoute.SpiritMine.createRoute(mineIndex)) },
+            onAlchemyClick = { idx -> dialogNavController.navigate(GameRoute.Alchemy.createRoute(idx)) },
+            onForgeClick = { idx -> dialogNavController.navigate(GameRoute.Forge.createRoute(idx)) },
             onPlacementDrag = { dx, dy ->
                 placingWorldX += dx * 0.3f
                 placingWorldY += dy * 0.3f
@@ -490,16 +466,16 @@ fun MainGameScreen(
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    FloatingActionButton(text = "日志", onClick = { viewModel.openBattleLogDialog() }, drawableRes = R.drawable.ui_log_button)
-                    FloatingActionButton(text = "商人", onClick = { viewModel.openMerchantDialog() }, drawableRes = R.drawable.ui_merchant_button)
-                    FloatingActionButton(text = "招募", onClick = { viewModel.openRecruitDialog() }, drawableRes = R.drawable.ui_recruit_button)
+                    FloatingActionButton(text = "日志", onClick = { dialogNavController.navigate(GameRoute.BattleLog.route) }, drawableRes = R.drawable.ui_log_button)
+                    FloatingActionButton(text = "商人", onClick = { dialogNavController.navigate(GameRoute.Merchant.route) }, drawableRes = R.drawable.ui_merchant_button)
+                    FloatingActionButton(text = "招募", onClick = { dialogNavController.navigate(GameRoute.Recruit.route) }, drawableRes = R.drawable.ui_recruit_button)
                     FloatingActionButton(text = "建造", onClick = { buildingBarExpanded = !buildingBarExpanded; isPlacingBuilding = false }, drawableRes = R.drawable.ui_build_button)
-                    FloatingActionButton(text = "仓库", onClick = { showWarehouseDialog = true }, drawableRes = R.drawable.ui_warehouse_button)
-                    FloatingActionButton(text = "设置", onClick = { showSettingsDialog = true }, drawableRes = R.drawable.ui_settings_button)
+                    FloatingActionButton(text = "仓库", onClick = { dialogNavController.navigate(GameRoute.Warehouse.route) }, drawableRes = R.drawable.ui_warehouse_button)
+                    FloatingActionButton(text = "设置", onClick = { dialogNavController.navigate(GameRoute.Settings.route) }, drawableRes = R.drawable.ui_settings_button)
                 }
-                FloatingActionButton(text = "弟子", onClick = { showDisciplesDialog = true }, drawableRes = R.drawable.ui_team_button)
-                FloatingActionButton(text = "世界", onClick = { viewModel.openWorldMapDialog() }, drawableRes = R.drawable.ui_map_button)
-                FloatingActionButton(text = "外交", onClick = { viewModel.openDiplomacyDialog() }, drawableRes = R.drawable.ui_diplomacy_button)
+                FloatingActionButton(text = "弟子", onClick = { dialogNavController.navigate(GameRoute.Disciples.route) }, drawableRes = R.drawable.ui_team_button)
+                FloatingActionButton(text = "世界", onClick = { dialogNavController.navigate(GameRoute.WorldMap.route) }, drawableRes = R.drawable.ui_map_button)
+                FloatingActionButton(text = "外交", onClick = { dialogNavController.navigate(GameRoute.Diplomacy.route) }, drawableRes = R.drawable.ui_diplomacy_button)
             }
         }
 
@@ -539,395 +515,260 @@ fun MainGameScreen(
             )
         }
 
-        // Full-screen disciples dialog
-        if (showDisciplesDialog) {
-            BackHandler(onBack = { showDisciplesDialog = false })
-            Surface(
-                modifier = Modifier.fillMaxSize(),
-                color = GameColors.PageBackground
-            ) {
-                Box(modifier = Modifier.fillMaxSize()) {
-                    Image(
-                        painter = painterResource(id = R.drawable.bg_horizontal),
-                        contentDescription = null,
-                        modifier = Modifier.matchParentSize(),
-                        contentScale = ContentScale.Crop
+        // Dialog overlay via NavHost — no animations, instant open/close
+        NavHost(
+            navController = dialogNavController,
+            startDestination = "empty",
+            modifier = Modifier.fillMaxSize(),
+            enterTransition = { EnterTransition.None },
+            exitTransition = { ExitTransition.None },
+            popEnterTransition = { EnterTransition.None },
+            popExitTransition = { ExitTransition.None }
+        ) {
+            composable("empty") { /* No overlay — base map visible */ }
+
+            // Full-screen overlays (floating button dialogs)
+            composable(GameRoute.Disciples.route) {
+                FullScreenOverlay(title = "弟子", onDismiss = { dialogNavController.popBackStack() }) {
+                    DisciplesTab(
+                        gameData = gameData,
+                        disciples = aliveDisciples.value,
+                        equipment = equipment,
+                        manuals = manuals,
+                        manualStacks = manualStacks,
+                        equipmentStacks = equipmentStacks,
+                        viewModel = viewModel
                     )
-                    Column(modifier = Modifier.fillMaxSize()) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                "弟子",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.Black
-                            )
-                            Spacer(modifier = Modifier.weight(1f))
-                            CloseButton(onClick = { showDisciplesDialog = false })
-                        }
-                        DisciplesTab(
-                            gameData = gameData,
-                            disciples = aliveDisciples.value,
-                            equipment = equipment,
-                            manuals = manuals,
-                            manualStacks = manualStacks,
-                            equipmentStacks = equipmentStacks,
-                            viewModel = viewModel
-                        )
-                    }
                 }
             }
-        }
-
-        // Full-screen warehouse dialog
-        if (showWarehouseDialog) {
-            BackHandler(onBack = { showWarehouseDialog = false })
-            Surface(
-                modifier = Modifier.fillMaxSize(),
-                color = GameColors.PageBackground
-            ) {
-                Box(modifier = Modifier.fillMaxSize()) {
-                    Image(
-                        painter = painterResource(id = R.drawable.bg_horizontal),
-                        contentDescription = null,
-                        modifier = Modifier.matchParentSize(),
-                        contentScale = ContentScale.Crop
+            composable(GameRoute.Warehouse.route) {
+                FullScreenOverlay(title = "仓库", onDismiss = { dialogNavController.popBackStack() }) {
+                    WarehouseTab(
+                        viewModel = viewModel,
+                        onDismiss = { dialogNavController.popBackStack() }
                     )
-                    Column(modifier = Modifier.fillMaxSize()) {
-                        WarehouseTab(
-                            viewModel = viewModel,
-                            onDismiss = { showWarehouseDialog = false }
-                        )
-                    }
                 }
             }
-        }
-
-        // Full-screen settings dialog
-        if (showSettingsDialog) {
-            BackHandler(onBack = { showSettingsDialog = false })
-            Surface(
-                modifier = Modifier.fillMaxSize(),
-                color = GameColors.PageBackground
-            ) {
-                Box(modifier = Modifier.fillMaxSize()) {
-                    Image(
-                        painter = painterResource(id = R.drawable.bg_horizontal),
-                        contentDescription = null,
-                        modifier = Modifier.matchParentSize(),
-                        contentScale = ContentScale.Crop
-                    )
+            composable(GameRoute.Settings.route) {
+                FullScreenOverlay(title = "设置", onDismiss = { dialogNavController.popBackStack() }) {
                     SettingsTab(
                         viewModel = viewModel,
                         saveLoadViewModel = saveLoadViewModel,
                         onLogout = onLogout,
-                        onDismiss = { showSettingsDialog = false },
+                        onDismiss = { dialogNavController.popBackStack() },
                         limitAdTracking = limitAdTracking,
                         onLimitAdTrackingChanged = onLimitAdTrackingChanged
                     )
                 }
             }
-        }
-
-        if (showBuildingsDialog) {
-            BuildingsTab(
-                viewModel = viewModel,
-                productionViewModel = productionViewModel,
-                alchemyViewModel = alchemyViewModel,
-                forgeViewModel = forgeViewModel,
-                herbGardenViewModel = herbGardenViewModel,
-                spiritMineViewModel = spiritMineViewModel,
-                onDismiss = { showBuildingsDialog = false }
-            )
-        }
-
-        if (showRecruitDialog) {
-            val recruitList by viewModel.recruitListAggregates.collectAsState()
-            RecruitDialog(
-                recruitList = recruitList,
-                gameData = gameData,
-                viewModel = viewModel,
-                onDismiss = { viewModel.closeCurrentDialog() }
-            )
-        }
-        
-        if (showDiplomacyDialog) {
-            DiplomacyDialog(
-                gameData = gameData,
-                viewModel = viewModel,
-                worldMapViewModel = worldMapViewModel,
-                onDismiss = { viewModel.closeCurrentDialog() }
-            )
-        }
-
-        if (showMerchantDialog) {
-            MerchantDialog(
-                gameData = gameData,
-                viewModel = viewModel,
-                onDismiss = { viewModel.closeCurrentDialog() }
-            )
-        }
-
-        if (showSalaryConfigDialog) {
-            SalaryConfigDialog(
-                gameData = gameData,
-                viewModel = viewModel,
-                onDismiss = { viewModel.closeCurrentDialog() }
-            )
-        }
-
-        if (showWorldMapDialog) {
-            WorldMapDialog(
-                worldSects = mapRenderData.worldMapSects,
-                scoutTeams = teams,
-                mapRenderData = mapRenderData,
-                gameData = gameData,
-                disciples = disciples,
-                viewModel = viewModel,
-                worldMapViewModel = worldMapViewModel,
-                onDismiss = { viewModel.closeCurrentDialog() }
-            )
-        }
-
-        if (showSectTradeDialog) {
-            val selectedSect = gameData?.worldMapSects?.find { it.id == selectedTradeSectId }
-            SectTradeDialog(
-                sect = selectedSect,
-                gameData = gameData,
-                tradeItems = sectTradeItems,
-                viewModel = viewModel,
-                worldMapViewModel = worldMapViewModel,
-                onDismiss = { worldMapViewModel.closeSectTradeDialog() }
-            )
-        }
-        
-        if (showGiftDialog) {
-            val selectedSect = gameData?.worldMapSects?.find { it.id == selectedGiftSectId }
-            GiftDialog(
-                sect = selectedSect,
-                gameData = gameData,
-                viewModel = viewModel,
-                worldMapViewModel = worldMapViewModel,
-                onDismiss = { worldMapViewModel.closeGiftDialog() }
-            )
-        }
-        
-        if (showAllianceDialog) {
-            val selectedSect = gameData?.worldMapSects?.find { it.id == selectedAllianceSectId }
-            AllianceDialog(
-                sect = selectedSect,
-                gameData = gameData,
-                viewModel = viewModel,
-                worldMapViewModel = worldMapViewModel,
-                onDismiss = { worldMapViewModel.closeAllianceDialog() }
-            )
-        }
-        
-        if (showEnvoyDiscipleSelectDialog) {
-            val selectedSect = gameData?.worldMapSects?.find { it.id == selectedAllianceSectId }
-            val eligibleDisciples = remember(disciples, selectedSect?.level) {
-                val requiredRealm = selectedSect?.level?.let { worldMapViewModel.getEnvoyRealmRequirement(it) } ?: 0
-                disciples.filter {
-                    it.isAlive && it.status == DiscipleStatus.IDLE && it.realm <= requiredRealm
-                }
-            }
-            EnvoyDiscipleSelectDialog(
-                sect = selectedSect,
-                disciples = eligibleDisciples,
-                viewModel = viewModel,
-                worldMapViewModel = worldMapViewModel,
-                onDismiss = { worldMapViewModel.closeEnvoyDiscipleSelectDialog() }
-            )
-        }
-        
-        if (showScoutDialog) {
-            val selectedSect = gameData?.worldMapSects?.find { it.id == selectedScoutSectId }
-            val eligibleDisciples = remember(disciples) {
-                disciples.filter { it.isAlive && it.status == DiscipleStatus.IDLE }
-            }
-            ScoutDiscipleSelectDialog(
-                sect = selectedSect,
-                disciples = eligibleDisciples,
-                viewModel = viewModel,
-                worldMapViewModel = worldMapViewModel,
-                onDismiss = { worldMapViewModel.closeScoutDialog() }
-            )
-        }
-
-        if (showOuterTournamentDialog) {
-            OuterTournamentResultDialog(
-                competitionResults = gameData?.pendingCompetitionResults ?: emptyList(),
-                allDisciples = aliveDisciples.value,
-                gameData = gameData ?: GameData(),
-                worldMapViewModel = worldMapViewModel,
-                onDismiss = { worldMapViewModel.closeOuterTournamentDialog() }
-            )
-        }
-        
-        if (showBattleLogDialog) {
-            BattleLogListDialog(
-                battleLogs = battleLogs,
-                onDismiss = { viewModel.closeCurrentDialog() }
-            )
-        }
-
-        if (showSpiritMineDialog) {
-            val mineIndex = (currentDialog?.params?.get("mineIndex") as? Int) ?: 0
-            SpiritMineDialog(
-                mineIndex = mineIndex,
-                viewModel = viewModel,
-                productionViewModel = productionViewModel,
-                spiritMineViewModel = spiritMineViewModel,
-                onDismiss = { viewModel.closeCurrentDialog() }
-            )
-        }
-
-        if (showHerbGardenDialog) {
-            HerbGardenDialog(
-                plantSlots = productionSlots.filter {
-                    it.buildingType == BuildingType.HERB_GARDEN
-                }.map { slot ->
-                    PlantSlotData(
-                        index = slot.slotIndex,
-                        status = when (slot.status) {
-                            ProductionSlotStatus.IDLE -> "idle"
-                            ProductionSlotStatus.WORKING -> "growing"
-                            ProductionSlotStatus.COMPLETED -> "mature"
-                        },
-                        seedId = slot.recipeId ?: "",
-                        seedName = slot.recipeName,
-                        startYear = slot.startYear,
-                        startMonth = slot.startMonth,
-                        growTime = slot.duration,
-                        expectedYield = slot.expectedYield
+            composable(GameRoute.Buildings.route) {
+                FullScreenOverlay(title = "建造", onDismiss = { dialogNavController.popBackStack() }) {
+                    BuildingsTab(
+                        viewModel = viewModel,
+                        productionViewModel = productionViewModel,
+                        alchemyViewModel = alchemyViewModel,
+                        forgeViewModel = forgeViewModel,
+                        herbGardenViewModel = herbGardenViewModel,
+                        spiritMineViewModel = spiritMineViewModel,
+                        onDismiss = { dialogNavController.popBackStack() }
                     )
-                },
-                seeds = seeds,
-                gameData = gameData,
-                disciples = disciples.filter { it.isAlive },
-                viewModel = viewModel,
-                productionViewModel = productionViewModel,
-                herbGardenViewModel = herbGardenViewModel,
-                onDismiss = { viewModel.closeCurrentDialog() }
-            )
-        }
-
-        if (showAlchemyDialog) {
-            val buildingIndex = (currentDialog?.params?.get("buildingIndex") as? Int) ?: 0
-            AlchemyDialog(
-                buildingIndex = buildingIndex,
-                alchemySlots = alchemySlots,
-                materials = materials,
-                herbs = herbs,
-                gameData = gameData,
-                disciples = disciples.filter { it.isAlive },
-                viewModel = viewModel,
-                productionViewModel = productionViewModel,
-                alchemyViewModel = alchemyViewModel,
-                colors = XianxiaColorScheme(),
-                onDismiss = { viewModel.closeCurrentDialog() }
-            )
-        }
-
-        if (showForgeDialog) {
-            val buildingIndex = (currentDialog?.params?.get("buildingIndex") as? Int) ?: 0
-            ForgeDialog(
-                buildingIndex = buildingIndex,
-                forgeSlots = forgeSlots,
-                materials = materials,
-                gameData = gameData,
-                disciples = disciples.filter { it.isAlive },
-                viewModel = viewModel,
-                productionViewModel = productionViewModel,
-                forgeViewModel = forgeViewModel,
-                colors = XianxiaColorScheme(),
-                onDismiss = { viewModel.closeCurrentDialog() }
-            )
-        }
-
-        if (showLibraryDialog) {
-            LibraryDialog(
-                manuals = manuals,
-                disciples = disciples.filter { it.isAlive },
-                gameData = gameData,
-                viewModel = viewModel,
-                productionViewModel = productionViewModel,
-                onDismiss = { viewModel.closeCurrentDialog() }
-            )
-        }
-
-        if (showWenDaoPeakDialog) {
-            WenDaoPeakDialog(
-                disciples = disciples.filter { it.isAlive },
-                gameData = gameData,
-                viewModel = viewModel,
-                productionViewModel = productionViewModel,
-            )
-        }
-
-        if (showQingyunPeakDialog) {
-            QingyunPeakDialog(
-                disciples = disciples.filter { it.isAlive },
-                gameData = gameData,
-                viewModel = viewModel,
-                productionViewModel = productionViewModel,
-            )
-        }
-
-        if (showTianshuHallDialog) {
-            TianshuHallDialog(
-                gameData = gameData,
-                disciples = disciples.filter { it.isAlive },
-                viewModel = viewModel,
-                productionViewModel = productionViewModel,
-                onDismiss = { viewModel.closeCurrentDialog() }
-            )
-        }
-
-        if (showLawEnforcementHallDialog) {
-            LawEnforcementHallDialog(
-                disciples = disciples.filter { it.isAlive },
-                gameData = gameData,
-                viewModel = viewModel,
-                productionViewModel = productionViewModel,
-                onDismiss = { viewModel.closeCurrentDialog() }
-            )
-        }
-
-        if (showMissionHallDialog) {
-            MissionHallDialog(
-                gameData = gameData,
-                disciples = disciples.filter { it.isAlive },
-                viewModel = viewModel,
-                onDismiss = { viewModel.closeCurrentDialog() }
-            )
-        }
-
-        if (showReflectionCliffDialog) {
-            ReflectionCliffDialog(
-                disciples = disciples.filter { it.isAlive },
-                gameData = gameData,
-                onDismiss = { viewModel.closeCurrentDialog() },
-                onExpelDisciple = { discipleId -> viewModel.expelDisciple(discipleId) }
-            )
-        }
-
-        if (showGameOverDialog) {
-            GameOverDialog(
-                onRestartGame = {
-                    viewModel.closeCurrentDialog()
-                    onRestartGame()
-                },
-                onReturnToMain = {
-                    viewModel.closeCurrentDialog()
-                    onLogout()
                 }
-            )
+            }
+
+            // Business dialogs (DialogStateManager → NavHost)
+            composable(GameRoute.Recruit.route) {
+                val recruitList by viewModel.recruitListAggregates.collectAsState()
+                RecruitDialog(
+                    recruitList = recruitList,
+                    gameData = gameData,
+                    viewModel = viewModel,
+                    onDismiss = { dialogNavController.popBackStack() }
+                )
+            }
+            composable(GameRoute.Diplomacy.route) {
+                DiplomacyDialog(
+                    gameData = gameData,
+                    viewModel = viewModel,
+                    worldMapViewModel = worldMapViewModel,
+                    onDismiss = { dialogNavController.popBackStack() }
+                )
+            }
+            composable(GameRoute.Merchant.route) {
+                MerchantDialog(
+                    gameData = gameData,
+                    viewModel = viewModel,
+                    onDismiss = { dialogNavController.popBackStack() }
+                )
+            }
+            composable(GameRoute.SalaryConfig.route) {
+                SalaryConfigDialog(
+                    gameData = gameData,
+                    viewModel = viewModel,
+                    onDismiss = { dialogNavController.popBackStack() }
+                )
+            }
+            composable(GameRoute.WorldMap.route) {
+                WorldMapDialog(
+                    worldSects = mapRenderData.worldMapSects,
+                    scoutTeams = teams,
+                    mapRenderData = mapRenderData,
+                    gameData = gameData,
+                    disciples = disciples,
+                    viewModel = viewModel,
+                    worldMapViewModel = worldMapViewModel,
+                    onDismiss = { dialogNavController.popBackStack() }
+                )
+            }
+            composable(GameRoute.BattleLog.route) {
+                BattleLogListDialog(
+                    battleLogs = battleLogs,
+                    onDismiss = { dialogNavController.popBackStack() }
+                )
+            }
+
+            // Construction dialogs (building click → NavHost)
+            composable(GameRoute.SpiritMine.route) {
+                val mineIndex = it.arguments?.getString("mineIndex")?.toIntOrNull() ?: 0
+                SpiritMineDialog(
+                    mineIndex = mineIndex,
+                    viewModel = viewModel,
+                    productionViewModel = productionViewModel,
+                    spiritMineViewModel = spiritMineViewModel,
+                    onDismiss = { dialogNavController.popBackStack() }
+                )
+            }
+            composable(GameRoute.HerbGarden.route) {
+                HerbGardenDialog(
+                    plantSlots = productionSlots.filter {
+                        it.buildingType == BuildingType.HERB_GARDEN
+                    }.map { slot ->
+                        PlantSlotData(
+                            index = slot.slotIndex,
+                            status = when (slot.status) {
+                                ProductionSlotStatus.IDLE -> "idle"
+                                ProductionSlotStatus.WORKING -> "growing"
+                                ProductionSlotStatus.COMPLETED -> "mature"
+                            },
+                            seedId = slot.recipeId ?: "",
+                            seedName = slot.recipeName,
+                            startYear = slot.startYear,
+                            startMonth = slot.startMonth,
+                            growTime = slot.duration,
+                            expectedYield = slot.expectedYield
+                        )
+                    },
+                    seeds = seeds,
+                    gameData = gameData,
+                    disciples = disciples.filter { it.isAlive },
+                    viewModel = viewModel,
+                    productionViewModel = productionViewModel,
+                    herbGardenViewModel = herbGardenViewModel,
+                    onDismiss = { dialogNavController.popBackStack() }
+                )
+            }
+            composable(GameRoute.Alchemy.route) {
+                val buildingIndex = it.arguments?.getString("buildingIndex")?.toIntOrNull() ?: 0
+                AlchemyDialog(
+                    buildingIndex = buildingIndex,
+                    alchemySlots = alchemySlots,
+                    materials = materials,
+                    herbs = herbs,
+                    gameData = gameData,
+                    disciples = disciples.filter { it.isAlive },
+                    viewModel = viewModel,
+                    productionViewModel = productionViewModel,
+                    alchemyViewModel = alchemyViewModel,
+                    colors = XianxiaColorScheme(),
+                    onDismiss = { dialogNavController.popBackStack() }
+                )
+            }
+            composable(GameRoute.Forge.route) {
+                val buildingIndex = it.arguments?.getString("buildingIndex")?.toIntOrNull() ?: 0
+                ForgeDialog(
+                    buildingIndex = buildingIndex,
+                    forgeSlots = forgeSlots,
+                    materials = materials,
+                    gameData = gameData,
+                    disciples = disciples.filter { it.isAlive },
+                    viewModel = viewModel,
+                    productionViewModel = productionViewModel,
+                    forgeViewModel = forgeViewModel,
+                    colors = XianxiaColorScheme(),
+                    onDismiss = { dialogNavController.popBackStack() }
+                )
+            }
+            composable(GameRoute.Library.route) {
+                LibraryDialog(
+                    manuals = manuals,
+                    disciples = disciples.filter { it.isAlive },
+                    gameData = gameData,
+                    viewModel = viewModel,
+                    productionViewModel = productionViewModel,
+                    onDismiss = { dialogNavController.popBackStack() }
+                )
+            }
+            composable(GameRoute.WenDaoPeak.route) {
+                WenDaoPeakDialog(
+                    disciples = disciples.filter { it.isAlive },
+                    gameData = gameData,
+                    viewModel = viewModel,
+                    productionViewModel = productionViewModel,
+                )
+            }
+            composable(GameRoute.QingyunPeak.route) {
+                QingyunPeakDialog(
+                    disciples = disciples.filter { it.isAlive },
+                    gameData = gameData,
+                    viewModel = viewModel,
+                    productionViewModel = productionViewModel,
+                )
+            }
+            composable(GameRoute.TianshuHall.route) {
+                TianshuHallDialog(
+                    gameData = gameData,
+                    disciples = disciples.filter { it.isAlive },
+                    viewModel = viewModel,
+                    productionViewModel = productionViewModel,
+                    onDismiss = { dialogNavController.popBackStack() }
+                )
+            }
+            composable(GameRoute.LawEnforcementHall.route) {
+                LawEnforcementHallDialog(
+                    disciples = disciples.filter { it.isAlive },
+                    gameData = gameData,
+                    viewModel = viewModel,
+                    productionViewModel = productionViewModel,
+                    onDismiss = { dialogNavController.popBackStack() }
+                )
+            }
+            composable(GameRoute.MissionHall.route) {
+                MissionHallDialog(
+                    gameData = gameData,
+                    disciples = disciples.filter { it.isAlive },
+                    viewModel = viewModel,
+                    onDismiss = { dialogNavController.popBackStack() }
+                )
+            }
+            composable(GameRoute.ReflectionCliff.route) {
+                ReflectionCliffDialog(
+                    disciples = disciples.filter { it.isAlive },
+                    gameData = gameData,
+                    onDismiss = { dialogNavController.popBackStack() },
+                    onExpelDisciple = { discipleId -> viewModel.expelDisciple(discipleId) }
+                )
+            }
+            composable(GameRoute.GameOver.route) {
+                GameOverDialog(
+                    onRestartGame = {
+                        dialogNavController.popBackStack()
+                        onRestartGame()
+                    },
+                    onReturnToMain = {
+                        dialogNavController.popBackStack()
+                        onLogout()
+                    }
+                )
+            }
         }
 
         tipDialogMessage?.let { message ->
@@ -936,6 +777,47 @@ fun MainGameScreen(
                 isError = tipDialogIsError,
                 onDismiss = { tipDialogMessage = null }
             )
+        }
+    }
+}
+
+@Composable
+private fun FullScreenOverlay(
+    title: String,
+    onDismiss: () -> Unit,
+    content: @Composable () -> Unit
+) {
+    BackHandler(onBack = onDismiss)
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = GameColors.PageBackground
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Image(
+                painter = painterResource(id = R.drawable.bg_horizontal),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.Crop
+            )
+            Column(modifier = Modifier.fillMaxSize()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        title,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                    CloseButton(onClick = onDismiss)
+                }
+                content()
+            }
         }
     }
 }
@@ -1498,46 +1380,6 @@ private fun GameOverDialog(
         }
     }
 }
-@Composable
-private fun CommonDialog(
-    title: String,
-    onDismiss: () -> Unit,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    BackHandler(onBack = onDismiss)
-    HalfScreenDialog(onDismissRequest = onDismiss) {
-        BackHandler(onBack = onDismiss)
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = title,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-                CloseButton(onClick = onDismiss)
-            }
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f, fill = false)
-                    .heightIn(max = DialogDefaults.CommonMaxHeight)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp)
-            ) {
-                content()
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-        }
-    }
-}
-
 // Shared utility functions used by multiple tabs and dialogs
 internal data class AttributeFilterOption(
     val key: String,

@@ -1,4 +1,4 @@
-package com.xianxia.sect.ui.game
+package com.xianxia.sect.ui.game.dialogs
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -25,20 +25,22 @@ import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.MissionSystem
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.ui.components.UnifiedGameDialog
+import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.components.UnifiedDiscipleSlot
 import com.xianxia.sect.ui.components.GameButton
-import com.xianxia.sect.ui.components.discipleCardBorder
-import com.xianxia.sect.ui.components.DiscipleAttrText
-import com.xianxia.sect.ui.components.DiscipleCardStyles
-import com.xianxia.sect.ui.components.FollowedTag
-import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
 import com.xianxia.sect.ui.game.tabs.REALM_FILTER_OPTIONS
+import com.xianxia.sect.ui.game.GameViewModel
+import com.xianxia.sect.ui.game.FilteredMultiSelectDialog
+import com.xianxia.sect.ui.game.DiscipleDetailDialog
+import com.xianxia.sect.ui.game.getSpiritRootCount
+import com.xianxia.sect.ui.game.applyFilters
 
 @Composable
 fun MissionHallDialog(
@@ -358,27 +360,19 @@ private fun ActiveMissionDetailDialog(
         disciples.associateBy { it.id }
     }
 
-    HalfScreenDialog(onDismissRequest = onDismiss) {
-        Column(modifier = Modifier.padding(20.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = mission.missionName,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-                    Text(
-                        text = mission.difficulty.displayName,
-                        fontSize = 12.sp,
-                        color = getDifficultyColor(mission.difficulty)
-                    )
-                    CloseButton(onClick = onDismiss)
-                }
-                Spacer(modifier = Modifier.height(12.dp))
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = mission.missionName,
+        mode = DialogMode.Half,
+        scrollableContent = false,
+        headerActions = {
+            Text(
+                text = mission.difficulty.displayName,
+                fontSize = 12.sp,
+                color = getDifficultyColor(mission.difficulty)
+            )
+        }
+    ) {
                 Column(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
@@ -483,9 +477,8 @@ private fun ActiveMissionDetailDialog(
                             )
                         }
                     }
-                }
-            }
     }
+}
 }
 
 @Composable
@@ -564,15 +557,14 @@ private fun DiscipleSelectionDialog(
         eligibleDisciples.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort)
     }
 
-    HalfScreenDialog(onDismissRequest = onDismiss) {
-        Column(modifier = Modifier.padding(20.dp)) {
-                Text(
-                    text = "选择弟子 (${selectedDiscipleIds.size}/${mission.memberCount})",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-                Spacer(modifier = Modifier.height(12.dp))
+    val titleText by remember { derivedStateOf { "选择弟子 (${selectedDiscipleIds.size}/${mission.memberCount})" } }
+
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = titleText,
+        mode = DialogMode.Half,
+        scrollableContent = false
+    ) {
                 Column(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
@@ -665,7 +657,6 @@ private fun DiscipleSelectionDialog(
                 }
             }
     }
-}
 
 private fun formatSpiritStoneReward(rewards: MissionRewardConfig): String {
     val parts = mutableListOf<String>()
@@ -714,21 +705,16 @@ private fun CommonDialog(
     onDismiss: () -> Unit,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    HalfScreenDialog(onDismissRequest = onDismiss, isFullScreen = false) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-                CloseButton(onClick = onDismiss)
-            }
-            Column(
-                modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)
-            ) {
-                content()
-            }
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = title,
+        mode = DialogMode.Half,
+        scrollableContent = false
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)
+        ) {
+            content()
         }
     }
 }

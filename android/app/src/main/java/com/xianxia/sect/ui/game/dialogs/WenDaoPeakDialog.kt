@@ -1,4 +1,4 @@
-package com.xianxia.sect.ui.game
+package com.xianxia.sect.ui.game.dialogs
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -12,11 +12,20 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.material3.*
 import com.xianxia.sect.core.model.*
-import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.ElderBonusInfoProvider
-import com.xianxia.sect.ui.components.HalfScreenDialog
+import com.xianxia.sect.ui.components.UnifiedGameDialog
+import com.xianxia.sect.ui.components.DialogMode
 import androidx.compose.ui.window.DialogProperties
 import com.xianxia.sect.ui.theme.GameColors
+import com.xianxia.sect.ui.game.GameViewModel
+import com.xianxia.sect.ui.game.ProductionViewModel
+import com.xianxia.sect.ui.game.PeakElderSection
+import com.xianxia.sect.ui.game.PeakElderSlotConfig
+import com.xianxia.sect.ui.game.PeakPreachingMasterSection
+import com.xianxia.sect.ui.game.PeakPreachingMasterConfig
+import com.xianxia.sect.ui.game.PeakDiscipleListSection
+import com.xianxia.sect.ui.game.PeakDiscipleSelectionDialog
+import com.xianxia.sect.ui.game.DiscipleDetailDialog
 
 @Composable
 fun WenDaoPeakDialog(
@@ -35,22 +44,21 @@ fun WenDaoPeakDialog(
     val preachingMasters = productionViewModel.getPreachingMasters()
     val outerDisciples = disciples.filter { it.isAlive && it.discipleType == "outer" }
 
-    HalfScreenDialog(onDismissRequest = { viewModel.closeCurrentDialog() }, isFullScreen = false) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text("问道塔", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-                    Text("管理外门弟子与传道修行", fontSize = 11.sp, color = GameColors.TextSecondary)
-                }
-                CloseButton(onClick = { viewModel.closeCurrentDialog() })
-            }
-            Column(
-                modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)
-            ) {
+    UnifiedGameDialog(
+        onDismissRequest = { viewModel.closeCurrentDialog() },
+        title = "问道塔",
+        mode = DialogMode.Half,
+        scrollableContent = false
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)
+        ) {
+            Text(
+                text = "管理外门弟子与传道修行",
+                fontSize = 11.sp,
+                color = GameColors.TextSecondary
+            )
+            Spacer(modifier = Modifier.height(8.dp))
         PeakElderSection(
             slot1 = PeakElderSlotConfig(
                 title = "外门长老",
@@ -97,7 +105,6 @@ fun WenDaoPeakDialog(
             disciples = outerDisciples
         )
             }
-        }
     }
 
     if (showOuterElderSelection) {

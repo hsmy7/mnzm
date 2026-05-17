@@ -68,7 +68,6 @@ import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.components.ItemCardData
-import com.xianxia.sect.ui.components.GameBackground
 import com.xianxia.sect.ui.components.UnifiedItemCard
 import com.xianxia.sect.ui.game.ATTRIBUTE_FILTER_OPTIONS
 import com.xianxia.sect.ui.game.AttributeFilterOption
@@ -192,7 +191,7 @@ internal fun WarehouseTab(viewModel: GameViewModel, onDismiss: () -> Unit = {}) 
         }
     }
     
-    GameBackground {
+    Box(Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -204,19 +203,11 @@ internal fun WarehouseTab(viewModel: GameViewModel, onDismiss: () -> Unit = {}) 
                     .padding(bottom = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "仓库",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-                Spacer(modifier = Modifier.width(8.dp))
                 GameButton(
                     text = "一键出售",
                     onClick = { showBulkSellDialog = true }
                 )
                 Spacer(modifier = Modifier.weight(1f))
-                CloseButton(onClick = onDismiss)
             }
         
         Row(
@@ -332,8 +323,7 @@ internal fun WarehouseTab(viewModel: GameViewModel, onDismiss: () -> Unit = {}) 
                 }
             }
         }
-    }
-    }
+        }
 
     if (showDetailDialog && selectedItem == null) {
         showDetailDialog = false
@@ -454,6 +444,7 @@ internal fun WarehouseTab(viewModel: GameViewModel, onDismiss: () -> Unit = {}) 
             viewModel = viewModel,
             onDismiss = { showBulkSellDialog = false }
         )
+    }
     }
 }
 

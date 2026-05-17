@@ -51,7 +51,8 @@ import com.xianxia.sect.core.util.PortraitPool
 import com.xianxia.sect.R
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import com.xianxia.sect.ui.components.HalfScreenDialog
+import com.xianxia.sect.ui.components.UnifiedGameDialog
+import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.model.BattleLogAction
 import com.xianxia.sect.core.model.BattleLogRound
@@ -156,26 +157,15 @@ internal fun BattleLogDetailDialog(
         BattleResult.DRAW -> "平局"
     }
     
-    HalfScreenDialog(onDismissRequest = onDismiss) {
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = "战斗详情",
+        mode = DialogMode.Half,
+        scrollableContent = false
+    ) {
         Column(
             modifier = Modifier.fillMaxSize()
         ) {
-            Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "战斗详情",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-                    CloseButton(onClick = onDismiss)
-                }
-                
                 HorizontalDivider(color = Color(0xFFE0E0E0), thickness = 1.dp)
                 
                 LazyColumn(
@@ -475,25 +465,15 @@ internal fun BattleLogListDialog(
         battleLogs.sortedByDescending { it.timestamp }.take(30)
     }
 
-    HalfScreenDialog(onDismissRequest = onDismiss) {
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = "战斗日志",
+        mode = DialogMode.Half,
+        scrollableContent = false
+    ) {
         Column(
             modifier = Modifier.fillMaxSize()
         ) {
-            Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "战斗日志",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-                    CloseButton(onClick = onDismiss)
-                }
 
                 HorizontalDivider(color = Color(0xFFE0E0E0), thickness = 1.dp)
 

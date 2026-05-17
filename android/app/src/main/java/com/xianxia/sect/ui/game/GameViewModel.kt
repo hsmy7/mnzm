@@ -18,18 +18,17 @@ import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.usecase.DisciplePositionQueryUseCase
-import com.xianxia.sect.ui.state.DialogStateManager
-import com.xianxia.sect.ui.state.DialogStateManager.DialogType
+import com.xianxia.sect.ui.navigation.GameRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.channels.Channel
 import javax.inject.Inject
 
 @HiltViewModel
 class GameViewModel @Inject constructor(
     private val gameEngine: GameEngine,
     private val gameEngineCore: GameEngineCore,
-    val dialogStateManager: DialogStateManager,
     @ApplicationContext private val appContext: Context,
     private val systemManager: SystemManager,
     private val disciplePositionQuery: DisciplePositionQueryUseCase,
@@ -40,6 +39,14 @@ class GameViewModel @Inject constructor(
         private const val TAG = "GameViewModel"
     }
 
+    // Navigation events — emitted by ViewModel for code-triggered dialogs (GameOver, etc.)
+    private val _navigationEvents = Channel<GameRoute>(Channel.BUFFERED)
+    val navigationEvents: Flow<GameRoute> = _navigationEvents.receiveAsFlow()
+
+    // Pop-back events — emitted by closeCurrentDialog() for dialog-internal dismissal
+    private val _popBackEvents = Channel<Unit>(Channel.CONFLATED)
+    val popBackEvents: Flow<Unit> = _popBackEvents.receiveAsFlow()
+
     init {
         viewModelScope.launch {
             systemManager.errors.collect { error ->
@@ -49,79 +56,71 @@ class GameViewModel @Inject constructor(
         }
     }
 
-    private fun openDialog(dialogType: DialogType, params: Map<String, Any?> = emptyMap()) {
-        dialogStateManager.openDialog(dialogType, params)
-    }
-    
     /**
-     * 关闭当前对话框的统一方法
+     * 关闭当前对话框 — dialogs call this internally
      */
     fun closeCurrentDialog() {
-        dialogStateManager.closeDialog()
-    }
-
-    fun openRecruitDialog() {
-        openDialog(DialogType.Recruit)
-    }
-
-    fun openMerchantDialog() {
-        openDialog(DialogType.Merchant)
-    }
-
-    fun openDiplomacyDialog() {
-        openDialog(DialogType.Diplomacy)
+        _popBackEvents.trySend(Unit)
     }
 
     fun openSpiritMineDialog(mineIndex: Int = 0) {
-        openDialog(DialogType.SpiritMine, params = mapOf("mineIndex" to mineIndex))
+        _navigationEvents.trySend(GameRoute.SpiritMine)
     }
 
     fun openHerbGardenDialog() {
-        openDialog(DialogType.HerbGarden)
+        _navigationEvents.trySend(GameRoute.HerbGarden)
     }
 
     fun openAlchemyDialog(buildingIndex: Int = 0) {
-        openDialog(DialogType.Alchemy, params = mapOf("buildingIndex" to buildingIndex))
+        _navigationEvents.trySend(GameRoute.Alchemy)
     }
 
     fun openForgeDialog(buildingIndex: Int = 0) {
-        openDialog(DialogType.Forge, params = mapOf("buildingIndex" to buildingIndex))
+        _navigationEvents.trySend(GameRoute.Forge)
     }
 
     fun openLibraryDialog() {
-        openDialog(DialogType.Library)
+        _navigationEvents.trySend(GameRoute.Library)
     }
 
     fun openWenDaoPeakDialog() {
-        openDialog(DialogType.WenDaoPeak)
+        _navigationEvents.trySend(GameRoute.WenDaoPeak)
     }
 
     fun openQingyunPeakDialog() {
-        openDialog(DialogType.QingyunPeak)
+        _navigationEvents.trySend(GameRoute.QingyunPeak)
     }
 
     fun openTianshuHallDialog() {
-        openDialog(DialogType.TianshuHall)
+        _navigationEvents.trySend(GameRoute.TianshuHall)
     }
 
     fun openLawEnforcementHallDialog() {
-        openDialog(DialogType.LawEnforcementHall)
+        _navigationEvents.trySend(GameRoute.LawEnforcementHall)
     }
 
     fun openMissionHallDialog() {
-        openDialog(DialogType.MissionHall)
+        _navigationEvents.trySend(GameRoute.MissionHall)
     }
 
     fun openReflectionCliffDialog() {
-        openDialog(DialogType.ReflectionCliff)
-    }
-
-    fun openInventoryDialog() {
-        openDialog(DialogType.Inventory)
+        _navigationEvents.trySend(GameRoute.ReflectionCliff)
     }
 
     fun openWorldMapDialog() {
-        openDialog(DialogType.WorldMap)
+        _navigationEvents.trySend(GameRoute.WorldMap)
+    }
+
+    fun openRecruitDialog() {
+        _navigationEvents.trySend(GameRoute.Recruit)
+    }
+
+    fun openMerchantDialog() {
+        _navigationEvents.trySend(GameRoute.Merchant)
+    }
+
+    fun openDiplomacyDialog() {
+        _navigationEvents.trySend(GameRoute.Diplomacy)
     }
 
     fun attackWorldLevel(levelId: String, discipleIds: List<String?>) {
@@ -131,7 +130,7 @@ class GameViewModel @Inject constructor(
     }
 
     fun openBattleLogDialog() {
-        openDialog(DialogType.BattleLog)
+        _navigationEvents.trySend(GameRoute.BattleLog)
     }
 
     fun placeBuilding(name: String, gridX: Int, gridY: Int, width: Int = 2, height: Int = 3) {
@@ -412,7 +411,6 @@ class GameViewModel @Inject constructor(
     // 建筑详情对话框 (带参数)
     fun openBuildingDetailDialog(buildingId: String) {
         _selectedBuildingId.value = buildingId
-        openDialog(DialogType.BuildingDetail, mapOf("buildingId" to buildingId))
     }
 
     // 招募弟子
@@ -869,7 +867,7 @@ class GameViewModel @Inject constructor(
     }
 
     fun openSalaryConfigDialog() {
-        openDialog(DialogType.SalaryConfig)
+        _navigationEvents.trySend(GameRoute.SalaryConfig)
     }
 
     val isGameOver: StateFlow<Boolean> = gameEngine.gameData
@@ -884,8 +882,7 @@ class GameViewModel @Inject constructor(
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to pause game engine on game over", e)
             }
-            dialogStateManager.closeDialog()
-            openDialog(DialogType.GameOver)
+            _navigationEvents.send(GameRoute.GameOver)
         }
     }
 

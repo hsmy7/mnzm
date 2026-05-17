@@ -69,31 +69,16 @@ import com.xianxia.sect.core.model.PlantSlotData
 import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlotStatus
-import com.xianxia.sect.ui.game.AlchemyDialog
 import com.xianxia.sect.ui.game.AlchemyViewModel
-import com.xianxia.sect.ui.game.ForgeDialog
 import com.xianxia.sect.ui.game.ForgeViewModel
 import com.xianxia.sect.ui.game.GameViewModel
-import com.xianxia.sect.ui.game.HerbGardenDialog
 import com.xianxia.sect.ui.game.HerbGardenViewModel
-import com.xianxia.sect.ui.game.LawEnforcementHallDialog
-import com.xianxia.sect.ui.game.LibraryDialog
-import com.xianxia.sect.ui.game.MissionHallDialog
 import com.xianxia.sect.ui.game.ProductionViewModel
-import com.xianxia.sect.ui.game.QingyunPeakDialog
-import com.xianxia.sect.ui.game.ReflectionCliffDialog
-import com.xianxia.sect.ui.game.SpiritMineDialog
 import com.xianxia.sect.ui.game.SpiritMineViewModel
-import com.xianxia.sect.ui.game.TianshuHallDialog
-import com.xianxia.sect.ui.game.WenDaoPeakDialog
-import com.xianxia.sect.ui.components.UnifiedGameDialog
-import com.xianxia.sect.ui.components.DialogMode
-import com.xianxia.sect.ui.state.DialogStateManager.DialogType
+
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.theme.XianxiaColorScheme
 import com.xianxia.sect.ui.theme.Spacing
-import com.xianxia.sect.ui.theme.AppTypography
-import com.xianxia.sect.ui.theme.CornerRadius
 
 @Composable
 internal fun BuildingsTab(
@@ -117,19 +102,6 @@ internal fun BuildingsTab(
     val pills by viewModel.pills.collectAsState()
     val productionSlots by viewModel.productionSlots.collectAsState()
 
-    val currentDialog by viewModel.dialogStateManager.currentDialog.collectAsState()
-
-    val showAlchemyDialog = currentDialog?.type == DialogType.Alchemy
-    val showForgeDialog = currentDialog?.type == DialogType.Forge
-    val showHerbGardenDialog = currentDialog?.type == DialogType.HerbGarden
-    val showSpiritMineDialog = currentDialog?.type == DialogType.SpiritMine
-    val showLibraryDialog = currentDialog?.type == DialogType.Library
-    val showWenDaoPeakDialog = currentDialog?.type == DialogType.WenDaoPeak
-    val showQingyunPeakDialog = currentDialog?.type == DialogType.QingyunPeak
-    val showTianshuHallDialog = currentDialog?.type == DialogType.TianshuHall
-    val showLawEnforcementHallDialog = currentDialog?.type == DialogType.LawEnforcementHall
-    val showMissionHallDialog = currentDialog?.type == DialogType.MissionHall
-
     val buildings: List<Triple<String, String, () -> Unit>> = listOf(
         Triple("灵矿场", "开采灵石资源") { viewModel.openSpiritMineDialog() },
         Triple("灵植阁", "种植灵药材料") { viewModel.openHerbGardenDialog() },
@@ -144,11 +116,7 @@ internal fun BuildingsTab(
         Triple("监牢", "悔过自新之地") { viewModel.openReflectionCliffDialog() }
     )
 
-    UnifiedGameDialog(
-        onDismissRequest = onDismiss,
-        title = "建造",
-        mode = DialogMode.Half
-    ) {
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Column(
             verticalArrangement = Arrangement.spacedBy(Spacing.SM)
         ) {
@@ -198,139 +166,4 @@ internal fun BuildingsTab(
             }
         }
 
-    if (showSpiritMineDialog) {
-        SpiritMineDialog(
-            viewModel = viewModel,
-            productionViewModel = productionViewModel,
-            spiritMineViewModel = spiritMineViewModel,
-            onDismiss = { viewModel.closeCurrentDialog() }
-        )
-    }
-
-    if (showHerbGardenDialog) {
-        HerbGardenDialog(
-            plantSlots = productionSlots.filter {
-                it.buildingType == com.xianxia.sect.core.model.production.BuildingType.HERB_GARDEN
-            }.map { slot ->
-                com.xianxia.sect.core.model.PlantSlotData(
-                    index = slot.slotIndex,
-                    status = when (slot.status) {
-                        com.xianxia.sect.core.model.production.ProductionSlotStatus.IDLE -> "idle"
-                        com.xianxia.sect.core.model.production.ProductionSlotStatus.WORKING -> "growing"
-                        com.xianxia.sect.core.model.production.ProductionSlotStatus.COMPLETED -> "mature"
-                    },
-                    seedId = slot.recipeId ?: "",
-                    seedName = slot.recipeName,
-                    startYear = slot.startYear,
-                    startMonth = slot.startMonth,
-                    growTime = slot.duration,
-                    expectedYield = slot.expectedYield
-                )
-            },
-            seeds = seeds,
-            gameData = gameData,
-            disciples = disciples.filter { it.isAlive },
-            viewModel = viewModel,
-            productionViewModel = productionViewModel,
-            herbGardenViewModel = herbGardenViewModel,
-            onDismiss = { viewModel.closeCurrentDialog() }
-        )
-    }
-
-    if (showAlchemyDialog) {
-        AlchemyDialog(
-            alchemySlots = alchemySlots,
-            materials = materials,
-            herbs = herbs,
-            gameData = gameData,
-            disciples = disciples.filter { it.isAlive },
-            viewModel = viewModel,
-            productionViewModel = productionViewModel,
-            alchemyViewModel = alchemyViewModel,
-            colors = XianxiaColorScheme(),
-            onDismiss = { viewModel.closeCurrentDialog() }
-        )
-    }
-
-    if (showForgeDialog) {
-        ForgeDialog(
-            forgeSlots = forgeSlots,
-            materials = materials,
-            gameData = gameData,
-            disciples = disciples.filter { it.isAlive },
-            viewModel = viewModel,
-            productionViewModel = productionViewModel,
-            forgeViewModel = forgeViewModel,
-            colors = XianxiaColorScheme(),
-            onDismiss = { viewModel.closeCurrentDialog() }
-        )
-    }
-
-    if (showLibraryDialog) {
-        LibraryDialog(
-            manuals = manuals,
-            disciples = disciples.filter { it.isAlive },
-            gameData = gameData,
-            viewModel = viewModel,
-            productionViewModel = productionViewModel,
-            onDismiss = { viewModel.closeCurrentDialog() }
-        )
-    }
-
-    if (showWenDaoPeakDialog) {
-        WenDaoPeakDialog(
-            disciples = disciples.filter { it.isAlive },
-            gameData = gameData,
-            viewModel = viewModel,
-            productionViewModel = productionViewModel
-        )
-    }
-
-    if (showQingyunPeakDialog) {
-        QingyunPeakDialog(
-            disciples = disciples.filter { it.isAlive },
-            gameData = gameData,
-            viewModel = viewModel,
-            productionViewModel = productionViewModel
-        )
-    }
-
-    if (showTianshuHallDialog) {
-        TianshuHallDialog(
-            gameData = gameData,
-            disciples = disciples.filter { it.isAlive },
-            viewModel = viewModel,
-            productionViewModel = productionViewModel,
-            onDismiss = { viewModel.closeCurrentDialog() }
-        )
-    }
-
-    if (showLawEnforcementHallDialog) {
-        LawEnforcementHallDialog(
-            disciples = disciples.filter { it.isAlive },
-            gameData = gameData,
-            viewModel = viewModel,
-            productionViewModel = productionViewModel,
-            onDismiss = { viewModel.closeCurrentDialog() }
-        )
-    }
-
-    if (showMissionHallDialog) {
-        MissionHallDialog(
-            gameData = gameData,
-            disciples = disciples.filter { it.isAlive },
-            viewModel = viewModel,
-            onDismiss = { viewModel.closeCurrentDialog() }
-        )
-    }
-
-    val showReflectionCliffDialog = currentDialog?.type == DialogType.ReflectionCliff
-    if (showReflectionCliffDialog) {
-        ReflectionCliffDialog(
-            disciples = disciples.filter { it.isAlive },
-            gameData = gameData,
-            onDismiss = { viewModel.closeCurrentDialog() },
-            onExpelDisciple = { discipleId -> viewModel.expelDisciple(discipleId) }
-        )
-    }
 }

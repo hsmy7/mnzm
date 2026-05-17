@@ -50,6 +50,7 @@ fun UnifiedGameDialog(
     dismissOnBackPress: Boolean = true,
     dismissOnClickOutside: Boolean = true,
     headerActions: @Composable (() -> Unit)? = null,
+    scrollableContent: Boolean = true,
     content: @Composable () -> Unit
 ) {
     if (dismissOnBackPress) {
@@ -121,11 +122,16 @@ fun UnifiedGameDialog(
                     }
                 }
                 // Scrollable content
+                val contentScrollModifier = if (scrollableContent) {
+                    Modifier.verticalScroll(rememberScrollState())
+                } else {
+                    Modifier
+                }
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f)
-                        .verticalScroll(rememberScrollState())
+                        .then(contentScrollModifier)
                         .padding(horizontal = Spacing.MD)
                 ) {
                     content()
@@ -140,6 +146,14 @@ fun UnifiedGameDialog(
  * 无遮罩覆盖层 — 内容直接在当前 Box 层级内渲染，不创建独立窗口。
  * 点击外部区域或按返回键触发 onDismissRequest。
  */
+@Deprecated(
+    message = "Use UnifiedGameDialog(mode = DialogMode.Full) instead",
+    replaceWith = ReplaceWith(
+        "UnifiedGameDialog(onDismissRequest = onDismissRequest, title = \"\", mode = DialogMode.Full, content = content)",
+        "com.xianxia.sect.ui.components.UnifiedGameDialog"
+    ),
+    level = DeprecationLevel.WARNING
+)
 @Composable
 fun GameFullDialog(
     onDismissRequest: () -> Unit,
@@ -236,6 +250,14 @@ object DialogDefaults {
  * Half-screen mode: content constrained to standard size (85% width × 78% height), centered.
  * Includes bg_horizontal background image automatically.
  */
+@Deprecated(
+    message = "Use UnifiedGameDialog with DialogMode instead",
+    replaceWith = ReplaceWith(
+        "UnifiedGameDialog(onDismissRequest = onDismissRequest, title = \"\", mode = if (isFullScreen) DialogMode.Full else DialogMode.Half, content = content)",
+        "com.xianxia.sect.ui.components.UnifiedGameDialog"
+    ),
+    level = DeprecationLevel.WARNING
+)
 @Composable
 fun HalfScreenDialog(
     onDismissRequest: () -> Unit,

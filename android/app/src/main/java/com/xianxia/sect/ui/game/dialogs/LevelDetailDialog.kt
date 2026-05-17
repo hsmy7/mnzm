@@ -30,10 +30,9 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.LevelType
-import com.xianxia.sect.ui.components.CloseButton
-import com.xianxia.sect.ui.components.HalfScreenDialog
+import com.xianxia.sect.ui.components.UnifiedGameDialog
+import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.GameButton
-import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.components.UnifiedDiscipleSlot
 import com.xianxia.sect.ui.components.DiscipleSlotWithActions
@@ -118,151 +117,138 @@ fun LevelDetailDialog(
         }
     }
 
-    HalfScreenDialog(onDismissRequest = onDismiss) {
-        Column(modifier = Modifier.fillMaxSize()) {
+    val dialogTitle = if (level.levelType == LevelType.CAVE && level.caveName.isNotEmpty()) level.caveName else level.name
+
+    UnifiedGameDialog(onDismissRequest = onDismiss, title = dialogTitle, mode = DialogMode.Half, scrollableContent = false) {
+        Column(
+            modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // ========== Top section: image + info ==========
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = if (level.levelType == LevelType.CAVE && level.caveName.isNotEmpty()) level.caveName else level.name,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
+                Image(
+                    painter = painterResource(id = imageRes),
+                    contentDescription = null,
+                    modifier = Modifier.size(120.dp)
                 )
-                CloseButton(onClick = onDismiss)
-            }
-            Column(
-                modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                // ========== Top section: image + info ==========
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Image(
-                        painter = painterResource(id = imageRes),
-                        contentDescription = null,
-                        modifier = Modifier.size(120.dp)
-                    )
 
-                    Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(12.dp))
 
-                    Column {
-                        if (level.levelType == LevelType.CAVE && level.caveName.isNotEmpty()) {
-                            Text(
-                                text = level.caveName,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.Black
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = "守护兽：${level.name}",
-                                fontSize = 13.sp,
-                                color = Color.Black
-                            )
-                        } else {
-                            Text(
-                                text = level.name,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.Black
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(4.dp))
+                Column {
+                    if (level.levelType == LevelType.CAVE && level.caveName.isNotEmpty()) {
                         Text(
-                            text = realmDisplayName,
-                            fontSize = 14.sp,
+                            text = level.caveName,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
                             color = Color.Black
                         )
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "数量：${level.count}",
-                            fontSize = 12.sp,
+                            text = "守护兽：${level.name}",
+                            fontSize = 13.sp,
+                            color = Color.Black
+                        )
+                    } else {
+                        Text(
+                            text = level.name,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
                             color = Color.Black
                         )
                     }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = realmDisplayName,
+                        fontSize = 14.sp,
+                        color = Color.Black
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "数量：${level.count}",
+                        fontSize = 12.sp,
+                        color = Color.Black
+                    )
                 }
+            }
 
-                Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-                // ========== Middle section: 2x4 slots ==========
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    for (row in 0 until 2) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally)
-                        ) {
-                            for (col in 0 until 4) {
-                                val slotIndex = row * 4 + col
-                                val discipleId = slots[slotIndex]
-                                val disciple =
-                                    if (discipleId != null) disciples.find { it.id == discipleId }
-                                    else null
+            // ========== Middle section: 2x4 slots ==========
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                for (row in 0 until 2) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally)
+                    ) {
+                        for (col in 0 until 4) {
+                            val slotIndex = row * 4 + col
+                            val discipleId = slots[slotIndex]
+                            val disciple =
+                                if (discipleId != null) disciples.find { it.id == discipleId }
+                                else null
 
-                                LevelSlotBox(
-                                    disciple = disciple,
-                                    onSlotClick = {
-                                        if (disciple != null) {
-                                            selectedDiscipleDetail = disciple
-                                        } else {
-                                            targetSlotIndex = slotIndex
-                                            showDiscipleSelection = true
-                                        }
-                                    },
-                                    onDismiss = {
-                                        slots[slotIndex] = null
-                                    },
-                                    onSwap = {
+                            LevelSlotBox(
+                                disciple = disciple,
+                                onSlotClick = {
+                                    if (disciple != null) {
+                                        selectedDiscipleDetail = disciple
+                                    } else {
                                         targetSlotIndex = slotIndex
                                         showDiscipleSelection = true
                                     }
-                                )
-                            }
+                                },
+                                onDismiss = {
+                                    slots[slotIndex] = null
+                                },
+                                onSwap = {
+                                    targetSlotIndex = slotIndex
+                                    showDiscipleSelection = true
+                                }
+                            )
                         }
                     }
                 }
+            }
 
-                Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-                // One-click appoint button
+            // One-click appoint button
+            GameButton(
+                text = "一键任命",
+                onClick = oneClickAppoint,
+                width = ButtonSizes.StandardWidth,
+                height = ButtonSizes.StandardHeight,
+                fontSize = 11.sp
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // ========== Bottom section: action buttons ==========
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
                 GameButton(
-                    text = "一键任命",
-                    onClick = oneClickAppoint,
+                    text = "进攻",
+                    onClick = { onAttack(slots.toList()) },
+                    enabled = occupiedCount > 0,
                     width = ButtonSizes.StandardWidth,
                     height = ButtonSizes.StandardHeight,
                     fontSize = 11.sp
                 )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // ========== Bottom section: action buttons ==========
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    GameButton(
-                        text = "进攻",
-                        onClick = { onAttack(slots.toList()) },
-                        enabled = occupiedCount > 0,
-                        width = ButtonSizes.StandardWidth,
-                        height = ButtonSizes.StandardHeight,
-                        fontSize = 11.sp
-                    )
-                    GameButton(
-                        text = "关闭",
-                        onClick = onDismiss,
-                        width = ButtonSizes.StandardWidth,
-                        height = ButtonSizes.StandardHeight,
-                        fontSize = 11.sp
-                    )
-                }
+                GameButton(
+                    text = "关闭",
+                    onClick = onDismiss,
+                    width = ButtonSizes.StandardWidth,
+                    height = ButtonSizes.StandardHeight,
+                    fontSize = 11.sp
+                )
             }
         }
     }
@@ -359,93 +345,75 @@ private fun LevelSlotSelectionDialog(
         )
     }
 
-    HalfScreenDialog(onDismissRequest = onDismiss) {
-        Column(Modifier.fillMaxSize()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "选择弟子",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
+    UnifiedGameDialog(onDismissRequest = onDismiss, title = "选择弟子", mode = DialogMode.Half, scrollableContent = false) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp)
+        ) {
+            if (idleDisciples.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "暂无空闲弟子",
+                        fontSize = 12.sp,
+                        color = Color.Black
+                    )
+                }
+            } else {
+                SpiritRootAttributeFilterBar(
+                    selectedSpiritRootFilter = selectedSpiritRootFilter,
+                    selectedAttributeSort = selectedAttributeSort,
+                    selectedRealmFilter = selectedRealmFilter,
+                    realmFilterOptions = REALM_FILTER_OPTIONS,
+                    realmCounts = realmCounts,
+                    spiritRootExpanded = spiritRootExpanded,
+                    attributeExpanded = attributeExpanded,
+                    realmExpanded = realmExpanded,
+                    spiritRootCounts = spiritRootCounts,
+                    onSpiritRootFilterSelected = {
+                        selectedSpiritRootFilter = selectedSpiritRootFilter + it
+                    },
+                    onSpiritRootFilterRemoved = {
+                        selectedSpiritRootFilter = selectedSpiritRootFilter - it
+                    },
+                    onAttributeSortSelected = { selectedAttributeSort = it },
+                    onRealmFilterSelected = { selectedRealmFilter = selectedRealmFilter + it },
+                    onRealmFilterRemoved = { selectedRealmFilter = selectedRealmFilter - it },
+                    onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
+                    onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
+                    onRealmExpandToggle = { realmExpanded = !realmExpanded },
+                    isCompact = true
                 )
-                CloseButton(onClick = onDismiss)
-            }
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .padding(horizontal = 12.dp)
-            ) {
-                if (idleDisciples.isEmpty()) {
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                if (filteredDisciples.isEmpty()) {
                     Box(
                         modifier = Modifier.fillMaxWidth().weight(1f),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "暂无空闲弟子",
+                            text = "暂无符合条件的弟子",
                             fontSize = 12.sp,
                             color = Color.Black
                         )
                     }
                 } else {
-                    SpiritRootAttributeFilterBar(
-                        selectedSpiritRootFilter = selectedSpiritRootFilter,
-                        selectedAttributeSort = selectedAttributeSort,
-                        selectedRealmFilter = selectedRealmFilter,
-                        realmFilterOptions = REALM_FILTER_OPTIONS,
-                        realmCounts = realmCounts,
-                        spiritRootExpanded = spiritRootExpanded,
-                        attributeExpanded = attributeExpanded,
-                        realmExpanded = realmExpanded,
-                        spiritRootCounts = spiritRootCounts,
-                        onSpiritRootFilterSelected = {
-                            selectedSpiritRootFilter = selectedSpiritRootFilter + it
-                        },
-                        onSpiritRootFilterRemoved = {
-                            selectedSpiritRootFilter = selectedSpiritRootFilter - it
-                        },
-                        onAttributeSortSelected = { selectedAttributeSort = it },
-                        onRealmFilterSelected = { selectedRealmFilter = selectedRealmFilter + it },
-                        onRealmFilterRemoved = { selectedRealmFilter = selectedRealmFilter - it },
-                        onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
-                        onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
-                        onRealmExpandToggle = { realmExpanded = !realmExpanded },
-                        isCompact = true
-                    )
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    if (filteredDisciples.isEmpty()) {
-                        Box(
-                            modifier = Modifier.fillMaxWidth().weight(1f),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "暂无符合条件的弟子",
-                                fontSize = 12.sp,
-                                color = Color.Black
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(2),
+                        modifier = Modifier.weight(1f),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        items(filteredDisciples, key = { it.id }) { disciple ->
+                            PortraitDiscipleCard(
+                                disciple = disciple,
+                                isSelected = false,
+                                onClick = { onSelect(disciple.id) }
                             )
-                        }
-                    } else {
-                        LazyVerticalGrid(
-                            columns = GridCells.Fixed(2),
-                            modifier = Modifier.weight(1f),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            items(filteredDisciples, key = { it.id }) { disciple ->
-                                PortraitDiscipleCard(
-                                    disciple = disciple,
-                                    isSelected = false,
-                                    onClick = { onSelect(disciple.id) }
-                                )
-                            }
                         }
                     }
                 }

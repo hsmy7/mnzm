@@ -51,7 +51,8 @@ import com.xianxia.sect.ui.components.DiscipleAttrText
 import com.xianxia.sect.ui.components.EmptyListMessage
 import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.DialogDefaults
-import com.xianxia.sect.ui.components.HalfScreenDialog
+import com.xianxia.sect.ui.components.UnifiedGameDialog
+import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.ItemCardData
 import com.xianxia.sect.ui.components.TalentDetailDialog
@@ -387,14 +388,13 @@ fun DiscipleDetailDialog(
     }
 
     if (showExpelConfirmDialog) {
-        HalfScreenDialog(onDismissRequest = { showExpelConfirmDialog = false }) {
+        UnifiedGameDialog(
+            onDismissRequest = { showExpelConfirmDialog = false },
+            title = "确认驱逐",
+            mode = DialogMode.Half,
+            scrollableContent = false
+        ) {
             Column(modifier = Modifier.padding(20.dp)) {
-                    Text(
-                        text = "确认驱逐",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
                         text = "确定要驱逐弟子 ${disciple.name} 吗？此操作不可撤销。",
@@ -703,21 +703,13 @@ private fun RelationsDialog(
         }
     }
 
-    HalfScreenDialog(onDismissRequest = onDismiss) {
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = "关系",
+        mode = DialogMode.Half,
+        scrollableContent = false
+    ) {
         Column(modifier = Modifier.padding(20.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "关系",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-                    CloseButton(onClick = onDismiss)
-                }
                 Spacer(modifier = Modifier.height(12.dp))
                 Column(
                     modifier = Modifier
@@ -814,21 +806,13 @@ private fun EquipmentSelectionDialog(
 
     var showDetailItem by remember { mutableStateOf<Any?>(null) }
 
-    HalfScreenDialog(onDismissRequest = onDismiss) {
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = "选择$slotTypeText",
+        mode = DialogMode.Half,
+        scrollableContent = false
+    ) {
         Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "选择$slotTypeText",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-                CloseButton(onClick = onDismiss)
-            }
 
             Spacer(modifier = Modifier.height(12.dp))
 
@@ -1875,50 +1859,38 @@ private fun StorageBagDialog(
     var selectedItem by remember { mutableStateOf<StorageBagItem?>(null) }
     var showDetailDialog by remember { mutableStateOf(false) }
     
-    HalfScreenDialog(onDismissRequest = onDismiss) {
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = "储物袋",
+        mode = DialogMode.Half,
+        scrollableContent = false
+    ) {
             Column(modifier = Modifier.padding(20.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(Color(0xFFFF9800))
+                            .clickable { showRewardDialog = true }
+                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                        contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "储物袋",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.Black
+                            text = "赏赐",
+                            fontSize = 10.sp,
+                            color = Color.White
                         )
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(Color(0xFFFF9800))
-                                .clickable { showRewardDialog = true }
-                                .padding(horizontal = 6.dp, vertical = 2.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "赏赐",
-                                fontSize = 10.sp,
-                                color = Color.White
-                            )
-                        }
                     }
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "灵石:$spiritStones",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF2196F3)
-                        )
-                        CloseButton(onClick = onDismiss)
-                    }
+                    Text(
+                        text = "灵石:$spiritStones",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF2196F3)
+                    )
                 }
                 Spacer(modifier = Modifier.height(12.dp))
                 Column(
@@ -2038,11 +2010,21 @@ private fun RewardItemsDialog(
     val availableManuals = manualStacks
     val availableEquipment = equipmentStacks
 
-    HalfScreenDialog(onDismissRequest = onDismiss) {
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = "赏赐道具",
+        mode = DialogMode.Half,
+        scrollableContent = false
+    ) {
         Column(modifier = Modifier.fillMaxSize()) {
-                RewardHeader(
-                    discipleName = disciple.name,
-                    onDismiss = onDismiss
+                Text(
+                    text = "给予弟子: ${disciple.name}",
+                    fontSize = 11.sp,
+                    color = GameColors.TextSecondary,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(GameColors.PageBackground)
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
                 )
 
                 Column(

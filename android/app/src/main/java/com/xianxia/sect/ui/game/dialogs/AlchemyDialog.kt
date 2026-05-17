@@ -1,4 +1,4 @@
-package com.xianxia.sect.ui.game
+package com.xianxia.sect.ui.game.dialogs
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -30,11 +30,11 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.registry.PillRecipeDatabase
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.ui.components.DialogDefaults
-import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.ElderBonusInfo
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.getQualityColor
-import com.xianxia.sect.ui.components.HalfScreenDialog
+import com.xianxia.sect.ui.components.UnifiedGameDialog
+import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.ItemCardData
 import com.xianxia.sect.ui.components.UnifiedItemCard
 import com.xianxia.sect.ui.components.UnifiedDiscipleSlot
@@ -42,6 +42,15 @@ import com.xianxia.sect.ui.components.DiscipleSlotWithActions
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.game.AlchemyViewModel
 import com.xianxia.sect.ui.game.ProductionViewModel
+import com.xianxia.sect.ui.game.GameViewModel
+import com.xianxia.sect.ui.game.ALCHEMY_THEME
+import com.xianxia.sect.ui.game.ProductionSlotItem
+import com.xianxia.sect.ui.game.ProductionTheme
+import com.xianxia.sect.ui.game.ProductionElderSelectionDialog
+import com.xianxia.sect.ui.game.ProductionReserveDiscipleDialog
+import com.xianxia.sect.ui.game.ProductionAddReserveDiscipleDialog
+import com.xianxia.sect.ui.game.ProductionCommonDialog
+import com.xianxia.sect.ui.game.DiscipleDetailDialog
 import java.util.Locale
 
 @Composable
@@ -71,32 +80,29 @@ fun AlchemyDialog(
     val workerDisciple = if (assignedDiscipleId.isNullOrEmpty()) null
         else disciples.find { it.id == assignedDiscipleId }
 
-    HalfScreenDialog(onDismissRequest = { viewModel.closeCurrentDialog() }, isFullScreen = false) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+    UnifiedGameDialog(
+        onDismissRequest = { viewModel.closeCurrentDialog() },
+        title = "炼丹炉 #${buildingIndex + 1}",
+        mode = DialogMode.Half,
+        scrollableContent = false,
+        headerActions = {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(theme.reserveButtonBackgroundColor)
+                    .clickable { showReserveDiscipleDialog = true }
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
             ) {
-                Text("炼丹炉 #${buildingIndex + 1}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(theme.reserveButtonBackgroundColor)
-                            .clickable { showReserveDiscipleDialog = true }
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = "储备弟子",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = theme.reserveButtonTextColor
-                        )
-                    }
-                    CloseButton(onClick = { viewModel.closeCurrentDialog() })
-                }
+                Text(
+                    text = "储备弟子",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = theme.reserveButtonTextColor
+                )
             }
+        }
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
             Column(
                 modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -431,10 +437,13 @@ private fun PillDetailDialog(
     herbs: List<Herb>,
     onDismiss: () -> Unit
 ) {
-    HalfScreenDialog(onDismissRequest = onDismiss) {
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = recipe.name,
+        mode = DialogMode.Half
+    ) {
         Column(modifier = Modifier.padding(20.dp)) {
-                Text(text = recipe.name, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),

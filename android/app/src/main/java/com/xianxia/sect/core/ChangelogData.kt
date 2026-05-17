@@ -9,6 +9,18 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.0.43",
+            date = "2026-05-17",
+            changes = listOf(
+                "全屏界面架构重构：引入Navigation路由系统，统一所有对话框打开/关闭方式",
+                "拆分大文件（WorldMapDialogs拆为6个独立文件），对话框文件统一移至dialogs/目录",
+                "统一对话框包装器为UnifiedGameDialog，废弃HalfScreenDialog和GameFullDialog",
+                "共享组件提取：DialogHeader、DiscipleFilterState、DiscipleSelectorDialog",
+                "修复按钮无响应、双标题、世界地图缩小、背景图分离等真机测试问题",
+                "无数据库迁移"
+            )
+        ),
+        ChangelogEntry(
             version = "3.0.42",
             date = "2026-05-17",
             changes = listOf(

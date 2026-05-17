@@ -1,4 +1,4 @@
-package com.xianxia.sect.ui.game
+package com.xianxia.sect.ui.game.dialogs
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -26,6 +26,7 @@ import androidx.compose.ui.window.Dialog
 import com.xianxia.sect.R
 import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.model.DiscipleAggregate
+import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.Talent
 import com.xianxia.sect.ui.theme.GameColors
@@ -33,14 +34,15 @@ import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.theme.getSpiritRootColor
 import com.xianxia.sect.ui.components.discipleCardBorder
 import com.xianxia.sect.ui.components.DiscipleAttrText
-import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.TalentDetailDialog
 import com.xianxia.sect.ui.components.getTalentRarityColor
-import com.xianxia.sect.ui.components.HalfScreenDialog
+import com.xianxia.sect.ui.components.UnifiedGameDialog
+import com.xianxia.sect.ui.components.DialogMode
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.platform.LocalConfiguration
 
 @Composable
 fun RecruitDialog(
@@ -51,12 +53,24 @@ fun RecruitDialog(
 ) {
     var showAutoRecruitDialog by remember { mutableStateOf(false) }
 
-    HalfScreenDialog(onDismissRequest = onDismiss, isFullScreen = true) {
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = "弟子招募",
+        mode = DialogMode.Full,
+        scrollableContent = false,
+        headerActions = {
+            GameButton(
+                text = "自动招募",
+                onClick = { showAutoRecruitDialog = true }
+            )
+        }
+    ) {
         Column(modifier = Modifier.fillMaxSize()) {
-                RecruitHeader(
-                    gameData = gameData,
-                    onDismiss = onDismiss,
-                    onAutoRecruitClick = { showAutoRecruitDialog = true }
+                Text(
+                    text = "当前灵石: ${gameData?.spiritStones ?: 0}",
+                    fontSize = 12.sp,
+                    color = GameColors.TextSecondary,
+                    modifier = Modifier.padding(start = 12.dp, top = 4.dp, bottom = 8.dp)
                 )
 
                 if (recruitList.isEmpty()) {
@@ -117,43 +131,6 @@ fun RecruitDialog(
     }
 }
 
-@Composable
-private fun RecruitHeader(
-    gameData: GameData?,
-    onDismiss: () -> Unit,
-    onAutoRecruitClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column {
-            Text(
-                text = "弟子招募",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black
-            )
-            Text(
-                text = "当前灵石: ${gameData?.spiritStones ?: 0}",
-                fontSize = 12.sp,
-                color = GameColors.TextSecondary
-            )
-        }
-
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            GameButton(
-                text = "自动招募",
-                onClick = onAutoRecruitClick
-            )
-            CloseButton(onClick = onDismiss)
-        }
-    }
-}
-
 private val ROOT_COUNT_OPTIONS = listOf(
     1 to "单灵根",
     2 to "双灵根",
@@ -186,25 +163,16 @@ private fun AutoRecruitFilterDialog(
         }
     }
 
-    HalfScreenDialog(onDismissRequest = handleClose) {
+    UnifiedGameDialog(
+        onDismissRequest = handleClose,
+        title = "自动招募筛选",
+        mode = DialogMode.Half,
+        scrollableContent = false
+    ) {
         Box(modifier = Modifier.fillMaxSize()) {
             Column(
                 modifier = Modifier.fillMaxSize().padding(16.dp)
             ) {
-                // Header
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "自动招募筛选",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-                    CloseButton(onClick = handleClose)
-                }
 
                 Spacer(modifier = Modifier.height(12.dp))
 
@@ -247,13 +215,17 @@ private fun AutoRecruitFilterDialog(
             }
 
             if (showUnsavedDialog) {
+                val config = LocalConfiguration.current
+                val dialogWidth = (config.screenWidthDp * 0.4f).dp
+                val dialogHeight = (config.screenHeightDp * 0.45f).dp
                 Dialog(
                     onDismissRequest = { showUnsavedDialog = false },
                     properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
                 ) {
                     Box(
                         modifier = Modifier
-                            .fillMaxWidth(0.83f)
+                            .width(dialogWidth)
+                            .height(dialogHeight)
                             .clip(RoundedCornerShape(12.dp)),
                         contentAlignment = Alignment.Center
                     ) {

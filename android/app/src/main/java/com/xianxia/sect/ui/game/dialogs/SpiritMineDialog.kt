@@ -1,4 +1,4 @@
-package com.xianxia.sect.ui.game
+package com.xianxia.sect.ui.game.dialogs
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -28,7 +28,6 @@ import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.SpiritMineSlot
 import com.xianxia.sect.ui.theme.GameColors
-import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.ElderBonusInfoButton
 import com.xianxia.sect.ui.components.ElderBonusInfoProvider
 import com.xianxia.sect.ui.components.GameButton
@@ -37,11 +36,18 @@ import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.components.UnifiedDiscipleSlot
 import com.xianxia.sect.ui.components.DiscipleSlotWithActions
-import com.xianxia.sect.ui.components.HalfScreenDialog
+import com.xianxia.sect.ui.components.UnifiedGameDialog
+import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
 import com.xianxia.sect.ui.game.tabs.REALM_FILTER_OPTIONS
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.game.SpiritMineViewModel
+import com.xianxia.sect.ui.game.GameViewModel
+import com.xianxia.sect.ui.game.ProductionViewModel
+import com.xianxia.sect.ui.game.FilteredMultiSelectDialog
+import com.xianxia.sect.ui.game.DiscipleDetailDialog
+import com.xianxia.sect.ui.game.getSpiritRootCount
+import com.xianxia.sect.ui.game.applyFilters
 
 @Composable
 fun SpiritMineDialog(
@@ -511,21 +517,13 @@ private fun SpiritMineDeaconSelectionDialog(
         sortedDisciples.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort)
     }
 
-    HalfScreenDialog(onDismissRequest = onDismiss) {
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = "选择执事（内门弟子）",
+        mode = DialogMode.Half,
+        scrollableContent = false
+    ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "选择执事（内门弟子）",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-                CloseButton(onClick = onDismiss)
-            }
             if (disciples.isEmpty()) {
                 Box(
                     modifier = Modifier
@@ -599,36 +597,29 @@ private fun CommonDialog(
     onDismiss: () -> Unit,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    HalfScreenDialog(onDismissRequest = onDismiss, isFullScreen = false) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-                    Column {
-                        Text(text = "总产量: $totalOutput/月", fontSize = 10.sp, color = Color(0xFF4CAF50))
-                        if (miningBonus > 0) {
-                            Text(text = "采矿加成: +${(miningBonus * 100).toInt()}%", fontSize = 9.sp, color = Color(0xFFFF9800))
-                        }
-                        if (deaconBonus > 0) {
-                            Text(text = "执事加成: +${(deaconBonus * 100).toInt()}%", fontSize = 9.sp, color = Color(0xFF2196F3))
-                        }
-                    }
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = title,
+        mode = DialogMode.Half,
+        scrollableContent = false,
+        headerActions = {
+            Column {
+                Text(text = "总产量: $totalOutput/月", fontSize = 10.sp, color = Color(0xFF4CAF50))
+                if (miningBonus > 0) {
+                    Text(text = "采矿加成: +${(miningBonus * 100).toInt()}%", fontSize = 9.sp, color = Color(0xFFFF9800))
                 }
-                CloseButton(onClick = onDismiss)
+                if (deaconBonus > 0) {
+                    Text(text = "执事加成: +${(deaconBonus * 100).toInt()}%", fontSize = 9.sp, color = Color(0xFF2196F3))
+                }
             }
+        },
+        content = {
             Column(
-                modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)
+                modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)
             ) {
                 content()
             }
         }
-    }
+    )
 }
 

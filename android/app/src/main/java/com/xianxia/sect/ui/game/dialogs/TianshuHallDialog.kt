@@ -1,4 +1,4 @@
-package com.xianxia.sect.ui.game
+package com.xianxia.sect.ui.game.dialogs
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -23,15 +23,23 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.*
-import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.ElderBonusInfo
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.FollowedTag
-import com.xianxia.sect.ui.components.HalfScreenDialog
+import com.xianxia.sect.ui.components.UnifiedGameDialog
+import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.UnifiedDiscipleSlot
 import com.xianxia.sect.ui.components.DiscipleSlotWithActions
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.theme.GameColors
+import com.xianxia.sect.ui.game.GameViewModel
+import com.xianxia.sect.ui.game.ProductionViewModel
+import com.xianxia.sect.ui.game.ProductionElderSection
+import com.xianxia.sect.ui.game.ALCHEMY_THEME
+import com.xianxia.sect.ui.game.FORGE_THEME
+import com.xianxia.sect.ui.game.ProductionTheme
+import com.xianxia.sect.ui.game.ProductionElderSelectionDialog
+import com.xianxia.sect.ui.game.DiscipleDetailDialog
 
 @Composable
 fun TianshuHallDialog(
@@ -57,21 +65,17 @@ fun TianshuHallDialog(
     val forgeElderId = elderSlots?.forgeElder
     val forgeElder = disciples.find { it.id == forgeElderId }
 
-    HalfScreenDialog(onDismissRequest = onDismiss, isFullScreen = false) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("天枢殿", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-                CloseButton(onClick = onDismiss)
-            }
-            Column(
-                modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = "天枢殿",
+        mode = DialogMode.Half,
+        scrollableContent = false
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
@@ -131,7 +135,6 @@ fun TianshuHallDialog(
                         )
                     }
                 }
-            }
         }
 
     if (showViceSectMasterSelectDialog) {
@@ -236,26 +239,15 @@ fun TianshuHallDialog(
 
 @Composable
 private fun SectAffairsPlaceholderDialog(onDismiss: () -> Unit) {
-    HalfScreenDialog(onDismissRequest = onDismiss) {
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = "宗门事务",
+        mode = DialogMode.Half
+    ) {
         Column(
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "宗门事务",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-                    CloseButton(onClick = onDismiss)
-                }
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -280,26 +272,16 @@ private fun SectPoliciesDialog(
     productionViewModel: ProductionViewModel,
     onDismiss: () -> Unit
 ) {
-    HalfScreenDialog(onDismissRequest = onDismiss) {
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = "宗门政策",
+        mode = DialogMode.Half,
+        scrollableContent = false
+    ) {
         Column(
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "宗门政策",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-                    CloseButton(onClick = onDismiss)
-                }
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()

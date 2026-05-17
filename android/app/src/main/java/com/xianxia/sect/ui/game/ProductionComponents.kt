@@ -26,7 +26,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.xianxia.sect.ui.components.HalfScreenDialog
+import com.xianxia.sect.ui.components.UnifiedGameDialog
+import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.R
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.ui.components.ElderBonusInfo
@@ -189,32 +190,15 @@ fun ProductionCommonDialog(
     theme: ProductionTheme,
     onDismiss: () -> Unit,
     enableScroll: Boolean = true,
-    titleActions: @Composable RowScope.() -> Unit = {},
     content: @Composable ColumnScope.() -> Unit
 ) {
-    HalfScreenDialog(onDismissRequest = onDismiss) {
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = title,
+        mode = DialogMode.Half,
+        scrollableContent = false
+    ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = title,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        titleActions()
-                        CloseButton(onClick = onDismiss)
-                    }
-                }
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -404,16 +388,13 @@ fun ProductionElderSelectionDialog(
         sortedDisciples.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort, ATTRIBUTE_FILTER_OPTIONS.find { it.name == theme.recommendAttributeText }?.key)
     }
 
-    HalfScreenDialog(onDismissRequest = onDismiss) {
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = theme.elderSelectionTitle,
+        mode = DialogMode.Half,
+        scrollableContent = false
+    ) {
         Column(modifier = Modifier.padding(20.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(text = theme.elderSelectionTitle, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-                    CloseButton(onClick = onDismiss)
-                }
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
                     text = "推荐属性: ${theme.recommendAttributeText}",
@@ -522,16 +503,13 @@ fun ProductionDirectDiscipleSelectionDialog(
         sortedDisciples.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort, ATTRIBUTE_FILTER_OPTIONS.find { it.name == theme.recommendAttributeText }?.key)
     }
 
-    HalfScreenDialog(onDismissRequest = onDismiss) {
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = "选择亲传弟子",
+        mode = DialogMode.Half,
+        scrollableContent = false
+    ) {
         Column(modifier = Modifier.padding(20.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(text = "选择亲传弟子", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-                    CloseButton(onClick = onDismiss)
-                }
                 Spacer(modifier = Modifier.height(12.dp))
                 SpiritRootAttributeFilterBar(
                     selectedSpiritRootFilter = selectedSpiritRootFilter,
@@ -610,28 +588,25 @@ fun ProductionReserveDiscipleDialog(
     onAddClick: () -> Unit,
     onRemove: (String) -> Unit
 ) {
-    HalfScreenDialog(onDismissRequest = onDismiss) {
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = "储备弟子",
+        mode = DialogMode.Half,
+        scrollableContent = false
+    ) {
         Column(modifier = Modifier.padding(20.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(text = "储备弟子", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(theme.reserveButtonBackgroundColor)
+                            .clickable { onAddClick() }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(theme.reserveButtonBackgroundColor)
-                                .clickable { onAddClick() }
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            Text(text = "添加", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = theme.reserveButtonTextColor)
-                        }
-                        CloseButton(onClick = onDismiss)
+                        Text(text = "添加", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = theme.reserveButtonTextColor)
                     }
                 }
                 Spacer(modifier = Modifier.height(12.dp))
@@ -694,16 +669,13 @@ fun ProductionAddReserveDiscipleDialog(
 ) {
     var selectedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
 
-    HalfScreenDialog(onDismissRequest = onDismiss) {
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = "添加储备弟子",
+        mode = DialogMode.Half,
+        scrollableContent = false
+    ) {
         Column(modifier = Modifier.padding(20.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(text = "添加储备弟子", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-                    CloseButton(onClick = onDismiss)
-                }
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
                     text = "推荐属性: ${theme.recommendAttributeText}",
@@ -796,36 +768,22 @@ fun FilteredMultiSelectDialog(
         remember { { d: DiscipleAggregate -> listOf(extraCardAttrName to extraCardAttrValue(d)) } }
     } else null
 
-    HalfScreenDialog(onDismissRequest = onDismiss) {
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = title,
+        mode = DialogMode.Half,
+        scrollableContent = false
+    ) {
         Column(modifier = Modifier.padding(20.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Text(
-                        text = title,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.Black
-                        )
-                        val countText = if (maxSelection != null) {
-                            "(${selectedIds.size}/$maxSelection)"
-                        } else {
-                            "(${selectedIds.size})"
-                        }
-                        Text(
-                            text = countText,
-                            fontSize = 10.sp,
-                            color = Color.Black
-                        )
-                    }
-                    CloseButton(onClick = onDismiss)
-                }
+                Text(
+                    text = if (maxSelection != null) {
+                        "(${selectedIds.size}/$maxSelection)"
+                    } else {
+                        "(${selectedIds.size})"
+                    },
+                    fontSize = 10.sp,
+                    color = Color.Black
+                )
                 Spacer(modifier = Modifier.height(12.dp))
                 Column(
                     modifier = Modifier
