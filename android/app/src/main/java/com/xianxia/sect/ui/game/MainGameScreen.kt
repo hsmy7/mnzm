@@ -1196,11 +1196,7 @@ private fun BuildingConstructionBar(
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             buildingList.forEach { (name, _) ->
-                val built = if (name == "灵矿场") {
-                    placedBuildings.count { it.displayName == name } >= GameConfig.Production.MAX_SPIRIT_MINE_COUNT
-                } else {
-                    placedBuildings.any { it.displayName == name }
-                }
+                val built = placedBuildings.count { it.displayName == name } >= getBuildingMaxCount(name)
                 val cost = buildingCosts[name] ?: 1000L
                 val canAfford = spiritStones >= cost
                 Column(

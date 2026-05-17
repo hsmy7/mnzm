@@ -226,7 +226,7 @@ class AlchemyViewModel @Inject constructor(
             elderSlots.forgeReserveDisciples.mapNotNull { it.discipleId }
 
         return gameEngine.discipleAggregatesSnapshot
-            .filter { it.isEligibleForInnerPosition && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
+            .filter { it.isEligibleForProductionPosition && !allElderIds.contains(it.id) && !allDirectDiscipleIds.contains(it.id) }
             .sortedByDescending { it.pillRefining }
     }
 

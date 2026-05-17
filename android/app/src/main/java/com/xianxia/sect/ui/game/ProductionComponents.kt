@@ -369,7 +369,7 @@ fun ProductionElderSelectionDialog(
     var realmExpanded by remember { mutableStateOf(false) }
 
     val filteredDisciplesBase = remember(disciples, elderSlots) {
-        disciples.filter { it.isEligibleForInnerPosition && !elderSlots.isDiscipleInAnyPosition(it.id) }
+        disciples.filter { it.isEligibleForProductionPosition && !elderSlots.isDiscipleInAnyPosition(it.id) }
     }
 
     val realmCounts = remember(filteredDisciplesBase) {
@@ -433,7 +433,7 @@ fun ProductionElderSelectionDialog(
                                 Text(text = "暂无可用弟子", fontSize = 12.sp, color = Color.Black)
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
-                                    text = "需要: 内门弟子 · 空闲中 · 未担任其他职务",
+                                    text = "需要: 空闲中 · 未担任其他职务",
                                     fontSize = 10.sp,
                                     color = Color(0xFF888888)
                                 )

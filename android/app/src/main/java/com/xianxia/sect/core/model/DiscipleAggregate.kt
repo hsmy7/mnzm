@@ -365,6 +365,11 @@ data class DiscipleAggregate(
         get() = isAlive && discipleType == "inner" && age >= GameConfig.Disciple.MIN_AGE &&
                 realmLayer > 0 && status == DiscipleStatus.IDLE
 
+    /** 是否可担任生产职务（锻造/炼丹），不限制内外门 */
+    val isEligibleForProductionPosition: Boolean
+        get() = isAlive && age >= GameConfig.Disciple.MIN_AGE &&
+                realmLayer > 0 && status == DiscipleStatus.IDLE
+
     /** 是否可担任外门职务（采矿） */
     val isEligibleForOuterPosition: Boolean
         get() = isAlive && discipleType == "outer" && age >= GameConfig.Disciple.MIN_AGE &&
