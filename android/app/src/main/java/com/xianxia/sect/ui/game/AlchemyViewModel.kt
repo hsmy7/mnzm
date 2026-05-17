@@ -121,15 +121,7 @@ class AlchemyViewModel @Inject constructor(
     }
 
     fun toggleAuto(buildingIndex: Int) {
-        viewModelScope.launch {
-            gameEngine.updateGameData { data ->
-                data.copy(productionSlots = data.productionSlots.map { slot ->
-                    if (slot.buildingType == BuildingType.ALCHEMY && slot.slotIndex == buildingIndex)
-                        slot.copy(autoRestartEnabled = !slot.autoRestartEnabled)
-                    else slot
-                })
-            }
-        }
+        gameEngine.toggleAutoRestart(BuildingType.ALCHEMY, buildingIndex)
     }
 
     fun assignWorker(buildingIndex: Int, discipleId: String, discipleName: String) {
@@ -143,7 +135,7 @@ class AlchemyViewModel @Inject constructor(
     fun getAvailableWorkers(): List<DiscipleAggregate> {
         val all = gameEngine.discipleAggregatesSnapshot
         val data = gameEngine.gameDataSnapshot
-        val assignedIds = data.productionSlots
+        val assignedIds = gameEngine.productionSlots.value
             .filter { it.buildingType == BuildingType.ALCHEMY && it.assignedDiscipleId.isNullOrEmpty().not() }
             .mapNotNull { it.assignedDiscipleId }.toSet()
         // Also exclude disciples already in elder/direct disciple/reserve positions

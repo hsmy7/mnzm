@@ -128,15 +128,7 @@ class ForgeViewModel @Inject constructor(
     }
 
     fun toggleAuto(buildingIndex: Int) {
-        viewModelScope.launch {
-            gameEngine.updateGameData { data ->
-                data.copy(productionSlots = data.productionSlots.map { slot ->
-                    if (slot.buildingType == BuildingType.FORGE && slot.slotIndex == buildingIndex)
-                        slot.copy(autoRestartEnabled = !slot.autoRestartEnabled)
-                    else slot
-                })
-            }
-        }
+        gameEngine.toggleAutoRestart(BuildingType.FORGE, buildingIndex)
     }
 
     fun assignWorker(buildingIndex: Int, discipleId: String, discipleName: String) {
@@ -150,7 +142,7 @@ class ForgeViewModel @Inject constructor(
     fun getAvailableWorkers(): List<DiscipleAggregate> {
         val all = gameEngine.discipleAggregatesSnapshot
         val data = gameEngine.gameDataSnapshot
-        val assignedIds = data.productionSlots
+        val assignedIds = gameEngine.productionSlots.value
             .filter { it.buildingType == BuildingType.FORGE && it.assignedDiscipleId.isNullOrEmpty().not() }
             .mapNotNull { it.assignedDiscipleId }.toSet()
         val elderSlots = data.elderSlots

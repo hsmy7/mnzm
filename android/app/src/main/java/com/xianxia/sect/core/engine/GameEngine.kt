@@ -650,26 +650,25 @@ class GameEngine @Inject constructor(
         discipleId: String,
         discipleName: String
     ) {
-        val data = stateStore.gameDataSnapshot
-        val currentYear = data.gameYear
-        val currentMonth = data.gameMonth
-        updateGameDataSync { gd ->
-            gd.copy(productionSlots = gd.productionSlots.map { slot ->
-                if (slot.buildingType == buildingType && slot.slotIndex == slotIndex) {
-                    // If slot was paused (working but no disciple), resume with frozen time
-                    if (slot.isWorking && slot.assignedDiscipleId.isNullOrEmpty()) {
+        gameEngineCore.launchInScope {
+            // 写入 repository（UI 读取来源 + 持久化）
+            productionCoordinator.repository.updateSlot(buildingType, slotIndex) { slot ->
+                slot.copy(
+                    assignedDiscipleId = discipleId,
+                    assignedDiscipleName = discipleName
+                )
+            }
+            // 同步写入 stateStore（getAvailableWorkers 等读取来源，后续迁移完成后移除）
+            stateStore.update { gameData = gameData.copy(
+                productionSlots = gameData.productionSlots.map { slot ->
+                    if (slot.buildingType == buildingType && slot.slotIndex == slotIndex) {
                         slot.copy(
                             assignedDiscipleId = discipleId,
                             assignedDiscipleName = discipleName
                         )
-                    } else {
-                        slot.copy(
-                            assignedDiscipleId = discipleId,
-                            assignedDiscipleName = discipleName
-                        )
-                    }
-                } else slot
-            })
+                    } else slot
+                }
+            )}
         }
     }
 
@@ -677,38 +676,50 @@ class GameEngine @Inject constructor(
         buildingType: BuildingType,
         slotIndex: Int
     ) {
-        val data = stateStore.gameDataSnapshot
-        val currentYear = data.gameYear
-        val currentMonth = data.gameMonth
-        val slot = data.productionSlots.find {
-            it.buildingType == buildingType && it.slotIndex == slotIndex
-        }
-        val discipleId = slot?.assignedDiscipleId
+        gameEngineCore.launchInScope {
+            val data = stateStore.gameDataSnapshot
+            val currentYear = data.gameYear
+            val currentMonth = data.gameMonth
+            val slot = data.productionSlots.find {
+                it.buildingType == buildingType && it.slotIndex == slotIndex
+            }
+            val discipleId = slot?.assignedDiscipleId
 
-        updateGameDataSync { gd ->
-            gd.copy(productionSlots = gd.productionSlots.map { s ->
-                if (s.buildingType == buildingType && s.slotIndex == slotIndex) {
-                    if (s.isWorking && !s.assignedDiscipleId.isNullOrEmpty()) {
-                        // Freeze progress: save remaining time as new duration
-                        val remaining = s.remainingTime(currentYear, currentMonth)
-                        s.copy(
-                            assignedDiscipleId = null,
-                            assignedDiscipleName = "",
-                            startYear = currentYear,
-                            startMonth = currentMonth,
-                            duration = remaining.coerceAtLeast(1)
-                        )
-                    } else {
-                        s.copy(
-                            assignedDiscipleId = null,
-                            assignedDiscipleName = ""
-                        )
-                    }
-                } else s
-            })
-        }
-        if (discipleId != null) {
-            gameEngineCore.launchInScope {
+            // 写入 repository（UI 读取来源 + 持久化）
+            productionCoordinator.repository.updateSlot(buildingType, slotIndex) { s ->
+                if (s.isWorking && !s.assignedDiscipleId.isNullOrEmpty()) {
+                    val remaining = s.remainingTime(currentYear, currentMonth)
+                    s.copy(
+                        assignedDiscipleId = null,
+                        assignedDiscipleName = "",
+                        startYear = currentYear,
+                        startMonth = currentMonth,
+                        duration = remaining.coerceAtLeast(1)
+                    )
+                } else {
+                    s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
+                }
+            }
+            // 同步写入 stateStore（后续迁移完成后移除）
+            stateStore.update { gameData = gameData.copy(
+                productionSlots = gameData.productionSlots.map { s ->
+                    if (s.buildingType == buildingType && s.slotIndex == slotIndex) {
+                        if (s.isWorking && !s.assignedDiscipleId.isNullOrEmpty()) {
+                            val remaining = s.remainingTime(currentYear, currentMonth)
+                            s.copy(
+                                assignedDiscipleId = null,
+                                assignedDiscipleName = "",
+                                startYear = currentYear,
+                                startMonth = currentMonth,
+                                duration = remaining.coerceAtLeast(1)
+                            )
+                        } else {
+                            s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
+                        }
+                    } else s
+                }
+            )}
+            if (discipleId != null) {
                 stateStore.update {
                     disciples = disciples.map { d ->
                         if (d.id == discipleId) d.copy(status = DiscipleStatus.IDLE) else d
@@ -718,10 +729,23 @@ class GameEngine @Inject constructor(
         }
     }
 
-    fun getAssignedDiscipleForSlot(buildingType: BuildingType, slotIndex: Int): Pair<String, String>? {
-        val slot = stateStore.gameDataSnapshot.productionSlots.find {
-            it.buildingType == buildingType && it.slotIndex == slotIndex
+    fun toggleAutoRestart(buildingType: BuildingType, slotIndex: Int) {
+        gameEngineCore.launchInScope {
+            productionCoordinator.repository.updateSlot(buildingType, slotIndex) { slot ->
+                slot.copy(autoRestartEnabled = !slot.autoRestartEnabled)
+            }
+            stateStore.update { gameData = gameData.copy(
+                productionSlots = gameData.productionSlots.map { slot ->
+                    if (slot.buildingType == buildingType && slot.slotIndex == slotIndex)
+                        slot.copy(autoRestartEnabled = !slot.autoRestartEnabled)
+                    else slot
+                }
+            )}
         }
+    }
+
+    fun getAssignedDiscipleForSlot(buildingType: BuildingType, slotIndex: Int): Pair<String, String>? {
+        val slot = productionCoordinator.repository.getSlotByIndex(buildingType, slotIndex)
         val id = slot?.assignedDiscipleId
         return if (id.isNullOrEmpty()) null else Pair(id, slot.assignedDiscipleName)
     }

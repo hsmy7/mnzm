@@ -188,6 +188,7 @@ class GameViewModel @Inject constructor(
                         height = gridH
                     ).withInstanceId(),
                     spiritMineSlots = data.spiritMineSlots + newSlots,
+                    // TODO: 后续统一到 Repository 单一数据源，移除对 GameData.productionSlots 的写入
                     productionSlots = if (newProductionSlot != null)
                         data.productionSlots + newProductionSlot else data.productionSlots
                 )
@@ -334,7 +335,9 @@ class GameViewModel @Inject constructor(
                         com.xianxia.sect.core.model.production.ProductionSlotStatus.COMPLETED -> AlchemySlotStatus.FINISHED
                     },
                     successRate = slot.successRate,
-                    requiredMaterials = slot.requiredMaterials
+                    requiredMaterials = slot.requiredMaterials,
+                    assignedDiscipleId = slot.assignedDiscipleId,
+                    assignedDiscipleName = slot.assignedDiscipleName
                 )
             }
         }
@@ -390,7 +393,9 @@ class GameViewModel @Inject constructor(
                         com.xianxia.sect.core.model.production.ProductionSlotStatus.WORKING -> ForgeSlotStatus.WORKING
                         com.xianxia.sect.core.model.production.ProductionSlotStatus.COMPLETED -> ForgeSlotStatus.FINISHED
                         else -> ForgeSlotStatus.IDLE
-                    }
+                    },
+                    assignedDiscipleId = slot.assignedDiscipleId,
+                    assignedDiscipleName = slot.assignedDiscipleName
                 )
             }
         }

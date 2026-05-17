@@ -142,6 +142,10 @@ data class GameData(
     // 藏经阁弟子槽位（独立3个）
     var librarySlots: List<LibrarySlot> = emptyList(),
 
+    @Deprecated(
+        message = "生产槽位数据已迁移到 ProductionSlotRepository，请使用 GameEngine.productionSlots 或 Repository API 读写",
+        replaceWith = ReplaceWith("使用 ProductionSlotRepository.updateSlot() / getSlots() 或 GameEngine.productionSlots")
+    )
     var productionSlots: List<ProductionSlot> = emptyList(),
 
     // 已放置建筑（网格坐标）

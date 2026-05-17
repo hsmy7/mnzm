@@ -385,16 +385,6 @@ fun MainGameScreen(
             cameraState.tryCenterOn(worldPixelWidth / 2f, worldPixelHeight / 2f)
         }
     }
-    // 关闭弹窗后重新居中
-    // Re-center camera when no dialog is shown
-    LaunchedEffect(dialogNavController) {
-        dialogNavController.currentBackStackEntryFlow.collect { entry ->
-            if (entry.destination.route == null && screenWidthPx > 0 && screenHeightPx > 0) {
-                cameraState.centerOn(worldPixelWidth / 2f, worldPixelHeight / 2f)
-            }
-        }
-    }
-
     val battleLogs by viewModel.battleLogs.collectAsState()
 
     LaunchedEffect(gameData?.pendingCompetitionResults) {
