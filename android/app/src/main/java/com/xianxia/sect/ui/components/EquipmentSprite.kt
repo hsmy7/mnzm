@@ -54,5 +54,29 @@ fun equipmentSpriteRes(name: String): Int? = when (name) {
     "苍罡铠" -> R.drawable.cang_gang_kai
     "曦光铠" -> R.drawable.xi_guang_kai
     "云影袍" -> R.drawable.yun_ying_pao
+    "奔雷靴" -> R.drawable.ben_lei_xue
+    "长明坠" -> R.drawable.chang_ming_zhui
+    "赤煞靴" -> R.drawable.chi_sha_xue
+    "渡厄佩" -> R.drawable.du_e_pei
+    "凤羽坠" -> R.drawable.feng_yu_zhui
+    "鹤岚靴" -> R.drawable.he_lan_xue
+    "疾风靴" -> R.drawable.ji_feng_xue
+    "灵泉戒" -> R.drawable.ling_quan_jie
+    "灵玉佩" -> R.drawable.ling_yu_pei
+    "龙灵珠" -> R.drawable.long_ling_zhu
+    "鸾羽履" -> R.drawable.luan_yu_lv
+    "轻羽靴" -> R.drawable.qing_yu_xue
+    "青澜靴" -> R.drawable.qing_lan_xue
+    "兽皮靴" -> R.drawable.shou_pi_xue
+    "溯光靴" -> R.drawable.su_guang_xue
+    "踏云履" -> R.drawable.ta_yun_lv
+    "铜项链" -> R.drawable.tong_xiang_lian
+    "迅捷珠" -> R.drawable.xun_jie_zhu
+    "隐云佩" -> R.drawable.yin_yun_pei
+    "幽朔珠" -> R.drawable.you_shuo_zhu
+    "玉戒指" -> R.drawable.yu_jie_zhi
+    "云栖靴" -> R.drawable.yun_qi_xue
+    "蕴灵戒" -> R.drawable.yun_ling_jie
+    "追风靴" -> R.drawable.zhui_feng_xue
     else -> null
 }

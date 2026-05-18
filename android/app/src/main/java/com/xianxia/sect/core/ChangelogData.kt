@@ -9,6 +9,16 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.0.52",
+            date = "2026-05-18",
+            changes = listOf(
+                "靴子更名并更新描述：布鞋→青澜靴、皮靴→兽皮靴、迷雾靴→云栖靴、虚空步→溯光靴、影舞步→赤煞靴、仙踪步→鸾羽履、混沌履→鹤岚靴",
+                "饰品更名并更新描述：疾风戒→蕴灵戒、地灵核→渡厄佩、风行坠→隐云佩、混沌灵珠→幽朔珠、天行戒→长明坠",
+                "新增24个精灵图：12双靴子（凡品~天品全覆盖）+ 12个饰品（凡品~天品全覆盖），靴子饰品精灵图覆盖率达100%",
+                "无数据库迁移"
+            )
+        ),
+        ChangelogEntry(
             version = "3.0.51",
             date = "2026-05-18",
             changes = listOf(

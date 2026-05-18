@@ -107,8 +107,8 @@ class EquipmentRegistry : BaseTemplateRegistry<EquipmentDatabase.EquipmentTempla
      */
     val boots: Map<String, EquipmentDatabase.EquipmentTemplate> = mapOf(
         // 凡品 (rarity: 1)
-        "clothBoots" to EquipmentDatabase.EquipmentTemplate("clothBoots", "布鞋", EquipmentSlot.BOOTS, 1, speed = 7, hp = 84, description = "轻便的布鞋，提升移动速度", price = 3600),
-        "leatherBoots" to EquipmentDatabase.EquipmentTemplate("leatherBoots", "皮靴", EquipmentSlot.BOOTS, 1, speed = 10, hp = 126, description = "厚实的皮靴，增强生命力", price = 3600),
+        "clothBoots" to EquipmentDatabase.EquipmentTemplate("clothBoots", "青澜靴", EquipmentSlot.BOOTS, 1, speed = 7, hp = 84, description = "青澜丝线织就的轻靴，提升移动速度", price = 3600),
+        "leatherBoots" to EquipmentDatabase.EquipmentTemplate("leatherBoots", "兽皮靴", EquipmentSlot.BOOTS, 1, speed = 10, hp = 126, description = "兽皮鞣制的厚靴，增强生命力", price = 3600),
 
         // 灵品 (rarity: 2)
         "swiftBoots" to EquipmentDatabase.EquipmentTemplate("swiftBoots", "疾风靴", EquipmentSlot.BOOTS, 2, speed = 22, hp = 264, description = "穿上可大幅提升移动速度", price = 16200),
@@ -116,19 +116,19 @@ class EquipmentRegistry : BaseTemplateRegistry<EquipmentDatabase.EquipmentTempla
 
         // 宝品 (rarity: 3)
         "windBoots" to EquipmentDatabase.EquipmentTemplate("windBoots", "追风靴", EquipmentSlot.BOOTS, 3, speed = 69, hp = 846, description = "追逐风的速度，极速无双", price = 64800),
-        "mistBoots" to EquipmentDatabase.EquipmentTemplate("mistBoots", "迷雾靴", EquipmentSlot.BOOTS, 3, speed = 103, hp = 1270, description = "踏雾而行，蕴含浓郁生命气息", price = 64800),
+        "mistBoots" to EquipmentDatabase.EquipmentTemplate("mistBoots", "云栖靴", EquipmentSlot.BOOTS, 3, speed = 103, hp = 1270, description = "云栖之处步履轻盈，蕴含浓郁生命气息", price = 64800),
 
         // 玄品 (rarity: 4)
         "cloudBoots" to EquipmentDatabase.EquipmentTemplate("cloudBoots", "踏云履", EquipmentSlot.BOOTS, 4, speed = 215, hp = 2688, description = "踏云而行的仙家法宝，速度惊人", price = 259200),
         "thunderBoots" to EquipmentDatabase.EquipmentTemplate("thunderBoots", "奔雷靴", EquipmentSlot.BOOTS, 4, speed = 320, hp = 4032, description = "如雷电般厚重，蕴含磅礴生命力", price = 259200),
 
         // 地品 (rarity: 5)
-        "voidBoots" to EquipmentDatabase.EquipmentTemplate("voidBoots", "虚空步", EquipmentSlot.BOOTS, 5, speed = 664, hp = 8500, description = "行走于虚空之间，速度无双", price = 1036800),
-        "shadowStepBoots" to EquipmentDatabase.EquipmentTemplate("shadowStepBoots", "影舞步", EquipmentSlot.BOOTS, 5, speed = 992, hp = 12760, description = "如影子般厚重，蕴含浩瀚生命力", price = 1036800),
+        "voidBoots" to EquipmentDatabase.EquipmentTemplate("voidBoots", "溯光靴", EquipmentSlot.BOOTS, 5, speed = 664, hp = 8500, description = "溯光逐影穿梭虚空，速度无双", price = 1036800),
+        "shadowStepBoots" to EquipmentDatabase.EquipmentTemplate("shadowStepBoots", "赤煞靴", EquipmentSlot.BOOTS, 5, speed = 992, hp = 12760, description = "赤煞之气凝聚的战靴，蕴含浩瀚生命力", price = 1036800),
 
         // 天品 (rarity: 6)
-        "immortalBoots" to EquipmentDatabase.EquipmentTemplate("immortalBoots", "仙踪步", EquipmentSlot.BOOTS, 6, speed = 2048, hp = 26200, description = "仙人留下的神行之靴，速度超凡入圣", price = 6000000),
-        "chaosStepBoots" to EquipmentDatabase.EquipmentTemplate("chaosStepBoots", "混沌履", EquipmentSlot.BOOTS, 6, speed = 3050, hp = 39400, description = "踏混沌而行，蕴含无尽生命之力", price = 6000000)
+        "immortalBoots" to EquipmentDatabase.EquipmentTemplate("immortalBoots", "鸾羽履", EquipmentSlot.BOOTS, 6, speed = 2048, hp = 26200, description = "鸾鸟仙羽织就的灵履，速度超凡入圣", price = 6000000),
+        "chaosStepBoots" to EquipmentDatabase.EquipmentTemplate("chaosStepBoots", "鹤岚靴", EquipmentSlot.BOOTS, 6, speed = 3050, hp = 39400, description = "鹤翔岚雾而行，蕴含无尽生命之力", price = 6000000)
     )
 
     /**
@@ -141,7 +141,7 @@ class EquipmentRegistry : BaseTemplateRegistry<EquipmentDatabase.EquipmentTempla
 
         // 灵品 (rarity: 2)
         "spiritPendant" to EquipmentDatabase.EquipmentTemplate("spiritPendant", "灵玉佩", EquipmentSlot.ACCESSORY, 2, mp = 136, speed = 22, description = "蕴含灵气的玉佩，灵力出众", price = 16200),
-        "healthRing" to EquipmentDatabase.EquipmentTemplate("healthRing", "疾风戒", EquipmentSlot.ACCESSORY, 2, mp = 205, speed = 33, description = "可提升身法速度的戒指", price = 16200),
+        "healthRing" to EquipmentDatabase.EquipmentTemplate("healthRing", "蕴灵戒", EquipmentSlot.ACCESSORY, 2, mp = 205, speed = 33, description = "可蕴养灵力的戒指，灵力出众", price = 16200),
 
         // 宝品 (rarity: 3)
         "storageRing" to EquipmentDatabase.EquipmentTemplate("storageRing", "灵泉戒", EquipmentSlot.ACCESSORY, 3, mp = 430, speed = 69, description = "蕴含灵泉之力的戒指，灵力出众", price = 64800),
@@ -152,12 +152,12 @@ class EquipmentRegistry : BaseTemplateRegistry<EquipmentDatabase.EquipmentTempla
         "phoenixHeart" to EquipmentDatabase.EquipmentTemplate("phoenixHeart", "凤羽坠", EquipmentSlot.ACCESSORY, 4, mp = 2040, speed = 320, description = "凤凰羽翼炼制的坠饰，可提升身法速度", price = 259200),
 
         // 地品 (rarity: 5)
-        "earthCore" to EquipmentDatabase.EquipmentTemplate("earthCore", "地灵核", EquipmentSlot.ACCESSORY, 5, mp = 4280, speed = 664, description = "大地灵核凝聚的至宝，灵力出众", price = 1036800),
-        "dragonEyePendant" to EquipmentDatabase.EquipmentTemplate("dragonEyePendant", "风行坠", EquipmentSlot.ACCESSORY, 5, mp = 6420, speed = 992, description = "蕴含风行法则的坠饰，可大幅提升身法速度", price = 1036800),
+        "earthCore" to EquipmentDatabase.EquipmentTemplate("earthCore", "渡厄佩", EquipmentSlot.ACCESSORY, 5, mp = 4280, speed = 664, description = "可渡厄解难的灵佩，灵力出众", price = 1036800),
+        "dragonEyePendant" to EquipmentDatabase.EquipmentTemplate("dragonEyePendant", "隐云佩", EquipmentSlot.ACCESSORY, 5, mp = 6420, speed = 992, description = "隐于云端的灵佩，可大幅提升身法速度", price = 1036800),
 
         // 天品 (rarity: 6)
-        "chaosBead" to EquipmentDatabase.EquipmentTemplate("chaosBead", "混沌灵珠", EquipmentSlot.ACCESSORY, 6, mp = 13400, speed = 2048, description = "蕴含混沌灵力的至宝，灵力超凡入圣", price = 6000000),
-        "heavenRing" to EquipmentDatabase.EquipmentTemplate("heavenRing", "天行戒", EquipmentSlot.ACCESSORY, 6, mp = 20100, speed = 3050, description = "承载天行法则的神戒，身法速度无双", price = 6000000)
+        "chaosBead" to EquipmentDatabase.EquipmentTemplate("chaosBead", "幽朔珠", EquipmentSlot.ACCESSORY, 6, mp = 13400, speed = 2048, description = "蕴含幽朔之力的灵珠，灵力超凡入圣", price = 6000000),
+        "heavenRing" to EquipmentDatabase.EquipmentTemplate("heavenRing", "长明坠", EquipmentSlot.ACCESSORY, 6, mp = 20100, speed = 3050, description = "长明不灭的灵坠，身法速度无双", price = 6000000)
     )
 
     // ==================== BaseTemplateRegistry 实现 ====================

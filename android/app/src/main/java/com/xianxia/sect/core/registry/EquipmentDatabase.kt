@@ -91,23 +91,23 @@ object EquipmentDatabase {
     )
 
     val boots: Map<String, EquipmentTemplate> = mapOf(
-        "clothBoots" to EquipmentTemplate("clothBoots", "布鞋", EquipmentSlot.BOOTS, 1, speed = 7, hp = 84, description = "轻便的布鞋，提升移动速度", price = 3600),
-        "leatherBoots" to EquipmentTemplate("leatherBoots", "皮靴", EquipmentSlot.BOOTS, 1, speed = 10, hp = 126, description = "厚实的皮靴，增强生命力", price = 3600),
+        "clothBoots" to EquipmentTemplate("clothBoots", "青澜靴", EquipmentSlot.BOOTS, 1, speed = 7, hp = 84, description = "青澜丝线织就的轻靴，提升移动速度", price = 3600),
+        "leatherBoots" to EquipmentTemplate("leatherBoots", "兽皮靴", EquipmentSlot.BOOTS, 1, speed = 10, hp = 126, description = "兽皮鞣制的厚靴，增强生命力", price = 3600),
 
         "swiftBoots" to EquipmentTemplate("swiftBoots", "疾风靴", EquipmentSlot.BOOTS, 2, speed = 22, hp = 264, description = "穿上可大幅提升移动速度", price = 16200),
         "lightBoots" to EquipmentTemplate("lightBoots", "轻羽靴", EquipmentSlot.BOOTS, 2, speed = 33, hp = 396, description = "如羽毛般轻盈，蕴含生命之力", price = 16200),
 
         "windBoots" to EquipmentTemplate("windBoots", "追风靴", EquipmentSlot.BOOTS, 3, speed = 69, hp = 846, description = "追逐风的速度，极速无双", price = 64800),
-        "mistBoots" to EquipmentTemplate("mistBoots", "迷雾靴", EquipmentSlot.BOOTS, 3, speed = 103, hp = 1270, description = "踏雾而行，蕴含浓郁生命气息", price = 64800),
+        "mistBoots" to EquipmentTemplate("mistBoots", "云栖靴", EquipmentSlot.BOOTS, 3, speed = 103, hp = 1270, description = "云栖之处步履轻盈，蕴含浓郁生命气息", price = 64800),
 
         "cloudBoots" to EquipmentTemplate("cloudBoots", "踏云履", EquipmentSlot.BOOTS, 4, speed = 215, hp = 2688, description = "踏云而行的仙家法宝，速度惊人", price = 259200),
         "thunderBoots" to EquipmentTemplate("thunderBoots", "奔雷靴", EquipmentSlot.BOOTS, 4, speed = 320, hp = 4032, description = "如雷电般厚重，蕴含磅礴生命力", price = 259200),
 
-        "voidBoots" to EquipmentTemplate("voidBoots", "虚空步", EquipmentSlot.BOOTS, 5, speed = 664, hp = 8500, description = "行走于虚空之间，速度无双", price = 1036800),
-        "shadowStepBoots" to EquipmentTemplate("shadowStepBoots", "影舞步", EquipmentSlot.BOOTS, 5, speed = 992, hp = 12760, description = "如影子般厚重，蕴含浩瀚生命力", price = 1036800),
+        "voidBoots" to EquipmentTemplate("voidBoots", "溯光靴", EquipmentSlot.BOOTS, 5, speed = 664, hp = 8500, description = "溯光逐影穿梭虚空，速度无双", price = 1036800),
+        "shadowStepBoots" to EquipmentTemplate("shadowStepBoots", "赤煞靴", EquipmentSlot.BOOTS, 5, speed = 992, hp = 12760, description = "赤煞之气凝聚的战靴，蕴含浩瀚生命力", price = 1036800),
 
-        "immortalBoots" to EquipmentTemplate("immortalBoots", "仙踪步", EquipmentSlot.BOOTS, 6, speed = 2048, hp = 26200, description = "仙人留下的神行之靴，速度超凡入圣", price = 6000000),
-        "chaosStepBoots" to EquipmentTemplate("chaosStepBoots", "混沌履", EquipmentSlot.BOOTS, 6, speed = 3050, hp = 39400, description = "踏混沌而行，蕴含无尽生命之力", price = 6000000)
+        "immortalBoots" to EquipmentTemplate("immortalBoots", "鸾羽履", EquipmentSlot.BOOTS, 6, speed = 2048, hp = 26200, description = "鸾鸟仙羽织就的灵履，速度超凡入圣", price = 6000000),
+        "chaosStepBoots" to EquipmentTemplate("chaosStepBoots", "鹤岚靴", EquipmentSlot.BOOTS, 6, speed = 3050, hp = 39400, description = "鹤翔岚雾而行，蕴含无尽生命之力", price = 6000000)
     )
 
     val accessories: Map<String, EquipmentTemplate> = mapOf(
@@ -115,7 +115,7 @@ object EquipmentDatabase {
         "copperNecklace" to EquipmentTemplate("copperNecklace", "铜项链", EquipmentSlot.ACCESSORY, 1, mp = 63, speed = 10, description = "铜制项链，可提升身法速度", price = 3600),
 
         "spiritPendant" to EquipmentTemplate("spiritPendant", "灵玉佩", EquipmentSlot.ACCESSORY, 2, mp = 136, speed = 22, description = "蕴含灵气的玉佩，灵力出众", price = 16200),
-        "healthRing" to EquipmentTemplate("healthRing", "疾风戒", EquipmentSlot.ACCESSORY, 2, mp = 205, speed = 33, description = "可提升身法速度的戒指", price = 16200),
+        "healthRing" to EquipmentTemplate("healthRing", "蕴灵戒", EquipmentSlot.ACCESSORY, 2, mp = 205, speed = 33, description = "可蕴养灵力的戒指，灵力出众", price = 16200),
 
         "storageRing" to EquipmentTemplate("storageRing", "灵泉戒", EquipmentSlot.ACCESSORY, 3, mp = 430, speed = 69, description = "蕴含灵泉之力的戒指，灵力出众", price = 64800),
         "wisdomOrb" to EquipmentTemplate("wisdomOrb", "迅捷珠", EquipmentSlot.ACCESSORY, 3, mp = 645, speed = 103, description = "可提升身法速度的宝珠", price = 64800),
@@ -123,11 +123,11 @@ object EquipmentDatabase {
         "dragonEye" to EquipmentTemplate("dragonEye", "龙灵珠", EquipmentSlot.ACCESSORY, 4, mp = 1360, speed = 215, description = "真龙之灵凝聚的宝珠，灵力出众", price = 259200),
         "phoenixHeart" to EquipmentTemplate("phoenixHeart", "凤羽坠", EquipmentSlot.ACCESSORY, 4, mp = 2040, speed = 320, description = "凤凰羽翼炼制的坠饰，可提升身法速度", price = 259200),
 
-        "earthCore" to EquipmentTemplate("earthCore", "地灵核", EquipmentSlot.ACCESSORY, 5, mp = 4280, speed = 664, description = "大地灵核凝聚的至宝，灵力出众", price = 1036800),
-        "dragonEyePendant" to EquipmentTemplate("dragonEyePendant", "风行坠", EquipmentSlot.ACCESSORY, 5, mp = 6420, speed = 992, description = "蕴含风行法则的坠饰，可大幅提升身法速度", price = 1036800),
+        "earthCore" to EquipmentTemplate("earthCore", "渡厄佩", EquipmentSlot.ACCESSORY, 5, mp = 4280, speed = 664, description = "可渡厄解难的灵佩，灵力出众", price = 1036800),
+        "dragonEyePendant" to EquipmentTemplate("dragonEyePendant", "隐云佩", EquipmentSlot.ACCESSORY, 5, mp = 6420, speed = 992, description = "隐于云端的灵佩，可大幅提升身法速度", price = 1036800),
 
-        "chaosBead" to EquipmentTemplate("chaosBead", "混沌灵珠", EquipmentSlot.ACCESSORY, 6, mp = 13400, speed = 2048, description = "蕴含混沌灵力的至宝，灵力超凡入圣", price = 6000000),
-        "heavenRing" to EquipmentTemplate("heavenRing", "天行戒", EquipmentSlot.ACCESSORY, 6, mp = 20100, speed = 3050, description = "承载天行法则的神戒，身法速度无双", price = 6000000)
+        "chaosBead" to EquipmentTemplate("chaosBead", "幽朔珠", EquipmentSlot.ACCESSORY, 6, mp = 13400, speed = 2048, description = "蕴含幽朔之力的灵珠，灵力超凡入圣", price = 6000000),
+        "heavenRing" to EquipmentTemplate("heavenRing", "长明坠", EquipmentSlot.ACCESSORY, 6, mp = 20100, speed = 3050, description = "长明不灭的灵坠，身法速度无双", price = 6000000)
     )
 
     val allTemplates: Map<String, EquipmentTemplate> by lazy {
