@@ -201,13 +201,19 @@ internal fun WarehouseTab(viewModel: GameViewModel, onDismiss: () -> Unit = {}) 
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
+                Text(
+                    text = "仓库",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
                 GameButton(
                     text = "一键出售",
                     onClick = { showBulkSellDialog = true }
                 )
-                Spacer(modifier = Modifier.weight(1f))
             }
         
         Row(

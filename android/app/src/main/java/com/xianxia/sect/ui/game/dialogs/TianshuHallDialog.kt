@@ -31,6 +31,7 @@ import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.UnifiedDiscipleSlot
 import com.xianxia.sect.ui.components.DiscipleSlotWithActions
 import com.xianxia.sect.core.util.isFollowed
+import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.ProductionViewModel
@@ -98,40 +99,43 @@ fun TianshuHallDialog(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    ProductionElderSection(
-                        theme = ALCHEMY_THEME,
-                        elder = alchemyElder,
-                        onSlotClick = { selectedDiscipleDetail = alchemyElder },
-                        onElderRemove = { productionViewModel.removeElder(ElderSlotType.ALCHEMY) },
-                        onSwap = { showAlchemyElderSelectDialog = true }
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally)
+                    ) {
+                        ProductionElderSection(
+                            theme = ALCHEMY_THEME,
+                            elder = alchemyElder,
+                            onSlotClick = { selectedDiscipleDetail = alchemyElder },
+                            onElderRemove = { productionViewModel.removeElder(ElderSlotType.ALCHEMY) },
+                            onSwap = { showAlchemyElderSelectDialog = true }
+                        )
 
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    ProductionElderSection(
-                        theme = FORGE_THEME,
-                        elder = forgeElder,
-                        onSlotClick = { selectedDiscipleDetail = forgeElder },
-                        onElderRemove = { productionViewModel.removeElder(ElderSlotType.FORGE) },
-                        onSwap = { showForgeElderSelectDialog = true }
-                    )
+                        ProductionElderSection(
+                            theme = FORGE_THEME,
+                            elder = forgeElder,
+                            onSlotClick = { selectedDiscipleDetail = forgeElder },
+                            onElderRemove = { productionViewModel.removeElder(ElderSlotType.FORGE) },
+                            onSwap = { showForgeElderSelectDialog = true }
+                        )
+                    }
 
                     HorizontalDivider(color = GameColors.Border, thickness = 1.dp)
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally)
                     ) {
                         GameButton(
                             text = "宗门事务",
                             onClick = { showSectAffairsDialog = true },
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.width(ButtonSizes.StandardWidth)
                         )
 
                         GameButton(
                             text = "宗门政策",
                             onClick = { showSectPoliciesDialog = true },
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.width(ButtonSizes.StandardWidth)
                         )
                     }
                 }

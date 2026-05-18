@@ -34,6 +34,8 @@ import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.ui.components.UnifiedItemCard
+import com.xianxia.sect.ui.components.ItemCardData
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.WorldMapViewModel
 import com.xianxia.sect.ui.game.components.ItemDetailDialog
@@ -160,118 +162,50 @@ fun SectTradeDialog(
                     }
                 } else {
                     LazyVerticalGrid(
-                        columns = GridCells.Fixed(5),
+                        columns = GridCells.Adaptive(60.dp),
                         modifier = Modifier
                             .weight(1f)
                             .padding(8.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(tradeItems.size) { index ->
-                            val item = tradeItems[index]
+                        items(tradeItems) { item ->
                             val canBuyThisItem = canTrade && item.rarity <= maxAllowedRarity
-                            val rarityColor = when (item.rarity) {
-                                1 -> GameColors.RarityCommon
-                                2 -> GameColors.RaritySpirit
-                                3 -> GameColors.RarityTreasure
-                                4 -> GameColors.RarityMystic
-                                5 -> GameColors.RarityEarth
-                                6 -> GameColors.RarityHeaven
-                                else -> GameColors.RarityCommon
-                            }
-
                             val adjustedPrice = (item.price * priceMultiplier).toLong()
 
-                            Box(
-                                modifier = Modifier.size(68.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(68.dp)
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(if (canBuyThisItem) GameColors.PageBackground else GameColors.Border)
-                                        .border(
-                                            width = if (selectedItem?.id == item.id) 3.dp else 2.dp,
-                                            color = if (!canBuyThisItem) Color(0xFFBDBDBD)
-                                                else if (selectedItem?.id == item.id) Color(0xFFFFD700)
-                                                else rarityColor,
-                                            shape = RoundedCornerShape(6.dp)
-                                        )
-                                        .clickable {
-                                            if (!canBuyThisItem) {
-                                                lockedItemName = item.name
-                                                lockedItemRarity = item.rarity
-                                                showRelationWarning = true
-                                            } else {
-                                                if (selectedItem?.id == item.id) {
-                                                    selectedItem = null
-                                                    buyQuantity = 1
-                                                } else {
-                                                    selectedItem = item
-                                                    buyQuantity = 1
-                                                }
-                                            }
+                            UnifiedItemCard(
+                                data = ItemCardData(
+                                    id = item.id,
+                                    name = item.name,
+                                    description = item.description,
+                                    rarity = item.rarity,
+                                    quantity = item.quantity,
+                                    additionalInfo = "${adjustedPrice}灵石",
+                                    grade = item.grade,
+                                    isLocked = !canBuyThisItem
+                                ),
+                                isSelected = selectedItem?.id == item.id,
+                                showViewButton = true,
+                                onClick = {
+                                    if (!canBuyThisItem) {
+                                        lockedItemName = item.name
+                                        lockedItemRarity = item.rarity
+                                        showRelationWarning = true
+                                    } else {
+                                        if (selectedItem?.id == item.id) {
+                                            selectedItem = null
+                                            buyQuantity = 1
+                                        } else {
+                                            selectedItem = item
+                                            buyQuantity = 1
                                         }
-                                        .padding(4.dp)
-                                ) {
-                                    Column(
-                                        modifier = Modifier.fillMaxSize(),
-                                        horizontalAlignment = Alignment.CenterHorizontally
-                                    ) {
-                                        Text(
-                                            text = item.name,
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = if (canBuyThisItem) GameColors.TextPrimary else Color(0xFF9E9E9E),
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.fillMaxWidth(),
-                                            textAlign = TextAlign.Center
-                                        )
-
-                                        Spacer(modifier = Modifier.height(2.dp))
-
-                                        Text(
-                                            text = "${adjustedPrice}灵石",
-                                            fontSize = 9.sp,
-                                            color = if (canBuyThisItem) GameColors.GoldDark else Color(0xFF9E9E9E),
-                                            maxLines = 1
-                                        )
                                     }
-
-                                    Text(
-                                        text = "${item.quantity}",
-                                        fontSize = 9.sp,
-                                        color = if (canBuyThisItem) GameColors.TextSecondary else Color(0xFF9E9E9E),
-                                        modifier = Modifier
-                                            .align(Alignment.BottomEnd)
-                                            .padding(2.dp)
-                                    )
+                                },
+                                onViewDetail = {
+                                    selectedItem = item
+                                    showDetailDialog = true
                                 }
-
-                                if (selectedItem?.id == item.id) {
-                                    Box(
-                                        modifier = Modifier
-                                            .align(Alignment.TopEnd)
-                                            .offset(x = 6.dp, y = (-6).dp)
-                                            .size(24.dp)
-                                            .clip(RoundedCornerShape(4.dp))
-                                            .background(Color(0xFFFFD700))
-                                            .clickable {
-                                                selectedItem = item
-                                                showDetailDialog = true
-                                            },
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = "查看",
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color.White
-                                        )
-                                    }
-                                }
-                            }
+                            )
                         }
                     }
                 }

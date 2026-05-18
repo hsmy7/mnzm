@@ -31,6 +31,7 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.WorldSect
+import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.WorldMapViewModel
@@ -411,22 +412,23 @@ fun EnvoyDiscipleSelectDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
                 ) {
                     GameButton(
                         text = "确认游说",
                         onClick = {
                             selectedDisciple?.let { disciple ->
                                 worldMapViewModel.requestAlliance(sect?.id ?: "", disciple.id)
+                                onDismiss()
                             }
                         },
-                        enabled = selectedDisciple != null,
-                        modifier = Modifier.weight(1f)
+                        enabled = selectedDisciple != null && sect != null,
+                        modifier = Modifier.width(ButtonSizes.StandardWidth)
                     )
                     GameButton(
                         text = "取消",
                         onClick = onDismiss,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.width(ButtonSizes.StandardWidth)
                     )
                 }
         }
@@ -590,22 +592,23 @@ fun ScoutDiscipleSelectDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
                 ) {
                     GameButton(
                         text = "开始探查",
                         onClick = {
                             if (selectedDisciples.isNotEmpty() && sect != null) {
                                 worldMapViewModel.startScoutMission(selectedDisciples.toList(), sect.id)
+                                onDismiss()
                             }
                         },
-                        enabled = selectedDisciples.isNotEmpty(),
-                        modifier = Modifier.weight(1f)
+                        enabled = selectedDisciples.isNotEmpty() && sect != null,
+                        modifier = Modifier.width(ButtonSizes.StandardWidth)
                     )
                     GameButton(
                         text = "取消",
                         onClick = onDismiss,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.width(ButtonSizes.StandardWidth)
                     )
                 }
         }

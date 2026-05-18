@@ -91,10 +91,10 @@ fun DiscipleSelectorDialog(
                 }
             } else {
                 LazyVerticalGrid(
-                    columns = GridCells.Fixed(4),
+                    columns = GridCells.Adaptive(150.dp),
                     modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     items(filtered, key = { it.id }) { disciple ->
                         val isSelected = disciple.id in selected

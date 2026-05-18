@@ -82,6 +82,13 @@ fun MerchantDialog(
         mode = DialogMode.Full,
         scrollableContent = false,
         headerActions = {
+            Text(
+                text = "灵石: ${gameData?.spiritStones ?: 0}",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black,
+                modifier = Modifier.padding(end = 8.dp)
+            )
             GameButton(
                 text = "上架",
                 onClick = { showListingDialog = true }
@@ -89,13 +96,6 @@ fun MerchantDialog(
         }
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            Text(
-                text = "灵石: ${gameData?.spiritStones ?: 0}",
-                fontSize = 11.sp,
-                color = GameColors.TextSecondary,
-                modifier = Modifier.padding(start = 12.dp, top = 4.dp, bottom = 8.dp)
-            )
-
                 if (merchantItems.isEmpty()) {
                     Box(
                         modifier = Modifier

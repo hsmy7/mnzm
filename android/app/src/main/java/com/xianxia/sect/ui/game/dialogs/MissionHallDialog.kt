@@ -30,6 +30,7 @@ import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.components.UnifiedDiscipleSlot
+import com.xianxia.sect.ui.components.DiscipleSlotWithActions
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.theme.GameColors
@@ -121,6 +122,7 @@ fun MissionHallDialog(
                 mission = mission,
                 allDisciples = disciples,
                 busyDiscipleIds = busyDiscipleIds,
+                gameData = gameData,
                 viewModel = viewModel,
                 onDismiss = {
                     showDispatchDialog = false
@@ -340,6 +342,10 @@ private fun ActiveMissionDetailDialog(
         }
     ) {
                 Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Row(
@@ -670,11 +676,13 @@ private fun MissionDispatchDialog(
     mission: Mission,
     allDisciples: List<DiscipleAggregate>,
     busyDiscipleIds: Set<String>,
+    gameData: GameData?,
     viewModel: GameViewModel,
     onDismiss: () -> Unit
 ) {
     val selectedSlotIds = remember { mutableStateListOf<String?>(*Array(6) { null }) }
     var selectingSlotIndex by remember { mutableStateOf(-1) }
+    var selectedDiscipleDetail by remember { mutableStateOf<DiscipleAggregate?>(null) }
 
     val eligibleDisciples = remember(allDisciples, busyDiscipleIds) {
         allDisciples.filter { disciple ->
@@ -686,6 +694,9 @@ private fun MissionDispatchDialog(
             disciple.realm <= mission.difficulty.minRealm
         }
     }
+
+    val filledCount = selectedSlotIds.filterNotNull().size
+    val discipleMap = remember(allDisciples) { allDisciples.associateBy { it.id } }
 
     if (selectingSlotIndex >= 0) {
         val alreadySelected = selectedSlotIds.filterNotNull().toSet()
@@ -707,12 +718,8 @@ private fun MissionDispatchDialog(
             },
             onDismiss = { selectingSlotIndex = -1 }
         )
-    }
-
-    val filledCount = selectedSlotIds.filterNotNull().size
-    val discipleMap = remember(allDisciples) { allDisciples.associateBy { it.id } }
-
-    UnifiedGameDialog(
+    } else {
+        UnifiedGameDialog(
         onDismissRequest = onDismiss,
         title = "派遣队伍",
         mode = DialogMode.Half,
@@ -721,6 +728,7 @@ private fun MissionDispatchDialog(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -806,9 +814,20 @@ private fun MissionDispatchDialog(
                             val slotIndex = row * 3 + col
                             val discipleId = selectedSlotIds[slotIndex]
                             val disciple = discipleId?.let { discipleMap[it] }
-                            UnifiedDiscipleSlot(
+                            DiscipleSlotWithActions(
                                 disciple = disciple,
-                                onClick = {
+                                onSlotClick = {
+                                    if (disciple != null) {
+                                        selectedDiscipleDetail = disciple
+                                    }
+                                },
+                                onEmptySlotClick = {
+                                    selectingSlotIndex = slotIndex
+                                },
+                                onDismiss = {
+                                    selectedSlotIds[slotIndex] = null
+                                },
+                                onSwap = {
                                     selectingSlotIndex = slotIndex
                                 }
                             )
@@ -841,6 +860,18 @@ private fun MissionDispatchDialog(
                 )
             }
         }
+    }
+    }
+
+    selectedDiscipleDetail?.let { disciple ->
+        val updated = allDisciples.find { it.id == disciple.id } ?: disciple
+        DiscipleDetailDialog(
+            disciple = updated,
+            allDisciples = allDisciples,
+            gameData = gameData,
+            viewModel = viewModel,
+            onDismiss = { selectedDiscipleDetail = null }
+        )
     }
 }
 

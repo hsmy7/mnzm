@@ -26,6 +26,7 @@ import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.WorldMapViewModel
+import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.theme.GameColors
 
 @Composable
@@ -57,6 +58,14 @@ fun DiplomacyDialog(
     val sortedSects = worldSects.sortedByDescending { sectFavors[it] ?: 0 }
 
     var showGiftedMessage by remember { mutableStateOf(false) }
+
+    val showGiftDialog by worldMapViewModel.showGiftDialog.collectAsState()
+    val showAllianceDialog by worldMapViewModel.showAllianceDialog.collectAsState()
+    val showSectTradeDialog by worldMapViewModel.showSectTradeDialog.collectAsState()
+    val selectedGiftSectId by worldMapViewModel.selectedGiftSectId.collectAsState()
+    val selectedAllianceSectId by worldMapViewModel.selectedAllianceSectId.collectAsState()
+    val selectedTradeSectId by worldMapViewModel.selectedTradeSectId.collectAsState()
+    val sectTradeItems by worldMapViewModel.sectTradeItems.collectAsState()
 
     UnifiedGameDialog(
         onDismissRequest = onDismiss,
@@ -113,6 +122,40 @@ fun DiplomacyDialog(
         GiftedMessageToast(
             message = "今年已送过礼品等明年再来吧",
             onDismiss = { showGiftedMessage = false }
+        )
+    }
+
+    if (showSectTradeDialog) {
+        val sect = gameData?.worldMapSects?.find { it.id == selectedTradeSectId }
+        SectTradeDialog(
+            sect = sect,
+            gameData = gameData,
+            tradeItems = sectTradeItems,
+            viewModel = viewModel,
+            worldMapViewModel = worldMapViewModel,
+            onDismiss = { worldMapViewModel.closeSectTradeDialog() }
+        )
+    }
+
+    if (showGiftDialog) {
+        val sect = gameData?.worldMapSects?.find { it.id == selectedGiftSectId }
+        GiftDialog(
+            sect = sect,
+            gameData = gameData,
+            viewModel = viewModel,
+            worldMapViewModel = worldMapViewModel,
+            onDismiss = { worldMapViewModel.closeGiftDialog() }
+        )
+    }
+
+    if (showAllianceDialog) {
+        val sect = gameData?.worldMapSects?.find { it.id == selectedAllianceSectId }
+        AllianceDialog(
+            sect = sect,
+            gameData = gameData,
+            viewModel = viewModel,
+            worldMapViewModel = worldMapViewModel,
+            onDismiss = { worldMapViewModel.closeAllianceDialog() }
         )
     }
 }
@@ -215,20 +258,20 @@ internal fun DiplomacySectCard(
                             onGift()
                         }
                     },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.width(ButtonSizes.StandardWidth)
                 )
 
                 GameButton(
                     text = if (isAlly) "盟约" else "结盟",
                     onClick = onFormAlliance,
                     enabled = relationLevel == SectRelationLevel.INTIMATE || isAlly,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.width(ButtonSizes.StandardWidth)
                 )
 
                 GameButton(
                     text = "交易",
                     onClick = onTrade,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.width(ButtonSizes.StandardWidth)
                 )
             }
         }

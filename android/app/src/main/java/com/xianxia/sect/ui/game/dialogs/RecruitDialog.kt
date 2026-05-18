@@ -66,13 +66,6 @@ fun RecruitDialog(
         }
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-                Text(
-                    text = "当前灵石: ${gameData?.spiritStones ?: 0}",
-                    fontSize = 12.sp,
-                    color = GameColors.TextSecondary,
-                    modifier = Modifier.padding(start = 12.dp, top = 4.dp, bottom = 8.dp)
-                )
-
                 if (recruitList.isEmpty()) {
                     Box(
                         modifier = Modifier.fillMaxSize(),

@@ -552,16 +552,16 @@ fun MainGameScreen(
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    FloatingActionButton(text = "日志", onClick = { dialogNavController.navigate(GameRoute.BattleLog.route) }, drawableRes = R.drawable.ui_log_button)
-                    FloatingActionButton(text = "商人", onClick = { dialogNavController.navigate(GameRoute.Merchant.route) }, drawableRes = R.drawable.ui_merchant_button)
-                    FloatingActionButton(text = "招募", onClick = { dialogNavController.navigate(GameRoute.Recruit.route) }, drawableRes = R.drawable.ui_recruit_button)
+                    FloatingActionButton(text = "日志", onClick = { buildingBarExpanded = false; dialogNavController.navigate(GameRoute.BattleLog.route) }, drawableRes = R.drawable.ui_log_button)
+                    FloatingActionButton(text = "商人", onClick = { buildingBarExpanded = false; dialogNavController.navigate(GameRoute.Merchant.route) }, drawableRes = R.drawable.ui_merchant_button)
+                    FloatingActionButton(text = "招募", onClick = { buildingBarExpanded = false; dialogNavController.navigate(GameRoute.Recruit.route) }, drawableRes = R.drawable.ui_recruit_button)
                     FloatingActionButton(text = "建造", onClick = { buildingBarExpanded = !buildingBarExpanded; isPlacingBuilding = false; movingBuilding = null }, drawableRes = R.drawable.ui_build_button)
-                    FloatingActionButton(text = "仓库", onClick = { dialogNavController.navigate(GameRoute.Warehouse.route) }, drawableRes = R.drawable.ui_warehouse_button)
-                    FloatingActionButton(text = "设置", onClick = { dialogNavController.navigate(GameRoute.Settings.route) }, drawableRes = R.drawable.ui_settings_button)
+                    FloatingActionButton(text = "仓库", onClick = { buildingBarExpanded = false; dialogNavController.navigate(GameRoute.Warehouse.route) }, drawableRes = R.drawable.ui_warehouse_button)
+                    FloatingActionButton(text = "设置", onClick = { buildingBarExpanded = false; dialogNavController.navigate(GameRoute.Settings.route) }, drawableRes = R.drawable.ui_settings_button)
                 }
-                FloatingActionButton(text = "弟子", onClick = { dialogNavController.navigate(GameRoute.Disciples.route) }, drawableRes = R.drawable.ui_team_button)
-                FloatingActionButton(text = "世界", onClick = { dialogNavController.navigate(GameRoute.WorldMap.route) }, drawableRes = R.drawable.ui_map_button)
-                FloatingActionButton(text = "外交", onClick = { dialogNavController.navigate(GameRoute.Diplomacy.route) }, drawableRes = R.drawable.ui_diplomacy_button)
+                FloatingActionButton(text = "弟子", onClick = { buildingBarExpanded = false; dialogNavController.navigate(GameRoute.Disciples.route) }, drawableRes = R.drawable.ui_team_button)
+                FloatingActionButton(text = "世界", onClick = { buildingBarExpanded = false; dialogNavController.navigate(GameRoute.WorldMap.route) }, drawableRes = R.drawable.ui_map_button)
+                FloatingActionButton(text = "外交", onClick = { buildingBarExpanded = false; dialogNavController.navigate(GameRoute.Diplomacy.route) }, drawableRes = R.drawable.ui_diplomacy_button)
             }
         }
 
