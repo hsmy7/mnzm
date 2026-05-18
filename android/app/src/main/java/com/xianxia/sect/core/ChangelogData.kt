@@ -9,6 +9,22 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.0.51",
+            date = "2026-05-18",
+            changes = listOf(
+                "任务阁优化：改为槽位式派遣队伍界面，6个弟子槽位逐个任命，支持一键自动填充（高境界优先）",
+                "无数据库迁移"
+            )
+        ),
+        ChangelogEntry(
+            version = "3.0.50",
+            date = "2026-05-18",
+            changes = listOf(
+                "修复进攻AI宗门直接获胜且战斗日志显示零弟子的问题（AI弟子老化从每月1岁修正为每年1岁）",
+                "无数据库迁移"
+            )
+        ),
+        ChangelogEntry(
             version = "3.0.49",
             date = "2026-05-18",
             changes = listOf(

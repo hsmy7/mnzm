@@ -1174,6 +1174,9 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         // 1. Process disciple aging and natural death
         processDiscipleAging(year)
 
+        // 1.5 Process AI sect disciple aging
+        processSectDisciplesAging(year)
+
         // 2. Process yearly aging effects
         processYearlyAging(year)
 
@@ -2517,8 +2520,6 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         if (month == 1) {
             processSectDisciplesYearlyRecruitment(year)
         }
-
-        processSectDisciplesAging(year)
 
         processAISectAttackDecisions()
     }

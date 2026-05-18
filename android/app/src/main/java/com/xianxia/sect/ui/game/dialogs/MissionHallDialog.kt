@@ -41,6 +41,8 @@ import com.xianxia.sect.ui.game.FilteredMultiSelectDialog
 import com.xianxia.sect.ui.game.DiscipleDetailDialog
 import com.xianxia.sect.ui.game.getSpiritRootCount
 import com.xianxia.sect.ui.game.applyFilters
+import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorConfig
+import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorDialog
 
 @Composable
 fun MissionHallDialog(
@@ -51,7 +53,7 @@ fun MissionHallDialog(
 ) {
     var selectedMission by remember { mutableStateOf<Mission?>(null) }
     var selectedActiveMission by remember { mutableStateOf<ActiveMission?>(null) }
-    var showDiscipleSelection by remember { mutableStateOf(false) }
+    var showDispatchDialog by remember { mutableStateOf(false) }
     var showActiveMissionDetail by remember { mutableStateOf(false) }
     var selectedDiscipleDetail by remember { mutableStateOf<DiscipleAggregate?>(null) }
 
@@ -104,7 +106,7 @@ fun MissionHallDialog(
                             mission = mission,
                             onClick = {
                                 selectedMission = mission
-                                showDiscipleSelection = true
+                                showDispatchDialog = true
                             }
                         )
                     }
@@ -113,51 +115,15 @@ fun MissionHallDialog(
         }
     }
 
-    if (showDiscipleSelection) {
+    if (showDispatchDialog) {
         selectedMission?.let { mission ->
-            val eligibleDisciples = remember(disciples, busyDiscipleIds) {
-                disciples.filter { disciple ->
-                    val disciplePosition = if (disciple.discipleType == "outer") "外门弟子" else "内门弟子"
-                    disciple.isAlive &&
-                    disciple.status == DiscipleStatus.IDLE &&
-                    disciple.id !in busyDiscipleIds &&
-                    disciplePosition in mission.difficulty.allowedPositions &&
-                    disciple.realm <= mission.difficulty.minRealm
-                }
-            }
-            val missionSelectedIds = remember { mutableStateListOf<String>() }
-            FilteredMultiSelectDialog(
-                title = "选择弟子 (${missionSelectedIds.size}/${mission.memberCount})",
-                disciples = eligibleDisciples,
-                selectedIds = missionSelectedIds,
-                maxSelection = mission.memberCount,
-                confirmEnabled = { missionSelectedIds.size == mission.memberCount },
-                confirmText = "确认派遣",
-                showDismiss = true,
-                dismissText = "取消",
-                headerContent = {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = mission.name,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.Black
-                        )
-                        Text(
-                            text = mission.difficulty.displayName,
-                            fontSize = 10.sp,
-                            color = Color.Black
-                        )
-                    }
-                },
-                onConfirm = {
-                    val selected = eligibleDisciples.filter { it.id in missionSelectedIds }
-                    viewModel.startMission(mission, selected)
-                    showDiscipleSelection = false
-                    selectedMission = null
-                },
+            MissionDispatchDialog(
+                mission = mission,
+                allDisciples = disciples,
+                busyDiscipleIds = busyDiscipleIds,
+                viewModel = viewModel,
                 onDismiss = {
-                    showDiscipleSelection = false
+                    showDispatchDialog = false
                     selectedMission = null
                 }
             )
@@ -696,6 +662,185 @@ private fun getDifficultyColor(difficulty: MissionDifficulty): Color {
         MissionDifficulty.NORMAL -> Color(0xFF2196F3)
         MissionDifficulty.HARD -> Color(0xFFFF9800)
         MissionDifficulty.FORBIDDEN -> Color(0xFFF44336)
+    }
+}
+
+@Composable
+private fun MissionDispatchDialog(
+    mission: Mission,
+    allDisciples: List<DiscipleAggregate>,
+    busyDiscipleIds: Set<String>,
+    viewModel: GameViewModel,
+    onDismiss: () -> Unit
+) {
+    val selectedSlotIds = remember { mutableStateListOf<String?>(*Array(6) { null }) }
+    var selectingSlotIndex by remember { mutableStateOf(-1) }
+
+    val eligibleDisciples = remember(allDisciples, busyDiscipleIds) {
+        allDisciples.filter { disciple ->
+            val disciplePosition = if (disciple.discipleType == "outer") "外门弟子" else "内门弟子"
+            disciple.isAlive &&
+            disciple.status == DiscipleStatus.IDLE &&
+            disciple.id !in busyDiscipleIds &&
+            disciplePosition in mission.difficulty.allowedPositions &&
+            disciple.realm <= mission.difficulty.minRealm
+        }
+    }
+
+    if (selectingSlotIndex >= 0) {
+        val alreadySelected = selectedSlotIds.filterNotNull().toSet()
+        val availableForSlot = eligibleDisciples.filter {
+            it.id !in alreadySelected || it.id == selectedSlotIds[selectingSlotIndex]
+        }
+        DiscipleSelectorDialog(
+            config = DiscipleSelectorConfig(
+                title = "选择弟子",
+                allowMultiSelect = false,
+                maxSelection = 1,
+                confirmText = "任命",
+                cancelText = "取消"
+            ),
+            disciples = availableForSlot,
+            onConfirm = { selected ->
+                selectedSlotIds[selectingSlotIndex] = selected.firstOrNull()?.id
+                selectingSlotIndex = -1
+            },
+            onDismiss = { selectingSlotIndex = -1 }
+        )
+    }
+
+    val filledCount = selectedSlotIds.filterNotNull().size
+    val discipleMap = remember(allDisciples) { allDisciples.associateBy { it.id } }
+
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = "派遣队伍",
+        mode = DialogMode.Half,
+        scrollableContent = false
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Mission info card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(8.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5))
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = mission.name,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            text = mission.difficulty.displayName,
+                            fontSize = 10.sp,
+                            color = getDifficultyColor(mission.difficulty)
+                        )
+                        Text(
+                            text = "耗时：${mission.duration}月",
+                            fontSize = 10.sp,
+                            color = Color.Black
+                        )
+                        Text(
+                            text = "奖励：${formatSpiritStoneReward(mission.rewards)}",
+                            fontSize = 10.sp,
+                            color = Color(0xFFD4A017)
+                        )
+                    }
+                }
+            }
+
+            // One-click assign button
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                GameButton(
+                    text = "一键任命",
+                    onClick = {
+                        val alreadySelected = selectedSlotIds.filterNotNull().toSet()
+                        val available = eligibleDisciples
+                            .filter { it.id !in alreadySelected }
+                            .sortedBy { it.realm }
+                        var idx = 0
+                        for (slot in 0 until 6) {
+                            if (selectedSlotIds[slot] == null && idx < available.size) {
+                                selectedSlotIds[slot] = available[idx].id
+                                idx++
+                            }
+                        }
+                    },
+                    modifier = Modifier.width(ButtonSizes.StandardWidth)
+                )
+            }
+
+            // Disciple slot grid header
+            Text(
+                text = "派遣弟子 (${filledCount}/6)",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black
+            )
+
+            // 3×2 slot grid
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                for (row in 0..1) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        for (col in 0..2) {
+                            val slotIndex = row * 3 + col
+                            val discipleId = selectedSlotIds[slotIndex]
+                            val disciple = discipleId?.let { discipleMap[it] }
+                            UnifiedDiscipleSlot(
+                                disciple = disciple,
+                                onClick = {
+                                    selectingSlotIndex = slotIndex
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Bottom buttons
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                GameButton(
+                    text = "取消",
+                    onClick = onDismiss,
+                    modifier = Modifier.width(ButtonSizes.StandardWidth)
+                )
+                GameButton(
+                    text = "派遣",
+                    enabled = filledCount == 6,
+                    onClick = {
+                        val selected = eligibleDisciples.filter { it.id in selectedSlotIds.filterNotNull() }
+                        viewModel.startMission(mission, selected)
+                        onDismiss()
+                    },
+                    modifier = Modifier.width(ButtonSizes.StandardWidth)
+                )
+            }
+        }
     }
 }
 
