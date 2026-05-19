@@ -9,6 +9,15 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.0.55",
+            date = "2026-05-20",
+            changes = listOf(
+                "探查战斗AI防守弟子修复：使用功法技能、完整装备属性、真实灵根元素，战斗描述不再使用妖兽攻击动词",
+                "战斗日志修复：妖兽战斗正确显示妖兽精灵图，AI宗门弟子各显示随机头像不再全部相同",
+                "弟子死亡处理修复：死亡弟子状态改为DEAD，不再出现在可任命列表中，探查/妖兽战死亡弟子自动清理职务槽位并归还装备"
+            )
+        ),
+        ChangelogEntry(
             version = "3.0.54",
             date = "2026-05-19",
             changes = listOf(

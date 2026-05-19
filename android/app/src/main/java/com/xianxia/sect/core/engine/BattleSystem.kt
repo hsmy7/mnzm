@@ -156,6 +156,8 @@ class BattleSystem @Inject constructor() {
             )
         }
 
+        val typeIndex = GameConfig.Beast.TYPES.indexOf(type)
+
         return Combatant(
             id = "beast_$index",
             name = "${type.prefix}${type.name}",
@@ -174,7 +176,8 @@ class BattleSystem @Inject constructor() {
             realm = realmIndex,
             realmName = GameConfig.Realm.getName(realmIndex),
             realmLayer = realmLayer,
-            element = type.element
+            element = type.element,
+            portraitRes = "beast_$typeIndex"
         )
     }
 
@@ -209,7 +212,8 @@ class BattleSystem @Inject constructor() {
                 realmLayer = combatant.realmLayer,
                 hp = combatant.hp,
                 maxHp = combatant.maxHp,
-                isAlive = true
+                isAlive = true,
+                portraitRes = combatant.portraitRes
             )
         }.toMutableList()
 
@@ -332,7 +336,7 @@ class BattleSystem @Inject constructor() {
                     actions.add(BattleActionData(
                         type = "control",
                         attacker = currentCombatant.name,
-                        attackerType = if (isTeamMember) "disciple" else "beast",
+                        attackerType = if (isTeamMember) "disciple" else if (currentCombatant.isBeast) "beast" else "disciple",
                         target = currentCombatant.name,
                         damage = 0,
                         damageType = if (stunBuff.type == BuffType.STUN) "眩晕" else "冰冻",
@@ -414,7 +418,7 @@ class BattleSystem @Inject constructor() {
                     else -> "attack"
                 },
                 attacker = currentCombatant.name,
-                attackerType = if (isTeamMember) "disciple" else "beast",
+                attackerType = if (isTeamMember) "disciple" else if (currentCombatant.isBeast) "beast" else "disciple",
                 target = if (isSupportSkill) "team" else if (isAoeSkill) "全体敌人" else result.target.name,
                 damage = if (isAoeSkill) totalDamage else result.damage,
                 damageType = if (result.isSupport) "support" else if (result.isDodged) "闪避" else if (result.isPhysical) "物理" else "法术",
@@ -687,7 +691,8 @@ data class Combatant(
     val realmLayer: Int = 0,
     val element: String = "",
     val weaponName: String? = null,
-    val portraitRes: String = ""
+    val portraitRes: String = "",
+    val isBeast: Boolean = true
 ) {
     val isDead: Boolean get() = hp <= 0
     val hpPercent: Double get() = if (maxHp > 0) hp.toDouble() / maxHp else 0.0
@@ -845,7 +850,8 @@ data class BattleEnemyData(
     val realmLayer: Int = 0,
     val hp: Int = 0,
     val maxHp: Int = 0,
-    var isAlive: Boolean = true
+    var isAlive: Boolean = true,
+    val portraitRes: String = ""
 )
 
 object BattleDescriptionGenerator {
@@ -936,7 +942,7 @@ object BattleDescriptionGenerator {
         }
 
         val isPhysical = result.isPhysical
-        val isBeast = attacker.side == CombatantSide.ATTACKER
+        val isBeast = attacker.isBeast
 
         val attackVerb = if (isBeast) {
             if (isPhysical) beastPhysicalAttackVerbs.random() else beastMagicAttackVerbs.random()

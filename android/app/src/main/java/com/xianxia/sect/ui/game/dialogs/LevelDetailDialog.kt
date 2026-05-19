@@ -99,7 +99,7 @@ fun LevelDetailDialog(
     // One-click appoint: fill empty slots with highest-realm idle disciples
     val oneClickAppoint: () -> Unit = {
         val idleDisciples = disciples.filter {
-            it.status == DiscipleStatus.IDLE && it.realmLayer > 0 && it.age >= 5
+            it.isAlive && it.status == DiscipleStatus.IDLE && it.realmLayer > 0 && it.age >= 5
         }.sortedWith(
             compareByDescending<DiscipleAggregate> { it.realm }
                 .thenByDescending { it.realmLayer }
@@ -320,7 +320,7 @@ private fun LevelSlotSelectionDialog(
 
     val idleDisciples = remember(disciples, alreadySelectedIds) {
         disciples.filter {
-            it.status == DiscipleStatus.IDLE && it.realmLayer > 0 && it.age >= 5 && it.id !in alreadySelectedIds
+            it.isAlive && it.status == DiscipleStatus.IDLE && it.realmLayer > 0 && it.age >= 5 && it.id !in alreadySelectedIds
         }
     }
 

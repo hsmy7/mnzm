@@ -2833,7 +2833,7 @@ class GameEngine @Inject constructor(
             BattleLogMember(name = d.name, realm = d.realm, realmName = d.realmName, portraitRes = d.portraitRes)
         }
         val enemyMembers = defenderDisciples.map { d ->
-            BattleLogEnemy(name = d.name, realm = d.realm, realmName = d.realmName)
+            BattleLogEnemy(name = d.name, realm = d.realm, realmName = d.realmName, portraitRes = d.portraitRes)
         }
         val winResult = when (battleResult.winner) {
             AIBattleWinner.ATTACKER -> BattleResult.WIN
@@ -3009,7 +3009,7 @@ class GameEngine @Inject constructor(
         val updatedDisciples = stateStore.disciples.value.map { d ->
             val (hp, mp) = hpMap[d.id] ?: return@map d
             if (d.id !in survivorIds) {
-                d.copy(isAlive = false)
+                d.copy(isAlive = false, status = DiscipleStatus.DEAD)
             } else {
                 d.copy(combat = d.combat.copy(
                     currentHp = hp.coerceIn(0, d.maxHp),
@@ -3019,12 +3019,21 @@ class GameEngine @Inject constructor(
         }
         stateStore.update { disciples = updatedDisciples }
 
+        // Clean up dead disciples' positions and equipment
+        val combatDiscipleIds = combatDisciples.map { it.id }.toSet()
+        val deadIds = updatedDisciples
+            .filter { it.id in combatDiscipleIds && !it.isAlive }
+            .map { it.id }.toSet()
+        if (deadIds.isNotEmpty()) {
+            combatService.processBattleCasualties(deadIds, emptyMap(), emptyMap(), isOutsideSect = true)
+        }
+
         // Build battle log
         val teamMembers = combatDisciples.map { d ->
             BattleLogMember(name = d.name, realm = d.realm, realmName = d.realmName, portraitRes = d.portraitRes)
         }
         val enemies = result.battle.beasts.map { b ->
-            BattleLogEnemy(name = b.name, realm = b.realm, realmName = b.realmName)
+            BattleLogEnemy(name = b.name, realm = b.realm, realmName = b.realmName, portraitRes = b.portraitRes)
         }
         val rounds = result.log.rounds.map { r ->
             BattleLogRound(
@@ -3141,21 +3150,9 @@ class GameEngine @Inject constructor(
             )
         }
 
-        // Build AI defender Combatants (simplified, no skills)
+        // Build AI defender Combatants with full stats and skills
         val aiCombatants = aiDefenders.map { d ->
-            Combatant(
-                id = d.id, name = d.name,
-                side = CombatantSide.ATTACKER,
-                hp = d.maxHp, maxHp = d.maxHp,
-                mp = d.maxMp, maxMp = d.maxMp,
-                physicalAttack = d.physicalAttack, magicAttack = d.magicAttack,
-                physicalDefense = d.physicalDefense, magicDefense = d.magicDefense,
-                speed = d.speed,
-                critRate = 0.05 + d.realm * 0.01,
-                skills = emptyList(),
-                realm = d.realm, realmName = d.realmName,
-                element = "metal"
-            )
+            AISectAttackManager.convertToCombatant(d, CombatantSide.ATTACKER).copy(isBeast = false)
         }
 
         val battle = Battle(
@@ -3173,7 +3170,7 @@ class GameEngine @Inject constructor(
         val updatedDisciples = stateStore.disciples.value.map { d ->
             val (hp, mp) = hpMap[d.id] ?: return@map d
             if (d.id !in survivorIds) {
-                d.copy(isAlive = false)
+                d.copy(isAlive = false, status = DiscipleStatus.DEAD)
             } else {
                 d.copy(combat = d.combat.copy(
                     currentHp = hp.coerceIn(0, d.maxHp),
@@ -3188,12 +3185,21 @@ class GameEngine @Inject constructor(
         }
         stateStore.update { disciples = finalDisciples }
 
+        // Clean up dead disciples' positions and equipment
+        val scoutDiscipleIds = combatDisciples.map { it.id }.toSet()
+        val scoutDeadIds = finalDisciples
+            .filter { it.id in scoutDiscipleIds && !it.isAlive }
+            .map { it.id }.toSet()
+        if (scoutDeadIds.isNotEmpty()) {
+            combatService.processBattleCasualties(scoutDeadIds, emptyMap(), emptyMap(), isOutsideSect = true)
+        }
+
         // Build BattleLog
         val teamMembers = combatDisciples.map { d ->
             BattleLogMember(name = d.name, realm = d.realm, realmName = d.realmName, portraitRes = d.portraitRes)
         }
         val enemies = aiCombatants.map { b ->
-            BattleLogEnemy(name = b.name, realm = b.realm, realmName = b.realmName)
+            BattleLogEnemy(name = b.name, realm = b.realm, realmName = b.realmName, portraitRes = b.portraitRes)
         }
         val rounds = result.log.rounds.map { r ->
             BattleLogRound(

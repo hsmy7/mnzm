@@ -324,7 +324,7 @@ class ExplorationService @Inject constructor(
     private fun markDiscipleDead(discipleId: String) {
         val disciple = currentDisciples.find { it.id == discipleId }
         currentDisciples = currentDisciples.map {
-            if (it.id == discipleId) it.copy(isAlive = false, status = DiscipleStatus.IDLE) else it
+            if (it.id == discipleId) it.copy(isAlive = false, status = DiscipleStatus.DEAD) else it
         }
         disciple?.let { eventBus.emitSync(DeathEvent(it.id, it.name, "探索阵亡")) }
     }

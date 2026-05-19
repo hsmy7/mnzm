@@ -721,7 +721,8 @@ data class SerializableBattleLogMember(
     @ProtoNumber(5) val remainingHp: Int,
     @ProtoNumber(6) val maxHp: Int,
     @ProtoNumber(7) val remainingMp: Int = 0,
-    @ProtoNumber(8) val maxMp: Int = 0
+    @ProtoNumber(8) val maxMp: Int = 0,
+    @ProtoNumber(9) val portraitRes: String = ""
 )
 
 @Serializable

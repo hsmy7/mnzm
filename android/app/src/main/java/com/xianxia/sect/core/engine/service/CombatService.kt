@@ -143,7 +143,7 @@ private val eventBus: EventBus,
             if (discipleIndex < 0) return@forEach
 
             val disciple = currentDisciples[discipleIndex]
-            val updatedDisciple = disciple.copy(isAlive = false, status = DiscipleStatus.IDLE)
+            val updatedDisciple = disciple.copy(isAlive = false, status = DiscipleStatus.DEAD)
             currentDisciples = currentDisciples.toMutableList().also { it[discipleIndex] = updatedDisciple }
 
             if (isOutsideSect) {

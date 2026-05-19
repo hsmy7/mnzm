@@ -420,7 +420,8 @@ data class BattleLogEnemy(
     val realmLayer: Int = 0,
     val hp: Int = 0,
     val maxHp: Int = 0,
-    val isAlive: Boolean = true
+    val isAlive: Boolean = true,
+    val portraitRes: String = ""
 )
 
 // 战斗日志回合

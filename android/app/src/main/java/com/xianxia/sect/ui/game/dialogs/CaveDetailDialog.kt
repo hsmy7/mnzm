@@ -266,6 +266,7 @@ internal fun CaveDiscipleSelectionDialog(
     val availableDisciples = remember(disciples, caveRealm, selectedDisciples) {
         val selectedIds = selectedDisciples.map { it.id }.toSet()
         disciples.filter { disciple ->
+            disciple.isAlive &&
             disciple.status == DiscipleStatus.IDLE &&
             disciple.realmLayer > 0 &&
             disciple.age >= 5 &&

@@ -258,14 +258,17 @@ internal fun BattleLogDetailDialog(
                             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
                         ) {
                             rowEnemies.forEach { enemy ->
-                                val beastResId = resolveBeastImageRes(enemy.name)
+                                val portraitRes = enemy.portraitRes.ifEmpty {
+                                    val beastResId = resolveBeastImageRes(enemy.name)
+                                    if (beastResId != null) "beast_$beastResId" else ""
+                                }
                                 BattleParticipantSlot(
                                     name = enemy.name,
                                     realmName = enemy.realmName,
                                     hp = enemy.hp,
                                     maxHp = enemy.maxHp,
                                     isAlive = enemy.isAlive,
-                                    portraitRes = if (beastResId != null) "beast_$beastResId" else ""
+                                    portraitRes = portraitRes
                                 )
                             }
                             repeat(4 - rowEnemies.size) {
@@ -355,8 +358,13 @@ internal fun BattleParticipantSlot(
                     val context = LocalContext.current
                     val isBeastPortrait = portraitRes.startsWith("beast_")
                     val portraitResId = remember(portraitRes) {
-                        if (isBeastPortrait) portraitRes.removePrefix("beast_").toIntOrNull() ?: 0
-                        else PortraitPool.getResourceId(context, portraitRes)
+                        if (isBeastPortrait) {
+                            val suffix = portraitRes.removePrefix("beast_")
+                            val index = suffix.toIntOrNull() ?: -1
+                            if (index in 0..7) beastDrawables.getOrNull(index) ?: 0
+                            else if (index > 0) index  // 旧格式：完整资源ID
+                            else 0
+                        } else PortraitPool.getResourceId(context, portraitRes)
                     }
                     Image(
                         painter = if (portraitResId != 0) painterResource(id = portraitResId)

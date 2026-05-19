@@ -333,7 +333,7 @@ object AISectAttackManager {
         return sectsWithNoTargets
     }
 
-    private fun convertToCombatant(disciple: Disciple, side: CombatantSide): Combatant {
+    internal fun convertToCombatant(disciple: Disciple, side: CombatantSide): Combatant {
         if (!ManualDatabase.isInitialized) {
             throw IllegalStateException("ManualDatabase not initialized when converting disciple ${disciple.name} to combatant")
         }
@@ -435,6 +435,10 @@ object AISectAttackManager {
 
         val spiritRootTypes = disciple.spiritRoot.types
         val primaryElement = spiritRootTypes.firstOrNull()?.trim() ?: "metal"
+        val weaponName = battleItems.equipments
+            .firstOrNull { it.second == EquipmentSlot.WEAPON }
+            ?.first
+            ?.let { EquipmentDatabase.getById(it)?.name }
 
         return Combatant(
             id = disciple.id,
@@ -455,6 +459,7 @@ object AISectAttackManager {
             skills = skills,
             buffs = emptyList(),
             element = primaryElement,
+            weaponName = weaponName,
             portraitRes = disciple.portraitRes
         )
     }

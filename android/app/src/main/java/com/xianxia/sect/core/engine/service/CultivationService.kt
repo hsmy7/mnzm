@@ -2003,7 +2003,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
             if (discipleIndex < 0) continue@team
             val disciple = currentDisciples[discipleIndex]
             if (!survivorIds.contains(member.id)) {
-                currentDisciples = currentDisciples.toMutableList().also { it[discipleIndex] = disciple.copy(isAlive = false) }
+                currentDisciples = currentDisciples.toMutableList().also { it[discipleIndex] = disciple.copy(isAlive = false, status = DiscipleStatus.DEAD) }
             } else {
                 val hp = member.hp.coerceAtMost(member.maxHp)
                 val mp = member.mp.coerceAtMost(member.maxMp)
@@ -2033,7 +2033,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                             d.copy(status = DiscipleStatus.IDLE, combat = d.combat.copy(currentHp = hp, currentMp = mp))
                         } else {
                             handleDiscipleDeath(d, isOutsideSect = true)
-                            d.copy(isAlive = false, status = DiscipleStatus.IDLE)
+                            d.copy(isAlive = false, status = DiscipleStatus.DEAD)
                         }
                     } else d
                 }
@@ -2251,7 +2251,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                     disciple.copy(status = DiscipleStatus.IDLE, combat = disciple.combat.copy(currentHp = hp, currentMp = mp))
                 } else {
                     handleDiscipleDeath(disciple, isOutsideSect = true)
-                    disciple.copy(isAlive = false, status = DiscipleStatus.IDLE)
+                    disciple.copy(isAlive = false, status = DiscipleStatus.DEAD)
                 }
             } else disciple
         }
@@ -2394,7 +2394,8 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                     realmLayer = enemy.realmLayer,
                     hp = enemy.hp,
                     maxHp = enemy.maxHp,
-                    isAlive = enemy.isAlive
+                    isAlive = enemy.isAlive,
+                    portraitRes = enemy.portraitRes
                 )
             },
             rounds = battleResult.log.rounds.map { round ->

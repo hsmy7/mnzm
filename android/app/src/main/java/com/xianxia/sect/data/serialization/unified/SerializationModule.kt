@@ -1897,7 +1897,8 @@ class SaveDataConverter @Inject constructor() {
             remainingHp = member.hp,
             maxHp = member.maxHp,
             remainingMp = member.mp,
-            maxMp = member.maxMp
+            maxMp = member.maxMp,
+            portraitRes = member.portraitRes
         )
     }
 
@@ -1910,7 +1911,8 @@ class SaveDataConverter @Inject constructor() {
             maxHp = data.maxHp,
             mp = data.remainingMp,
             maxMp = data.maxMp,
-            isAlive = data.isAlive
+            isAlive = data.isAlive,
+            portraitRes = data.portraitRes
         )
     }
 
@@ -1921,7 +1923,8 @@ class SaveDataConverter @Inject constructor() {
             realm = enemy.realm,
             isAlive = enemy.isAlive,
             remainingHp = enemy.hp,
-            maxHp = enemy.maxHp
+            maxHp = enemy.maxHp,
+            portraitRes = enemy.portraitRes
         )
     }
 
@@ -1932,7 +1935,8 @@ class SaveDataConverter @Inject constructor() {
             realm = data.realm,
             hp = data.remainingHp,
             maxHp = data.maxHp,
-            isAlive = data.isAlive
+            isAlive = data.isAlive,
+            portraitRes = data.portraitRes
         )
     }
 

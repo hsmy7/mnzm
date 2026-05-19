@@ -310,6 +310,7 @@ internal fun DirectDiscipleSelectionDialog(
 
     val filteredDisciplesBase = remember(disciples, elderSlots) {
         disciples.filter {
+            it.isAlive &&
             it.realmLayer > 0 &&
             it.age >= 5 &&
             it.status == DiscipleStatus.IDLE &&
@@ -431,6 +432,7 @@ internal fun ElderDiscipleSelectionDialog(
 
     val filteredDisciplesBase = remember(disciples, elderSlots) {
         disciples.filter {
+            it.isAlive &&
             it.realmLayer > 0 &&
             it.age >= 5 &&
             it.status == DiscipleStatus.IDLE &&
