@@ -21,6 +21,7 @@ import com.xianxia.sect.core.registry.HerbDatabase
 import com.xianxia.sect.core.registry.ItemDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.engine.HerbGardenSystem
+import com.xianxia.sect.core.CombatantSide
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.util.StorageBagUtils
 import com.xianxia.sect.core.config.InventoryConfig
@@ -191,6 +192,22 @@ class GameEngine @Inject constructor(
         }
 
         discipleService.syncAllDiscipleStatuses()
+
+        // Regenerate AI sect disciples if missing (fix for saves migrated from DB v3)
+        val loadedData = stateStore.gameData.value
+        if (loadedData.aiSectDisciples.isEmpty() && loadedData.worldMapSects.isNotEmpty()) {
+            Log.i(TAG, "loadData: aiSectDisciples empty, regenerating for ${loadedData.worldMapSects.size} sects")
+            val regenerated = mutableMapOf<String, List<Disciple>>()
+            for (sect in loadedData.worldMapSects) {
+                if (!sect.isPlayerSect) {
+                    val (disciples, _) = AISectDiscipleManager.initializeSectDisciples(sect.name, sect.level)
+                    regenerated[sect.id] = disciples
+                }
+            }
+            stateStore.update {
+                this.gameData = this.gameData.copy(aiSectDisciples = regenerated)
+            }
+        }
     }
 
     suspend fun createNewGame(sectName: String, currentSlot: Int = 1) {
@@ -600,14 +617,6 @@ class GameEngine @Inject constructor(
 
     fun recallCaveExplorationTeam(teamId: String): Boolean =
         explorationService.recallCaveExplorationTeam(teamId)
-
-    fun startScoutMission(
-        memberIds: List<String>,
-        targetSect: WorldSect,
-        currentYear: Int,
-        currentMonth: Int,
-        currentDay: Int
-    ) = explorationService.startScoutMission(memberIds, targetSect, currentYear, currentMonth, currentDay)
 
     fun getActiveExplorationTeamsCount(): Int = explorationService.getActiveExplorationTeamsCount()
 
@@ -3071,6 +3080,180 @@ class GameEngine @Inject constructor(
             stateStore.update { battleLogs = updatedLogs }
         } else {
             stateStore.update { battleLogs = updatedLogs }
+        }
+    }
+
+    /**
+     * Execute an instant scout mission against a target sect.
+     * Resolves immediately like attackWorldLevel — no travel time.
+     */
+    suspend fun scoutSect(sectId: String, memberIds: List<String>) {
+        val data = stateStore.gameData.value
+        val targetSect = data.worldMapSects.find { it.id == sectId } ?: return
+
+        val allDisciples = stateStore.disciples.value
+        val combatDisciples = memberIds.mapNotNull { id -> allDisciples.find { it.id == id && it.isAlive } }
+        if (combatDisciples.isEmpty()) return
+
+        val aiDefenders = (data.aiSectDisciples[sectId] ?: emptyList())
+            .filter { it.isAlive && it.realm in 7..9 }
+            .sortedBy { it.realm }
+            .take(kotlin.random.Random.nextInt(5, 11))
+
+        val equipmentMap = stateStore.equipmentInstances.value.associateBy { it.id }
+        val manualMap = stateStore.manualInstances.value.associateBy { it.id }
+        val allProficiencies = data.manualProficiencies.mapValues { (_, list) ->
+            list.associateBy { it.manualId }
+        }
+
+        // Build player Combatants (full stats, skills)
+        val playerCombatants = combatDisciples.map { disciple ->
+            val discipleEquipment = buildMap {
+                disciple.equipment.weaponId?.let { id -> equipmentMap[id]?.let { put(id, it) } }
+                disciple.equipment.armorId?.let { id -> equipmentMap[id]?.let { put(id, it) } }
+                disciple.equipment.bootsId?.let { id -> equipmentMap[id]?.let { put(id, it) } }
+                disciple.equipment.accessoryId?.let { id -> equipmentMap[id]?.let { put(id, it) } }
+            }
+            val discipleManuals = disciple.manualIds.mapNotNull { id -> manualMap[id]?.let { id to it } }.toMap()
+            val discipleProficiencies = allProficiencies[disciple.id] ?: emptyMap()
+            val stats = disciple.getFinalStats(discipleEquipment, discipleManuals, discipleProficiencies)
+            val effectiveHp = if (disciple.combat.currentHp < 0) stats.maxHp else disciple.combat.currentHp.coerceAtMost(stats.maxHp)
+            val effectiveMp = if (disciple.combat.currentMp < 0) stats.maxMp else disciple.combat.currentMp.coerceAtMost(stats.maxMp)
+            val skills = disciple.manualIds.mapNotNull { manualId ->
+                val manual = discipleManuals[manualId] ?: return@mapNotNull null
+                val proficiencyData = discipleProficiencies[manualId]
+                val masteryLevel = proficiencyData?.masteryLevel ?: 0
+                val baseSkill = manual.skill ?: return@mapNotNull null
+                val multiplier = ManualProficiencySystem.calculateSkillDamageMultiplier(baseSkill.damageMultiplier, masteryLevel)
+                baseSkill.copy(damageMultiplier = multiplier).toCombatSkill(manualName = manual.name)
+            }
+            Combatant(
+                id = disciple.id, name = disciple.name,
+                side = CombatantSide.DEFENDER,
+                hp = effectiveHp, maxHp = stats.maxHp,
+                mp = effectiveMp, maxMp = stats.maxMp,
+                physicalAttack = stats.physicalAttack, magicAttack = stats.magicAttack,
+                physicalDefense = stats.physicalDefense, magicDefense = stats.magicDefense,
+                speed = stats.speed, critRate = stats.critRate,
+                skills = skills, realm = disciple.realm, realmName = disciple.realmName,
+                element = disciple.spiritRoot.types.firstOrNull()?.trim() ?: "metal",
+                portraitRes = disciple.portraitRes
+            )
+        }
+
+        // Build AI defender Combatants (simplified, no skills)
+        val aiCombatants = aiDefenders.map { d ->
+            Combatant(
+                id = d.id, name = d.name,
+                side = CombatantSide.ATTACKER,
+                hp = d.maxHp, maxHp = d.maxHp,
+                mp = d.maxMp, maxMp = d.maxMp,
+                physicalAttack = d.physicalAttack, magicAttack = d.magicAttack,
+                physicalDefense = d.physicalDefense, magicDefense = d.magicDefense,
+                speed = d.speed,
+                critRate = 0.05 + d.realm * 0.01,
+                skills = emptyList(),
+                realm = d.realm, realmName = d.realmName,
+                element = "metal"
+            )
+        }
+
+        val battle = Battle(
+            team = playerCombatants,
+            beasts = aiCombatants,
+            turn = 0, isFinished = false, winner = null,
+            maxTurns = Int.MAX_VALUE
+        )
+
+        val result = battleSystem.executeBattle(battle)
+
+        // Update disciple HP/MP
+        val hpMap = result.battle.team.associate { it.id to (it.hp to it.mp) }
+        val survivorIds = result.battle.team.filter { !it.isDead }.map { it.id }.toSet()
+        val updatedDisciples = stateStore.disciples.value.map { d ->
+            val (hp, mp) = hpMap[d.id] ?: return@map d
+            if (d.id !in survivorIds) {
+                d.copy(isAlive = false)
+            } else {
+                d.copy(combat = d.combat.copy(
+                    currentHp = hp.coerceIn(0, d.maxHp),
+                    currentMp = mp.coerceIn(0, d.maxMp)
+                ))
+            }
+        }
+        // Set scouting disciples back to IDLE
+        val scoutIds = memberIds.toSet()
+        val finalDisciples = updatedDisciples.map { d ->
+            if (d.id in scoutIds && d.isAlive && d.status != DiscipleStatus.IDLE) d.copy(status = DiscipleStatus.IDLE) else d
+        }
+        stateStore.update { disciples = finalDisciples }
+
+        // Build BattleLog
+        val teamMembers = combatDisciples.map { d ->
+            BattleLogMember(name = d.name, realm = d.realm, realmName = d.realmName, portraitRes = d.portraitRes)
+        }
+        val enemies = aiCombatants.map { b ->
+            BattleLogEnemy(name = b.name, realm = b.realm, realmName = b.realmName)
+        }
+        val rounds = result.log.rounds.map { r ->
+            BattleLogRound(
+                roundNumber = r.roundNumber,
+                actions = r.actions.map { a ->
+                    BattleLogAction(
+                        type = a.type,
+                        attacker = a.attacker,
+                        attackerType = a.attackerType,
+                        target = a.target,
+                        damage = a.damage,
+                        damageType = a.damageType,
+                        isCrit = a.isCrit,
+                        isKill = a.isKill,
+                        message = a.message
+                    )
+                }
+            )
+        }
+        val victory = result.victory
+        val log = BattleLog(
+            year = data.gameYear,
+            month = data.gameMonth,
+            type = BattleType.SCOUT,
+            attackerName = "探查队伍",
+            defenderName = targetSect.name,
+            result = if (victory) BattleResult.WIN else BattleResult.LOSE,
+            teamMembers = teamMembers,
+            enemies = enemies,
+            rounds = rounds,
+            turns = result.turnCount,
+            teamCasualties = teamMembers.size - survivorIds.size,
+            beastsDefeated = if (victory) aiCombatants.count { result.battle.beasts.any { b -> b.id == it.id && b.isDead } } else 0,
+            details = if (victory) "成功探查了${targetSect.name}" else "探查${targetSect.name}失败"
+        )
+
+        val existingLogs = stateStore.battleLogs.value
+        val updatedLogs = (existingLogs + log).takeLast(GameConfig.Logs.MAX_BATTLE_LOGS)
+        stateStore.update { battleLogs = updatedLogs }
+
+        // On victory: generate SectScoutInfo
+        if (victory) {
+            val allSectDisciples = data.aiSectDisciples[sectId] ?: emptyList()
+            val realmDistribution = allSectDisciples.groupingBy { it.realm }.eachCount()
+            val scoutInfo = SectScoutInfo(
+                sectId = sectId,
+                sectName = targetSect.name,
+                scoutYear = data.gameYear,
+                scoutMonth = data.gameMonth,
+                discipleCount = allSectDisciples.size,
+                maxRealm = allSectDisciples.maxOfOrNull { it.realm } ?: 9,
+                disciples = realmDistribution,
+                isKnown = true,
+                expiryYear = data.gameYear + 1,
+                expiryMonth = data.gameMonth
+            )
+            updateGameDataSync {
+                val existingDetail = it.sectDetails[sectId] ?: SectDetail(sectId = sectId)
+                it.copy(sectDetails = it.sectDetails + (sectId to existingDetail.copy(scoutInfo = scoutInfo)))
+            }
         }
     }
 

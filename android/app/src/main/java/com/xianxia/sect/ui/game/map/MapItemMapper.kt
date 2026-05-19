@@ -5,8 +5,6 @@ import com.xianxia.sect.core.model.CaveExplorationStatus
 import com.xianxia.sect.core.model.CaveStatus
 import com.xianxia.sect.core.model.LevelType
 import com.xianxia.sect.core.model.CultivatorCave
-import com.xianxia.sect.core.model.ExplorationStatus
-import com.xianxia.sect.core.model.ExplorationTeam
 import com.xianxia.sect.core.engine.WorldMapGenerator
 import com.xianxia.sect.core.model.WorldLevel
 import com.xianxia.sect.core.model.WorldSect
@@ -71,17 +69,6 @@ object MapItemMapper {
         }
         return paths
     }
-
-    fun fromScoutTeams(teams: List<ExplorationTeam>): List<MapItem.ScoutTeam> =
-        teams.filter { it.status == ExplorationStatus.SCOUTING && it.moveProgress < 1f }
-            .map { team ->
-                MapItem.ScoutTeam(
-                    id = team.id,
-                    worldX = team.currentX,
-                    worldY = team.currentY,
-                    name = team.name
-                )
-            }
 
     fun fromCaves(caves: List<CultivatorCave>): List<MapItem.Cave> =
         caves.filter { it.status != CaveStatus.EXPIRED && it.status != CaveStatus.EXPLORED }

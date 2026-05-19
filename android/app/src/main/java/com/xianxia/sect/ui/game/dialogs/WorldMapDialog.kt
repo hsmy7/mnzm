@@ -6,7 +6,6 @@ import com.xianxia.sect.core.model.CaveExplorationTeam
 import com.xianxia.sect.core.model.CaveStatus
 import com.xianxia.sect.core.model.CultivatorCave
 import com.xianxia.sect.core.model.DiscipleAggregate
-import com.xianxia.sect.core.model.ExplorationTeam
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.WorldMapRenderData
 import com.xianxia.sect.core.model.WorldSect
@@ -23,7 +22,6 @@ import com.xianxia.sect.ui.game.map.WorldMapScreen
 @Composable
 internal fun WorldMapDialog(
     worldSects: List<WorldSect>,
-    scoutTeams: List<ExplorationTeam> = emptyList(),
     mapRenderData: WorldMapRenderData,
     gameData: GameData?,
     disciples: List<DiscipleAggregate>,
@@ -61,9 +59,8 @@ internal fun WorldMapDialog(
         MapItemMapper.fromWorldSects(worldSects, emptySet())
     }
 
-    val dynamicItems = remember(scoutTeams, caves, caveExplorationTeams, mapRenderData.worldLevels, playerSect) {
+    val dynamicItems = remember(caves, caveExplorationTeams, mapRenderData.worldLevels, playerSect) {
         val items = mutableListOf<MapItem>()
-        items.addAll(MapItemMapper.fromScoutTeams(scoutTeams))
         items.addAll(MapItemMapper.fromCaveExplorationTeams(caveExplorationTeams))
         items.addAll(MapItemMapper.fromLevels(mapRenderData.worldLevels))
         items

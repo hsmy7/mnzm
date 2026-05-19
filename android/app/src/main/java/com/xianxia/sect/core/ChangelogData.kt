@@ -9,6 +9,18 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.0.54",
+            date = "2026-05-19",
+            changes = listOf(
+                "探查改为即时战斗：选好弟子后立即与目标宗门防守弟子交战，不再需要等待旅行时间",
+                "探查战斗防守方为5-10名炼气到金丹境界弟子，高境界优先",
+                "探查胜利后宗门界面实时显示各境界弟子分布，零人境界显示0而非？",
+                "探查战斗记录完整显示在战斗日志中，包含回合详情",
+                "弟子卸下/更换的装备和功法改为归还宗门仓库而非储物袋",
+                "数据库迁移：aiSectDisciples字段持久化，修复存档读回后AI宗门弟子数据丢失"
+            )
+        ),
+        ChangelogEntry(
             version = "3.0.53",
             date = "2026-05-18",
             changes = listOf(

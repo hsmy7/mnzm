@@ -84,8 +84,6 @@ data class GameData(
     // 宗门详情（重型交互数据，按需访问）
     var sectDetails: Map<String, SectDetail> = emptyMap(),
 
-    @kotlinx.serialization.Transient
-    @androidx.room.Ignore
     var aiSectDisciples: Map<String, List<Disciple>> = emptyMap(),
 
     // 已探索宗门信息

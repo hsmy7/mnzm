@@ -230,47 +230,16 @@ object DiscipleManualManager {
 
         val oldStack = existingInstance.toStack(quantity = 1)
 
-        val bagStackIds = disciple.equipment.storageBagItems
-            .filter { it.itemType == "manual_stack" }
-            .map { it.itemId }
-            .toSet()
-
-        val existingBagStack = manualStacks.find {
-            it.name == oldStack.name && it.rarity == oldStack.rarity && it.type == oldStack.type && it.id in bagStackIds
+        val existingWarehouseStack = manualStacks.find {
+            it.name == oldStack.name && it.rarity == oldStack.rarity && it.type == oldStack.type
         }
 
-        val replacedManualStack: ManualStack
-        val storageItemId: String
-
-        if (existingBagStack != null) {
-            val mergedQty = (existingBagStack.quantity + 1).coerceAtMost(maxStack)
-            replacedManualStack = existingBagStack.copy(quantity = mergedQty)
-            storageItemId = existingBagStack.id
+        val replacedManualStack: ManualStack = if (existingWarehouseStack != null) {
+            val mergedQty = (existingWarehouseStack.quantity + 1).coerceAtMost(maxStack)
+            existingWarehouseStack.copy(quantity = mergedQty)
         } else {
-            replacedManualStack = oldStack
-            storageItemId = oldStack.id
+            oldStack
         }
-
-        val storageItem = StorageBagItem(
-            itemId = storageItemId,
-            itemType = "manual_stack",
-            name = existingInstance.name,
-            rarity = existingInstance.rarity,
-            quantity = 1,
-            obtainedYear = gameYear,
-            obtainedMonth = gameMonth,
-            forgetYear = gameYear,
-            forgetMonth = gameMonth,
-            forgetDay = gameDay
-        )
-        updatedDisciple = updatedDisciple.copyWith(
-            storageBagItems = StorageBagUtils.increaseItemQuantity(updatedDisciple.equipment.storageBagItems, storageItem, maxStack)
-                .map { bagItem ->
-                    if (bagItem.itemId == storageItemId && bagItem.itemType == "manual_stack") {
-                        bagItem.copy(forgetYear = gameYear, forgetMonth = gameMonth, forgetDay = gameDay)
-                    } else bagItem
-                }
-        )
 
         val instanceId = java.util.UUID.randomUUID().toString()
         val newInstance = stack.toInstance(id = instanceId, ownerId = disciple.id, isLearned = true)

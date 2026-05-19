@@ -45,11 +45,13 @@ class WorldMapViewModel @Inject constructor(
     }
 
     fun startScoutMission(memberIds: List<String>, sectId: String) {
-        val data = gameData.value
-        val targetSect = data.worldMapSects.find { it.id == sectId }
-        if (targetSect != null) {
-            gameEngine.startScoutMission(memberIds, targetSect, data.gameYear, data.gameMonth, data.gameDay)
-            closeScoutDialog()
+        viewModelScope.launch {
+            try {
+                gameEngine.scoutSect(sectId, memberIds)
+                closeScoutDialog()
+            } catch (e: Exception) {
+                showError(e.message ?: "探查失败")
+            }
         }
     }
 

@@ -1,7 +1,6 @@
 package com.xianxia.sect.core.state
 
 import com.xianxia.sect.core.model.*
-import com.xianxia.sect.core.util.StorageBagUtils
 
 data class AddToBagResult(
     val storageItemId: String,
@@ -13,15 +12,14 @@ private data class StackMergeResult(
     val isMerge: Boolean
 )
 
-private fun MutableGameState.mergeEquipmentStack(
-    bagStackIds: Set<String>,
+private fun MutableGameState.mergeEquipmentStackToWarehouse(
     excludeStackId: String?,
     maxStackSize: Int,
     instance: EquipmentInstance
 ): StackMergeResult {
     val existingStack = equipmentStacks.find {
         it.name == instance.name && it.rarity == instance.rarity && it.slot == instance.slot &&
-            it.id in bagStackIds && it.id != excludeStackId && it.quantity < maxStackSize
+            it.id != excludeStackId && it.quantity < maxStackSize
     }
 
     return if (existingStack != null) {
@@ -36,15 +34,14 @@ private fun MutableGameState.mergeEquipmentStack(
     }
 }
 
-private fun MutableGameState.mergeManualStack(
-    bagStackIds: Set<String>,
+private fun MutableGameState.mergeManualStackToWarehouse(
     excludeStackId: String?,
     maxStackSize: Int,
     instance: ManualInstance
 ): StackMergeResult {
     val existingStack = manualStacks.find {
         it.name == instance.name && it.rarity == instance.rarity && it.type == instance.type &&
-            it.id in bagStackIds && it.id != excludeStackId && it.quantity < maxStackSize
+            it.id != excludeStackId && it.quantity < maxStackSize
     }
 
     return if (existingStack != null) {
@@ -59,30 +56,6 @@ private fun MutableGameState.mergeManualStack(
     }
 }
 
-private fun buildUpdatedBagItems(
-    disciple: Disciple,
-    storageItem: StorageBagItem,
-    mergeResult: StackMergeResult,
-    itemType: String,
-    maxStackSize: Int,
-    gameYear: Int,
-    gameMonth: Int,
-    gameDay: Int
-): List<StorageBagItem> {
-    val increased = StorageBagUtils.increaseItemQuantity(
-        disciple.equipment.storageBagItems, storageItem, maxStackSize
-    )
-    return if (mergeResult.isMerge) {
-        increased.map { bagItem ->
-            if (bagItem.itemId == mergeResult.storageItemId && bagItem.itemType == itemType) {
-                bagItem.copy(forgetYear = gameYear, forgetMonth = gameMonth, forgetDay = gameDay)
-            } else bagItem
-        }
-    } else {
-        increased
-    }
-}
-
 fun MutableGameState.addEquipmentInstanceToDiscipleBag(
     disciple: Disciple,
     instance: EquipmentInstance,
@@ -93,33 +66,11 @@ fun MutableGameState.addEquipmentInstanceToDiscipleBag(
     gameDay: Int,
     maxStackSize: Int
 ): AddToBagResult {
-    val mergeResult = mergeEquipmentStack(bagStackIds, excludeStackId, maxStackSize, instance)
+    val mergeResult = mergeEquipmentStackToWarehouse(excludeStackId, maxStackSize, instance)
 
     equipmentInstances = equipmentInstances.filter { it.id != instance.id }
 
-    val storageItem = StorageBagItem(
-        itemId = mergeResult.storageItemId,
-        itemType = "equipment_stack",
-        name = instance.name,
-        rarity = instance.rarity,
-        quantity = 1,
-        obtainedYear = gameYear,
-        obtainedMonth = gameMonth,
-        forgetYear = gameYear,
-        forgetMonth = gameMonth,
-        forgetDay = gameDay
-    )
-
-    val updatedBagItems = buildUpdatedBagItems(
-        disciple, storageItem, mergeResult, "equipment_stack",
-        maxStackSize, gameYear, gameMonth, gameDay
-    )
-
-    val updatedDisciple = disciple.copyWith(
-        storageBagItems = updatedBagItems
-    )
-
-    return AddToBagResult(storageItemId = mergeResult.storageItemId, updatedDisciple = updatedDisciple)
+    return AddToBagResult(storageItemId = mergeResult.storageItemId, updatedDisciple = disciple)
 }
 
 fun MutableGameState.addManualInstanceToDiscipleBag(
@@ -132,33 +83,11 @@ fun MutableGameState.addManualInstanceToDiscipleBag(
     gameDay: Int,
     maxStackSize: Int
 ): AddToBagResult {
-    val mergeResult = mergeManualStack(bagStackIds, excludeStackId, maxStackSize, instance)
+    val mergeResult = mergeManualStackToWarehouse(excludeStackId, maxStackSize, instance)
 
     manualInstances = manualInstances.filter { it.id != instance.id }
 
-    val storageItem = StorageBagItem(
-        itemId = mergeResult.storageItemId,
-        itemType = "manual_stack",
-        name = instance.name,
-        rarity = instance.rarity,
-        quantity = 1,
-        obtainedYear = gameYear,
-        obtainedMonth = gameMonth,
-        forgetYear = gameYear,
-        forgetMonth = gameMonth,
-        forgetDay = gameDay
-    )
-
-    val updatedBagItems = buildUpdatedBagItems(
-        disciple, storageItem, mergeResult, "manual_stack",
-        maxStackSize, gameYear, gameMonth, gameDay
-    )
-
-    val updatedDisciple = disciple.copyWith(
-        storageBagItems = updatedBagItems
-    )
-
-    return AddToBagResult(storageItemId = mergeResult.storageItemId, updatedDisciple = updatedDisciple)
+    return AddToBagResult(storageItemId = mergeResult.storageItemId, updatedDisciple = disciple)
 }
 
 fun Disciple.equipmentBagStackIds(): Set<String> =

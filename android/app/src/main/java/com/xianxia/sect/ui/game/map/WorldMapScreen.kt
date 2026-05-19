@@ -13,7 +13,6 @@ import com.xianxia.sect.core.model.MapCoordinateSystem
 import com.xianxia.sect.ui.game.map.markers.CaveExplorationTeamMarker
 import com.xianxia.sect.ui.game.map.markers.CaveMarker
 import com.xianxia.sect.ui.game.map.markers.LevelMarker
-import com.xianxia.sect.ui.game.map.markers.ScoutTeamMarker
 import com.xianxia.sect.ui.game.map.markers.SectMarker
 
 @Composable
@@ -67,11 +66,6 @@ fun WorldMapScreen(
                     item = item,
                     cameraState = cameraState,
                     onClick = { onSectClick(item) }
-                )
-
-                is MapItem.ScoutTeam -> ScoutTeamMarker(
-                    item = item,
-                    cameraState = cameraState
                 )
 
                 is MapItem.Cave -> CaveMarker(

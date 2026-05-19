@@ -140,52 +140,16 @@ object DiscipleEquipmentManager {
 
             val oldStack = oldInstance.toStack(quantity = 1)
 
-            val bagStackIds = updatedDisciple.equipment.storageBagItems
-                .filter { it.itemType == "equipment_stack" }
-                .map { it.itemId }
-                .toSet()
-
-            val existingBagStack = equipmentStacks.find {
-                it.name == oldStack.name && it.rarity == oldStack.rarity && it.slot == oldStack.slot && it.id in bagStackIds
+            val existingWarehouseStack = equipmentStacks.find {
+                it.name == oldStack.name && it.rarity == oldStack.rarity && it.slot == oldStack.slot
             }
 
-            val storageItemId: String
-            val isMerge: Boolean
-            if (existingBagStack != null) {
-                val mergedQty = (existingBagStack.quantity + 1).coerceAtMost(maxStack)
-                replacedStacks.add(existingBagStack.copy(quantity = mergedQty))
-                storageItemId = existingBagStack.id
-                isMerge = true
+            if (existingWarehouseStack != null) {
+                val mergedQty = (existingWarehouseStack.quantity + 1).coerceAtMost(maxStack)
+                replacedStacks.add(existingWarehouseStack.copy(quantity = mergedQty))
             } else {
                 replacedStacks.add(oldStack)
-                storageItemId = oldStack.id
-                isMerge = false
             }
-
-            val storageItem = StorageBagItem(
-                itemId = storageItemId,
-                itemType = "equipment_stack",
-                name = oldInstance.name,
-                rarity = oldInstance.rarity,
-                quantity = 1,
-                obtainedYear = gameYear,
-                obtainedMonth = gameMonth,
-                forgetYear = gameYear,
-                forgetMonth = gameMonth,
-                forgetDay = gameDay
-            )
-            val increasedBagItems = StorageBagUtils.increaseItemQuantity(updatedDisciple.equipment.storageBagItems, storageItem, maxStack)
-            updatedDisciple = updatedDisciple.copyWith(
-                storageBagItems = if (isMerge) {
-                    increasedBagItems.map { bagItem ->
-                        if (bagItem.itemId == storageItemId && bagItem.itemType == "equipment_stack") {
-                            bagItem.copy(forgetYear = gameYear, forgetMonth = gameMonth, forgetDay = gameDay)
-                        } else bagItem
-                    }
-                } else {
-                    increasedBagItems
-                }
-            )
         }
 
         val instanceId = java.util.UUID.randomUUID().toString()

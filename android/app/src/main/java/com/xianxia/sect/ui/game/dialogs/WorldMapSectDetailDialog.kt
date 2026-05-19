@@ -177,13 +177,10 @@ internal fun WorldMapSectDetailDialog(
                 ) {
                     (0..4).forEach { realmIndex ->
                         val realmName = GameConfig.Realm.getName(realmIndex)
-                        val count = scoutInfo.disciples.get(realmIndex) ?: 0
-                        val displayText = if (scoutInfo.sectId.isNotEmpty() && scoutInfo.disciples.containsKey(realmIndex)) {
-                            if (count > 0) "$count" else "0"
-                        } else {
-                            "?"
-                        }
-                        val textColor = if (scoutInfo.sectId.isNotEmpty() && scoutInfo.disciples.containsKey(realmIndex)) {
+                        val count = scoutInfo.disciples[realmIndex] ?: 0
+                        val isScouted = scoutInfo.sectId.isNotEmpty()
+                        val displayText = if (isScouted) "$count" else "?"
+                        val textColor = if (isScouted) {
                             if (count > 0) Color(0xFF4CAF50) else Color.Black
                         } else {
                             Color(0xFFFF9800)
@@ -216,13 +213,10 @@ internal fun WorldMapSectDetailDialog(
                 ) {
                     (5..9).forEach { realmIndex ->
                         val realmName = GameConfig.Realm.getName(realmIndex)
-                        val count = scoutInfo.disciples.get(realmIndex) ?: 0
-                        val displayText = if (scoutInfo.sectId.isNotEmpty() && scoutInfo.disciples.containsKey(realmIndex)) {
-                            if (count > 0) "$count" else "0"
-                        } else {
-                            "?"
-                        }
-                        val textColor = if (scoutInfo.sectId.isNotEmpty() && scoutInfo.disciples.containsKey(realmIndex)) {
+                        val count = scoutInfo.disciples[realmIndex] ?: 0
+                        val isScouted = scoutInfo.sectId.isNotEmpty()
+                        val displayText = if (isScouted) "$count" else "?"
+                        val textColor = if (isScouted) {
                             if (count > 0) Color(0xFF4CAF50) else Color.Black
                         } else {
                             Color(0xFFFF9800)

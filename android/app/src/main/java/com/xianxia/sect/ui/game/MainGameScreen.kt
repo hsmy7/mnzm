@@ -696,7 +696,6 @@ fun MainGameScreen(
             composable(GameRoute.WorldMap.route) {
                 WorldMapDialog(
                     worldSects = mapRenderData.worldMapSects,
-                    scoutTeams = teams,
                     mapRenderData = mapRenderData,
                     gameData = gameData,
                     disciples = disciples,
