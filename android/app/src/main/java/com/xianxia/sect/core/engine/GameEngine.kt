@@ -3097,7 +3097,7 @@ class GameEngine @Inject constructor(
 
         val aiDefenders = (data.aiSectDisciples[sectId] ?: emptyList())
             .filter { it.isAlive && it.realm in 7..9 }
-            .sortedBy { it.realm }
+            .shuffled()
             .take(kotlin.random.Random.nextInt(5, 11))
 
         val equipmentMap = stateStore.equipmentInstances.value.associateBy { it.id }
