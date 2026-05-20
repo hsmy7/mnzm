@@ -9,6 +9,17 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.0.56",
+            date = "2026-05-20",
+            changes = listOf(
+                "弟子选择界面全面优化：筛选栏上移减少标题间距，弟子卡片可视区域扩大（280dp→400dp），推荐属性（采矿/智力/炼丹等）移至标题右侧不再占用卡片空间",
+                "灵矿场更换按钮修复：点击更换始终弹出选择界面，支持替换当前槽位弟子而非分配到空位",
+                "对话框点击穿透修复：选择弟子界面内点击空白区域不再意外关闭界面",
+                "执法堂弟子选择标题修正：\"选择亲传弟子\"改为根据建筑动态生成（选择执法弟子/炼丹弟子等）",
+                "执法堂储备弟子界面优化：推荐属性移至标题栏，与添加按钮并排显示"
+            )
+        ),
+        ChangelogEntry(
             version = "3.0.55",
             date = "2026-05-20",
             changes = listOf(

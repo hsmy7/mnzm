@@ -392,16 +392,12 @@ fun ProductionElderSelectionDialog(
         onDismissRequest = onDismiss,
         title = theme.elderSelectionTitle,
         mode = DialogMode.Half,
-        scrollableContent = false
+        scrollableContent = false,
+        headerActions = {
+            Text("推荐${theme.recommendAttributeText}", fontSize = 10.sp, color = Color(0xFF4CAF50))
+        }
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
-                Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    text = "推荐属性: ${theme.recommendAttributeText}",
-                    fontSize = 10.sp,
-                    color = Color.Black,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
+        Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
                 SpiritRootAttributeFilterBar(
                     selectedSpiritRootFilter = selectedSpiritRootFilter,
                     selectedAttributeSort = selectedAttributeSort,
@@ -505,12 +501,14 @@ fun ProductionDirectDiscipleSelectionDialog(
 
     UnifiedGameDialog(
         onDismissRequest = onDismiss,
-        title = "选择亲传弟子",
+        title = "选择${theme.slotLabelPrefix.removeSuffix("槽").trim()}弟子",
         mode = DialogMode.Half,
-        scrollableContent = false
+        scrollableContent = false,
+        headerActions = {
+            Text("推荐${theme.recommendAttributeText}", fontSize = 10.sp, color = Color(0xFF4CAF50))
+        }
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
-                Spacer(modifier = Modifier.height(12.dp))
+        Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
                 SpiritRootAttributeFilterBar(
                     selectedSpiritRootFilter = selectedSpiritRootFilter,
                     selectedAttributeSort = selectedAttributeSort,
@@ -532,33 +530,28 @@ fun ProductionDirectDiscipleSelectionDialog(
                     isCompact = true
                 )
                 Spacer(modifier = Modifier.height(12.dp))
-
-                if (filteredDisciples.isEmpty()) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth().weight(1f),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(text = "暂无可用弟子", fontSize = 12.sp, color = Color.Black)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "推荐属性: ${theme.recommendAttributeText}",
-                            fontSize = 10.sp,
-                            color = Color.Black
-                        )
-                    }
-                } else {
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(2),
-                        modifier = Modifier.fillMaxWidth().weight(1f),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        items(filteredDisciples, key = { it.id }) { disciple ->
-                            ProductionDiscipleSelectionCard(
-                                theme = theme,
-                                disciple = disciple,
-                                onClick = { onSelect(disciple.id) }
-                            )
+                Column(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp)) {
+                    if (filteredDisciples.isEmpty()) {
+                        Box(
+                            modifier = Modifier.fillMaxWidth().weight(1f),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(text = "暂无可用弟子", fontSize = 12.sp, color = Color.Black)
+                        }
+                    } else {
+                        LazyVerticalGrid(
+                            columns = GridCells.Fixed(2),
+                            modifier = Modifier.fillMaxWidth().weight(1f),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            items(filteredDisciples, key = { it.id }) { disciple ->
+                                ProductionDiscipleSelectionCard(
+                                    theme = theme,
+                                    disciple = disciple,
+                                    onClick = { onSelect(disciple.id) }
+                                )
+                            }
                         }
                     }
                 }
@@ -572,10 +565,8 @@ private fun ProductionDiscipleSelectionCard(
     disciple: DiscipleAggregate,
     onClick: () -> Unit
 ) {
-    val coreAttrValue = theme.getCoreAttributeValue(disciple)
     PortraitDiscipleCard(
         disciple = disciple,
-        extraAttributes = listOf(theme.coreAttributeName to coreAttrValue),
         onClick = onClick
     )
 }
@@ -592,7 +583,10 @@ fun ProductionReserveDiscipleDialog(
         onDismissRequest = onDismiss,
         title = "储备弟子",
         mode = DialogMode.Half,
-        scrollableContent = false
+        scrollableContent = false,
+        headerActions = {
+            Text("推荐${theme.recommendAttributeText}", fontSize = 10.sp, color = Color(0xFF4CAF50))
+        }
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
                 Row(
@@ -642,10 +636,8 @@ private fun ProductionReserveDiscipleCard(
     onRemove: () -> Unit
 ) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        val coreAttrValue = theme.getCoreAttributeValue(disciple)
         PortraitDiscipleCard(
             disciple = disciple,
-            extraAttributes = listOf(theme.coreAttributeName to coreAttrValue),
             onClick = {}
         )
         Spacer(modifier = Modifier.height(2.dp))
@@ -673,17 +665,12 @@ fun ProductionAddReserveDiscipleDialog(
         onDismissRequest = onDismiss,
         title = "添加储备弟子",
         mode = DialogMode.Half,
-        scrollableContent = false
+        scrollableContent = false,
+        headerActions = {
+            Text("推荐${theme.recommendAttributeText}", fontSize = 10.sp, color = Color(0xFF4CAF50))
+        }
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
-                Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    text = "推荐属性: ${theme.recommendAttributeText}",
-                    fontSize = 10.sp,
-                    color = Color.Black,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-
                 Column(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp)) {
                     if (availableDisciples.isEmpty()) {
                         Box(
@@ -735,7 +722,6 @@ fun FilteredMultiSelectDialog(
     showDismiss: Boolean = false,
     dismissText: String = "取消",
     extraCardAttrName: String? = null,
-    extraCardAttrValue: ((DiscipleAggregate) -> Int)? = null,
     headerContent: (@Composable () -> Unit)? = null,
     bottomContent: (@Composable () -> Unit)? = null,
     onConfirm: () -> Unit,
@@ -764,31 +750,20 @@ fun FilteredMultiSelectDialog(
         sortedDisciples.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort)
     }
 
-    val extraAttrs = if (extraCardAttrName != null && extraCardAttrValue != null) {
-        remember { { d: DiscipleAggregate -> listOf(extraCardAttrName to extraCardAttrValue(d)) } }
-    } else null
-
     UnifiedGameDialog(
         onDismissRequest = onDismiss,
         title = title,
         mode = DialogMode.Half,
-        scrollableContent = false
+        scrollableContent = false,
+        headerActions = if (extraCardAttrName != null) {
+            { Text("推荐$extraCardAttrName", fontSize = 10.sp, color = Color(0xFF4CAF50)) }
+        } else null
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
-                Text(
-                    text = if (maxSelection != null) {
-                        "(${selectedIds.size}/$maxSelection)"
-                    } else {
-                        "(${selectedIds.size})"
-                    },
-                    fontSize = 10.sp,
-                    color = Color.Black
-                )
-                Spacer(modifier = Modifier.height(12.dp))
+        Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = DialogDefaults.CommonMaxHeight)
+                        .heightIn(max = 400.dp)
                 ) {
                     if (headerContent != null) {
                         headerContent()
@@ -844,7 +819,6 @@ fun FilteredMultiSelectDialog(
                                 PortraitDiscipleCard(
                                     disciple = disciple,
                                     isSelected = isSelected,
-                                    extraAttributes = extraAttrs?.invoke(disciple) ?: emptyList(),
                                     onClick = {
                                         if (isSelected) {
                                             selectedIds.remove(disciple.id)
@@ -883,11 +857,9 @@ private fun ProductionAddReserveDiscipleSelectCard(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    val coreAttrValue = theme.getCoreAttributeValue(disciple)
     PortraitDiscipleCard(
         disciple = disciple,
         isSelected = isSelected,
-        extraAttributes = listOf(theme.coreAttributeName to coreAttrValue),
         onClick = onClick
     )
 }

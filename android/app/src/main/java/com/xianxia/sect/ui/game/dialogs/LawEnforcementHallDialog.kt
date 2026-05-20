@@ -427,33 +427,32 @@ private fun ReserveDiscipleListDialog(
         mode = DialogMode.Half,
         scrollableContent = false,
         headerActions = {
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(Color(0xFFE74C3C))
-                    .clickable { showAddDiscipleDialog = true }
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-            ) {
-                Text(
-                    text = "+ 添加",
-                    fontSize = 10.sp,
-                    color = Color.White
-                )
-                    }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("推荐智力", fontSize = 10.sp, color = Color(0xFF4CAF50))
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(Color(0xFFE74C3C))
+                        .clickable { showAddDiscipleDialog = true }
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "+ 添加",
+                        fontSize = 10.sp,
+                        color = Color.White
+                    )
                 }
-            )
-            {
-                Column(modifier = Modifier.fillMaxSize()) {
-            Spacer(modifier = Modifier.height(12.dp))
-
+            }
+        }
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
             Text(
                 text = "执法弟子空缺时自动补位",
                 fontSize = 9.sp,
                 color = Color.Black,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
                 textAlign = TextAlign.Center
             )
-            Spacer(modifier = Modifier.height(12.dp))
             if (sortedReserveDisciples.isEmpty()) {
                 Box(
                     modifier = Modifier
@@ -480,7 +479,6 @@ private fun ReserveDiscipleListDialog(
                     items(sortedReserveDisciples, key = { it.id }) { disciple ->
                         PortraitDiscipleCard(
                             disciple = disciple,
-                            extraAttributes = listOf("智力" to disciple.intelligence),
                             actions = {
                                 Box(
                                     modifier = Modifier
@@ -514,6 +512,7 @@ private fun ReserveDiscipleListDialog(
             title = "内门弟子",
             disciples = rawDisciples,
             selectedIds = reserveSelectedIds,
+            extraCardAttrName = "智力",
             headerContent = {
                 Text(
                     text = "需要内门弟子及以上",

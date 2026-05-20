@@ -63,6 +63,7 @@ fun SpiritMineDialog(
     var showDiscipleSelection by remember { mutableStateOf(false) }
     var showDeaconSelection by remember { mutableStateOf<Int?>(null) }
     var selectedDiscipleDetail by remember { mutableStateOf<DiscipleAggregate?>(null) }
+    var swappingSlotIndex by remember { mutableStateOf<Int?>(null) }
 
     LaunchedEffect(Unit) {
         spiritMineViewModel.validateSpiritMineData()
@@ -183,7 +184,7 @@ fun SpiritMineDialog(
                             disciple = disciple,
                             onAssign = { if (emptySlotCount > 0) showDiscipleSelection = true },
                             onRemove = { spiritMineViewModel.removeDiscipleFromSpiritMineSlot(slot.index) },
-                            onSwap = { if (emptySlotCount > 0) showDiscipleSelection = true },
+                            onSwap = { swappingSlotIndex = slot.index; showDiscipleSelection = true },
                             onSlotClick = { selectedDiscipleDetail = disciple }
                         )
                     }
@@ -195,20 +196,26 @@ fun SpiritMineDialog(
     if (showDiscipleSelection) {
         val availableDisciples = spiritMineViewModel.getAvailableDisciplesForSpiritMining()
         val miningSelectedIds = remember { mutableStateListOf<String>() }
+        val isSwapping = swappingSlotIndex != null
         FilteredMultiSelectDialog(
-            title = "选择采矿弟子（外门，最多${emptySlotCount}名）",
+            title = if (isSwapping) "选择替换弟子" else "选择采矿弟子（外门，最多${emptySlotCount}名）",
             disciples = availableDisciples,
             selectedIds = miningSelectedIds,
-            maxSelection = emptySlotCount,
+            maxSelection = if (isSwapping) 1 else emptySlotCount,
             extraCardAttrName = "采矿",
-            extraCardAttrValue = { it.mining },
-            confirmText = "确认采矿",
+            confirmText = if (isSwapping) "确认替换" else "确认采矿",
             onConfirm = {
-                val selected = availableDisciples.filter { it.id in miningSelectedIds }.take(emptySlotCount)
-                spiritMineViewModel.assignDisciplesToSpiritMineSlots(selected, mineIndex)
+                val selected = availableDisciples.filter { it.id in miningSelectedIds }
+                val slotIdx = swappingSlotIndex
+                if (slotIdx != null) {
+                    spiritMineViewModel.swapSpiritMineDisciple(slotIdx, selected.first().id, mineIndex)
+                } else {
+                    spiritMineViewModel.assignDisciplesToSpiritMineSlots(selected.take(emptySlotCount), mineIndex)
+                }
                 showDiscipleSelection = false
+                swappingSlotIndex = null
             },
-            onDismiss = { showDiscipleSelection = false }
+            onDismiss = { showDiscipleSelection = false; swappingSlotIndex = null }
         )
     }
 

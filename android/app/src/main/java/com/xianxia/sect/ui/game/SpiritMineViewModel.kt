@@ -156,6 +156,25 @@ class SpiritMineViewModel @Inject constructor(
     }
 
 
+    fun swapSpiritMineDisciple(slotIndex: Int, newDiscipleId: String, mineIndex: Int = 0) {
+        viewModelScope.launch {
+            try {
+                val currentGameData = gameEngine.gameDataSnapshot
+                val allSlots = currentGameData.spiritMineSlots.toMutableList()
+                if (slotIndex < allSlots.size) {
+                    val oldDiscipleId = allSlots[slotIndex].discipleId
+                    oldDiscipleId?.let { gameEngine.updateDiscipleStatus(it, DiscipleStatus.IDLE) }
+                    val newName = gameEngine.discipleAggregatesSnapshot.find { it.id == newDiscipleId }?.name ?: ""
+                    allSlots[slotIndex] = allSlots[slotIndex].copy(discipleId = newDiscipleId, discipleName = newName)
+                    gameEngine.updateSpiritMineSlots(allSlots)
+                    gameEngine.updateDiscipleStatus(newDiscipleId, DiscipleStatus.MINING)
+                }
+            } catch (e: Exception) {
+                showError(e.message ?: "更换失败")
+            }
+        }
+    }
+
     fun autoAssignSpiritMineMiners(mineIndex: Int = 0) {
         viewModelScope.launch {
             try {
