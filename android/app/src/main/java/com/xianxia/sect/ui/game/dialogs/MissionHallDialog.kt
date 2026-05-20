@@ -293,6 +293,11 @@ private fun AvailableMissionCard(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
+                    text = mission.difficulty.conditionText,
+                    fontSize = 10.sp,
+                    color = Color.Black
+                )
+                Text(
                     text = "耗时：${mission.duration}月",
                     fontSize = 10.sp,
                     color = Color.Black
@@ -705,11 +710,7 @@ private fun MissionDispatchDialog(
         }
         DiscipleSelectorDialog(
             config = DiscipleSelectorConfig(
-                title = "选择弟子",
-                allowMultiSelect = false,
-                maxSelection = 1,
-                confirmText = "任命",
-                cancelText = "取消"
+                title = "选择弟子"
             ),
             disciples = availableForSlot,
             onConfirm = { selected ->
@@ -756,6 +757,11 @@ private fun MissionDispatchDialog(
                             text = mission.difficulty.displayName,
                             fontSize = 10.sp,
                             color = getDifficultyColor(mission.difficulty)
+                        )
+                        Text(
+                            text = mission.difficulty.conditionText,
+                            fontSize = 10.sp,
+                            color = Color.Black
                         )
                         Text(
                             text = "耗时：${mission.duration}月",

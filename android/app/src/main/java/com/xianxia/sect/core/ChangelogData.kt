@@ -9,6 +9,15 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.0.60",
+            date = "2026-05-21",
+            changes = listOf(
+                "任务阁弟子选择简化：移除取消和任命按钮，点击弟子卡片即完成任命；弟子卡片改为两列显示",
+                "任务刷新机制调整：移除未接取任务的自动过期，每三月刷新时清空全部未执行任务后生成新任务",
+                "任务卡片新增弟子条件显示：标注外门弟子/内门弟子/无条件，派遣界面同步显示"
+            )
+        ),
+        ChangelogEntry(
             version = "3.0.59",
             date = "2026-05-21",
             changes = listOf(

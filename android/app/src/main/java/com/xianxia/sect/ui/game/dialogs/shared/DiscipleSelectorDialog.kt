@@ -15,7 +15,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.DiscipleAggregate
-import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
@@ -24,10 +23,6 @@ import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
 data class DiscipleSelectorConfig(
     val title: String,
     val emptyMessage: String = "没有符合条件的弟子",
-    val allowMultiSelect: Boolean = false,
-    val maxSelection: Int = Int.MAX_VALUE,
-    val confirmText: String = "确定",
-    val cancelText: String = "取消",
     val headerColor: Color? = null
 )
 
@@ -39,8 +34,6 @@ fun DiscipleSelectorDialog(
     onConfirm: (List<DiscipleAggregate>) -> Unit
 ) {
     val filterState = rememberDiscipleFilterState()
-    var selected by remember { mutableStateOf<Set<String>>(emptySet()) }
-
     val realmCounts = remember(disciples) { filterState.realmCounts(disciples) }
     val spiritRootCounts = remember(disciples) { filterState.spiritRootCounts(disciples) }
 
@@ -91,43 +84,22 @@ fun DiscipleSelectorDialog(
                 }
             } else {
                 LazyVerticalGrid(
-                    columns = GridCells.Adaptive(150.dp),
+                    columns = GridCells.Fixed(2),
                     modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     items(filtered, key = { it.id }) { disciple ->
-                        val isSelected = disciple.id in selected
                         PortraitDiscipleCard(
                             disciple = disciple,
-                            isSelected = isSelected,
+                            isSelected = false,
                             onClick = {
-                                if (config.allowMultiSelect) {
-                                    selected = if (isSelected) selected - disciple.id
-                                    else if (selected.size < config.maxSelection) selected + disciple.id
-                                    else selected
-                                } else {
-                                    selected = if (isSelected) emptySet() else setOf(disciple.id)
-                                }
+                                onConfirm(listOf(disciple))
+                                onDismiss()
                             }
                         )
                     }
                 }
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(12.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
-            ) {
-                GameButton(text = config.cancelText, onClick = onDismiss, fontSize = 12.sp)
-                GameButton(
-                    text = "${config.confirmText}${if (config.allowMultiSelect) "(${selected.size})" else ""}",
-                    onClick = {
-                        val chosen = filtered.filter { it.id in selected }
-                        onConfirm(chosen)
-                    },
-                    fontSize = 12.sp
-                )
             }
         }
     }

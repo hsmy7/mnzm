@@ -39,6 +39,13 @@ enum class MissionDifficulty {
         FORBIDDEN -> listOf("内门弟子")
     }
 
+    val conditionText: String get() = when (this) {
+        SIMPLE -> "外门弟子"
+        NORMAL -> "无条件"
+        HARD -> "内门弟子"
+        FORBIDDEN -> "内门弟子"
+    }
+
     val minRealm: Int get() = when (this) {
         SIMPLE -> 9
         NORMAL -> 7

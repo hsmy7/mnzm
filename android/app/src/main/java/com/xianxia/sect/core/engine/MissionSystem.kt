@@ -59,7 +59,11 @@ object MissionSystem {
             }
         }
 
-        val afterClean = cleanExpiredMissions(existingMissions, currentYear, currentMonth)
+        val afterClean = if (currentMonth % REFRESH_INTERVAL_MONTHS == 0) {
+            emptyList()
+        } else {
+            existingMissions
+        }
 
         return MonthlyRefreshResult(
             newMissions = newMissions,
