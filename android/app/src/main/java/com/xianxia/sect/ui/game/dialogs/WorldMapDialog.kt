@@ -47,8 +47,6 @@ internal fun WorldMapDialog(
     val showEnvoyDiscipleSelectDialog by worldMapViewModel.showEnvoyDiscipleSelectDialog.collectAsState()
     val showScoutDialog by worldMapViewModel.showScoutDialog.collectAsState()
     val selectedScoutSectId by worldMapViewModel.selectedScoutSectId.collectAsState()
-    val showOuterTournamentDialog by worldMapViewModel.showOuterTournamentDialog.collectAsState()
-
     val caves: List<CultivatorCave> = mapRenderData.cultivatorCaves.filter { it.status != CaveStatus.EXPIRED && it.status != CaveStatus.EXPLORED }
     val playerSect = mapRenderData.worldMapSects.find { it.isPlayerSect }
     val playerSectX = playerSect?.x ?: 2000f
@@ -231,15 +229,6 @@ internal fun WorldMapDialog(
         )
     }
 
-    if (showOuterTournamentDialog) {
-        OuterTournamentResultDialog(
-            competitionResults = gameData?.pendingCompetitionResults ?: emptyList(),
-            allDisciples = disciples.filter { it.isAlive },
-            gameData = gameData ?: GameData(),
-            worldMapViewModel = worldMapViewModel,
-            onDismiss = { worldMapViewModel.closeOuterTournamentDialog() }
-        )
-    }
     }
 
 }

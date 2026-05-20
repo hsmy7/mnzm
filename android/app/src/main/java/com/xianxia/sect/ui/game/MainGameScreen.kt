@@ -63,6 +63,7 @@ import com.xianxia.sect.core.util.GridSystem
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.core.util.sortedByFollowAttributeAndRealm
 import com.xianxia.sect.ui.navigation.GameRoute
+import com.xianxia.sect.ui.game.dialogs.OuterTournamentResultDialog
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.components.CloseButton
@@ -394,6 +395,15 @@ fun MainGameScreen(
         if (!gameData?.pendingCompetitionResults.isNullOrEmpty()) {
             worldMapViewModel.resetOuterTournamentClosedFlag()
             worldMapViewModel.openOuterTournamentDialog()
+            dialogNavController.navigate(GameRoute.OuterTournamentResult.route)
+        }
+    }
+
+    // Auto-pop tournament dialog when dismissed (e.g. from promote action)
+    val showOuterTournament by worldMapViewModel.showOuterTournamentDialog.collectAsState()
+    LaunchedEffect(showOuterTournament) {
+        if (!showOuterTournament && dialogNavController.currentBackStackEntry?.destination?.route == GameRoute.OuterTournamentResult.route) {
+            dialogNavController.popBackStack()
         }
     }
 
@@ -702,6 +712,15 @@ fun MainGameScreen(
                     viewModel = viewModel,
                     worldMapViewModel = worldMapViewModel,
                     onDismiss = { dialogNavController.popBackStack() }
+                )
+            }
+            composable(GameRoute.OuterTournamentResult.route) {
+                OuterTournamentResultDialog(
+                    competitionResults = gameData?.pendingCompetitionResults ?: emptyList(),
+                    allDisciples = aliveDisciples.value,
+                    gameData = gameData ?: GameData(),
+                    worldMapViewModel = worldMapViewModel,
+                    onDismiss = { worldMapViewModel.closeOuterTournamentDialog() }
                 )
             }
             composable(GameRoute.BattleLog.route) {

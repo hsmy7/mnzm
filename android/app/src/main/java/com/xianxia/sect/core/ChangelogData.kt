@@ -9,6 +9,13 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.0.57",
+            date = "2026-05-20",
+            changes = listOf(
+                "修复外门大比不显示：v3.0.43界面重构时将外门大比结果对话框移入了世界地图组件，导致不在世界地图时大比界面无法弹出；将大比对话框提取为独立导航目的地，无论在任何界面都能正常显示"
+            )
+        ),
+        ChangelogEntry(
             version = "3.0.56",
             date = "2026-05-20",
             changes = listOf(
