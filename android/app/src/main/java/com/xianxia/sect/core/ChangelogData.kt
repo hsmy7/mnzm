@@ -9,6 +9,13 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.0.58",
+            date = "2026-05-20",
+            changes = listOf(
+                "修复外门大比关闭按钮无反应：关闭逻辑从间接StateFlow驱动改为直接关闭导航路由，清理了遗留的无效状态标志和死代码"
+            )
+        ),
+        ChangelogEntry(
             version = "3.0.57",
             date = "2026-05-20",
             changes = listOf(

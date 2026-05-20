@@ -393,17 +393,7 @@ fun MainGameScreen(
 
     LaunchedEffect(gameData?.pendingCompetitionResults) {
         if (!gameData?.pendingCompetitionResults.isNullOrEmpty()) {
-            worldMapViewModel.resetOuterTournamentClosedFlag()
-            worldMapViewModel.openOuterTournamentDialog()
             dialogNavController.navigate(GameRoute.OuterTournamentResult.route)
-        }
-    }
-
-    // Auto-pop tournament dialog when dismissed (e.g. from promote action)
-    val showOuterTournament by worldMapViewModel.showOuterTournamentDialog.collectAsState()
-    LaunchedEffect(showOuterTournament) {
-        if (!showOuterTournament && dialogNavController.currentBackStackEntry?.destination?.route == GameRoute.OuterTournamentResult.route) {
-            dialogNavController.popBackStack()
         }
     }
 
@@ -720,7 +710,10 @@ fun MainGameScreen(
                     allDisciples = aliveDisciples.value,
                     gameData = gameData ?: GameData(),
                     worldMapViewModel = worldMapViewModel,
-                    onDismiss = { worldMapViewModel.closeOuterTournamentDialog() }
+                    onDismiss = {
+                        worldMapViewModel.closeOuterTournamentDialog()
+                        dialogNavController.popBackStack()
+                    }
                 )
             }
             composable(GameRoute.BattleLog.route) {

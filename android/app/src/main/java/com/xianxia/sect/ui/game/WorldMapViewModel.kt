@@ -230,32 +230,10 @@ class WorldMapViewModel @Inject constructor(
         _selectedGiftSectId.value = null
     }
 
-    private val _showOuterTournamentDialog = MutableStateFlow(false)
-    val showOuterTournamentDialog: StateFlow<Boolean> = _showOuterTournamentDialog.asStateFlow()
-
-    private var _isOuterTournamentManuallyClosed = false
-
-    fun openOuterTournamentDialog() {
-        if (_isOuterTournamentManuallyClosed) {
-            return
-        }
-        _showOuterTournamentDialog.value = true
-    }
-
-    private fun closeOuterTournamentDialogUi() {
-        _isOuterTournamentManuallyClosed = true
-        _showOuterTournamentDialog.value = false
-    }
-
     fun closeOuterTournamentDialog() {
-        closeOuterTournamentDialogUi()
         viewModelScope.launch {
             gameEngine.updateGameData { it.copy(pendingCompetitionResults = emptyList()) }
         }
-    }
-
-    fun resetOuterTournamentClosedFlag() {
-        _isOuterTournamentManuallyClosed = false
     }
 
     fun promoteSelectedDisciplesToInner(selectedDiscipleIds: Set<String>) {
@@ -290,11 +268,9 @@ class WorldMapViewModel @Inject constructor(
                     gameEngine.syncAllDiscipleStatuses()
                 }
 
-                closeOuterTournamentDialogUi()
                 gameEngine.updateGameData { it.copy(pendingCompetitionResults = emptyList()) }
             } catch (e: Exception) {
                 showError("晋升弟子失败: ${e.message}")
-                closeOuterTournamentDialogUi()
                 gameEngine.updateGameData { it.copy(pendingCompetitionResults = emptyList()) }
             }
         }
