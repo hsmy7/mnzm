@@ -33,7 +33,8 @@ data class ItemCardData(
     val additionalInfo: String? = null,
     val price: Long = 0L,
     val grade: String? = null,
-    val isLocked: Boolean = false
+    val isLocked: Boolean = false,
+    val isManual: Boolean = false
 )
 
 @Composable
@@ -49,7 +50,8 @@ fun UnifiedItemCard(
     onViewDetail: (() -> Unit)? = null
 ) {
     val rarityColor = getRarityColor(data.rarity)
-    val spriteRes = equipmentSpriteRes(data.name)
+    val spriteRes = if (data.isManual) manualSpriteRes(data.rarity)
+        else equipmentSpriteRes(data.name)
 
     Box(
         modifier = modifier.wrapContentSize(Alignment.Center).size(60.dp),

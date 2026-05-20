@@ -162,7 +162,8 @@ fun MerchantDialog(
                                         rarity = item.rarity,
                                         quantity = item.quantity,
                                         additionalInfo = "${item.price}灵石",
-                                        grade = item.grade
+                                        grade = item.grade,
+                                        isManual = item.type == "manual"
                                     ),
                                     isSelected = selectedItem?.id == item.id,
                                     showViewButton = true,
@@ -811,7 +812,8 @@ private fun <T> InventorySelectGrid(
                         description = description,
                         rarity = rarity,
                         quantity = quantity,
-                        grade = grade
+                        grade = grade,
+                        isManual = item is ManualStack
                     ),
                     isSelected = isSelected,
                     showViewButton = true,
@@ -958,7 +960,8 @@ private fun AllItemsSelectGrid(
                         description = description,
                         rarity = rarity,
                         quantity = quantity,
-                        grade = grade
+                        grade = grade,
+                        isManual = item is ManualStack
                     ),
                     isSelected = isSelected,
                     showViewButton = true,

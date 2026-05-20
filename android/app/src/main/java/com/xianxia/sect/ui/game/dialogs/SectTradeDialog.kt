@@ -182,7 +182,8 @@ fun SectTradeDialog(
                                     quantity = item.quantity,
                                     additionalInfo = "${adjustedPrice}灵石",
                                     grade = item.grade,
-                                    isLocked = !canBuyThisItem
+                                    isLocked = !canBuyThisItem,
+                                    isManual = item.type == "manual"
                                 ),
                                 isSelected = selectedItem?.id == item.id,
                                 showViewButton = true,

@@ -560,7 +560,8 @@ fun DiscipleDetailDialog(
                                         name = stack.name,
                                         rarity = stack.rarity,
                                         quantity = stack.quantity,
-                                        isLocked = stack.isLocked
+                                        isLocked = stack.isLocked,
+                                        isManual = true
                                     ),
                                     isSelected = selectedReplaceManualId == stack.id,
                                     showViewButton = true,
@@ -966,7 +967,8 @@ private fun ManualSelectionDialog(
                                 name = stack.name,
                                 rarity = stack.rarity,
                                 quantity = stack.quantity,
-                                isLocked = stack.isLocked
+                                isLocked = stack.isLocked,
+                                isManual = true
                             ),
                             isSelected = selectedManualId == stack.id,
                             showViewButton = true,
@@ -1743,7 +1745,8 @@ private fun ManualSlot(
             UnifiedItemCard(
                 data = ItemCardData(
                     name = manual.name,
-                    rarity = manual.rarity
+                    rarity = manual.rarity,
+                    isManual = true
                 ),
                 showQuantity = false,
                 onClick = { onManualClick(manual) }
@@ -1928,7 +1931,8 @@ private fun StorageBagDialog(
                                         name = item.name,
                                         rarity = item.rarity,
                                         quantity = item.quantity,
-                                        grade = item.grade
+                                        grade = item.grade,
+                                        isManual = item.itemType == "manual_stack" || item.itemType == "manual_instance"
                                     ),
                                     isSelected = selectedItem?.itemId == item.itemId,
                                     showViewButton = true,
@@ -2305,7 +2309,8 @@ private fun <T> RewardItemGrid(
                             name = currentSelectedItem.name,
                             rarity = currentSelectedItem.rarity,
                             quantity = currentSelectedItem.quantity,
-                            grade = currentSelectedItem.grade
+                            grade = currentSelectedItem.grade,
+                            isManual = currentSelectedItem.type == "manual"
                         ),
                         isSelected = isSelected,
                         showViewButton = true,
@@ -2376,7 +2381,8 @@ private fun RewardAllItemsGrid(
                             name = currentSelectedItem.name,
                             rarity = currentSelectedItem.rarity,
                             quantity = currentSelectedItem.quantity,
-                            grade = currentSelectedItem.grade
+                            grade = currentSelectedItem.grade,
+                            isManual = currentSelectedItem.type == "manual"
                         ),
                         isSelected = isSelected,
                         showViewButton = true,

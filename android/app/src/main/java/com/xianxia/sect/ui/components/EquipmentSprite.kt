@@ -80,3 +80,13 @@ fun equipmentSpriteRes(name: String): Int? = when (name) {
     "追风靴" -> R.drawable.zhui_feng_xue
     else -> null
 }
+
+fun manualSpriteRes(rarity: Int): Int? = when (rarity) {
+    1 -> R.drawable.manual_fan
+    2 -> R.drawable.manual_ling
+    3 -> R.drawable.manual_bao
+    4 -> R.drawable.manual_xuan
+    5 -> R.drawable.manual_di
+    6 -> R.drawable.manual_tian
+    else -> null
+}
