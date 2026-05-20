@@ -18,7 +18,6 @@ import com.xianxia.sect.core.model.Pill
 import kotlin.random.Random
 
 object MissionSystem {
-    const val EXPIRY_MONTHS = 3
     const val REFRESH_INTERVAL_MONTHS = 3
     const val MAX_REFRESH_COUNT = 5
 
@@ -589,23 +588,6 @@ object MissionSystem {
         } catch (_: Exception) {
             emptyList()
         }
-    }
-
-    fun cleanExpiredMissions(
-        missions: List<Mission>,
-        currentYear: Int,
-        currentMonth: Int
-    ): List<Mission> {
-        return missions.filter { mission ->
-            !isExpired(mission, currentYear, currentMonth)
-        }
-    }
-
-    fun isExpired(mission: Mission, currentYear: Int, currentMonth: Int): Boolean {
-        val yearDiff = currentYear - mission.createdYear
-        val monthDiff = currentMonth - mission.createdMonth
-        val totalMonths = yearDiff * 12 + monthDiff
-        return totalMonths >= EXPIRY_MONTHS
     }
 
     private data class WeightedEntry(

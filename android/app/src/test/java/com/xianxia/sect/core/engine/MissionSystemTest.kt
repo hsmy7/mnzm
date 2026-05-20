@@ -174,11 +174,6 @@ class MissionSystemTest {
     }
 
     @Test
-    fun `EXPIRY_MONTHS 为3`() {
-        assertEquals(3, MissionSystem.EXPIRY_MONTHS)
-    }
-
-    @Test
     fun `REFRESH_INTERVAL_MONTHS 为3`() {
         assertEquals(3, MissionSystem.REFRESH_INTERVAL_MONTHS)
     }
