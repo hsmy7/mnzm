@@ -9,6 +9,15 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.0.62",
+            date = "2026-05-21",
+            changes = listOf(
+                "修复同种材料分散在多个堆叠时无法锻造玄品和宝品装备的问题：后端材料数量覆写改为累加",
+                "修复锻造和炼丹失败时无任何错误提示的问题：材料不足或未分配弟子时显示错误消息",
+                "锻造选择界面和炼丹选择界面的确认按钮严格遵守72×38dp标准尺寸"
+            )
+        ),
+        ChangelogEntry(
             version = "3.0.61",
             date = "2026-05-21",
             changes = listOf(

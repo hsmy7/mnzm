@@ -65,7 +65,10 @@ class AlchemyViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
-                gameEngine.startAlchemy(slotIndex, recipe.id)
+                val success = gameEngine.startAlchemy(slotIndex, recipe.id)
+                if (!success) {
+                    showError("炼制失败，请检查材料是否充足或是否已分配弟子")
+                }
             } catch (e: Exception) {
                 showError(e.message ?: "开始炼制失败")
             } finally {

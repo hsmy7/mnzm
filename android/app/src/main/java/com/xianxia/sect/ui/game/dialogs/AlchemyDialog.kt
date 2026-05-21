@@ -435,7 +435,6 @@ private fun PillSelectionDialog(
                         onDismiss()
                     }
                 },
-                modifier = Modifier.fillMaxWidth(),
                 enabled = selectedRecipe != null && hasEnoughMaterialsForSelected
             )
         }

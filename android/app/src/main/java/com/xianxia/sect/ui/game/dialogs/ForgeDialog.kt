@@ -426,7 +426,6 @@ private fun EquipmentSelectionDialog(
                         onDismiss()
                     }
                 },
-                modifier = Modifier.fillMaxWidth(),
                 enabled = selectedRecipe != null && hasEnoughMaterialsForSelected
             )
         }

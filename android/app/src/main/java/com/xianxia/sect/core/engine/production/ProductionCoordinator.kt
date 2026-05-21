@@ -157,7 +157,7 @@ class ProductionCoordinator @Inject constructor(
         herbs.forEach { herb ->
             val herbData = HerbDatabase.getHerbByName(herb.name)
             if (herbData != null) {
-                availableMaterials[herbData.id] = herb.quantity
+                availableMaterials[herbData.id] = (availableMaterials[herbData.id] ?: 0) + herb.quantity
             } else {
                 Log.w(TAG, "Herb not found in database: ${herb.name}, skipping")
             }
@@ -250,7 +250,7 @@ class ProductionCoordinator @Inject constructor(
         materials.forEach { material ->
             val materialData = BeastMaterialDatabase.getMaterialByName(material.name)
             if (materialData != null) {
-                availableMaterials[materialData.id] = material.quantity
+                availableMaterials[materialData.id] = (availableMaterials[materialData.id] ?: 0) + material.quantity
             } else {
                 Log.w(TAG, "Material not found in database: ${material.name}, skipping")
             }

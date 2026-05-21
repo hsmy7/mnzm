@@ -69,7 +69,10 @@ class ForgeViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
-                gameEngine.startForging(slotIndex, recipe.id)
+                val success = gameEngine.startForging(slotIndex, recipe.id)
+                if (!success) {
+                    showError("锻造失败，请检查材料是否充足或是否已分配弟子")
+                }
             } catch (e: Exception) {
                 showError(e.message ?: "开始锻造失败")
             } finally {
