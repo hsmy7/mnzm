@@ -163,7 +163,8 @@ fun MerchantDialog(
                                         quantity = item.quantity,
                                         additionalInfo = "${item.price}灵石",
                                         grade = item.grade,
-                                        isManual = item.type == "manual"
+                                        isManual = item.type == "manual",
+                                        isPill = item.type == "pill"
                                     ),
                                     isSelected = selectedItem?.id == item.id,
                                     showViewButton = true,
