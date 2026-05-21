@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.equipmentSpriteRes
+import com.xianxia.sect.ui.components.pillSpriteRes
 import com.xianxia.sect.ui.components.getRarityColor
 import com.xianxia.sect.R
 import com.xianxia.sect.core.model.*
@@ -323,6 +324,7 @@ fun ProductionSlotItem(
     index: Int,
     productRarity: Int = 1,
     totalDuration: Int = 1,
+    isPill: Boolean = false,
     onCancel: (() -> Unit)? = null,
     onReplace: (() -> Unit)? = null,
     onClick: () -> Unit
@@ -369,7 +371,8 @@ fun ProductionSlotItem(
                             .background(getRarityColor(productRarity)),
                         contentAlignment = Alignment.Center
                     ) {
-                        val spriteRes = equipmentSpriteRes(productName)
+                        val spriteRes = if (isPill) pillSpriteRes(productRarity)
+        else equipmentSpriteRes(productName)
                         if (spriteRes != null) {
                             Image(
                                 painter = painterResource(id = spriteRes),

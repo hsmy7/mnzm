@@ -1932,7 +1932,8 @@ private fun StorageBagDialog(
                                         rarity = item.rarity,
                                         quantity = item.quantity,
                                         grade = item.grade,
-                                        isManual = item.itemType == "manual_stack" || item.itemType == "manual_instance"
+                                        isManual = item.itemType == "manual_stack" || item.itemType == "manual_instance",
+                                        isPill = item.itemType == "pill"
                                     ),
                                     isSelected = selectedItem?.itemId == item.itemId,
                                     showViewButton = true,
@@ -2310,7 +2311,8 @@ private fun <T> RewardItemGrid(
                             rarity = currentSelectedItem.rarity,
                             quantity = currentSelectedItem.quantity,
                             grade = currentSelectedItem.grade,
-                            isManual = currentSelectedItem.type == "manual"
+                            isManual = currentSelectedItem.type == "manual",
+                            isPill = currentSelectedItem.type == "pill"
                         ),
                         isSelected = isSelected,
                         showViewButton = true,
@@ -2382,7 +2384,8 @@ private fun RewardAllItemsGrid(
                             rarity = currentSelectedItem.rarity,
                             quantity = currentSelectedItem.quantity,
                             grade = currentSelectedItem.grade,
-                            isManual = currentSelectedItem.type == "manual"
+                            isManual = currentSelectedItem.type == "manual",
+                            isPill = currentSelectedItem.type == "pill"
                         ),
                         isSelected = isSelected,
                         showViewButton = true,

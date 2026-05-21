@@ -813,7 +813,8 @@ private fun <T> InventorySelectGrid(
                         rarity = rarity,
                         quantity = quantity,
                         grade = grade,
-                        isManual = item is ManualStack
+                        isManual = item is ManualStack,
+                        isPill = item is Pill
                     ),
                     isSelected = isSelected,
                     showViewButton = true,
@@ -961,7 +962,8 @@ private fun AllItemsSelectGrid(
                         rarity = rarity,
                         quantity = quantity,
                         grade = grade,
-                        isManual = item is ManualStack
+                        isManual = item is ManualStack,
+                        isPill = item is Pill
                     ),
                     isSelected = isSelected,
                     showViewButton = true,

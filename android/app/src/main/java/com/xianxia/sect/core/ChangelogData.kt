@@ -9,6 +9,16 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.0.65",
+            date = "2026-05-22",
+            changes = listOf(
+                "丹药道具新增品阶精灵图：凡品/灵品/宝品/玄品/地品/天品丹药均有专属精灵图，替换敬请期待占位文字",
+                "丹药选择界面去重：每种丹药只显示一张卡片，不再按品质（下品/中品/上品）分开展示",
+                "丹药详情界面显示效果范围（下品~上品），更清晰展示炼制产出的品质波动"
+            )
+            )
+        ),
+        ChangelogEntry(
             version = "3.0.64",
             date = "2026-05-22",
             changes = listOf(

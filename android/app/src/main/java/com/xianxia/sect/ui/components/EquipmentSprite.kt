@@ -90,3 +90,13 @@ fun manualSpriteRes(rarity: Int): Int? = when (rarity) {
     6 -> R.drawable.manual_tian
     else -> null
 }
+
+fun pillSpriteRes(rarity: Int): Int? = when (rarity) {
+    1 -> R.drawable.pill_fan
+    2 -> R.drawable.pill_ling
+    3 -> R.drawable.pill_bao
+    4 -> R.drawable.pill_xuan
+    5 -> R.drawable.pill_di
+    6 -> R.drawable.pill_tian
+    else -> null
+}

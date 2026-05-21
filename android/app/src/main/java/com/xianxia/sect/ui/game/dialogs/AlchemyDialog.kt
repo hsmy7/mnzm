@@ -181,6 +181,7 @@ fun AlchemyDialog(
                     index = slotIndex,
                     productRarity = mySlot?.pillRarity ?: 1,
                     totalDuration = mySlot?.duration ?: 1,
+                    isPill = true,
                     onCancel = if (isWorking) { { alchemyViewModel.cancelAlchemy(slotIndex) } } else null,
                     onReplace = if (isWorking) { {
                         replaceSlotIndex = slotIndex
@@ -336,21 +337,34 @@ private fun PillSelectionDialog(
     var clickedRecipe by remember { mutableStateOf<PillRecipeDatabase.PillRecipe?>(null) }
     var showDetail by remember { mutableStateOf(false) }
 
+    val allRecipes = PillRecipeDatabase.getAllRecipes()
+
+    // 按 (tier, pillType) 分组，每组包含 3 个品质变体
+    val recipeGroups = remember(allRecipes) {
+        allRecipes.groupBy { it.tier to it.pillType }
+    }
+
+    // 展示用：每组取 MEDIUM 品质作为代表
+    val displayedRecipes = remember(recipeGroups) {
+        recipeGroups.values.map { group ->
+            group.firstOrNull { it.grade == PillGrade.MEDIUM } ?: group.first()
+        }
+    }
+
     ProductionCommonDialog(
         title = ALCHEMY_THEME.selectionDialogTitle,
         theme = ALCHEMY_THEME,
         onDismiss = onDismiss,
         enableScroll = false
     ) {
-        val allRecipes = PillRecipeDatabase.getAllRecipes()
 
         data class RecipeWithStatus(
             val recipe: PillRecipeDatabase.PillRecipe,
             val canCraft: Boolean
         )
 
-        val recipesWithStatus = remember(allRecipes, herbs) {
-            allRecipes.map { recipe ->
+        val recipesWithStatus = remember(displayedRecipes, herbs) {
+            displayedRecipes.map { recipe ->
                 val canCraft = recipe.materials.all { (materialId, requiredQuantity) ->
                     val herbData = com.xianxia.sect.core.registry.HerbDatabase.getHerbById(materialId)
                     val herbName = herbData?.name
@@ -365,7 +379,6 @@ private fun PillSelectionDialog(
         val sortedRecipes = remember(recipesWithStatus) {
             val (craftable, uncraftable) = recipesWithStatus.partition { it.canCraft }
             val comparator = compareByDescending<RecipeWithStatus> { it.recipe.tier }
-                .thenByDescending { it.recipe.grade.ordinal }
             craftable.sortedWith(comparator) + uncraftable.sortedWith(comparator)
         }
 
@@ -388,7 +401,7 @@ private fun PillSelectionDialog(
                             data = ItemCardData(
                                 name = recipe.name,
                                 rarity = recipe.rarity,
-                                grade = recipe.grade.displayName
+                                isPill = true
                             ),
                             isSelected = isSelected,
                             showViewButton = true,
@@ -442,8 +455,9 @@ private fun PillSelectionDialog(
 
     if (showDetail) {
         clickedRecipe?.let { recipe ->
+            val allGrades = recipeGroups[recipe.tier to recipe.pillType] ?: listOf(recipe)
             PillDetailDialog(
-                recipe = recipe,
+                recipes = allGrades,
                 herbs = herbs,
                 onDismiss = { showDetail = false }
             )
@@ -453,10 +467,28 @@ private fun PillSelectionDialog(
 
 @Composable
 private fun PillDetailDialog(
-    recipe: PillRecipeDatabase.PillRecipe,
+    recipes: List<PillRecipeDatabase.PillRecipe>,
     herbs: List<Herb>,
     onDismiss: () -> Unit
 ) {
+    val recipe = recipes.first()
+    val low = recipes.minByOrNull { it.grade.ordinal }
+    val high = recipes.maxByOrNull { it.grade.ordinal }
+
+    fun intRange(getter: (PillRecipeDatabase.PillRecipe) -> Int): String {
+        val min = low?.let(getter) ?: 0
+        val max = high?.let(getter) ?: 0
+        return if (min != max) "+${min}~+${max}" else "+$min"
+    }
+
+    fun pctRange(getter: (PillRecipeDatabase.PillRecipe) -> Double): String {
+        val min = low?.let(getter) ?: 0.0
+        val max = high?.let(getter) ?: 0.0
+        val minPct = String.format(Locale.getDefault(), "%.1f", min * 100)
+        val maxPct = String.format(Locale.getDefault(), "%.1f", max * 100)
+        return if (min != max) "+${minPct}%~+${maxPct}%" else "+${minPct}%"
+    }
+
     UnifiedGameDialog(
         onDismissRequest = onDismiss,
         title = recipe.name,
@@ -493,85 +525,85 @@ private fun PillDetailDialog(
                     }
                 }
 
-                Text(text = "效果:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                Text(text = "效果 (下品~上品):", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)
 
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(text = "类型: ${recipe.category.displayName}", fontSize = 11.sp, color = Color.Black)
 
                     if (recipe.breakthroughChance > 0) {
-                        Text(text = "突破成功率 +${String.format(Locale.getDefault(), "%.1f", recipe.breakthroughChance * 100)}%", fontSize = 11.sp, color = Color.Black)
+                        Text(text = "突破成功率 ${pctRange { it.breakthroughChance }}", fontSize = 11.sp, color = Color.Black)
                         if (recipe.targetRealm > 0) {
                             Text(text = "目标境界: ${recipe.targetRealm}阶", fontSize = 11.sp, color = Color.Black)
                         }
                     }
                     if (recipe.cultivationSpeedPercent > 0) {
-                        Text(text = "修炼速度 +${String.format(Locale.getDefault(), "%.1f", recipe.cultivationSpeedPercent * 100)}%", fontSize = 11.sp, color = Color.Black)
+                        Text(text = "修炼速度 ${pctRange { it.cultivationSpeedPercent }}", fontSize = 11.sp, color = Color.Black)
                     }
                     if (recipe.cultivationAdd > 0) {
-                        Text(text = "修为 +${recipe.cultivationAdd}", fontSize = 11.sp, color = Color.Black)
+                        Text(text = "修为 ${intRange { it.cultivationAdd }}", fontSize = 11.sp, color = Color.Black)
                     }
                     if (recipe.physicalAttackAdd > 0) {
-                        Text(text = "物理攻击 +${recipe.physicalAttackAdd}", fontSize = 11.sp, color = Color.Black)
+                        Text(text = "物理攻击 ${intRange { it.physicalAttackAdd }}", fontSize = 11.sp, color = Color.Black)
                     }
                     if (recipe.magicAttackAdd > 0) {
-                        Text(text = "法术攻击 +${recipe.magicAttackAdd}", fontSize = 11.sp, color = Color.Black)
+                        Text(text = "法术攻击 ${intRange { it.magicAttackAdd }}", fontSize = 11.sp, color = Color.Black)
                     }
                     if (recipe.physicalDefenseAdd > 0) {
-                        Text(text = "物理防御 +${recipe.physicalDefenseAdd}", fontSize = 11.sp, color = Color.Black)
+                        Text(text = "物理防御 ${intRange { it.physicalDefenseAdd }}", fontSize = 11.sp, color = Color.Black)
                     }
                     if (recipe.magicDefenseAdd > 0) {
-                        Text(text = "法术防御 +${recipe.magicDefenseAdd}", fontSize = 11.sp, color = Color.Black)
+                        Text(text = "法术防御 ${intRange { it.magicDefenseAdd }}", fontSize = 11.sp, color = Color.Black)
                     }
                     if (recipe.hpAdd > 0) {
-                        Text(text = "生命值 +${recipe.hpAdd}", fontSize = 11.sp, color = Color.Black)
+                        Text(text = "生命值 ${intRange { it.hpAdd }}", fontSize = 11.sp, color = Color.Black)
                     }
                     if (recipe.mpAdd > 0) {
-                        Text(text = "灵力容量 +${recipe.mpAdd}", fontSize = 11.sp, color = Color.Black)
+                        Text(text = "灵力容量 ${intRange { it.mpAdd }}", fontSize = 11.sp, color = Color.Black)
                     }
                     if (recipe.speedAdd > 0) {
-                        Text(text = "身法 +${recipe.speedAdd}", fontSize = 11.sp, color = Color.Black)
+                        Text(text = "身法 ${intRange { it.speedAdd }}", fontSize = 11.sp, color = Color.Black)
                     }
                     if (recipe.critRateAdd > 0) {
-                        Text(text = "暴击率 +${String.format(Locale.getDefault(), "%.1f", recipe.critRateAdd * 100)}%", fontSize = 11.sp, color = Color.Black)
+                        Text(text = "暴击率 ${pctRange { it.critRateAdd }}", fontSize = 11.sp, color = Color.Black)
                     }
                     if (recipe.critEffectAdd > 0) {
-                        Text(text = "暴击效果 +${String.format(Locale.getDefault(), "%.1f", recipe.critEffectAdd * 100)}%", fontSize = 11.sp, color = Color.Black)
+                        Text(text = "暴击效果 ${pctRange { it.critEffectAdd }}", fontSize = 11.sp, color = Color.Black)
                     }
                     if (recipe.skillExpAdd > 0) {
-                        Text(text = "功法熟练度 +${recipe.skillExpAdd}", fontSize = 11.sp, color = Color.Black)
+                        Text(text = "功法熟练度 ${intRange { it.skillExpAdd }}", fontSize = 11.sp, color = Color.Black)
                     }
                     if (recipe.nurtureAdd > 0) {
-                        Text(text = "孕育值 +${recipe.nurtureAdd}", fontSize = 11.sp, color = Color.Black)
+                        Text(text = "孕育值 ${intRange { it.nurtureAdd }}", fontSize = 11.sp, color = Color.Black)
                     }
                     if (recipe.extendLife > 0) {
-                        Text(text = "延长寿命 ${recipe.extendLife}年", fontSize = 11.sp, color = Color.Black)
+                        Text(text = "延长寿命 ${intRange { it.extendLife }}年", fontSize = 11.sp, color = Color.Black)
                     }
                     if (recipe.intelligenceAdd > 0) {
-                        Text(text = "悟性 +${recipe.intelligenceAdd}", fontSize = 11.sp, color = Color.Black)
+                        Text(text = "悟性 ${intRange { it.intelligenceAdd }}", fontSize = 11.sp, color = Color.Black)
                     }
                     if (recipe.charmAdd > 0) {
-                        Text(text = "魅力 +${recipe.charmAdd}", fontSize = 11.sp, color = Color.Black)
+                        Text(text = "魅力 ${intRange { it.charmAdd }}", fontSize = 11.sp, color = Color.Black)
                     }
                     if (recipe.loyaltyAdd > 0) {
-                        Text(text = "忠诚 +${recipe.loyaltyAdd}", fontSize = 11.sp, color = Color.Black)
+                        Text(text = "忠诚 ${intRange { it.loyaltyAdd }}", fontSize = 11.sp, color = Color.Black)
                     }
                     if (recipe.comprehensionAdd > 0) {
-                        Text(text = "领悟 +${recipe.comprehensionAdd}", fontSize = 11.sp, color = Color.Black)
+                        Text(text = "领悟 ${intRange { it.comprehensionAdd }}", fontSize = 11.sp, color = Color.Black)
                     }
                     if (recipe.artifactRefiningAdd > 0) {
-                        Text(text = "炼器 +${recipe.artifactRefiningAdd}", fontSize = 11.sp, color = Color.Black)
+                        Text(text = "炼器 ${intRange { it.artifactRefiningAdd }}", fontSize = 11.sp, color = Color.Black)
                     }
                     if (recipe.pillRefiningAdd > 0) {
-                        Text(text = "炼丹 +${recipe.pillRefiningAdd}", fontSize = 11.sp, color = Color.Black)
+                        Text(text = "炼丹 ${intRange { it.pillRefiningAdd }}", fontSize = 11.sp, color = Color.Black)
                     }
                     if (recipe.spiritPlantingAdd > 0) {
-                        Text(text = "种植 +${recipe.spiritPlantingAdd}", fontSize = 11.sp, color = Color.Black)
+                        Text(text = "种植 ${intRange { it.spiritPlantingAdd }}", fontSize = 11.sp, color = Color.Black)
                     }
                     if (recipe.teachingAdd > 0) {
-                        Text(text = "传授 +${recipe.teachingAdd}", fontSize = 11.sp, color = Color.Black)
+                        Text(text = "传授 ${intRange { it.teachingAdd }}", fontSize = 11.sp, color = Color.Black)
                     }
                     if (recipe.moralityAdd > 0) {
-                        Text(text = "道德 +${recipe.moralityAdd}", fontSize = 11.sp, color = Color.Black)
+                        Text(text = "道德 ${intRange { it.moralityAdd }}", fontSize = 11.sp, color = Color.Black)
                     }
                 }
 

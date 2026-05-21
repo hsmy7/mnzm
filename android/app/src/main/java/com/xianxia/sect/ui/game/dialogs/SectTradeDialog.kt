@@ -183,7 +183,8 @@ fun SectTradeDialog(
                                     additionalInfo = "${adjustedPrice}灵石",
                                     grade = item.grade,
                                     isLocked = !canBuyThisItem,
-                                    isManual = item.type == "manual"
+                                    isManual = item.type == "manual",
+                                    isPill = item.type == "pill"
                                 ),
                                 isSelected = selectedItem?.id == item.id,
                                 showViewButton = true,
