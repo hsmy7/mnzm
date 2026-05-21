@@ -342,7 +342,7 @@ fun ProductionSlotItem(
             LinearProgressIndicator(
                 progress = { progress },
                 modifier = Modifier
-                    .fillMaxWidth(0.8f)
+                    .fillMaxWidth()
                     .height(4.dp)
                     .clip(RoundedCornerShape(2.dp)),
                 color = Color(0xFF4CAF50),
@@ -415,21 +415,19 @@ fun ProductionSlotItem(
             Spacer(modifier = Modifier.height(4.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally)
+                horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
             ) {
-                GameButton(
+                Text(
                     text = "取消",
-                    onClick = onCancel,
-                    width = 36.dp,
-                    height = 22.dp,
-                    fontSize = 9.sp
+                    fontSize = 9.sp,
+                    color = Color(0xFFE53935),
+                    modifier = Modifier.clickable { onCancel() }
                 )
-                GameButton(
+                Text(
                     text = "更换",
-                    onClick = onReplace,
-                    width = 36.dp,
-                    height = 22.dp,
-                    fontSize = 9.sp
+                    fontSize = 9.sp,
+                    color = Color.Black,
+                    modifier = Modifier.clickable { onReplace() }
                 )
             }
         }

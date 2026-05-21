@@ -345,7 +345,7 @@ private fun SlotContent(
 }
 
 /**
- * 统一的弟子槽位：固定 52×84dp，内部显示名称 + 头像 + 境界。
+ * 统一的弟子槽位：固定 52×88dp，内部显示名称 + 头像 + 境界。
  * 空态显示 "+"，有弟子显示名称 + 肖像图 + 境界名。
  * 额外信息（血条、属性等）由调用方在槽位外部自行处理。
  */
@@ -359,7 +359,7 @@ fun UnifiedDiscipleSlot(
     Box(
         modifier = modifier
             .width(52.dp)
-            .height(84.dp)
+            .height(88.dp)
             .clip(RoundedCornerShape(6.dp))
             .background(if (disciple != null) Color.White else GameColors.PageBackground)
             .border(1.dp, borderColor, RoundedCornerShape(6.dp))
@@ -469,7 +469,7 @@ internal fun BattleParticipantSlot(
         Box(
             modifier = Modifier
                 .width(52.dp)
-                .height(84.dp)
+                .height(88.dp)
                 .clip(RoundedCornerShape(6.dp))
                 .background(if (isAlive) Color.White else Color(0xFFEEEEEE))
                 .border(1.dp, if (isAlive) Color(0xFFE0E0E0) else Color(0xFFCCCCCC), RoundedCornerShape(6.dp)),
