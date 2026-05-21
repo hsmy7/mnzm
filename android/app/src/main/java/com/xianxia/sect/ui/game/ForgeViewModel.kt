@@ -58,7 +58,9 @@ class ForgeViewModel @Inject constructor(
     val isStartingForge: StateFlow<Boolean> = _isStartingForge.asStateFlow()
 
     fun isAutoEnabled(buildingIndex: Int): Boolean {
-        return forgeSlots.value.find { it.slotIndex == buildingIndex }?.autoRestartEnabled ?: false
+        return gameEngine.productionSlots.value
+            .find { it.buildingType == BuildingType.FORGE && it.slotIndex == buildingIndex }
+            ?.autoRestartEnabled ?: false
     }
 
     fun startForge(slotIndex: Int, recipe: ForgeRecipeDatabase.ForgeRecipe) {
@@ -92,28 +94,9 @@ class ForgeViewModel @Inject constructor(
                     return@launch
                 }
 
-                val allRecipes = ForgeRecipeDatabase.getAllRecipes().sortedByDescending { it.rarity }
                 var startedCount = 0
-
                 for (slotIndex in idleSlotIndices) {
-                    val currentMaterials = gameEngine.getCurrentMaterials()
-                    val materialIndex = currentMaterials.groupBy { it.name to it.rarity }
-                        .mapValues { (_, list) -> list.sumOf { it.quantity } }
-
-                    val recipeToStart = allRecipes.firstOrNull { recipe ->
-                        recipe.materials.all { (materialId, requiredQuantity) ->
-                            val materialData = BeastMaterialDatabase.getMaterialById(materialId)
-                            materialData != null && run {
-                                val available = materialIndex[materialData.name to materialData.rarity] ?: 0
-                                available >= requiredQuantity
-                            }
-                        }
-                    }
-
-                    if (recipeToStart == null) break
-
-                    val success = gameEngine.startForging(slotIndex, recipeToStart.id)
-                    if (success) startedCount++
+                    if (startBestForgeRecipe(slotIndex)) startedCount++
                 }
 
                 if (startedCount > 0) {
@@ -127,8 +110,44 @@ class ForgeViewModel @Inject constructor(
         }
     }
 
+    private suspend fun startBestForgeRecipe(slotIndex: Int): Boolean {
+        val currentMaterials = gameEngine.getCurrentMaterials()
+        val materialIndex = currentMaterials.groupBy { it.name to it.rarity }
+            .mapValues { (_, list) -> list.sumOf { it.quantity } }
+        val allRecipes = ForgeRecipeDatabase.getAllRecipes().sortedByDescending { it.rarity }
+
+        val recipeToStart = allRecipes.firstOrNull { recipe ->
+            recipe.materials.all { (materialId, requiredQuantity) ->
+                val materialData = BeastMaterialDatabase.getMaterialById(materialId)
+                materialData != null && run {
+                    val available = materialIndex[materialData.name to materialData.rarity] ?: 0
+                    available >= requiredQuantity
+                }
+            }
+        } ?: return false
+
+        return gameEngine.startForging(slotIndex, recipeToStart.id)
+    }
+
     fun toggleAuto(buildingIndex: Int) {
-        gameEngine.toggleAutoRestart(BuildingType.FORGE, buildingIndex)
+        val currentValue = isAutoEnabled(buildingIndex)
+        val newValue = !currentValue
+        viewModelScope.launch {
+            gameEngine.toggleAutoRestart(BuildingType.FORGE, buildingIndex)
+
+            if (newValue) {
+                try {
+                    val slot = gameEngine.productionSlots.value.find {
+                        it.buildingType == BuildingType.FORGE && it.slotIndex == buildingIndex
+                    } ?: return@launch
+                    if (slot.status == ProductionSlotStatus.IDLE && !slot.assignedDiscipleId.isNullOrEmpty()) {
+                        startBestForgeRecipe(slot.slotIndex)
+                    }
+                } catch (_: Exception) {
+                    // Best-effort immediate start; monthly tick will retry
+                }
+            }
+        }
     }
 
     fun assignWorker(buildingIndex: Int, discipleId: String, discipleName: String) {
@@ -137,6 +156,10 @@ class ForgeViewModel @Inject constructor(
 
     fun removeWorker(buildingIndex: Int) {
         gameEngine.removeDiscipleFromProductionSlot(BuildingType.FORGE, buildingIndex)
+    }
+
+    fun cancelForge(slotIndex: Int) {
+        gameEngine.clearForgeSlot(slotIndex)
     }
 
     fun getAvailableWorkers(): List<DiscipleAggregate> {

@@ -73,8 +73,10 @@ fun AlchemyDialog(
     var selectedSlotIndex by remember { mutableStateOf<Int?>(null) }
     var showWorkerSelection by remember { mutableStateOf(false) }
     var showReserveDiscipleDialog by remember { mutableStateOf(false) }
+    var replaceSlotIndex by remember { mutableStateOf<Int?>(null) }
 
-    val mySlot = alchemySlots.find { it.slotIndex == buildingIndex }
+    val alchemySlotsState by viewModel.alchemySlots.collectAsState()
+    val mySlot = alchemySlotsState.find { it.slotIndex == buildingIndex }
     val slotIndex = mySlot?.slotIndex ?: buildingIndex
     val assignedDiscipleId = mySlot?.assignedDiscipleId
     val workerDisciple = if (assignedDiscipleId.isNullOrEmpty()) null
@@ -148,7 +150,7 @@ fun AlchemyDialog(
                         fontWeight = FontWeight.Bold,
                         color = Color.Black
                     )
-                    val autoEnabled = alchemyViewModel.isAutoEnabled(buildingIndex)
+                    val autoEnabled = mySlot?.autoRestartEnabled ?: false
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(4.dp))
@@ -177,6 +179,14 @@ fun AlchemyDialog(
                     isIdle = isIdle,
                     remainingMonths = remainingMonths,
                     index = slotIndex,
+                    productRarity = mySlot?.pillRarity ?: 1,
+                    totalDuration = mySlot?.duration ?: 1,
+                    onCancel = if (isWorking) { { alchemyViewModel.cancelAlchemy(slotIndex) } } else null,
+                    onReplace = if (isWorking) { {
+                        replaceSlotIndex = slotIndex
+                        selectedSlotIndex = slotIndex
+                        showPillSelection = true
+                    } } else null,
                     onClick = {
                         if (isIdle) {
                             selectedSlotIndex = slotIndex
@@ -237,6 +247,7 @@ fun AlchemyDialog(
 
     if (showPillSelection) {
         selectedSlotIndex?.let { slotIdx ->
+            val isReplacing = replaceSlotIndex != null
             PillSelectionDialog(
                 materials = materials,
                 herbs = herbs,
@@ -247,7 +258,12 @@ fun AlchemyDialog(
                 onDismiss = {
                     showPillSelection = false
                     selectedSlotIndex = null
-                }
+                    replaceSlotIndex = null
+                },
+                onConfirmOverride = if (isReplacing) { { recipe ->
+                    alchemyViewModel.cancelAlchemy(slotIdx)
+                    alchemyViewModel.startAlchemy(slotIdx, recipe)
+                } } else null
             )
         }
     }
@@ -313,7 +329,8 @@ private fun PillSelectionDialog(
     viewModel: GameViewModel,
     productionViewModel: ProductionViewModel,
     alchemyViewModel: AlchemyViewModel,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onConfirmOverride: ((PillRecipeDatabase.PillRecipe) -> Unit)? = null
 ) {
     var selectedRecipe by remember { mutableStateOf<PillRecipeDatabase.PillRecipe?>(null) }
     var clickedRecipe by remember { mutableStateOf<PillRecipeDatabase.PillRecipe?>(null) }
@@ -410,7 +427,11 @@ private fun PillSelectionDialog(
                 text = ALCHEMY_THEME.startProductionText,
                 onClick = {
                     selectedRecipe?.let { recipe ->
-                        alchemyViewModel.startAlchemy(slotIndex, recipe)
+                        if (onConfirmOverride != null) {
+                            onConfirmOverride(recipe)
+                        } else {
+                            alchemyViewModel.startAlchemy(slotIndex, recipe)
+                        }
                         onDismiss()
                     }
                 },

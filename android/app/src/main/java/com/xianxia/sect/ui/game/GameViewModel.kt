@@ -337,7 +337,8 @@ class GameViewModel @Inject constructor(
                     successRate = slot.successRate,
                     requiredMaterials = slot.requiredMaterials,
                     assignedDiscipleId = slot.assignedDiscipleId,
-                    assignedDiscipleName = slot.assignedDiscipleName
+                    assignedDiscipleName = slot.assignedDiscipleName,
+                    autoRestartEnabled = slot.autoRestartEnabled
                 )
             }
         }
@@ -395,10 +396,15 @@ class GameViewModel @Inject constructor(
                         else -> ForgeSlotStatus.IDLE
                     },
                     assignedDiscipleId = slot.assignedDiscipleId,
-                    assignedDiscipleName = slot.assignedDiscipleName
+                    assignedDiscipleName = slot.assignedDiscipleName,
+                    autoRestartEnabled = slot.autoRestartEnabled
                 )
             }
         }
+        .stateIn(viewModelScope, sharingStarted, emptyList())
+
+    val plantSlots: StateFlow<List<com.xianxia.sect.core.model.production.ProductionSlot>> = productionSlots
+        .map { slots -> slots.filter { it.buildingType == com.xianxia.sect.core.model.production.BuildingType.HERB_GARDEN } }
         .stateIn(viewModelScope, sharingStarted, emptyList())
 
     val allForgeRecipes: StateFlow<List<ForgeRecipeDatabase.ForgeRecipe>> = flow {

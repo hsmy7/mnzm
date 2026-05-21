@@ -738,19 +738,17 @@ class GameEngine @Inject constructor(
         }
     }
 
-    fun toggleAutoRestart(buildingType: BuildingType, slotIndex: Int) {
-        gameEngineCore.launchInScope {
-            productionCoordinator.repository.updateSlot(buildingType, slotIndex) { slot ->
-                slot.copy(autoRestartEnabled = !slot.autoRestartEnabled)
-            }
-            stateStore.update { gameData = gameData.copy(
-                productionSlots = gameData.productionSlots.map { slot ->
-                    if (slot.buildingType == buildingType && slot.slotIndex == slotIndex)
-                        slot.copy(autoRestartEnabled = !slot.autoRestartEnabled)
-                    else slot
-                }
-            )}
+    suspend fun toggleAutoRestart(buildingType: BuildingType, slotIndex: Int) {
+        productionCoordinator.repository.updateSlot(buildingType, slotIndex) { slot ->
+            slot.copy(autoRestartEnabled = !slot.autoRestartEnabled)
         }
+        stateStore.update { gameData = gameData.copy(
+            productionSlots = gameData.productionSlots.map { slot ->
+                if (slot.buildingType == buildingType && slot.slotIndex == slotIndex)
+                    slot.copy(autoRestartEnabled = !slot.autoRestartEnabled)
+                else slot
+            }
+        )}
     }
 
     fun getAssignedDiscipleForSlot(buildingType: BuildingType, slotIndex: Int): Pair<String, String>? {

@@ -82,11 +82,19 @@ object SlotStateMachine {
     
     fun resetSlot(slot: ProductionSlot): Result<ProductionSlot> {
         return validateTransition(slot.status, ProductionSlotStatus.IDLE).mapCatching {
-            ProductionSlot(
-                id = slot.id,
-                slotIndex = slot.slotIndex,
-                buildingType = slot.buildingType,
-                status = ProductionSlotStatus.IDLE
+            slot.copy(
+                status = ProductionSlotStatus.IDLE,
+                recipeId = null,
+                recipeName = "",
+                startYear = 0,
+                startMonth = 0,
+                duration = 0,
+                requiredMaterials = emptyMap(),
+                outputItemId = null,
+                outputItemName = "",
+                outputItemRarity = 1,
+                outputItemSlot = "",
+                expectedYield = 0
             )
         }
     }

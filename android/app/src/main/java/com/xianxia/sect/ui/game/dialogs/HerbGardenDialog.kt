@@ -24,12 +24,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.ElderSlotType
 import com.xianxia.sect.core.model.GameData
-import com.xianxia.sect.core.model.PlantSlotData
 import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DirectDiscipleSlot
 import com.xianxia.sect.core.model.ElderSlots
 import com.xianxia.sect.core.model.DiscipleStatus
+import com.xianxia.sect.core.model.production.ProductionSlotStatus
+import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.ItemCardData
 import com.xianxia.sect.ui.components.UnifiedItemCard
@@ -42,6 +43,7 @@ import com.xianxia.sect.ui.game.HERB_GARDEN_THEME
 import com.xianxia.sect.ui.game.ProductionElderSelectionDialog
 import com.xianxia.sect.ui.game.ProductionDirectDiscipleSelectionDialog
 import com.xianxia.sect.ui.game.DiscipleDetailDialog
+import com.xianxia.sect.ui.game.ProductionSlotItem
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.core.util.sortedByFollowAttributeAndRealm
 import com.xianxia.sect.ui.components.FollowedTag
@@ -55,7 +57,6 @@ import com.xianxia.sect.ui.game.components.ItemDetailDialog
 
 @Composable
 fun HerbGardenDialog(
-    plantSlots: List<PlantSlotData>,
     seeds: List<Seed>,
     gameData: GameData?,
     disciples: List<DiscipleAggregate>,
@@ -69,108 +70,127 @@ fun HerbGardenDialog(
     var showDirectDiscipleSelection by remember { mutableStateOf<Int?>(null) }
     var showElderRemoveConfirm by remember { mutableStateOf(false) }
     var selectedDiscipleDetail by remember { mutableStateOf<DiscipleAggregate?>(null) }
+    var replaceSlotIndex by remember { mutableStateOf<Int?>(null) }
 
     val elderSlots = gameData?.elderSlots ?: ElderSlots()
     val herbGardenElder = disciples.find { it.id == elderSlots.herbGardenElder }
     val herbGardenDisciples = elderSlots.herbGardenDisciples
     val hasDirectDisciples = herbGardenDisciples.any { it.isActive }
 
-    CommonDialog(
+    val plantSlots by viewModel.plantSlots.collectAsState()
+
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
         title = "灵植阁",
-        onDismiss = onDismiss
+        mode = DialogMode.Half,
+        scrollableContent = false
     ) {
-        Column(
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            HerbGardenElderSection(
-                elder = herbGardenElder,
-                onSlotClick = { selectedDiscipleDetail = herbGardenElder },
-                onElderRemove = {
-                    if (hasDirectDisciples) {
-                        showElderRemoveConfirm = true
-                    } else {
-                        productionViewModel.removeElder(ElderSlotType.HERB_GARDEN)
-                    }
-                },
-                onSwap = { showElderSelection = true }
-            )
-
-            HerbGardenDirectDiscipleSection(
-                directDisciples = herbGardenDisciples,
-                disciples = disciples,
-                onDirectDiscipleClick = { index ->
-                    val slot = herbGardenDisciples.getOrNull(index)
-                    val d = if (slot?.isActive == true) disciples.find { it.id == slot.discipleId } else null
-                    selectedDiscipleDetail = d
-                },
-                onDirectDiscipleRemove = { index -> productionViewModel.removeDirectDisciple("herbGarden", index) },
-                onDirectDiscipleSwap = { index -> showDirectDiscipleSelection = index }
-            )
-
-            HorizontalDivider(
-                modifier = Modifier.padding(vertical = 4.dp),
-                color = GameColors.Border,
-                thickness = 1.dp
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+        Column(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(
-                    text = "种植槽",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
+                HerbGardenElderSection(
+                    elder = herbGardenElder,
+                    onSlotClick = { selectedDiscipleDetail = herbGardenElder },
+                    onElderRemove = {
+                        if (hasDirectDisciples) {
+                            showElderRemoveConfirm = true
+                        } else {
+                            productionViewModel.removeElder(ElderSlotType.HERB_GARDEN)
+                        }
+                    },
+                    onSwap = { showElderSelection = true }
                 )
-                val autoPlantEnabled by herbGardenViewModel.autoPlantEnabled.collectAsState()
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(if (autoPlantEnabled) Color(0xFFFFD700) else Color.Black)
-                        .clickable { herbGardenViewModel.toggleAutoPlant() }
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        text = if (autoPlantEnabled) "自动种植:开" else "自动种植:关",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (autoPlantEnabled) Color.Black else Color.White
-                    )
-                }
-            }
 
-            plantSlots.chunked(3).forEach { rowSlots ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
-                ) {
-                    rowSlots.forEach { slot ->
-                        PlantSlotItem(
-                            slot = slot,
-                            gameData = gameData,
-                            onClick = {
-                                if (slot.status == "idle" || slot.status == "mature") {
-                                    showSeedSelection = slot.index
-                                }
-                            }
-                        )
+                HerbGardenDirectDiscipleSection(
+                    directDisciples = herbGardenDisciples,
+                    disciples = disciples,
+                    onDirectDiscipleClick = { index ->
+                        val slot = herbGardenDisciples.getOrNull(index)
+                        val d = if (slot?.isActive == true) disciples.find { it.id == slot.discipleId } else null
+                        selectedDiscipleDetail = d
+                    },
+                    onDirectDiscipleRemove = { index -> productionViewModel.removeDirectDisciple("herbGarden", index) },
+                    onDirectDiscipleSwap = { index -> showDirectDiscipleSelection = index }
+                )
+
+                HorizontalDivider(
+                    modifier = Modifier.padding(vertical = 4.dp),
+                    color = GameColors.Border,
+                    thickness = 1.dp
+                )
+
+                plantSlots.sortedBy { it.slotIndex }.forEach { slot ->
+                    val isWorking = slot.status == ProductionSlotStatus.WORKING
+                    val isIdle = slot.status == ProductionSlotStatus.IDLE
+                    val remainingMonths = if (isWorking && gameData != null)
+                        slot.remainingTime(gameData.gameYear, gameData.gameMonth) else 0
+                    val seedRarity = seeds.find { it.name == slot.recipeName }?.rarity ?: 1
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val autoEnabled = slot.autoRestartEnabled
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(if (autoEnabled) Color(0xFFFFD700) else Color.Black)
+                                .clickable { herbGardenViewModel.toggleAuto(slot.slotIndex) }
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = if (autoEnabled) "自动种植:开" else "自动种植:关",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (autoEnabled) Color.Black else Color.White
+                            )
+                        }
                     }
+
+                    ProductionSlotItem(
+                        theme = HERB_GARDEN_THEME,
+                        productName = slot.recipeName.ifEmpty { null },
+                        isWorking = isWorking,
+                        isIdle = isIdle,
+                        remainingMonths = remainingMonths,
+                        index = slot.slotIndex,
+                        productRarity = seedRarity,
+                        totalDuration = slot.duration,
+                        onCancel = if (isWorking) { { herbGardenViewModel.cancelPlantSlot(slot.slotIndex) } } else null,
+                        onReplace = if (isWorking) { {
+                            replaceSlotIndex = slot.slotIndex
+                            showSeedSelection = slot.slotIndex
+                        } } else null,
+                        onClick = {
+                            if (isIdle || slot.status == ProductionSlotStatus.COMPLETED) {
+                                showSeedSelection = slot.slotIndex
+                            }
+                        }
+                    )
                 }
             }
         }
     }
 
     showSeedSelection?.let { slotIndex ->
+        val isReplacing = replaceSlotIndex != null
         SeedPlantingDialog(
             seeds = seeds,
-            onSelect = { seed ->
-                herbGardenViewModel.plantSeed(slotIndex, seed)
+            onDismiss = {
                 showSeedSelection = null
+                replaceSlotIndex = null
             },
-            onDismiss = { showSeedSelection = null }
+            onConfirmOverride = if (isReplacing) { { seed ->
+                herbGardenViewModel.cancelPlantSlot(slotIndex)
+                herbGardenViewModel.plantSeed(slotIndex, seed)
+            } } else null,
+            onSelect = if (!isReplacing) { { seed ->
+                herbGardenViewModel.plantSeed(slotIndex, seed)
+            } } else null
         )
     }
 
@@ -381,79 +401,13 @@ private fun HerbGardenDirectDiscipleSlotItem(
         onSwap = { onSwap() }
     )
 }
-@Composable
-private fun PlantSlotItem(
-    slot: PlantSlotData,
-    gameData: GameData?,
-    onClick: () -> Unit
-) {
-    val statusColor = when (slot.status) {
-        "idle", "mature" -> Color.Black
-        "growing" -> Color(0xFF4CAF50)
-        else -> Color.Black
-    }
-
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            text = "种植槽 ${slot.index + 1}",
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.Black
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Box(
-            modifier = Modifier
-                .size(60.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(GameColors.PageBackground)
-                .border(1.dp, statusColor, RoundedCornerShape(8.dp))
-                .clickable {
-                    if (slot.status == "idle" || slot.status == "mature") onClick()
-                },
-            contentAlignment = Alignment.Center
-        ) {
-            when (slot.status) {
-                "growing" -> {
-                    val remainingMonths = if (gameData != null) {
-                        slot.remainingTime(gameData.gameYear, gameData.gameMonth)
-                    } else 0
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = slot.seedName.ifEmpty { "未知" },
-                            fontSize = 8.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.Black,
-                            maxLines = 1,
-                            textAlign = TextAlign.Center
-                        )
-                        Text(
-                            text = "${remainingMonths}月",
-                            fontSize = 10.sp,
-                            color = Color.Black
-                        )
-                    }
-                }
-                else -> {
-                    Text(
-                        text = "+",
-                        fontSize = 24.sp,
-                        color = Color.Black
-                    )
-                }
-            }
-        }
-    }
-}
 
 @Composable
 private fun SeedPlantingDialog(
     seeds: List<Seed>,
-    onSelect: (Seed) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onSelect: ((Seed) -> Unit)? = null,
+    onConfirmOverride: ((Seed) -> Unit)? = null
 ) {
     var selectedSeed by remember { mutableStateOf<Seed?>(null) }
     var clickedSeed by remember { mutableStateOf<Seed?>(null) }
@@ -529,7 +483,12 @@ private fun SeedPlantingDialog(
                     text = "确认种植",
                     onClick = {
                         selectedSeed?.let { seed ->
-                            onSelect(seed)
+                            if (onConfirmOverride != null) {
+                                onConfirmOverride(seed)
+                            } else {
+                                onSelect?.invoke(seed)
+                            }
+                            onDismiss()
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
@@ -538,31 +497,4 @@ private fun SeedPlantingDialog(
             }
         }
     }
-}
-
-@Composable
-private fun CommonDialog(
-    title: String,
-    onDismiss: () -> Unit,
-    titleActions: @Composable RowScope.() -> Unit = {},
-    content: @Composable ColumnScope.() -> Unit
-) {
-    UnifiedGameDialog(
-        onDismissRequest = onDismiss,
-        title = title,
-        mode = DialogMode.Half,
-        scrollableContent = false,
-        headerActions = {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                titleActions()
-            }
-        },
-        content = {
-            Column(
-                modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)
-            ) {
-                content()
-            }
-        }
-    )
 }

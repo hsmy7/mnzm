@@ -9,6 +9,17 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.0.61",
+            date = "2026-05-21",
+            changes = listOf(
+                "一键出售界面支持滚动，修复选择品阶和类型后物品列表无法滚动的问题",
+                "自动炼丹/锻造/种植：开启后空闲槽位立即开始生产，优先炼制高品阶物品；工作槽位完成后自动续炼同种物品，材料不足则降级炼制",
+                "炼丹炉/锻造坊/灵植阁槽位卡片升级：显示物品精灵图或敬请期待占位，底部显示物品名称",
+                "槽位新增进度条显示剩余时间、取消按钮（材料不退还）和更换按钮（选新物品直接替换）",
+                "槽位边框统一改为固定灰色；移除槽位序号文本"
+            )
+        ),
+        ChangelogEntry(
             version = "3.0.60",
             date = "2026-05-21",
             changes = listOf(

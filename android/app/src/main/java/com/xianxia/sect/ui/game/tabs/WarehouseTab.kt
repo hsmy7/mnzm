@@ -969,8 +969,9 @@ internal fun BulkSellDialog(
     HalfScreenDialog(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+                .fillMaxSize()
+                .padding(16.dp)
+                .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
                 Row(
@@ -1092,23 +1093,19 @@ internal fun BulkSellDialog(
                         color = Color.Black
                     )
                     
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         // 装备
                         if (sellableEquipment.isNotEmpty()) {
-                            item {
-                                Text(
-                                    text = "装备 (${sellableEquipment.size}件)",
-                                    fontSize = 11.sp,
-                                    color = Color.Black,
-                                    modifier = Modifier.padding(top = 4.dp)
-                                )
-                            }
-                            items(sellableEquipment.chunked(4)) { rowItems ->
+                            Text(
+                                text = "装备 (${sellableEquipment.size}件)",
+                                fontSize = 11.sp,
+                                color = Color.Black,
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
+                            sellableEquipment.chunked(4).forEach { rowItems ->
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -1126,18 +1123,16 @@ internal fun BulkSellDialog(
                                 }
                             }
                         }
-                        
+
                         // 功法
                         if (sellableManuals.isNotEmpty()) {
-                            item {
-                                Text(
-                                    text = "功法 (${sellableManuals.size}件)",
-                                    fontSize = 11.sp,
-                                    color = Color.Black,
-                                    modifier = Modifier.padding(top = 4.dp)
-                                )
-                            }
-                            items(sellableManuals.chunked(4)) { rowItems ->
+                            Text(
+                                text = "功法 (${sellableManuals.size}件)",
+                                fontSize = 11.sp,
+                                color = Color.Black,
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
+                            sellableManuals.chunked(4).forEach { rowItems ->
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -1155,18 +1150,16 @@ internal fun BulkSellDialog(
                                 }
                             }
                         }
-                        
+
                         // 丹药
                         if (sellablePills.isNotEmpty()) {
-                            item {
-                                Text(
-                                    text = "丹药 (${sellablePills.size}件)",
-                                    fontSize = 11.sp,
-                                    color = Color.Black,
-                                    modifier = Modifier.padding(top = 4.dp)
-                                )
-                            }
-                            items(sellablePills.chunked(4)) { rowItems ->
+                            Text(
+                                text = "丹药 (${sellablePills.size}件)",
+                                fontSize = 11.sp,
+                                color = Color.Black,
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
+                            sellablePills.chunked(4).forEach { rowItems ->
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -1183,18 +1176,16 @@ internal fun BulkSellDialog(
                                 }
                             }
                         }
-                        
+
                         // 材料
                         if (sellableMaterials.isNotEmpty()) {
-                            item {
-                                Text(
-                                    text = "材料 (${sellableMaterials.size}件)",
-                                    fontSize = 11.sp,
-                                    color = Color.Black,
-                                    modifier = Modifier.padding(top = 4.dp)
-                                )
-                            }
-                            items(sellableMaterials.chunked(4)) { rowItems ->
+                            Text(
+                                text = "材料 (${sellableMaterials.size}件)",
+                                fontSize = 11.sp,
+                                color = Color.Black,
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
+                            sellableMaterials.chunked(4).forEach { rowItems ->
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -1211,18 +1202,16 @@ internal fun BulkSellDialog(
                                 }
                             }
                         }
-                        
+
                         // 草药
                         if (sellableHerbs.isNotEmpty()) {
-                            item {
-                                Text(
-                                    text = "草药 (${sellableHerbs.size}件)",
-                                    fontSize = 11.sp,
-                                    color = Color.Black,
-                                    modifier = Modifier.padding(top = 4.dp)
-                                )
-                            }
-                            items(sellableHerbs.chunked(4)) { rowItems ->
+                            Text(
+                                text = "草药 (${sellableHerbs.size}件)",
+                                fontSize = 11.sp,
+                                color = Color.Black,
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
+                            sellableHerbs.chunked(4).forEach { rowItems ->
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -1239,18 +1228,16 @@ internal fun BulkSellDialog(
                                 }
                             }
                         }
-                        
+
                         // 种子
                         if (sellableSeeds.isNotEmpty()) {
-                            item {
-                                Text(
-                                    text = "种子 (${sellableSeeds.size}件)",
-                                    fontSize = 11.sp,
-                                    color = Color.Black,
-                                    modifier = Modifier.padding(top = 4.dp)
-                                )
-                            }
-                            items(sellableSeeds.chunked(4)) { rowItems ->
+                            Text(
+                                text = "种子 (${sellableSeeds.size}件)",
+                                fontSize = 11.sp,
+                                color = Color.Black,
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
+                            sellableSeeds.chunked(4).forEach { rowItems ->
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -1270,9 +1257,7 @@ internal fun BulkSellDialog(
                     }
                 } else if (selectedRarities.isNotEmpty() && selectedTypes.isNotEmpty()) {
                     Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
+                        modifier = Modifier.fillMaxWidth(),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(

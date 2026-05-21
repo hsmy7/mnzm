@@ -1374,7 +1374,11 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                         id = s.id,
                         slotIndex = slot.slotIndex,
                         buildingType = com.xianxia.sect.core.model.production.BuildingType.FORGE,
-                        buildingId = "forge"
+                        buildingId = "forge",
+                        autoRestartEnabled = slot.autoRestartEnabled,
+                        assignedDiscipleId = slot.assignedDiscipleId,
+                        assignedDiscipleName = slot.assignedDiscipleName,
+                        recipeId = slot.recipeId
                     )
                 }
             }
@@ -1406,13 +1410,23 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                     inventorySystem.addPill(pill)
                 }
 
-                // Reset slot to IDLE
+                slot.assignedDiscipleId?.let { discipleId ->
+                    currentDisciples = currentDisciples.map {
+                        if (it.id == discipleId) it.copy(status = DiscipleStatus.IDLE) else it
+                    }
+                }
+
+                // Reset slot to IDLE, preserving auto-restart and assigned disciple
                 productionSlotRepository.updateSlotByBuildingId("alchemy", slot.slotIndex) { s ->
                     ProductionSlot.createIdle(
                         id = s.id,
                         slotIndex = slot.slotIndex,
                         buildingType = com.xianxia.sect.core.model.production.BuildingType.ALCHEMY,
-                        buildingId = "alchemy"
+                        buildingId = "alchemy",
+                        autoRestartEnabled = slot.autoRestartEnabled,
+                        assignedDiscipleId = slot.assignedDiscipleId,
+                        assignedDiscipleName = slot.assignedDiscipleName,
+                        recipeId = slot.recipeId
                     )
                 }
             }
@@ -1451,7 +1465,9 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                         id = s.id,
                         slotIndex = slot.slotIndex,
                         buildingType = com.xianxia.sect.core.model.production.BuildingType.HERB_GARDEN,
-                        buildingId = "herbGarden"
+                        buildingId = "herbGarden",
+                        autoRestartEnabled = slot.autoRestartEnabled,
+                        recipeId = slot.recipeId
                     )
                 }
             }
@@ -1461,10 +1477,11 @@ private val applicationScopeProvider: ApplicationScopeProvider,
 
     internal suspend fun processAutoPlant() {
         val data = currentGameData
-        if (!data.sectPolicies.autoPlant) return
 
         val herbGardenSlots = productionSlotRepository.getSlotsByType(com.xianxia.sect.core.model.production.BuildingType.HERB_GARDEN)
-        val idleSlots = herbGardenSlots.filter { it.status == com.xianxia.sect.core.model.production.ProductionSlotStatus.IDLE }
+        val idleSlots = herbGardenSlots.filter {
+            it.autoRestartEnabled && it.status == com.xianxia.sect.core.model.production.ProductionSlotStatus.IDLE
+        }
         if (idleSlots.isEmpty()) return
 
         for (slot in idleSlots) {
@@ -1486,7 +1503,8 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                 duration = seedToPlant.growTime,
                 outputItemId = herbId ?: "",
                 outputItemName = seedToPlant.name,
-                expectedYield = seedToPlant.yield
+                expectedYield = seedToPlant.yield,
+                autoRestartEnabled = slot.autoRestartEnabled
             )
 
             productionSlotRepository.updateSlotByBuildingId("herbGarden", slot.slotIndex) { newSlot }
@@ -1510,15 +1528,31 @@ private val applicationScopeProvider: ApplicationScopeProvider,
 
         for (slotIndex in idleSlotIndices) {
             val herbs = currentHerbs
-            val recipeToStart = allRecipes.firstOrNull { recipe ->
-                recipe.materials.all { (materialId, requiredQuantity) ->
-                    val herbData = HerbDatabase.getHerbById(materialId)
-                    val herbName = herbData?.name
-                    val herbRarity = herbData?.rarity ?: 1
-                    val herb = herbs.find { it.name == herbName && it.rarity == herbRarity }
-                    herb != null && herb.quantity >= requiredQuantity
+            val slot = alchemySlots.find { it.slotIndex == slotIndex } ?: break
+
+            // First try to continue the same recipe from the previous run
+            val recipeToStart = slot.recipeId
+                ?.let { prevRecipeId ->
+                    allRecipes.find { it.id == prevRecipeId }?.takeIf { recipe ->
+                        recipe.materials.all { (materialId, requiredQuantity) ->
+                            val herbData = HerbDatabase.getHerbById(materialId)
+                            val herbName = herbData?.name
+                            val herbRarity = herbData?.rarity ?: 1
+                            val herb = herbs.find { it.name == herbName && it.rarity == herbRarity }
+                            herb != null && herb.quantity >= requiredQuantity
+                        }
+                    }
                 }
-            } ?: break
+                // Fall back to best available recipe by rarity
+                ?: allRecipes.firstOrNull { recipe ->
+                    recipe.materials.all { (materialId, requiredQuantity) ->
+                        val herbData = HerbDatabase.getHerbById(materialId)
+                        val herbName = herbData?.name
+                        val herbRarity = herbData?.rarity ?: 1
+                        val herb = herbs.find { it.name == herbName && it.rarity == herbRarity }
+                        herb != null && herb.quantity >= requiredQuantity
+                    }
+                } ?: break
 
             val result = productionCoordinator.startAlchemyAtomic(
                 slotIndex = slotIndex,
@@ -1558,16 +1592,31 @@ private val applicationScopeProvider: ApplicationScopeProvider,
             val materials = currentMaterials
             val materialIndex = materials.groupBy { it.name to it.rarity }
                 .mapValues { (_, list) -> list.sumOf { it.quantity } }
+            val slot = forgeSlots.find { it.slotIndex == slotIndex } ?: break
 
-            val recipeToStart = allRecipes.firstOrNull { recipe ->
-                recipe.materials.all { (materialId, requiredQuantity) ->
-                    val materialData = BeastMaterialDatabase.getMaterialById(materialId)
-                    materialData != null && run {
-                        val available = materialIndex[materialData.name to materialData.rarity] ?: 0
-                        available >= requiredQuantity
+            // First try to continue the same recipe from the previous run
+            val recipeToStart = slot.recipeId
+                ?.let { prevRecipeId ->
+                    allRecipes.find { it.id == prevRecipeId }?.takeIf { recipe ->
+                        recipe.materials.all { (materialId, requiredQuantity) ->
+                            val materialData = BeastMaterialDatabase.getMaterialById(materialId)
+                            materialData != null && run {
+                                val available = materialIndex[materialData.name to materialData.rarity] ?: 0
+                                available >= requiredQuantity
+                            }
+                        }
                     }
                 }
-            } ?: break
+                // Fall back to best available recipe by rarity
+                ?: allRecipes.firstOrNull { recipe ->
+                    recipe.materials.all { (materialId, requiredQuantity) ->
+                        val materialData = BeastMaterialDatabase.getMaterialById(materialId)
+                        materialData != null && run {
+                            val available = materialIndex[materialData.name to materialData.rarity] ?: 0
+                            available >= requiredQuantity
+                        }
+                    }
+                } ?: break
 
             val result = productionCoordinator.startForgingAtomic(
                 slotIndex = slotIndex,

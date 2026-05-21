@@ -70,8 +70,10 @@ fun ForgeDialog(
     var showWorkerSelection by remember { mutableStateOf(false) }
     var showReserveDiscipleDialog by remember { mutableStateOf(false) }
     var showAddReserveDialog by remember { mutableStateOf(false) }
+    var replaceSlotIndex by remember { mutableStateOf<Int?>(null) }
 
-    val mySlot = forgeSlots.find { it.slotIndex == buildingIndex }
+    val forgeSlotsState by viewModel.forgeSlots.collectAsState()
+    val mySlot = forgeSlotsState.find { it.slotIndex == buildingIndex }
     val slotIndex = mySlot?.slotIndex ?: buildingIndex
     val assignedDiscipleId = mySlot?.assignedDiscipleId
     val workerDisciple = if (assignedDiscipleId.isNullOrEmpty()) null
@@ -145,7 +147,7 @@ fun ForgeDialog(
                         fontWeight = FontWeight.Bold,
                         color = Color.Black
                     )
-                    val isAutoEnabled = forgeViewModel.isAutoEnabled(buildingIndex)
+                    val isAutoEnabled = mySlot?.autoRestartEnabled ?: false
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(4.dp))
@@ -174,6 +176,14 @@ fun ForgeDialog(
                     isIdle = isIdle,
                     remainingMonths = remainingMonths,
                     index = slotIndex,
+                    productRarity = mySlot?.equipmentRarity ?: 1,
+                    totalDuration = mySlot?.duration ?: 1,
+                    onCancel = if (isWorking) { { forgeViewModel.cancelForge(slotIndex) } } else null,
+                    onReplace = if (isWorking) { {
+                        replaceSlotIndex = slotIndex
+                        selectedSlotIndex = slotIndex
+                        showEquipmentSelection = true
+                    } } else null,
                     onClick = {
                         if (isIdle) {
                             selectedSlotIndex = slotIndex
@@ -234,6 +244,7 @@ fun ForgeDialog(
 
     if (showEquipmentSelection) {
         selectedSlotIndex?.let { slotIdx ->
+            val isReplacing = replaceSlotIndex != null
             EquipmentSelectionDialog(
                 materials = materials,
                 slotIndex = slotIdx,
@@ -243,7 +254,12 @@ fun ForgeDialog(
                 onDismiss = {
                     showEquipmentSelection = false
                     selectedSlotIndex = null
-                }
+                    replaceSlotIndex = null
+                },
+                onConfirmOverride = if (isReplacing) { { recipe ->
+                    forgeViewModel.cancelForge(slotIdx)
+                    forgeViewModel.startForge(slotIdx, recipe)
+                } } else null
             )
         }
     }
@@ -307,7 +323,8 @@ private fun EquipmentSelectionDialog(
     viewModel: GameViewModel,
     productionViewModel: ProductionViewModel,
     forgeViewModel: ForgeViewModel,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onConfirmOverride: ((ForgeRecipeDatabase.ForgeRecipe) -> Unit)? = null
 ) {
     var selectedRecipe by remember { mutableStateOf<ForgeRecipeDatabase.ForgeRecipe?>(null) }
     var clickedRecipe by remember { mutableStateOf<ForgeRecipeDatabase.ForgeRecipe?>(null) }
@@ -401,7 +418,11 @@ private fun EquipmentSelectionDialog(
                 text = FORGE_THEME.startProductionText,
                 onClick = {
                     selectedRecipe?.let { recipe ->
-                        forgeViewModel.startForge(slotIndex, recipe)
+                        if (onConfirmOverride != null) {
+                            onConfirmOverride(recipe)
+                        } else {
+                            forgeViewModel.startForge(slotIndex, recipe)
+                        }
                         onDismiss()
                     }
                 },

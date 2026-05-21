@@ -66,14 +66,7 @@ class HerbGardenViewModel @Inject constructor(
 
                 var plantedCount = 0
                 for (slot in idleSlots) {
-                    val currentSeeds = gameEngine.getCurrentSeeds()
-                        .filter { it.quantity > 0 }
-                        .sortedByDescending { it.rarity }
-
-                    val seedToPlant = currentSeeds.firstOrNull() ?: break
-
-                    gameEngine.startManualPlanting(slot.slotIndex, seedToPlant.id)
-                    plantedCount++
+                    if (startBestSeedForSlot(slot.slotIndex)) plantedCount++ else break
                 }
 
                 if (plantedCount > 0) {
@@ -91,6 +84,44 @@ class HerbGardenViewModel @Inject constructor(
         viewModelScope.launch {
             gameEngine.updateGameData { it.copy(sectPolicies = it.sectPolicies.copy(autoPlant = !it.sectPolicies.autoPlant)) }
         }
+    }
+
+    fun isAutoEnabled(slotIndex: Int): Boolean {
+        return gameEngine.productionSlots.value
+            .find { it.buildingType == BuildingType.HERB_GARDEN && it.slotIndex == slotIndex }
+            ?.autoRestartEnabled ?: false
+    }
+
+    fun cancelPlantSlot(slotIndex: Int) {
+        gameEngine.clearPlantSlot(slotIndex)
+    }
+
+    fun toggleAuto(slotIndex: Int) {
+        val currentValue = isAutoEnabled(slotIndex)
+        val newValue = !currentValue
+        viewModelScope.launch {
+            gameEngine.toggleAutoRestart(BuildingType.HERB_GARDEN, slotIndex)
+
+            if (newValue) {
+                try {
+                    val slot = gameEngine.productionSlots.value.find {
+                        it.buildingType == BuildingType.HERB_GARDEN && it.slotIndex == slotIndex
+                    } ?: return@launch
+                    if (slot.status == ProductionSlotStatus.IDLE) {
+                        startBestSeedForSlot(slot.slotIndex)
+                    }
+                } catch (_: Exception) { }
+            }
+        }
+    }
+
+    private suspend fun startBestSeedForSlot(slotIndex: Int): Boolean {
+        val currentSeeds = gameEngine.getCurrentSeeds()
+            .filter { it.quantity > 0 }
+            .sortedByDescending { it.rarity }
+        val seedToPlant = currentSeeds.firstOrNull() ?: return false
+        gameEngine.startManualPlanting(slotIndex, seedToPlant.id)
+        return true
     }
 
     fun getHerbGardenReserveDisciples(): List<DirectDiscipleSlot> {

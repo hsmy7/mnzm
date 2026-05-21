@@ -28,6 +28,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.DialogMode
+import com.xianxia.sect.ui.components.equipmentSpriteRes
+import com.xianxia.sect.ui.components.getRarityColor
 import com.xianxia.sect.R
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.ui.components.ElderBonusInfo
@@ -319,34 +321,116 @@ fun ProductionSlotItem(
     isIdle: Boolean,
     remainingMonths: Int,
     index: Int,
+    productRarity: Int = 1,
+    totalDuration: Int = 1,
+    onCancel: (() -> Unit)? = null,
+    onReplace: (() -> Unit)? = null,
     onClick: () -> Unit
 ) {
-    val statusColor = if (isWorking) theme.workingStatusColor else GameColors.Border
+    val progress = if (isWorking && totalDuration > 0) {
+        ((totalDuration - remainingMonths).coerceIn(0, totalDuration).toFloat() / totalDuration)
+    } else 0f
 
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text = "${theme.slotLabelPrefix} ${index + 1}",
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.Black
-        )
-        Spacer(modifier = Modifier.height(8.dp))
+        if (isWorking) {
+            Text(
+                text = "剩余 ${remainingMonths} 月",
+                fontSize = 10.sp,
+                color = Color.Black
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier
+                    .fillMaxWidth(0.8f)
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp)),
+                color = Color(0xFF4CAF50),
+                trackColor = GameColors.Border
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+        }
+
         Box(
             modifier = Modifier
                 .size(60.dp)
-                .clip(RoundedCornerShape(8.dp))
+                .clip(RoundedCornerShape(6.dp))
                 .background(GameColors.PageBackground)
-                .border(1.dp, statusColor, RoundedCornerShape(8.dp))
+                .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
                 .clickable { onClick() },
             contentAlignment = Alignment.Center
         ) {
             if (isWorking && productName != null) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(text = productName, fontSize = 8.sp, fontWeight = FontWeight.Bold, color = Color.Black, maxLines = 1, textAlign = TextAlign.Center)
-                    Text(text = "${remainingMonths}月", fontSize = 10.sp, color = Color.Black)
+                Column(modifier = Modifier.fillMaxSize()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                            .background(getRarityColor(productRarity)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        val spriteRes = equipmentSpriteRes(productName)
+                        if (spriteRes != null) {
+                            Image(
+                                painter = painterResource(id = spriteRes),
+                                contentDescription = productName,
+                                modifier = Modifier.fillMaxSize().padding(3.dp),
+                                contentScale = ContentScale.Fit
+                            )
+                        } else {
+                            Text(
+                                text = "敬请期待",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(2.dp)
+                            )
+                        }
+                    }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(14.dp)
+                            .background(Color.White),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = productName,
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Black,
+                            maxLines = 1,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(horizontal = 2.dp)
+                        )
+                    }
                 }
             } else {
                 Text(text = "+", fontSize = 24.sp, color = Color.Black)
+            }
+        }
+
+        if (isWorking && onCancel != null && onReplace != null) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally)
+            ) {
+                GameButton(
+                    text = "取消",
+                    onClick = onCancel,
+                    width = 36.dp,
+                    height = 22.dp,
+                    fontSize = 9.sp
+                )
+                GameButton(
+                    text = "更换",
+                    onClick = onReplace,
+                    width = 36.dp,
+                    height = 22.dp,
+                    fontSize = 9.sp
+                )
             }
         }
     }

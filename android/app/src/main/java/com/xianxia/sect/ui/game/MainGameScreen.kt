@@ -736,24 +736,6 @@ fun MainGameScreen(
             }
             composable(GameRoute.HerbGarden.route) {
                 HerbGardenDialog(
-                    plantSlots = productionSlots.filter {
-                        it.buildingType == BuildingType.HERB_GARDEN
-                    }.map { slot ->
-                        PlantSlotData(
-                            index = slot.slotIndex,
-                            status = when (slot.status) {
-                                ProductionSlotStatus.IDLE -> "idle"
-                                ProductionSlotStatus.WORKING -> "growing"
-                                ProductionSlotStatus.COMPLETED -> "mature"
-                            },
-                            seedId = slot.recipeId ?: "",
-                            seedName = slot.recipeName,
-                            startYear = slot.startYear,
-                            startMonth = slot.startMonth,
-                            growTime = slot.duration,
-                            expectedYield = slot.expectedYield
-                        )
-                    },
                     seeds = seeds,
                     gameData = gameData,
                     disciples = disciples.filter { it.isAlive },

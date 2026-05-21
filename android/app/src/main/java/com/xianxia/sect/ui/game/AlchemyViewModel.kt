@@ -54,7 +54,9 @@ class AlchemyViewModel @Inject constructor(
     val isStartingAlchemy: StateFlow<Boolean> = _isStartingAlchemy.asStateFlow()
 
     fun isAutoEnabled(buildingIndex: Int): Boolean {
-        return alchemySlots.value.find { it.slotIndex == buildingIndex }?.autoRestartEnabled ?: false
+        return gameEngine.productionSlots.value
+            .find { it.buildingType == BuildingType.ALCHEMY && it.slotIndex == buildingIndex }
+            ?.autoRestartEnabled ?: false
     }
 
     fun startAlchemy(slotIndex: Int, recipe: PillRecipeDatabase.PillRecipe) {
@@ -88,25 +90,9 @@ class AlchemyViewModel @Inject constructor(
                     return@launch
                 }
 
-                val allRecipes = PillRecipeDatabase.getAllRecipes().sortedByDescending { it.rarity }
                 var startedCount = 0
-
                 for (slotIndex in idleSlotIndices) {
-                    val currentHerbs = gameEngine.getCurrentHerbs()
-                    val recipeToStart = allRecipes.firstOrNull { recipe ->
-                        recipe.materials.all { (materialId, requiredQuantity) ->
-                            val herbData = HerbDatabase.getHerbById(materialId)
-                            val herbName = herbData?.name
-                            val herbRarity = herbData?.rarity ?: 1
-                            val herb = currentHerbs.find { it.name == herbName && it.rarity == herbRarity }
-                            herb != null && herb.quantity >= requiredQuantity
-                        }
-                    }
-
-                    if (recipeToStart == null) break
-
-                    val success = gameEngine.startAlchemy(slotIndex, recipeToStart.id)
-                    if (success) startedCount++
+                    if (startBestAlchemyRecipe(slotIndex)) startedCount++
                 }
 
                 if (startedCount > 0) {
@@ -120,8 +106,41 @@ class AlchemyViewModel @Inject constructor(
         }
     }
 
+    private suspend fun startBestAlchemyRecipe(slotIndex: Int): Boolean {
+        val currentHerbs = gameEngine.getCurrentHerbs()
+        val allRecipes = PillRecipeDatabase.getAllRecipes().sortedByDescending { it.rarity }
+        val recipeToStart = allRecipes.firstOrNull { recipe ->
+            recipe.materials.all { (materialId, requiredQuantity) ->
+                val herbData = HerbDatabase.getHerbById(materialId)
+                val herbName = herbData?.name
+                val herbRarity = herbData?.rarity ?: 1
+                val herb = currentHerbs.find { it.name == herbName && it.rarity == herbRarity }
+                herb != null && herb.quantity >= requiredQuantity
+            }
+        } ?: return false
+
+        return gameEngine.startAlchemy(slotIndex, recipeToStart.id)
+    }
+
     fun toggleAuto(buildingIndex: Int) {
-        gameEngine.toggleAutoRestart(BuildingType.ALCHEMY, buildingIndex)
+        val currentValue = isAutoEnabled(buildingIndex)
+        val newValue = !currentValue
+        viewModelScope.launch {
+            gameEngine.toggleAutoRestart(BuildingType.ALCHEMY, buildingIndex)
+
+            if (newValue) {
+                try {
+                    val slot = gameEngine.productionSlots.value.find {
+                        it.buildingType == BuildingType.ALCHEMY && it.slotIndex == buildingIndex
+                    } ?: return@launch
+                    if (slot.status == ProductionSlotStatus.IDLE && !slot.assignedDiscipleId.isNullOrEmpty()) {
+                        startBestAlchemyRecipe(slot.slotIndex)
+                    }
+                } catch (_: Exception) {
+                    // Best-effort immediate start; monthly tick will retry
+                }
+            }
+        }
     }
 
     fun assignWorker(buildingIndex: Int, discipleId: String, discipleName: String) {
@@ -130,6 +149,10 @@ class AlchemyViewModel @Inject constructor(
 
     fun removeWorker(buildingIndex: Int) {
         gameEngine.removeDiscipleFromProductionSlot(BuildingType.ALCHEMY, buildingIndex)
+    }
+
+    fun cancelAlchemy(slotIndex: Int) {
+        gameEngine.clearAlchemySlot(slotIndex)
     }
 
     fun getAvailableWorkers(): List<DiscipleAggregate> {

@@ -77,13 +77,21 @@ data class ProductionSlot(
             id: String = java.util.UUID.randomUUID().toString(),
             slotIndex: Int,
             buildingType: BuildingType,
-            buildingId: String = ""
+            buildingId: String = "",
+            autoRestartEnabled: Boolean = false,
+            assignedDiscipleId: String? = null,
+            assignedDiscipleName: String = "",
+            recipeId: String? = null
         ): ProductionSlot = ProductionSlot(
             id = id,
             slotIndex = slotIndex,
             buildingType = buildingType,
             buildingId = buildingId,
-            status = ProductionSlotStatus.IDLE
+            status = ProductionSlotStatus.IDLE,
+            autoRestartEnabled = autoRestartEnabled,
+            assignedDiscipleId = assignedDiscipleId,
+            assignedDiscipleName = assignedDiscipleName,
+            recipeId = recipeId
         )
 
         fun resolveBuildingType(buildingId: String): BuildingType = when (buildingId.lowercase()) {
@@ -137,7 +145,8 @@ data class ProductionSlot(
             requiredMaterials = alchemySlot.requiredMaterials,
             outputItemId = alchemySlot.recipeId,
             outputItemName = alchemySlot.pillName,
-            outputItemRarity = alchemySlot.pillRarity
+            outputItemRarity = alchemySlot.pillRarity,
+            autoRestartEnabled = alchemySlot.autoRestartEnabled
         )
 
         fun fromForgeSlot(forgeSlot: com.xianxia.sect.core.model.ForgeSlot): ProductionSlot = ProductionSlot(
@@ -162,7 +171,8 @@ data class ProductionSlot(
             outputItemId = forgeSlot.recipeId,
             outputItemName = forgeSlot.equipmentName,
             outputItemRarity = forgeSlot.equipmentRarity,
-            outputItemSlot = forgeSlot.equipmentSlot.name
+            outputItemSlot = forgeSlot.equipmentSlot.name,
+            autoRestartEnabled = forgeSlot.autoRestartEnabled
         )
 
         fun fromPlantSlot(plantSlot: com.xianxia.sect.core.model.PlantSlotData): ProductionSlot = ProductionSlot(

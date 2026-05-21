@@ -162,7 +162,8 @@ class ProductionCoordinator @Inject constructor(
                 Log.w(TAG, "Herb not found in database: ${herb.name}, skipping")
             }
         }
-        
+
+        val currentSlot = repository.getSlotByBuildingId(buildingId, slotIndex)
         val txResult = transactionManager.executeStartProductionByBuildingId(
             buildingId = buildingId,
             slotIndex = slotIndex,
@@ -171,8 +172,8 @@ class ProductionCoordinator @Inject constructor(
             duration = recipe.duration,
             currentYear = currentYear,
             currentMonth = currentMonth,
-            discipleId = null,
-            discipleName = "",
+            discipleId = currentSlot?.assignedDiscipleId,
+            discipleName = currentSlot?.assignedDiscipleName ?: "",
             successRate = recipe.successRate + alchemyPolicyBonus,
             materials = recipe.materials,
             availableMaterials = availableMaterials,
@@ -254,9 +255,10 @@ class ProductionCoordinator @Inject constructor(
                 Log.w(TAG, "Material not found in database: ${material.name}, skipping")
             }
         }
-        
+
         val duration = ForgeRecipeDatabase.getDurationByTier(recipe.tier)
-        
+
+        val currentSlot = repository.getSlotByBuildingId(buildingId, slotIndex)
         val txResult = transactionManager.executeStartProductionByBuildingId(
             buildingId = buildingId,
             slotIndex = slotIndex,
@@ -265,8 +267,8 @@ class ProductionCoordinator @Inject constructor(
             duration = duration,
             currentYear = currentYear,
             currentMonth = currentMonth,
-            discipleId = null,
-            discipleName = "",
+            discipleId = currentSlot?.assignedDiscipleId,
+            discipleName = currentSlot?.assignedDiscipleName ?: "",
             successRate = recipe.successRate + forgePolicyBonus,
             materials = recipe.materials,
             availableMaterials = availableMaterials,
