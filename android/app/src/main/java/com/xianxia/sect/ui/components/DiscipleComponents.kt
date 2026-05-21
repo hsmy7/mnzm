@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -285,9 +286,67 @@ fun PortraitDiscipleCard(
     }
 }
 
+private val beastDrawables = listOf(
+    R.drawable.tiger_beast,
+    R.drawable.wolf_beast,
+    R.drawable.snake_beast,
+    R.drawable.bear_beast,
+    R.drawable.eagle_beast,
+    R.drawable.fox_beast,
+    R.drawable.dragon_beast,
+    R.drawable.turtle_beast
+)
+
+@Composable
+private fun SlotContent(
+    name: String,
+    realmName: String,
+    portraitRes: String
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+        modifier = Modifier.padding(4.dp)
+    ) {
+        Text(
+            text = name,
+            fontSize = 9.sp,
+            color = Color.Black,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        val context = LocalContext.current
+        val isBeastPortrait = portraitRes.startsWith("beast_")
+        val portraitResId = remember(portraitRes) {
+            if (isBeastPortrait) {
+                val suffix = portraitRes.removePrefix("beast_")
+                val index = suffix.toIntOrNull() ?: -1
+                if (index in 0..7) beastDrawables.getOrNull(index) ?: 0
+                else if (index > 0) index
+                else 0
+            } else PortraitPool.getResourceId(context, portraitRes)
+        }
+        Image(
+            painter = if (portraitResId != 0) painterResource(id = portraitResId)
+                      else painterResource(id = R.drawable.disciple_portrait),
+            contentDescription = null,
+            modifier = Modifier.width(40.dp).height(48.dp),
+            contentScale = ContentScale.Fit
+        )
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+            text = realmName,
+            fontSize = 10.sp,
+            color = Color.Black,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
 /**
- * 统一的弟子槽位：固定 52×76dp，内部仅显示头像 + 境界。
- * 空态显示 "+"，有弟子显示肖像图 + 境界名。
+ * 统一的弟子槽位：固定 52×84dp，内部显示名称 + 头像 + 境界。
+ * 空态显示 "+"，有弟子显示名称 + 肖像图 + 境界名。
  * 额外信息（血条、属性等）由调用方在槽位外部自行处理。
  */
 @Composable
@@ -300,7 +359,7 @@ fun UnifiedDiscipleSlot(
     Box(
         modifier = modifier
             .width(52.dp)
-            .height(76.dp)
+            .height(84.dp)
             .clip(RoundedCornerShape(6.dp))
             .background(if (disciple != null) Color.White else GameColors.PageBackground)
             .border(1.dp, borderColor, RoundedCornerShape(6.dp))
@@ -308,31 +367,11 @@ fun UnifiedDiscipleSlot(
         contentAlignment = Alignment.Center
     ) {
         if (disciple != null) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-                modifier = Modifier.padding(4.dp)
-            ) {
-                val context = LocalContext.current
-                val portraitResId = remember(disciple.portraitRes) {
-                    PortraitPool.getResourceId(context, disciple.portraitRes)
-                }
-                Image(
-                    painter = if (portraitResId != 0) painterResource(id = portraitResId)
-                              else painterResource(id = R.drawable.disciple_portrait),
-                    contentDescription = null,
-                    modifier = Modifier.width(40.dp).height(50.dp),
-                    contentScale = ContentScale.Fit
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = disciple.realmName,
-                    fontSize = 10.sp,
-                    color = Color.Black,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
+            SlotContent(
+                name = disciple.name,
+                realmName = disciple.realmName,
+                portraitRes = disciple.portraitRes
+            )
         } else {
             Text(
                 text = "+",
@@ -382,6 +421,73 @@ fun DiscipleSlotWithActions(
                     fontSize = 9.sp,
                     color = Color.Black,
                     modifier = Modifier.clickable { onSwap() }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+internal fun BattleParticipantSlot(
+    name: String,
+    realmName: String,
+    hp: Int,
+    maxHp: Int,
+    isAlive: Boolean,
+    portraitRes: String = ""
+) {
+    val hpPercent = maxHp.takeIf { it > 0 }?.let {
+        (hp.toFloat() / it.toFloat()).coerceIn(0f, 1f)
+    } ?: 0f
+
+    val hpColor = when {
+        hpPercent > 0.6f -> Color(0xFF4CAF50)
+        hpPercent > 0.3f -> Color(0xFFFF9800)
+        else -> Color(0xFFF44336)
+    }
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .width(52.dp)
+                .height(4.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(Color(0xFFE0E0E0))
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .fillMaxWidth(hpPercent)
+                    .background(hpColor)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(2.dp))
+
+        Box(
+            modifier = Modifier
+                .width(52.dp)
+                .height(84.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(if (isAlive) Color.White else Color(0xFFEEEEEE))
+                .border(1.dp, if (isAlive) Color(0xFFE0E0E0) else Color(0xFFCCCCCC), RoundedCornerShape(6.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            if (isAlive) {
+                SlotContent(
+                    name = name,
+                    realmName = realmName,
+                    portraitRes = portraitRes
+                )
+            } else {
+                Text(
+                    text = "死亡",
+                    fontSize = 8.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFFF44336),
+                    maxLines = 1
                 )
             }
         }

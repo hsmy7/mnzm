@@ -57,6 +57,7 @@ import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.model.BattleLogAction
 import com.xianxia.sect.core.model.BattleLogRound
 import com.xianxia.sect.core.model.BattleResult
+import com.xianxia.sect.ui.components.BattleParticipantSlot
 import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.DialogDefaults
 import com.xianxia.sect.ui.theme.GameColors
@@ -234,7 +235,7 @@ internal fun BattleLogDetailDialog(
                                 )
                             }
                             repeat(4 - rowMembers.size) {
-                                Spacer(modifier = Modifier.width(52.dp).height(76.dp))
+                                Spacer(modifier = Modifier.width(52.dp).height(84.dp))
                             }
                         }
                     }
@@ -272,7 +273,7 @@ internal fun BattleLogDetailDialog(
                                 )
                             }
                             repeat(4 - rowEnemies.size) {
-                                Spacer(modifier = Modifier.width(52.dp).height(76.dp))
+                                Spacer(modifier = Modifier.width(52.dp).height(84.dp))
                             }
                         }
                     }
@@ -297,101 +298,6 @@ internal fun BattleLogDetailDialog(
                     }
                 }
             }
-    }
-}
-
-@Composable
-internal fun BattleParticipantSlot(
-    name: String,
-    realmName: String,
-    hp: Int,
-    maxHp: Int,
-    isAlive: Boolean,
-    portraitRes: String = ""
-) {
-    val hpPercent = maxHp.takeIf { it > 0 }?.let {
-        (hp.toFloat() / it.toFloat()).coerceIn(0f, 1f)
-    } ?: 0f
-
-    val hpColor = when {
-        hpPercent > 0.6f -> Color(0xFF4CAF50)
-        hpPercent > 0.3f -> Color(0xFFFF9800)
-        else -> Color(0xFFF44336)
-    }
-
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        // HP bar above slot, width matches slot
-        Box(
-            modifier = Modifier
-                .width(52.dp)
-                .height(4.dp)
-                .clip(RoundedCornerShape(2.dp))
-                .background(Color(0xFFE0E0E0))
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .fillMaxWidth(hpPercent)
-                    .background(hpColor)
-            )
-        }
-
-        Spacer(modifier = Modifier.height(2.dp))
-
-        Box(
-            modifier = Modifier
-                .width(52.dp)
-                .height(76.dp)
-                .clip(RoundedCornerShape(6.dp))
-                .background(if (isAlive) Color.White else Color(0xFFEEEEEE))
-                .border(1.dp, if (isAlive) Color(0xFFE0E0E0) else Color(0xFFCCCCCC), RoundedCornerShape(6.dp)),
-            contentAlignment = Alignment.Center
-        ) {
-            if (isAlive) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
-                    modifier = Modifier.padding(4.dp)
-                ) {
-                    val context = LocalContext.current
-                    val isBeastPortrait = portraitRes.startsWith("beast_")
-                    val portraitResId = remember(portraitRes) {
-                        if (isBeastPortrait) {
-                            val suffix = portraitRes.removePrefix("beast_")
-                            val index = suffix.toIntOrNull() ?: -1
-                            if (index in 0..7) beastDrawables.getOrNull(index) ?: 0
-                            else if (index > 0) index  // 旧格式：完整资源ID
-                            else 0
-                        } else PortraitPool.getResourceId(context, portraitRes)
-                    }
-                    Image(
-                        painter = if (portraitResId != 0) painterResource(id = portraitResId)
-                                  else painterResource(id = R.drawable.disciple_portrait),
-                        contentDescription = null,
-                        modifier = Modifier.width(40.dp).height(50.dp),
-                        contentScale = ContentScale.Fit
-                    )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = realmName,
-                        fontSize = 10.sp,
-                        color = Color.Black,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            } else {
-                Text(
-                    text = "死亡",
-                    fontSize = 8.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFFF44336),
-                    maxLines = 1
-                )
-            }
-        }
     }
 }
 

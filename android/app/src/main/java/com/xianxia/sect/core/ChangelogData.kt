@@ -9,6 +9,15 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.0.63",
+            date = "2026-05-21",
+            changes = listOf(
+                "每年招募弟子数量从3-15名调整为0-6名",
+                "所有弟子槽位新增名称显示：精灵图上方显示弟子名称，下方显示境界",
+                "战斗界面弟子槽位同步显示名称，槽位组件重构统一渲染"
+            )
+        ),
+        ChangelogEntry(
             version = "3.0.62",
             date = "2026-05-21",
             changes = listOf(

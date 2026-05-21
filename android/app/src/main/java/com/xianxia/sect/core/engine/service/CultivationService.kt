@@ -3178,7 +3178,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
             "metal" to "金灵根", "wood" to "木灵根", "water" to "水灵根",
             "fire" to "火灵根", "earth" to "土灵根"
         )
-        val recruitCount = Random.nextInt(3, 16)
+        val recruitCount = Random.nextInt(0, 7)
         val newRecruitDisciples = mutableListOf<Disciple>()
         val usedNames = (currentDisciples + currentGameData.recruitList).map { it.name }.toMutableSet()
         repeat(recruitCount) {
