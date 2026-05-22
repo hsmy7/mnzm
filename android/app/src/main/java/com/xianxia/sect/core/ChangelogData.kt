@@ -9,6 +9,13 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.0.73",
+            date = "2026-05-22",
+            changes = listOf(
+                "修复部分机型按钮文字只显示2个字符的问题：按钮宽度72→84dp、内边距缩小、溢出改为省略号"
+            )
+        ),
+        ChangelogEntry(
             version = "3.0.72",
             date = "2026-05-22",
             changes = listOf(

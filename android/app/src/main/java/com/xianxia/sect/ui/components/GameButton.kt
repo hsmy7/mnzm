@@ -34,7 +34,6 @@ fun GameButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    @Suppress("UNUSED_PARAMETER") backgroundColor: Color? = null,
     height: Dp = ButtonSizes.StandardHeight,
     width: Dp = ButtonSizes.StandardWidth,
     fontSize: TextUnit = 12.sp
@@ -60,10 +59,10 @@ fun GameButton(
             text = text,
             fontSize = fontSize,
             maxLines = 1,
-            overflow = TextOverflow.Clip,
+            overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center,
             color = Color.Black,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+            modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
         )
     }
 }

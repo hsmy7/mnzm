@@ -386,14 +386,12 @@ internal fun WarehouseTab(
                     if (!isLocked) {
                         GameButton(
                             text = "售卖",
-                            onClick = { showSellDialog = true },
-                            backgroundColor = Color(0xFFFF6B35)
+                            onClick = { showSellDialog = true }
                         )
                     }
                     GameButton(
                         text = if (isLocked) "已锁定" else "锁定",
-                        onClick = { viewModel.toggleItemLock(itemId, itemType) },
-                        backgroundColor = if (isLocked) Color(0xFFFFD700) else null
+                        onClick = { viewModel.toggleItemLock(itemId, itemType) }
                     )
                     GameButton(
                         text = "赏赐",
@@ -851,8 +849,7 @@ internal fun SellConfirmDialog(
                 )
                 GameButton(
                     text = "确认售卖",
-                    onClick = { onConfirm(sellQuantity) },
-                    backgroundColor = Color(0xFFFF6B35)
+                    onClick = { onConfirm(sellQuantity) }
                 )
             }
         }

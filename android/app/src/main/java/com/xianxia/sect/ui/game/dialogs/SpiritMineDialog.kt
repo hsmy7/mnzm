@@ -161,8 +161,7 @@ fun SpiritMineDialog(
                 GameButton(
                     text = "一键任命",
                     onClick = { spiritMineViewModel.autoAssignSpiritMineMiners(mineIndex) },
-                    enabled = emptySlotCount > 0,
-                    backgroundColor = Color(0xFF4CAF50)
+                    enabled = emptySlotCount > 0
                 )
             }
 
