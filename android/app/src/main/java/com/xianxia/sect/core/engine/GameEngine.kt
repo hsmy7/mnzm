@@ -183,7 +183,7 @@ class GameEngine @Inject constructor(
         }
         checkAndCollectCompletedSlots()
 
-        val currentData = stateStore.gameData.value
+        val currentData = stateStore.gameDataSnapshot
         if (currentData.travelingMerchantItems.isEmpty() || currentData.recruitList.isEmpty()) {
             Log.w(TAG, "loadData: detected empty merchant items or recruit list after load, refreshing...")
             stateStore.update {
