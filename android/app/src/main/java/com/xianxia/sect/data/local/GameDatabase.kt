@@ -329,13 +329,6 @@ abstract class GameDatabase : RoomDatabase() {
             }
         }
 
-        val MIGRATION_2_3 = object : Migration(2, 3) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                // No-op: columns already added via MIGRATION_1_3 path or v2 tables were
-                // created by fallbackToDestructiveMigration with new schema already included
-            }
-        }
-
         val MIGRATION_3_4 = object : Migration(3, 4) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE game_data ADD COLUMN aiSectDisciples TEXT NOT NULL DEFAULT ''")
@@ -371,7 +364,7 @@ abstract class GameDatabase : RoomDatabase() {
                         optimizeDatabase(db)
                     }
                 })
-                .addMigrations(MIGRATION_1_3, MIGRATION_2_3, MIGRATION_3_4)
+                .addMigrations(MIGRATION_1_3, MIGRATION_3_4)
                 .fallbackToDestructiveMigrationOnDowngrade()
                 .build()
                 .also { db -> applySafetyPragmas(db) }

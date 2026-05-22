@@ -46,7 +46,6 @@ import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.MerchantItem
 import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.Seed
-import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.theme.ButtonSizes
