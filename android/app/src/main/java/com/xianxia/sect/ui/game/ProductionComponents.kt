@@ -1,7 +1,5 @@
 package com.xianxia.sect.ui.game
 
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -328,35 +326,34 @@ fun ProductionSlotItem(
     totalDuration: Int = 1,
     isPill: Boolean = false,
     successRate: Double = 0.0,
+    gameDay: Int = 1,
     onCancel: (() -> Unit)? = null,
     onReplace: (() -> Unit)? = null,
     onClick: () -> Unit
 ) {
+    // Smooth progress: include day fraction within current month for continuous animation
     val progress = if (isWorking && totalDuration > 0) {
-        ((totalDuration - remainingMonths).coerceIn(0, totalDuration).toFloat() / totalDuration)
+        val elapsedMonths = (totalDuration - remainingMonths).toFloat()
+        val dayFraction = (gameDay - 1) / 30f
+        ((elapsedMonths + dayFraction) / totalDuration).coerceIn(0f, 1f)
     } else 0f
-
-    val animatedProgress by animateFloatAsState(
-        targetValue = progress,
-        animationSpec = tween(durationMillis = 500)
-    )
 
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         if (isWorking) {
+            Text(
+                text = "成功率${(successRate * 100).toInt()}%",
+                fontSize = 10.sp,
+                color = Color.Black
+            )
+            Spacer(modifier = Modifier.height(2.dp))
             LinearProgressIndicator(
-                progress = { animatedProgress },
+                progress = { progress },
                 modifier = Modifier
                     .width(60.dp)
                     .height(4.dp)
                     .clip(RoundedCornerShape(2.dp)),
                 color = Color(0xFF4CAF50),
                 trackColor = GameColors.Border
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = "成功率${(successRate * 100).toInt()}%",
-                fontSize = 10.sp,
-                color = Color.Black
             )
             Spacer(modifier = Modifier.height(4.dp))
         }

@@ -183,6 +183,7 @@ fun AlchemyDialog(
                     totalDuration = mySlot?.duration ?: 1,
                     isPill = true,
                     successRate = mySlot?.successRate ?: 0.0,
+                    gameDay = gameData?.gameDay ?: 1,
                     onCancel = if (isWorking) { { alchemyViewModel.cancelAlchemy(slotIndex) } } else null,
                     onReplace = if (isWorking) { {
                         replaceSlotIndex = slotIndex
