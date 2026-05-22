@@ -9,6 +9,15 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.0.68",
+            date = "2026-05-22",
+            changes = listOf(
+                "战斗结算界面：战斗结束后弹出半屏结算界面，展示出战弟子状态和战利品",
+                "结算界面底部显示「战斗详情」和「确定」按钮，战斗详情可查看完整回合记录",
+                "所有战斗类型（世界关卡、宗门战、探查、洞府探索）均支持战斗结算弹窗"
+            )
+        ),
+        ChangelogEntry(
             version = "3.0.67",
             date = "2026-05-22",
             changes = listOf(

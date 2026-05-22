@@ -458,6 +458,16 @@ data class BattleLogResult(
     val drops: List<String> = emptyList()
 )
 
+// 战斗奖励物品（用于战斗结算界面展示战利品）
+@Serializable
+data class BattleRewardItem(
+    val itemId: String = "",
+    val name: String,
+    val quantity: Int = 1,
+    val rarity: Int = 1,
+    val type: String = "material"  // "spiritStones", "equipment", "manual", "pill", "material"
+)
+
 // AI洞府探索队伍（用于GameData）
 @Serializable
 data class AICaveTeam(

@@ -15,6 +15,7 @@ import com.xianxia.sect.core.engine.service.HighFrequencyData
 import com.xianxia.sect.core.engine.system.SystemError
 import com.xianxia.sect.core.engine.system.SystemManager
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.state.BattleResultUIData
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.usecase.DisciplePositionQueryUseCase
@@ -131,6 +132,10 @@ class GameViewModel @Inject constructor(
 
     fun openBattleLogDialog() {
         _navigationEvents.trySend(GameRoute.BattleLog)
+    }
+
+    fun dismissBattleResult() {
+        gameEngine.clearPendingBattleResult()
     }
 
     fun placeBuilding(name: String, gridX: Int, gridY: Int, width: Int = 2, height: Int = 3) {
@@ -305,6 +310,9 @@ class GameViewModel @Inject constructor(
 
     val battleLogs: StateFlow<List<BattleLog>> = gameEngine.battleLogs
         .stateIn(viewModelScope, sharingStarted, emptyList())
+
+    val pendingBattleResult: StateFlow<BattleResultUIData?> = gameEngine.pendingBattleResult
+        .stateIn(viewModelScope, sharingStarted, null)
 
     val alliances: StateFlow<List<Alliance>> = gameEngine.gameData
         .map { it.alliances }

@@ -46,6 +46,7 @@ sealed class GameRoute(val route: String) {
     object BattleTeamDiscipleSelect : GameRoute("battle_team_disciple_select/{slotIndex}") {
         fun createRoute(slotIndex: Int) = "battle_team_disciple_select/$slotIndex"
     }
+    object BattleResult : GameRoute("battle_result")
 
     // Misc
     object GameOver : GameRoute("game_over")

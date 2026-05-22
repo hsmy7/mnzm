@@ -25,6 +25,7 @@ import com.xianxia.sect.core.CombatantSide
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.util.StorageBagUtils
 import com.xianxia.sect.core.config.InventoryConfig
+import com.xianxia.sect.core.state.BattleResultUIData
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.addEquipmentInstanceToDiscipleBag
@@ -95,6 +96,8 @@ class GameEngine @Inject constructor(
     fun getCurrentHerbs(): List<Herb> = stateStore.getCurrentHerbs()
     fun getCurrentMaterials(): List<Material> = stateStore.getCurrentMaterials()
     val battleLogs: StateFlow<List<BattleLog>> get() = stateStore.battleLogs
+    val pendingBattleResult: StateFlow<BattleResultUIData?> get() = stateStore.pendingBattleResult
+    fun clearPendingBattleResult() = stateStore.clearPendingBattleResult()
     val teams: StateFlow<List<ExplorationTeam>> get() = stateStore.teams
 
     val discipleAggregates: StateFlow<List<DiscipleAggregate>> get() = stateStore.discipleAggregates
@@ -2861,6 +2864,7 @@ class GameEngine @Inject constructor(
 
         // If win, generate rewards and handle occupation
         if (battleResult.winner == AIBattleWinner.ATTACKER) {
+            val warRewards: WarRewards
             if (battleResult.canOccupy) {
                 val survivors = attackers.filter { it.id !in deadPlayerIds }
                 val garrisonSlots = targetSect.garrisonSlots.mapIndexed { index, _ ->
@@ -2880,7 +2884,7 @@ class GameEngine @Inject constructor(
                 }
 
                 val rewardCount = (80..130).random()
-                val rewards = AISectAttackManager.generateWarRewards(targetSect.level, rewardCount)
+                warRewards = AISectAttackManager.generateWarRewards(targetSect.level, rewardCount)
 
                 stateStore.update {
                     gameData = gameData.copy(
@@ -2894,14 +2898,41 @@ class GameEngine @Inject constructor(
                             } else sect
                         }
                     )
-                    addWarRewardsToWarehouse(rewards)
+                    addWarRewardsToWarehouse(warRewards)
                 }
             } else {
                 val rewardCount = (20..60).random()
-                val rewards = AISectAttackManager.generateWarRewards(targetSect.level, rewardCount)
-                stateStore.update { addWarRewardsToWarehouse(rewards) }
+                warRewards = AISectAttackManager.generateWarRewards(targetSect.level, rewardCount)
+                stateStore.update { addWarRewardsToWarehouse(warRewards) }
             }
+            stateStore.setPendingBattleResult(BattleResultUIData(
+                battleLogId = log.id,
+                victory = true,
+                teamMembers = teamMembers,
+                rewards = warRewardsToBattleRewardItems(warRewards)
+            ))
+        } else {
+            stateStore.setPendingBattleResult(BattleResultUIData(
+                battleLogId = log.id,
+                victory = false,
+                teamMembers = teamMembers,
+                rewards = emptyList()
+            ))
         }
+    }
+
+    private fun warRewardsToBattleRewardItems(rewards: WarRewards): List<BattleRewardItem> {
+        val items = mutableListOf<BattleRewardItem>()
+        if (rewards.spiritStones > 0) {
+            items.add(BattleRewardItem(name = "灵石", quantity = rewards.spiritStones.toInt(), rarity = 1, type = "spiritStones"))
+        }
+        rewards.equipmentStacks.forEach { items.add(BattleRewardItem(itemId = it.id, name = it.name, quantity = it.quantity, rarity = it.rarity, type = "equipment")) }
+        rewards.manualStacks.forEach { items.add(BattleRewardItem(itemId = it.id, name = it.name, quantity = it.quantity, rarity = it.rarity, type = "manual")) }
+        rewards.pills.forEach { items.add(BattleRewardItem(itemId = it.id, name = it.name, quantity = it.quantity, rarity = it.rarity, type = "pill")) }
+        rewards.materials.forEach { items.add(BattleRewardItem(itemId = it.id, name = it.name, quantity = it.quantity, rarity = it.rarity, type = "material")) }
+        rewards.herbs.forEach { items.add(BattleRewardItem(itemId = it.id, name = it.name, quantity = it.quantity, rarity = it.rarity, type = "herb")) }
+        rewards.seeds.forEach { items.add(BattleRewardItem(itemId = it.id, name = it.name, quantity = it.quantity, rarity = it.rarity, type = "seed")) }
+        return items
     }
 
     private fun MutableGameState.addWarRewardsToWarehouse(rewards: WarRewards) {
@@ -3071,11 +3102,24 @@ class GameEngine @Inject constructor(
         val updatedLogs = (existingLogs + log).takeLast(GameConfig.Logs.MAX_BATTLE_LOGS)
 
         if (result.victory) {
-            if (level.isBeast) {
+            val handlerRewards = if (level.isBeast) {
                 handleBeastLevelVictory(level)
             } else {
                 handleCaveLevelVictory(level)
             }
+            val engineSsRewards = result.rewards["spiritStones"] ?: 0
+            val allRewards = if (engineSsRewards > 0) {
+                handlerRewards + BattleRewardItem(
+                    name = "灵石", quantity = engineSsRewards, rarity = 1, type = "spiritStones"
+                )
+            } else handlerRewards
+
+            stateStore.setPendingBattleResult(BattleResultUIData(
+                battleLogId = log.id,
+                victory = true,
+                teamMembers = teamMembers,
+                rewards = allRewards
+            ))
 
             updateGameDataSync {
                 it.copy(
@@ -3086,6 +3130,12 @@ class GameEngine @Inject constructor(
             }
             stateStore.update { battleLogs = updatedLogs }
         } else {
+            stateStore.setPendingBattleResult(BattleResultUIData(
+                battleLogId = log.id,
+                victory = false,
+                teamMembers = teamMembers,
+                rewards = emptyList()
+            ))
             stateStore.update { battleLogs = updatedLogs }
         }
     }
@@ -3237,6 +3287,12 @@ class GameEngine @Inject constructor(
         val existingLogs = stateStore.battleLogs.value
         val updatedLogs = (existingLogs + log).takeLast(GameConfig.Logs.MAX_BATTLE_LOGS)
         stateStore.update { battleLogs = updatedLogs }
+        stateStore.setPendingBattleResult(BattleResultUIData(
+            battleLogId = log.id,
+            victory = victory,
+            teamMembers = teamMembers,
+            rewards = emptyList()
+        ))
 
         // On victory: generate SectScoutInfo
         if (victory) {
@@ -3261,7 +3317,8 @@ class GameEngine @Inject constructor(
         }
     }
 
-    private fun handleBeastLevelVictory(level: WorldLevel) {
+    private fun handleBeastLevelVictory(level: WorldLevel): List<BattleRewardItem> {
+        val rewards = mutableListOf<BattleRewardItem>()
         val beastConfig = GameConfig.Beast.getType(level.beastType ?: 0)
         val tier = GameConfig.Realm.getMaxRarity(level.realm)
         for (i in 0 until level.count) {
@@ -3280,15 +3337,32 @@ class GameEngine @Inject constructor(
                         quantity = 1
                     )
                     inventorySystem.addMaterial(material)
+                    rewards.add(BattleRewardItem(
+                        itemId = material.id,
+                        name = material.name,
+                        quantity = 1,
+                        rarity = material.rarity,
+                        type = "material"
+                    ))
                 }
             }
         }
+        return rewards
     }
 
-    private fun handleCaveLevelVictory(level: WorldLevel) {
+    private fun handleCaveLevelVictory(level: WorldLevel): List<BattleRewardItem> {
+        val rewards = mutableListOf<BattleRewardItem>()
         val config = LevelGenerator.getCaveReward(level.realm)
         val spiritStones = (config.baseSpiritStones * (0.8 + kotlin.random.Random.nextDouble() * 0.4)).toLong()
         addSpiritStones(spiritStones)
+        if (spiritStones > 0) {
+            rewards.add(BattleRewardItem(
+                name = "灵石",
+                quantity = spiritStones.toInt(),
+                rarity = 1,
+                type = "spiritStones"
+            ))
+        }
 
         val itemCount = kotlin.random.Random.nextInt(1, 7)
         val (minRarity, maxRarity) = config.rarityRange
@@ -3298,17 +3372,45 @@ class GameEngine @Inject constructor(
             when {
                 typeRoll < 0.33 -> {
                     val manual = com.xianxia.sect.core.registry.ManualDatabase.generateRandom(rarity)
-                    if (manual != null) inventorySystem.addManualStack(manual)
+                    if (manual != null) {
+                        inventorySystem.addManualStack(manual)
+                        rewards.add(BattleRewardItem(
+                            itemId = manual.id,
+                            name = manual.name,
+                            quantity = 1,
+                            rarity = manual.rarity,
+                            type = "manual"
+                        ))
+                    }
                 }
                 typeRoll < 0.66 -> {
                     val equip = com.xianxia.sect.core.registry.EquipmentDatabase.generateRandom(rarity)
-                    if (equip != null) inventorySystem.addEquipmentStack(equip)
+                    if (equip != null) {
+                        inventorySystem.addEquipmentStack(equip)
+                        rewards.add(BattleRewardItem(
+                            itemId = equip.id,
+                            name = equip.name,
+                            quantity = 1,
+                            rarity = equip.rarity,
+                            type = "equipment"
+                        ))
+                    }
                 }
                 else -> {
                     val pill = com.xianxia.sect.core.registry.ItemDatabase.generateRandomPill(rarity)
-                    if (pill != null) inventorySystem.addPill(pill)
+                    if (pill != null) {
+                        inventorySystem.addPill(pill)
+                        rewards.add(BattleRewardItem(
+                            itemId = pill.id,
+                            name = pill.name,
+                            quantity = 1,
+                            rarity = pill.rarity,
+                            type = "pill"
+                        ))
+                    }
                 }
             }
         }
+        return rewards
     }
 }

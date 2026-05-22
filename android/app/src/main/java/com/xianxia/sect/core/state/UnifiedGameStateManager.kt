@@ -11,6 +11,15 @@ import java.lang.ref.WeakReference
 import javax.inject.Inject
 import javax.inject.Singleton
 
+// 战斗结算数据（UI 瞬态，不持久化）
+@kotlinx.serialization.Serializable
+data class BattleResultUIData(
+    val battleLogId: String,
+    val victory: Boolean,
+    val teamMembers: List<BattleLogMember>,
+    val rewards: List<BattleRewardItem>
+)
+
 data class UnifiedGameState(
     val gameData: GameData = GameData(),
     val disciples: List<Disciple> = emptyList(),
@@ -30,6 +39,8 @@ data class UnifiedGameState(
     val isLoading: Boolean = false,
     val isSaving: Boolean = false,
     val gameSpeed: Int = 1,
+
+    val pendingBattleResult: BattleResultUIData? = null,
 
     val lastUpdateTime: Long = System.currentTimeMillis(),
     val version: Int = 1

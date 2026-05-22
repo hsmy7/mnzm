@@ -8,6 +8,7 @@ import kotlin.random.Random
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.state.BattleResultUIData
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.registry.*
 import com.xianxia.sect.core.engine.system.InventorySystem
@@ -2477,6 +2478,23 @@ private val applicationScopeProvider: ApplicationScopeProvider,
             )
         )
         currentBattleLogs = listOf(battleLog) + currentBattleLogs.take(49)
+
+        // 设置战斗结算数据
+        val battleRewardItems = rewards.items.map { item ->
+            BattleRewardItem(
+                itemId = item.itemId,
+                name = item.name,
+                quantity = item.quantity,
+                rarity = item.rarity,
+                type = item.type
+            )
+        }
+        stateStore.setPendingBattleResult(BattleResultUIData(
+            battleLogId = battleLog.id,
+            victory = battleResult.victory,
+            teamMembers = battleLog.teamMembers,
+            rewards = battleRewardItems
+        ))
 
         com.xianxia.sect.taptap.TapDBManager.trackEvent(
             "battle_end",

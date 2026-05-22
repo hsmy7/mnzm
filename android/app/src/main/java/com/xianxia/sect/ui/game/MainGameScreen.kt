@@ -51,6 +51,7 @@ import androidx.navigation.compose.rememberNavController
 
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.R
+import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.GameData
@@ -76,6 +77,7 @@ import com.xianxia.sect.ui.game.tabs.SettingsTab
 import com.xianxia.sect.ui.game.dialogs.BattleLogItem
 import com.xianxia.sect.ui.game.dialogs.BattleLogDetailDialog
 import com.xianxia.sect.ui.game.dialogs.BattleLogListDialog
+import com.xianxia.sect.ui.game.dialogs.BattleResultDialog
 import com.xianxia.sect.ui.game.dialogs.WorldMapDialog
 import com.xianxia.sect.ui.game.dialogs.WorldMapSectDetailDialog
 import com.xianxia.sect.ui.game.dialogs.DiplomacyDialog
@@ -369,6 +371,9 @@ fun MainGameScreen(
     var tipDialogMessage by remember { mutableStateOf<String?>(null) }
     var tipDialogIsError by remember { mutableStateOf(false) }
 
+    // Battle result detail overlay
+    var detailBattleLog by remember { mutableStateOf<BattleLog?>(null) }
+
     LaunchedEffect(Unit) {
         viewModel.errorEvents.collect { message ->
             tipDialogMessage = message
@@ -390,6 +395,14 @@ fun MainGameScreen(
         }
     }
     val battleLogs by viewModel.battleLogs.collectAsState()
+
+    val pendingBattleResult by viewModel.pendingBattleResult.collectAsState()
+
+    LaunchedEffect(pendingBattleResult) {
+        if (pendingBattleResult != null) {
+            dialogNavController.navigate(GameRoute.BattleResult.route)
+        }
+    }
 
     LaunchedEffect(gameData?.pendingCompetitionResults) {
         if (!gameData?.pendingCompetitionResults.isNullOrEmpty()) {
@@ -860,6 +873,36 @@ fun MainGameScreen(
                     }
                 )
             }
+            composable(GameRoute.BattleResult.route) {
+                val result = pendingBattleResult
+                if (result != null) {
+                    val log = battleLogs.find { it.id == result.battleLogId }
+                    BattleResultDialog(
+                        resultData = result,
+                        battleLog = log,
+                        onConfirm = {
+                            viewModel.dismissBattleResult()
+                            dialogNavController.popBackStack()
+                        },
+                        onViewDetail = { selectedLog ->
+                            viewModel.dismissBattleResult()
+                            dialogNavController.popBackStack()
+                            detailBattleLog = selectedLog
+                        },
+                        onDismiss = {
+                            viewModel.dismissBattleResult()
+                            dialogNavController.popBackStack()
+                        }
+                    )
+                }
+            }
+        }
+
+        detailBattleLog?.let { log ->
+            BattleLogDetailDialog(
+                log = log,
+                onDismiss = { detailBattleLog = null }
+            )
         }
 
         tipDialogMessage?.let { message ->

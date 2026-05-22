@@ -105,6 +105,10 @@ class GameStateStore @Inject constructor(
         .distinctUntilChanged()
         .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000, replayExpirationMillis = 30_000), emptyList())
 
+    val pendingBattleResult: StateFlow<BattleResultUIData?> = _state.map { it.pendingBattleResult }
+        .distinctUntilChanged()
+        .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000, replayExpirationMillis = 30_000), null)
+
     val isPaused: StateFlow<Boolean> = _isPaused.asStateFlow()
 
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
@@ -159,6 +163,14 @@ class GameStateStore @Inject constructor(
         _state.update { it.copy(isSaving = saving) }
     }
 
+    fun setPendingBattleResult(result: BattleResultUIData) {
+        _state.update { it.copy(pendingBattleResult = result) }
+    }
+
+    fun clearPendingBattleResult() {
+        _state.update { it.copy(pendingBattleResult = null) }
+    }
+
     fun updateGameDataDirect(update: (GameData) -> GameData) {
         _state.update { it.copy(gameData = update(it.gameData)) }
     }
@@ -205,7 +217,7 @@ class GameStateStore @Inject constructor(
             currentTransactionState = reusableMutableState
             try {
                 reusableMutableState.block()
-                _state.update { _ ->
+                _state.update { oldState ->
                     val finalPaused = if (_isPaused.value != current.isPaused) _isPaused.value else reusableMutableState.isPaused
                     val finalLoading = if (_isLoading.value != current.isLoading) _isLoading.value else reusableMutableState.isLoading
                     val finalSaving = if (_isSaving.value != current.isSaving) _isSaving.value else reusableMutableState.isSaving
@@ -228,7 +240,8 @@ class GameStateStore @Inject constructor(
                         alliances = reusableMutableState.gameData.alliances,
                         isPaused = finalPaused,
                         isLoading = finalLoading,
-                        isSaving = finalSaving
+                        isSaving = finalSaving,
+                        pendingBattleResult = oldState.pendingBattleResult
                     )
                 }
             } finally {
