@@ -192,7 +192,7 @@ internal fun DisciplesTab(
         val updatedDisciple = disciples.find { it.id == selected.id } ?: selected
         DiscipleDetailDialog(
             disciple = updatedDisciple,
-            allDisciples = disciples,
+            allDisciples = filteredDisciples,
             gameData = gameData,
             viewModel = viewModel,
             onDismiss = { selectedDisciple = null },

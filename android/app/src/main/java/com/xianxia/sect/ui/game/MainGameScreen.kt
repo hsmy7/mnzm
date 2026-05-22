@@ -628,9 +628,21 @@ fun MainGameScreen(
                 }
             }
             composable(GameRoute.Warehouse.route) {
-                FullScreenOverlay(title = "仓库", onDismiss = { dialogNavController.popBackStack() }) {
+                var showBulkSell by remember { mutableStateOf(false) }
+                FullScreenOverlay(
+                    title = "仓库",
+                    onDismiss = { dialogNavController.popBackStack() },
+                    actions = {
+                        GameButton(
+                            text = "一键出售",
+                            onClick = { showBulkSell = true }
+                        )
+                    }
+                ) {
                     WarehouseTab(
                         viewModel = viewModel,
+                        showBulkSellDialog = showBulkSell,
+                        onBulkSellDismiss = { showBulkSell = false },
                         onDismiss = { dialogNavController.popBackStack() }
                     )
                 }
@@ -864,6 +876,7 @@ fun MainGameScreen(
 private fun FullScreenOverlay(
     title: String,
     onDismiss: () -> Unit,
+    actions: @Composable (() -> Unit)? = null,
     content: @Composable () -> Unit
 ) {
     BackHandler(onBack = onDismiss)
@@ -893,6 +906,7 @@ private fun FullScreenOverlay(
                         color = Color.Black
                     )
                     Spacer(modifier = Modifier.weight(1f))
+                    actions?.invoke()
                     CloseButton(onClick = onDismiss)
                 }
                 content()

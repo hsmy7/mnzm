@@ -1537,7 +1537,7 @@ private fun CombatStatsSection(
         ) {
             StatItemWithBonus("速度", baseStats.speed, finalStats.speed, Modifier.weight(1f))
             val soulBonus = (disciple.soulPower / 10).coerceAtMost(10)
-            StatItem(if (soulBonus > 0) "神魂 +${soulBonus}%突破" else "神魂 0", disciple.soulPower, Modifier.weight(1f))
+            StatItem(if (soulBonus > 0) "神魂 +${soulBonus}%突破" else "神魂", disciple.soulPower, Modifier.weight(1f))
         }
     }
 }

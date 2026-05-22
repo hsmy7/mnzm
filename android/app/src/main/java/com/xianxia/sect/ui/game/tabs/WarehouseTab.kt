@@ -111,7 +111,12 @@ internal enum class WarehouseFilter(val displayName: String) {
 }
 
 @Composable
-internal fun WarehouseTab(viewModel: GameViewModel, onDismiss: () -> Unit = {}) {
+internal fun WarehouseTab(
+    viewModel: GameViewModel,
+    showBulkSellDialog: Boolean = false,
+    onBulkSellDismiss: () -> Unit = {},
+    onDismiss: () -> Unit = {}
+) {
     val equipmentStacks by viewModel.equipmentStacks.collectAsState()
     val manualStacks by viewModel.manualStacks.collectAsState()
     val pills by viewModel.pills.collectAsState()
@@ -176,7 +181,6 @@ internal fun WarehouseTab(viewModel: GameViewModel, onDismiss: () -> Unit = {}) 
             }
         }
     }
-    var showBulkSellDialog by remember { mutableStateOf(false) }
     var currentPage by remember { mutableIntStateOf(0) }
     
     val currentFilterItems = remember(selectedFilter, allSortedItems, equipment, sortedPills, manuals, sortedHerbs, sortedSeeds, sortedMaterials) {
@@ -198,25 +202,6 @@ internal fun WarehouseTab(viewModel: GameViewModel, onDismiss: () -> Unit = {}) 
                 .padding(16.dp)
         ) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = "仓库",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-                GameButton(
-                    text = "一键出售",
-                    onClick = { showBulkSellDialog = true }
-                )
-            }
-        
-        Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -450,7 +435,7 @@ internal fun WarehouseTab(viewModel: GameViewModel, onDismiss: () -> Unit = {}) 
     if (showBulkSellDialog) {
         BulkSellDialog(
             viewModel = viewModel,
-            onDismiss = { showBulkSellDialog = false }
+            onDismiss = onBulkSellDismiss
         )
     }
     }
