@@ -9,6 +9,13 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.0.70",
+            date = "2026-05-22",
+            changes = listOf(
+                "移除跨境界伤害乘数的所有上限和下限：境界差加成不再被MAX_REALM_GAP(5)和MAX_DAMAGE_RATIO(3.0x)限制，仙人打炼气从3.0x变为5.5x；低境界攻击高境界惩罚保底为0"
+            )
+        ),
+        ChangelogEntry(
             version = "3.0.69",
             date = "2026-05-22",
             changes = listOf(
