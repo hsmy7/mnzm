@@ -1,5 +1,7 @@
 package com.xianxia.sect.ui.game
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -325,6 +327,7 @@ fun ProductionSlotItem(
     productRarity: Int = 1,
     totalDuration: Int = 1,
     isPill: Boolean = false,
+    successRate: Double = 0.0,
     onCancel: (() -> Unit)? = null,
     onReplace: (() -> Unit)? = null,
     onClick: () -> Unit
@@ -333,22 +336,27 @@ fun ProductionSlotItem(
         ((totalDuration - remainingMonths).coerceIn(0, totalDuration).toFloat() / totalDuration)
     } else 0f
 
+    val animatedProgress by animateFloatAsState(
+        targetValue = progress,
+        animationSpec = tween(durationMillis = 500)
+    )
+
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         if (isWorking) {
-            Text(
-                text = "剩余 ${remainingMonths} 月",
-                fontSize = 10.sp,
-                color = Color.Black
-            )
-            Spacer(modifier = Modifier.height(2.dp))
             LinearProgressIndicator(
-                progress = { progress },
+                progress = { animatedProgress },
                 modifier = Modifier
-                    .fillMaxWidth()
+                    .width(60.dp)
                     .height(4.dp)
                     .clip(RoundedCornerShape(2.dp)),
                 color = Color(0xFF4CAF50),
                 trackColor = GameColors.Border
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = "成功率${(successRate * 100).toInt()}%",
+                fontSize = 10.sp,
+                color = Color.Black
             )
             Spacer(modifier = Modifier.height(4.dp))
         }
