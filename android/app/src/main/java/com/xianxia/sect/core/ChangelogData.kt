@@ -9,6 +9,14 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.0.69",
+            date = "2026-05-22",
+            changes = listOf(
+                "修复战斗普通攻击描述使用妖兽动词的问题：弟子进行普通攻击时正确显示武器攻击描述（如「一剑刺向」），而非妖兽攻击描述（如「猛扑向」）",
+                "修复探查中防守方AI弟子战斗描述同样使用妖兽动词的问题"
+            )
+        ),
+        ChangelogEntry(
             version = "3.0.68",
             date = "2026-05-22",
             changes = listOf(

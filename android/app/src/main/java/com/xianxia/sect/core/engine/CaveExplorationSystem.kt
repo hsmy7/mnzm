@@ -261,10 +261,11 @@ object CaveExplorationSystem {
             realm = realmIndex,
             realmName = GameConfig.Realm.getName(realmIndex),
             realmLayer = realmLayer,
-            element = beastType.element
+            element = beastType.element,
+            isBeast = true
         )
     }
-    
+
     fun generateVictoryRewards(cave: CultivatorCave): CaveRewards {
         val rewards = mutableListOf<CaveRewardItem>()
         

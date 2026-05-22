@@ -177,7 +177,8 @@ class BattleSystem @Inject constructor() {
             realmName = GameConfig.Realm.getName(realmIndex),
             realmLayer = realmLayer,
             element = type.element,
-            portraitRes = "beast_$typeIndex"
+            portraitRes = "beast_$typeIndex",
+            isBeast = true
         )
     }
 
@@ -692,7 +693,7 @@ data class Combatant(
     val element: String = "",
     val weaponName: String? = null,
     val portraitRes: String = "",
-    val isBeast: Boolean = true
+    val isBeast: Boolean = false
 ) {
     val isDead: Boolean get() = hp <= 0
     val hpPercent: Double get() = if (maxHp > 0) hp.toDouble() / maxHp else 0.0

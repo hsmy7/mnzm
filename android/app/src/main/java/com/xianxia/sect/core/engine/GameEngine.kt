@@ -3200,7 +3200,7 @@ class GameEngine @Inject constructor(
 
         // Build AI defender Combatants with full stats and skills
         val aiCombatants = aiDefenders.map { d ->
-            AISectAttackManager.convertToCombatant(d, CombatantSide.ATTACKER).copy(isBeast = false)
+            AISectAttackManager.convertToCombatant(d, CombatantSide.ATTACKER)
         }
 
         val battle = Battle(
