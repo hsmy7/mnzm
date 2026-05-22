@@ -9,6 +9,7 @@ import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.BattleResultUIData
+import com.xianxia.sect.core.state.GameNotification
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.registry.*
 import com.xianxia.sect.core.engine.system.InventorySystem
@@ -105,6 +106,14 @@ private val applicationScopeProvider: ApplicationScopeProvider,
             val ts = stateStore.currentTransactionMutableState()
             if (ts != null) { ts.disciples = value; return }
             scope.launch(Dispatchers.IO) { stateStore.update { disciples = value } }
+        }
+    private var pendingNotification: GameNotification?
+        get() = stateStore.currentTransactionMutableState()?.pendingNotification
+        set(value) {
+            val ts = stateStore.currentTransactionMutableState()
+            if (ts != null) { ts.pendingNotification = value; return }
+            if (value != null) stateStore.setPendingNotification(value)
+            else stateStore.clearPendingNotification()
         }
     private var currentEquipmentStacks: List<EquipmentStack>
         get() = stateStore.currentTransactionMutableState()?.equipmentStacks ?: stateStore.equipmentStacks.value
@@ -1853,8 +1862,10 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                         ) else it
                     }
                 } else {
+                    val discipleSnapshot = disciple.copy()
                     clearDiscipleFromAllSlots(disciple.id)
                     currentDisciples = currentDisciples.filter { it.id != disciple.id }
+                    pendingNotification = GameNotification.DiscipleDesertion(discipleSnapshot)
                 }
             }
         }
@@ -1882,17 +1893,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
             val theftProb = ((GameConfig.LawEnforcementConfig.MORALITY_THRESHOLD - effectiveMorality) * GameConfig.LawEnforcementConfig.PROB_PER_POINT).coerceIn(0.0, GameConfig.LawEnforcementConfig.MAX_PROB)
             if (Random.nextDouble() < theftProb) {
                 if (Random.nextDouble() < captureRate) {
-                    val currentYear = currentGameData.gameYear
-                    val endYear = currentYear + GameConfig.LawEnforcementConfig.REFLECTION_YEARS
-                    currentDisciples = currentDisciples.map {
-                        if (it.id == disciple.id) it.copy(
-                            status = DiscipleStatus.REFLECTING,
-                            statusData = it.statusData + mapOf(
-                                "reflectionStartYear" to currentYear.toString(),
-                                "reflectionEndYear" to endYear.toString()
-                            )
-                        ) else it
-                    }
+                    pendingNotification = GameNotification.DiscipleTheftCaught(disciple)
                 } else {
                     val currentData = currentGameData
                     if (currentData.spiritStones <= 0) break

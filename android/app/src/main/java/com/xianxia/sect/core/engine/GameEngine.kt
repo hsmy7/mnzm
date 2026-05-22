@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.state.GameNotification
 import com.xianxia.sect.core.engine.service.*
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.engine.system.MerchantItemConverter
@@ -98,6 +99,7 @@ class GameEngine @Inject constructor(
     val battleLogs: StateFlow<List<BattleLog>> get() = stateStore.battleLogs
     val pendingBattleResult: StateFlow<BattleResultUIData?> get() = stateStore.pendingBattleResult
     fun clearPendingBattleResult() = stateStore.clearPendingBattleResult()
+    val pendingNotification: StateFlow<GameNotification?> get() = stateStore.pendingNotification
     val teams: StateFlow<List<ExplorationTeam>> get() = stateStore.teams
 
     val discipleAggregates: StateFlow<List<DiscipleAggregate>> get() = stateStore.discipleAggregates
@@ -558,6 +560,47 @@ class GameEngine @Inject constructor(
 
     suspend fun expelDisciple(discipleId: String): Boolean {
         return discipleService.expelDisciple(discipleId)
+    }
+
+    suspend fun expelTheftDisciple(discipleId: String): Boolean {
+        return discipleService.expelDisciple(discipleId)
+    }
+
+    fun imprisonTheftDisciple(discipleId: String, currentYear: Int) {
+        stateStore.updateDisciplesDirect { disciples ->
+            disciples.map {
+                if (it.id == discipleId) it.copy(
+                    status = DiscipleStatus.REFLECTING,
+                    statusData = it.statusData + mapOf(
+                        "reflectionStartYear" to currentYear.toString(),
+                        "reflectionEndYear" to (currentYear + 10).toString()
+                    )
+                ) else it
+            }
+        }
+    }
+
+    fun releaseTheftDisciple(discipleId: String): Int {
+        val loyaltyChange = (1..10).random()
+        stateStore.updateDisciplesDirect { disciples ->
+            disciples.map {
+                if (it.id == discipleId) {
+                    val baseStats = DiscipleStatCalculator.getBaseStats(it)
+                    it.copy(
+                        status = DiscipleStatus.IDLE,
+                        statusData = it.statusData - setOf("reflectionStartYear", "reflectionEndYear"),
+                        skills = it.skills.copy(
+                            loyalty = (baseStats.loyalty + loyaltyChange).coerceIn(0, 100)
+                        )
+                    )
+                } else it
+            }
+        }
+        return loyaltyChange
+    }
+
+    fun clearPendingNotification() {
+        stateStore.clearPendingNotification()
     }
 
     suspend fun equipEquipment(discipleId: String, equipmentId: String): Boolean =

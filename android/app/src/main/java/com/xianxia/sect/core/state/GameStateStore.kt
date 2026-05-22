@@ -32,7 +32,8 @@ data class MutableGameState(
     var battleLogs: List<BattleLog>,
     var isPaused: Boolean,
     var isLoading: Boolean,
-    var isSaving: Boolean
+    var isSaving: Boolean,
+    var pendingNotification: GameNotification? = null
 )
 
 @Singleton
@@ -109,6 +110,10 @@ class GameStateStore @Inject constructor(
         .distinctUntilChanged()
         .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000, replayExpirationMillis = 30_000), null)
 
+    val pendingNotification: StateFlow<GameNotification?> = _state.map { it.pendingNotification }
+        .distinctUntilChanged()
+        .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000, replayExpirationMillis = 30_000), null)
+
     val isPaused: StateFlow<Boolean> = _isPaused.asStateFlow()
 
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
@@ -145,7 +150,8 @@ class GameStateStore @Inject constructor(
         teams = emptyList(),
         isPaused = true,
         isLoading = false,
-        isSaving = false
+        isSaving = false,
+        pendingNotification = null
     )
 
     fun setPausedDirect(paused: Boolean) {
@@ -169,6 +175,18 @@ class GameStateStore @Inject constructor(
 
     fun clearPendingBattleResult() {
         _state.update { it.copy(pendingBattleResult = null) }
+    }
+
+    fun setPendingNotification(notification: GameNotification) {
+        _state.update { it.copy(pendingNotification = notification) }
+    }
+
+    fun clearPendingNotification() {
+        _state.update { it.copy(pendingNotification = null) }
+    }
+
+    fun updateDisciplesDirect(update: (List<Disciple>) -> List<Disciple>) {
+        _state.update { it.copy(disciples = update(it.disciples)) }
     }
 
     fun updateGameDataDirect(update: (GameData) -> GameData) {
@@ -213,6 +231,7 @@ class GameStateStore @Inject constructor(
                 isPaused = current.isPaused
                 isLoading = current.isLoading
                 isSaving = current.isSaving
+                pendingNotification = current.pendingNotification
             }
             currentTransactionState = reusableMutableState
             try {
@@ -241,7 +260,8 @@ class GameStateStore @Inject constructor(
                         isPaused = finalPaused,
                         isLoading = finalLoading,
                         isSaving = finalSaving,
-                        pendingBattleResult = oldState.pendingBattleResult
+                        pendingBattleResult = oldState.pendingBattleResult,
+                        pendingNotification = reusableMutableState.pendingNotification
                     )
                 }
             } finally {

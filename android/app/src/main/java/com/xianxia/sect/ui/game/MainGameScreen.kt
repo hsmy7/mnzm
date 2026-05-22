@@ -66,6 +66,9 @@ import com.xianxia.sect.core.util.GridSystem
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.core.util.sortedByFollowAttributeAndRealm
 import com.xianxia.sect.ui.navigation.GameRoute
+import com.xianxia.sect.core.state.GameNotification
+import com.xianxia.sect.ui.game.dialogs.DiscipleDesertionDialog
+import com.xianxia.sect.ui.game.dialogs.DiscipleTheftCaughtDialog
 import com.xianxia.sect.ui.game.dialogs.OuterTournamentResultDialog
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.theme.GameColors
@@ -166,6 +169,7 @@ fun MainGameScreen(
     // gameData 包含资源、日期等，每 tick (200ms) 都可能变化
     // derivedStateOf 确保：只有当 UI 实际读取的字段变化时才触发重组
     val gameData by viewModel.gameData.collectAsState()
+    val pendingNotification by viewModel.pendingNotification.collectAsState()
     val mapRenderData by viewModel.worldMapRenderData.collectAsState()
 
     // [M7-OPT-2] 弟子列表 - 高频变化（修炼进度每 tick 更新）
@@ -921,6 +925,33 @@ fun MainGameScreen(
                 isError = tipDialogIsError,
                 onDismiss = { tipDialogMessage = null }
             )
+        }
+
+        pendingNotification?.let { notification ->
+            val hasPrison = gameData.placedBuildings.any {
+                it.displayName == "监牢" || it.buildingId == "reflection_cliff"
+            }
+            val currentYear = gameData.gameYear
+
+            when (notification) {
+                is GameNotification.DiscipleDesertion -> {
+                    DiscipleDesertionDialog(
+                        disciple = notification.disciple,
+                        onDismiss = { viewModel.clearNotification() }
+                    )
+                }
+                is GameNotification.DiscipleTheftCaught -> {
+                    DiscipleTheftCaughtDialog(
+                        disciple = notification.disciple,
+                        hasPrison = hasPrison,
+                        onExpel = { viewModel.expelTheftDisciple(notification.disciple.id) },
+                        onImprison = { viewModel.imprisonTheftDisciple(notification.disciple.id, currentYear) },
+                        onRelease = { viewModel.releaseTheftDisciple(notification.disciple.id) },
+                        onDiscipleClick = { /* opens disciple detail */ },
+                        onLoyaltyDismissed = { viewModel.onLoyaltyDialogDismissed() }
+                    )
+                }
+            }
         }
     }
     } // CompositionLocalProvider

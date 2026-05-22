@@ -20,6 +20,11 @@ data class BattleResultUIData(
     val rewards: List<BattleRewardItem>
 )
 
+sealed interface GameNotification {
+    data class DiscipleDesertion(val disciple: Disciple) : GameNotification
+    data class DiscipleTheftCaught(val disciple: Disciple) : GameNotification
+}
+
 data class UnifiedGameState(
     val gameData: GameData = GameData(),
     val disciples: List<Disciple> = emptyList(),
@@ -41,6 +46,7 @@ data class UnifiedGameState(
     val gameSpeed: Int = 1,
 
     val pendingBattleResult: BattleResultUIData? = null,
+    val pendingNotification: GameNotification? = null,
 
     val lastUpdateTime: Long = System.currentTimeMillis(),
     val version: Int = 1

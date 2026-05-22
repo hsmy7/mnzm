@@ -9,6 +9,15 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.0.74",
+            date = "2026-05-23",
+            changes = listOf(
+                "新增弟子叛逃提示框：弟子脱离宗门时弹出提示，显示弟子信息",
+                "新增弟子偷盗被捕提示框：执法堂抓获偷盗弟子后弹出提示，可选择驱逐、押入监牢或释放",
+                "释放偷盗弟子随机增加1~10忠诚度并弹出提示"
+            )
+        ),
+        ChangelogEntry(
             version = "3.0.73",
             date = "2026-05-22",
             changes = listOf(

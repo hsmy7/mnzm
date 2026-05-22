@@ -16,6 +16,7 @@ import com.xianxia.sect.core.engine.system.SystemError
 import com.xianxia.sect.core.engine.system.SystemManager
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.BattleResultUIData
+import com.xianxia.sect.core.state.GameNotification
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.usecase.DisciplePositionQueryUseCase
@@ -235,6 +236,8 @@ class GameViewModel @Inject constructor(
         .map { it.placedBuildings }
         .distinctUntilChanged()
         .stateIn(viewModelScope, sharingStarted, emptyList())
+
+    val pendingNotification: StateFlow<GameNotification?> get() = gameEngine.pendingNotification
 
     /**
      * 弟子聚合数据 - 用于 UI 层显示（推荐使用）
@@ -478,6 +481,30 @@ class GameViewModel @Inject constructor(
         viewModelScope.launch {
             gameEngine.expelDisciple(discipleId)
         }
+    }
+
+    fun clearNotification() {
+        gameEngine.clearPendingNotification()
+    }
+
+    fun expelTheftDisciple(discipleId: String) {
+        viewModelScope.launch {
+            gameEngine.expelTheftDisciple(discipleId)
+            gameEngine.clearPendingNotification()
+        }
+    }
+
+    fun imprisonTheftDisciple(discipleId: String, currentYear: Int) {
+        gameEngine.imprisonTheftDisciple(discipleId, currentYear)
+        gameEngine.clearPendingNotification()
+    }
+
+    fun releaseTheftDisciple(discipleId: String): Int {
+        return gameEngine.releaseTheftDisciple(discipleId)
+    }
+
+    fun onLoyaltyDialogDismissed() {
+        gameEngine.clearPendingNotification()
     }
 
     fun toggleFollowDisciple(discipleId: String) {
