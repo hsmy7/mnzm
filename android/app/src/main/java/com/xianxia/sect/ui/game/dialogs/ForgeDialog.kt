@@ -373,7 +373,7 @@ private fun EquipmentSelectionDialog(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(sortedRecipes) { recipeWithStatus ->
+                items(sortedRecipes, key = { it.recipe.id }) { recipeWithStatus ->
                     val recipe = recipeWithStatus.recipe
                     val hasEnoughMaterials = recipeWithStatus.canCraft
                     val isSelected = selectedRecipe?.id == recipe.id
@@ -400,11 +400,6 @@ private fun EquipmentSelectionDialog(
                                 }
                             },
                             onViewDetail = { showDetail = true }
-                        )
-                        Text(
-                            text = "${recipe.duration}月",
-                            fontSize = 9.sp,
-                            color = Color.Black
                         )
                     }
                 }

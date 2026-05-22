@@ -13,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -21,6 +22,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.ui.theme.GameColors
+
+val LocalItemSpriteCache = staticCompositionLocalOf<Map<Int, ImageBitmap>> { emptyMap() }
 
 data class ItemCardData(
     val id: String = "",
@@ -80,12 +83,22 @@ fun UnifiedItemCard(
                 contentAlignment = Alignment.Center
             ) {
                 if (spriteRes != null) {
-                    Image(
-                        painter = painterResource(id = spriteRes),
-                        contentDescription = data.name,
-                        modifier = Modifier.fillMaxSize().padding(3.dp),
-                        contentScale = ContentScale.Fit
-                    )
+                    val cachedBitmap = LocalItemSpriteCache.current[spriteRes]
+                    if (cachedBitmap != null) {
+                        Image(
+                            bitmap = cachedBitmap,
+                            contentDescription = data.name,
+                            modifier = Modifier.fillMaxSize().padding(3.dp),
+                            contentScale = ContentScale.Fit
+                        )
+                    } else {
+                        Image(
+                            painter = painterResource(id = spriteRes),
+                            contentDescription = data.name,
+                            modifier = Modifier.fillMaxSize().padding(3.dp),
+                            contentScale = ContentScale.Fit
+                        )
+                    }
                 } else {
                     Text(
                         text = "敬请期待",

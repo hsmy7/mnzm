@@ -9,6 +9,23 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.0.72",
+            date = "2026-05-22",
+            changes = listOf(
+                "彻底修复丹药/装备/功法选择界面滚动卡顿：精灵PNG缩放到显示尺寸、无损压缩、加载界面预解码为ImageBitmap缓存，滚动时零解码",
+                "CompositionLocal全局注入精灵缓存，所有物品卡片自动使用预解码贴图",
+                "丹药/锻造选择列表添加稳定key，避免不必要重组"
+            )
+        ),
+        ChangelogEntry(
+            version = "3.0.71",
+            date = "2026-05-22",
+            changes = listOf(
+                "优化加载速度：所有静态资源（功法库、丹药模板、配方、装备、妖兽材料、建筑贴图等）在读档/新游戏加载界面统一预加载，消除进入游戏后的首次操作卡顿",
+                "功法库初始化从应用启动移到游戏加载界面，加快应用启动速度"
+            )
+        ),
+        ChangelogEntry(
             version = "3.0.70",
             date = "2026-05-22",
             changes = listOf(

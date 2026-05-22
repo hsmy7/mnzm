@@ -27,9 +27,11 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import com.xianxia.sect.ui.components.LocalItemSpriteCache
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.layout.onSizeChanged
@@ -423,6 +425,9 @@ fun MainGameScreen(
         movingBuilding = null
     }
 
+    val preloadedItemSprites by saveLoadViewModel.preloadedItemSprites.collectAsState()
+
+    CompositionLocalProvider(LocalItemSpriteCache provides preloadedItemSprites) {
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -431,11 +436,16 @@ fun MainGameScreen(
                 screenHeightPx = size.height.toFloat()
             }
     ) {
+        val preloadedBuildingBitmaps by saveLoadViewModel.preloadedBuildingBitmaps.collectAsState()
+        val buildingBitmaps = if (preloadedBuildingBitmaps.isNotEmpty()) preloadedBuildingBitmaps
+            else rememberBuildingBitmaps()
+
         // 宗门大地图层（Canvas + 建筑 + 网格 + 放置预览 + 确认按钮）
         SectMapLayer(
             cameraState = cameraState,
             placedBuildings = placedBuildings,
             fullMapBmp = fullMapBmp,
+            buildingBitmaps = buildingBitmaps,
             tileSize = tileSize,
             worldWidthCells = worldWidthCells,
             worldHeightCells = worldHeightCells,
@@ -913,6 +923,7 @@ fun MainGameScreen(
             )
         }
     }
+    } // CompositionLocalProvider
 }
 
 @Composable
@@ -1016,6 +1027,7 @@ private fun SectMapLayer(
     cameraState: CameraState,
     placedBuildings: List<GridBuildingData>,
     fullMapBmp: androidx.compose.ui.graphics.ImageBitmap,
+    buildingBitmaps: Map<String, androidx.compose.ui.graphics.ImageBitmap>,
     tileSize: Int,
     worldWidthCells: Int,
     worldHeightCells: Int,
@@ -1051,7 +1063,6 @@ private fun SectMapLayer(
     onMovingDrag: (Float, Float) -> Unit = { _, _ -> }
 ) {
     val textMeasurer = rememberTextMeasurer()
-    val buildingBitmaps = rememberBuildingBitmaps()
     SectGroundCanvas(
         cameraState = cameraState,
         placedBuildings = placedBuildings,

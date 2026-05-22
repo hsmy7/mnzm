@@ -389,7 +389,7 @@ private fun PillSelectionDialog(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(sortedRecipes) { recipeWithStatus ->
+                items(sortedRecipes, key = { it.recipe.id }) { recipeWithStatus ->
                     val recipe = recipeWithStatus.recipe
                     val hasEnoughMaterials = recipeWithStatus.canCraft
                     val isSelected = selectedRecipe?.id == recipe.id
@@ -420,11 +420,6 @@ private fun PillSelectionDialog(
                         )
                         Text(
                             text = "${recipe.duration}月",
-                            fontSize = 9.sp,
-                            color = Color.Black
-                        )
-                        Text(
-                            text = PillRecipeDatabase.getTierName(recipe.tier),
                             fontSize = 9.sp,
                             color = Color.Black
                         )

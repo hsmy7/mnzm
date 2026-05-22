@@ -1,14 +1,23 @@
 package com.xianxia.sect.ui.game
 
+import android.content.Context
 import android.util.Log
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.lifecycle.viewModelScope
 import com.xianxia.sect.core.config.BuildingConfigService
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.GameEngineCore
 import com.xianxia.sect.core.engine.coordinator.SavePipeline
+import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.ForgeRecipeDatabase
+import com.xianxia.sect.core.registry.ItemDatabase
+import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.registry.PillRecipeDatabase
+import com.xianxia.sect.ui.components.allEquipmentSpriteResIds
+import com.xianxia.sect.ui.components.allManualSpriteResIds
+import com.xianxia.sect.ui.components.allPillSpriteResIds
 import com.xianxia.sect.core.state.UnifiedGameStateManager
 import com.xianxia.sect.data.facade.StorageFacade
 import com.xianxia.sect.data.model.SaveData
@@ -17,6 +26,7 @@ import com.xianxia.sect.data.unified.SaveError
 import com.xianxia.sect.data.unified.SaveResult
 import com.xianxia.sect.di.ApplicationScopeProvider
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import java.util.concurrent.atomic.AtomicBoolean
@@ -33,7 +43,8 @@ class SaveLoadViewModel @Inject constructor(
     private val stateManager: UnifiedGameStateManager,
     private val savePipeline: SavePipeline,
     private val applicationScopeProvider: ApplicationScopeProvider,
-    private val buildingConfigService: BuildingConfigService
+    private val buildingConfigService: BuildingConfigService,
+    @ApplicationContext private val context: Context
 ) : BaseViewModel() {
 
     companion object {
@@ -43,22 +54,99 @@ class SaveLoadViewModel @Inject constructor(
         private const val SAVE_LOCK_TIMEOUT_MS = 60_000L
 
         private const val PROGRESS_START = 0f
-        private const val PROGRESS_ENGINE_INIT = 0.2f
-        private const val PROGRESS_DATA_LOAD = 0.3f
-        private const val PROGRESS_SAVE_COMPLETE = 0.5f
-        private const val PROGRESS_RESTART_DATA_LOAD = 0.6f
-        private const val PROGRESS_RESOURCE_PRELOAD = 0.65f
-        private const val PROGRESS_GAME_LOOP_START = 0.8f
-        const val PROGRESS_MAP_PRELOAD = 0.9f
+        private const val PROGRESS_ENGINE_INIT = 0.15f
+        private const val PROGRESS_DATA_LOAD = 0.25f
+        private const val PROGRESS_SAVE_COMPLETE = 0.40f
+        private const val PROGRESS_RESTART_DATA_LOAD = 0.50f
+        private const val PROGRESS_MANUAL_PRELOAD = 0.50f
+        private const val PROGRESS_RECIPE_PRELOAD = 0.60f
+        private const val PROGRESS_BITMAP_PRELOAD = 0.70f
+        private const val PROGRESS_GAME_LOOP_START = 0.80f
+        const val PROGRESS_MAP_PRELOAD = 0.90f
         private const val PROGRESS_COMPLETE = 1f
     }
 
     private suspend fun preloadGameResources() {
-        _loadingProgress.value = PROGRESS_RESOURCE_PRELOAD
+        _loadingProgress.value = PROGRESS_MANUAL_PRELOAD
+        withContext(Dispatchers.IO) {
+            val result = ManualDatabase.initializeSync(context)
+            result.onSuccess { Log.i(TAG, "ManualDatabase preloaded") }
+                .onFailure { Log.w(TAG, "ManualDatabase preload failed", it) }
+        }
+
+        _loadingProgress.value = PROGRESS_RECIPE_PRELOAD
         withContext(Dispatchers.Default) {
+            ItemDatabase.allPills.size
+            EquipmentDatabase.allTemplates.size
+            ItemDatabase.beastMaterials.size
             PillRecipeDatabase.getAllRecipes()
             ForgeRecipeDatabase.getAllRecipes()
+            buildingConfigService.initialize()
         }
+
+        _loadingProgress.value = PROGRESS_BITMAP_PRELOAD
+        withContext(Dispatchers.Default) {
+            val bitmapNames = listOf(
+                "任务阁", "天枢殿", "执法堂", "灵植阁", "灵矿场",
+                "炼丹炉", "监牢", "藏经阁", "锻造坊", "问道塔", "青云塔"
+            )
+            val bitmaps = bitmapNames.mapNotNull { name ->
+                val resId = getBuildingDrawableResId(name)
+                try {
+                    name to (android.graphics.BitmapFactory.decodeResource(context.resources, resId)
+                        ?.asImageBitmap() ?: return@mapNotNull null)
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to decode building bitmap: $name", e)
+                    null
+                }
+            }.toMap()
+            _preloadedBuildingBitmaps.value = bitmaps
+            Log.d(TAG, "Building bitmaps preloaded: ${bitmaps.size}")
+
+            val spriteResIds = allPillSpriteResIds() + allManualSpriteResIds() + allEquipmentSpriteResIds()
+            val sprites = spriteResIds.mapNotNull { resId ->
+                try {
+                    val opts = android.graphics.BitmapFactory.Options().apply {
+                        inJustDecodeBounds = true
+                    }
+                    android.graphics.BitmapFactory.decodeResource(context.resources, resId, opts)
+                    val sampleSize = calculateSpriteSampleSize(opts.outWidth, opts.outHeight)
+                    val decodeOpts = android.graphics.BitmapFactory.Options().apply {
+                        inSampleSize = sampleSize
+                    }
+                    val bmp = android.graphics.BitmapFactory.decodeResource(context.resources, resId, decodeOpts)
+                    resId to (bmp?.asImageBitmap() ?: return@mapNotNull null)
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to preload sprite $resId", e)
+                    null
+                }
+            }.toMap()
+            _preloadedItemSprites.value = sprites
+            Log.d(TAG, "Item sprites preloaded: ${sprites.size}")
+        }
+    }
+
+    private fun calculateSpriteSampleSize(width: Int, height: Int, maxDimension: Int = 300): Int {
+        var sampleSize = 1
+        while (width / (sampleSize * 2) >= maxDimension || height / (sampleSize * 2) >= maxDimension) {
+            sampleSize *= 2
+        }
+        return sampleSize
+    }
+
+    private fun getBuildingDrawableResId(displayName: String): Int = when (displayName) {
+        "任务阁" -> com.xianxia.sect.R.drawable.building_mission_hall
+        "天枢殿" -> com.xianxia.sect.R.drawable.building_tianshu_hall
+        "执法堂" -> com.xianxia.sect.R.drawable.building_law_enforcement
+        "灵植阁" -> com.xianxia.sect.R.drawable.building_herb_garden
+        "灵矿场" -> com.xianxia.sect.R.drawable.building_spirit_mine
+        "炼丹炉" -> com.xianxia.sect.R.drawable.building_alchemy
+        "监牢" -> com.xianxia.sect.R.drawable.building_reflection_cliff
+        "藏经阁" -> com.xianxia.sect.R.drawable.building_library
+        "锻造坊" -> com.xianxia.sect.R.drawable.building_forge
+        "问道塔" -> com.xianxia.sect.R.drawable.building_wen_dao_peak
+        "青云塔" -> com.xianxia.sect.R.drawable.building_qingyun_peak
+        else -> com.xianxia.sect.R.drawable.building_alchemy
     }
 
     private val saveLock = AtomicBoolean(false)
@@ -75,6 +163,12 @@ class SaveLoadViewModel @Inject constructor(
 
     private val _loadingProgress = MutableStateFlow(0f)
     val loadingProgress: StateFlow<Float> = _loadingProgress.asStateFlow()
+
+    private val _preloadedBuildingBitmaps = MutableStateFlow<Map<String, ImageBitmap>>(emptyMap())
+    val preloadedBuildingBitmaps: StateFlow<Map<String, ImageBitmap>> = _preloadedBuildingBitmaps.asStateFlow()
+
+    private val _preloadedItemSprites = MutableStateFlow<Map<Int, ImageBitmap>>(emptyMap())
+    val preloadedItemSprites: StateFlow<Map<Int, ImageBitmap>> = _preloadedItemSprites.asStateFlow()
 
     private val _saveSlots = MutableStateFlow<List<SaveSlot>>(emptyList())
     val saveSlots: StateFlow<List<SaveSlot>> = _saveSlots.asStateFlow()
@@ -629,6 +723,8 @@ class SaveLoadViewModel @Inject constructor(
                     if (withIds != data.placedBuildings) data.copy(placedBuildings = withIds) else data
                 }
 
+                preloadGameResources()
+
                 startGameLoop()
                 _isGameLoaded = true
                 showSuccess("读档成功")
@@ -646,6 +742,7 @@ class SaveLoadViewModel @Inject constructor(
                     Log.w(TAG, "loadGame: Game data partially loaded, attempting to start game loop anyway")
                     try {
                         setSaveLoadState(isLoading = false, pendingSlot = saveSlot.slot, pendingAction = null)
+                        preloadGameResources()
                         startGameLoop()
                         _isGameLoaded = true
                     } catch (loopEx: Exception) {

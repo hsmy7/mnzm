@@ -4,7 +4,6 @@ import android.app.Application
 import android.content.ComponentCallbacks2
 import android.content.res.Configuration
 import android.util.Log
-import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.util.GameMonitorManager
 import com.xianxia.sect.core.util.VivoGCJITOptimizer
 import com.xianxia.sect.data.crypto.SaveCrypto
@@ -65,13 +64,7 @@ class XianxiaApplication : Application() {
 
         gameMonitorManager.initialize(this)
         gameMonitorManager.startMonitoring()
-        
-        val result = ManualDatabase.initializeSync(this)
-        result.onSuccess { Log.i(TAG, "ManualDatabase 初始化成功") }
-            .onFailure { 
-                Log.e(TAG, "ManualDatabase 初始化失败，将以空功法库继续运行", it)
-            }
-        
+
         Log.i(TAG, "Application initialized with monitoring systems")
 
         applicationScopeProvider.ioScope.launch(Dispatchers.IO) {

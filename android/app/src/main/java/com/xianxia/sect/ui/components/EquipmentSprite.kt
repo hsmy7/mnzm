@@ -100,3 +100,46 @@ fun pillSpriteRes(rarity: Int): Int? = when (rarity) {
     6 -> R.drawable.pill_tian
     else -> null
 }
+
+fun allPillSpriteResIds(): List<Int> = (1..6).mapNotNull { pillSpriteRes(it) }
+
+fun allManualSpriteResIds(): List<Int> = (1..6).mapNotNull { manualSpriteRes(it) }
+
+fun allEquipmentSpriteResIds(): List<Int> = listOf(
+    R.drawable.jing_tie_jian, R.drawable.jing_tie_dao,
+    R.drawable.lie_yan_jian, R.drawable.ling_feng_jian,
+    R.drawable.ling_hua_dao, R.drawable.lei_ting_jian,
+    R.drawable.qing_lian_jian, R.drawable.zhu_xian_jian,
+    R.drawable.feng_yan_ren, R.drawable.qing_bi_ren,
+    R.drawable.an_ying_ren, R.drawable.xuan_yu_ren,
+    R.drawable.tao_mu_zhang, R.drawable.bi_yu_zhang,
+    R.drawable.xuan_lei_zhang, R.drawable.xu_hua_zhang,
+    R.drawable.tian_xuan_zhang, R.drawable.tian_xing_zhang,
+    R.drawable.bi_mu_shan, R.drawable.ling_feng_shan,
+    R.drawable.xuan_bing_shan, R.drawable.huang_yan_shan,
+    R.drawable.yin_yang_shan, R.drawable.tian_xuan_shan,
+    R.drawable.suo_zi_jia, R.drawable.pi_jia,
+    R.drawable.ling_zhu_yi, R.drawable.jing_tie_jia,
+    R.drawable.bi_ye_jia, R.drawable.dan_yu_yi,
+    R.drawable.qing_lin_kai, R.drawable.yin_ban_kai,
+    R.drawable.xi_liu_yi, R.drawable.ling_si_pao,
+    R.drawable.yun_wen_pao, R.drawable.long_lin_kai,
+    R.drawable.yuan_yan_kai, R.drawable.yao_guang_pao,
+    R.drawable.yue_hua_pao, R.drawable.xing_chen_pao,
+    R.drawable.xuan_you_pao, R.drawable.mo_you_kai,
+    R.drawable.ling_xing_pao, R.drawable.ding_hai_kai,
+    R.drawable.bu_xiu_kai, R.drawable.cang_gang_kai,
+    R.drawable.xi_guang_kai, R.drawable.yun_ying_pao,
+    R.drawable.ben_lei_xue, R.drawable.chang_ming_zhui,
+    R.drawable.chi_sha_xue, R.drawable.du_e_pei,
+    R.drawable.feng_yu_zhui, R.drawable.he_lan_xue,
+    R.drawable.ji_feng_xue, R.drawable.ling_quan_jie,
+    R.drawable.ling_yu_pei, R.drawable.long_ling_zhu,
+    R.drawable.luan_yu_lv, R.drawable.qing_yu_xue,
+    R.drawable.qing_lan_xue, R.drawable.shou_pi_xue,
+    R.drawable.su_guang_xue, R.drawable.ta_yun_lv,
+    R.drawable.tong_xiang_lian, R.drawable.xun_jie_zhu,
+    R.drawable.yin_yun_pei, R.drawable.you_shuo_zhu,
+    R.drawable.yu_jie_zhi, R.drawable.yun_qi_xue,
+    R.drawable.yun_ling_jie, R.drawable.zhui_feng_xue
+)
