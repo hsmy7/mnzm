@@ -108,16 +108,15 @@ object BattleCalculator {
 
     fun calculateRealmGapMultiplier(attackerRealm: Int, defenderRealm: Int): Double {
         val gap = attackerRealm - defenderRealm
-        val absGap = kotlin.math.abs(gap).coerceAtMost(GameConfig.Battle.RealmGap.MAX_REALM_GAP)
-        if (absGap == 0) return 1.0
+        if (gap == 0) return 1.0
 
-        val ratio = if (gap < 0) {
+        val absGap = kotlin.math.abs(gap)
+
+        return if (gap < 0) {
             1.0 + absGap * GameConfig.Battle.RealmGap.DAMAGE_BONUS_PER_REALM
         } else {
-            1.0 - absGap * GameConfig.Battle.RealmGap.DAMAGE_PENALTY_PER_REALM
+            (1.0 - absGap * GameConfig.Battle.RealmGap.DAMAGE_PENALTY_PER_REALM).coerceAtLeast(0.0)
         }
-
-        return ratio.coerceIn(GameConfig.Battle.RealmGap.MIN_DAMAGE_RATIO, GameConfig.Battle.RealmGap.MAX_DAMAGE_RATIO)
     }
 
     fun calculateElementMultiplier(attackerElement: String, defenderElement: String): Double {
