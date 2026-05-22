@@ -216,7 +216,11 @@ object ItemDatabase {
             val rarity = TIER_RARITY[tier]!!
             for ((targetRealm, name, isAscension) in targets) {
                 for (grade in PillGrade.entries) {
-                    val chance = applyGrade(0.30, grade)
+                    val chance = when (grade) {
+                        PillGrade.LOW -> 0.05
+                        PillGrade.MEDIUM -> 0.12
+                        PillGrade.HIGH -> 0.20
+                    }
                     pills.add(PillTemplate(
                         id = "breakthrough_${targetRealm}_${grade.name.lowercase()}",
                         name = name,

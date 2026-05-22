@@ -341,7 +341,7 @@ private fun PillSelectionDialog(
 
     // 按 (tier, pillType) 分组，每组包含 3 个品质变体
     val recipeGroups = remember(allRecipes) {
-        allRecipes.groupBy { it.tier to it.pillType }
+        allRecipes.groupBy { it.tier to it.name }
     }
 
     // 展示用：每组取 MEDIUM 品质作为代表
@@ -455,7 +455,7 @@ private fun PillSelectionDialog(
 
     if (showDetail) {
         clickedRecipe?.let { recipe ->
-            val allGrades = recipeGroups[recipe.tier to recipe.pillType] ?: listOf(recipe)
+            val allGrades = recipeGroups[recipe.tier to recipe.name] ?: listOf(recipe)
             PillDetailDialog(
                 recipes = allGrades,
                 herbs = herbs,

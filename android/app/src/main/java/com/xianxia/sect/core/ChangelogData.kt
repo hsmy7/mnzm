@@ -9,6 +9,14 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.0.67",
+            date = "2026-05-22",
+            changes = listOf(
+                "突破丹药突破率调整：下品5%、中品12%、上品20%（原15%/30%/60%）",
+                "修复丹药选择界面部分突破丹药缺失的问题：分组逻辑改为按名称区分，同品阶不同突破丹药不再合并显示"
+            )
+        ),
+        ChangelogEntry(
             version = "3.0.66",
             date = "2026-05-22",
             changes = listOf(
