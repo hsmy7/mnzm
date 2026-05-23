@@ -404,9 +404,11 @@ fun MainGameScreen(
 
     val pendingBattleResult by viewModel.pendingBattleResult.collectAsState()
 
+    var showBattleResult by remember { mutableStateOf(false) }
+
     LaunchedEffect(pendingBattleResult) {
         if (pendingBattleResult != null) {
-            dialogNavController.navigate(GameRoute.BattleResult.route)
+            showBattleResult = true
         }
     }
 
@@ -887,28 +889,30 @@ fun MainGameScreen(
                     }
                 )
             }
-            composable(GameRoute.BattleResult.route) {
-                val result = pendingBattleResult
-                if (result != null) {
-                    val log = battleLogs.find { it.id == result.battleLogId }
-                    BattleResultDialog(
-                        resultData = result,
-                        battleLog = log,
-                        onConfirm = {
-                            viewModel.dismissBattleResult()
-                            dialogNavController.popBackStack()
-                        },
-                        onViewDetail = { selectedLog ->
-                            viewModel.dismissBattleResult()
-                            dialogNavController.popBackStack()
-                            detailBattleLog = selectedLog
-                        },
-                        onDismiss = {
-                            viewModel.dismissBattleResult()
-                            dialogNavController.popBackStack()
-                        }
-                    )
-                }
+        }
+
+        // BattleResult rendered outside NavHost to avoid replacing WorldMap composable
+        if (showBattleResult) {
+            val result = pendingBattleResult
+            if (result != null) {
+                val log = battleLogs.find { it.id == result.battleLogId }
+                BattleResultDialog(
+                    resultData = result,
+                    battleLog = log,
+                    onConfirm = {
+                        viewModel.dismissBattleResult()
+                        showBattleResult = false
+                    },
+                    onViewDetail = { selectedLog ->
+                        viewModel.dismissBattleResult()
+                        showBattleResult = false
+                        detailBattleLog = selectedLog
+                    },
+                    onDismiss = {
+                        viewModel.dismissBattleResult()
+                        showBattleResult = false
+                    }
+                )
             }
         }
 

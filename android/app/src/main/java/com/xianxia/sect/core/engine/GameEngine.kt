@@ -3145,17 +3145,18 @@ class GameEngine @Inject constructor(
         val updatedLogs = (existingLogs + log).takeLast(GameConfig.Logs.MAX_BATTLE_LOGS)
 
         if (result.victory) {
-            val handlerRewards = if (level.isBeast) {
-                handleBeastLevelVictory(level)
+            val allRewards = if (level.isBeast) {
+                val handlerRewards = handleBeastLevelVictory(level)
+                val engineSsRewards = result.rewards["spiritStones"] ?: 0
+                if (engineSsRewards > 0) {
+                    addSpiritStones(engineSsRewards.toLong())
+                    handlerRewards + BattleRewardItem(
+                        name = "灵石", quantity = engineSsRewards, rarity = 1, type = "spiritStones"
+                    )
+                } else handlerRewards
             } else {
                 handleCaveLevelVictory(level)
             }
-            val engineSsRewards = result.rewards["spiritStones"] ?: 0
-            val allRewards = if (engineSsRewards > 0) {
-                handlerRewards + BattleRewardItem(
-                    name = "灵石", quantity = engineSsRewards, rarity = 1, type = "spiritStones"
-                )
-            } else handlerRewards
 
             stateStore.setPendingBattleResult(BattleResultUIData(
                 battleLogId = log.id,
