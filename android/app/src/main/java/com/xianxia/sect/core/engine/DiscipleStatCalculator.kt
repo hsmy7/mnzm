@@ -511,7 +511,7 @@ object DiscipleStatCalculator {
     }
 
     fun getSoulPowerBreakthroughBonus(soulPower: Int): Double {
-        return ((soulPower / 10).coerceAtMost(10)) / 100.0
+        return ((soulPower / 20).coerceAtMost(5)) / 100.0
     }
 
     fun getMaxManualSlots(disciple: Disciple): Int {

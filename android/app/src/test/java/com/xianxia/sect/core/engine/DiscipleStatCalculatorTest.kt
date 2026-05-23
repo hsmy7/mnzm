@@ -213,16 +213,16 @@ class DiscipleStatCalculatorTest {
     }
 
     @Test
-    fun `getSoulPowerBreakthroughBonus - 每10点加1%`() {
-        assertEquals(0.01, DiscipleStatCalculator.getSoulPowerBreakthroughBonus(10), 0.001)
-        assertEquals(0.05, DiscipleStatCalculator.getSoulPowerBreakthroughBonus(50), 0.001)
-        assertEquals(0.10, DiscipleStatCalculator.getSoulPowerBreakthroughBonus(100), 0.001)
+    fun `getSoulPowerBreakthroughBonus - 每20点加1%`() {
+        assertEquals(0.01, DiscipleStatCalculator.getSoulPowerBreakthroughBonus(20), 0.001)
+        assertEquals(0.02, DiscipleStatCalculator.getSoulPowerBreakthroughBonus(50), 0.001)
+        assertEquals(0.05, DiscipleStatCalculator.getSoulPowerBreakthroughBonus(100), 0.001)
     }
 
     @Test
-    fun `getSoulPowerBreakthroughBonus - 超过100后上限10%`() {
-        assertEquals(0.10, DiscipleStatCalculator.getSoulPowerBreakthroughBonus(150), 0.001)
-        assertEquals(0.10, DiscipleStatCalculator.getSoulPowerBreakthroughBonus(999), 0.001)
+    fun `getSoulPowerBreakthroughBonus - 超过100后上限5%`() {
+        assertEquals(0.05, DiscipleStatCalculator.getSoulPowerBreakthroughBonus(150), 0.001)
+        assertEquals(0.05, DiscipleStatCalculator.getSoulPowerBreakthroughBonus(999), 0.001)
     }
 
     @Test
@@ -231,7 +231,7 @@ class DiscipleStatCalculatorTest {
         val baseChance = DiscipleStatCalculator.getBreakthroughChance(disciple)
         val boostedDisciple = disciple.copyWith(soulPower = 50)
         val boostedChance = DiscipleStatCalculator.getBreakthroughChance(boostedDisciple)
-        assertEquals(baseChance + 0.05, boostedChance, 0.001)
+        assertEquals(baseChance + 0.02, boostedChance, 0.001)
     }
 
     @Test

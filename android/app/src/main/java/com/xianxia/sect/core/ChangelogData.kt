@@ -9,6 +9,15 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.0.91",
+            date = "2026-05-24",
+            changes = listOf(
+                "神魂突破率加成削弱：每20点神魂+1%突破率（原每10点+1%），上限5%（原10%）",
+                "突破失败惩罚：扣除弟子90%当前气血和灵力（保留10%，最少1点）",
+                "自动突破条件新增：弟子必须满气血满灵力才会自动尝试突破"
+            )
+        ),
+        ChangelogEntry(
             version = "3.0.90",
             date = "2026-05-24",
             changes = listOf(

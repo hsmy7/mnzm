@@ -617,7 +617,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
      */
     private fun processRealtimeBreakthroughs(livingDisciples: List<Disciple>, data: GameData) {
         val candidates = livingDisciples.filter { disciple ->
-            disciple.realm > 0 && disciple.cultivation >= disciple.maxCultivation
+            disciple.realm > 0 && disciple.cultivation >= disciple.maxCultivation && isDiscipleFullHpMp(disciple)
         }
 
         if (candidates.isEmpty()) return
@@ -631,6 +631,8 @@ private val applicationScopeProvider: ApplicationScopeProvider,
             var newRealm = disciple.realm
             var newRealmLayer = disciple.realmLayer
             var newLifespan = disciple.lifespan
+            var newCurrentHp = disciple.combat.currentHp
+            var newCurrentMp = disciple.combat.currentMp
             var shouldContinue = true
 
             while (shouldContinue && newRealm > 0) {
@@ -662,6 +664,10 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                 } else {
                     newCultivation = 0.0
                     shouldContinue = false
+                    val curHp = if (newCurrentHp < 0) disciple.maxHp else newCurrentHp
+                    val curMp = if (newCurrentMp < 0) disciple.maxMp else newCurrentMp
+                    newCurrentHp = (curHp * 0.1).toInt().coerceAtLeast(1)
+                    newCurrentMp = (curMp * 0.1).toInt().coerceAtLeast(1)
                 }
             }
 
@@ -669,11 +675,19 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                 cultivation = newCultivation,
                 realm = newRealm,
                 realmLayer = newRealmLayer,
-                lifespan = newLifespan
+                lifespan = newLifespan,
+                currentHp = newCurrentHp,
+                currentMp = newCurrentMp
             )
         }
 
         currentDisciples = updatedDisciples
+    }
+
+    private fun isDiscipleFullHpMp(disciple: Disciple): Boolean {
+        val hp = if (disciple.combat.currentHp < 0) disciple.maxHp else disciple.combat.currentHp
+        val mp = if (disciple.combat.currentMp < 0) disciple.maxMp else disciple.combat.currentMp
+        return hp >= disciple.maxHp && mp >= disciple.maxMp
     }
 
     private fun getLifespanGainForRealm(realm: Int): Int {
