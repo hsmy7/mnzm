@@ -33,6 +33,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 
 import com.xianxia.sect.R
@@ -53,6 +54,9 @@ fun UnifiedGameDialog(
     dismissOnClickOutside: Boolean = true,
     headerActions: @Composable (() -> Unit)? = null,
     scrollableContent: Boolean = true,
+    titleColor: Color = Color.Black,
+    titleFontSize: TextUnit = AppTypography.Title,
+    showCloseButton: Boolean = true,
     content: @Composable () -> Unit
 ) {
     if (dismissOnBackPress) {
@@ -107,25 +111,29 @@ fun UnifiedGameDialog(
             )
             Column(modifier = Modifier.fillMaxSize()) {
                 // Unified header
-                Row(
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = Spacing.MD, vertical = Spacing.MD),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = title,
-                        fontSize = AppTypography.Title,
+                        fontSize = titleFontSize,
                         fontWeight = FontWeight.Bold,
-                        color = Color.Black
+                        color = titleColor
                     )
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(Spacing.SM),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        headerActions?.invoke()
-                        CloseButton(onClick = onDismissRequest)
+                    if (showCloseButton || headerActions != null) {
+                        Row(
+                            modifier = Modifier.align(Alignment.CenterEnd),
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.SM),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            headerActions?.invoke()
+                            if (showCloseButton) {
+                                CloseButton(onClick = onDismissRequest)
+                            }
+                        }
                     }
                 }
                 // Scrollable content

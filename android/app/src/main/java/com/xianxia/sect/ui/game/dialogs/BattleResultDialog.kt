@@ -14,7 +14,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.BattleLog
@@ -39,30 +38,20 @@ internal fun BattleResultDialog(
 
     UnifiedGameDialog(
         onDismissRequest = onDismiss,
-        title = "",
+        title = title,
+        titleColor = resultColor,
+        titleFontSize = 22.sp,
         mode = DialogMode.Half,
-        scrollableContent = false
+        scrollableContent = false,
+        showCloseButton = false,
+        dismissOnClickOutside = false
     ) {
-        Column(
-            modifier = Modifier.fillMaxSize()
-        ) {
-            // 彩色标题居中
-            Text(
-                text = title,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = resultColor,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 4.dp)
-            )
-
-            HorizontalDivider(color = Color(0xFFE0E0E0), thickness = 1.dp)
-
+        Column(modifier = Modifier.fillMaxSize()) {
             LazyColumn(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .padding(16.dp)
+                    .padding(start = 16.dp, end = 16.dp, bottom = 16.dp, top = 8.dp)
             ) {
                 // 出战弟子
                 item {
