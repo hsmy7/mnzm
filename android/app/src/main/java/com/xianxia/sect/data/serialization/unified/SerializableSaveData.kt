@@ -54,6 +54,7 @@ data class SerializableGameData(
     @ProtoNumber(33) val elderSlots: SerializableElderSlots = SerializableElderSlots(),
     @ProtoNumber(34) val spiritMineSlots: List<SerializableSpiritMineSlot> = emptyList(),
     @ProtoNumber(35) val librarySlots: List<SerializableLibrarySlot> = emptyList(),
+    @ProtoNumber(36) val residenceSlots: List<SerializableResidenceSlot> = emptyList(),
     @ProtoNumber(36) @Deprecated("Migrated to productionSlots") val forgeSlots: List<SerializableBuildingSlot> = emptyList(),
     @ProtoNumber(37) @Deprecated("Migrated to productionSlots") val alchemySlots: List<SerializableAlchemySlot> = emptyList(),
     @ProtoNumber(52) val productionSlots: List<SerializableProductionSlot> = emptyList(),
@@ -617,6 +618,14 @@ data class SerializableLibrarySlot(
     @ProtoNumber(1) val index: Int,
     @ProtoNumber(2) val discipleId: String = "",
     @ProtoNumber(3) val discipleName: String
+)
+
+@Serializable
+data class SerializableResidenceSlot(
+    @ProtoNumber(1) val buildingInstanceId: String = "",
+    @ProtoNumber(2) val slotIndex: Int = 0,
+    @ProtoNumber(3) val discipleId: String = "",
+    @ProtoNumber(4) val discipleName: String = ""
 )
 
 @Serializable

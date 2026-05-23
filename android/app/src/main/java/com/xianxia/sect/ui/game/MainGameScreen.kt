@@ -47,9 +47,11 @@ import androidx.compose.ui.unit.sp
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.R
@@ -83,6 +85,7 @@ import com.xianxia.sect.ui.game.dialogs.BattleLogItem
 import com.xianxia.sect.ui.game.dialogs.BattleLogDetailDialog
 import com.xianxia.sect.ui.game.dialogs.BattleLogListDialog
 import com.xianxia.sect.ui.game.dialogs.BattleResultDialog
+import com.xianxia.sect.ui.game.dialogs.ResidenceDialog
 import com.xianxia.sect.ui.game.dialogs.WorldMapDialog
 import com.xianxia.sect.ui.game.dialogs.WorldMapSectDetailDialog
 import com.xianxia.sect.ui.game.dialogs.DiplomacyDialog
@@ -252,7 +255,10 @@ fun MainGameScreen(
             "执法堂" to { viewModel.getBuildingGridSize("执法堂") },
             "藏经阁" to { viewModel.getBuildingGridSize("藏经阁") },
             "青云塔" to { viewModel.getBuildingGridSize("青云塔") },
-            "问道塔" to { viewModel.getBuildingGridSize("问道塔") }
+            "问道塔" to { viewModel.getBuildingGridSize("问道塔") },
+            "单人住所" to { viewModel.getBuildingGridSize("单人住所") },
+            "中级单人住所" to { viewModel.getBuildingGridSize("中级单人住所") },
+            "多人住所" to { viewModel.getBuildingGridSize("多人住所") }
         ).mapValues { (_, getSize) ->
             val (w, h) = getSize()
             GridSnapHelper.BuildingSize(w, h)
@@ -347,7 +353,10 @@ fun MainGameScreen(
             "天枢殿" to { _: GridBuildingData? -> dialogNavController.navigate(GameRoute.TianshuHall.route) },
             "执法堂" to { _: GridBuildingData? -> dialogNavController.navigate(GameRoute.LawEnforcementHall.route) },
             "任务阁" to { _: GridBuildingData? -> dialogNavController.navigate(GameRoute.MissionHall.route) },
-            "监牢" to { _: GridBuildingData? -> dialogNavController.navigate(GameRoute.ReflectionCliff.route) }
+            "监牢" to { _: GridBuildingData? -> dialogNavController.navigate(GameRoute.ReflectionCliff.route) },
+            "单人住所" to { b: GridBuildingData? -> b?.instanceId?.let { dialogNavController.navigate(GameRoute.Residence.createRoute(it)) }; Unit },
+            "中级单人住所" to { b: GridBuildingData? -> b?.instanceId?.let { dialogNavController.navigate(GameRoute.Residence.createRoute(it)) }; Unit },
+            "多人住所" to { b: GridBuildingData? -> b?.instanceId?.let { dialogNavController.navigate(GameRoute.Residence.createRoute(it)) }; Unit }
         )
     }
 
@@ -596,11 +605,14 @@ fun MainGameScreen(
 
         // 建造栏 — 开关式，展开时显示
         if (buildingBarExpanded) {
+            val constructionBarList = remember(buildingList) {
+                buildingList.filter { it.first != "中级单人住所" }
+            }
             val buildingCosts = remember {
-                buildingList.associate { (name, _) -> name to viewModel.getBuildingCost(name) }
+                constructionBarList.associate { (name, _) -> name to viewModel.getBuildingCost(name) }
             }
             BuildingConstructionBar(
-                buildingList = buildingList,
+                buildingList = constructionBarList,
                 placedBuildings = placedBuildings,
                 buildingCosts = buildingCosts,
                 spiritStones = gameData.spiritStones,
@@ -624,6 +636,7 @@ fun MainGameScreen(
                         "灵矿场" -> GameConfig.Production.MAX_SPIRIT_MINE_COUNT
                         "炼丹炉" -> GameConfig.Production.MAX_ALCHEMY_FURNACE_COUNT
                         "锻造坊" -> GameConfig.Production.MAX_FORGE_WORKSHOP_COUNT
+                        "单人住所", "多人住所" -> Int.MAX_VALUE
                         else -> 1
                     }
                 }
@@ -876,6 +889,21 @@ fun MainGameScreen(
                     onDismiss = { dialogNavController.popBackStack() },
                     onExpelDisciple = { discipleId -> viewModel.expelDisciple(discipleId) }
                 )
+            }
+            composable(
+                route = GameRoute.Residence.route,
+                arguments = listOf(navArgument("buildingInstanceId") { type = NavType.StringType; defaultValue = "" })
+            ) { backStackEntry ->
+                val instanceId = backStackEntry.arguments?.getString("buildingInstanceId") ?: ""
+                if (gameData != null && instanceId.isNotEmpty()) {
+                    ResidenceDialog(
+                        buildingInstanceId = instanceId,
+                        viewModel = viewModel,
+                        disciples = disciples,
+                        gameData = gameData,
+                        onDismiss = { dialogNavController.popBackStack() }
+                    )
+                }
             }
             composable(GameRoute.GameOver.route) {
                 GameOverDialog(
@@ -1426,6 +1454,9 @@ private fun getBuildingDrawable(displayName: String): Int = when (displayName) {
     "锻造坊" -> R.drawable.building_forge
     "问道塔" -> R.drawable.building_wen_dao_peak
     "青云塔" -> R.drawable.building_qingyun_peak
+    "单人住所" -> R.drawable.building_single_residence
+    "中级单人住所" -> R.drawable.building_single_residence_upgraded
+    "多人住所" -> R.drawable.building_multi_residence
     else -> R.drawable.building_alchemy
 }
 
@@ -1434,7 +1465,8 @@ private fun rememberBuildingBitmaps(): Map<String, androidx.compose.ui.graphics.
     val context = androidx.compose.ui.platform.LocalContext.current
     val names = listOf(
         "任务阁", "天枢殿", "执法堂", "灵植阁", "灵矿场",
-        "炼丹炉", "监牢", "藏经阁", "锻造坊", "问道塔", "青云塔"
+        "炼丹炉", "监牢", "藏经阁", "锻造坊", "问道塔", "青云塔",
+        "单人住所", "中级单人住所", "多人住所"
     )
     return remember {
         names.associateWith { name ->
@@ -1518,12 +1550,15 @@ private fun BuildingConstructionBar(
                                 .background(Color.White.copy(alpha = 0.7f))
                         )
                     }
-                    Text(
-                        text = "${getBuildingCount(name)}/${getBuildingMaxCount(name)}",
-                        fontSize = 9.sp,
-                        color = Color.Black,
-                        textAlign = TextAlign.Center
-                    )
+                    val maxCount = getBuildingMaxCount(name)
+                    if (maxCount < Int.MAX_VALUE) {
+                        Text(
+                            text = "${getBuildingCount(name)}/$maxCount",
+                            fontSize = 9.sp,
+                            color = Color.Black,
+                            textAlign = TextAlign.Center
+                        )
+                    }
                 }
             }
         }

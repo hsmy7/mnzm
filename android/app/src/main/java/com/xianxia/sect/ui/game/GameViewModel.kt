@@ -172,6 +172,9 @@ class GameViewModel @Inject constructor(
                         val cnt = data.placedBuildings.count { it.displayName == "锻造坊" }
                         if (cnt >= GameConfig.Production.MAX_FORGE_WORKSHOP_COUNT) return@updateGameData data
                     }
+                    "单人住所", "多人住所" -> {
+                        // No build limit for residences
+                    }
                     else -> {
                         if (data.placedBuildings.any { it.displayName == name }) return@updateGameData data
                     }
@@ -183,17 +186,26 @@ class GameViewModel @Inject constructor(
                     (0 until 3).map { SpiritMineSlot(index = nextIndex + it) }
                 } else emptyList()
 
+                val newBuilding = GridBuildingData(
+                    buildingId = name,
+                    displayName = name,
+                    gridX = gridX,
+                    gridY = gridY,
+                    width = gridW,
+                    height = gridH
+                ).withInstanceId()
+
+                val newResidenceSlots = when (name) {
+                    "单人住所" -> (0 until 1).map { ResidenceSlot(buildingInstanceId = newBuilding.instanceId, slotIndex = it) }
+                    "多人住所" -> (0 until 4).map { ResidenceSlot(buildingInstanceId = newBuilding.instanceId, slotIndex = it) }
+                    else -> emptyList()
+                }
+
                 data.copy(
                     spiritStones = data.spiritStones - cost,
-                    placedBuildings = data.placedBuildings + GridBuildingData(
-                        buildingId = name,
-                        displayName = name,
-                        gridX = gridX,
-                        gridY = gridY,
-                        width = gridW,
-                        height = gridH
-                    ).withInstanceId(),
+                    placedBuildings = data.placedBuildings + newBuilding,
                     spiritMineSlots = data.spiritMineSlots + newSlots,
+                    residenceSlots = data.residenceSlots + newResidenceSlots,
                     // TODO: 后续统一到 Repository 单一数据源，移除对 GameData.productionSlots 的写入
                     productionSlots = if (newProductionSlot != null)
                         data.productionSlots + newProductionSlot else data.productionSlots
@@ -979,6 +991,76 @@ class GameViewModel @Inject constructor(
     fun clearRedeemResult() {
         _redeemResult.value = null
     }
+
+    // region Residence
+
+    fun assignToResidence(buildingInstanceId: String, slotIndex: Int, discipleId: String) {
+        viewModelScope.launch {
+            val discipleName = gameEngine.discipleAggregatesSnapshot.find { it.id == discipleId }?.name ?: ""
+            gameEngine.updateGameData { data ->
+                // Remove disciple from any other residence slot first
+                val cleared = data.residenceSlots.map { slot ->
+                    if (slot.discipleId == discipleId) slot.copy(discipleId = "", discipleName = "") else slot
+                }.toMutableList()
+
+                // Find and update the target slot (or add it)
+                val existingIndex = cleared.indexOfFirst {
+                    it.buildingInstanceId == buildingInstanceId && it.slotIndex == slotIndex
+                }
+                val newSlot = ResidenceSlot(
+                    buildingInstanceId = buildingInstanceId,
+                    slotIndex = slotIndex,
+                    discipleId = discipleId,
+                    discipleName = discipleName
+                )
+                if (existingIndex >= 0) {
+                    cleared[existingIndex] = newSlot
+                } else {
+                    cleared.add(newSlot)
+                }
+                data.copy(residenceSlots = cleared)
+            }
+        }
+    }
+
+    fun removeFromResidence(buildingInstanceId: String, slotIndex: Int) {
+        viewModelScope.launch {
+            gameEngine.updateGameData { data ->
+                data.copy(
+                    residenceSlots = data.residenceSlots.map { slot ->
+                        if (slot.buildingInstanceId == buildingInstanceId && slot.slotIndex == slotIndex)
+                            slot.copy(discipleId = "", discipleName = "")
+                        else slot
+                    }
+                )
+            }
+        }
+    }
+
+    fun canUpgradeResidence(buildingInstanceId: String): Boolean {
+        val data = gameEngine.gameData.value ?: return false
+        val building = data.placedBuildings.find { it.instanceId == buildingInstanceId } ?: return false
+        return building.displayName == "单人住所"
+    }
+
+    fun upgradeSingleResidence(buildingInstanceId: String) {
+        viewModelScope.launch {
+            gameEngine.updateGameData { data ->
+                val canAfford = data.spiritStones >= 5000L
+                if (!canAfford) return@updateGameData data
+                data.copy(
+                    spiritStones = data.spiritStones - 5000L,
+                    placedBuildings = data.placedBuildings.map { b ->
+                        if (b.instanceId == buildingInstanceId && b.displayName == "单人住所")
+                            b.copy(displayName = "中级单人住所")
+                        else b
+                    }
+                )
+            }
+        }
+    }
+
+    // endregion
 
     override fun onCleared() {
         Log.i(TAG, "GameViewModel cleared, stopping game loop and releasing resources")

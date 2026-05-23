@@ -2794,7 +2794,14 @@ private val applicationScopeProvider: ApplicationScopeProvider,
      */
 
     private fun calculateBuildingCultivationBonus(disciple: Disciple, data: GameData): Double {
-        return 1.0
+        val slot = data.residenceSlots.firstOrNull { it.discipleId == disciple.id } ?: return 1.0
+        val building = data.placedBuildings.firstOrNull { it.instanceId == slot.buildingInstanceId } ?: return 1.0
+        return when (building.displayName) {
+            "中级单人住所" -> 1.50
+            "单人住所" -> 1.25
+            "多人住所" -> 1.10
+            else -> 1.0
+        }
     }
 
     private suspend fun clearDiscipleFromAllSlots(discipleId: String) {
@@ -2861,10 +2868,15 @@ private val applicationScopeProvider: ApplicationScopeProvider,
             updated
         }
 
+        val updatedResidenceSlots = data.residenceSlots.map {
+            if (it.discipleId == discipleId) it.copy(discipleId = "", discipleName = "") else it
+        }
+
         currentGameData = data.copy(
             spiritMineSlots = updatedSpiritMineSlots,
             librarySlots = updatedLibrarySlots,
-            elderSlots = updatedElderSlots
+            elderSlots = updatedElderSlots,
+            residenceSlots = updatedResidenceSlots
         )
 
         val forgeSlots = productionSlotRepository.getSlotsByBuildingId("forge")

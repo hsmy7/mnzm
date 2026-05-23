@@ -514,6 +514,16 @@ object ProtobufConverters {
 
     @TypeConverter
     @JvmStatic
+    fun fromResidenceSlotList(value: List<ResidenceSlot>): String =
+        encodeToBase64(ListSerializer(ResidenceSlot.serializer()), value)
+
+    @TypeConverter
+    @JvmStatic
+    fun toResidenceSlotList(value: String): List<ResidenceSlot> =
+        decodeFromBase64(ListSerializer(ResidenceSlot.serializer()), value) { emptyList() }
+
+    @TypeConverter
+    @JvmStatic
     fun fromDirectDiscipleSlotList(value: List<DirectDiscipleSlot>): String =
         encodeToBase64(ListSerializer(DirectDiscipleSlot.serializer()), value)
 

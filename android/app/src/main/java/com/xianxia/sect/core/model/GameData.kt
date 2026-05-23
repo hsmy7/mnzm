@@ -149,6 +149,9 @@ data class GameData(
     // 已放置建筑（网格坐标）
     var placedBuildings: List<GridBuildingData> = emptyList(),
 
+    // 住所槽位
+    var residenceSlots: List<ResidenceSlot> = emptyList(),
+
     // 结盟关系
     var alliances: List<Alliance> = emptyList(),
 
@@ -609,6 +612,16 @@ data class SpiritMineSlot(
     val discipleId: String = "",
     val discipleName: String = "",
     val output: Int = 100
+) {
+    val isActive: Boolean get() = discipleId.isNotEmpty()
+}
+
+@Serializable
+data class ResidenceSlot(
+    val buildingInstanceId: String = "",
+    val slotIndex: Int = 0,
+    val discipleId: String = "",
+    val discipleName: String = ""
 ) {
     val isActive: Boolean get() = discipleId.isNotEmpty()
 }

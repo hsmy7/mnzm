@@ -20,6 +20,11 @@ sealed class GameRoute(val route: String) {
     object MissionHall : GameRoute("mission_hall")
     object ReflectionCliff : GameRoute("reflection_cliff")
 
+    // Residence
+    object Residence : GameRoute("residence/{buildingInstanceId}") {
+        fun createRoute(buildingInstanceId: String) = "residence/$buildingInstanceId"
+    }
+
     // Full-screen overlays (floating button triggered)
     object Recruit : GameRoute("recruit")
     object Merchant : GameRoute("merchant")

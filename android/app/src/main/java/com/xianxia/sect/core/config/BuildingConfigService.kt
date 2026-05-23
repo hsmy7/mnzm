@@ -306,6 +306,39 @@ class BuildingConfigService @Inject constructor(
                     gridWidth = 2,
                     gridHeight = 2,
                     description = "悔过自新之地，关押违规弟子"
+                ),
+                "single_residence" to BuildingConfigModel(
+                    id = "single_residence",
+                    displayName = "单人住所",
+                    buildingType = "SINGLE_RESIDENCE",
+                    slotCount = 1,
+                    baseSuccessRate = 1.0,
+                    cost = 800,
+                    gridWidth = 3,
+                    gridHeight = 2,
+                    description = "为弟子提供清修之所，修炼速度+25%，可升级"
+                ),
+                "multi_residence" to BuildingConfigModel(
+                    id = "multi_residence",
+                    displayName = "多人住所",
+                    buildingType = "MULTI_RESIDENCE",
+                    slotCount = 4,
+                    baseSuccessRate = 1.0,
+                    cost = 2000,
+                    gridWidth = 3,
+                    gridHeight = 3,
+                    description = "供多名弟子共同修炼，修炼速度+10%"
+                ),
+                "single_residence_upgraded" to BuildingConfigModel(
+                    id = "single_residence_upgraded",
+                    displayName = "中级单人住所",
+                    buildingType = "SINGLE_RESIDENCE",
+                    slotCount = 1,
+                    baseSuccessRate = 1.0,
+                    cost = 5000,
+                    gridWidth = 3,
+                    gridHeight = 2,
+                    description = "单人修炼之所，修炼速度+50%"
                 )
             ),
             buildingAliases = mapOf(
@@ -369,7 +402,15 @@ class BuildingConfigService @Inject constructor(
                 "reflectioncliff" to "reflection_cliff",
                 "siguoya" to "reflection_cliff",
                 "reflection_cliff" to "reflection_cliff",
-                "监牢" to "reflection_cliff"
+                "监牢" to "reflection_cliff",
+
+                // 住所 (residence)
+                "singleresidence" to "single_residence",
+                "single_residence" to "single_residence",
+                "multiresidence" to "multi_residence",
+                "multi_residence" to "multi_residence",
+                "singleresidenceupgraded" to "single_residence_upgraded",
+                "single_residence_upgraded" to "single_residence_upgraded"
             )
         )
     }

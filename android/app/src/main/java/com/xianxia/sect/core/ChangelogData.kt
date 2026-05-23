@@ -9,6 +9,16 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.0.80",
+            date = "2026-05-23",
+            changes = listOf(
+                "新增弟子住所系统：可在宗门地图建造单人住所（800灵石）和多人住所（2000灵石）",
+                "单人住所可入住1名弟子，修炼速度+25%；多人住所可入住4名弟子，修炼速度+10%",
+                "单人住所可升级为中级单人住所（5000灵石），修炼速度提升至+50%",
+                "点击宗门地图上的住所建筑可打开详情界面，管理入住弟子"
+            )
+        ),
+        ChangelogEntry(
             version = "3.0.79",
             date = "2026-05-23",
             changes = listOf(

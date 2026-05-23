@@ -88,7 +88,8 @@ class SaveLoadViewModel @Inject constructor(
         withContext(Dispatchers.Default) {
             val bitmapNames = listOf(
                 "任务阁", "天枢殿", "执法堂", "灵植阁", "灵矿场",
-                "炼丹炉", "监牢", "藏经阁", "锻造坊", "问道塔", "青云塔"
+                "炼丹炉", "监牢", "藏经阁", "锻造坊", "问道塔", "青云塔",
+                "单人住所", "中级单人住所", "多人住所"
             )
             val bitmaps = bitmapNames.mapNotNull { name ->
                 val resId = getBuildingDrawableResId(name)
@@ -146,6 +147,9 @@ class SaveLoadViewModel @Inject constructor(
         "锻造坊" -> com.xianxia.sect.R.drawable.building_forge
         "问道塔" -> com.xianxia.sect.R.drawable.building_wen_dao_peak
         "青云塔" -> com.xianxia.sect.R.drawable.building_qingyun_peak
+        "单人住所" -> com.xianxia.sect.R.drawable.building_single_residence
+        "中级单人住所" -> com.xianxia.sect.R.drawable.building_single_residence_upgraded
+        "多人住所" -> com.xianxia.sect.R.drawable.building_multi_residence
         else -> com.xianxia.sect.R.drawable.building_alchemy
     }
 

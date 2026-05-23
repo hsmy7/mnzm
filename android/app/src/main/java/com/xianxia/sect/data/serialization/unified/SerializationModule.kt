@@ -803,6 +803,7 @@ class UnifiedSerializationEngine @Inject constructor(
         // building slots
         size += (gameData.spiritMineSlots.size * 60L +
             gameData.librarySlots.size * 40L +
+            gameData.residenceSlots.size * 40L +
             gameData.productionSlots.size * 100L)
 
         // alliances / sectRelations
@@ -1094,6 +1095,7 @@ class SaveDataConverter @Inject constructor() {
             elderSlots = convertElderSlots(gameData.elderSlots),
             spiritMineSlots = gameData.spiritMineSlots?.map { convertSpiritMineSlot(it) } ?: emptyList(),
             librarySlots = gameData.librarySlots?.map { convertLibrarySlot(it) } ?: emptyList(),
+            residenceSlots = gameData.residenceSlots.map { convertResidenceSlot(it) },
             productionSlots = gameData.productionSlots?.map { convertProductionSlot(it) } ?: emptyList(),
             alliances = gameData.alliances?.map { convertAlliance(it) } ?: emptyList(),
             sectRelations = gameData.sectRelations?.map { convertSectRelation(it) } ?: emptyList(),
@@ -1155,6 +1157,7 @@ class SaveDataConverter @Inject constructor() {
             elderSlots = convertBackElderSlots(data.elderSlots),
             spiritMineSlots = data.spiritMineSlots.map { convertBackSpiritMineSlot(it) },
             librarySlots = data.librarySlots.map { convertBackLibrarySlot(it) },
+            residenceSlots = data.residenceSlots.map { convertBackResidenceSlot(it) },
             productionSlots = data.productionSlots.map { convertBackProductionSlot(it) },
             alliances = data.alliances.map { convertBackAlliance(it) },
             sectRelations = data.sectRelations.map { convertBackSectRelation(it) },
@@ -2482,6 +2485,24 @@ class SaveDataConverter @Inject constructor() {
     private fun convertBackLibrarySlot(data: SerializableLibrarySlot): com.xianxia.sect.core.model.LibrarySlot {
         return com.xianxia.sect.core.model.LibrarySlot(
             index = data.index,
+            discipleId = data.discipleId,
+            discipleName = data.discipleName
+        )
+    }
+
+    private fun convertResidenceSlot(slot: com.xianxia.sect.core.model.ResidenceSlot): SerializableResidenceSlot {
+        return SerializableResidenceSlot(
+            buildingInstanceId = slot.buildingInstanceId,
+            slotIndex = slot.slotIndex,
+            discipleId = slot.discipleId,
+            discipleName = slot.discipleName
+        )
+    }
+
+    private fun convertBackResidenceSlot(data: SerializableResidenceSlot): com.xianxia.sect.core.model.ResidenceSlot {
+        return com.xianxia.sect.core.model.ResidenceSlot(
+            buildingInstanceId = data.buildingInstanceId,
+            slotIndex = data.slotIndex,
             discipleId = data.discipleId,
             discipleName = data.discipleName
         )
