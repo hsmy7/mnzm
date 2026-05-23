@@ -64,6 +64,8 @@ import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.theme.GameColors
 import java.util.Locale
 
+val LocalDismissDropdown = compositionLocalOf { {} }
+
 private fun calculatePreachingBonusesForDisplay(
     disciple: DiscipleAggregate,
     elderSlots: ElderSlots?,
@@ -200,6 +202,7 @@ fun DiscipleDetailDialog(
 
     key(disciple.id) {
     BackHandler(onBack = onDismiss)
+    CompositionLocalProvider(LocalDismissDropdown provides { showDiscipleTypeDropdown = false }) {
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = GameColors.PageBackground
@@ -222,7 +225,7 @@ fun DiscipleDetailDialog(
                             tabs.forEachIndexed { index, label ->
                                 Box(
                                     modifier = Modifier.fillMaxWidth().weight(1f)
-                                        .clickable { selectedTab = index },
+                                        .clickable { showDiscipleTypeDropdown = false; selectedTab = index },
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
@@ -319,12 +322,16 @@ fun DiscipleDetailDialog(
                         Spacer(modifier = Modifier.height(8.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             val btnColor = if (disciple.discipleType == "inner") Color(0xFF9C27B0) else Color(0xFF7B1FA2)
-                            Box {
+                            val btnShape = if (showDiscipleTypeDropdown)
+                                RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp)
+                            else
+                                RoundedCornerShape(4.dp)
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Box(
                                     modifier = Modifier
-                                        .clip(RoundedCornerShape(4.dp))
+                                        .clip(btnShape)
                                         .background(btnColor)
-                                        .clickable { showDiscipleTypeDropdown = true }
+                                        .clickable { showDiscipleTypeDropdown = !showDiscipleTypeDropdown }
                                         .padding(horizontal = 6.dp, vertical = 2.dp)
                                 ) {
                                     Text(
@@ -333,47 +340,47 @@ fun DiscipleDetailDialog(
                                         color = Color.White
                                     )
                                 }
-                                DropdownMenu(
-                                    expanded = showDiscipleTypeDropdown,
-                                    onDismissRequest = { showDiscipleTypeDropdown = false },
-                                    modifier = Modifier.background(btnColor)
-                                ) {
-                                    DropdownMenuItem(
-                                        text = {
-                                            Text(
-                                                if (disciple.discipleType == "outer") "内门弟子" else "外门弟子",
-                                                fontSize = 10.sp,
-                                                color = Color.Black
-                                            )
-                                        },
-                                        onClick = {
-                                            showDiscipleTypeDropdown = false
-                                            viewModel?.changeDiscipleType(
-                                                disciple.id,
-                                                if (disciple.discipleType == "outer") "inner" else "outer"
-                                            )
-                                        },
-                                        modifier = Modifier.height(28.dp)
-                                    )
+                                if (showDiscipleTypeDropdown) {
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(bottomStart = 4.dp, bottomEnd = 4.dp))
+                                            .background(Color.White)
+                                            .border(1.dp, btnColor)
+                                            .clickable {
+                                                showDiscipleTypeDropdown = false
+                                                viewModel?.changeDiscipleType(
+                                                    disciple.id,
+                                                    if (disciple.discipleType == "outer") "inner" else "outer"
+                                                )
+                                            }
+                                            .padding(horizontal = 6.dp, vertical = 1.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            if (disciple.discipleType == "outer") "内门弟子" else "外门弟子",
+                                            fontSize = 10.sp,
+                                            color = Color.Black
+                                        )
+                                    }
                                 }
                             }
                             Box(
                                 modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Color(0xFF4CAF50))
-                                    .clickable { showRelationsDialog = true }.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    .clickable { showDiscipleTypeDropdown = false; showRelationsDialog = true }.padding(horizontal = 6.dp, vertical = 2.dp)
                             ) { Text("关系", fontSize = 10.sp, color = Color.White) }
                             Box(
                                 modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Color(0xFF2196F3))
-                                    .clickable { showStorageBagDialog = true }.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    .clickable { showDiscipleTypeDropdown = false; showStorageBagDialog = true }.padding(horizontal = 6.dp, vertical = 2.dp)
                             ) { Text("储物袋", fontSize = 10.sp, color = Color.White) }
                             Box(
                                 modifier = Modifier.clip(RoundedCornerShape(4.dp))
                                     .background(if (disciple.isFollowed) Color(0xFFFFD700) else Color.Black)
-                                    .clickable { viewModel?.toggleFollowDisciple(disciple.id) }
+                                    .clickable { showDiscipleTypeDropdown = false; viewModel?.toggleFollowDisciple(disciple.id) }
                                     .padding(horizontal = 6.dp, vertical = 2.dp)
                             ) { Text(if (disciple.isFollowed) "已关注" else "关注", fontSize = 10.sp, color = Color.White) }
                             Box(
                                 modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Color(0xFFE74C3C))
-                                    .clickable { showExpelConfirmDialog = true }.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    .clickable { showDiscipleTypeDropdown = false; showExpelConfirmDialog = true }.padding(horizontal = 6.dp, vertical = 2.dp)
                             ) { Text("驱逐", fontSize = 10.sp, color = Color.White) }
                         }
                         Spacer(modifier = Modifier.height(8.dp))
@@ -383,7 +390,7 @@ fun DiscipleDetailDialog(
                                 if (hasPrev && onNavigateToDisciple != null) {
                                     Box(
                                         modifier = Modifier.size(28.dp).clip(CircleShape).background(Color(0x99000000))
-                                            .clickable { onNavigateToDisciple(allDisciples[currentIndex - 1]) },
+                                            .clickable { showDiscipleTypeDropdown = false; onNavigateToDisciple(allDisciples[currentIndex - 1]) },
                                         contentAlignment = Alignment.Center
                                     ) { Text("‹", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White) }
                                 }
@@ -391,7 +398,7 @@ fun DiscipleDetailDialog(
                                 if (hasNext && onNavigateToDisciple != null) {
                                     Box(
                                         modifier = Modifier.size(28.dp).clip(CircleShape).background(Color(0x99000000))
-                                            .clickable { onNavigateToDisciple(allDisciples[currentIndex + 1]) },
+                                            .clickable { showDiscipleTypeDropdown = false; onNavigateToDisciple(allDisciples[currentIndex + 1]) },
                                         contentAlignment = Alignment.Center
                                     ) { Text("›", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White) }
                                 }
@@ -407,6 +414,7 @@ fun DiscipleDetailDialog(
                 )
             }
         }
+    } // CompositionLocalProvider
 
     if (showRelationsDialog) {
         RelationsDialog(
@@ -1386,6 +1394,7 @@ private fun InfoItem(value: String, modifier: Modifier = Modifier, color: Color 
 
 @Composable
 private fun TalentsSection(talents: List<Talent>, statusData: Map<String, String> = emptyMap()) {
+    val dismissDropdown = LocalDismissDropdown.current
     var selectedTalent by remember { mutableStateOf<Talent?>(null) }
     
     // 计算战斗成长值
@@ -1426,7 +1435,7 @@ private fun TalentsSection(talents: List<Talent>, statusData: Map<String, String
                                 .weight(1f)
                                 .clip(RoundedCornerShape(4.dp))
                                 .border(1.dp, rarityColor, RoundedCornerShape(4.dp))
-                                .clickable { selectedTalent = talent }
+                                .clickable { dismissDropdown(); selectedTalent = talent }
                                 .padding(vertical = 3.dp, horizontal = 4.dp),
                             contentAlignment = Alignment.Center
                         ) {
@@ -1593,6 +1602,7 @@ private fun EquipmentSection(
     onSlotClick: (String) -> Unit,
     onEquipmentClick: (EquipmentInstance) -> Unit
 ) {
+    val dismissDropdown = LocalDismissDropdown.current
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1645,6 +1655,7 @@ private fun EquipmentSlot(
     onEquipmentClick: (EquipmentInstance) -> Unit,
     slotType: String
 ) {
+    val dismissDropdown = LocalDismissDropdown.current
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally
@@ -1672,7 +1683,7 @@ private fun EquipmentSlot(
                     .clip(RoundedCornerShape(8.dp))
                     .background(GameColors.PageBackground)
                     .border(1.dp, GameColors.Border, RoundedCornerShape(8.dp))
-                    .clickable { onSlotClick(slotType) },
+                    .clickable { dismissDropdown(); onSlotClick(slotType) },
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -1696,6 +1707,7 @@ private fun ManualsSection(
     onSlotClick: () -> Unit,
     onManualClick: (ManualInstance) -> Unit
 ) {
+    val dismissDropdown = LocalDismissDropdown.current
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1773,6 +1785,7 @@ private fun ManualSlot(
     onSlotClick: () -> Unit,
     onManualClick: (ManualInstance) -> Unit
 ) {
+    val dismissDropdown = LocalDismissDropdown.current
     val masteryLevel = proficiencyData?.masteryLevel ?: 0
     val mastery = ManualProficiencySystem.MasteryLevel.fromLevel(masteryLevel)
     val masteryText = mastery.displayName
@@ -1805,7 +1818,7 @@ private fun ManualSlot(
                     .clip(RoundedCornerShape(8.dp))
                     .background(GameColors.PageBackground)
                     .border(1.dp, GameColors.Border, RoundedCornerShape(8.dp))
-                    .clickable { onSlotClick() },
+                    .clickable { dismissDropdown(); onSlotClick() },
                 contentAlignment = Alignment.Center
             ) {
                 Text(
