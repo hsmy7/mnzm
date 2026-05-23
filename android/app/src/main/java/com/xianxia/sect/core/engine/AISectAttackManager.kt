@@ -87,8 +87,15 @@ object AISectAttackManager {
 
                 if (defenderDisciples.isEmpty()) continue
 
+                // Full defender pool for occupation check
+                val allDefenderPool = if (garrisonDisciples.isNotEmpty()) {
+                    aiDisciplesMap[defenderSect?.occupierSectId ?: ""] ?: emptyList()
+                } else {
+                    defenderPool
+                }
+
                 // Execute battle immediately
-                val battleResult = executeSectBattle(selectedAttackers, defenderSect ?: defender, defenderDisciples)
+                val battleResult = executeSectBattle(selectedAttackers, defenderSect ?: defender, defenderDisciples, allDefenderPool)
 
                 val survivingAttackers = selectedAttackers.filter { it.id !in battleResult.deadAttackerIds }
 
@@ -120,7 +127,8 @@ object AISectAttackManager {
     fun executeSectBattle(
         attackers: List<Disciple>,
         defenderSect: WorldSect,
-        defenderDisciples: List<Disciple>
+        defenderDisciples: List<Disciple>,
+        allSectDisciples: List<Disciple> = defenderDisciples
     ): AIBattleResult {
         val defenseTeam = createDefenseTeam(defenderDisciples)
         val combatAttackers = attackers.map { convertToCombatant(it, CombatantSide.ATTACKER) }
@@ -140,7 +148,7 @@ object AISectAttackManager {
             }
             .map { it.id }
 
-        val allDefenderDisciples = defenderDisciples.filter { it.isAlive && it.id !in deadDefenderIds }
+        val allDefenderDisciples = allSectDisciples.filter { it.isAlive && it.id !in deadDefenderIds }
         val highRealmAllDead = allDefenderDisciples.filter { it.realm <= 5 }.isEmpty()
 
         val canOccupy = result.winner == AIBattleWinner.ATTACKER && highRealmAllDead
@@ -467,9 +475,10 @@ object AISectAttackManager {
     fun executeAISectBattle(
         attackers: List<Disciple>,
         defenderSect: WorldSect,
-        defenderDisciples: List<Disciple>
+        defenderDisciples: List<Disciple>,
+        allSectDisciples: List<Disciple> = defenderDisciples
     ): AIBattleResult {
-        return executeSectBattle(attackers, defenderSect, defenderDisciples)
+        return executeSectBattle(attackers, defenderSect, defenderDisciples, allSectDisciples)
     }
 
     fun executePlayerSectBattle(

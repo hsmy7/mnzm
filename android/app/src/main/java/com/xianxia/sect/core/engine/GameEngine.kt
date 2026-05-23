@@ -2843,7 +2843,11 @@ class GameEngine @Inject constructor(
             sectDisciplePool.filter { it.isAlive }.sortedBy { it.realm }.take(AISectAttackManager.TEAM_SIZE)
         }
 
-        val battleResult = AISectAttackManager.executeSectBattle(attackers, targetSect, defenderDisciples)
+        // Get the full defender disciple pool for occupation check
+        val defenderPoolSectId = if (isAiOccupied) targetSect.occupierSectId else sectId
+        val fullDefenderPool = data.aiSectDisciples[defenderPoolSectId] ?: emptyList()
+
+        val battleResult = AISectAttackManager.executeSectBattle(attackers, targetSect, defenderDisciples, fullDefenderPool)
 
         // Apply player casualties and survivor HP/MP
         val deadPlayerIds = battleResult.deadAttackerIds.toSet()
@@ -2856,7 +2860,6 @@ class GameEngine @Inject constructor(
 
         // Update AI defender disciples: remove dead defenders from aiSectDisciples
         val deadDefenderIds = battleResult.deadDefenderIds.toSet()
-        val defenderPoolSectId = if (isAiOccupied) targetSect.occupierSectId else sectId
         stateStore.update {
             gameData = gameData.copy(
                 aiSectDisciples = gameData.aiSectDisciples.mapValues { (sId, disciples) ->
