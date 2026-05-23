@@ -48,8 +48,9 @@ import com.xianxia.sect.ui.game.ProductionSlotItem
 import com.xianxia.sect.ui.game.ProductionTheme
 import com.xianxia.sect.ui.game.ProductionElderSelectionDialog
 import com.xianxia.sect.ui.game.ProductionReserveDiscipleDialog
-import com.xianxia.sect.ui.game.ProductionAddReserveDiscipleDialog
 import com.xianxia.sect.ui.game.ProductionCommonDialog
+import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorConfig
+import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorDialog
 import com.xianxia.sect.ui.game.DiscipleDetailDialog
 import java.util.Locale
 
@@ -312,12 +313,12 @@ private fun AlchemyReserveDiscipleDialogWrapper(
     )
 
     if (showAddDialog) {
-        ProductionAddReserveDiscipleDialog(
-            theme = ALCHEMY_THEME,
-            availableDisciples = alchemyViewModel.getAvailableDisciplesForAlchemyReserve(),
+        DiscipleSelectorDialog(
+            config = DiscipleSelectorConfig(title = "添加储备弟子（推荐炼丹）"),
+            disciples = alchemyViewModel.getAvailableDisciplesForAlchemyReserve(),
             onDismiss = { showAddDialog = false },
-            onConfirm = { selectedIds ->
-                alchemyViewModel.addAlchemyReserveDisciples(selectedIds)
+            onConfirm = { selected ->
+                alchemyViewModel.addAlchemyReserveDisciples(selected.map { it.id })
                 showAddDialog = false
             }
         )

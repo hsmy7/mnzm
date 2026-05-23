@@ -49,6 +49,8 @@ import com.xianxia.sect.ui.game.getSpiritRootCount
 import com.xianxia.sect.ui.game.applyFilters
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
 import com.xianxia.sect.ui.game.tabs.REALM_FILTER_OPTIONS
+import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorConfig
+import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorDialog
 
 @Composable
 fun AllianceDialog(
@@ -495,126 +497,19 @@ fun ScoutDiscipleSelectDialog(
     worldMapViewModel: WorldMapViewModel,
     onDismiss: () -> Unit
 ) {
-    var selectedDisciples by remember { mutableStateOf<Set<String>>(emptySet()) }
-    var selectedRealmFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
-    var selectedSpiritRootFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
-    var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
-    var spiritRootExpanded by remember { mutableStateOf(false) }
-    var attributeExpanded by remember { mutableStateOf(false) }
-    var realmExpanded by remember { mutableStateOf(false) }
-    val maxSelectCount = 7
-
-    val realmCounts = remember(disciples) { disciples.groupingBy { it.realm }.eachCount() }
-
-    val spiritRootCounts = remember(disciples) {
-        disciples.groupingBy { it.getSpiritRootCount() }.eachCount()
-    }
-
-    val filteredDisciples = remember(disciples, selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort) {
-        disciples.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort)
-    }
-
-    UnifiedGameDialog(
-        onDismissRequest = onDismiss,
-        title = "选择探查弟子",
-        mode = DialogMode.Half,
-        scrollableContent = false,
-        headerActions = {
-            Text(
-                text = "目标: ${sect?.name ?: "未知宗门"} · 已选 ${selectedDisciples.size}/$maxSelectCount 人",
-                fontSize = 11.sp,
-                color = Color.Black
-            )
-        },
-        headerContent = {
-            SpiritRootAttributeFilterBar(
-                selectedSpiritRootFilter = selectedSpiritRootFilter,
-                selectedAttributeSort = selectedAttributeSort,
-                selectedRealmFilter = selectedRealmFilter,
-                realmFilterOptions = REALM_FILTER_OPTIONS,
-                realmCounts = realmCounts,
-                spiritRootExpanded = spiritRootExpanded,
-                attributeExpanded = attributeExpanded,
-                realmExpanded = realmExpanded,
-                spiritRootCounts = spiritRootCounts,
-                onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
-                onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
-                onAttributeSortSelected = { selectedAttributeSort = it },
-                onRealmFilterSelected = { selectedRealmFilter = selectedRealmFilter + it },
-                onRealmFilterRemoved = { selectedRealmFilter = selectedRealmFilter - it },
-                onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
-                onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
-                onRealmExpandToggle = { realmExpanded = !realmExpanded },
-                isCompact = true
-            )
+    DiscipleSelectorDialog(
+        config = DiscipleSelectorConfig(
+            title = "选择探查弟子 - ${sect?.name ?: "未知"}"
+        ),
+        disciples = disciples,
+        onDismiss = onDismiss,
+        onConfirm = { selected ->
+            if (selected.isNotEmpty() && sect != null) {
+                worldMapViewModel.startScoutMission(selected.map { it.id }, sect.id)
+                onDismiss()
+            }
         }
-    ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-                if (filteredDisciples.isEmpty()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = if (disciples.isEmpty()) "没有空闲的弟子" else "该境界没有符合条件的弟子",
-                            fontSize = 14.sp,
-                            color = Color.Black
-                        )
-                    }
-                } else {
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(2),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f)
-                            .padding(horizontal = 12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        items(filteredDisciples.size, key = { filteredDisciples[it].id }) { index ->
-                            val disciple = filteredDisciples[index]
-                            PortraitDiscipleCard(
-                                disciple = disciple,
-                                isSelected = selectedDisciples.contains(disciple.id),
-                                onClick = {
-                                    if (selectedDisciples.contains(disciple.id)) {
-                                        selectedDisciples = selectedDisciples - disciple.id
-                                    } else if (selectedDisciples.size < maxSelectCount) {
-                                        selectedDisciples = selectedDisciples + disciple.id
-                                    }
-                                }
-                            )
-                        }
-                    }
-                }
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
-                ) {
-                    GameButton(
-                        text = "开始探查",
-                        onClick = {
-                            if (selectedDisciples.isNotEmpty() && sect != null) {
-                                worldMapViewModel.startScoutMission(selectedDisciples.toList(), sect.id)
-                                onDismiss()
-                            }
-                        },
-                        enabled = selectedDisciples.isNotEmpty() && sect != null,
-                        modifier = Modifier.width(ButtonSizes.StandardWidth)
-                    )
-                    GameButton(
-                        text = "取消",
-                        onClick = onDismiss,
-                        modifier = Modifier.width(ButtonSizes.StandardWidth)
-                    )
-                }
-        }
-    }
+    )
 }
 
 

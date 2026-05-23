@@ -44,7 +44,6 @@ import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.game.SpiritMineViewModel
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.ProductionViewModel
-import com.xianxia.sect.ui.game.FilteredMultiSelectDialog
 import com.xianxia.sect.ui.game.DiscipleDetailDialog
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorConfig
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorDialog
@@ -214,20 +213,14 @@ fun SpiritMineDialog(
                 }
             )
         } else {
-            val miningSelectedIds = remember { mutableStateListOf<String>() }
-            FilteredMultiSelectDialog(
-                title = "选择采矿弟子（外门，最多${emptySlotCount}名）",
+            DiscipleSelectorDialog(
+                config = DiscipleSelectorConfig(title = "选择采矿弟子"),
                 disciples = availableDisciples,
-                selectedIds = miningSelectedIds,
-                maxSelection = emptySlotCount,
-                extraCardAttrName = "采矿",
-                confirmText = "确认采矿",
-                onConfirm = {
-                    val selected = availableDisciples.filter { it.id in miningSelectedIds }
-                    spiritMineViewModel.assignDisciplesToSpiritMineSlots(selected.take(emptySlotCount), mineIndex)
+                onDismiss = { showDiscipleSelection = false },
+                onConfirm = { selected ->
+                    spiritMineViewModel.assignDisciplesToSpiritMineSlots(selected, mineIndex)
                     showDiscipleSelection = false
-                },
-                onDismiss = { showDiscipleSelection = false }
+                }
             )
         }
     }
@@ -370,136 +363,6 @@ private fun SpiritMineSlotItem(
             onDismiss = { onRemove() },
             onSwap = { onSwap() }
         )
-    }
-}
-
-@Composable
-private fun SpiritMineDiscipleSelectionDialog(
-    disciples: List<DiscipleAggregate>,
-    maxSelectCount: Int,
-    onConfirm: (List<DiscipleAggregate>) -> Unit,
-    onDismiss: () -> Unit
-) {
-    var selectedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
-    var selectedRealmFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
-    var selectedSpiritRootFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
-    var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
-    var spiritRootExpanded by remember { mutableStateOf(false) }
-    var attributeExpanded by remember { mutableStateOf(false) }
-    var realmExpanded by remember { mutableStateOf(false) }
-
-    val realmCounts = remember(disciples) {
-        disciples.groupingBy { it.realm }.eachCount()
-    }
-
-    val spiritRootCounts = remember(disciples) {
-        disciples.filter { it.realmLayer > 0 }.groupingBy { it.getSpiritRootCount() }.eachCount()
-    }
-
-    val sortedDisciples = remember(disciples) {
-        disciples.filter { it.realmLayer > 0 }.sortedWith(
-            compareBy<DiscipleAggregate> { it.realm }.thenByDescending { it.realmLayer }
-        )
-    }
-
-    val filteredDisciples = remember(sortedDisciples, selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort) {
-        sortedDisciples.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort)
-    }
-
-    val canConfirm = selectedIds.isNotEmpty()
-
-    CommonDialog(
-        title = "选择采矿弟子（外门，最多${maxSelectCount}名）",
-        onDismiss = onDismiss,
-        headerContent = {
-            SpiritRootAttributeFilterBar(
-                selectedSpiritRootFilter = selectedSpiritRootFilter,
-                selectedAttributeSort = selectedAttributeSort,
-                selectedRealmFilter = selectedRealmFilter,
-                realmFilterOptions = REALM_FILTER_OPTIONS,
-                realmCounts = realmCounts,
-                spiritRootExpanded = spiritRootExpanded,
-                attributeExpanded = attributeExpanded,
-                realmExpanded = realmExpanded,
-                spiritRootCounts = spiritRootCounts,
-                onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
-                onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
-                onAttributeSortSelected = { selectedAttributeSort = it },
-                onRealmFilterSelected = { selectedRealmFilter = selectedRealmFilter + it },
-                onRealmFilterRemoved = { selectedRealmFilter = selectedRealmFilter - it },
-                onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
-                onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
-                onRealmExpandToggle = { realmExpanded = !realmExpanded },
-                isCompact = true
-            )
-        }
-    ) {
-        Column {
-            if (disciples.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(120.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "暂无可用外门弟子",
-                        fontSize = 12.sp,
-                        color = Color.Black
-                    )
-                }
-            } else {
-
-                Text(
-                    text = "已选: ${selectedIds.size}/${maxSelectCount}",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF4CAF50)
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(2),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 320.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    items(filteredDisciples, key = { it.id }) { disciple ->
-                        val isSelected = disciple.id in selectedIds
-                        val canSelectMore = selectedIds.size < maxSelectCount
-                        PortraitDiscipleCard(
-                            disciple = disciple,
-                            isSelected = isSelected,
-                            extraAttributes = listOf("采矿" to disciple.mining),
-                            onClick = {
-                                selectedIds = if (isSelected) {
-                                    selectedIds - disciple.id
-                                } else if (canSelectMore) {
-                                    selectedIds + disciple.id
-                                } else {
-                                    selectedIds
-                                }
-                            }
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            GameButton(
-                text = "确认采矿",
-                onClick = {
-                    val selected = sortedDisciples.filter { it.id in selectedIds }.take(maxSelectCount)
-                    onConfirm(selected)
-                },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = canConfirm
-            )
-        }
     }
 }
 

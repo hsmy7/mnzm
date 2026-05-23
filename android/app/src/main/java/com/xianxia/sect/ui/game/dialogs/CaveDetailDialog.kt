@@ -2,9 +2,6 @@ package com.xianxia.sect.ui.game.dialogs
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -20,23 +17,15 @@ import com.xianxia.sect.core.model.CultivatorCave
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.GameData
-import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.core.util.sortedByFollowAndRealm
 import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.DialogMode
-import com.xianxia.sect.ui.components.PortraitDiscipleCard
-import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
-import com.xianxia.sect.ui.game.ATTRIBUTE_FILTER_OPTIONS
-import com.xianxia.sect.ui.game.AttributeFilterOption
 import com.xianxia.sect.ui.game.GameViewModel
-import com.xianxia.sect.ui.game.SPIRIT_ROOT_FILTER_OPTIONS
 import com.xianxia.sect.ui.game.WorldMapViewModel
-import com.xianxia.sect.ui.game.applyFilters
-import com.xianxia.sect.ui.game.getAttributeValue
-import com.xianxia.sect.ui.game.getSpiritRootCount
-import com.xianxia.sect.ui.game.tabs.REALM_FILTER_OPTIONS
+import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorConfig
+import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorDialog
 import com.xianxia.sect.ui.theme.GameColors
 
 @Composable
@@ -53,7 +42,7 @@ internal fun CaveDetailDialog(
     val remainingMonths = cave.getRemainingMonths(currentYear, currentMonth)
 
     var showDiscipleSelection by remember { mutableStateOf(false) }
-    var selectedDisciples by remember { mutableStateOf<List<DiscipleAggregate>>(emptyList()) }
+    var selectedDisciple by remember { mutableStateOf<DiscipleAggregate?>(null) }
 
     val statusColor = when (cave.status) {
         CaveStatus.AVAILABLE -> Color(0xFF9C27B0)
@@ -149,9 +138,9 @@ internal fun CaveDetailDialog(
                             fontSize = 12.sp,
                             color = Color.Black
                         )
-                        if (selectedDisciples.isNotEmpty()) {
+                        if (selectedDisciple != null) {
                             Text(
-                                text = "已选择 ${selectedDisciples.size}/10 人: ${selectedDisciples.joinToString("、") { it.name }}",
+                                text = "已选择: ${selectedDisciple?.name}",
                                 fontSize = 11.sp,
                                 color = Color(0xFF4CAF50)
                             )
@@ -212,17 +201,19 @@ internal fun CaveDetailDialog(
         confirmButton = {
             if (cave.status == CaveStatus.AVAILABLE) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (selectedDisciples.isNotEmpty()) {
+                    if (selectedDisciple != null) {
                         GameButton(
                             text = "确认派遣",
                             onClick = {
-                                worldMapViewModel.startCaveExploration(cave, selectedDisciples)
+                                selectedDisciple?.let {
+                                    worldMapViewModel.startCaveExploration(cave, listOf(it))
+                                }
                                 onDismiss()
                             }
                         )
                     }
                     GameButton(
-                        text = if (selectedDisciples.isEmpty()) "选择弟子" else "修改选择",
+                        text = if (selectedDisciple == null) "选择弟子" else "修改选择",
                         onClick = { showDiscipleSelection = true }
                     )
                 }
@@ -232,145 +223,23 @@ internal fun CaveDetailDialog(
     )
 
     if (showDiscipleSelection) {
-        CaveDiscipleSelectionDialog(
-            disciples = disciples,
-            selectedDisciples = selectedDisciples,
-            maxSelection = 10,
-            caveRealm = cave.ownerRealm,
-            onConfirm = {
-                selectedDisciples = it
+        val availableCaveDisciples = remember(disciples, cave.ownerRealm) {
+            disciples.filter { disciple ->
+                disciple.isAlive &&
+                disciple.status == DiscipleStatus.IDLE &&
+                disciple.realmLayer > 0 &&
+                disciple.age >= 5 &&
+                disciple.realm <= cave.ownerRealm
+            }.sortedByFollowAndRealm()
+        }
+        DiscipleSelectorDialog(
+            config = DiscipleSelectorConfig(title = "选择探索弟子"),
+            disciples = availableCaveDisciples,
+            onDismiss = { showDiscipleSelection = false },
+            onConfirm = { selected ->
+                selectedDisciple = selected.firstOrNull()
                 showDiscipleSelection = false
-            },
-            onDismiss = { showDiscipleSelection = false }
+            }
         )
-    }
-}
-
-@Composable
-internal fun CaveDiscipleSelectionDialog(
-    disciples: List<DiscipleAggregate>,
-    selectedDisciples: List<DiscipleAggregate>,
-    maxSelection: Int,
-    caveRealm: Int,
-    onConfirm: (List<DiscipleAggregate>) -> Unit,
-    onDismiss: () -> Unit
-) {
-    var selectedRealmFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
-    var selectedSpiritRootFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
-    var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
-    var spiritRootExpanded by remember { mutableStateOf(false) }
-    var attributeExpanded by remember { mutableStateOf(false) }
-    var realmExpanded by remember { mutableStateOf(false) }
-    var currentSelected by remember(selectedDisciples) { @Suppress("MutableCollectionMutableState") mutableStateOf(selectedDisciples.toMutableList()) }
-
-    val availableDisciples = remember(disciples, caveRealm, selectedDisciples) {
-        val selectedIds = selectedDisciples.map { it.id }.toSet()
-        disciples.filter { disciple ->
-            disciple.isAlive &&
-            disciple.status == DiscipleStatus.IDLE &&
-            disciple.realmLayer > 0 &&
-            disciple.age >= 5 &&
-            disciple.realm <= caveRealm &&
-            disciple.id !in selectedIds
-        }.sortedByFollowAndRealm()
-    }
-
-    val realmCounts = remember(availableDisciples) {
-        availableDisciples.groupingBy { it.realm }.eachCount()
-    }
-
-    val spiritRootCounts = remember(availableDisciples) {
-        availableDisciples.groupingBy { it.getSpiritRootCount() }.eachCount()
-    }
-
-    val filteredDisciples = remember(availableDisciples, selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort) {
-        availableDisciples.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort)
-    }
-
-    UnifiedGameDialog(
-        onDismissRequest = onDismiss,
-        title = "选择探索弟子 (${currentSelected.size}/$maxSelection)",
-        mode = DialogMode.Half,
-        scrollableContent = false,
-        headerContent = {
-            SpiritRootAttributeFilterBar(
-                selectedSpiritRootFilter = selectedSpiritRootFilter,
-                selectedAttributeSort = selectedAttributeSort,
-                selectedRealmFilter = selectedRealmFilter,
-                realmFilterOptions = REALM_FILTER_OPTIONS,
-                realmCounts = realmCounts,
-                spiritRootExpanded = spiritRootExpanded,
-                attributeExpanded = attributeExpanded,
-                realmExpanded = realmExpanded,
-                spiritRootCounts = spiritRootCounts,
-                onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
-                onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
-                onAttributeSortSelected = { selectedAttributeSort = it },
-                onRealmFilterSelected = { selectedRealmFilter = selectedRealmFilter + it },
-                onRealmFilterRemoved = { selectedRealmFilter = selectedRealmFilter - it },
-                onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
-                onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
-                onRealmExpandToggle = { realmExpanded = !realmExpanded },
-                isCompact = true
-            )
-        }
-    ) {
-        Column(Modifier.fillMaxSize()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .padding(horizontal = 12.dp)
-            ) {
-                if (availableDisciples.isEmpty()) {
-                    Box(
-                        modifier = Modifier.fillMaxWidth().weight(1f),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "暂无空闲弟子",
-                            fontSize = 12.sp,
-                            color = Color.Black
-                        )
-                    }
-                } else {
-
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(2),
-                        modifier = Modifier.weight(1f),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        items(filteredDisciples, key = { it.id }) { disciple ->
-                            val isSelected = disciple.id in currentSelected.map { it.id }
-                            PortraitDiscipleCard(
-                                disciple = disciple,
-                                isSelected = isSelected,
-                                onClick = {
-                                    if (isSelected) {
-                                        currentSelected = currentSelected.filter { it.id != disciple.id }.toMutableList()
-                                    } else if (currentSelected.size < maxSelection) {
-                                        currentSelected = (currentSelected + disciple).toMutableList()
-                                    }
-                                }
-                            )
-                        }
-                    }
-                }
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(12.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
-            ) {
-                GameButton(
-                    text = "清空",
-                    onClick = { currentSelected = mutableListOf() }
-                )
-                GameButton(
-                    text = "确认",
-                    onClick = { onConfirm(currentSelected) }
-                )
-            }
-        }
     }
 }

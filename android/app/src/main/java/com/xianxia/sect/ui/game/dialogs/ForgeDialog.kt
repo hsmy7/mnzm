@@ -45,8 +45,9 @@ import com.xianxia.sect.ui.game.ProductionSlotItem
 import com.xianxia.sect.ui.game.ProductionTheme
 import com.xianxia.sect.ui.game.ProductionElderSelectionDialog
 import com.xianxia.sect.ui.game.ProductionReserveDiscipleDialog
-import com.xianxia.sect.ui.game.ProductionAddReserveDiscipleDialog
 import com.xianxia.sect.ui.game.ProductionCommonDialog
+import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorConfig
+import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorDialog
 import com.xianxia.sect.ui.game.DiscipleDetailDialog
 import java.util.Locale
 
@@ -277,12 +278,12 @@ fun ForgeDialog(
     }
 
     if (showAddReserveDialog) {
-        ProductionAddReserveDiscipleDialog(
-            theme = theme,
-            availableDisciples = forgeViewModel.getAvailableDisciplesForForgeReserve(),
+        DiscipleSelectorDialog(
+            config = DiscipleSelectorConfig(title = "添加储备弟子（推荐炼器）"),
+            disciples = forgeViewModel.getAvailableDisciplesForForgeReserve(),
             onDismiss = { showAddReserveDialog = false },
-            onConfirm = { selectedIds ->
-                forgeViewModel.addForgeReserveDisciples(selectedIds)
+            onConfirm = { selected ->
+                forgeViewModel.addForgeReserveDisciples(selected.map { it.id })
                 showAddReserveDialog = false
             }
         )

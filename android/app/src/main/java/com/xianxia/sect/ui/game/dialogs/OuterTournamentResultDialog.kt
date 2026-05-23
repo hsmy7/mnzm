@@ -41,7 +41,7 @@ fun OuterTournamentResultDialog(
     worldMapViewModel: WorldMapViewModel,
     onDismiss: () -> Unit
 ) {
-    val selectedIds = remember { mutableStateListOf<String>() }
+    var selectedId by remember { mutableStateOf<String?>(null) }
 
     UnifiedGameDialog(
         onDismissRequest = onDismiss,
@@ -78,16 +78,12 @@ fun OuterTournamentResultDialog(
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     items(topDisciples, key = { (d, _) -> d.id }) { (disciple, rank) ->
-                        val isSelected by remember { derivedStateOf { disciple.id in selectedIds } }
+                        val isSelected = selectedId == disciple.id
                         PortraitDiscipleCard(
                             disciple = disciple,
                             isSelected = isSelected,
                             onClick = {
-                                if (isSelected) {
-                                    selectedIds.remove(disciple.id)
-                                } else {
-                                    selectedIds.add(disciple.id)
-                                }
+                                selectedId = if (isSelected) null else disciple.id
                             }
                         )
                     }
@@ -99,8 +95,9 @@ fun OuterTournamentResultDialog(
                 ) {
                     GameButton(
                         text = "准入内门",
+                        enabled = selectedId != null,
                         onClick = {
-                            worldMapViewModel.promoteSelectedDisciplesToInner(selectedIds.toSet())
+                            selectedId?.let { worldMapViewModel.promoteSelectedDisciplesToInner(setOf(it)) }
                         }
                     )
                 }

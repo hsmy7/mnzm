@@ -29,7 +29,8 @@ import com.xianxia.sect.ui.game.ProductionTheme
 import com.xianxia.sect.ui.game.ProductionElderSelectionDialog
 import com.xianxia.sect.ui.game.ProductionDirectDiscipleSelectionDialog
 import com.xianxia.sect.ui.game.DiscipleDetailDialog
-import com.xianxia.sect.ui.game.FilteredMultiSelectDialog
+import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorConfig
+import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorDialog
 import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.ElderBonusInfoButton
 import com.xianxia.sect.ui.components.ElderBonusInfoProvider
@@ -507,28 +508,14 @@ private fun ReserveDiscipleListDialog(
                 !elderSlots.isDiscipleInAnyPosition(it.id)
             }
         }
-        val reserveSelectedIds = remember { mutableStateListOf<String>() }
-        FilteredMultiSelectDialog(
-            title = "内门弟子",
+        DiscipleSelectorDialog(
+            config = DiscipleSelectorConfig(title = "内门弟子"),
             disciples = rawDisciples,
-            selectedIds = reserveSelectedIds,
-            extraCardAttrName = "智力",
-            headerContent = {
-                Text(
-                    text = "需要内门弟子及以上",
-                    fontSize = 9.sp,
-                    color = Color(0xFFE74C3C),
-                    modifier = Modifier.fillMaxWidth(),
-                    textAlign = TextAlign.Center
-                )
-            },
-            confirmText = if (reserveSelectedIds.isNotEmpty()) "添加(${reserveSelectedIds.size})" else "请选择弟子",
-            confirmEnabled = { reserveSelectedIds.isNotEmpty() },
-            onConfirm = {
-                productionViewModel.addReserveDisciples(reserveSelectedIds.toList())
+            onDismiss = { showAddDiscipleDialog = false },
+            onConfirm = { selected ->
+                productionViewModel.addReserveDisciples(selected.map { it.id })
                 showAddDiscipleDialog = false
-            },
-            onDismiss = { showAddDiscipleDialog = false }
+            }
         )
     }
 }
