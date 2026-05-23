@@ -474,10 +474,6 @@ class BattleSystem @Inject constructor() {
                     }
                 }
 
-                team = team.filter { !it.isDead }.toMutableList()
-                beasts = beasts.filter { !it.isDead }.toMutableList()
-                teamIndexMap = team.withIndex().associate { it.value.id to it.index }
-                beastsIndexMap = beasts.withIndex().associate { it.value.id to it.index }
             }
 
             if (availableSkill != null) {

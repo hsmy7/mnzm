@@ -69,6 +69,10 @@ class ElderManagementUseCase @Inject constructor(
         val disciple = disciples.find { it.id == discipleId }
             ?: return ElderResult.Error("弟子不存在")
 
+        if (!disciple.isAlive) {
+            return ElderResult.Error("弟子已死亡")
+        }
+
         val currentGameData = gameEngine.gameDataSnapshot
         val elderSlots = currentGameData.elderSlots
 
@@ -184,6 +188,10 @@ class ElderManagementUseCase @Inject constructor(
         val disciples = gameEngine.discipleAggregatesSnapshot
         val disciple = disciples.find { it.id == discipleId }
             ?: return ElderResult.Error("弟子不存在")
+
+        if (!disciple.isAlive) {
+            return ElderResult.Error("弟子已死亡")
+        }
 
         val currentGameData = gameEngine.gameDataSnapshot
         val elderSlots = currentGameData.elderSlots
