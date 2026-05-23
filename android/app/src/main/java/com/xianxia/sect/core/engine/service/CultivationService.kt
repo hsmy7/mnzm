@@ -12,6 +12,7 @@ import com.xianxia.sect.core.state.BattleResultUIData
 import com.xianxia.sect.core.state.GameNotification
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.registry.*
+import com.xianxia.sect.core.engine.system.AddResult
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.engine.BattleSystem
 import com.xianxia.sect.core.engine.BattleMemberData
@@ -2334,12 +2335,20 @@ private val applicationScopeProvider: ApplicationScopeProvider,
 
         val rewards = CaveExplorationSystem.generateVictoryRewards(cave)
 
+        val battleRewardItems = mutableListOf<BattleRewardItem>()
         rewards.items.forEach { reward ->
             when (reward.type) {
                 "spiritStones" -> {
                     currentGameData = currentGameData.copy(
                         spiritStones = currentGameData.spiritStones + reward.quantity.toLong()
                     )
+                    battleRewardItems.add(BattleRewardItem(
+                        itemId = reward.itemId,
+                        name = reward.name,
+                        quantity = reward.quantity,
+                        rarity = reward.rarity,
+                        type = reward.type
+                    ))
                 }
                 "equipment" -> {
                     val template = EquipmentDatabase.getById(reward.itemId)
@@ -2348,8 +2357,16 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                             rarity = reward.rarity,
                             quantity = reward.quantity
                         )
-                        inventorySystem.addEquipmentStack(equipment)
-                    } else {
+                        val result = inventorySystem.addEquipmentStack(equipment)
+                        if (result == AddResult.SUCCESS || result == AddResult.PARTIAL_SUCCESS) {
+                            battleRewardItems.add(BattleRewardItem(
+                                itemId = reward.itemId,
+                                name = reward.name,
+                                quantity = reward.quantity,
+                                rarity = reward.rarity,
+                                type = reward.type
+                            ))
+                        }
                     }
                 }
                 "manual" -> {
@@ -2359,8 +2376,16 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                             rarity = reward.rarity,
                             quantity = reward.quantity
                         )
-                        inventorySystem.addManualStack(manual)
-                    } else {
+                        val result = inventorySystem.addManualStack(manual)
+                        if (result == AddResult.SUCCESS || result == AddResult.PARTIAL_SUCCESS) {
+                            battleRewardItems.add(BattleRewardItem(
+                                itemId = reward.itemId,
+                                name = reward.name,
+                                quantity = reward.quantity,
+                                rarity = reward.rarity,
+                                type = reward.type
+                            ))
+                        }
                     }
                 }
                 "pill" -> {
@@ -2403,8 +2428,16 @@ private val applicationScopeProvider: ApplicationScopeProvider,
                             ),
                             minRealm = GameConfig.Realm.getMinRealmForRarity(template.rarity)
                         )
-                        inventorySystem.addPill(pill)
-                    } else {
+                        val result = inventorySystem.addPill(pill)
+                        if (result == AddResult.SUCCESS || result == AddResult.PARTIAL_SUCCESS) {
+                            battleRewardItems.add(BattleRewardItem(
+                                itemId = reward.itemId,
+                                name = reward.name,
+                                quantity = reward.quantity,
+                                rarity = reward.rarity,
+                                type = reward.type
+                            ))
+                        }
                     }
                 }
             }
@@ -2480,16 +2513,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
         )
         currentBattleLogs = listOf(battleLog) + currentBattleLogs.take(49)
 
-        // 设置战斗结算数据
-        val battleRewardItems = rewards.items.map { item ->
-            BattleRewardItem(
-                itemId = item.itemId,
-                name = item.name,
-                quantity = item.quantity,
-                rarity = item.rarity,
-                type = item.type
-            )
-        }
+        // 设置战斗结算数据（battleRewardItems 已在上方循环中构建，仅包含实际成功入库的物品）
         stateStore.setPendingBattleResult(BattleResultUIData(
             battleLogId = battleLog.id,
             victory = battleResult.victory,

@@ -9,6 +9,7 @@ import kotlinx.coroutines.Dispatchers
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.GameNotification
 import com.xianxia.sect.core.engine.service.*
+import com.xianxia.sect.core.engine.system.AddResult
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.engine.system.MerchantItemConverter
 import com.xianxia.sect.core.engine.BattleSystem
@@ -2722,7 +2723,12 @@ class GameEngine @Inject constructor(
     }
 
     fun addSpiritStones(amount: Long) {
-        updateGameDataSync { it.copy(spiritStones = it.spiritStones + amount) }
+        val ts = stateStore.currentTransactionMutableState()
+        if (ts != null) {
+            ts.gameData = ts.gameData.copy(spiritStones = ts.gameData.spiritStones + amount)
+        } else {
+            updateGameDataSync { it.copy(spiritStones = it.spiritStones + amount) }
+        }
     }
 
     fun updateMonthlySalary(newSalary: Map<Int, Int>) {
@@ -3145,17 +3151,26 @@ class GameEngine @Inject constructor(
         val updatedLogs = (existingLogs + log).takeLast(GameConfig.Logs.MAX_BATTLE_LOGS)
 
         if (result.victory) {
-            val allRewards = if (level.isBeast) {
-                val handlerRewards = handleBeastLevelVictory(level)
-                val engineSsRewards = result.rewards["spiritStones"] ?: 0
-                if (engineSsRewards > 0) {
-                    addSpiritStones(engineSsRewards.toLong())
-                    handlerRewards + BattleRewardItem(
-                        name = "灵石", quantity = engineSsRewards, rarity = 1, type = "spiritStones"
-                    )
-                } else handlerRewards
-            } else {
-                handleCaveLevelVictory(level)
+            val allRewards = mutableListOf<BattleRewardItem>()
+            stateStore.update {
+                if (level.isBeast) {
+                    allRewards.addAll(handleBeastLevelVictory(level))
+                    val engineSsRewards = result.rewards["spiritStones"] ?: 0
+                    if (engineSsRewards > 0) {
+                        addSpiritStones(engineSsRewards.toLong())
+                        allRewards.add(BattleRewardItem(
+                            name = "灵石", quantity = engineSsRewards, rarity = 1, type = "spiritStones"
+                        ))
+                    }
+                } else {
+                    allRewards.addAll(handleCaveLevelVictory(level))
+                }
+                gameData = gameData.copy(
+                    worldLevels = gameData.worldLevels.map { l ->
+                        if (l.id == levelId) l.copy(defeated = true) else l
+                    }
+                )
+                battleLogs = updatedLogs
             }
 
             stateStore.setPendingBattleResult(BattleResultUIData(
@@ -3164,15 +3179,6 @@ class GameEngine @Inject constructor(
                 teamMembers = teamMembers,
                 rewards = allRewards
             ))
-
-            updateGameDataSync {
-                it.copy(
-                    worldLevels = it.worldLevels.map { l ->
-                        if (l.id == levelId) l.copy(defeated = true) else l
-                    }
-                )
-            }
-            stateStore.update { battleLogs = updatedLogs }
         } else {
             stateStore.setPendingBattleResult(BattleResultUIData(
                 battleLogId = log.id,
@@ -3380,14 +3386,16 @@ class GameEngine @Inject constructor(
                         category = beastMaterial.materialCategory,
                         quantity = 1
                     )
-                    inventorySystem.addMaterial(material)
-                    rewards.add(BattleRewardItem(
-                        itemId = material.id,
-                        name = material.name,
-                        quantity = 1,
-                        rarity = material.rarity,
-                        type = "material"
-                    ))
+                    val result = inventorySystem.addMaterial(material)
+                    if (result == AddResult.SUCCESS || result == AddResult.PARTIAL_SUCCESS) {
+                        rewards.add(BattleRewardItem(
+                            itemId = material.id,
+                            name = material.name,
+                            quantity = 1,
+                            rarity = material.rarity,
+                            type = "material"
+                        ))
+                    }
                 }
             }
         }
@@ -3417,40 +3425,46 @@ class GameEngine @Inject constructor(
                 typeRoll < 0.33 -> {
                     val manual = com.xianxia.sect.core.registry.ManualDatabase.generateRandom(rarity)
                     if (manual != null) {
-                        inventorySystem.addManualStack(manual)
-                        rewards.add(BattleRewardItem(
-                            itemId = manual.id,
-                            name = manual.name,
-                            quantity = 1,
-                            rarity = manual.rarity,
-                            type = "manual"
-                        ))
+                        val result = inventorySystem.addManualStack(manual)
+                        if (result == AddResult.SUCCESS || result == AddResult.PARTIAL_SUCCESS) {
+                            rewards.add(BattleRewardItem(
+                                itemId = manual.id,
+                                name = manual.name,
+                                quantity = 1,
+                                rarity = manual.rarity,
+                                type = "manual"
+                            ))
+                        }
                     }
                 }
                 typeRoll < 0.66 -> {
                     val equip = com.xianxia.sect.core.registry.EquipmentDatabase.generateRandom(rarity)
                     if (equip != null) {
-                        inventorySystem.addEquipmentStack(equip)
-                        rewards.add(BattleRewardItem(
-                            itemId = equip.id,
-                            name = equip.name,
-                            quantity = 1,
-                            rarity = equip.rarity,
-                            type = "equipment"
-                        ))
+                        val result = inventorySystem.addEquipmentStack(equip)
+                        if (result == AddResult.SUCCESS || result == AddResult.PARTIAL_SUCCESS) {
+                            rewards.add(BattleRewardItem(
+                                itemId = equip.id,
+                                name = equip.name,
+                                quantity = 1,
+                                rarity = equip.rarity,
+                                type = "equipment"
+                            ))
+                        }
                     }
                 }
                 else -> {
                     val pill = com.xianxia.sect.core.registry.ItemDatabase.generateRandomPill(rarity)
                     if (pill != null) {
-                        inventorySystem.addPill(pill)
-                        rewards.add(BattleRewardItem(
-                            itemId = pill.id,
-                            name = pill.name,
-                            quantity = 1,
-                            rarity = pill.rarity,
-                            type = "pill"
-                        ))
+                        val result = inventorySystem.addPill(pill)
+                        if (result == AddResult.SUCCESS || result == AddResult.PARTIAL_SUCCESS) {
+                            rewards.add(BattleRewardItem(
+                                itemId = pill.id,
+                                name = pill.name,
+                                quantity = 1,
+                                rarity = pill.rarity,
+                                type = "pill"
+                            ))
+                        }
                     }
                 }
             }

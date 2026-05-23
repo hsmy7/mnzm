@@ -9,6 +9,14 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.0.78",
+            date = "2026-05-23",
+            changes = listOf(
+                "修复战斗胜利后战利品仅部分入库的问题：将战利品生成与入库统一在事务内原子执行",
+                "战斗结算弹窗现在仅显示实际成功入库的物品，避免展示与实际不一致"
+            )
+        ),
+        ChangelogEntry(
             version = "3.0.77",
             date = "2026-05-23",
             changes = listOf(
