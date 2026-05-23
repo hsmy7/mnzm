@@ -470,7 +470,7 @@ object DiscipleStatCalculator {
         val baseChance = GameConfig.Realm.getBreakthroughChance(disciple.realm, rootCount, disciple.realmLayer)
 
         val innerElderBonus = if (innerElderComprehension >= 80) {
-            (innerElderComprehension - 80) * 0.01
+            ((innerElderComprehension - 80) / 4) * 0.01
         } else {
             0.0
         }
@@ -496,7 +496,7 @@ object DiscipleStatCalculator {
         val baseChance = GameConfig.Realm.getBreakthroughChance(aggregate.realm, rootCount, aggregate.realmLayer)
 
         val innerElderBonus = if (innerElderComprehension >= 80) {
-            (innerElderComprehension - 80) * 0.01
+            ((innerElderComprehension - 80) / 4) * 0.01
         } else {
             0.0
         }

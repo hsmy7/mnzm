@@ -9,6 +9,15 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.0.90",
+            date = "2026-05-24",
+            changes = listOf(
+                "调整全境界突破率：单灵根炼气90%→筑基80%→金丹60%→元婴42%→化神34%→炼虚26%→合体16%→大乘12%→渡劫6%→仙人2%",
+                "多灵根突破率按固定百分点递减：双灵根-20%、三灵根-30%、四灵根-50%、五灵根-60%，最低为0%",
+                "外门/内门长老突破率加成削弱：悟性每高4点+1%突破率（原每高1点+1%）"
+            )
+        ),
+        ChangelogEntry(
             version = "3.0.89",
             date = "2026-05-24",
             changes = listOf(

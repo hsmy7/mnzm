@@ -1345,7 +1345,7 @@ private val applicationScopeProvider: ApplicationScopeProvider,
 
         val comprehension = elder.skills.comprehension
         return if (comprehension >= 80) {
-            (comprehension - 80) * 0.01
+            ((comprehension - 80) / 4) * 0.01
         } else {
             0.0
         }
