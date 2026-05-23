@@ -64,29 +64,6 @@ fun ResidenceDialog(
     // Upgrade dialog state
     var showUpgradeConfirm by remember { mutableStateOf(false) }
 
-    // Disciple selector
-    if (showDiscipleSelector) {
-        val occupiedIds = gameData.residenceSlots.mapNotNull { it.discipleId.ifEmpty { null } }.toSet()
-        val eligibleDisciples = disciples.filter {
-            it.isAlive && it.status != DiscipleStatus.REFLECTING && it.id !in occupiedIds
-        }
-        DiscipleSelectorDialog(
-            config = DiscipleSelectorConfig(
-                title = if (isSwapping) "更换弟子" else "选择入住弟子",
-                emptyMessage = "没有可分配的弟子"
-            ),
-            disciples = eligibleDisciples,
-            onDismiss = { showDiscipleSelector = false; isSwapping = false },
-            onConfirm = { selected ->
-                if (selected.isNotEmpty()) {
-                    viewModel.assignToResidence(buildingInstanceId, selectedSlotIndex, selected.first().id)
-                }
-                showDiscipleSelector = false
-                isSwapping = false
-            }
-        )
-    }
-
     // Upgrade confirmation dialog
     if (showUpgradeConfirm) {
         val canAfford = gameData.spiritStones >= 5000L
@@ -229,5 +206,28 @@ fun ResidenceDialog(
                 )
             }
         }
+    }
+
+    // Disciple selector
+    if (showDiscipleSelector) {
+        val occupiedIds = gameData.residenceSlots.mapNotNull { it.discipleId.ifEmpty { null } }.toSet()
+        val eligibleDisciples = disciples.filter {
+            it.isAlive && it.status != DiscipleStatus.REFLECTING && it.id !in occupiedIds
+        }
+        DiscipleSelectorDialog(
+            config = DiscipleSelectorConfig(
+                title = if (isSwapping) "更换弟子" else "选择入住弟子",
+                emptyMessage = "没有可分配的弟子"
+            ),
+            disciples = eligibleDisciples,
+            onDismiss = { showDiscipleSelector = false; isSwapping = false },
+            onConfirm = { selected ->
+                if (selected.isNotEmpty()) {
+                    viewModel.assignToResidence(buildingInstanceId, selectedSlotIndex, selected.first().id)
+                }
+                showDiscipleSelector = false
+                isSwapping = false
+            }
+        )
     }
 }

@@ -167,7 +167,7 @@
       "autoRestartEnabled": false,
       "cost": 2000,
       "gridWidth": 3,
-      "gridHeight": 3,
+      "gridHeight": 2,
       "description": "供多名弟子共同修炼，修炼速度+10%"
     },
     "single_residence_upgraded": {
