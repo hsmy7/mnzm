@@ -232,7 +232,29 @@ private fun AttackDiscipleSelectionDialog(
         onDismissRequest = onDismiss,
         title = "选择进攻弟子",
         mode = DialogMode.Half,
-        scrollableContent = false
+        scrollableContent = false,
+        headerContent = {
+            SpiritRootAttributeFilterBar(
+                selectedSpiritRootFilter = selectedSpiritRootFilter,
+                selectedAttributeSort = selectedAttributeSort,
+                selectedRealmFilter = selectedRealmFilter,
+                realmFilterOptions = REALM_FILTER_OPTIONS,
+                realmCounts = realmCounts,
+                spiritRootExpanded = spiritRootExpanded,
+                attributeExpanded = attributeExpanded,
+                realmExpanded = realmExpanded,
+                spiritRootCounts = spiritRootCounts,
+                onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
+                onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
+                onAttributeSortSelected = { selectedAttributeSort = it },
+                onRealmFilterSelected = { selectedRealmFilter = selectedRealmFilter + it },
+                onRealmFilterRemoved = { selectedRealmFilter = selectedRealmFilter - it },
+                onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
+                onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
+                onRealmExpandToggle = { realmExpanded = !realmExpanded },
+                isCompact = true
+            )
+        }
     ) {
         Column(Modifier.fillMaxSize()) {
             Column(
@@ -253,28 +275,6 @@ private fun AttackDiscipleSelectionDialog(
                         )
                     }
                 } else {
-                    SpiritRootAttributeFilterBar(
-                        selectedSpiritRootFilter = selectedSpiritRootFilter,
-                        selectedAttributeSort = selectedAttributeSort,
-                        selectedRealmFilter = selectedRealmFilter,
-                        realmFilterOptions = REALM_FILTER_OPTIONS,
-                        realmCounts = realmCounts,
-                        spiritRootExpanded = spiritRootExpanded,
-                        attributeExpanded = attributeExpanded,
-                        realmExpanded = realmExpanded,
-                        spiritRootCounts = spiritRootCounts,
-                        onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
-                        onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
-                        onAttributeSortSelected = { selectedAttributeSort = it },
-                        onRealmFilterSelected = { selectedRealmFilter = selectedRealmFilter + it },
-                        onRealmFilterRemoved = { selectedRealmFilter = selectedRealmFilter - it },
-                        onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
-                        onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
-                        onRealmExpandToggle = { realmExpanded = !realmExpanded },
-                        isCompact = true
-                    )
-
-                    Spacer(modifier = Modifier.height(12.dp))
 
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(2),

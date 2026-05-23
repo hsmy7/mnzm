@@ -53,6 +53,7 @@ fun UnifiedGameDialog(
     dismissOnBackPress: Boolean = true,
     dismissOnClickOutside: Boolean = true,
     headerActions: @Composable (() -> Unit)? = null,
+    headerContent: @Composable (() -> Unit)? = null,
     scrollableContent: Boolean = true,
     titleColor: Color = Color.Black,
     titleFontSize: TextUnit = AppTypography.Title,
@@ -114,7 +115,7 @@ fun UnifiedGameDialog(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = Spacing.MD, vertical = Spacing.MD),
+                        .padding(start = Spacing.MD, end = Spacing.MD, top = 4.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -136,6 +137,8 @@ fun UnifiedGameDialog(
                         }
                     }
                 }
+                // Header extension content (e.g. filter bar)
+                headerContent?.invoke()
                 // Scrollable content
                 val contentScrollModifier = if (scrollableContent) {
                     Modifier.verticalScroll(rememberScrollState())

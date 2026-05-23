@@ -192,7 +192,28 @@ private fun LibraryDiscipleSelectionDialog(
         onDismissRequest = onDismiss,
         title = "选择弟子",
         mode = DialogMode.Half,
-        scrollableContent = false
+        scrollableContent = false,
+        headerContent = {
+            SpiritRootAttributeFilterBar(
+                selectedSpiritRootFilter = selectedSpiritRootFilter,
+                selectedAttributeSort = selectedAttributeSort,
+                selectedRealmFilter = selectedRealmFilter,
+                realmFilterOptions = REALM_FILTER_OPTIONS,
+                realmCounts = realmCounts,
+                spiritRootExpanded = spiritRootExpanded,
+                attributeExpanded = attributeExpanded,
+                realmExpanded = realmExpanded,
+                spiritRootCounts = spiritRootCounts,
+                onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
+                onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
+                onAttributeSortSelected = { selectedAttributeSort = it },
+                onRealmFilterSelected = { selectedRealmFilter = selectedRealmFilter + it },
+                onRealmFilterRemoved = { selectedRealmFilter = selectedRealmFilter - it },
+                onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
+                onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
+                onRealmExpandToggle = { realmExpanded = !realmExpanded }
+            )
+        }
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             if (disciples.isEmpty()) {
@@ -214,29 +235,6 @@ private fun LibraryDiscipleSelectionDialog(
                         .fillMaxWidth()
                         .weight(1f)
                 ) {
-                    SpiritRootAttributeFilterBar(
-                        selectedSpiritRootFilter = selectedSpiritRootFilter,
-                        selectedAttributeSort = selectedAttributeSort,
-                        selectedRealmFilter = selectedRealmFilter,
-                        realmFilterOptions = REALM_FILTER_OPTIONS,
-                        realmCounts = realmCounts,
-                        spiritRootExpanded = spiritRootExpanded,
-                        attributeExpanded = attributeExpanded,
-                        realmExpanded = realmExpanded,
-                        spiritRootCounts = spiritRootCounts,
-                        onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
-                        onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
-                        onAttributeSortSelected = { selectedAttributeSort = it },
-                        onRealmFilterSelected = { selectedRealmFilter = selectedRealmFilter + it },
-                        onRealmFilterRemoved = { selectedRealmFilter = selectedRealmFilter - it },
-                        onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
-                        onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
-                        onRealmExpandToggle = { realmExpanded = !realmExpanded },
-                        isCompact = true
-                    )
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(2),
                         modifier = Modifier.weight(1f),
@@ -262,6 +260,7 @@ private fun LibraryDiscipleSelectionDialog(
 private fun CommonDialog(
     title: String,
     onDismiss: () -> Unit,
+    headerContent: @Composable (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
     UnifiedGameDialog(
@@ -269,6 +268,7 @@ private fun CommonDialog(
         title = title,
         mode = DialogMode.Half,
         scrollableContent = false,
+        headerContent = headerContent,
         content = {
             Column(
                 modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)

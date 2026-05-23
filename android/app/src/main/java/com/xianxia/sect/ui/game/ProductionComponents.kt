@@ -485,30 +485,31 @@ fun ProductionElderSelectionDialog(
         scrollableContent = false,
         headerActions = {
             Text("推荐${theme.recommendAttributeText}", fontSize = 10.sp, color = Color(0xFF4CAF50))
+        },
+        headerContent = {
+            SpiritRootAttributeFilterBar(
+                selectedSpiritRootFilter = selectedSpiritRootFilter,
+                selectedAttributeSort = selectedAttributeSort,
+                selectedRealmFilter = selectedRealmFilter,
+                realmFilterOptions = REALM_FILTERS,
+                realmCounts = realmCounts,
+                spiritRootExpanded = spiritRootExpanded,
+                attributeExpanded = attributeExpanded,
+                realmExpanded = realmExpanded,
+                spiritRootCounts = spiritRootCounts,
+                onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
+                onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
+                onAttributeSortSelected = { selectedAttributeSort = it },
+                onRealmFilterSelected = { selectedRealmFilter = selectedRealmFilter + it },
+                onRealmFilterRemoved = { selectedRealmFilter = selectedRealmFilter - it },
+                onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
+                onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
+                onRealmExpandToggle = { realmExpanded = !realmExpanded },
+                isCompact = true
+            )
         }
     ) {
         Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
-                SpiritRootAttributeFilterBar(
-                    selectedSpiritRootFilter = selectedSpiritRootFilter,
-                    selectedAttributeSort = selectedAttributeSort,
-                    selectedRealmFilter = selectedRealmFilter,
-                    realmFilterOptions = REALM_FILTERS,
-                    realmCounts = realmCounts,
-                    spiritRootExpanded = spiritRootExpanded,
-                    attributeExpanded = attributeExpanded,
-                    realmExpanded = realmExpanded,
-                    spiritRootCounts = spiritRootCounts,
-                    onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
-                    onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
-                    onAttributeSortSelected = { selectedAttributeSort = it },
-                    onRealmFilterSelected = { selectedRealmFilter = selectedRealmFilter + it },
-                    onRealmFilterRemoved = { selectedRealmFilter = selectedRealmFilter - it },
-                    onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
-                    onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
-                    onRealmExpandToggle = { realmExpanded = !realmExpanded },
-                    isCompact = true
-                )
-                Spacer(modifier = Modifier.height(12.dp))
                 Column(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp)) {
                     if (filteredDisciples.isEmpty()) {
                         Box(
@@ -596,30 +597,31 @@ fun ProductionDirectDiscipleSelectionDialog(
         scrollableContent = false,
         headerActions = {
             Text("推荐${theme.recommendAttributeText}", fontSize = 10.sp, color = Color(0xFF4CAF50))
+        },
+        headerContent = {
+            SpiritRootAttributeFilterBar(
+                selectedSpiritRootFilter = selectedSpiritRootFilter,
+                selectedAttributeSort = selectedAttributeSort,
+                selectedRealmFilter = selectedRealmFilter,
+                realmFilterOptions = REALM_FILTERS,
+                realmCounts = realmCounts,
+                spiritRootExpanded = spiritRootExpanded,
+                attributeExpanded = attributeExpanded,
+                realmExpanded = realmExpanded,
+                spiritRootCounts = spiritRootCounts,
+                onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
+                onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
+                onAttributeSortSelected = { selectedAttributeSort = it },
+                onRealmFilterSelected = { selectedRealmFilter = selectedRealmFilter + it },
+                onRealmFilterRemoved = { selectedRealmFilter = selectedRealmFilter - it },
+                onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
+                onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
+                onRealmExpandToggle = { realmExpanded = !realmExpanded },
+                isCompact = true
+            )
         }
     ) {
         Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
-                SpiritRootAttributeFilterBar(
-                    selectedSpiritRootFilter = selectedSpiritRootFilter,
-                    selectedAttributeSort = selectedAttributeSort,
-                    selectedRealmFilter = selectedRealmFilter,
-                    realmFilterOptions = REALM_FILTERS,
-                    realmCounts = realmCounts,
-                    spiritRootExpanded = spiritRootExpanded,
-                    attributeExpanded = attributeExpanded,
-                    realmExpanded = realmExpanded,
-                    spiritRootCounts = spiritRootCounts,
-                    onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
-                    onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
-                    onAttributeSortSelected = { selectedAttributeSort = it },
-                    onRealmFilterSelected = { selectedRealmFilter = selectedRealmFilter + it },
-                    onRealmFilterRemoved = { selectedRealmFilter = selectedRealmFilter - it },
-                    onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
-                    onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
-                    onRealmExpandToggle = { realmExpanded = !realmExpanded },
-                    isCompact = true
-                )
-                Spacer(modifier = Modifier.height(12.dp))
                 Column(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp)) {
                     if (filteredDisciples.isEmpty()) {
                         Box(
@@ -847,7 +849,29 @@ fun FilteredMultiSelectDialog(
         scrollableContent = false,
         headerActions = if (extraCardAttrName != null) {
             { Text("推荐$extraCardAttrName", fontSize = 10.sp, color = Color(0xFF4CAF50)) }
-        } else null
+        } else null,
+        headerContent = {
+            SpiritRootAttributeFilterBar(
+                selectedSpiritRootFilter = selectedSpiritRootFilter,
+                selectedAttributeSort = selectedAttributeSort,
+                selectedRealmFilter = selectedRealmFilter,
+                realmFilterOptions = REALM_FILTERS,
+                realmCounts = realmCounts,
+                spiritRootExpanded = spiritRootExpanded,
+                attributeExpanded = attributeExpanded,
+                realmExpanded = realmExpanded,
+                spiritRootCounts = spiritRootCounts,
+                onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
+                onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
+                onAttributeSortSelected = { selectedAttributeSort = it },
+                onRealmFilterSelected = { selectedRealmFilter = selectedRealmFilter + it },
+                onRealmFilterRemoved = { selectedRealmFilter = selectedRealmFilter - it },
+                onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
+                onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
+                onRealmExpandToggle = { realmExpanded = !realmExpanded },
+                isCompact = true
+            )
+        }
     ) {
         Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
                 Column(
@@ -860,28 +884,6 @@ fun FilteredMultiSelectDialog(
                         Spacer(modifier = Modifier.height(8.dp))
                     }
 
-                    SpiritRootAttributeFilterBar(
-                        selectedSpiritRootFilter = selectedSpiritRootFilter,
-                        selectedAttributeSort = selectedAttributeSort,
-                        selectedRealmFilter = selectedRealmFilter,
-                        realmFilterOptions = REALM_FILTERS,
-                        realmCounts = realmCounts,
-                        spiritRootExpanded = spiritRootExpanded,
-                        attributeExpanded = attributeExpanded,
-                        realmExpanded = realmExpanded,
-                        spiritRootCounts = spiritRootCounts,
-                        onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
-                        onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
-                        onAttributeSortSelected = { selectedAttributeSort = it },
-                        onRealmFilterSelected = { selectedRealmFilter = selectedRealmFilter + it },
-                        onRealmFilterRemoved = { selectedRealmFilter = selectedRealmFilter - it },
-                        onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
-                        onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
-                        onRealmExpandToggle = { realmExpanded = !realmExpanded },
-                        isCompact = true
-                    )
-
-                    Spacer(modifier = Modifier.height(12.dp))
 
                     if (filteredDisciples.isEmpty()) {
                         Box(

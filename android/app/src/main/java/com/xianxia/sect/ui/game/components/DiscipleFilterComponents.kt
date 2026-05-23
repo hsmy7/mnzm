@@ -125,8 +125,8 @@ internal fun SpiritRootAttributeFilterBar(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+            .padding(horizontal = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(0.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),

@@ -52,9 +52,8 @@ fun DiscipleSelectorDialog(
         onDismissRequest = onDismiss,
         title = config.title,
         mode = DialogMode.Half,
-        scrollableContent = false
-    ) {
-        Column(modifier = Modifier.fillMaxSize()) {
+        scrollableContent = false,
+        headerContent = {
             SpiritRootAttributeFilterBar(
                 selectedSpiritRootFilter = filterState.spiritRootFilter,
                 selectedAttributeSort = filterState.attributeSort,
@@ -74,7 +73,9 @@ fun DiscipleSelectorDialog(
                 onAttributeExpandToggle = { filterState.attributeExpanded = !filterState.attributeExpanded },
                 onRealmExpandToggle = { filterState.realmExpanded = !filterState.realmExpanded }
             )
-
+        }
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
             if (filtered.isEmpty()) {
                 Box(
                     modifier = Modifier.fillMaxWidth().weight(1f),

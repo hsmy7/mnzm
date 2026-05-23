@@ -410,7 +410,29 @@ private fun SpiritMineDiscipleSelectionDialog(
 
     CommonDialog(
         title = "选择采矿弟子（外门，最多${maxSelectCount}名）",
-        onDismiss = onDismiss
+        onDismiss = onDismiss,
+        headerContent = {
+            SpiritRootAttributeFilterBar(
+                selectedSpiritRootFilter = selectedSpiritRootFilter,
+                selectedAttributeSort = selectedAttributeSort,
+                selectedRealmFilter = selectedRealmFilter,
+                realmFilterOptions = REALM_FILTER_OPTIONS,
+                realmCounts = realmCounts,
+                spiritRootExpanded = spiritRootExpanded,
+                attributeExpanded = attributeExpanded,
+                realmExpanded = realmExpanded,
+                spiritRootCounts = spiritRootCounts,
+                onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
+                onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
+                onAttributeSortSelected = { selectedAttributeSort = it },
+                onRealmFilterSelected = { selectedRealmFilter = selectedRealmFilter + it },
+                onRealmFilterRemoved = { selectedRealmFilter = selectedRealmFilter - it },
+                onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
+                onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
+                onRealmExpandToggle = { realmExpanded = !realmExpanded },
+                isCompact = true
+            )
+        }
     ) {
         Column {
             if (disciples.isEmpty()) {
@@ -427,30 +449,6 @@ private fun SpiritMineDiscipleSelectionDialog(
                     )
                 }
             } else {
-                Spacer(modifier = Modifier.height(8.dp))
-
-                SpiritRootAttributeFilterBar(
-                    selectedSpiritRootFilter = selectedSpiritRootFilter,
-                    selectedAttributeSort = selectedAttributeSort,
-                    selectedRealmFilter = selectedRealmFilter,
-                    realmFilterOptions = REALM_FILTER_OPTIONS,
-                    realmCounts = realmCounts,
-                    spiritRootExpanded = spiritRootExpanded,
-                    attributeExpanded = attributeExpanded,
-                    realmExpanded = realmExpanded,
-                    spiritRootCounts = spiritRootCounts,
-                    onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
-                    onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
-                    onAttributeSortSelected = { selectedAttributeSort = it },
-                    onRealmFilterSelected = { selectedRealmFilter = selectedRealmFilter + it },
-                    onRealmFilterRemoved = { selectedRealmFilter = selectedRealmFilter - it },
-                    onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
-                    onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
-                    onRealmExpandToggle = { realmExpanded = !realmExpanded },
-                    isCompact = true
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
                     text = "已选: ${selectedIds.size}/${maxSelectCount}",
@@ -541,7 +539,29 @@ private fun SpiritMineDeaconSelectionDialog(
         onDismissRequest = onDismiss,
         title = "选择执事（内门弟子）",
         mode = DialogMode.Half,
-        scrollableContent = false
+        scrollableContent = false,
+        headerContent = {
+            SpiritRootAttributeFilterBar(
+                selectedSpiritRootFilter = selectedSpiritRootFilter,
+                selectedAttributeSort = selectedAttributeSort,
+                selectedRealmFilter = selectedRealmFilter,
+                realmFilterOptions = REALM_FILTER_OPTIONS,
+                realmCounts = realmCounts,
+                spiritRootExpanded = spiritRootExpanded,
+                attributeExpanded = attributeExpanded,
+                realmExpanded = realmExpanded,
+                spiritRootCounts = spiritRootCounts,
+                onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
+                onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
+                onAttributeSortSelected = { selectedAttributeSort = it },
+                onRealmFilterSelected = { selectedRealmFilter = selectedRealmFilter + it },
+                onRealmFilterRemoved = { selectedRealmFilter = selectedRealmFilter - it },
+                onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
+                onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
+                onRealmExpandToggle = { realmExpanded = !realmExpanded },
+                isCompact = true
+            )
+        }
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             if (disciples.isEmpty()) {
@@ -563,28 +583,6 @@ private fun SpiritMineDeaconSelectionDialog(
                         .fillMaxWidth()
                         .weight(1f)
                 ) {
-                    SpiritRootAttributeFilterBar(
-                        selectedSpiritRootFilter = selectedSpiritRootFilter,
-                        selectedAttributeSort = selectedAttributeSort,
-                        selectedRealmFilter = selectedRealmFilter,
-                        realmFilterOptions = REALM_FILTER_OPTIONS,
-                        realmCounts = realmCounts,
-                        spiritRootExpanded = spiritRootExpanded,
-                        attributeExpanded = attributeExpanded,
-                        realmExpanded = realmExpanded,
-                        spiritRootCounts = spiritRootCounts,
-                        onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
-                        onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
-                        onAttributeSortSelected = { selectedAttributeSort = it },
-                        onRealmFilterSelected = { selectedRealmFilter = selectedRealmFilter + it },
-                        onRealmFilterRemoved = { selectedRealmFilter = selectedRealmFilter - it },
-                        onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
-                        onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
-                        onRealmExpandToggle = { realmExpanded = !realmExpanded },
-                        isCompact = true
-                    )
-
-                    Spacer(modifier = Modifier.height(12.dp))
 
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(2),
@@ -615,6 +613,7 @@ private fun CommonDialog(
     deaconBonus: Double = 0.0,
     miningBonus: Double = 0.0,
     onDismiss: () -> Unit,
+    headerContent: @Composable (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
     UnifiedGameDialog(
@@ -622,6 +621,7 @@ private fun CommonDialog(
         title = title,
         mode = DialogMode.Half,
         scrollableContent = false,
+        headerContent = headerContent,
         headerActions = {
             Column {
                 Text(text = "总产量: $totalOutput/月", fontSize = 10.sp, color = Color(0xFF4CAF50))

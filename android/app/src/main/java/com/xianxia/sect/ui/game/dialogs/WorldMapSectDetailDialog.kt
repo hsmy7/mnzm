@@ -494,7 +494,29 @@ private fun GarrisonDiscipleSelectionDialog(
         availableDisciples.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort)
     }
 
-    UnifiedGameDialog(onDismissRequest = onDismiss, title = "选择驻守弟子", mode = DialogMode.Half, scrollableContent = false) {
+    UnifiedGameDialog(onDismissRequest = onDismiss, title = "选择驻守弟子", mode = DialogMode.Half, scrollableContent = false,
+        headerContent = {
+            SpiritRootAttributeFilterBar(
+                selectedSpiritRootFilter = selectedSpiritRootFilter,
+                selectedAttributeSort = selectedAttributeSort,
+                selectedRealmFilter = selectedRealmFilter,
+                realmFilterOptions = REALM_FILTER_OPTIONS,
+                realmCounts = realmCounts,
+                spiritRootExpanded = spiritRootExpanded,
+                attributeExpanded = attributeExpanded,
+                realmExpanded = realmExpanded,
+                spiritRootCounts = spiritRootCounts,
+                onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
+                onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
+                onAttributeSortSelected = { selectedAttributeSort = it },
+                onRealmFilterSelected = { selectedRealmFilter = selectedRealmFilter + it },
+                onRealmFilterRemoved = { selectedRealmFilter = selectedRealmFilter - it },
+                onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
+                onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
+                onRealmExpandToggle = { realmExpanded = !realmExpanded },
+                isCompact = true
+            )
+        }) {
         Column(modifier = Modifier.fillMaxSize()) {
             if (availableDisciples.isEmpty()) {
                 Box(
@@ -511,28 +533,6 @@ private fun GarrisonDiscipleSelectionDialog(
                 Column(
                     modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 12.dp)
                 ) {
-                SpiritRootAttributeFilterBar(
-                    selectedSpiritRootFilter = selectedSpiritRootFilter,
-                    selectedAttributeSort = selectedAttributeSort,
-                    selectedRealmFilter = selectedRealmFilter,
-                    realmFilterOptions = REALM_FILTER_OPTIONS,
-                    realmCounts = realmCounts,
-                    spiritRootExpanded = spiritRootExpanded,
-                    attributeExpanded = attributeExpanded,
-                    realmExpanded = realmExpanded,
-                    spiritRootCounts = spiritRootCounts,
-                    onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
-                    onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
-                    onAttributeSortSelected = { selectedAttributeSort = it },
-                    onRealmFilterSelected = { selectedRealmFilter = selectedRealmFilter + it },
-                    onRealmFilterRemoved = { selectedRealmFilter = selectedRealmFilter - it },
-                    onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
-                    onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
-                    onRealmExpandToggle = { realmExpanded = !realmExpanded },
-                    isCompact = true
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
 
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(2),

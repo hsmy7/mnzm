@@ -9,6 +9,14 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.0.82",
+            date = "2026-05-24",
+            changes = listOf(
+                "所有弟子选择界面优化：境界筛选栏合并到标题栏区域，紧贴标题下方",
+                "标题栏和筛选栏间距大幅缩减，为弟子卡片留出更多展示空间"
+            )
+        ),
+        ChangelogEntry(
             version = "3.0.81",
             date = "2026-05-23",
             changes = listOf(

@@ -341,30 +341,31 @@ fun EnvoyDiscipleSelectDialog(
         onDismissRequest = onDismiss,
         title = "选择游说弟子",
         mode = DialogMode.Half,
-        scrollableContent = false
+        scrollableContent = false,
+        headerContent = {
+            SpiritRootAttributeFilterBar(
+                selectedSpiritRootFilter = selectedSpiritRootFilter,
+                selectedAttributeSort = selectedAttributeSort,
+                selectedRealmFilter = selectedRealmFilter,
+                realmFilterOptions = REALM_FILTER_OPTIONS,
+                realmCounts = realmCounts,
+                spiritRootExpanded = spiritRootExpanded,
+                attributeExpanded = attributeExpanded,
+                realmExpanded = realmExpanded,
+                spiritRootCounts = spiritRootCounts,
+                onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
+                onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
+                onAttributeSortSelected = { selectedAttributeSort = it },
+                onRealmFilterSelected = { selectedRealmFilter = selectedRealmFilter + it },
+                onRealmFilterRemoved = { selectedRealmFilter = selectedRealmFilter - it },
+                onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
+                onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
+                onRealmExpandToggle = { realmExpanded = !realmExpanded },
+                isCompact = true
+            )
+        }
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-                SpiritRootAttributeFilterBar(
-                    selectedSpiritRootFilter = selectedSpiritRootFilter,
-                    selectedAttributeSort = selectedAttributeSort,
-                    selectedRealmFilter = selectedRealmFilter,
-                    realmFilterOptions = REALM_FILTER_OPTIONS,
-                    realmCounts = realmCounts,
-                    spiritRootExpanded = spiritRootExpanded,
-                    attributeExpanded = attributeExpanded,
-                    realmExpanded = realmExpanded,
-                    spiritRootCounts = spiritRootCounts,
-                    onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
-                    onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
-                    onAttributeSortSelected = { selectedAttributeSort = it },
-                    onRealmFilterSelected = { selectedRealmFilter = selectedRealmFilter + it },
-                    onRealmFilterRemoved = { selectedRealmFilter = selectedRealmFilter - it },
-                    onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
-                    onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
-                    onRealmExpandToggle = { realmExpanded = !realmExpanded },
-                    isCompact = true
-                )
-
                 if (filteredDisciples.isEmpty()) {
                     Column(
                         modifier = Modifier
@@ -524,30 +525,31 @@ fun ScoutDiscipleSelectDialog(
                 fontSize = 11.sp,
                 color = Color.Black
             )
+        },
+        headerContent = {
+            SpiritRootAttributeFilterBar(
+                selectedSpiritRootFilter = selectedSpiritRootFilter,
+                selectedAttributeSort = selectedAttributeSort,
+                selectedRealmFilter = selectedRealmFilter,
+                realmFilterOptions = REALM_FILTER_OPTIONS,
+                realmCounts = realmCounts,
+                spiritRootExpanded = spiritRootExpanded,
+                attributeExpanded = attributeExpanded,
+                realmExpanded = realmExpanded,
+                spiritRootCounts = spiritRootCounts,
+                onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
+                onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
+                onAttributeSortSelected = { selectedAttributeSort = it },
+                onRealmFilterSelected = { selectedRealmFilter = selectedRealmFilter + it },
+                onRealmFilterRemoved = { selectedRealmFilter = selectedRealmFilter - it },
+                onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
+                onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
+                onRealmExpandToggle = { realmExpanded = !realmExpanded },
+                isCompact = true
+            )
         }
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-                SpiritRootAttributeFilterBar(
-                    selectedSpiritRootFilter = selectedSpiritRootFilter,
-                    selectedAttributeSort = selectedAttributeSort,
-                    selectedRealmFilter = selectedRealmFilter,
-                    realmFilterOptions = REALM_FILTER_OPTIONS,
-                    realmCounts = realmCounts,
-                    spiritRootExpanded = spiritRootExpanded,
-                    attributeExpanded = attributeExpanded,
-                    realmExpanded = realmExpanded,
-                    spiritRootCounts = spiritRootCounts,
-                    onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
-                    onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
-                    onAttributeSortSelected = { selectedAttributeSort = it },
-                    onRealmFilterSelected = { selectedRealmFilter = selectedRealmFilter + it },
-                    onRealmFilterRemoved = { selectedRealmFilter = selectedRealmFilter - it },
-                    onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
-                    onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
-                    onRealmExpandToggle = { realmExpanded = !realmExpanded },
-                    isCompact = true
-                )
-
                 if (filteredDisciples.isEmpty()) {
                     Box(
                         modifier = Modifier
