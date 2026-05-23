@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.sp
 import com.xianxia.sect.data.model.SaveSlot
 import com.xianxia.sect.ui.components.GameBackground
 import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.theme.GameColors
 import java.text.SimpleDateFormat
 import java.util.*
@@ -106,25 +107,17 @@ fun SaveSelectScreen(
         } else {
             "确定要删除存档 ${showDeleteConfirm} 吗？此操作不可恢复。"
         }
-        AlertDialog(
+        StandardPromptDialog(
             onDismissRequest = { showDeleteConfirm = null },
-            title = { Text("确认删除") },
-            text = { Text(confirmText) },
-            confirmButton = {
-                GameButton(
-                    text = "删除",
-                    onClick = {
-                        showDeleteConfirm?.let { onDeleteSlot(it) }
-                        showDeleteConfirm = null
-                    }
-                )
+            title = "确认删除",
+            text = confirmText,
+            confirmLabel = "删除",
+            onConfirm = {
+                showDeleteConfirm?.let { onDeleteSlot(it) }
+                showDeleteConfirm = null
             },
-            dismissButton = {
-                GameButton(
-                    text = "取消",
-                    onClick = { showDeleteConfirm = null }
-                )
-            }
+            dismissLabel = "取消",
+            onDismiss = { showDeleteConfirm = null }
         )
     }
     

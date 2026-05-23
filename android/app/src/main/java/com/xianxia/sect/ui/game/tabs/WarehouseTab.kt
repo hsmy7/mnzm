@@ -66,6 +66,7 @@ import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.DialogDefaults
 import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.components.ItemCardData
 import com.xianxia.sect.ui.components.UnifiedItemCard
@@ -1301,60 +1302,41 @@ internal fun BulkSellDialog(
         }
 
     if (showConfirmDialog) {
-        AlertDialog(
+        StandardPromptDialog(
             onDismissRequest = { showConfirmDialog = false },
-            containerColor = Color.Transparent, tonalElevation = 0.dp,
-            title = {
-                Text(
-                    text = "确认出售",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
+            title = "确认出售",
+            confirmLabel = "确认出售",
+            onConfirm = {
+                viewModel.bulkSellItems(selectedRarities, finalTypes)
+                showConfirmDialog = false
+                onDismiss()
             },
-            text = {
-                Column {
-                    Text(
-                        text = "确定要出售以下物品吗？",
-                        fontSize = 12.sp,
-                        color = Color.Black
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "物品数量: ${totalItems} 件",
-                        fontSize = 12.sp,
-                        color = Color.Black
-                    )
-                    Text(
-                        text = "获得灵石: $totalValue（原价80%）",
-                        fontSize = 12.sp,
-                        color = GameColors.Success
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "此操作不可撤销！",
-                        fontSize = 11.sp,
-                        color = GameColors.Error
-                    )
-                }
-            },
-            confirmButton = {
-                GameButton(
-                    text = "确认出售",
-                    onClick = {
-                        viewModel.bulkSellItems(selectedRarities, finalTypes)
-                        showConfirmDialog = false
-                        onDismiss()
-                    }
-                )
-            },
-            dismissButton = {
-                GameButton(
-                    text = "取消",
-                    onClick = { showConfirmDialog = false }
-                )
-            }
-        )
+            dismissLabel = "取消",
+            onDismiss = { showConfirmDialog = false }
+        ) {
+            Text(
+                text = "确定要出售以下物品吗？",
+                fontSize = 12.sp,
+                color = Color.Black
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "物品数量: ${totalItems} 件",
+                fontSize = 12.sp,
+                color = Color.Black
+            )
+            Text(
+                text = "获得灵石: $totalValue（原价80%）",
+                fontSize = 12.sp,
+                color = Color.Black
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "此操作不可撤销！",
+                fontSize = 11.sp,
+                color = Color.Black
+            )
+        }
     }
 }
 

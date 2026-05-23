@@ -206,6 +206,13 @@ fun GameFullDialog(
  * 替代 Compose Material3 [androidx.compose.material3.AlertDialog]。
  * 居中卡片式弹窗，无遮罩。用于确认/选择对话框。
  */
+@Deprecated(
+    message = "Use StandardPromptDialog instead",
+    replaceWith = ReplaceWith(
+        "StandardPromptDialog(onDismissRequest = onDismissRequest, title = \"\", text = \"\", confirmLabel = \"确定\", dismissLabel = \"取消\")",
+        "com.xianxia.sect.ui.components.StandardPromptDialog"
+    )
+)
 @Composable
 fun GameAlertDialog(
     onDismissRequest: () -> Unit,

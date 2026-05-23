@@ -61,6 +61,7 @@ import com.xianxia.sect.ui.components.DialogDefaults
 import com.xianxia.sect.ui.components.HalfScreenDialog
 import com.xianxia.sect.ui.components.DiscipleAttrText
 import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.SaveLoadViewModel
 import com.xianxia.sect.ui.theme.ButtonSizes
@@ -160,10 +161,11 @@ internal fun RedeemCodeDialog(
     }
 
     if (showTipDialog) {
-        com.xianxia.sect.ui.game.TipDialog(
-            message = tipMessage,
-            isError = tipIsError,
-            onDismiss = { showTipDialog = false }
+        StandardPromptDialog(
+            onDismissRequest = { showTipDialog = false },
+            title = if (tipIsError) "错误" else "提示",
+            text = tipMessage,
+            confirmLabel = "确定"
         )
     }
 }
@@ -182,6 +184,7 @@ internal fun SettingsTab(
     var showSaveSlotDialog by remember { mutableStateOf(false) }
     var showRestartConfirmDialog by remember { mutableStateOf(false) }
     var showResetDisciplesConfirmDialog by remember { mutableStateOf(false) }
+    var showExitConfirmDialog by remember { mutableStateOf(false) }
     var showRedeemCodeDialog by remember { mutableStateOf(false) }
     var showChangelogDialog by remember { mutableStateOf(false) }
     var showOtherSettingsDialog by remember { mutableStateOf(false) }
@@ -533,7 +536,7 @@ internal fun SettingsTab(
                             .width(ButtonSizes.StandardWidth)
                             .height(ButtonSizes.StandardHeight)
                             .clip(RoundedCornerShape(4.dp))
-                            .clickable { onLogout() },
+                            .clickable { showExitConfirmDialog = true },
                         contentAlignment = Alignment.Center
                     ) {
                         Image(
@@ -570,82 +573,49 @@ internal fun SettingsTab(
     }
 
     if (showRestartConfirmDialog) {
-        HalfScreenDialog(onDismissRequest = { showRestartConfirmDialog = false }) {
-            Column(
-                modifier = Modifier.padding(20.dp)
-            ) {
-                Text(
-                    text = "确认重新开始",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = "确定要重新开始游戏吗？当前游戏进度将会丢失！",
-                        fontSize = 12.sp,
-                        color = Color.Black
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        GameButton(
-                            text = "取消",
-                            onClick = { showRestartConfirmDialog = false },
-                            modifier = Modifier.width(ButtonSizes.StandardWidth)
-                        )
-                        GameButton(
-                            text = "确认",
-                            onClick = {
-                                showRestartConfirmDialog = false
-                                onDismiss()
-                                saveLoadViewModel.restartGame()
-                            },
-                            modifier = Modifier.width(ButtonSizes.StandardWidth)
-                        )
-                    }
-            }
-        }
+        StandardPromptDialog(
+            onDismissRequest = { showRestartConfirmDialog = false },
+            title = "确认重新开始",
+            text = "确定要重新开始游戏吗？当前游戏进度将会丢失！",
+            confirmLabel = "确认",
+            onConfirm = {
+                showRestartConfirmDialog = false
+                onDismiss()
+                saveLoadViewModel.restartGame()
+            },
+            dismissLabel = "取消",
+            onDismiss = { showRestartConfirmDialog = false }
+        )
     }
 
     if (showResetDisciplesConfirmDialog) {
-        HalfScreenDialog(onDismissRequest = { showResetDisciplesConfirmDialog = false }) {
-            Column(
-                modifier = Modifier.padding(20.dp)
-            ) {
-                Text(
-                    text = "确认重置弟子状态",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = "确定要重置所有弟子状态吗？\n探索/战斗队伍将解散，工作/职务槽位将清空，监牢弟子不受影响。",
-                        fontSize = 12.sp,
-                        color = Color.Black
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        GameButton(
-                            text = "取消",
-                            onClick = { showResetDisciplesConfirmDialog = false },
-                            modifier = Modifier.width(ButtonSizes.StandardWidth)
-                        )
-                        GameButton(
-                            text = "确认",
-                            onClick = {
-                                showResetDisciplesConfirmDialog = false
-                                saveLoadViewModel.resetAllDisciplesStatus()
-                            },
-                            modifier = Modifier.width(ButtonSizes.StandardWidth)
-                        )
-                    }
-            }
-        }
+        StandardPromptDialog(
+            onDismissRequest = { showResetDisciplesConfirmDialog = false },
+            title = "确认重置弟子状态",
+            text = "确定要重置所有弟子状态吗？\n探索/战斗队伍将解散，工作/职务槽位将清空，监牢弟子不受影响。",
+            confirmLabel = "确认",
+            onConfirm = {
+                showResetDisciplesConfirmDialog = false
+                saveLoadViewModel.resetAllDisciplesStatus()
+            },
+            dismissLabel = "取消",
+            onDismiss = { showResetDisciplesConfirmDialog = false }
+        )
+    }
+
+    if (showExitConfirmDialog) {
+        StandardPromptDialog(
+            onDismissRequest = { showExitConfirmDialog = false },
+            title = "确认退出",
+            text = "确定要退出游戏吗？游戏进度会自动保存。",
+            confirmLabel = "确认退出",
+            onConfirm = {
+                showExitConfirmDialog = false
+                onLogout()
+            },
+            dismissLabel = "取消",
+            onDismiss = { showExitConfirmDialog = false }
+        )
     }
 
     if (showRedeemCodeDialogState) {

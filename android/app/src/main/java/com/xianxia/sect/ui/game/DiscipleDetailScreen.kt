@@ -54,6 +54,7 @@ import com.xianxia.sect.ui.components.DialogDefaults
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.components.ItemCardData
 import com.xianxia.sect.ui.components.TalentDetailDialog
 import com.xianxia.sect.ui.components.UnifiedItemCard
@@ -437,38 +438,19 @@ fun DiscipleDetailDialog(
     }
 
     if (showExpelConfirmDialog) {
-        UnifiedGameDialog(
+        StandardPromptDialog(
             onDismissRequest = { showExpelConfirmDialog = false },
             title = "确认驱逐",
-            mode = DialogMode.Half,
-            scrollableContent = false
-        ) {
-            Column(modifier = Modifier.padding(20.dp)) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = "确定要驱逐弟子 ${disciple.name} 吗？此操作不可撤销。",
-                        fontSize = 12.sp,
-                        color = Color.Black
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        GameButton(
-                            text = "取消",
-                            onClick = { showExpelConfirmDialog = false },
-                            modifier = Modifier.width(ButtonSizes.StandardWidth)
-                        )
-                        GameButton(
-                            text = "确认",
-                            onClick = {
-                                viewModel?.expelDisciple(disciple.id)
-                                showExpelConfirmDialog = false
-                                onDismiss()
-                            },
-                            modifier = Modifier.width(ButtonSizes.StandardWidth)
-                        )
-                    }
-                }
-        }
+            text = "确定要驱逐弟子 ${disciple.name} 吗？此操作不可撤销。",
+            confirmLabel = "确认",
+            onConfirm = {
+                viewModel?.expelDisciple(disciple.id)
+                showExpelConfirmDialog = false
+                onDismiss()
+            },
+            dismissLabel = "取消",
+            onDismiss = { showExpelConfirmDialog = false }
+        )
     }
 
     showEquipmentSelection?.let { slotType ->

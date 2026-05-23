@@ -26,6 +26,13 @@ import com.xianxia.sect.R
 import com.xianxia.sect.ui.components.DialogDefaults
 import com.xianxia.sect.ui.components.GameButton
 
+@Deprecated(
+    message = "Use StandardPromptDialog instead",
+    replaceWith = ReplaceWith(
+        "StandardPromptDialog(onDismissRequest = onDismiss, title = if (isError) \"错误\" else \"提示\", text = message, confirmLabel = \"确定\")",
+        "com.xianxia.sect.ui.components.StandardPromptDialog"
+    )
+)
 @Composable
 fun TipDialog(
     message: String,

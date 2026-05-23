@@ -75,6 +75,7 @@ import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.ui.components.StandardPromptDialog
 
 import com.xianxia.sect.ui.game.tabs.BuildingsTab
 import com.xianxia.sect.ui.game.tabs.DisciplesTab
@@ -933,10 +934,11 @@ fun MainGameScreen(
         }
 
         tipDialogMessage?.let { message ->
-            TipDialog(
-                message = message,
-                isError = tipDialogIsError,
-                onDismiss = { tipDialogMessage = null }
+            StandardPromptDialog(
+                onDismissRequest = { tipDialogMessage = null },
+                title = if (tipDialogIsError) "错误" else "提示",
+                text = message,
+                confirmLabel = "确定"
             )
         }
 

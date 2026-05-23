@@ -1,6 +1,5 @@
 package com.xianxia.sect.ui.game.dialogs
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -22,7 +21,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.window.Dialog
 import com.xianxia.sect.R
 import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.model.DiscipleAggregate
@@ -36,12 +34,10 @@ import com.xianxia.sect.ui.components.discipleCardBorder
 import com.xianxia.sect.ui.components.DiscipleAttrText
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.components.GameButton
-import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.getTalentRarityColor
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.DialogMode
-import androidx.compose.ui.window.DialogProperties
-import androidx.compose.ui.platform.LocalConfiguration
+import com.xianxia.sect.ui.components.StandardPromptDialog
 
 @Composable
 fun RecruitDialog(
@@ -207,59 +203,21 @@ private fun AutoRecruitFilterDialog(
             }
 
             if (showUnsavedDialog) {
-                val config = LocalConfiguration.current
-                val dialogWidth = (config.screenWidthDp * 0.4f).dp
-                val dialogHeight = (config.screenHeightDp * 0.45f).dp
-                Dialog(
+                StandardPromptDialog(
                     onDismissRequest = { showUnsavedDialog = false },
-                    properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .width(dialogWidth)
-                            .height(dialogHeight)
-                            .clip(RoundedCornerShape(12.dp)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Image(
-                            painter = painterResource(id = R.drawable.dialog_box),
-                            contentDescription = null,
-                            modifier = Modifier.matchParentSize(),
-                            contentScale = ContentScale.FillBounds
-                        )
-                        Column(
-                            modifier = Modifier.padding(20.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(
-                                text = "未保存更改",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.Black
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = "您所做的更改尚未保存，若直接退出则视为取消更改",
-                                fontSize = 12.sp,
-                                color = Color.Black
-                            )
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                GameButton(text = "关闭", onClick = {
-                                    showUnsavedDialog = false
-                                    onDismiss()
-                                })
-                                GameButton(text = "保存", onClick = {
-                                    showUnsavedDialog = false
-                                    saveAndDismiss()
-                                })
-                            }
-                        }
+                    title = "未保存更改",
+                    text = "您所做的更改尚未保存，若直接退出则视为取消更改",
+                    confirmLabel = "保存",
+                    onConfirm = {
+                        showUnsavedDialog = false
+                        saveAndDismiss()
+                    },
+                    dismissLabel = "关闭",
+                    onDismiss = {
+                        showUnsavedDialog = false
+                        onDismiss()
                     }
-                }
+                )
             }
         }
     }

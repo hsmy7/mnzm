@@ -29,6 +29,7 @@ import com.xianxia.sect.data.facade.StorageFacade
 import com.xianxia.sect.data.SessionManager
 import com.xianxia.sect.ui.MainActivity
 import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.theme.XianxiaTheme
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
@@ -313,16 +314,11 @@ class GameActivity : ComponentActivity(), XianxiaApplication.MemoryPressureListe
                         }
 
                         errorMessage?.let { error ->
-                            AlertDialog(
+                            StandardPromptDialog(
                                 onDismissRequest = { errorMessage = null },
-                                title = { Text("提示") },
-                                text = { Text(error) },
-                                confirmButton = {
-                                    GameButton(
-                                        text = "确定",
-                                        onClick = { errorMessage = null }
-                                    )
-                                }
+                                title = "提示",
+                                text = error,
+                                confirmLabel = "确定"
                             )
                         }
                     }

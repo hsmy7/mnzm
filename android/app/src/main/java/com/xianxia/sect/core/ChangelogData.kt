@@ -9,6 +9,15 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.0.88",
+            date = "2026-05-24",
+            changes = listOf(
+                "统一所有提示确认弹窗样式为标准提示框（dialog_box背景、居中按钮居于底部、12dp圆角）",
+                "设置界面退出游戏按钮新增二次确认提示框，防止误触退出",
+                "天赋详情界面改用标准提示框样式，右上角关闭按钮替代底部按钮"
+            )
+        ),
+        ChangelogEntry(
             version = "3.0.87",
             date = "2026-05-24",
             changes = listOf(

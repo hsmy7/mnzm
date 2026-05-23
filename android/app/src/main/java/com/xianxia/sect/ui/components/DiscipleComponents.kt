@@ -507,11 +507,11 @@ fun getTalentRarityColor(rarity: Int): Color = when (rarity) {
 fun TalentDetailDialog(talent: Talent, onDismiss: () -> Unit) {
     val rarityColor = getTalentRarityColor(talent.rarity)
 
-    UnifiedGameDialog(
+    StandardPromptDialog(
         onDismissRequest = onDismiss,
         title = talent.name,
         titleColor = rarityColor,
-        scrollableContent = false
+        showCloseButton = true
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(

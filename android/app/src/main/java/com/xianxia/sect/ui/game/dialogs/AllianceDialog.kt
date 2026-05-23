@@ -37,6 +37,7 @@ import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.WorldMapViewModel
 import com.xianxia.sect.ui.components.DiscipleAttrText
 import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.components.UnifiedGameDialog
@@ -126,22 +127,12 @@ fun AllianceDialog(
     }
     
     if (showAlreadyAllianceDialog) {
-        UnifiedGameDialog(
+        StandardPromptDialog(
             onDismissRequest = { showAlreadyAllianceDialog = false },
             title = "提示",
-            mode = DialogMode.Half
-        ) {
-            Column(modifier = Modifier.padding(20.dp)) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text("该宗门已有盟友", fontSize = 12.sp, color = Color.Black)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    GameButton(
-                        text = "确定",
-                        onClick = { showAlreadyAllianceDialog = false },
-                        modifier = Modifier.align(Alignment.CenterHorizontally)
-                    )
-            }
-        }
+            text = "该宗门已有盟友",
+            confirmLabel = "确定"
+        )
     }
 }
 
