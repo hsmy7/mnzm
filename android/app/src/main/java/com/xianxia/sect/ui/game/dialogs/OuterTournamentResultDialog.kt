@@ -47,15 +47,7 @@ fun OuterTournamentResultDialog(
         onDismissRequest = onDismiss,
         title = "外门大比结果",
         mode = DialogMode.Full,
-        scrollableContent = false,
-        headerActions = {
-            GameButton(
-                text = "准入内门",
-                onClick = {
-                    worldMapViewModel.promoteSelectedDisciplesToInner(selectedIds.toSet())
-                }
-            )
-        }
+        scrollableContent = false
     ) {
         val topDisciples = remember(competitionResults, allDisciples) {
             competitionResults.mapNotNull { result ->
@@ -75,25 +67,40 @@ fun OuterTournamentResultDialog(
                 )
             }
         } else {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(3),
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(8.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                items(topDisciples, key = { (d, _) -> d.id }) { (disciple, rank) ->
-                    val isSelected by remember { derivedStateOf { disciple.id in selectedIds } }
-                    PortraitDiscipleCard(
-                        disciple = disciple,
-                        isSelected = isSelected,
-                        onClick = {
-                            if (isSelected) {
-                                selectedIds.remove(disciple.id)
-                            } else {
-                                selectedIds.add(disciple.id)
+            Column(modifier = Modifier.fillMaxSize()) {
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(3),
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    items(topDisciples, key = { (d, _) -> d.id }) { (disciple, rank) ->
+                        val isSelected by remember { derivedStateOf { disciple.id in selectedIds } }
+                        PortraitDiscipleCard(
+                            disciple = disciple,
+                            isSelected = isSelected,
+                            onClick = {
+                                if (isSelected) {
+                                    selectedIds.remove(disciple.id)
+                                } else {
+                                    selectedIds.add(disciple.id)
+                                }
                             }
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    GameButton(
+                        text = "准入内门",
+                        onClick = {
+                            worldMapViewModel.promoteSelectedDisciplesToInner(selectedIds.toSet())
                         }
                     )
                 }

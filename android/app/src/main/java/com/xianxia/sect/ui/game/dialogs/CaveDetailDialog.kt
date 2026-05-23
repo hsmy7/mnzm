@@ -360,7 +360,7 @@ internal fun CaveDiscipleSelectionDialog(
             }
             Row(
                 modifier = Modifier.fillMaxWidth().padding(12.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
             ) {
                 GameButton(
                     text = "清空",

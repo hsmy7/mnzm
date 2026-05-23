@@ -790,7 +790,7 @@ fun ProductionAddReserveDiscipleDialog(
                     }
                 }
                 Spacer(modifier = Modifier.height(12.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
                     GameButton(
                         text = "添加${if (selectedIds.isNotEmpty()) "(${selectedIds.size})" else ""}",
                         onClick = { onConfirm(selectedIds.toList()) },
@@ -924,7 +924,7 @@ fun FilteredMultiSelectDialog(
                 Spacer(modifier = Modifier.height(16.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = if (showDismiss) Arrangement.SpaceBetween else Arrangement.End
+                    horizontalArrangement = Arrangement.Center
                 ) {
                     if (showDismiss) {
                         GameButton(text = dismissText, onClick = onDismiss, modifier = Modifier.width(ButtonSizes.StandardWidth))

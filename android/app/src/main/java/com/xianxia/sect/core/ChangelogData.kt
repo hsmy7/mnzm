@@ -9,6 +9,14 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.0.81",
+            date = "2026-05-23",
+            changes = listOf(
+                "灵矿更换矿工界面改为单选：点击弟子卡片直接替换，无需额外确认",
+                "所有多选弟子界面确认按钮统一移至卡片网格下方居中显示"
+            )
+        ),
+        ChangelogEntry(
             version = "3.0.80",
             date = "2026-05-23",
             changes = listOf(

@@ -46,6 +46,8 @@ import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.ProductionViewModel
 import com.xianxia.sect.ui.game.FilteredMultiSelectDialog
 import com.xianxia.sect.ui.game.DiscipleDetailDialog
+import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorConfig
+import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorDialog
 import com.xianxia.sect.ui.game.getSpiritRootCount
 import com.xianxia.sect.ui.game.applyFilters
 
@@ -194,28 +196,40 @@ fun SpiritMineDialog(
 
     if (showDiscipleSelection) {
         val availableDisciples = spiritMineViewModel.getAvailableDisciplesForSpiritMining()
-        val miningSelectedIds = remember { mutableStateListOf<String>() }
         val isSwapping = swappingSlotIndex != null
-        FilteredMultiSelectDialog(
-            title = if (isSwapping) "选择替换弟子" else "选择采矿弟子（外门，最多${emptySlotCount}名）",
-            disciples = availableDisciples,
-            selectedIds = miningSelectedIds,
-            maxSelection = if (isSwapping) 1 else emptySlotCount,
-            extraCardAttrName = "采矿",
-            confirmText = if (isSwapping) "确认替换" else "确认采矿",
-            onConfirm = {
-                val selected = availableDisciples.filter { it.id in miningSelectedIds }
-                val slotIdx = swappingSlotIndex
-                if (slotIdx != null) {
-                    spiritMineViewModel.swapSpiritMineDisciple(slotIdx, selected.first().id, mineIndex)
-                } else {
-                    spiritMineViewModel.assignDisciplesToSpiritMineSlots(selected.take(emptySlotCount), mineIndex)
+
+        if (isSwapping) {
+            DiscipleSelectorDialog(
+                config = DiscipleSelectorConfig(title = "选择替换弟子"),
+                disciples = availableDisciples,
+                onDismiss = { showDiscipleSelection = false; swappingSlotIndex = null },
+                onConfirm = { selected ->
+                    if (selected.isNotEmpty()) {
+                        spiritMineViewModel.swapSpiritMineDisciple(
+                            swappingSlotIndex!!, selected.first().id, mineIndex
+                        )
+                    }
+                    showDiscipleSelection = false
+                    swappingSlotIndex = null
                 }
-                showDiscipleSelection = false
-                swappingSlotIndex = null
-            },
-            onDismiss = { showDiscipleSelection = false; swappingSlotIndex = null }
-        )
+            )
+        } else {
+            val miningSelectedIds = remember { mutableStateListOf<String>() }
+            FilteredMultiSelectDialog(
+                title = "选择采矿弟子（外门，最多${emptySlotCount}名）",
+                disciples = availableDisciples,
+                selectedIds = miningSelectedIds,
+                maxSelection = emptySlotCount,
+                extraCardAttrName = "采矿",
+                confirmText = "确认采矿",
+                onConfirm = {
+                    val selected = availableDisciples.filter { it.id in miningSelectedIds }
+                    spiritMineViewModel.assignDisciplesToSpiritMineSlots(selected.take(emptySlotCount), mineIndex)
+                    showDiscipleSelection = false
+                },
+                onDismiss = { showDiscipleSelection = false }
+            )
+        }
     }
 
     showDeaconSelection?.let { slotIndex ->

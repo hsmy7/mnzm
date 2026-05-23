@@ -616,7 +616,10 @@ private fun DiscipleSelectionDialog(
                     }
                 }
                 Spacer(modifier = Modifier.height(16.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
+                ) {
                     GameButton(
                         text = "取消",
                         onClick = onDismiss,
