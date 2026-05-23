@@ -806,7 +806,7 @@ object AISectAttackManager {
 
     fun generateWarRewards(sectLevel: Int, itemCount: Int): WarRewards {
         val config = getSectWarRewardConfig(sectLevel)
-        val spiritStones = config.spiritStoneValue * itemCount
+        var spiritStones = 0L
 
         val equipmentStacks = mutableListOf<com.xianxia.sect.core.model.EquipmentStack>()
         val manualStacks = mutableListOf<com.xianxia.sect.core.model.ManualStack>()
@@ -816,9 +816,10 @@ object AISectAttackManager {
         val seeds = mutableListOf<com.xianxia.sect.core.model.Seed>()
 
         repeat(itemCount) {
-            val itemType = Random.nextInt(6)
+            val itemType = Random.nextInt(7)
             when (itemType) {
-                0 -> {
+                0 -> spiritStones += config.spiritStoneValue
+                1 -> {
                     if (com.xianxia.sect.core.registry.EquipmentDatabase.isInitialized) {
                         try {
                             equipmentStacks.add(
@@ -827,7 +828,7 @@ object AISectAttackManager {
                         } catch (_: Exception) {}
                     }
                 }
-                1 -> {
+                2 -> {
                     if (com.xianxia.sect.core.registry.ManualDatabase.isInitialized) {
                         try {
                             manualStacks.add(
@@ -836,21 +837,21 @@ object AISectAttackManager {
                         } catch (_: Exception) {}
                     }
                 }
-                2 -> {
+                3 -> {
                     try {
                         pills.add(
                             com.xianxia.sect.core.registry.ItemDatabase.generateRandomPill(config.minRarity, config.maxRarity)
                         )
                     } catch (_: Exception) {}
                 }
-                3 -> {
+                4 -> {
                     try {
                         materials.add(
                             com.xianxia.sect.core.registry.ItemDatabase.generateRandomMaterial(config.minRarity, config.maxRarity)
                         )
                     } catch (_: Exception) {}
                 }
-                4 -> {
+                5 -> {
                     try {
                         val herbTemplate = com.xianxia.sect.core.registry.HerbDatabase.generateRandomHerb(config.minRarity, config.maxRarity)
                         herbs.add(
@@ -864,7 +865,7 @@ object AISectAttackManager {
                         )
                     } catch (_: Exception) {}
                 }
-                5 -> {
+                6 -> {
                     try {
                         val seedTemplate = com.xianxia.sect.core.registry.HerbDatabase.generateRandomSeed(config.minRarity, config.maxRarity)
                         seeds.add(

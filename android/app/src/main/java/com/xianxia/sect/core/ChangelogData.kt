@@ -9,6 +9,16 @@ data class ChangelogEntry(
 object ChangelogData {
     val entries: List<ChangelogEntry> = listOf(
         ChangelogEntry(
+            version = "3.0.86",
+            date = "2026-05-24",
+            changes = listOf(
+                "宗门战斗奖励灵石改为参与随机物品池（与其他6类物品等概率）",
+                "不同等级宗门产出的单件灵石数量不同（小型2000/中型6000/大型3万/顶级8万）",
+                "修复宗门战斗胜利后战利品未实际入库的问题",
+                "修复攻打宗门时防守方选出低境界弟子的问题（现改为选出最高境界）"
+            )
+        ),
+        ChangelogEntry(
             version = "3.0.85",
             date = "2026-05-24",
             changes = listOf(

@@ -2840,7 +2840,7 @@ class GameEngine @Inject constructor(
                 .mapNotNull { slot -> occupierDisciples.find { d -> d.id == slot.discipleId && d.isAlive } }
         } else {
             val sectDisciplePool = data.aiSectDisciples[sectId] ?: emptyList()
-            sectDisciplePool.filter { it.isAlive }.sortedByDescending { it.realm }.take(AISectAttackManager.TEAM_SIZE)
+            sectDisciplePool.filter { it.isAlive }.sortedBy { it.realm }.take(AISectAttackManager.TEAM_SIZE)
         }
 
         val battleResult = AISectAttackManager.executeSectBattle(attackers, targetSect, defenderDisciples)
@@ -2947,12 +2947,26 @@ class GameEngine @Inject constructor(
                             } else sect
                         }
                     )
-                    addWarRewardsToWarehouse(warRewards)
+                    addSpiritStones(warRewards.spiritStones)
+                    warRewards.equipmentStacks.forEach { inventorySystem.addEquipmentStack(it) }
+                    warRewards.manualStacks.forEach { inventorySystem.addManualStack(it) }
+                    warRewards.pills.forEach { inventorySystem.addPill(it) }
+                    warRewards.materials.forEach { inventorySystem.addMaterial(it) }
+                    warRewards.herbs.forEach { inventorySystem.addHerb(it) }
+                    warRewards.seeds.forEach { inventorySystem.addSeed(it) }
                 }
             } else {
                 val rewardCount = (20..60).random()
                 warRewards = AISectAttackManager.generateWarRewards(targetSect.level, rewardCount)
-                stateStore.update { addWarRewardsToWarehouse(warRewards) }
+                stateStore.update {
+                    addSpiritStones(warRewards.spiritStones)
+                    warRewards.equipmentStacks.forEach { inventorySystem.addEquipmentStack(it) }
+                    warRewards.manualStacks.forEach { inventorySystem.addManualStack(it) }
+                    warRewards.pills.forEach { inventorySystem.addPill(it) }
+                    warRewards.materials.forEach { inventorySystem.addMaterial(it) }
+                    warRewards.herbs.forEach { inventorySystem.addHerb(it) }
+                    warRewards.seeds.forEach { inventorySystem.addSeed(it) }
+                }
             }
             stateStore.setPendingBattleResult(BattleResultUIData(
                 battleLogId = log.id,
@@ -2984,18 +2998,7 @@ class GameEngine @Inject constructor(
         return items
     }
 
-    private fun MutableGameState.addWarRewardsToWarehouse(rewards: WarRewards) {
-        val playerSectId = gameData.worldMapSects.find { it.isPlayerSect }?.id ?: return
-        val playerDetail = gameData.sectDetails[playerSectId] ?: com.xianxia.sect.core.model.SectDetail(sectId = playerSectId)
-        val warehouseItems = com.xianxia.sect.core.engine.SectWarehouseManager.convertWarRewardsToWarehouseItems(rewards)
-        val updatedWarehouse = com.xianxia.sect.core.engine.SectWarehouseManager.addItemsToWarehouse(playerDetail.warehouse, warehouseItems)
-        val finalWarehouse = com.xianxia.sect.core.engine.SectWarehouseManager.addSpiritStonesToWarehouse(updatedWarehouse, rewards.spiritStones)
-        gameData = gameData.copy(
-            sectDetails = gameData.sectDetails.toMutableMap().apply {
-                this[playerSectId] = playerDetail.copy(warehouse = finalWarehouse)
-            }
-        )
-    }
+
 
     suspend fun assignGarrisonDisciple(sectId: String, slotIndex: Int, discipleId: String) {
         val data = stateStore.gameData.value
