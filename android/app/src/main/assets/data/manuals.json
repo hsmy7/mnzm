@@ -7,7 +7,7 @@
       "rarity": 1,
       "description": "凡阶物理攻击功法，提升物理攻击力",
       "stats": {
-        "physicalAttack": 6
+        "physicalAttack": 9
       },
       "skillName": "青冥斩",
       "skillDescription": "凝聚剑气发出强力一击",
@@ -27,7 +27,7 @@
       "rarity": 1,
       "description": "凡阶物理攻击功法，提升物理攻击力",
       "stats": {
-        "physicalAttack": 6
+        "physicalAttack": 9
       },
       "skillName": "裂空斩",
       "skillDescription": "挥出强力剑气横扫全场",
@@ -47,7 +47,7 @@
       "rarity": 1,
       "description": "凡阶物理攻击功法，提升物理攻击力",
       "stats": {
-        "physicalAttack": 6
+        "physicalAttack": 9
       },
       "skillName": "惊鸿连斩",
       "skillDescription": "快速挥剑进行连续斩击",
@@ -67,7 +67,7 @@
       "rarity": 1,
       "description": "凡阶物理攻击功法，提升物理攻击力",
       "stats": {
-        "physicalAttack": 6
+        "physicalAttack": 9
       },
       "skillName": "旋风乱舞",
       "skillDescription": "旋转身体以剑气横扫周围所有敌人",
@@ -87,7 +87,7 @@
       "rarity": 1,
       "description": "凡阶法术攻击功法，提升法术攻击力",
       "stats": {
-        "magicAttack": 6
+        "magicAttack": 9
       },
       "skillName": "炎煌爆",
       "skillDescription": "凝聚火焰发出强力一击",
@@ -107,7 +107,7 @@
       "rarity": 1,
       "description": "凡阶法术攻击功法，提升法术攻击力",
       "stats": {
-        "magicAttack": 6
+        "magicAttack": 9
       },
       "skillName": "霜寒风暴",
       "skillDescription": "释放冰霜风暴席卷全场",
@@ -127,7 +127,7 @@
       "rarity": 1,
       "description": "凡阶法术攻击功法，提升法术攻击力",
       "stats": {
-        "magicAttack": 6
+        "magicAttack": 9
       },
       "skillName": "奔雷连击",
       "skillDescription": "召唤雷霆进行连续轰击",
@@ -147,7 +147,7 @@
       "rarity": 1,
       "description": "凡阶法术攻击功法，提升法术攻击力",
       "stats": {
-        "magicAttack": 6
+        "magicAttack": 9
       },
       "skillName": "烈焰连弹",
       "skillDescription": "连续发射火焰弹轰炸全场",
@@ -167,7 +167,7 @@
       "rarity": 2,
       "description": "灵阶物理攻击功法，提升物理攻击力",
       "stats": {
-        "physicalAttack": 42
+        "physicalAttack": 63
       },
       "skillName": "破阵斩",
       "skillDescription": "凝聚灵力发出破阵一击",
@@ -187,7 +187,7 @@
       "rarity": 2,
       "description": "灵阶物理攻击功法，提升物理攻击力",
       "stats": {
-        "physicalAttack": 42
+        "physicalAttack": 63
       },
       "skillName": "横扫千军",
       "skillDescription": "横挥长剑剑气席卷全场敌人",
@@ -207,7 +207,7 @@
       "rarity": 2,
       "description": "灵阶物理攻击功法，提升物理攻击力",
       "stats": {
-        "physicalAttack": 42
+        "physicalAttack": 63
       },
       "skillName": "残风连斩",
       "skillDescription": "掀起狂风进行连续斩击",
@@ -227,7 +227,7 @@
       "rarity": 2,
       "description": "灵阶物理攻击功法，提升物理攻击力",
       "stats": {
-        "physicalAttack": 42
+        "physicalAttack": 63
       },
       "skillName": "狂岚乱舞",
       "skillDescription": "掀起狂风岚气横扫全场并连续斩击",
@@ -247,7 +247,7 @@
       "rarity": 2,
       "description": "灵阶法术攻击功法，提升法术攻击力",
       "stats": {
-        "magicAttack": 42
+        "magicAttack": 63
       },
       "skillName": "朱焰爆",
       "skillDescription": "释放朱红火焰爆发攻击敌人",
@@ -267,7 +267,7 @@
       "rarity": 2,
       "description": "灵阶法术攻击功法，提升法术攻击力",
       "stats": {
-        "magicAttack": 42
+        "magicAttack": 63
       },
       "skillName": "冰封领域",
       "skillDescription": "释放极寒冰气冻结全场敌人",
@@ -287,7 +287,7 @@
       "rarity": 2,
       "description": "灵阶法术攻击功法，提升法术攻击力",
       "stats": {
-        "magicAttack": 42
+        "magicAttack": 63
       },
       "skillName": "奔雷连击",
       "skillDescription": "召唤多道雷霆连续轰击",
@@ -307,7 +307,7 @@
       "rarity": 2,
       "description": "灵阶法术攻击功法，提升法术攻击力",
       "stats": {
-        "magicAttack": 42
+        "magicAttack": 63
       },
       "skillName": "炎爆连弹",
       "skillDescription": "连续引爆火球轰炸全场",
@@ -327,7 +327,7 @@
       "rarity": 3,
       "description": "宝阶物理攻击功法，提升物理攻击力",
       "stats": {
-        "physicalAttack": 109
+        "physicalAttack": 164
       },
       "skillName": "伏虎击",
       "skillDescription": "发出一道锐利的伏虎剑气",
@@ -347,7 +347,7 @@
       "rarity": 3,
       "description": "宝阶物理攻击功法，提升物理攻击力",
       "stats": {
-        "physicalAttack": 109
+        "physicalAttack": 164
       },
       "skillName": "崩山击",
       "skillDescription": "以磅礴剑气压垮全场敌人",
@@ -367,7 +367,7 @@
       "rarity": 3,
       "description": "宝阶物理攻击功法，提升物理攻击力",
       "stats": {
-        "physicalAttack": 109
+        "physicalAttack": 164
       },
       "skillName": "玄黄三斩",
       "skillDescription": "融合玄黄之气进行三连斩击",
@@ -387,7 +387,7 @@
       "rarity": 3,
       "description": "宝阶物理攻击功法，提升物理攻击力",
       "stats": {
-        "physicalAttack": 109
+        "physicalAttack": 164
       },
       "skillName": "龙卷旋风斩",
       "skillDescription": "形成龙卷风般剑气横扫全场并连续斩击",
@@ -407,7 +407,7 @@
       "rarity": 3,
       "description": "宝阶法术攻击功法，提升法术攻击力",
       "stats": {
-        "magicAttack": 109
+        "magicAttack": 164
       },
       "skillName": "烈阳焚天",
       "skillDescription": "召唤焚天之火焚烧敌人",
@@ -427,7 +427,7 @@
       "rarity": 3,
       "description": "宝阶法术攻击功法，提升法术攻击力",
       "stats": {
-        "magicAttack": 109
+        "magicAttack": 164
       },
       "skillName": "寒霜天地",
       "skillDescription": "降下寒霜覆盖全场冻结一切",
@@ -447,7 +447,7 @@
       "rarity": 3,
       "description": "宝阶法术攻击功法，提升法术攻击力",
       "stats": {
-        "magicAttack": 109
+        "magicAttack": 164
       },
       "skillName": "紫电三雷",
       "skillDescription": "释放三道神雷连续攻击",
@@ -467,7 +467,7 @@
       "rarity": 3,
       "description": "宝阶法术攻击功法，提升法术攻击力",
       "stats": {
-        "magicAttack": 109
+        "magicAttack": 164
       },
       "skillName": "焰爆连珠",
       "skillDescription": "连续引爆火焰法球轰炸全场",
@@ -487,7 +487,7 @@
       "rarity": 4,
       "description": "玄阶物理攻击功法，提升物理攻击力",
       "stats": {
-        "physicalAttack": 288
+        "physicalAttack": 432
       },
       "skillName": "碧落剑意",
       "skillDescription": "召唤万道剑气合一攻击",
@@ -507,7 +507,7 @@
       "rarity": 4,
       "description": "玄阶物理攻击功法，提升物理攻击力",
       "stats": {
-        "physicalAttack": 288
+        "physicalAttack": 432
       },
       "skillName": "灭世剑气",
       "skillDescription": "释放毁灭性剑气横扫全场",
@@ -527,7 +527,7 @@
       "rarity": 4,
       "description": "玄阶物理攻击功法，提升物理攻击力",
       "stats": {
-        "physicalAttack": 288
+        "physicalAttack": 432
       },
       "skillName": "断岳三斩",
       "skillDescription": "引动天地之力进行三连斩",
@@ -547,7 +547,7 @@
       "rarity": 4,
       "description": "玄阶物理攻击功法，提升物理攻击力",
       "stats": {
-        "physicalAttack": 288
+        "physicalAttack": 432
       },
       "skillName": "幻影旋风斩",
       "skillDescription": "化出多重幻影同时横扫全场连续斩击",
@@ -567,7 +567,7 @@
       "rarity": 4,
       "description": "玄阶法术攻击功法，提升法术攻击力",
       "stats": {
-        "magicAttack": 288
+        "magicAttack": 432
       },
       "skillName": "熔金灭世",
       "skillDescription": "召唤金焰毁灭一切",
@@ -587,7 +587,7 @@
       "rarity": 4,
       "description": "玄阶法术攻击功法，提升法术攻击力",
       "stats": {
-        "magicAttack": 288
+        "magicAttack": 432
       },
       "skillName": "寂灭天灾",
       "skillDescription": "降下寂灭法灾覆盖全场",
@@ -607,7 +607,7 @@
       "rarity": 4,
       "description": "玄阶法术攻击功法，提升法术攻击力",
       "stats": {
-        "magicAttack": 288
+        "magicAttack": 432
       },
       "skillName": "苍雷三击",
       "skillDescription": "召唤玄雷进行三连轰击",
@@ -627,7 +627,7 @@
       "rarity": 4,
       "description": "玄阶法术攻击功法，提升法术攻击力",
       "stats": {
-        "magicAttack": 288
+        "magicAttack": 432
       },
       "skillName": "劫火连爆",
       "skillDescription": "引发劫火之力连续爆炸轰炸全场",
@@ -647,7 +647,7 @@
       "rarity": 5,
       "description": "地阶物理攻击功法，提升物理攻击力",
       "stats": {
-        "physicalAttack": 704
+        "physicalAttack": 1056
       },
       "skillName": "诛仙剑气",
       "skillDescription": "引动天外之力发出绝世一剑",
@@ -667,7 +667,7 @@
       "rarity": 5,
       "description": "地阶物理攻击功法，提升物理攻击力",
       "stats": {
-        "physicalAttack": 704
+        "physicalAttack": 1056
       },
       "skillName": "戮神剑域",
       "skillDescription": "展开剑域绞杀全场一切敌人",
@@ -687,7 +687,7 @@
       "rarity": 5,
       "description": "地阶物理攻击功法，提升物理攻击力",
       "stats": {
-        "physicalAttack": 704
+        "physicalAttack": 1056
       },
       "skillName": "弑天四斩",
       "skillDescription": "瞬间移动进行四次致命打击",
@@ -707,7 +707,7 @@
       "rarity": 5,
       "description": "地阶物理攻击功法，提升物理攻击力",
       "stats": {
-        "physicalAttack": 704
+        "physicalAttack": 1056
       },
       "skillName": "混沌裂空斩",
       "skillDescription": "以混沌剑气撕裂空间横扫全场并连续斩击",
@@ -727,7 +727,7 @@
       "rarity": 5,
       "description": "地阶法术攻击功法，提升法术攻击力",
       "stats": {
-        "magicAttack": 704
+        "magicAttack": 1056
       },
       "skillName": "毁天业火",
       "skillDescription": "召唤业火红莲焚烧天地",
@@ -747,7 +747,7 @@
       "rarity": 5,
       "description": "地阶法术攻击功法，提升法术攻击力",
       "stats": {
-        "magicAttack": 704
+        "magicAttack": 1056
       },
       "skillName": "灭世天劫",
       "skillDescription": "降下灭世天劫毁灭全场",
@@ -767,7 +767,7 @@
       "rarity": 5,
       "description": "地阶法术攻击功法，提升法术攻击力",
       "stats": {
-        "magicAttack": 704
+        "magicAttack": 1056
       },
       "skillName": "天罚四雷",
       "skillDescription": "召唤天劫之雷进行连续轰击",
@@ -787,7 +787,7 @@
       "rarity": 5,
       "description": "地阶法术攻击功法，提升法术攻击力",
       "stats": {
-        "magicAttack": 704
+        "magicAttack": 1056
       },
       "skillName": "荒古劫火连爆",
       "skillDescription": "引动荒古劫火之力连续爆发轰炸全场",
@@ -807,7 +807,7 @@
       "rarity": 6,
       "description": "天阶物理攻击功法，提升物理攻击力",
       "stats": {
-        "physicalAttack": 3712
+        "physicalAttack": 5568
       },
       "skillName": "辟地一击",
       "skillDescription": "一剑开天辟地，毁天灭地之力",
@@ -827,7 +827,7 @@
       "rarity": 6,
       "description": "天阶物理攻击功法，提升物理攻击力",
       "stats": {
-        "physicalAttack": 3712
+        "physicalAttack": 5568
       },
       "skillName": "灭宇剑界",
       "skillDescription": "展开剑界将全场化为虚无",
@@ -847,7 +847,7 @@
       "rarity": 6,
       "description": "天阶物理攻击功法，提升物理攻击力",
       "stats": {
-        "physicalAttack": 3712
+        "physicalAttack": 5568
       },
       "skillName": "太初五斩",
       "skillDescription": "引动混沌之力进行五连斩",
@@ -867,7 +867,7 @@
       "rarity": 6,
       "description": "天阶物理攻击功法，提升物理攻击力",
       "stats": {
-        "physicalAttack": 3712
+        "physicalAttack": 5568
       },
       "skillName": "虚空裂空旋风斩",
       "skillDescription": "撕裂虚空以无尽剑气横扫宇宙并连续斩击",
@@ -887,7 +887,7 @@
       "rarity": 6,
       "description": "天阶法术攻击功法，提升法术攻击力",
       "stats": {
-        "magicAttack": 3712
+        "magicAttack": 5568
       },
       "skillName": "太清神火",
       "skillDescription": "召唤混沌初开时的神火",
@@ -907,7 +907,7 @@
       "rarity": 6,
       "description": "天阶法术攻击功法，提升法术攻击力",
       "stats": {
-        "magicAttack": 3712
+        "magicAttack": 5568
       },
       "skillName": "鸿蒙大劫",
       "skillDescription": "引发鸿蒙大劫覆灭全场一切",
@@ -927,7 +927,7 @@
       "rarity": 6,
       "description": "天阶法术攻击功法，提升法术攻击力",
       "stats": {
-        "magicAttack": 3712
+        "magicAttack": 5568
       },
       "skillName": "太初五劫",
       "skillDescription": "召唤混沌五劫进行连续轰击",
@@ -947,7 +947,7 @@
       "rarity": 6,
       "description": "天阶法术攻击功法，提升法术攻击力",
       "stats": {
-        "magicAttack": 3712
+        "magicAttack": 5568
       },
       "skillName": "造化万劫连爆",
       "skillDescription": "引动造化之力引发万劫连续爆发轰炸诸天",
@@ -969,7 +969,7 @@
       "rarity": 1,
       "description": "凡阶血量强化功法，提升血量上限",
       "stats": {
-        "hp": 24
+        "hp": 36
       },
       "skillName": "固血",
       "skillDescription": "增加自身20%血量持续3回合",
@@ -994,7 +994,7 @@
       "rarity": 1,
       "description": "凡阶血量强化功法，提升血量上限，技能庇护全队",
       "stats": {
-        "hp": 12
+        "hp": 18
       },
       "skillName": "护命",
       "skillDescription": "增加全队20%血量（包括自己）持续3回合",
@@ -1019,7 +1019,7 @@
       "rarity": 1,
       "description": "凡阶物理防御功法，提升物理防御力",
       "stats": {
-        "physicalDefense": 2
+        "physicalDefense": 3
       },
       "skillName": "铁壁",
       "skillDescription": "增加自身20%物理防御力持续3回合",
@@ -1044,7 +1044,7 @@
       "rarity": 1,
       "description": "凡阶物理防御功法，提升物理防御力，技能庇护全队",
       "stats": {
-        "physicalDefense": 1
+        "physicalDefense": 2
       },
       "skillName": "铜墙",
       "skillDescription": "增加全队20%物理防御力（包括自己）持续3回合",
@@ -1069,8 +1069,8 @@
       "rarity": 1,
       "description": "凡阶物理防御与血量功法，提升物理防御力和血量",
       "stats": {
-        "physicalDefense": 2,
-        "hp": 24
+        "physicalDefense": 3,
+        "hp": 36
       },
       "skillName": "磐石",
       "skillDescription": "增加自身20%物理防御力和血量持续3回合",
@@ -1100,8 +1100,8 @@
       "rarity": 1,
       "description": "凡阶物理防御与血量功法，提升物理防御力和血量，技能庇护全队",
       "stats": {
-        "physicalDefense": 1,
-        "hp": 12
+        "physicalDefense": 2,
+        "hp": 18
       },
       "skillName": "守护",
       "skillDescription": "增加全队20%物理防御力和血量（包括自己）持续3回合",
@@ -1131,7 +1131,7 @@
       "rarity": 1,
       "description": "凡阶法术防御功法，提升法术防御力",
       "stats": {
-        "magicDefense": 2
+        "magicDefense": 3
       },
       "skillName": "清心",
       "skillDescription": "增加自身20%法术防御力持续3回合",
@@ -1156,7 +1156,7 @@
       "rarity": 1,
       "description": "凡阶法术防御功法，提升法术防御力，技能庇护全队",
       "stats": {
-        "magicDefense": 1
+        "magicDefense": 2
       },
       "skillName": "破魔",
       "skillDescription": "增加全队20%法术防御力（包括自己）持续3回合",
@@ -1181,8 +1181,8 @@
       "rarity": 1,
       "description": "凡阶法术防御与血量功法，提升法术防御力和血量",
       "stats": {
-        "magicDefense": 2,
-        "hp": 24
+        "magicDefense": 3,
+        "hp": 36
       },
       "skillName": "养神",
       "skillDescription": "增加自身20%法术防御力和血量持续3回合",
@@ -1212,8 +1212,8 @@
       "rarity": 1,
       "description": "凡阶法术防御与血量功法，提升法术防御力和血量，技能庇护全队",
       "stats": {
-        "magicDefense": 1,
-        "hp": 12
+        "magicDefense": 2,
+        "hp": 18
       },
       "skillName": "安魂",
       "skillDescription": "增加全队20%法术防御力和血量（包括自己）持续3回合",
@@ -1243,8 +1243,8 @@
       "rarity": 1,
       "description": "凡阶双防功法，提升物理和法术防御力",
       "stats": {
-        "physicalDefense": 2,
-        "magicDefense": 2
+        "physicalDefense": 3,
+        "magicDefense": 3
       },
       "skillName": "两仪",
       "skillDescription": "增加自身20%物理防御力和法术防御力持续3回合",
@@ -1274,8 +1274,8 @@
       "rarity": 1,
       "description": "凡阶双防功法，提升物理和法术防御力，技能庇护全队",
       "stats": {
-        "physicalDefense": 1,
-        "magicDefense": 1
+        "physicalDefense": 2,
+        "magicDefense": 2
       },
       "skillName": "四象",
       "skillDescription": "增加全队20%物理防御力和法术防御力（包括自己）持续3回合",
@@ -1305,7 +1305,7 @@
       "rarity": 2,
       "description": "灵阶血量强化功法，提升血量上限",
       "stats": {
-        "hp": 156
+        "hp": 234
       },
       "skillName": "凝血",
       "skillDescription": "增加自身20%血量持续3回合",
@@ -1330,7 +1330,7 @@
       "rarity": 2,
       "description": "灵阶血量强化功法，提升血量上限，技能庇护全队",
       "stats": {
-        "hp": 78
+        "hp": 117
       },
       "skillName": "济世",
       "skillDescription": "增加全队20%血量（包括自己）持续3回合",
@@ -1355,7 +1355,7 @@
       "rarity": 2,
       "description": "灵阶物理防御功法，提升物理防御力",
       "stats": {
-        "physicalDefense": 13
+        "physicalDefense": 20
       },
       "skillName": "金甲",
       "skillDescription": "增加自身20%物理防御力持续3回合",
@@ -1380,7 +1380,7 @@
       "rarity": 2,
       "description": "灵阶物理防御功法，提升物理防御力，技能庇护全队",
       "stats": {
-        "physicalDefense": 7
+        "physicalDefense": 11
       },
       "skillName": "护阵",
       "skillDescription": "增加全队20%物理防御力（包括自己）持续3回合",
@@ -1405,8 +1405,8 @@
       "rarity": 2,
       "description": "灵阶物理防御与血量功法，提升物理防御力和血量",
       "stats": {
-        "physicalDefense": 13,
-        "hp": 156
+        "physicalDefense": 20,
+        "hp": 234
       },
       "skillName": "玄龟",
       "skillDescription": "增加自身20%物理防御力和血量持续3回合",
@@ -1436,8 +1436,8 @@
       "rarity": 2,
       "description": "灵阶物理防御与血量功法，提升物理防御力和血量，技能庇护全队",
       "stats": {
-        "physicalDefense": 7,
-        "hp": 78
+        "physicalDefense": 11,
+        "hp": 117
       },
       "skillName": "共济",
       "skillDescription": "增加全队20%物理防御力和血量（包括自己）持续3回合",
@@ -1467,7 +1467,7 @@
       "rarity": 2,
       "description": "灵阶法术防御功法，提升法术防御力",
       "stats": {
-        "magicDefense": 10
+        "magicDefense": 15
       },
       "skillName": "灵盾",
       "skillDescription": "增加自身20%法术防御力持续3回合",
@@ -1492,7 +1492,7 @@
       "rarity": 2,
       "description": "灵阶法术防御功法，提升法术防御力，技能庇护全队",
       "stats": {
-        "magicDefense": 5
+        "magicDefense": 8
       },
       "skillName": "御法",
       "skillDescription": "增加全队20%法术防御力（包括自己）持续3回合",
@@ -1517,8 +1517,8 @@
       "rarity": 2,
       "description": "灵阶法术防御与血量功法，提升法术防御力和血量",
       "stats": {
-        "magicDefense": 10,
-        "hp": 156
+        "magicDefense": 15,
+        "hp": 234
       },
       "skillName": "灵体",
       "skillDescription": "增加自身20%法术防御力和血量持续3回合",
@@ -1548,8 +1548,8 @@
       "rarity": 2,
       "description": "灵阶法术防御与血量功法，提升法术防御力和血量，技能庇护全队",
       "stats": {
-        "magicDefense": 5,
-        "hp": 78
+        "magicDefense": 8,
+        "hp": 117
       },
       "skillName": "护灵",
       "skillDescription": "增加全队20%法术防御力和血量（包括自己）持续3回合",
@@ -1579,8 +1579,8 @@
       "rarity": 2,
       "description": "灵阶双防功法，提升物理和法术防御力",
       "stats": {
-        "physicalDefense": 13,
-        "magicDefense": 10
+        "physicalDefense": 20,
+        "magicDefense": 15
       },
       "skillName": "阴阳",
       "skillDescription": "增加自身20%物理防御力和法术防御力持续3回合",
@@ -1610,8 +1610,8 @@
       "rarity": 2,
       "description": "灵阶双防功法，提升物理和法术防御力，技能庇护全队",
       "stats": {
-        "physicalDefense": 7,
-        "magicDefense": 5
+        "physicalDefense": 11,
+        "magicDefense": 8
       },
       "skillName": "八卦",
       "skillDescription": "增加全队20%物理防御力和法术防御力（包括自己）持续3回合",
@@ -1641,7 +1641,7 @@
       "rarity": 3,
       "description": "宝阶血量强化功法，提升血量上限",
       "stats": {
-        "hp": 408
+        "hp": 612
       },
       "skillName": "炼体",
       "skillDescription": "增加自身20%血量持续3回合",
@@ -1666,7 +1666,7 @@
       "rarity": 3,
       "description": "宝阶血量强化功法，提升血量上限，技能庇护全队",
       "stats": {
-        "hp": 204
+        "hp": 306
       },
       "skillName": "普渡",
       "skillDescription": "增加全队20%血量（包括自己）持续3回合",
@@ -1691,7 +1691,7 @@
       "rarity": 3,
       "description": "宝阶物理防御功法，提升物理防御力",
       "stats": {
-        "physicalDefense": 34
+        "physicalDefense": 51
       },
       "skillName": "玄甲",
       "skillDescription": "增加自身20%物理防御力持续3回合",
@@ -1716,7 +1716,7 @@
       "rarity": 3,
       "description": "宝阶物理防御功法，提升物理防御力，技能庇护全队",
       "stats": {
-        "physicalDefense": 17
+        "physicalDefense": 26
       },
       "skillName": "御敌",
       "skillDescription": "增加全队20%物理防御力（包括自己）持续3回合",
@@ -1741,8 +1741,8 @@
       "rarity": 3,
       "description": "宝阶物理防御与血量功法，提升物理防御力和血量",
       "stats": {
-        "physicalDefense": 34,
-        "hp": 408
+        "physicalDefense": 51,
+        "hp": 612
       },
       "skillName": "龙鳞",
       "skillDescription": "增加自身20%物理防御力和血量持续3回合",
@@ -1772,8 +1772,8 @@
       "rarity": 3,
       "description": "宝阶物理防御与血量功法，提升物理防御力和血量，技能庇护全队",
       "stats": {
-        "physicalDefense": 17,
-        "hp": 204
+        "physicalDefense": 26,
+        "hp": 306
       },
       "skillName": "同舟",
       "skillDescription": "增加全队20%物理防御力和血量（包括自己）持续3回合",
@@ -1803,7 +1803,7 @@
       "rarity": 3,
       "description": "宝阶法术防御功法，提升法术防御力",
       "stats": {
-        "magicDefense": 27
+        "magicDefense": 41
       },
       "skillName": "天罡",
       "skillDescription": "增加自身20%法术防御力持续3回合",
@@ -1828,7 +1828,7 @@
       "rarity": 3,
       "description": "宝阶法术防御功法，提升法术防御力，技能庇护全队",
       "stats": {
-        "magicDefense": 14
+        "magicDefense": 21
       },
       "skillName": "除妖",
       "skillDescription": "增加全队20%法术防御力（包括自己）持续3回合",
@@ -1853,8 +1853,8 @@
       "rarity": 3,
       "description": "宝阶法术防御与血量功法，提升法术防御力和血量",
       "stats": {
-        "magicDefense": 27,
-        "hp": 408
+        "magicDefense": 41,
+        "hp": 612
       },
       "skillName": "虚空",
       "skillDescription": "增加自身20%法术防御力和血量持续3回合",
@@ -1884,8 +1884,8 @@
       "rarity": 3,
       "description": "宝阶法术防御与血量功法，提升法术防御力和血量，技能庇护全队",
       "stats": {
-        "magicDefense": 14,
-        "hp": 204
+        "magicDefense": 21,
+        "hp": 306
       },
       "skillName": "渡魂",
       "skillDescription": "增加全队20%法术防御力和血量（包括自己）持续3回合",
@@ -1915,8 +1915,8 @@
       "rarity": 3,
       "description": "宝阶双防功法，提升物理和法术防御力",
       "stats": {
-        "physicalDefense": 34,
-        "magicDefense": 27
+        "physicalDefense": 51,
+        "magicDefense": 41
       },
       "skillName": "混元",
       "skillDescription": "增加自身20%物理防御力和法术防御力持续3回合",
@@ -1946,8 +1946,8 @@
       "rarity": 3,
       "description": "宝阶双防功法，提升物理和法术防御力，技能庇护全队",
       "stats": {
-        "physicalDefense": 17,
-        "magicDefense": 14
+        "physicalDefense": 26,
+        "magicDefense": 21
       },
       "skillName": "太极",
       "skillDescription": "增加全队20%物理防御力和法术防御力（包括自己）持续3回合",
@@ -1977,7 +1977,7 @@
       "rarity": 4,
       "description": "玄阶血量强化功法，提升血量上限",
       "stats": {
-        "hp": 1080
+        "hp": 1620
       },
       "skillName": "不灭",
       "skillDescription": "增加自身20%血量持续3回合",
@@ -2002,7 +2002,7 @@
       "rarity": 4,
       "description": "玄阶血量强化功法，提升血量上限，技能庇护全队",
       "stats": {
-        "hp": 540
+        "hp": 810
       },
       "skillName": "苍生",
       "skillDescription": "增加全队20%血量（包括自己）持续3回合",
@@ -2027,7 +2027,7 @@
       "rarity": 4,
       "description": "玄阶物理防御功法，提升物理防御力",
       "stats": {
-        "physicalDefense": 90
+        "physicalDefense": 135
       },
       "skillName": "泰坦",
       "skillDescription": "增加自身20%物理防御力持续3回合",
@@ -2052,7 +2052,7 @@
       "rarity": 4,
       "description": "玄阶物理防御功法，提升物理防御力，技能庇护全队",
       "stats": {
-        "physicalDefense": 45
+        "physicalDefense": 68
       },
       "skillName": "护世",
       "skillDescription": "增加全队20%物理防御力（包括自己）持续3回合",
@@ -2077,8 +2077,8 @@
       "rarity": 4,
       "description": "玄阶物理防御与血量功法，提升物理防御力和血量",
       "stats": {
-        "physicalDefense": 90,
-        "hp": 1080
+        "physicalDefense": 135,
+        "hp": 1620
       },
       "skillName": "神龙",
       "skillDescription": "增加自身20%物理防御力和血量持续3回合",
@@ -2108,8 +2108,8 @@
       "rarity": 4,
       "description": "玄阶物理防御与血量功法，提升物理防御力和血量，技能庇护全队",
       "stats": {
-        "physicalDefense": 45,
-        "hp": 540
+        "physicalDefense": 68,
+        "hp": 810
       },
       "skillName": "莲华",
       "skillDescription": "增加全队20%物理防御力和血量（包括自己）持续3回合",
@@ -2139,7 +2139,7 @@
       "rarity": 4,
       "description": "玄阶法术防御功法，提升法术防御力",
       "stats": {
-        "magicDefense": 72
+        "magicDefense": 108
       },
       "skillName": "仙体",
       "skillDescription": "增加自身20%法术防御力持续3回合",
@@ -2164,7 +2164,7 @@
       "rarity": 4,
       "description": "玄阶法术防御功法，提升法术防御力，技能庇护全队",
       "stats": {
-        "magicDefense": 36
+        "magicDefense": 54
       },
       "skillName": "扫尘",
       "skillDescription": "增加全队20%法术防御力（包括自己）持续3回合",
@@ -2189,8 +2189,8 @@
       "rarity": 4,
       "description": "玄阶法术防御与血量功法，提升法术防御力和血量",
       "stats": {
-        "magicDefense": 72,
-        "hp": 1080
+        "magicDefense": 108,
+        "hp": 1620
       },
       "skillName": "太虚",
       "skillDescription": "增加自身20%法术防御力和血量持续3回合",
@@ -2220,8 +2220,8 @@
       "rarity": 4,
       "description": "玄阶法术防御与血量功法，提升法术防御力和血量，技能庇护全队",
       "stats": {
-        "magicDefense": 36,
-        "hp": 540
+        "magicDefense": 54,
+        "hp": 810
       },
       "skillName": "普济",
       "skillDescription": "增加全队20%法术防御力和血量（包括自己）持续3回合",
@@ -2251,8 +2251,8 @@
       "rarity": 4,
       "description": "玄阶双防功法，提升物理和法术防御力",
       "stats": {
-        "physicalDefense": 90,
-        "magicDefense": 72
+        "physicalDefense": 135,
+        "magicDefense": 108
       },
       "skillName": "无双",
       "skillDescription": "增加自身20%物理防御力和法术防御力持续3回合",
@@ -2282,8 +2282,8 @@
       "rarity": 4,
       "description": "玄阶双防功法，提升物理和法术防御力，技能庇护全队",
       "stats": {
-        "physicalDefense": 45,
-        "magicDefense": 36
+        "physicalDefense": 68,
+        "magicDefense": 54
       },
       "skillName": "双仪",
       "skillDescription": "增加全队20%物理防御力和法术防御力（包括自己）持续3回合",
@@ -2313,7 +2313,7 @@
       "rarity": 5,
       "description": "地阶血量强化功法，提升血量上限",
       "stats": {
-        "hp": 2640
+        "hp": 3960
       },
       "skillName": "永恒",
       "skillDescription": "增加自身20%血量持续3回合",
@@ -2338,7 +2338,7 @@
       "rarity": 5,
       "description": "地阶血量强化功法，提升血量上限，技能庇护全队",
       "stats": {
-        "hp": 1320
+        "hp": 1980
       },
       "skillName": "大慈",
       "skillDescription": "增加全队20%血量（包括自己）持续3回合",
@@ -2363,7 +2363,7 @@
       "rarity": 5,
       "description": "地阶物理防御功法，提升物理防御力",
       "stats": {
-        "physicalDefense": 220
+        "physicalDefense": 330
       },
       "skillName": "不动",
       "skillDescription": "增加自身20%物理防御力持续3回合",
@@ -2388,7 +2388,7 @@
       "rarity": 5,
       "description": "地阶物理防御功法，提升物理防御力，技能庇护全队",
       "stats": {
-        "physicalDefense": 110
+        "physicalDefense": 165
       },
       "skillName": "镇域",
       "skillDescription": "增加全队20%物理防御力（包括自己）持续3回合",
@@ -2413,8 +2413,8 @@
       "rarity": 5,
       "description": "地阶物理防御与血量功法，提升物理防御力和血量",
       "stats": {
-        "physicalDefense": 220,
-        "hp": 2640
+        "physicalDefense": 330,
+        "hp": 3960
       },
       "skillName": "太古",
       "skillDescription": "增加自身20%物理防御力和血量持续3回合",
@@ -2444,8 +2444,8 @@
       "rarity": 5,
       "description": "地阶物理防御与血量功法，提升物理防御力和血量，技能庇护全队",
       "stats": {
-        "physicalDefense": 110,
-        "hp": 1320
+        "physicalDefense": 165,
+        "hp": 1980
       },
       "skillName": "度人",
       "skillDescription": "增加全队20%物理防御力和血量（包括自己）持续3回合",
@@ -2475,7 +2475,7 @@
       "rarity": 5,
       "description": "地阶法术防御功法，提升法术防御力",
       "stats": {
-        "magicDefense": 176
+        "magicDefense": 264
       },
       "skillName": "星辰",
       "skillDescription": "增加自身20%法术防御力持续3回合",
@@ -2500,7 +2500,7 @@
       "rarity": 5,
       "description": "地阶法术防御功法，提升法术防御力，技能庇护全队",
       "stats": {
-        "magicDefense": 88
+        "magicDefense": 132
       },
       "skillName": "荡秽",
       "skillDescription": "增加全队20%法术防御力（包括自己）持续3回合",
@@ -2525,8 +2525,8 @@
       "rarity": 5,
       "description": "地阶法术防御与血量功法，提升法术防御力和血量",
       "stats": {
-        "magicDefense": 176,
-        "hp": 2640
+        "magicDefense": 264,
+        "hp": 3960
       },
       "skillName": "宇宙",
       "skillDescription": "增加自身20%法术防御力和血量持续3回合",
@@ -2556,8 +2556,8 @@
       "rarity": 5,
       "description": "地阶法术防御与血量功法，提升法术防御力和血量，技能庇护全队",
       "stats": {
-        "magicDefense": 88,
-        "hp": 1320
+        "magicDefense": 132,
+        "hp": 1980
       },
       "skillName": "救苦",
       "skillDescription": "增加全队20%法术防御力和血量（包括自己）持续3回合",
@@ -2587,8 +2587,8 @@
       "rarity": 5,
       "description": "地阶双防功法，提升物理和法术防御力",
       "stats": {
-        "physicalDefense": 220,
-        "magicDefense": 176
+        "physicalDefense": 330,
+        "magicDefense": 264
       },
       "skillName": "乾坤",
       "skillDescription": "增加自身20%物理防御力和法术防御力持续3回合",
@@ -2618,8 +2618,8 @@
       "rarity": 5,
       "description": "地阶双防功法，提升物理和法术防御力，技能庇护全队",
       "stats": {
-        "physicalDefense": 110,
-        "magicDefense": 88
+        "physicalDefense": 165,
+        "magicDefense": 132
       },
       "skillName": "六合",
       "skillDescription": "增加全队20%物理防御力和法术防御力（包括自己）持续3回合",
@@ -2649,7 +2649,7 @@
       "rarity": 6,
       "description": "天阶血量强化功法，提升血量上限",
       "stats": {
-        "hp": 13920
+        "hp": 20880
       },
       "skillName": "混元血",
       "skillDescription": "增加自身20%血量持续3回合",
@@ -2674,7 +2674,7 @@
       "rarity": 6,
       "description": "天阶血量强化功法，提升血量上限，技能庇护全队",
       "stats": {
-        "hp": 6960
+        "hp": 10440
       },
       "skillName": "鸿蒙",
       "skillDescription": "增加全队20%血量（包括自己）持续3回合",
@@ -2699,7 +2699,7 @@
       "rarity": 6,
       "description": "天阶物理防御功法，提升物理防御力",
       "stats": {
-        "physicalDefense": 1160
+        "physicalDefense": 1740
       },
       "skillName": "混沌金",
       "skillDescription": "增加自身20%物理防御力持续3回合",
@@ -2724,7 +2724,7 @@
       "rarity": 6,
       "description": "天阶物理防御功法，提升物理防御力，技能庇护全队",
       "stats": {
-        "physicalDefense": 580
+        "physicalDefense": 870
       },
       "skillName": "辟易",
       "skillDescription": "增加全队20%物理防御力（包括自己）持续3回合",
@@ -2749,8 +2749,8 @@
       "rarity": 6,
       "description": "天阶物理防御与血量功法，提升物理防御力和血量",
       "stats": {
-        "physicalDefense": 1160,
-        "hp": 13920
+        "physicalDefense": 1740,
+        "hp": 20880
       },
       "skillName": "造化",
       "skillDescription": "增加自身20%物理防御力和血量持续3回合",
@@ -2780,8 +2780,8 @@
       "rarity": 6,
       "description": "天阶物理防御与血量功法，提升物理防御力和血量，技能庇护全队",
       "stats": {
-        "physicalDefense": 580,
-        "hp": 6960
+        "physicalDefense": 870,
+        "hp": 10440
       },
       "skillName": "天佑",
       "skillDescription": "增加全队20%物理防御力和血量（包括自己）持续3回合",
@@ -2811,7 +2811,7 @@
       "rarity": 6,
       "description": "天阶法术防御功法，提升法术防御力",
       "stats": {
-        "magicDefense": 928
+        "magicDefense": 1392
       },
       "skillName": "鸿蒙念",
       "skillDescription": "增加自身20%法术防御力持续3回合",
@@ -2836,7 +2836,7 @@
       "rarity": 6,
       "description": "天阶法术防御功法，提升法术防御力，技能庇护全队",
       "stats": {
-        "magicDefense": 464
+        "magicDefense": 696
       },
       "skillName": "归元",
       "skillDescription": "增加全队20%法术防御力（包括自己）持续3回合",
@@ -2861,8 +2861,8 @@
       "rarity": 6,
       "description": "天阶法术防御与血量功法，提升法术防御力和血量",
       "stats": {
-        "magicDefense": 928,
-        "hp": 13920
+        "magicDefense": 1392,
+        "hp": 20880
       },
       "skillName": "本源",
       "skillDescription": "增加自身20%法术防御力和血量持续3回合",
@@ -2892,8 +2892,8 @@
       "rarity": 6,
       "description": "天阶法术防御与血量功法，提升法术防御力和血量，技能庇护全队",
       "stats": {
-        "magicDefense": 464,
-        "hp": 6960
+        "magicDefense": 696,
+        "hp": 10440
       },
       "skillName": "超脱",
       "skillDescription": "增加全队20%法术防御力和血量（包括自己）持续3回合",
@@ -2923,8 +2923,8 @@
       "rarity": 6,
       "description": "天阶双防功法，提升物理和法术防御力",
       "stats": {
-        "physicalDefense": 1160,
-        "magicDefense": 928
+        "physicalDefense": 1740,
+        "magicDefense": 1392
       },
       "skillName": "鸿蒙道",
       "skillDescription": "增加自身20%物理防御力和法术防御力持续3回合",
@@ -2954,8 +2954,8 @@
       "rarity": 6,
       "description": "天阶双防功法，提升物理和法术防御力，技能庇护全队",
       "stats": {
-        "physicalDefense": 580,
-        "magicDefense": 464
+        "physicalDefense": 870,
+        "magicDefense": 696
       },
       "skillName": "开天",
       "skillDescription": "增加全队20%物理防御力和法术防御力（包括自己）持续3回合",
@@ -2987,7 +2987,7 @@
       "rarity": 1,
       "description": "凡阶辅助功法，提升生命属性",
       "stats": {
-        "hp": 24
+        "hp": 36
       },
       "skillName": "养血祝福",
       "skillDescription": "提高全队生命20%持续3回合",
@@ -3013,7 +3013,7 @@
       "rarity": 1,
       "description": "凡阶辅助功法，提升灵力属性",
       "stats": {
-        "mp": 12
+        "mp": 18
       },
       "skillName": "聚元祝福",
       "skillDescription": "提高全队灵力20%持续3回合",
@@ -3039,7 +3039,7 @@
       "rarity": 1,
       "description": "凡阶辅助功法，提升物攻属性",
       "stats": {
-        "physicalAttack": 2
+        "physicalAttack": 3
       },
       "skillName": "强武祝福",
       "skillDescription": "提高全队物攻20%持续3回合",
@@ -3065,7 +3065,7 @@
       "rarity": 1,
       "description": "凡阶辅助功法，提升法攻属性",
       "stats": {
-        "magicAttack": 2
+        "magicAttack": 3
       },
       "skillName": "灵法祝福",
       "skillDescription": "提高全队法攻20%持续3回合",
@@ -3091,7 +3091,7 @@
       "rarity": 1,
       "description": "凡阶辅助功法，提升物防属性",
       "stats": {
-        "physicalDefense": 2
+        "physicalDefense": 3
       },
       "skillName": "坚壁祝福",
       "skillDescription": "提高全队物防20%持续3回合",
@@ -3117,7 +3117,7 @@
       "rarity": 1,
       "description": "凡阶辅助功法，提升法防属性",
       "stats": {
-        "magicDefense": 2
+        "magicDefense": 3
       },
       "skillName": "御魔祝福",
       "skillDescription": "提高全队法防20%持续3回合",
@@ -3143,7 +3143,7 @@
       "rarity": 1,
       "description": "凡阶辅助功法，提升速度属性",
       "stats": {
-        "speed": 3
+        "speed": 5
       },
       "skillName": "疾行祝福",
       "skillDescription": "提高全队速度20%持续3回合",
@@ -3169,8 +3169,8 @@
       "rarity": 1,
       "description": "凡阶辅助功法，提升生命与灵力属性",
       "stats": {
-        "hp": 24,
-        "mp": 12
+        "hp": 36,
+        "mp": 18
       },
       "skillName": "气血祝福",
       "skillDescription": "提高全队生命和灵力20%持续3回合",
@@ -3201,8 +3201,8 @@
       "rarity": 1,
       "description": "凡阶辅助功法，提升物攻与物防属性",
       "stats": {
-        "physicalAttack": 2,
-        "physicalDefense": 2
+        "physicalAttack": 3,
+        "physicalDefense": 3
       },
       "skillName": "攻防祝福",
       "skillDescription": "提高全队物攻和物防20%持续3回合",
@@ -3233,8 +3233,8 @@
       "rarity": 1,
       "description": "凡阶辅助功法，提升法攻与法防属性",
       "stats": {
-        "magicAttack": 2,
-        "magicDefense": 2
+        "magicAttack": 3,
+        "magicDefense": 3
       },
       "skillName": "法御祝福",
       "skillDescription": "提高全队法攻和法防20%持续3回合",
@@ -3265,8 +3265,8 @@
       "rarity": 1,
       "description": "凡阶辅助功法，提升物攻与法攻属性",
       "stats": {
-        "physicalAttack": 2,
-        "magicAttack": 2
+        "physicalAttack": 3,
+        "magicAttack": 3
       },
       "skillName": "双攻祝福",
       "skillDescription": "提高全队物攻和法攻20%持续3回合",
@@ -3297,8 +3297,8 @@
       "rarity": 1,
       "description": "凡阶辅助功法，提升物防与法防属性",
       "stats": {
-        "physicalDefense": 2,
-        "magicDefense": 2
+        "physicalDefense": 3,
+        "magicDefense": 3
       },
       "skillName": "双防祝福",
       "skillDescription": "提高全队物防和法防20%持续3回合",
@@ -3329,8 +3329,8 @@
       "rarity": 1,
       "description": "凡阶辅助功法，提升物攻与速度属性",
       "stats": {
-        "physicalAttack": 2,
-        "speed": 3
+        "physicalAttack": 3,
+        "speed": 5
       },
       "skillName": "疾攻祝福",
       "skillDescription": "提高全队物攻和速度20%持续3回合",
@@ -3361,8 +3361,8 @@
       "rarity": 1,
       "description": "凡阶辅助功法，提升法攻与速度属性",
       "stats": {
-        "magicAttack": 2,
-        "speed": 3
+        "magicAttack": 3,
+        "speed": 5
       },
       "skillName": "迅法祝福",
       "skillDescription": "提高全队法攻和速度20%持续3回合",
@@ -3393,8 +3393,8 @@
       "rarity": 1,
       "description": "凡阶辅助功法，提升灵力与物攻属性",
       "stats": {
-        "mp": 12,
-        "physicalAttack": 2
+        "mp": 18,
+        "physicalAttack": 3
       },
       "skillName": "灵武祝福",
       "skillDescription": "提高全队灵力和物攻20%持续3回合",
@@ -3425,8 +3425,8 @@
       "rarity": 1,
       "description": "凡阶辅助功法，提升生命与物防属性",
       "stats": {
-        "hp": 24,
-        "physicalDefense": 2
+        "hp": 36,
+        "physicalDefense": 3
       },
       "skillName": "坚体祝福",
       "skillDescription": "提高全队生命和物防20%持续3回合",
@@ -3457,8 +3457,8 @@
       "rarity": 1,
       "description": "凡阶辅助功法，提升灵力与法攻属性",
       "stats": {
-        "mp": 12,
-        "magicAttack": 2
+        "mp": 18,
+        "magicAttack": 3
       },
       "skillName": "元法祝福",
       "skillDescription": "提高全队灵力和法攻20%持续3回合",
@@ -3489,7 +3489,7 @@
       "rarity": 2,
       "description": "灵阶辅助功法，提升生命属性",
       "stats": {
-        "hp": 156
+        "hp": 234
       },
       "skillName": "淬血加持",
       "skillDescription": "提高全队生命20%持续3回合",
@@ -3515,7 +3515,7 @@
       "rarity": 2,
       "description": "灵阶辅助功法，提升灵力属性",
       "stats": {
-        "mp": 78
+        "mp": 117
       },
       "skillName": "凝元加持",
       "skillDescription": "提高全队灵力20%持续3回合",
@@ -3541,7 +3541,7 @@
       "rarity": 2,
       "description": "灵阶辅助功法，提升物攻属性",
       "stats": {
-        "physicalAttack": 16
+        "physicalAttack": 24
       },
       "skillName": "破军加持",
       "skillDescription": "提高全队物攻20%持续3回合",
@@ -3567,7 +3567,7 @@
       "rarity": 2,
       "description": "灵阶辅助功法，提升法攻属性",
       "stats": {
-        "magicAttack": 16
+        "magicAttack": 24
       },
       "skillName": "焚心加持",
       "skillDescription": "提高全队法攻20%持续3回合",
@@ -3593,7 +3593,7 @@
       "rarity": 2,
       "description": "灵阶辅助功法，提升物防属性",
       "stats": {
-        "physicalDefense": 13
+        "physicalDefense": 20
       },
       "skillName": "金钟加持",
       "skillDescription": "提高全队物防20%持续3回合",
@@ -3619,7 +3619,7 @@
       "rarity": 2,
       "description": "灵阶辅助功法，提升法防属性",
       "stats": {
-        "magicDefense": 10
+        "magicDefense": 15
       },
       "skillName": "清心加持",
       "skillDescription": "提高全队法防20%持续3回合",
@@ -3645,7 +3645,7 @@
       "rarity": 2,
       "description": "灵阶辅助功法，提升速度属性",
       "stats": {
-        "speed": 20
+        "speed": 30
       },
       "skillName": "追风加持",
       "skillDescription": "提高全队速度20%持续3回合",
@@ -3671,8 +3671,8 @@
       "rarity": 2,
       "description": "灵阶辅助功法，提升生命与灵力属性",
       "stats": {
-        "hp": 156,
-        "mp": 78
+        "hp": 234,
+        "mp": 117
       },
       "skillName": "气血加持",
       "skillDescription": "提高全队生命和灵力20%持续3回合",
@@ -3703,8 +3703,8 @@
       "rarity": 2,
       "description": "灵阶辅助功法，提升物攻与物防属性",
       "stats": {
-        "physicalAttack": 16,
-        "physicalDefense": 13
+        "physicalAttack": 24,
+        "physicalDefense": 20
       },
       "skillName": "攻防加持",
       "skillDescription": "提高全队物攻和物防20%持续3回合",
@@ -3735,8 +3735,8 @@
       "rarity": 2,
       "description": "灵阶辅助功法，提升法攻与法防属性",
       "stats": {
-        "magicAttack": 16,
-        "magicDefense": 10
+        "magicAttack": 24,
+        "magicDefense": 15
       },
       "skillName": "法御加持",
       "skillDescription": "提高全队法攻和法防20%持续3回合",
@@ -3767,8 +3767,8 @@
       "rarity": 2,
       "description": "灵阶辅助功法，提升物攻与法攻属性",
       "stats": {
-        "physicalAttack": 16,
-        "magicAttack": 16
+        "physicalAttack": 24,
+        "magicAttack": 24
       },
       "skillName": "双攻加持",
       "skillDescription": "提高全队物攻和法攻20%持续3回合",
@@ -3799,8 +3799,8 @@
       "rarity": 2,
       "description": "灵阶辅助功法，提升物防与法防属性",
       "stats": {
-        "physicalDefense": 13,
-        "magicDefense": 10
+        "physicalDefense": 20,
+        "magicDefense": 15
       },
       "skillName": "双防加持",
       "skillDescription": "提高全队物防和法防20%持续3回合",
@@ -3831,8 +3831,8 @@
       "rarity": 2,
       "description": "灵阶辅助功法，提升物攻与速度属性",
       "stats": {
-        "physicalAttack": 16,
-        "speed": 20
+        "physicalAttack": 24,
+        "speed": 30
       },
       "skillName": "疾攻加持",
       "skillDescription": "提高全队物攻和速度20%持续3回合",
@@ -3863,8 +3863,8 @@
       "rarity": 2,
       "description": "灵阶辅助功法，提升法攻与速度属性",
       "stats": {
-        "magicAttack": 16,
-        "speed": 20
+        "magicAttack": 24,
+        "speed": 30
       },
       "skillName": "迅法加持",
       "skillDescription": "提高全队法攻和速度20%持续3回合",
@@ -3895,8 +3895,8 @@
       "rarity": 2,
       "description": "灵阶辅助功法，提升灵力与物攻属性",
       "stats": {
-        "mp": 78,
-        "physicalAttack": 16
+        "mp": 117,
+        "physicalAttack": 24
       },
       "skillName": "灵武加持",
       "skillDescription": "提高全队灵力和物攻20%持续3回合",
@@ -3927,8 +3927,8 @@
       "rarity": 2,
       "description": "灵阶辅助功法，提升生命与物防属性",
       "stats": {
-        "hp": 156,
-        "physicalDefense": 13
+        "hp": 234,
+        "physicalDefense": 20
       },
       "skillName": "坚体加持",
       "skillDescription": "提高全队生命和物防20%持续3回合",
@@ -3959,8 +3959,8 @@
       "rarity": 2,
       "description": "灵阶辅助功法，提升灵力与法攻属性",
       "stats": {
-        "mp": 78,
-        "magicAttack": 16
+        "mp": 117,
+        "magicAttack": 24
       },
       "skillName": "元法加持",
       "skillDescription": "提高全队灵力和法攻20%持续3回合",
@@ -3991,7 +3991,7 @@
       "rarity": 3,
       "description": "宝阶辅助功法，提升生命属性",
       "stats": {
-        "hp": 408
+        "hp": 612
       },
       "skillName": "归元护持",
       "skillDescription": "提高全队生命20%持续3回合",
@@ -4017,7 +4017,7 @@
       "rarity": 3,
       "description": "宝阶辅助功法，提升灵力属性",
       "stats": {
-        "mp": 204
+        "mp": 306
       },
       "skillName": "聚神护持",
       "skillDescription": "提高全队灵力20%持续3回合",
@@ -4043,7 +4043,7 @@
       "rarity": 3,
       "description": "宝阶辅助功法，提升物攻属性",
       "stats": {
-        "physicalAttack": 41
+        "physicalAttack": 62
       },
       "skillName": "霸王护持",
       "skillDescription": "提高全队物攻20%持续3回合",
@@ -4069,7 +4069,7 @@
       "rarity": 3,
       "description": "宝阶辅助功法，提升法攻属性",
       "stats": {
-        "magicAttack": 41
+        "magicAttack": 62
       },
       "skillName": "天火护持",
       "skillDescription": "提高全队法攻20%持续3回合",
@@ -4095,7 +4095,7 @@
       "rarity": 3,
       "description": "宝阶辅助功法，提升物防属性",
       "stats": {
-        "physicalDefense": 34
+        "physicalDefense": 51
       },
       "skillName": "不动护持",
       "skillDescription": "提高全队物防20%持续3回合",
@@ -4121,7 +4121,7 @@
       "rarity": 3,
       "description": "宝阶辅助功法，提升法防属性",
       "stats": {
-        "magicDefense": 27
+        "magicDefense": 41
       },
       "skillName": "玄甲护持",
       "skillDescription": "提高全队法防20%持续3回合",
@@ -4147,7 +4147,7 @@
       "rarity": 3,
       "description": "宝阶辅助功法，提升速度属性",
       "stats": {
-        "speed": 51
+        "speed": 77
       },
       "skillName": "踏云护持",
       "skillDescription": "提高全队速度20%持续3回合",
@@ -4173,8 +4173,8 @@
       "rarity": 3,
       "description": "宝阶辅助功法，提升生命与灵力属性",
       "stats": {
-        "hp": 408,
-        "mp": 204
+        "hp": 612,
+        "mp": 306
       },
       "skillName": "气血护持",
       "skillDescription": "提高全队生命和灵力20%持续3回合",
@@ -4205,8 +4205,8 @@
       "rarity": 3,
       "description": "宝阶辅助功法，提升物攻与物防属性",
       "stats": {
-        "physicalAttack": 41,
-        "physicalDefense": 34
+        "physicalAttack": 62,
+        "physicalDefense": 51
       },
       "skillName": "攻防护持",
       "skillDescription": "提高全队物攻和物防20%持续3回合",
@@ -4237,8 +4237,8 @@
       "rarity": 3,
       "description": "宝阶辅助功法，提升法攻与法防属性",
       "stats": {
-        "magicAttack": 41,
-        "magicDefense": 27
+        "magicAttack": 62,
+        "magicDefense": 41
       },
       "skillName": "法御护持",
       "skillDescription": "提高全队法攻和法防20%持续3回合",
@@ -4269,8 +4269,8 @@
       "rarity": 3,
       "description": "宝阶辅助功法，提升物攻与法攻属性",
       "stats": {
-        "physicalAttack": 41,
-        "magicAttack": 41
+        "physicalAttack": 62,
+        "magicAttack": 62
       },
       "skillName": "双攻护持",
       "skillDescription": "提高全队物攻和法攻20%持续3回合",
@@ -4301,8 +4301,8 @@
       "rarity": 3,
       "description": "宝阶辅助功法，提升物防与法防属性",
       "stats": {
-        "physicalDefense": 34,
-        "magicDefense": 27
+        "physicalDefense": 51,
+        "magicDefense": 41
       },
       "skillName": "双防护持",
       "skillDescription": "提高全队物防和法防20%持续3回合",
@@ -4333,8 +4333,8 @@
       "rarity": 3,
       "description": "宝阶辅助功法，提升物攻与速度属性",
       "stats": {
-        "physicalAttack": 41,
-        "speed": 51
+        "physicalAttack": 62,
+        "speed": 77
       },
       "skillName": "疾攻护持",
       "skillDescription": "提高全队物攻和速度20%持续3回合",
@@ -4365,8 +4365,8 @@
       "rarity": 3,
       "description": "宝阶辅助功法，提升法攻与速度属性",
       "stats": {
-        "magicAttack": 41,
-        "speed": 51
+        "magicAttack": 62,
+        "speed": 77
       },
       "skillName": "迅法护持",
       "skillDescription": "提高全队法攻和速度20%持续3回合",
@@ -4397,8 +4397,8 @@
       "rarity": 3,
       "description": "宝阶辅助功法，提升灵力与物攻属性",
       "stats": {
-        "mp": 204,
-        "physicalAttack": 41
+        "mp": 306,
+        "physicalAttack": 62
       },
       "skillName": "灵武护持",
       "skillDescription": "提高全队灵力和物攻20%持续3回合",
@@ -4429,8 +4429,8 @@
       "rarity": 3,
       "description": "宝阶辅助功法，提升生命与物防属性",
       "stats": {
-        "hp": 408,
-        "physicalDefense": 34
+        "hp": 612,
+        "physicalDefense": 51
       },
       "skillName": "坚体护持",
       "skillDescription": "提高全队生命和物防20%持续3回合",
@@ -4461,8 +4461,8 @@
       "rarity": 3,
       "description": "宝阶辅助功法，提升灵力与法攻属性",
       "stats": {
-        "mp": 204,
-        "magicAttack": 41
+        "mp": 306,
+        "magicAttack": 62
       },
       "skillName": "元法护持",
       "skillDescription": "提高全队灵力和法攻20%持续3回合",
@@ -4493,7 +4493,7 @@
       "rarity": 4,
       "description": "玄阶辅助功法，提升生命属性",
       "stats": {
-        "hp": 1080
+        "hp": 1620
       },
       "skillName": "不灭圣佑",
       "skillDescription": "提高全队生命20%持续3回合",
@@ -4519,7 +4519,7 @@
       "rarity": 4,
       "description": "玄阶辅助功法，提升灵力属性",
       "stats": {
-        "mp": 540
+        "mp": 810
       },
       "skillName": "通玄圣佑",
       "skillDescription": "提高全队灵力20%持续3回合",
@@ -4545,7 +4545,7 @@
       "rarity": 4,
       "description": "玄阶辅助功法，提升物攻属性",
       "stats": {
-        "physicalAttack": 108
+        "physicalAttack": 162
       },
       "skillName": "狂战圣佑",
       "skillDescription": "提高全队物攻20%持续3回合",
@@ -4571,7 +4571,7 @@
       "rarity": 4,
       "description": "玄阶辅助功法，提升法攻属性",
       "stats": {
-        "magicAttack": 108
+        "magicAttack": 162
       },
       "skillName": "苍穹圣佑",
       "skillDescription": "提高全队法攻20%持续3回合",
@@ -4597,7 +4597,7 @@
       "rarity": 4,
       "description": "玄阶辅助功法，提升物防属性",
       "stats": {
-        "physicalDefense": 90
+        "physicalDefense": 135
       },
       "skillName": "镇世圣佑",
       "skillDescription": "提高全队物防20%持续3回合",
@@ -4623,7 +4623,7 @@
       "rarity": 4,
       "description": "玄阶辅助功法，提升法防属性",
       "stats": {
-        "magicDefense": 72
+        "magicDefense": 108
       },
       "skillName": "天罡圣佑",
       "skillDescription": "提高全队法防20%持续3回合",
@@ -4649,7 +4649,7 @@
       "rarity": 4,
       "description": "玄阶辅助功法，提升速度属性",
       "stats": {
-        "speed": 135
+        "speed": 203
       },
       "skillName": "凌空圣佑",
       "skillDescription": "提高全队速度20%持续3回合",
@@ -4675,8 +4675,8 @@
       "rarity": 4,
       "description": "玄阶辅助功法，提升生命与灵力属性",
       "stats": {
-        "hp": 1080,
-        "mp": 540
+        "hp": 1620,
+        "mp": 810
       },
       "skillName": "气血圣佑",
       "skillDescription": "提高全队生命和灵力20%持续3回合",
@@ -4707,8 +4707,8 @@
       "rarity": 4,
       "description": "玄阶辅助功法，提升物攻与物防属性",
       "stats": {
-        "physicalAttack": 108,
-        "physicalDefense": 90
+        "physicalAttack": 162,
+        "physicalDefense": 135
       },
       "skillName": "攻防圣佑",
       "skillDescription": "提高全队物攻和物防20%持续3回合",
@@ -4739,8 +4739,8 @@
       "rarity": 4,
       "description": "玄阶辅助功法，提升法攻与法防属性",
       "stats": {
-        "magicAttack": 108,
-        "magicDefense": 72
+        "magicAttack": 162,
+        "magicDefense": 108
       },
       "skillName": "法御圣佑",
       "skillDescription": "提高全队法攻和法防20%持续3回合",
@@ -4771,8 +4771,8 @@
       "rarity": 4,
       "description": "玄阶辅助功法，提升物攻与法攻属性",
       "stats": {
-        "physicalAttack": 108,
-        "magicAttack": 108
+        "physicalAttack": 162,
+        "magicAttack": 162
       },
       "skillName": "双攻圣佑",
       "skillDescription": "提高全队物攻和法攻20%持续3回合",
@@ -4803,8 +4803,8 @@
       "rarity": 4,
       "description": "玄阶辅助功法，提升物防与法防属性",
       "stats": {
-        "physicalDefense": 90,
-        "magicDefense": 72
+        "physicalDefense": 135,
+        "magicDefense": 108
       },
       "skillName": "双防圣佑",
       "skillDescription": "提高全队物防和法防20%持续3回合",
@@ -4835,8 +4835,8 @@
       "rarity": 4,
       "description": "玄阶辅助功法，提升物攻与速度属性",
       "stats": {
-        "physicalAttack": 108,
-        "speed": 135
+        "physicalAttack": 162,
+        "speed": 203
       },
       "skillName": "疾攻圣佑",
       "skillDescription": "提高全队物攻和速度20%持续3回合",
@@ -4867,8 +4867,8 @@
       "rarity": 4,
       "description": "玄阶辅助功法，提升法攻与速度属性",
       "stats": {
-        "magicAttack": 108,
-        "speed": 135
+        "magicAttack": 162,
+        "speed": 203
       },
       "skillName": "迅法圣佑",
       "skillDescription": "提高全队法攻和速度20%持续3回合",
@@ -4899,8 +4899,8 @@
       "rarity": 4,
       "description": "玄阶辅助功法，提升灵力与物攻属性",
       "stats": {
-        "mp": 540,
-        "physicalAttack": 108
+        "mp": 810,
+        "physicalAttack": 162
       },
       "skillName": "灵武圣佑",
       "skillDescription": "提高全队灵力和物攻20%持续3回合",
@@ -4931,8 +4931,8 @@
       "rarity": 4,
       "description": "玄阶辅助功法，提升生命与物防属性",
       "stats": {
-        "hp": 1080,
-        "physicalDefense": 90
+        "hp": 1620,
+        "physicalDefense": 135
       },
       "skillName": "坚体圣佑",
       "skillDescription": "提高全队生命和物防20%持续3回合",
@@ -4963,8 +4963,8 @@
       "rarity": 4,
       "description": "玄阶辅助功法，提升灵力与法攻属性",
       "stats": {
-        "mp": 540,
-        "magicAttack": 108
+        "mp": 810,
+        "magicAttack": 162
       },
       "skillName": "元法圣佑",
       "skillDescription": "提高全队灵力和法攻20%持续3回合",
@@ -4995,7 +4995,7 @@
       "rarity": 5,
       "description": "地阶辅助功法，提升生命属性",
       "stats": {
-        "hp": 2640
+        "hp": 3960
       },
       "skillName": "万寿天恩",
       "skillDescription": "提高全队生命20%持续3回合",
@@ -5021,7 +5021,7 @@
       "rarity": 5,
       "description": "地阶辅助功法，提升灵力属性",
       "stats": {
-        "mp": 1320
+        "mp": 1980
       },
       "skillName": "归真天恩",
       "skillDescription": "提高全队灵力20%持续3回合",
@@ -5047,7 +5047,7 @@
       "rarity": 5,
       "description": "地阶辅助功法，提升物攻属性",
       "stats": {
-        "physicalAttack": 264
+        "physicalAttack": 396
       },
       "skillName": "武圣天恩",
       "skillDescription": "提高全队物攻20%持续3回合",
@@ -5073,7 +5073,7 @@
       "rarity": 5,
       "description": "地阶辅助功法，提升法攻属性",
       "stats": {
-        "magicAttack": 264
+        "magicAttack": 396
       },
       "skillName": "天魔天恩",
       "skillDescription": "提高全队法攻20%持续3回合",
@@ -5099,7 +5099,7 @@
       "rarity": 5,
       "description": "地阶辅助功法，提升物防属性",
       "stats": {
-        "physicalDefense": 220
+        "physicalDefense": 330
       },
       "skillName": "金刚天恩",
       "skillDescription": "提高全队物防20%持续3回合",
@@ -5125,7 +5125,7 @@
       "rarity": 5,
       "description": "地阶辅助功法，提升法防属性",
       "stats": {
-        "magicDefense": 176
+        "magicDefense": 264
       },
       "skillName": "护元天恩",
       "skillDescription": "提高全队法防20%持续3回合",
@@ -5151,7 +5151,7 @@
       "rarity": 5,
       "description": "地阶辅助功法，提升速度属性",
       "stats": {
-        "speed": 330
+        "speed": 495
       },
       "skillName": "缩地天恩",
       "skillDescription": "提高全队速度20%持续3回合",
@@ -5177,8 +5177,8 @@
       "rarity": 5,
       "description": "地阶辅助功法，提升生命与灵力属性",
       "stats": {
-        "hp": 2640,
-        "mp": 1320
+        "hp": 3960,
+        "mp": 1980
       },
       "skillName": "气血天恩",
       "skillDescription": "提高全队生命和灵力20%持续3回合",
@@ -5209,8 +5209,8 @@
       "rarity": 5,
       "description": "地阶辅助功法，提升物攻与物防属性",
       "stats": {
-        "physicalAttack": 264,
-        "physicalDefense": 220
+        "physicalAttack": 396,
+        "physicalDefense": 330
       },
       "skillName": "攻防天恩",
       "skillDescription": "提高全队物攻和物防20%持续3回合",
@@ -5241,8 +5241,8 @@
       "rarity": 5,
       "description": "地阶辅助功法，提升法攻与法防属性",
       "stats": {
-        "magicAttack": 264,
-        "magicDefense": 176
+        "magicAttack": 396,
+        "magicDefense": 264
       },
       "skillName": "法御天恩",
       "skillDescription": "提高全队法攻和法防20%持续3回合",
@@ -5273,8 +5273,8 @@
       "rarity": 5,
       "description": "地阶辅助功法，提升物攻与法攻属性",
       "stats": {
-        "physicalAttack": 264,
-        "magicAttack": 264
+        "physicalAttack": 396,
+        "magicAttack": 396
       },
       "skillName": "双攻天恩",
       "skillDescription": "提高全队物攻和法攻20%持续3回合",
@@ -5305,8 +5305,8 @@
       "rarity": 5,
       "description": "地阶辅助功法，提升物防与法防属性",
       "stats": {
-        "physicalDefense": 220,
-        "magicDefense": 176
+        "physicalDefense": 330,
+        "magicDefense": 264
       },
       "skillName": "双防天恩",
       "skillDescription": "提高全队物防和法防20%持续3回合",
@@ -5337,8 +5337,8 @@
       "rarity": 5,
       "description": "地阶辅助功法，提升物攻与速度属性",
       "stats": {
-        "physicalAttack": 264,
-        "speed": 330
+        "physicalAttack": 396,
+        "speed": 495
       },
       "skillName": "疾攻天恩",
       "skillDescription": "提高全队物攻和速度20%持续3回合",
@@ -5369,8 +5369,8 @@
       "rarity": 5,
       "description": "地阶辅助功法，提升法攻与速度属性",
       "stats": {
-        "magicAttack": 264,
-        "speed": 330
+        "magicAttack": 396,
+        "speed": 495
       },
       "skillName": "迅法天恩",
       "skillDescription": "提高全队法攻和速度20%持续3回合",
@@ -5401,8 +5401,8 @@
       "rarity": 5,
       "description": "地阶辅助功法，提升灵力与物攻属性",
       "stats": {
-        "mp": 1320,
-        "physicalAttack": 264
+        "mp": 1980,
+        "physicalAttack": 396
       },
       "skillName": "灵武天恩",
       "skillDescription": "提高全队灵力和物攻20%持续3回合",
@@ -5433,8 +5433,8 @@
       "rarity": 5,
       "description": "地阶辅助功法，提升生命与物防属性",
       "stats": {
-        "hp": 2640,
-        "physicalDefense": 220
+        "hp": 3960,
+        "physicalDefense": 330
       },
       "skillName": "坚体天恩",
       "skillDescription": "提高全队生命和物防20%持续3回合",
@@ -5465,8 +5465,8 @@
       "rarity": 5,
       "description": "地阶辅助功法，提升灵力与法攻属性",
       "stats": {
-        "mp": 1320,
-        "magicAttack": 264
+        "mp": 1980,
+        "magicAttack": 396
       },
       "skillName": "元法天恩",
       "skillDescription": "提高全队灵力和法攻20%持续3回合",
@@ -5497,7 +5497,7 @@
       "rarity": 6,
       "description": "天阶辅助功法，提升生命属性",
       "stats": {
-        "hp": 13920
+        "hp": 20880
       },
       "skillName": "永生神谕",
       "skillDescription": "提高全队生命20%持续3回合",
@@ -5523,7 +5523,7 @@
       "rarity": 6,
       "description": "天阶辅助功法，提升灵力属性",
       "stats": {
-        "mp": 6960
+        "mp": 10440
       },
       "skillName": "造化神谕",
       "skillDescription": "提高全队灵力20%持续3回合",
@@ -5549,7 +5549,7 @@
       "rarity": 6,
       "description": "天阶辅助功法，提升物攻属性",
       "stats": {
-        "physicalAttack": 1392
+        "physicalAttack": 2088
       },
       "skillName": "天威神谕",
       "skillDescription": "提高全队物攻20%持续3回合",
@@ -5575,7 +5575,7 @@
       "rarity": 6,
       "description": "天阶辅助功法，提升法攻属性",
       "stats": {
-        "magicAttack": 1392
+        "magicAttack": 2088
       },
       "skillName": "混沌神谕",
       "skillDescription": "提高全队法攻20%持续3回合",
@@ -5601,7 +5601,7 @@
       "rarity": 6,
       "description": "天阶辅助功法，提升物防属性",
       "stats": {
-        "physicalDefense": 1160
+        "physicalDefense": 1740
       },
       "skillName": "镇岳神谕",
       "skillDescription": "提高全队物防20%持续3回合",
@@ -5627,7 +5627,7 @@
       "rarity": 6,
       "description": "天阶辅助功法，提升法防属性",
       "stats": {
-        "magicDefense": 928
+        "magicDefense": 1392
       },
       "skillName": "混元神谕",
       "skillDescription": "提高全队法防20%持续3回合",
@@ -5653,7 +5653,7 @@
       "rarity": 6,
       "description": "天阶辅助功法，提升速度属性",
       "stats": {
-        "speed": 1740
+        "speed": 2610
       },
       "skillName": "瞬移神谕",
       "skillDescription": "提高全队速度20%持续3回合",
@@ -5679,8 +5679,8 @@
       "rarity": 6,
       "description": "天阶辅助功法，提升生命与灵力属性",
       "stats": {
-        "hp": 13920,
-        "mp": 6960
+        "hp": 20880,
+        "mp": 10440
       },
       "skillName": "气血神谕",
       "skillDescription": "提高全队生命和灵力20%持续3回合",
@@ -5711,8 +5711,8 @@
       "rarity": 6,
       "description": "天阶辅助功法，提升物攻与物防属性",
       "stats": {
-        "physicalAttack": 1392,
-        "physicalDefense": 1160
+        "physicalAttack": 2088,
+        "physicalDefense": 1740
       },
       "skillName": "攻防神谕",
       "skillDescription": "提高全队物攻和物防20%持续3回合",
@@ -5743,8 +5743,8 @@
       "rarity": 6,
       "description": "天阶辅助功法，提升法攻与法防属性",
       "stats": {
-        "magicAttack": 1392,
-        "magicDefense": 928
+        "magicAttack": 2088,
+        "magicDefense": 1392
       },
       "skillName": "法御神谕",
       "skillDescription": "提高全队法攻和法防20%持续3回合",
@@ -5775,8 +5775,8 @@
       "rarity": 6,
       "description": "天阶辅助功法，提升物攻与法攻属性",
       "stats": {
-        "physicalAttack": 1392,
-        "magicAttack": 1392
+        "physicalAttack": 2088,
+        "magicAttack": 2088
       },
       "skillName": "双攻神谕",
       "skillDescription": "提高全队物攻和法攻20%持续3回合",
@@ -5807,8 +5807,8 @@
       "rarity": 6,
       "description": "天阶辅助功法，提升物防与法防属性",
       "stats": {
-        "physicalDefense": 1160,
-        "magicDefense": 928
+        "physicalDefense": 1740,
+        "magicDefense": 1392
       },
       "skillName": "双防神谕",
       "skillDescription": "提高全队物防和法防20%持续3回合",
@@ -5839,8 +5839,8 @@
       "rarity": 6,
       "description": "天阶辅助功法，提升物攻与速度属性",
       "stats": {
-        "physicalAttack": 1392,
-        "speed": 1740
+        "physicalAttack": 2088,
+        "speed": 2610
       },
       "skillName": "疾攻神谕",
       "skillDescription": "提高全队物攻和速度20%持续3回合",
@@ -5871,8 +5871,8 @@
       "rarity": 6,
       "description": "天阶辅助功法，提升法攻与速度属性",
       "stats": {
-        "magicAttack": 1392,
-        "speed": 1740
+        "magicAttack": 2088,
+        "speed": 2610
       },
       "skillName": "迅法神谕",
       "skillDescription": "提高全队法攻和速度20%持续3回合",
@@ -5903,8 +5903,8 @@
       "rarity": 6,
       "description": "天阶辅助功法，提升灵力与物攻属性",
       "stats": {
-        "mp": 6960,
-        "physicalAttack": 1392
+        "mp": 10440,
+        "physicalAttack": 2088
       },
       "skillName": "灵武神谕",
       "skillDescription": "提高全队灵力和物攻20%持续3回合",
@@ -5935,8 +5935,8 @@
       "rarity": 6,
       "description": "天阶辅助功法，提升生命与物防属性",
       "stats": {
-        "hp": 13920,
-        "physicalDefense": 1160
+        "hp": 20880,
+        "physicalDefense": 1740
       },
       "skillName": "坚体神谕",
       "skillDescription": "提高全队生命和物防20%持续3回合",
@@ -5967,8 +5967,8 @@
       "rarity": 6,
       "description": "天阶辅助功法，提升灵力与法攻属性",
       "stats": {
-        "mp": 6960,
-        "magicAttack": 1392
+        "mp": 10440,
+        "magicAttack": 2088
       },
       "skillName": "元法神谕",
       "skillDescription": "提高全队灵力和法攻20%持续3回合",
@@ -6001,8 +6001,8 @@
       "rarity": 1,
       "description": "凡品心法，修炼速度+5%，技能：增加自身20%血量持续3回合",
       "stats": {
-        "hp": 24,
-        "cultivationSpeedPercent": 5
+        "hp": 36,
+        "cultivationSpeedPercent": 8
       },
       "skillName": "固本",
       "skillDescription": "增加自身20%血量持续3回合",
@@ -6035,8 +6035,8 @@
       "rarity": 1,
       "description": "凡品心法，修炼速度+5%，技能：增加自身20%灵力持续3回合",
       "stats": {
-        "mp": 12,
-        "cultivationSpeedPercent": 5
+        "mp": 18,
+        "cultivationSpeedPercent": 8
       },
       "skillName": "聚灵",
       "skillDescription": "增加自身20%灵力持续3回合",
@@ -6069,9 +6069,9 @@
       "rarity": 1,
       "description": "凡品心法，修炼速度+5%，技能：增加自身20%血量和灵力持续3回合",
       "stats": {
-        "hp": 24,
-        "mp": 12,
-        "cultivationSpeedPercent": 5
+        "hp": 36,
+        "mp": 18,
+        "cultivationSpeedPercent": 8
       },
       "skillName": "双修",
       "skillDescription": "增加自身20%血量和灵力持续3回合",
@@ -6109,8 +6109,8 @@
       "rarity": 1,
       "description": "凡品心法，修炼速度+5%，技能：增加全队20%血量持续3回合",
       "stats": {
-        "hp": 12,
-        "cultivationSpeedPercent": 5
+        "hp": 18,
+        "cultivationSpeedPercent": 8
       },
       "skillName": "护体",
       "skillDescription": "增加全队20%血量持续3回合",
@@ -6143,8 +6143,8 @@
       "rarity": 1,
       "description": "凡品心法，修炼速度+5%，技能：增加全队20%灵力持续3回合",
       "stats": {
-        "mp": 6,
-        "cultivationSpeedPercent": 5
+        "mp": 9,
+        "cultivationSpeedPercent": 8
       },
       "skillName": "灵蕴",
       "skillDescription": "增加全队20%灵力持续3回合",
@@ -6177,9 +6177,9 @@
       "rarity": 1,
       "description": "凡品心法，修炼速度+5%，技能：增加全队20%血量和灵力持续3回合",
       "stats": {
-        "hp": 12,
-        "mp": 6,
-        "cultivationSpeedPercent": 5
+        "hp": 18,
+        "mp": 9,
+        "cultivationSpeedPercent": 8
       },
       "skillName": "同心",
       "skillDescription": "增加全队20%血量和灵力持续3回合",
@@ -6217,8 +6217,8 @@
       "rarity": 2,
       "description": "灵品心法，修炼速度+8%，技能：增加自身20%血量持续3回合",
       "stats": {
-        "hp": 156,
-        "cultivationSpeedPercent": 8
+        "hp": 234,
+        "cultivationSpeedPercent": 12
       },
       "skillName": "淬骨",
       "skillDescription": "增加自身20%血量持续3回合",
@@ -6251,8 +6251,8 @@
       "rarity": 2,
       "description": "灵品心法，修炼速度+8%，技能：增加自身20%灵力持续3回合",
       "stats": {
-        "mp": 78,
-        "cultivationSpeedPercent": 8
+        "mp": 117,
+        "cultivationSpeedPercent": 12
       },
       "skillName": "凝神",
       "skillDescription": "增加自身20%灵力持续3回合",
@@ -6285,9 +6285,9 @@
       "rarity": 2,
       "description": "灵品心法，修炼速度+8%，技能：增加自身20%血量和灵力持续3回合",
       "stats": {
-        "hp": 156,
-        "mp": 78,
-        "cultivationSpeedPercent": 8
+        "hp": 234,
+        "mp": 117,
+        "cultivationSpeedPercent": 12
       },
       "skillName": "阴阳",
       "skillDescription": "增加自身20%血量和灵力持续3回合",
@@ -6325,8 +6325,8 @@
       "rarity": 2,
       "description": "灵品心法，修炼速度+8%，技能：增加全队20%血量持续3回合",
       "stats": {
-        "hp": 78,
-        "cultivationSpeedPercent": 8
+        "hp": 117,
+        "cultivationSpeedPercent": 12
       },
       "skillName": "金刚",
       "skillDescription": "增加全队20%血量持续3回合",
@@ -6359,8 +6359,8 @@
       "rarity": 2,
       "description": "灵品心法，修炼速度+8%，技能：增加全队20%灵力持续3回合",
       "stats": {
-        "mp": 39,
-        "cultivationSpeedPercent": 8
+        "mp": 59,
+        "cultivationSpeedPercent": 12
       },
       "skillName": "灵泉",
       "skillDescription": "增加全队20%灵力持续3回合",
@@ -6393,9 +6393,9 @@
       "rarity": 2,
       "description": "灵品心法，修炼速度+8%，技能：增加全队20%血量和灵力持续3回合",
       "stats": {
-        "hp": 78,
-        "mp": 39,
-        "cultivationSpeedPercent": 8
+        "hp": 117,
+        "mp": 59,
+        "cultivationSpeedPercent": 12
       },
       "skillName": "共鸣",
       "skillDescription": "增加全队20%血量和灵力持续3回合",
@@ -6433,8 +6433,8 @@
       "rarity": 3,
       "description": "宝品心法，修炼速度+12%，技能：增加自身20%血量持续3回合",
       "stats": {
-        "hp": 408,
-        "cultivationSpeedPercent": 12
+        "hp": 612,
+        "cultivationSpeedPercent": 18
       },
       "skillName": "不灭",
       "skillDescription": "增加自身20%血量持续3回合",
@@ -6467,8 +6467,8 @@
       "rarity": 3,
       "description": "宝品心法，修炼速度+12%，技能：增加自身20%灵力持续3回合",
       "stats": {
-        "mp": 204,
-        "cultivationSpeedPercent": 12
+        "mp": 306,
+        "cultivationSpeedPercent": 18
       },
       "skillName": "元神",
       "skillDescription": "增加自身20%灵力持续3回合",
@@ -6501,9 +6501,9 @@
       "rarity": 3,
       "description": "宝品心法，修炼速度+12%，技能：增加自身20%血量和灵力持续3回合",
       "stats": {
-        "hp": 408,
-        "mp": 204,
-        "cultivationSpeedPercent": 12
+        "hp": 612,
+        "mp": 306,
+        "cultivationSpeedPercent": 18
       },
       "skillName": "太一",
       "skillDescription": "增加自身20%血量和灵力持续3回合",
@@ -6541,8 +6541,8 @@
       "rarity": 3,
       "description": "宝品心法，修炼速度+12%，技能：增加全队20%血量持续3回合",
       "stats": {
-        "hp": 204,
-        "cultivationSpeedPercent": 12
+        "hp": 306,
+        "cultivationSpeedPercent": 18
       },
       "skillName": "天罡",
       "skillDescription": "增加全队20%血量持续3回合",
@@ -6575,8 +6575,8 @@
       "rarity": 3,
       "description": "宝品心法，修炼速度+12%，技能：增加全队20%灵力持续3回合",
       "stats": {
-        "mp": 102,
-        "cultivationSpeedPercent": 12
+        "mp": 153,
+        "cultivationSpeedPercent": 18
       },
       "skillName": "万灵",
       "skillDescription": "增加全队20%灵力持续3回合",
@@ -6609,9 +6609,9 @@
       "rarity": 3,
       "description": "宝品心法，修炼速度+12%，技能：增加全队20%血量和灵力持续3回合",
       "stats": {
-        "hp": 204,
-        "mp": 102,
-        "cultivationSpeedPercent": 12
+        "hp": 306,
+        "mp": 153,
+        "cultivationSpeedPercent": 18
       },
       "skillName": "大同",
       "skillDescription": "增加全队20%血量和灵力持续3回合",
@@ -6649,8 +6649,8 @@
       "rarity": 4,
       "description": "玄品心法，修炼速度+16%，技能：增加自身20%血量持续3回合",
       "stats": {
-        "hp": 1080,
-        "cultivationSpeedPercent": 16
+        "hp": 1620,
+        "cultivationSpeedPercent": 24
       },
       "skillName": "九转",
       "skillDescription": "增加自身20%血量持续3回合",
@@ -6683,8 +6683,8 @@
       "rarity": 4,
       "description": "玄品心法，修炼速度+16%，技能：增加自身20%灵力持续3回合",
       "stats": {
-        "mp": 540,
-        "cultivationSpeedPercent": 16
+        "mp": 810,
+        "cultivationSpeedPercent": 24
       },
       "skillName": "三花",
       "skillDescription": "增加自身20%灵力持续3回合",
@@ -6717,9 +6717,9 @@
       "rarity": 4,
       "description": "玄品心法，修炼速度+16%，技能：增加自身20%血量和灵力持续3回合",
       "stats": {
-        "hp": 1080,
-        "mp": 540,
-        "cultivationSpeedPercent": 16
+        "hp": 1620,
+        "mp": 810,
+        "cultivationSpeedPercent": 24
       },
       "skillName": "五气",
       "skillDescription": "增加自身20%血量和灵力持续3回合",
@@ -6757,8 +6757,8 @@
       "rarity": 4,
       "description": "玄品心法，修炼速度+16%，技能：增加全队20%血量持续3回合",
       "stats": {
-        "hp": 540,
-        "cultivationSpeedPercent": 16
+        "hp": 810,
+        "cultivationSpeedPercent": 24
       },
       "skillName": "诸天",
       "skillDescription": "增加全队20%血量持续3回合",
@@ -6791,8 +6791,8 @@
       "rarity": 4,
       "description": "玄品心法，修炼速度+16%，技能：增加全队20%灵力持续3回合",
       "stats": {
-        "mp": 270,
-        "cultivationSpeedPercent": 16
+        "mp": 405,
+        "cultivationSpeedPercent": 24
       },
       "skillName": "星河",
       "skillDescription": "增加全队20%灵力持续3回合",
@@ -6825,9 +6825,9 @@
       "rarity": 4,
       "description": "玄品心法，修炼速度+16%，技能：增加全队20%血量和灵力持续3回合",
       "stats": {
-        "hp": 540,
-        "mp": 270,
-        "cultivationSpeedPercent": 16
+        "hp": 810,
+        "mp": 405,
+        "cultivationSpeedPercent": 24
       },
       "skillName": "太虚",
       "skillDescription": "增加全队20%血量和灵力持续3回合",
@@ -6865,8 +6865,8 @@
       "rarity": 5,
       "description": "地品心法，修炼速度+20%，技能：增加自身20%血量持续3回合",
       "stats": {
-        "hp": 2640,
-        "cultivationSpeedPercent": 20
+        "hp": 3960,
+        "cultivationSpeedPercent": 30
       },
       "skillName": "混元",
       "skillDescription": "增加自身20%血量持续3回合",
@@ -6899,8 +6899,8 @@
       "rarity": 5,
       "description": "地品心法，修炼速度+20%，技能：增加自身20%灵力持续3回合",
       "stats": {
-        "mp": 1320,
-        "cultivationSpeedPercent": 20
+        "mp": 1980,
+        "cultivationSpeedPercent": 30
       },
       "skillName": "鸿蒙",
       "skillDescription": "增加自身20%灵力持续3回合",
@@ -6933,9 +6933,9 @@
       "rarity": 5,
       "description": "地品心法，修炼速度+20%，技能：增加自身20%血量和灵力持续3回合",
       "stats": {
-        "hp": 2640,
-        "mp": 1320,
-        "cultivationSpeedPercent": 20
+        "hp": 3960,
+        "mp": 1980,
+        "cultivationSpeedPercent": 30
       },
       "skillName": "道衍",
       "skillDescription": "增加自身20%血量和灵力持续3回合",
@@ -6973,8 +6973,8 @@
       "rarity": 5,
       "description": "地品心法，修炼速度+20%，技能：增加全队20%血量持续3回合",
       "stats": {
-        "hp": 1320,
-        "cultivationSpeedPercent": 20
+        "hp": 1980,
+        "cultivationSpeedPercent": 30
       },
       "skillName": "宇宙",
       "skillDescription": "增加全队20%血量持续3回合",
@@ -7007,8 +7007,8 @@
       "rarity": 5,
       "description": "地品心法，修炼速度+20%，技能：增加全队20%灵力持续3回合",
       "stats": {
-        "mp": 660,
-        "cultivationSpeedPercent": 20
+        "mp": 990,
+        "cultivationSpeedPercent": 30
       },
       "skillName": "万象",
       "skillDescription": "增加全队20%灵力持续3回合",
@@ -7041,9 +7041,9 @@
       "rarity": 5,
       "description": "地品心法，修炼速度+20%，技能：增加全队20%血量和灵力持续3回合",
       "stats": {
-        "hp": 1320,
-        "mp": 660,
-        "cultivationSpeedPercent": 20
+        "hp": 1980,
+        "mp": 990,
+        "cultivationSpeedPercent": 30
       },
       "skillName": "归一",
       "skillDescription": "增加全队20%血量和灵力持续3回合",
@@ -7081,8 +7081,8 @@
       "rarity": 6,
       "description": "天品心法，修炼速度+25%，技能：增加自身20%血量持续3回合",
       "stats": {
-        "hp": 13920,
-        "cultivationSpeedPercent": 25
+        "hp": 20880,
+        "cultivationSpeedPercent": 38
       },
       "skillName": "永恒",
       "skillDescription": "增加自身20%血量持续3回合",
@@ -7115,8 +7115,8 @@
       "rarity": 6,
       "description": "天品心法，修炼速度+25%，技能：增加自身20%灵力持续3回合",
       "stats": {
-        "mp": 6960,
-        "cultivationSpeedPercent": 25
+        "mp": 10440,
+        "cultivationSpeedPercent": 38
       },
       "skillName": "混沌",
       "skillDescription": "增加自身20%灵力持续3回合",
@@ -7149,9 +7149,9 @@
       "rarity": 6,
       "description": "天品心法，修炼速度+25%，技能：增加自身20%血量和灵力持续3回合",
       "stats": {
-        "hp": 13920,
-        "mp": 6960,
-        "cultivationSpeedPercent": 25
+        "hp": 20880,
+        "mp": 10440,
+        "cultivationSpeedPercent": 38
       },
       "skillName": "鸿蒙果",
       "skillDescription": "增加自身20%血量和灵力持续3回合",
@@ -7189,8 +7189,8 @@
       "rarity": 6,
       "description": "天品心法，修炼速度+25%，技能：增加全队20%血量持续3回合",
       "stats": {
-        "hp": 6960,
-        "cultivationSpeedPercent": 25
+        "hp": 10440,
+        "cultivationSpeedPercent": 38
       },
       "skillName": "诸界",
       "skillDescription": "增加全队20%血量持续3回合",
@@ -7223,8 +7223,8 @@
       "rarity": 6,
       "description": "天品心法，修炼速度+25%，技能：增加全队20%灵力持续3回合",
       "stats": {
-        "mp": 3480,
-        "cultivationSpeedPercent": 25
+        "mp": 5220,
+        "cultivationSpeedPercent": 38
       },
       "skillName": "本源",
       "skillDescription": "增加全队20%灵力持续3回合",
@@ -7257,9 +7257,9 @@
       "rarity": 6,
       "description": "天品心法，修炼速度+25%，技能：增加全队20%血量和灵力持续3回合",
       "stats": {
-        "hp": 6960,
-        "mp": 3480,
-        "cultivationSpeedPercent": 25
+        "hp": 10440,
+        "mp": 5220,
+        "cultivationSpeedPercent": 38
       },
       "skillName": "天人",
       "skillDescription": "增加全队20%血量和灵力持续3回合",
